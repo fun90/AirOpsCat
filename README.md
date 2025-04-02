@@ -15,4 +15,4 @@ mvn clean package
 
 mvn -Pnative native:compile
 
-./target/globe-door-api --spring.config.location=file:src/main/resources/application.yaml
+./target/airopscat --spring.config.location=file:src/main/resources/application.yaml
