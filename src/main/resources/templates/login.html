@@ -1,0 +1,65 @@
+<!-- login.html -->
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="'登录 - ' + ${appName}">登录</title>
+    <!-- Tabler UI CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.1.1/dist/css/tabler.min.css">
+</head>
+<body class="d-flex flex-column">
+<div class="page page-center">
+    <div class="container container-tight py-4">
+        <div class="text-center mb-4">
+            <h1 class="navbar-brand-autodark">
+                <img src="/static/logo.png" height="36" alt="">
+            </h1>
+        </div>
+        <div class="card card-md">
+            <div class="card-body">
+                <h2 class="h2 text-center mb-4">登录到您的账户</h2>
+                <div th:if="${param.error}" class="alert alert-danger">
+                    登录失败，请检查您的凭据
+                </div>
+                <div th:if="${param.logout}" class="alert alert-success">
+                    您已成功退出登录
+                </div>
+                <form action="/api/login/auth" method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">邮箱地址</label>
+                        <input type="email" name="email" class="form-control" placeholder="your@email.com" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">
+                            密码
+                            <span class="form-label-description">
+                                <a href="/forgot-password">忘记密码</a>
+                            </span>
+                        </label>
+                        <input type="password" name="password" class="form-control" placeholder="您的密码" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-check">
+                            <input type="checkbox" name="remember-me" class="form-check-input"/>
+                            <span class="form-check-label">记住我</span>
+                        </label>
+                    </div>
+                    <div class="form-footer">
+                        <button type="submit" class="btn btn-primary w-100">
+                            登录
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="text-center text-muted mt-3">
+            还没有账户? <a href="/register" tabindex="-1">注册</a>
+        </div>
+    </div>
+</div>
+
+<!-- Tabler UI JS -->
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.1.1/dist/js/tabler.min.js"></script>
+</body>
+</html>
