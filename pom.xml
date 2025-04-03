@@ -80,14 +80,6 @@
             <artifactId>hibernate-community-dialects</artifactId>
         </dependency>
 
-        <!-- 开发工具 -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-devtools</artifactId>
-            <scope>runtime</scope>
-            <optional>true</optional>
-        </dependency>
-
         <!-- 测试依赖 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -100,6 +92,22 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- 代码简化 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+            <scope>compile</scope>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.mapstruct/mapstruct -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>${mapstruct.version}</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <!-- 其他工具 -->
         <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-lang3 -->
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -124,29 +132,11 @@
             <artifactId>caffeine</artifactId>
             <version>3.1.8</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.apache.sshd/apache-sshd -->
+        <!-- https://mvnrepository.com/artifact/com.jcraft/jsch -->
         <dependency>
-            <groupId>org.apache.sshd</groupId>
-            <artifactId>sshd-core</artifactId>
-            <version>2.15.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.sshd</groupId>
-            <artifactId>sshd-sftp</artifactId>
-            <version>2.15.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <optional>true</optional>
-            <scope>compile</scope>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/org.mapstruct/mapstruct -->
-        <dependency>
-            <groupId>org.mapstruct</groupId>
-            <artifactId>mapstruct</artifactId>
-            <version>${mapstruct.version}</version>
-            <scope>compile</scope>
+            <groupId>com.jcraft</groupId>
+            <artifactId>jsch</artifactId>
+            <version>0.1.55</version>
         </dependency>
     </dependencies>
 
@@ -173,11 +163,6 @@
             <plugin>
                 <groupId>org.graalvm.buildtools</groupId>
                 <artifactId>native-maven-plugin</artifactId>
-                <configuration>
-                    <buildArgs>
-                        <buildArg>--initialize-at-build-time=org.apache.sshd.sftp.client.fs.SftpFileSystemProvider</buildArg>
-                    </buildArgs>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

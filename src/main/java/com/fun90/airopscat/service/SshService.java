@@ -3,277 +3,171 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.BatchCommandResult;
 import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.ServerConfig;
-import org.apache.sshd.client.SshClient;
-import org.apache.sshd.client.channel.ChannelExec;
-import org.apache.sshd.client.channel.ClientChannelEvent;
-import org.apache.sshd.client.session.ClientSession;
-import org.apache.sshd.sftp.client.SftpClient;
-import org.apache.sshd.sftp.client.SftpClientFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.jcraft.jsch.*;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.KeyPair;
-import java.time.Duration;
-import java.util.*;
+import java.io.*;
+import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
+@Slf4j
 @Service
-public class SshService implements AutoCloseable {
-    private static final Logger logger = LoggerFactory.getLogger(SshService.class);
-    private static final int DEFAULT_CONNECT_TIMEOUT = 10000;
-    private static final int DEFAULT_AUTH_TIMEOUT = 10000;
-    private static final long DEFAULT_COMMAND_TIMEOUT = 30000L;
+public class SshService {
 
-    private final SshClient client;
-    private final Map<String, ClientSession> sessionCache = new ConcurrentHashMap<>();
-
-    public SshService() {
-        this.client = SshClient.setUpDefaultClient();
-        this.client.start();
-        // 使用系统默认的known_hosts文件
-        // client.setServerKeyVerifier(AcceptAllServerKeyVerifier.INSTANCE);
-        logger.info("SSH client started");
-    }
-
-    @Override
-    public void close() {
-        sessionCache.forEach((key, session) -> {
-            try {
-                session.close();
-                logger.info("Closed session: {}", key);
-            } catch (IOException e) {
-                logger.warn("Error closing session {}: {}", key, e.getMessage());
-            }
-        });
-        sessionCache.clear();
-
-        client.stop();
-        logger.info("SSH client stopped");
-    }
+    private final ExecutorService executorService = Executors.newCachedThreadPool();
 
     /**
-     * 获取或创建SSH会话
+     * 连接到SSH服务器
      */
-    public ClientSession getSession(ServerConfig config) throws IOException {
-        String sessionKey = config.getUsername() + "@" + config.getHost() + ":" + config.getPort();
+    public Session connectToServer(ServerConfig config) throws JSchException {
+        JSch jsch = new JSch();
         
-        // 检查缓存中是否有可用会话
-        ClientSession session = sessionCache.get(sessionKey);
-        if (session != null && session.isOpen()) {
-            return session;
+        // 如果使用密钥认证
+        if (config.getPrivateKeyPath() != null && !config.getPrivateKeyPath().isEmpty()) {
+            jsch.addIdentity(config.getPrivateKeyPath(), config.getPassphrase());
         }
         
-        // 创建新会话
-        session = createSession(config);
-        sessionCache.put(sessionKey, session);
+        Session session = jsch.getSession(config.getUsername(), config.getHost(), config.getPort());
+        
+        // 如果使用密码认证
+        if (config.getPassword() != null && !config.getPassword().isEmpty()) {
+            session.setPassword(config.getPassword());
+        }
+        
+        // 避免提示主机密钥确认
+        Properties props = new Properties();
+        props.put("StrictHostKeyChecking", "no");
+        session.setConfig(props);
+        
+        session.connect(config.getTimeout());
+        log.info("成功连接到服务器: {}:{}", config.getHost(), config.getPort());
+        
         return session;
     }
-
+    
     /**
-     * 创建新的SSH会话
+     * 执行命令并返回结果
      */
-    private ClientSession createSession(ServerConfig config) throws IOException {
-        try {
-            ClientSession session = client.connect(
-                config.getUsername(),
-                config.getHost(),
-                config.getPort()
-            )
-            .verify(Duration.ofMillis(DEFAULT_CONNECT_TIMEOUT))
-            .getSession();
-
-            // 配置认证方式
-            if (config.getPrivateKeyPath() != null && !config.getPrivateKeyPath().isEmpty()) {
-                // 使用密钥认证
-                session.addPublicKeyIdentity(loadKeyPair(config.getPrivateKeyPath(), config.getPassphrase()));
-            } else if (config.getPassword() != null && !config.getPassword().isEmpty()) {
-                // 使用密码认证
-                session.addPasswordIdentity(config.getPassword());
-            } else {
-                throw new IllegalArgumentException("Neither password nor private key provided for authentication");
-            }
-
-            // 执行认证
-            session.auth().verify(Duration.ofMillis(DEFAULT_AUTH_TIMEOUT));
-            logger.info("Successfully connected to {}:{}", config.getHost(), config.getPort());
-            
-            return session;
-        } catch (IOException e) {
-            logger.error("Failed to connect to {}:{}: {}", config.getHost(), config.getPort(), e.getMessage());
-            throw e;
-        }
-    }
-
-    /**
-     * 从文件加载SSH密钥对
-     */
-    private KeyPair loadKeyPair(String privateKeyPath, String passphrase) throws IOException {
-        // 实际应用中需要实现从文件加载密钥对的逻辑
-        // 此处为简化示例，实际实现应该使用Apache SSHD的密钥加载工具
-        throw new UnsupportedOperationException("Key loading not implemented in this example");
-    }
-
-    /**
-     * 执行远程命令并返回结果
-     */
-    public CommandResult executeCommand(ClientSession session, String command, long timeoutMillis) throws IOException {
+    public CommandResult executeCommand(Session session, String command) throws JSchException, IOException {
+        ChannelExec channel = (ChannelExec) session.openChannel("exec");
         CommandResult result = new CommandResult();
         
-        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-             ByteArrayOutputStream errorStream = new ByteArrayOutputStream()) {
+        try {
+            channel.setCommand(command);
             
-            ChannelExec channel = session.createExecChannel(command);
-            channel.setOut(outputStream);
-            channel.setErr(errorStream);
+            // 获取标准输出和错误输出
+            InputStream inputStream = channel.getInputStream();
+            InputStream errorStream = channel.getErrStream();
             
-            channel.open().verify(Duration.ofSeconds(10));
+            channel.connect();
             
-            // 等待命令执行完成或超时
-            Collection<ClientChannelEvent> events = channel.waitFor(
-                EnumSet.of(ClientChannelEvent.CLOSED),
-                TimeUnit.MILLISECONDS.toMillis(timeoutMillis)
-            );
+            // 获取命令输出
+            String stdout = new BufferedReader(new InputStreamReader(inputStream))
+                    .lines().collect(Collectors.joining("\n"));
+            String stderr = new BufferedReader(new InputStreamReader(errorStream))
+                    .lines().collect(Collectors.joining("\n"));
             
-            if (events.contains(ClientChannelEvent.TIMEOUT)) {
-                result.setExitStatus(-1);
-                result.setStderr("Command execution timed out after " + timeoutMillis + "ms");
-            } else {
-                result.setExitStatus(channel.getExitStatus());
-                result.setStdout(outputStream.toString(StandardCharsets.UTF_8));
-                result.setStderr(errorStream.toString(StandardCharsets.UTF_8));
+            result.setExitStatus(channel.getExitStatus());
+            result.setStdout(stdout);
+            result.setStderr(stderr);
+            
+            log.info("命令执行完成, 退出码: {}", result.getExitStatus());
+        } finally {
+            if (channel != null) {
+                channel.disconnect();
             }
-            
-            channel.close();
-            logger.info("Command execution completed with exit status: {}", result.getExitStatus());
         }
         
         return result;
     }
     
     /**
-     * 执行命令使用默认超时时间
+     * 读取远程文件
      */
-    public CommandResult executeCommand(ClientSession session, String command) throws IOException {
-        return executeCommand(session, command, DEFAULT_COMMAND_TIMEOUT);
-    }
-
-    /**
-     * 读取远程文件内容
-     */
-    public String readRemoteFile(ClientSession session, String remotePath) throws IOException {
-        SftpClientFactory factory = SftpClientFactory.instance();
-        try (SftpClient sftpClient = factory.createSftpClient(session)) {
-            try (InputStream is = sftpClient.read(remotePath)) {
-                return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+    public String readRemoteFile(Session session, String remotePath) throws JSchException, SftpException, IOException {
+        ChannelSftp channelSftp = (ChannelSftp) session.openChannel("sftp");
+        StringBuilder content = new StringBuilder();
+        
+        try {
+            channelSftp.connect();
+            
+            InputStream inputStream = channelSftp.get(remotePath);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+            
+            String line;
+            while ((line = reader.readLine()) != null) {
+                content.append(line).append("\n");
             }
-        } catch (IOException e) {
-            logger.error("Failed to read remote file {}: {}", remotePath, e.getMessage());
-            throw e;
+            
+            reader.close();
+            log.info("成功读取文件: {}", remotePath);
+        } finally {
+            if (channelSftp != null) {
+                channelSftp.disconnect();
+            }
         }
+        
+        return content.toString();
     }
-
+    
     /**
      * 写入远程文件
      */
-    public void writeRemoteFile(ClientSession session, String content, String remotePath) throws IOException {
-        SftpClientFactory factory = SftpClientFactory.instance();
-        try (SftpClient sftpClient = factory.createSftpClient(session)) {
-            byte[] data = content.getBytes(StandardCharsets.UTF_8);
-            try (OutputStream os = sftpClient.write(remotePath)) {
-                os.write(data);
-                os.flush();
+    public void writeRemoteFile(Session session, String content, String remotePath) throws JSchException, SftpException, IOException {
+        ChannelSftp channelSftp = (ChannelSftp) session.openChannel("sftp");
+        
+        try {
+            channelSftp.connect();
+            
+            // 创建临时文件
+            File tempFile = File.createTempFile("upload", ".tmp");
+            FileWriter writer = new FileWriter(tempFile);
+            writer.write(content);
+            writer.close();
+            
+            // 上传文件
+            channelSftp.put(new FileInputStream(tempFile), remotePath, ChannelSftp.OVERWRITE);
+            
+            // 删除临时文件
+            tempFile.delete();
+            
+            log.info("成功写入文件: {}", remotePath);
+        } finally {
+            if (channelSftp != null) {
+                channelSftp.disconnect();
             }
-            logger.info("Successfully wrote to remote file: {}", remotePath);
-        } catch (IOException e) {
-            logger.error("Failed to write to remote file {}: {}", remotePath, e.getMessage());
-            throw e;
         }
     }
-
+    
     /**
-     * 批量执行命令（使用Java 21虚拟线程）
+     * 批量执行命令
      */
     public CompletableFuture<BatchCommandResult> batchExecuteCommand(
             List<ServerConfig> serverConfigs, String command) {
         
         BatchCommandResult batchResult = new BatchCommandResult();
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
         
-        for (ServerConfig serverConfig : serverConfigs) {
-            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+        return CompletableFuture.supplyAsync(() -> {
+            for (ServerConfig serverConfig : serverConfigs) {
                 try {
-                    ClientSession session = getSession(serverConfig);
+                    Session session = connectToServer(serverConfig);
                     CommandResult result = executeCommand(session, command);
                     batchResult.addResult(serverConfig.getHost(), result);
-                    // 注意不关闭会话，因为它被缓存供后续使用
+                    session.disconnect();
                 } catch (Exception e) {
-                    logger.error("Failed to execute command on {}: {}", 
-                            serverConfig.getHost(), e.getMessage());
+                    log.error("批量执行命令失败: {}", e.getMessage(), e);
                     CommandResult errorResult = new CommandResult();
                     errorResult.setExitStatus(-1);
-                    errorResult.setStderr("Connection or execution error: " + e.getMessage());
+                    errorResult.setStderr("连接或执行错误: " + e.getMessage());
                     batchResult.addResult(serverConfig.getHost(), errorResult);
                 }
-            });
-            
-            futures.add(future);
-        }
-        
-        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-                .thenApply(v -> batchResult);
-    }
-
-    /**
-     * 上传本地文件到远程服务器
-     */
-    public void uploadFile(ClientSession session, Path localPath, String remotePath) throws IOException {
-        SftpClientFactory factory = SftpClientFactory.instance();
-        try (SftpClient sftpClient = factory.createSftpClient(session)) {
-            try (OutputStream os = sftpClient.write(remotePath);
-                 InputStream is = Files.newInputStream(localPath)) {
-                byte[] buffer = new byte[8192];
-                int len;
-                while ((len = is.read(buffer)) != -1) {
-                    os.write(buffer, 0, len);
-                }
-                os.flush();
             }
-            logger.info("Successfully uploaded file to: {}", remotePath);
-        } catch (IOException e) {
-            logger.error("Failed to upload file to {}: {}", remotePath, e.getMessage());
-            throw e;
-        }
-    }
-
-    /**
-     * 下载远程文件到本地
-     */
-    public void downloadFile(ClientSession session, String remotePath, Path localPath) throws IOException {
-        SftpClientFactory factory = SftpClientFactory.instance();
-        try (SftpClient sftpClient = factory.createSftpClient(session)) {
-            try (InputStream is = sftpClient.read(remotePath);
-                 OutputStream os = Files.newOutputStream(localPath)) {
-                byte[] buffer = new byte[8192];
-                int len;
-                while ((len = is.read(buffer)) != -1) {
-                    os.write(buffer, 0, len);
-                }
-                os.flush();
-            }
-            logger.info("Successfully downloaded file from: {}", remotePath);
-        } catch (IOException e) {
-            logger.error("Failed to download file from {}: {}", remotePath, e.getMessage());
-            throw e;
-        }
+            return batchResult;
+        }, executorService);
     }
 }
