@@ -13,4 +13,5 @@ public class ServerConfig {
     private String password;
     private String privateKeyPath;
     private String passphrase;
+    private int timeout = 30000;
 }
