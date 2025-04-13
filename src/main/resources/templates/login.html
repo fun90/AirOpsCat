@@ -1,65 +1,197 @@
-<!-- login.html -->
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title th:text="'登录 - ' + ${appName}">登录</title>
     <!-- Tabler UI CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.1.1/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.0.0/tabler-icons.min.css">
+
+    <style>
+        body {
+            background-color: #f5f7fb;
+        }
+
+        .page-center {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .max-width {
+            max-width: 90%;
+            margin: 0 auto;
+        }
+
+        .login-card {
+            /*max-width: 400px;*/
+            width: 100%;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .social-login {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .social-btn {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            border: 1px solid #e6e7e9;
+            color: #626976;
+            transition: all 0.2s ease;
+        }
+
+        .social-btn:hover {
+            background-color: #f8f9fa;
+        }
+
+        .social-btn.google {
+            color: #ea4335;
+        }
+
+        .social-btn.facebook {
+            color: #1877f2;
+        }
+
+        .social-btn.twitter {
+            color: #1da1f2;
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 2rem;
+            color: #626976;
+        }
+
+        .form-footer {
+            margin-top: 2rem;
+        }
+
+        .sign-up-text {
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .or-continue {
+            text-align: center;
+            margin: 2rem 0 1rem;
+            color: #626976;
+        }
+    </style>
 </head>
 <body class="d-flex flex-column">
 <div class="page page-center">
     <div class="container container-tight py-4">
-        <div class="text-center mb-4">
-            <h1 class="navbar-brand-autodark">
-                <img src="/static/logo.png" height="36" alt="">
-            </h1>
+
+        <div class="text-center max-width">
+            <img src="/static/logo.png" style="height: 150px">
         </div>
-        <div class="card card-md">
+
+        <div class="card card-md login-card max-width">
             <div class="card-body">
-                <h2 class="h2 text-center mb-4">登录到您的账户</h2>
-                <div th:if="${param.error}" class="alert alert-danger">
-                    登录失败，请检查您的凭据
-                </div>
-                <div th:if="${param.logout}" class="alert alert-success">
-                    您已成功退出登录
-                </div>
-                <form action="/api/login/auth" method="POST">
+
+                <form action="/api/login/auth" method="POST" autocomplete="off">
                     <div class="mb-3">
                         <label class="form-label">邮箱地址</label>
-                        <input type="email" name="email" class="form-control" placeholder="your@email.com" required>
+                        <input type="email" name="email" class="form-control" placeholder="your@email.com" required autocomplete="off">
                     </div>
-                    <div class="mb-2">
-                        <label class="form-label">
-                            密码
-                            <span class="form-label-description">
-                                <a href="/forgot-password">忘记密码</a>
-                            </span>
-                        </label>
-                        <input type="password" name="password" class="form-control" placeholder="您的密码" required>
+
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                            <label class="form-label">密码</label>
+                            <a href="#" class="link-primary">忘记密码?</a>
+                        </div>
+                        <div class="input-group input-group-flat">
+                            <input type="password" name="password" class="form-control" placeholder="您的密码" required autocomplete="off">
+                            <span class="input-group-text">
+                      <a href="#" class="link-secondary password-toggle" title="Show password">
+                        <i class="ti ti-eye"></i>
+                      </a>
+                    </span>
+                        </div>
                     </div>
-                    <div class="mb-2">
+
+                    <div class="mb-3">
                         <label class="form-check">
-                            <input type="checkbox" name="remember-me" class="form-check-input"/>
+                            <input type="checkbox" class="form-check-input">
                             <span class="form-check-label">记住我</span>
                         </label>
                     </div>
+
                     <div class="form-footer">
-                        <button type="submit" class="btn btn-primary w-100">
-                            登录
-                        </button>
+                        <button type="submit" class="btn btn-primary w-100">登录</button>
                     </div>
                 </form>
+
+                <div class="sign-up-text">
+                    <div>
+                        还没有账户?
+                        <a href="#" class="link-primary">注册</a>
+                    </div>
+                </div>
+
+<!--                <div class="or-continue">-->
+<!--                    or continue with-->
+<!--                </div>-->
+
+<!--                <div class="social-login">-->
+<!--                    <a href="#" class="social-btn google">-->
+<!--                        <i class="ti ti-brand-google"></i>-->
+<!--                    </a>-->
+<!--                    <a href="#" class="social-btn facebook">-->
+<!--                        <i class="ti ti-brand-facebook"></i>-->
+<!--                    </a>-->
+<!--                    <a href="#" class="social-btn twitter">-->
+<!--                        <i class="ti ti-brand-twitter"></i>-->
+<!--                    </a>-->
+<!--                </div>-->
             </div>
         </div>
-        <div class="text-center text-muted mt-3">
-            还没有账户? <a href="/register" tabindex="-1">注册</a>
+        <div class="text-center text-muted mt-3 max-width">
+            <small>© 2025 Tabler. All rights reserved.</small>
         </div>
     </div>
 </div>
 
 <!-- Tabler UI JS -->
 <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.1.1/dist/js/tabler.min.js"></script>
+
+<script>
+    // Show/hide password functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const eyeIcon = document.querySelector('.ti-eye');
+        if (eyeIcon) {
+            eyeIcon.addEventListener('click', function(e) {
+                e.preventDefault();
+                const passwordInput = this.closest('.input-group').querySelector('input');
+
+                if (passwordInput.type === 'password') {
+                    passwordInput.type = 'text';
+                    this.classList.remove('ti-eye');
+                    this.classList.add('ti-eye-off');
+                } else {
+                    passwordInput.type = 'password';
+                    this.classList.remove('ti-eye-off');
+                    this.classList.add('ti-eye');
+                }
+            });
+        }
+
+        // Initialize tooltips
+        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+        const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    });
+</script>
 </body>
 </html>

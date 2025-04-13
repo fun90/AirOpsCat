@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="content">
+    <div class="container-fluid">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Invoices</h3>
+            </div>
+            <div class="card-body border-bottom py-3">
+                <div class="d-flex">
+                    <div class="text-muted">
+                        Show
+                        <div class="mx-2 d-inline-block">
+                            <select class="form-select form-select-sm">
+                                <option value="8" selected>8</option>
+                                <option value="16">16</option>
+                                <option value="32">32</option>
+                            </select>
+                        </div>
+                        entries
+                    </div>
+                    <div class="ms-auto text-muted">
+                        Search:
+                        <div class="ms-2 d-inline-block">
+                            <input type="text" class="form-control form-control-sm" aria-label="Search invoice">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table card-table table-vcenter text-nowrap datatable">
+                    <thead>
+                    <tr>
+                        <th class="w-1"><input class="form-check-input m-0 align-middle" type="checkbox"></th>
+                        <th class="w-1">No.</th>
+                        <th>Invoice Subject</th>
+                        <th>Client</th>
+                        <th>VAT No.</th>
+                        <th>Created</th>
+                        <th>Status</th>
+                        <th>Price</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="i : ${#numbers.sequence(1, 8)}">
+                        <td><input class="form-check-input m-0 align-middle" type="checkbox"></td>
+<!--                        <td th:text="${'00140' + i}">001401</td>-->
+<!--                        <td th:text="${#arrays.get({'Design Works', 'UX Wireframes', 'New Dashboard', 'Landing Page', 'Marketing Templates', 'Sales Presentation', 'Logo & Print', 'Icons'}, i-1)}">Design Works</td>-->
+<!--                        <td th:text="${#arrays.get({'Carlson Limited', 'Adobe', 'Bluewolf', 'Salesforce', 'Printic', 'Tabdaq', 'Apple', 'Tookapic'}, i-1)}">Carlson Limited</td>-->
+<!--                        <td th:text="${'87956' + (600 + i * 100)}">87956621</td>-->
+<!--                        <td th:text="${#arrays.get({'15 Dec 2017', '12 Apr 2017', '23 Oct 2017', '2 Sep 2017', '29 Jan 2018', '4 Feb 2018', '22 Mar 2018', '13 May 2018'}, i-1)}">15 Dec 2017</td>-->
+                        <td>
+                            <span class="badge bg-success" th:if="${i == 1 || i == 7 || i == 8}">Paid</span>
+                            <span class="badge bg-warning" th:if="${i == 2 || i == 3}">Pending</span>
+                            <span class="badge bg-secondary" th:if="${i == 4 || i == 6}">Due</span>
+                            <span class="badge bg-danger" th:if="${i == 5}">Paid Today</span>
+                        </td>
+<!--                        <td th:text="${#arrays.get({'$887', '$1200', '$534', '$1500', '$648', '$300', '$2500', '$940'}, i-1)}">$887</td>-->
+                        <td class="text-end">
+                            <button class="btn btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                                Actions
+                            </button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer d-flex align-items-center">
+                <p class="m-0 text-muted">Showing 1 to 8 of 16 entries</p>
+                <ul class="pagination m-0 ms-auto">
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                            <i class="ti ti-chevron-left"></i>
+                            prev
+                        </a>
+                    </li>
+                    <li class="page-item"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item active"><a class="page-link" href="#">2</a></li>
+                    <li class="page-item"><a class="page-link" href="#">3</a></li>
+                    <li class="page-item"><a class="page-link" href="#">4</a></li>
+                    <li class="page-item"><a class="page-link" href="#">5</a></li>
+                    <li class="page-item">
+                        <a class="page-link" href="#">
+                            next
+                            <i class="ti ti-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

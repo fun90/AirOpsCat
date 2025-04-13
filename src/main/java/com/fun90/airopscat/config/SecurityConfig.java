@@ -41,13 +41,13 @@ public class SecurityConfig {
                 .requestMatchers("/static/**", "/login",  "/register").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/partner/**").hasAnyRole("ADMIN", "PARTNER")
-                .requestMatchers("/api/vip/**", "/dashboard").hasAnyRole("ADMIN", "PARTNER", "VIP")
+                .requestMatchers("/api/vip/**").hasAnyRole("ADMIN", "PARTNER", "VIP")
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form
                 .loginPage("/login")
                 .loginProcessingUrl("/api/login/auth")
-                .defaultSuccessUrl("/dashboard", true)
+//                .defaultSuccessUrl("/index", true)
                 .failureUrl("/login?error=true")
                 .usernameParameter("email") // 登录表单中的用户名参数
                 .passwordParameter("password") // 登录表单中的密码参数
