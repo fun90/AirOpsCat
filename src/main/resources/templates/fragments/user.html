@@ -1,26 +1,32 @@
 <div th:fragment="content" class="page-body">
+<!--    <div class="container-xl">-->
     <div class="card" id="users-app" v-scope>
         <div class="card-header">
             <h3 class="card-title">Users</h3>
             <div class="card-actions">
                 <div class="row g-2">
                     <div class="col">
-                        <input type="text" class="form-control" placeholder="Search users..." v-model="searchQuery">
+                        <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery">
                     </div>
                     <div class="col-auto">
                         <select class="form-select" v-model="filterRole">
-                            <option value="">All Roles</option>
-                            <option value="admin">Admin</option>
-                            <option value="user">User</option>
-                            <option value="editor">Editor</option>
+                            <option value="">全部角色</option>
+                            <option value="admin">ADMIN</option>
+                            <option value="user">PARTNER</option>
+                            <option value="editor">VIP</option>
                         </select>
                     </div>
                     <div class="col-auto">
                         <select class="form-select" v-model="filterStatus">
-                            <option value="">All Status</option>
+                            <option value="">全部状态</option>
                             <option value="active">Active</option>
                             <option value="disabled">Disabled</option>
                         </select>
+                    </div>
+                    <div class="col-auto">
+                        <a th:href="@{/users/create}" class="btn btn-primary">
+                            <i class="ti ti-plus"></i> 添加用户
+                        </a>
                     </div>
                 </div>
             </div>
@@ -70,32 +76,53 @@
                         </td>
                     </tr>
                     <tr v-if="filteredUsers.length === 0">
-                        <td colspan="7" class="text-center py-3">No users found.</td>
+                        <td colspan="7" class="text-center py-3">没有查到数据.</td>
                     </tr>
                     </tbody>
                 </table>
             </div>
         </div>
+        <!-- 分页 -->
         <div class="card-footer d-flex align-items-center">
-            <p class="m-0 text-muted">Showing <span v-text="filteredUsers.length"></span> users</p>
+            <p class="m-0 text-muted">显示 1 到 8 共 16 条</p>
             <ul class="pagination m-0 ms-auto">
                 <li class="page-item" :class="{ disabled: currentPage === 1 }">
                     <a class="page-link" href="#" @click.prevent="prevPage">
-                        <i class="ti ti-chevron-left"></i>
-                        prev
+                        <i class="ti ti-chevron-left"></i> 上一页
                     </a>
                 </li>
-                <li v-for="page in totalPages" :key="page" class="page-item" :class="{ active: page === currentPage }">
-                    <a class="page-link" href="#" @click.prevent="goToPage(page)" v-text="page"></a>
-                </li>
-                <li class="page-item" :class="{ disabled: currentPage === totalPages || totalPages === 0 }">
+                <li class="page-item"><a class="page-link" href="#">1</a></li>
+                <li class="page-item active"><a class="page-link" href="#">2</a></li>
+                <li class="page-item"><a class="page-link" href="#">3</a></li>
+                <li class="page-item"><a class="page-link" href="#">4</a></li>
+                <li class="page-item"><a class="page-link" href="#">5</a></li>
+                <li class="page-item">
                     <a class="page-link" href="#" @click.prevent="nextPage">
-                        next
-                        <i class="ti ti-chevron-right"></i>
+                        下一页 <i class="ti ti-chevron-right"></i>
                     </a>
                 </li>
             </ul>
         </div>
+<!--        <div class="card-footer d-flex align-items-center">-->
+<!--            <p class="m-0 text-muted">Showing <span v-text="filteredUsers.length"></span> users</p>-->
+<!--            <ul class="pagination m-0 ms-auto">-->
+<!--                <li class="page-item" :class="{ disabled: currentPage === 1 }">-->
+<!--                    <a class="page-link" href="#" @click.prevent="prevPage">-->
+<!--                        <i class="ti ti-chevron-left"></i>-->
+<!--                        上一页-->
+<!--                    </a>-->
+<!--                </li>-->
+<!--                <li v-for="page in totalPages" :key="page" class="page-item" :class="{ active: page === currentPage }">-->
+<!--                    <a class="page-link" href="#" @click.prevent="goToPage(page)" v-text="page"></a>-->
+<!--                </li>-->
+<!--                <li class="page-item" :class="{ disabled: currentPage === totalPages || totalPages === 0 }">-->
+<!--                    <a class="page-link" href="#" @click.prevent="nextPage">-->
+<!--                        下一页-->
+<!--                        <i class="ti ti-chevron-right"></i>-->
+<!--                    </a>-->
+<!--                </li>-->
+<!--            </ul>-->
+<!--        </div>-->
 
         <!-- Delete Confirmation Modal -->
         <div class="modal modal-blur fade" id="deleteModal" tabindex="-1" role="dialog" aria-hidden="true">
@@ -113,6 +140,7 @@
             </div>
         </div>
     </div>
+<!--    </div>-->
 <!--    <div class="container-fluid">-->
 <!--        <div class="row">-->
 <!--            <div class="col-12">-->
@@ -247,7 +275,6 @@
 
     // Get users from Thymeleaf model
     const users = /*[[${users}]]*/ [];
-    console.info(users)
 
     // Define the petite-vue app
     PetiteVue.createApp({
@@ -309,14 +336,14 @@
 
         getRoleBadgeClass(role) {
             switch (role && role.toLowerCase()) {
-                case 'admin': return 'bg-purple';
-                case 'editor': return 'bg-indigo';
-                default: return 'bg-blue';
+                case 'admin': return 'text-bg-purple';
+                case 'partner': return 'text-bg-indigo';
+                default: return 'text-bg-blue';
             }
         },
 
         getStatusBadgeClass(disabled) {
-            return disabled === 0 ? 'bg-success' : 'bg-danger';
+            return disabled === 0 ? 'text-bg-success' : 'text-bg-danger';
         },
 
         prevPage() {
@@ -472,5 +499,5 @@
                     }, 2000);
                 });
         }
-    }).mount('#app');
+    }).mount('#users-app');
 </script>
