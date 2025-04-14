@@ -59,24 +59,7 @@
             <div th:replace="~{fragments/header :: header}"></div>
 
             <!-- 主内容 -->
-            <!-- Page header -->
-            <div class="page-header d-print-none">
-                <div class="container-fluid">
-                    <div class="row g-2 align-items-center">
-                        <div class="col">
-                            <h2 class="page-title">Page Title</h2>
-                        </div>
-                        <div class="col-auto ms-auto" >
-                            <a th:href="@{/users/create}" class="btn btn-primary">
-                                <i class="ti ti-plus"></i> Add User
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div th:replace="~{fragments/user :: content}"></div>
-
 
             <!-- 页脚 -->
             <div th:replace="~{fragments/footer :: footer}"></div>
