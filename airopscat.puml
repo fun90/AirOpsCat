@@ -1,0 +1,100 @@
+@startuml
+class User {
+    - Integer id
+    - String email
+    - String nickName
+    - String password
+    - String remark
+    - String role
+    // 推荐人ID
+    - Integer referrer
+    - Short disabled
+    - LocalDateTime createTime
+    - LocalDateTime updateTime
+}
+
+class Website {
+    - Integer id
+    // 有效周期
+    - LocalDate fromDate
+    - LocalDate toDate
+    - String domain
+    - BigDecimal price
+    - BigDecimal cost
+    - String remark
+    - LocalDateTime createTime
+    - LocalDateTime updateTime
+}
+
+class Server {
+    - Integer id
+    - String ip
+    - Integer sshPort
+    - String authType
+    - String auth
+    - String host
+    - String name
+    // 有效周期
+    - LocalDate fromDate
+    - LocalDate toDate
+    - String supplier
+    - BigDecimal price
+    - BigDecimal cost
+    - BigDecimal multiple // 流量倍数
+    - Short disabled
+    - String remark
+    - JSON transitConfig
+    - JSON coreConfig
+    - LocalDateTime createTime
+    - LocalDateTime updateTime
+}
+
+class Node {
+    - Integer id
+    - Integer port
+    - Integer serverId
+    - Integer transitServerId
+    - String domain
+    - String protocol
+    - JSON protocolConfig
+    - Short level
+    - Short disabled
+    - String name
+    - String remark
+    - LocalDateTime createTime
+    - LocalDateTime updateTime
+}
+
+class Account {
+    - Integer id
+    - Short level
+    // 有效周期
+    - LocalDateTime fromDate
+    - LocalDateTime toDate
+    // 流量统计周期天数
+    - Integer cycle
+    - String accountNo
+    - String uuid
+    - String subscriptionCode
+    // 限速，单位：Kb
+    - Long speed
+    //每个周期的流量数，单位：Mb
+    - Integer bandwidth
+    - Short disabled
+    - Integer userId
+}
+
+class AccountNode {
+    - Integer id
+    - Integer accountId
+    - Integer nodeId
+}
+
+
+Account *- Node
+
+'together {
+'    class Account
+'    class Node
+'}
+@enduml
