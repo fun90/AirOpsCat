@@ -1,333 +1,259 @@
 <div th:fragment="content" class="page-body">
-<!--    <div class="container-xl">-->
-    <div class="card" id="users-app" v-scope>
-        <div class="card-header">
-            <h3 class="card-title">Users</h3>
-            <div class="card-actions">
-                <div class="row g-2">
-                    <div class="col">
-                        <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery">
-                    </div>
-                    <div class="col-auto">
-                        <select class="form-select" v-model="filterRole">
-                            <option value="">全部角色</option>
-                            <option value="admin">ADMIN</option>
-                            <option value="user">PARTNER</option>
-                            <option value="editor">VIP</option>
-                        </select>
-                    </div>
-                    <div class="col-auto">
-                        <select class="form-select" v-model="filterStatus">
-                            <option value="">全部状态</option>
-                            <option value="active">Active</option>
-                            <option value="disabled">Disabled</option>
-                        </select>
-                    </div>
-                    <div class="col-auto">
-                        <a th:href="@{/users/create}" class="btn btn-primary">
-                            <i class="ti ti-plus"></i> 添加用户
-                        </a>
+    <div class="container-xl">
+        <div class="card" id="users-app" v-scope>
+            <div class="card-header">
+                <h3 class="card-title">Users</h3>
+                <div class="card-actions">
+                    <div class="row g-2">
+                        <div class="col">
+                            <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
+                        </div>
+                        <div class="col-auto">
+                            <select class="form-select" v-model="filterRole" @change="fetchUsers">
+                                <option value="">全部角色</option>
+                                <option value="ADMIN">ADMIN</option>
+                                <option value="PARTNER">PARTNER</option>
+                                <option value="VIP">VIP</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <select class="form-select" v-model="filterStatus" @change="fetchUsers">
+                                <option value="">全部状态</option>
+                                <option value="active">Active</option>
+                                <option value="disabled">Disabled</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <a th:href="@{/users/create}" class="btn btn-primary">
+                                <i class="ti ti-plus"></i> 添加用户
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-vcenter card-table">
-                    <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Email</th>
-                        <th>Nickname</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                        <th>Actions</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <tr v-for="user in filteredUsers" :key="user.id">
-                        <td v-text="user.id"></td>
-                        <td v-text="user.email"></td>
-                        <td v-text="user.nickName || '-'"></td>
-                        <td>
-                            <span class="badge" :class="getRoleBadgeClass(user.role)" v-text="user.role || 'user'"></span>
-                        </td>
-                        <td>
-                  <span class="badge" :class="getStatusBadgeClass(user.disabled)">
-                    {{ user.disabled === 0 ? 'Active' : 'Disabled' }}
-                  </span>
-                        </td>
-                        <td v-text="formatDate(user.createTime)"></td>
-                        <td>
-                            <div class="btn-list flex-nowrap">
-                                <a :href="'/users/edit/' + user.id" class="btn btn-sm btn-outline-primary">
-                                    <i class="ti ti-edit"></i> Edit
-                                </a>
-                                <button @click="toggleUserStatus(user)" class="btn btn-sm"
-                                        :class="user.disabled === 0 ? 'btn-outline-danger' : 'btn-outline-success'">
-                                    <i class="ti" :class="user.disabled === 0 ? 'ti-ban' : 'ti-check'"></i>
-                                    {{ user.disabled === 0 ? 'Disable' : 'Enable' }}
-                                </button>
-                                <button @click="confirmDelete(user)" class="btn btn-sm btn-outline-danger">
-                                    <i class="ti ti-trash"></i> Delete
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr v-if="filteredUsers.length === 0">
-                        <td colspan="7" class="text-center py-3">没有查到数据.</td>
-                    </tr>
-                    </tbody>
-                </table>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-vcenter card-table">
+                        <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Email</th>
+                            <th>Nickname</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="user in users" :key="user.id">
+                            <td v-text="user.id"></td>
+                            <td v-text="user.email"></td>
+                            <td v-text="user.nickName || '-'"></td>
+                            <td>
+                                <span class="badge" :class="getRoleBadgeClass(user.role)" v-text="user.role || 'PARTNER'"></span>
+                            </td>
+                            <td>
+                                <span class="badge" :class="getStatusBadgeClass(user.disabled)">
+                                    {{ user.disabled === 0 ? 'Active' : 'Disabled' }}
+                                </span>
+                            </td>
+                            <td v-text="formatDate(user.createTime)"></td>
+                            <td>
+                                <div class="btn-list flex-nowrap">
+                                    <a :href="'/users/edit/' + user.id" class="btn btn-sm btn-outline-primary">
+                                        <i class="ti ti-edit"></i> Edit
+                                    </a>
+                                    <button @click="toggleUserStatus(user)" class="btn btn-sm"
+                                            :class="user.disabled === 0 ? 'btn-outline-danger' : 'btn-outline-success'">
+                                        <i class="ti" :class="user.disabled === 0 ? 'ti-ban' : 'ti-check'"></i>
+                                        {{ user.disabled === 0 ? 'Disable' : 'Enable' }}
+                                    </button>
+                                    <button @click="confirmDelete(user)" class="btn btn-sm btn-outline-danger">
+                                        <i class="ti ti-trash"></i> Delete
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr v-if="loading">
+                            <td colspan="7" class="text-center py-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr v-else-if="users.length === 0">
+                            <td colspan="7" class="text-center py-3">没有查到数据.</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-        <!-- 分页 -->
-        <div class="card-footer d-flex align-items-center">
-            <p class="m-0 text-muted">显示 1 到 8 共 16 条</p>
-            <ul class="pagination m-0 ms-auto">
-                <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                    <a class="page-link" href="#" @click.prevent="prevPage">
-                        <i class="ti ti-chevron-left"></i> 上一页
-                    </a>
-                </li>
-                <li class="page-item"><a class="page-link" href="#">1</a></li>
-                <li class="page-item active"><a class="page-link" href="#">2</a></li>
-                <li class="page-item"><a class="page-link" href="#">3</a></li>
-                <li class="page-item"><a class="page-link" href="#">4</a></li>
-                <li class="page-item"><a class="page-link" href="#">5</a></li>
-                <li class="page-item">
-                    <a class="page-link" href="#" @click.prevent="nextPage">
-                        下一页 <i class="ti ti-chevron-right"></i>
-                    </a>
-                </li>
-            </ul>
-        </div>
-<!--        <div class="card-footer d-flex align-items-center">-->
-<!--            <p class="m-0 text-muted">Showing <span v-text="filteredUsers.length"></span> users</p>-->
-<!--            <ul class="pagination m-0 ms-auto">-->
-<!--                <li class="page-item" :class="{ disabled: currentPage === 1 }">-->
-<!--                    <a class="page-link" href="#" @click.prevent="prevPage">-->
-<!--                        <i class="ti ti-chevron-left"></i>-->
-<!--                        上一页-->
-<!--                    </a>-->
-<!--                </li>-->
-<!--                <li v-for="page in totalPages" :key="page" class="page-item" :class="{ active: page === currentPage }">-->
-<!--                    <a class="page-link" href="#" @click.prevent="goToPage(page)" v-text="page"></a>-->
-<!--                </li>-->
-<!--                <li class="page-item" :class="{ disabled: currentPage === totalPages || totalPages === 0 }">-->
-<!--                    <a class="page-link" href="#" @click.prevent="nextPage">-->
-<!--                        下一页-->
-<!--                        <i class="ti ti-chevron-right"></i>-->
-<!--                    </a>-->
-<!--                </li>-->
-<!--            </ul>-->
-<!--        </div>-->
-
-        <!-- Delete Confirmation Modal -->
-        <div class="modal modal-blur fade" id="deleteModal" tabindex="-1" role="dialog" aria-hidden="true">
-            <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
-                <div class="modal-content">
-                    <div class="modal-body">
-                        <div class="modal-title">Are you sure?</div>
-                        <div>If you proceed, you will lose all data for this user.</div>
+            <!-- 分页 -->
+            <div class="card-footer d-flex align-items-center">
+                <div class="d-flex">
+                    <div class="text-muted">
+                        每页显示
+                        <div class="mx-2 d-inline-block">
+                            <select class="form-select form-select-sm" v-model="pageSize" @change="changePageSize">
+                                <option value="5">5</option>
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+                        条记录
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-danger" @click="deleteUser">Yes, delete</button>
+                    <div class="ms-auto text-muted" v-if="totalItems > 0">
+                        显示
+                        <span class="text-body strong">{{ startIndex }}</span> 到
+                        <span class="text-body strong">{{ endIndex }}</span> 条，共
+                        <span class="text-body strong">{{ totalItems }}</span> 条
+                    </div>
+                </div>
+                <ul class="pagination m-0 ms-auto" v-if="totalPages > 0">
+                    <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                        <a class="page-link" href="#" @click.prevent="prevPage">
+                            <i class="ti ti-chevron-left"></i> 上一页
+                        </a>
+                    </li>
+                    <!-- Display page numbers dynamically -->
+                    <li class="page-item" v-for="page in paginationPages" :key="page"
+                        :class="{ active: page === currentPage }">
+                        <a class="page-link" href="#" @click.prevent="goToPage(page)">{{ page }}</a>
+                    </li>
+                    <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                        <a class="page-link" href="#" @click.prevent="nextPage">
+                            下一页 <i class="ti ti-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Delete Confirmation Modal -->
+            <div class="modal modal-blur fade" id="deleteModal" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-body">
+                            <div class="modal-title">Are you sure?</div>
+                            <div>If you proceed, you will lose all data for this user.</div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-danger" @click="deleteUser">Yes, delete</button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-<!--    </div>-->
-<!--    <div class="container-fluid">-->
-<!--        <div class="row">-->
-<!--            <div class="col-12">-->
-<!--                &lt;!&ndash; 页面标题 &ndash;&gt;-->
-<!--                <div class="card-header d-flex justify-content-between align-items-center">-->
-<!--                    <button class="btn btn-primary btn-sm">-->
-<!--                        <i class="ti ti-plus"></i> 新建账号-->
-<!--                    </button>-->
-<!--                </div>-->
-
-<!--                &lt;!&ndash; 过滤器 &ndash;&gt;-->
-<!--                <div class="card mb-3">-->
-<!--                    <div class="card-body">-->
-<!--                        <div class="row g-3">-->
-<!--                            <div class="col-md-3">-->
-<!--                                <input type="text" class="form-control" placeholder="Email">-->
-<!--                            </div>-->
-<!--                            <div class="col-md-3">-->
-<!--                                <input type="text" class="form-control" placeholder="用户名">-->
-<!--                            </div>-->
-<!--                            <div class="col-md-3">-->
-<!--                                <button class="btn btn-primary w-100">搜索</button>-->
-<!--                            </div>-->
-<!--                            <div class="col-md-3">-->
-<!--                                <button class="btn btn-outline-primary w-100">刷新服务器文件</button>-->
-<!--                            </div>-->
-<!--                        </div>-->
-<!--                    </div>-->
-<!--                </div>-->
-
-<!--                &lt;!&ndash; 用户数据表格 &ndash;&gt;-->
-<!--                <div class="card">-->
-<!--                    <div class="table-responsive">-->
-<!--                        <table class="table table-vcenter card-table">-->
-<!--                            <thead>-->
-<!--                            <tr>-->
-<!--                                <th>用户</th>-->
-<!--                                <th>有效时间</th>-->
-<!--                                <th>终端时间</th>-->
-<!--                                <th>在线IP数</th>-->
-<!--                                <th>uuid</th>-->
-<!--                                <th>监控状态</th>-->
-<!--                                <th class="actions-column">操作</th>-->
-<!--                            </tr>-->
-<!--                            </thead>-->
-<!--                            <tbody>-->
-<!--                            &lt;!&ndash; 用户数据行 &ndash;&gt;-->
-<!--                            <tr v-for="i in 50">-->
-<!--                                <td>-->
-<!--                                    <div>用户: example@email.com</div>-->
-<!--                                    <div class="text-muted">设备: Mobile</div>-->
-<!--                                    <div class="text-muted">账号: user123</div>-->
-<!--                                </td>-->
-<!--                                <td>-->
-<!--                                    <div>有效时间: 2025-04-17 04:55</div>-->
-<!--                                    <div>结算时间: 2025-04-17 00:00</div>-->
-<!--                                </td>-->
-<!--                                <td>-->
-<!--                                    <div>域名: 默认</div>-->
-<!--                                    <div>时间: 30天/周期</div>-->
-<!--                                    <div>流量: {{ 10 + i }}.{{ 20 + i }} (200GB/周期)</div>-->
-<!--                                </td>-->
-<!--                                <td class="text-center">{{ i % 5 }}</td>-->
-<!--                                <td>-->
-<!--                                    <div>uuid: xx{{ 10000 + i }}xx-{{ 2000 + i }}-{{ 3000 + i }}</div>-->
-<!--                                </td>-->
-<!--                                <td>-->
-<!--                                    <div>-->
-<!--                                        <span class="status-badge bg-success"></span>-->
-<!--                                        监控状态正常-->
-<!--                                    </div>-->
-<!--                                </td>-->
-<!--                                <td class="text-end actions-column">-->
-<!--                                    <a href="#" class="btn btn-outline-primary btn-sm action-btn">-->
-<!--                                        <i class="ti ti-edit"></i> 编辑账号-->
-<!--                                    </a>-->
-<!--                                    <a href="#" class="btn btn-outline-danger btn-sm action-btn mt-2">-->
-<!--                                        <i class="ti ti-trash"></i> 订阅链接-->
-<!--                                    </a>-->
-<!--                                </td>-->
-<!--                            </tr>-->
-<!--                            </tbody>-->
-<!--                        </table>-->
-<!--                    </div>-->
-
-<!--                    &lt;!&ndash; 分页 &ndash;&gt;-->
-<!--                    <div class="card-footer d-flex align-items-center">-->
-<!--                        <p class="m-0 text-muted">显示 1 到 8 共 16 条</p>-->
-<!--                        <ul class="pagination m-0 ms-auto">-->
-<!--                            <li class="page-item disabled">-->
-<!--                                <a class="page-link" href="#" tabindex="-1" aria-disabled="true">-->
-<!--                                    <i class="ti ti-chevron-left"></i> 上一页-->
-<!--                                </a>-->
-<!--                            </li>-->
-<!--                            <li class="page-item"><a class="page-link" href="#">1</a></li>-->
-<!--                            <li class="page-item active"><a class="page-link" href="#">2</a></li>-->
-<!--                            <li class="page-item"><a class="page-link" href="#">3</a></li>-->
-<!--                            <li class="page-item"><a class="page-link" href="#">4</a></li>-->
-<!--                            <li class="page-item"><a class="page-link" href="#">5</a></li>-->
-<!--                            <li class="page-item">-->
-<!--                                <a class="page-link" href="#">-->
-<!--                                    下一页 <i class="ti ti-chevron-right"></i>-->
-<!--                                </a>-->
-<!--                            </li>-->
-<!--                        </ul>-->
-<!--                    </div>-->
-<!--                </div>-->
-<!--            </div>-->
-<!--        </div>-->
-<!--    </div>-->
 </div>
 
 <script th:fragment="script" th:inline="javascript">
-    // PetiteVue.createApp({
-    //     // 示例数据
-    //     users: Array.from({ length: 50 }, (_, i) => ({
-    //         id: 1000 + i,
-    //         email: `user${i}@example.com`,
-    //         device: i % 2 === 0 ? 'Mobile' : 'PC',
-    //         username: `user${100 + i}`,
-    //         validTime: `2025-04-${10 + i} 04:55`,
-    //         endTime: `2025-04-${10 + i} 00:00`,
-    //         domain: '默认',
-    //         period: '30天/周期',
-    //         traffic: `${10 + i}.${20 + i} (200GB/周期)`,
-    //         ipCount: i % 5,
-    //         uuid: `xx${10000 + i}xx-${2000 + i}-${3000 + i}`,
-    //         monitorGroup: `第${i}组`,
-    //         status: '正常'
-    //     }))
-    // }).mount('#app');
-
-    // Get users from Thymeleaf model
-    const users = /*[[${users}]]*/ [];
-
-    // Define the petite-vue app
     PetiteVue.createApp({
         // Data
-        users: users,
+        users: [],
         searchQuery: '',
         filterRole: '',
         filterStatus: '',
         currentPage: 1,
         pageSize: 10,
+        totalItems: 0,
+        totalPages: 0,
         selectedUser: null,
         deleteModal: null,
+        loading: true,
+        searchTimeout: null,
 
-        // Computed
-        get filteredUsers() {
-            return this.users
-                .filter(user => {
-                    const matchesSearch = !this.searchQuery ||
-                        user.email.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-                        (user.nickName && user.nickName.toLowerCase().includes(this.searchQuery.toLowerCase()));
-
-                    const matchesRole = !this.filterRole ||
-                        (user.role && user.role.toLowerCase() === this.filterRole.toLowerCase());
-
-                    const matchesStatus = !this.filterStatus ||
-                        (this.filterStatus === 'active' && user.disabled === 0) ||
-                        (this.filterStatus === 'disabled' && user.disabled === 1);
-
-                    return matchesSearch && matchesRole && matchesStatus;
-                })
-                .slice((this.currentPage - 1) * this.pageSize, this.currentPage * this.pageSize);
+        // Lifecycle hooks
+        mounted() {
+            console.info(11111111111111111)
+            this.fetchUsers();
         },
 
-        get totalPages() {
-            const filteredCount = this.users.filter(user => {
-                const matchesSearch = !this.searchQuery ||
-                    user.email.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-                    (user.nickName && user.nickName.toLowerCase().includes(this.searchQuery.toLowerCase()));
+        // Computed properties
+        get startIndex() {
+            return (this.currentPage - 1) * this.pageSize + 1;
+        },
 
-                const matchesRole = !this.filterRole ||
-                    (user.role && user.role.toLowerCase() === this.filterRole.toLowerCase());
+        get endIndex() {
+            return Math.min(this.startIndex + this.pageSize - 1, this.totalItems);
+        },
 
-                const matchesStatus = !this.filterStatus ||
-                    (this.filterStatus === 'active' && user.disabled === 0) ||
-                    (this.filterStatus === 'disabled' && user.disabled === 1);
+        get paginationPages() {
+            // Show at most 5 page numbers
+            const maxPages = 5;
+            const pages = [];
+            let startPage = Math.max(1, this.currentPage - Math.floor(maxPages / 2));
+            let endPage = Math.min(this.totalPages, startPage + maxPages - 1);
 
-                return matchesSearch && matchesRole && matchesStatus;
-            }).length;
+            if (endPage - startPage + 1 < maxPages) {
+                startPage = Math.max(1, endPage - maxPages + 1);
+            }
 
-            return Math.ceil(filteredCount / this.pageSize) || 1;
+            for (let i = startPage; i <= endPage; i++) {
+                pages.push(i);
+            }
+
+            return pages;
         },
 
         // Methods
+        fetchUsers() {
+            this.loading = true;
+
+            // Build query parameters
+            const params = new URLSearchParams({
+                page: this.currentPage,
+                size: this.pageSize
+            });
+
+            if (this.searchQuery) {
+                params.append('search', this.searchQuery);
+            }
+
+            if (this.filterRole) {
+                params.append('role', this.filterRole);
+            }
+
+            if (this.filterStatus) {
+                params.append('status', this.filterStatus);
+            }
+
+            fetch(`/api/admin/users?${params.toString()}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.users = data.records;
+                    this.totalItems = data.total;
+                    this.totalPages = data.pages;
+                    this.currentPage = data.current;
+                    this.loading = false;
+                })
+                .catch(error => {
+                    console.error('Error fetching users:', error);
+                    this.showToast('Error', 'Failed to load users.', 'danger');
+                    this.loading = false;
+                });
+        },
+
+        searchDebounced() {
+            // Clear existing timeout
+            if (this.searchTimeout) {
+                clearTimeout(this.searchTimeout);
+            }
+
+            // Set new timeout to delay the API call
+            this.searchTimeout = setTimeout(() => {
+                this.currentPage = 1; // Reset to first page when searching
+                this.fetchUsers();
+            }, 500); // Wait for 500ms after user stops typing
+        },
+
         formatDate(dateString) {
             if (!dateString) return '-';
             const date = new Date(dateString);
@@ -335,10 +261,10 @@
         },
 
         getRoleBadgeClass(role) {
-            switch (role && role.toLowerCase()) {
-                case 'admin': return 'text-bg-purple';
-                case 'partner': return 'text-bg-indigo';
-                default: return 'text-bg-blue';
+            switch (role && role.toUpperCase()) {
+                case 'ADMIN': return 'text-bg-purple';
+                case 'PARTNER': return 'text-bg-indigo';
+                default: return 'text-bg-blue'; // VIP or other roles
             }
         },
 
@@ -349,21 +275,31 @@
         prevPage() {
             if (this.currentPage > 1) {
                 this.currentPage--;
+                this.fetchUsers();
             }
         },
 
         nextPage() {
             if (this.currentPage < this.totalPages) {
                 this.currentPage++;
+                this.fetchUsers();
             }
         },
 
         goToPage(page) {
             this.currentPage = page;
+            this.fetchUsers();
+        },
+
+        changePageSize() {
+            this.currentPage = 1; // Reset to first page when changing page size
+            this.fetchUsers();
         },
 
         toggleUserStatus(user) {
-            fetch(`/api/users/${user.id}/${user.disabled === 0 ? 'disable' : 'enable'}`, {
+            const action = user.disabled === 0 ? 'disable' : 'enable';
+
+            fetch(`/api/users/${user.id}/${action}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -371,59 +307,23 @@
                 }
             })
                 .then(response => {
-                    if (response.ok) {
-                        return response.json();
+                    if (!response.ok) {
+                        throw new Error('Failed to update user status');
                     }
-                    throw new Error('Failed to update user status');
+                    return response.json();
                 })
                 .then(data => {
+                    // Update user status in the local array
                     const index = this.users.findIndex(u => u.id === user.id);
                     if (index !== -1) {
                         this.users[index].disabled = data.disabled;
                     }
 
-                    // Show success toast
-                    const toast = document.createElement('div');
-                    toast.innerHTML = `
-                <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="2000">
-                  <div class="toast-header bg-success text-white">
-                    <strong class="me-auto">Success</strong>
-                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-                  </div>
-                  <div class="toast-body">
-                    User status updated successfully.
-                  </div>
-                </div>
-              `;
-                    document.body.appendChild(toast);
-
-                    // Auto-remove after 2 seconds
-                    setTimeout(() => {
-                        document.body.removeChild(toast);
-                    }, 2000);
+                    this.showToast('Success', 'User status updated successfully.', 'success');
                 })
                 .catch(error => {
                     console.error('Error:', error);
-
-                    // Show error toast
-                    const toast = document.createElement('div');
-                    toast.innerHTML = `
-                <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="2000">
-                  <div class="toast-header bg-danger text-white">
-                    <strong class="me-auto">Error</strong>
-                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-                  </div>
-                  <div class="toast-body">
-                    Failed to update user status.
-                  </div>
-                </div>
-              `;
-                    document.body.appendChild(toast);
-
-                    // Auto-remove after 2 seconds
-                    setTimeout(() => {
-                        document.body.removeChild(toast);
-                    }, 2000);
+                    this.showToast('Error', 'Failed to update user status.', 'danger');
                 });
         },
 
@@ -443,61 +343,42 @@
                 }
             })
                 .then(response => {
-                    if (response.ok) {
-                        const index = this.users.findIndex(u => u.id === this.selectedUser.id);
-                        if (index !== -1) {
-                            this.users.splice(index, 1);
-                        }
-
-                        // Show success toast
-                        const toast = document.createElement('div');
-                        toast.innerHTML = `
-                  <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="2000">
-                    <div class="toast-header bg-success text-white">
-                      <strong class="me-auto">Success</strong>
-                      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-                    </div>
-                    <div class="toast-body">
-                      User deleted successfully.
-                    </div>
-                  </div>
-                `;
-                        document.body.appendChild(toast);
-
-                        // Auto-remove after 2 seconds
-                        setTimeout(() => {
-                            document.body.removeChild(toast);
-                        }, 2000);
-
-                        // Hide modal
-                        this.deleteModal.hide();
-                    } else {
+                    if (!response.ok) {
                         throw new Error('Failed to delete user');
                     }
+
+                    // Refetch the users data to update the list and pagination
+                    this.fetchUsers();
+                    this.showToast('Success', 'User deleted successfully.', 'success');
+
+                    // Hide modal
+                    this.deleteModal.hide();
                 })
                 .catch(error => {
                     console.error('Error:', error);
+                    this.showToast('Error', 'Failed to delete user.', 'danger');
+                });
+        },
 
-                    // Show error toast
-                    const toast = document.createElement('div');
-                    toast.innerHTML = `
+        showToast(title, message, type) {
+            const toast = document.createElement('div');
+            toast.innerHTML = `
                 <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="2000">
-                  <div class="toast-header bg-danger text-white">
-                    <strong class="me-auto">Error</strong>
+                  <div class="toast-header bg-${type} text-white">
+                    <strong class="me-auto">${title}</strong>
                     <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
                   </div>
                   <div class="toast-body">
-                    Failed to delete user.
+                    ${message}
                   </div>
                 </div>
-              `;
-                    document.body.appendChild(toast);
+            `;
+            document.body.appendChild(toast);
 
-                    // Auto-remove after 2 seconds
-                    setTimeout(() => {
-                        document.body.removeChild(toast);
-                    }, 2000);
-                });
+            // Auto-remove after 2 seconds
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 2000);
         }
     }).mount('#users-app');
 </script>

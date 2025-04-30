@@ -4,11 +4,14 @@ package com.fun90.airopscat.controller;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/users")
@@ -20,11 +23,31 @@ public class UserController {
     public UserController(UserService userService) {
         this.userService = userService;
     }
-    
+
     @GetMapping
-    public ResponseEntity<List<User>> getAllUsers() {
-        return ResponseEntity.ok(userService.findAllUsers());
+    public ResponseEntity<Map<String, Object>> getUserPage(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String status
+    ) {
+        Page<User> userPage = userService.getUserPage(page, size, search, role, status);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("records", userPage.getContent());
+        response.put("total", userPage.getTotalElements());
+        response.put("pages", userPage.getTotalPages());
+        response.put("current", page);
+        response.put("size", size);
+
+        return ResponseEntity.ok(response);
     }
+    
+//    @GetMapping
+//    public ResponseEntity<List<User>> getAllUsers() {
+//        return ResponseEntity.ok(userService.findAllUsers());
+//    }
     
     @GetMapping("/{id}")
     public ResponseEntity<User> getUserById(@PathVariable Long id) {
