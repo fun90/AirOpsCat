@@ -59,7 +59,7 @@
             <div th:replace="~{fragments/header :: header}"></div>
 
             <!-- 主内容 -->
-            <div th:replace="~{fragments/user :: content}"></div>
+            <div th:replace="'fragments/' + ${entityName} :: content"></div>
 
             <!-- 页脚 -->
             <div th:replace="~{fragments/footer :: footer}"></div>
@@ -72,6 +72,9 @@
 
 <!-- Petite Vue -->
 <script src="https://cdn.jsdelivr.net/npm/petite-vue@0.4.1/dist/petite-vue.umd.js"></script>
+
+<!-- Common JS -->
+<script th:src="@{/static/js/toast-utils.js}"></script>
 
 <script th:replace="~{fragments/user :: script}"></script>
 

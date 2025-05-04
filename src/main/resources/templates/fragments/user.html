@@ -1,6 +1,6 @@
 <div th:fragment="content" class="page-body">
     <div class="container-xl">
-        <div class="card" id="users-app" v-scope>
+        <div class="card" id="users-app" @vue:mounted="mounted">
             <div class="card-header">
                 <h3 class="card-title">Users</h3>
                 <div class="card-actions">
@@ -24,16 +24,16 @@
                             </select>
                         </div>
                         <div class="col-auto">
-                            <a th:href="@{/users/create}" class="btn btn-primary">
+                            <button class="btn btn-primary" @click="openCreateUserModal">
                                 <i class="ti ti-plus"></i> 添加用户
-                            </a>
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-vcenter card-table">
+                    <table id="tablePage" class="table table-vcenter card-table">
                         <thead>
                         <tr>
                             <th>ID</th>
@@ -61,16 +61,16 @@
                             <td v-text="formatDate(user.createTime)"></td>
                             <td>
                                 <div class="btn-list flex-nowrap">
-                                    <a :href="'/users/edit/' + user.id" class="btn btn-sm btn-outline-primary">
-                                        <i class="ti ti-edit"></i> Edit
-                                    </a>
+                                    <button @click="openEditUserModal(user)" class="btn btn-sm btn-outline-primary">
+                                        <i class="ti ti-edit"></i> 编辑
+                                    </button>
                                     <button @click="toggleUserStatus(user)" class="btn btn-sm"
                                             :class="user.disabled === 0 ? 'btn-outline-danger' : 'btn-outline-success'">
                                         <i class="ti" :class="user.disabled === 0 ? 'ti-ban' : 'ti-check'"></i>
-                                        {{ user.disabled === 0 ? 'Disable' : 'Enable' }}
+                                        {{ user.disabled === 0 ? '禁用' : '启用' }}
                                     </button>
                                     <button @click="confirmDelete(user)" class="btn btn-sm btn-outline-danger">
-                                        <i class="ti ti-trash"></i> Delete
+                                        <i class="ti ti-trash"></i> 删除
                                     </button>
                                 </div>
                             </td>
@@ -131,16 +131,110 @@
             </div>
 
             <!-- Delete Confirmation Modal -->
-            <div class="modal modal-blur fade" id="deleteModal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal modal-blur fade" id="deleteModal" tabindex="-1" role="dialog">
                 <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
                     <div class="modal-content">
                         <div class="modal-body">
-                            <div class="modal-title">Are you sure?</div>
-                            <div>If you proceed, you will lose all data for this user.</div>
+                            <div class="modal-title">确定删除吗?</div>
+                            <div>若确认删除，数据将无法恢复</div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">Cancel</button>
-                            <button type="button" class="btn btn-danger" @click="deleteUser">Yes, delete</button>
+                            <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-danger" @click="deleteUser">确认</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Create User Modal -->
+            <div class="modal modal-blur fade" id="createUserModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">添加用户</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+<!--                            <fieldset class="form-fieldset">-->
+                            <div class="mb-3">
+                                <label class="form-label required">邮箱</label>
+                                <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }" placeholder="user@example.com" v-model="newUser.email">
+                                <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label required">密码</label>
+                                <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }" placeholder="Password" v-model="newUser.password">
+                                <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">昵称</label>
+                                <input type="text" class="form-control" placeholder="Nickname" v-model="newUser.nickName">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">角色</label>
+                                <select class="form-select" v-model="newUser.role">
+                                    <option value="PARTNER">PARTNER</option>
+                                    <option value="ADMIN">ADMIN</option>
+                                    <option value="VIP">VIP</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" v-model="newUser.disabled">
+                                    <span class="form-check-label">禁用账户</span>
+                                </label>
+                            </div>
+<!--                            </fieldset>-->
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" @click="createUser">创建用户</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit User Modal -->
+            <div class="modal modal-blur fade" id="editUserModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">编辑用户</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label required">邮箱</label>
+                                <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }" placeholder="user@example.com" v-model="editedUser.email">
+                                <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">密码 <span class="text-muted">(留空表示不修改)</span></label>
+                                <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }" placeholder="New password" v-model="editedUser.password">
+                                <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">昵称</label>
+                                <input type="text" class="form-control" placeholder="Nickname" v-model="editedUser.nickName">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">角色</label>
+                                <select class="form-select" v-model="editedUser.role">
+                                    <option value="PARTNER">PARTNER</option>
+                                    <option value="ADMIN">ADMIN</option>
+                                    <option value="VIP">VIP</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" :checked="editedUser.disabled === 1" @change="editedUser.disabled = $event.target.checked ? 1 : 0">
+                                    <span class="form-check-label">禁用账户</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" @click="updateUser">保存修改</button>
                         </div>
                     </div>
                 </div>
@@ -162,12 +256,29 @@
         totalPages: 0,
         selectedUser: null,
         deleteModal: null,
+        createModal: null,
+        editModal: null,
         loading: true,
         searchTimeout: null,
+        newUser: {
+            email: '',
+            password: '',
+            nickName: '',
+            role: 'PARTNER',
+            disabled: false
+        },
+        editedUser: {
+            id: null,
+            email: '',
+            password: '',
+            nickName: '',
+            role: 'PARTNER',
+            disabled: 0
+        },
+        validationErrors: {},
 
         // Lifecycle hooks
         mounted() {
-            console.info(11111111111111111)
             this.fetchUsers();
         },
 
@@ -236,7 +347,7 @@
                 })
                 .catch(error => {
                     console.error('Error fetching users:', error);
-                    this.showToast('Error', 'Failed to load users.', 'danger');
+                    ToastUtils.show('Error', 'Failed to load users.', 'danger');
                     this.loading = false;
                 });
         },
@@ -299,16 +410,15 @@
         toggleUserStatus(user) {
             const action = user.disabled === 0 ? 'disable' : 'enable';
 
-            fetch(`/api/users/${user.id}/${action}`, {
+            fetch(`/api/admin/users/${user.id}/${action}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
                 }
             })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Failed to update user status');
+                        throw new Error('更新状态失败');
                     }
                     return response.json();
                 })
@@ -319,11 +429,11 @@
                         this.users[index].disabled = data.disabled;
                     }
 
-                    this.showToast('Success', 'User status updated successfully.', 'success');
+                    ToastUtils.show('Success', '更新状态成功', 'success');
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    this.showToast('Error', 'Failed to update user status.', 'danger');
+                    ToastUtils.show('Error', '更新状态发生错误', 'danger');
                 });
         },
 
@@ -336,49 +446,182 @@
         deleteUser() {
             if (!this.selectedUser) return;
 
-            fetch(`/api/users/${this.selectedUser.id}`, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
-                }
+            fetch(`/api/admin/users/${this.selectedUser.id}`, {
+                method: 'DELETE'
             })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Failed to delete user');
+                        throw new Error('删除失败');
                     }
 
                     // Refetch the users data to update the list and pagination
                     this.fetchUsers();
-                    this.showToast('Success', 'User deleted successfully.', 'success');
+                    ToastUtils.show('Success', '删除成功', 'success');
 
                     // Hide modal
                     this.deleteModal.hide();
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    this.showToast('Error', 'Failed to delete user.', 'danger');
+                    ToastUtils.show('Error', '删除失败', 'danger');
                 });
         },
 
-        showToast(title, message, type) {
-            const toast = document.createElement('div');
-            toast.innerHTML = `
-                <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="2000">
-                  <div class="toast-header bg-${type} text-white">
-                    <strong class="me-auto">${title}</strong>
-                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-                  </div>
-                  <div class="toast-body">
-                    ${message}
-                  </div>
-                </div>
-            `;
-            document.body.appendChild(toast);
+        // Create User methods
+        openCreateUserModal() {
+            // Reset form
+            this.newUser = {
+                email: '',
+                password: '',
+                nickName: '',
+                role: 'PARTNER',
+                disabled: false
+            };
+            this.validationErrors = {};
 
-            // Auto-remove after 2 seconds
-            setTimeout(() => {
-                document.body.removeChild(toast);
-            }, 2000);
-        }
+            // Show modal
+            this.createModal = new bootstrap.Modal(document.getElementById('createUserModal'));
+            this.createModal.show();
+        },
+
+        validateUserForm(user, isCreate = true) {
+            let isValid = true;
+            this.validationErrors = {};
+
+            // Email validation
+            if (!user.email || !user.email.trim()) {
+                this.validationErrors.email = '邮箱地址不能为空';
+                isValid = false;
+            } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) {
+                this.validationErrors.email = '请输入有效的邮箱地址';
+                isValid = false;
+            }
+
+            // Password validation (only required for new users)
+            if (isCreate && (!user.password || user.password.trim().length < 6)) {
+                this.validationErrors.password = '密码长度至少为6个字符';
+                isValid = false;
+            } else if (!isCreate && user.password && user.password.trim().length > 0 && user.password.trim().length < 6) {
+                // For edit form, validate password only if it's provided
+                this.validationErrors.password = '密码长度至少为6个字符';
+                isValid = false;
+            }
+
+            return isValid;
+        },
+
+        createUser() {
+            if (!this.validateUserForm(this.newUser)) {
+                console.info(222222)
+                return;
+            }
+
+            // Prepare data for API
+            const userData = {
+                email: this.newUser.email,
+                password: this.newUser.password,
+                nickName: this.newUser.nickName || null,
+                role: this.newUser.role,
+                disabled: this.newUser.disabled ? 1 : 0
+            };
+
+            fetch('/api/admin/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(userData)
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        if (response.status === 400) {
+                            return response.json().then(data => {
+                                throw new Error(data.message || 'Validation error');
+                            });
+                        }
+                        throw new Error('响应失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.fetchUsers(); // Refresh the user list
+                    this.createModal.hide();
+                    ToastUtils.show('Success', '创建成功', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '创建失败.', 'danger');
+                });
+        },
+
+        // Edit User methods
+        openEditUserModal(user) {
+            // Clone user data to avoid direct mutation
+            this.editedUser = {
+                id: user.id,
+                email: user.email,
+                password: '', // Empty password field
+                nickName: user.nickName || '',
+                role: user.role || 'PARTNER',
+                disabled: user.disabled
+            };
+            this.validationErrors = {};
+
+            // Show modal
+            this.editModal = new bootstrap.Modal(document.getElementById('editUserModal'));
+            this.editModal.show();
+        },
+
+        updateUser() {
+            if (!this.validateUserForm(this.editedUser, false)) {
+                return;
+            }
+
+            // Prepare data for API
+            const userData = {
+                email: this.editedUser.email,
+                nickName: this.editedUser.nickName || null,
+                role: this.editedUser.role,
+                disabled: this.editedUser.disabled
+            };
+
+            // Only include password if it's provided
+            if (this.editedUser.password) {
+                userData.password = this.editedUser.password;
+            }
+
+            fetch(`/api/admin/users/${this.editedUser.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(userData)
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        if (response.status === 400) {
+                            return response.json().then(data => {
+                                throw new Error(data.message || 'Validation error');
+                            });
+                        }
+                        throw new Error('响应失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Update user in the local array
+                    const index = this.users.findIndex(u => u.id === this.editedUser.id);
+                    if (index !== -1) {
+                        this.users[index] = data;
+                    }
+
+                    this.editModal.hide();
+                    ToastUtils.show('Success', '更新成功', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '更新失败', 'danger');
+                });
+        },
     }).mount('#users-app');
 </script>

@@ -6,9 +6,11 @@ CREATE TABLE IF NOT EXISTS user
     nick_name     VARCHAR(300),
     password      VARCHAR(300) NOT NULL,
     remark        VARCHAR(300),
-    role          VARCHAR(300), -- admin,partner,vip
+    role          VARCHAR(300), -- ADMIN,PARTNER,VIP
     referrer      INTEGER,
-    disabled      SHORT DEFAULT 0,
+    disabled      INTEGER DEFAULT 0,
+    failed_attempts      INTEGER NOT NULL DEFAULT 0,
+    lock_time      DATETIME,
     create_time   DATETIME,
     update_time   DATETIME
 );
@@ -43,7 +45,7 @@ CREATE TABLE IF NOT EXISTS server
     price         DECIMAL(10, 2),
     cost          DECIMAL(10, 2),
     multiple      DECIMAL(10, 2),
-    disabled      SHORT DEFAULT 0,
+    disabled      INTEGER DEFAULT 0,
     remark        VARCHAR(300),
     transit_config JSON,
     core_config    JSON,

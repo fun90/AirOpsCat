@@ -1,9 +1,6 @@
 package com.fun90.airopscat.controller;
 
-import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.service.UserService;
-import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -12,8 +9,6 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
-
-import java.util.List;
 
 @Controller
 public class HomeController {
@@ -28,24 +23,20 @@ public class HomeController {
         this.userService = userService;
     }
 
-    @GetMapping("/login")
-    public String loginPage(Model model) {
+    @RequestMapping("/user/index")
+    public String userIndex(Model model) {
         model.addAttribute("appName", appName);
-        return "login";
-    }
-
-    @RequestMapping("/dashboard")
-    public String index(Model model) {
-        model.addAttribute("appName", appName);
-        List<User> users = userService.findAllUsers();
-        model.addAttribute("users", users);
+        model.addAttribute("entityName", "user");
+        model.addAttribute("breadcrumbTitle", "用户管理");
         return "dashboard";
     }
 
-    @RequestMapping("/index2")
-    public String index2(Model model) {
+    @RequestMapping( "/dashboard")
+    public String dashboard(Model model) {
         model.addAttribute("appName", appName);
-        return "index2";
+        model.addAttribute("entityName", "user");
+        model.addAttribute("breadcrumbTitle", "用户管理");
+        return "dashboard";
     }
     
     @GetMapping("/api/admin/data")

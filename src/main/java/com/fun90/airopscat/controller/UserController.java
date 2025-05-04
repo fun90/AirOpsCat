@@ -1,16 +1,13 @@
-// Controller class
 package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -43,79 +40,66 @@ public class UserController {
 
         return ResponseEntity.ok(response);
     }
-    
-//    @GetMapping
-//    public ResponseEntity<List<User>> getAllUsers() {
-//        return ResponseEntity.ok(userService.findAllUsers());
-//    }
-    
+
     @GetMapping("/{id}")
     public ResponseEntity<User> getUserById(@PathVariable Long id) {
-        return userService.findUserById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-    
-    @GetMapping("/email/{email}")
-    public ResponseEntity<User> getUserByEmail(@PathVariable String email) {
-        return userService.findUserByEmail(email)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-    
-    @GetMapping("/role/{role}")
-    public ResponseEntity<List<User>> getUsersByRole(@PathVariable String role) {
-        List<User> users = userService.findUsersByRole(role);
-        return ResponseEntity.ok(users);
-    }
-    
-    @GetMapping("/active")
-    public ResponseEntity<List<User>> getActiveUsers() {
-        return ResponseEntity.ok(userService.findActiveUsers());
-    }
-    
-    @GetMapping("/referrer/{referrerId}")
-    public ResponseEntity<List<User>> getUsersByReferrer(@PathVariable Integer referrerId) {
-        return ResponseEntity.ok(userService.findUsersByReferrer(referrerId));
-    }
-    
-    @GetMapping("/search")
-    public ResponseEntity<List<User>> searchUsers(@RequestParam String keyword) {
-        return ResponseEntity.ok(userService.searchUsers(keyword));
-    }
-    
-    @PostMapping
-    public ResponseEntity<User> createUser(@RequestBody User user) {
-        User createdUser = userService.createUser(user);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdUser);
-    }
-    
-    @PutMapping("/{id}")
-    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody User userDetails) {
-        return userService.updateUser(id, userDetails)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-    
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
-        if (userService.deleteUser(id)) {
-            return ResponseEntity.noContent().build();
+        User user = userService.getUserById(id);
+        if (user != null) {
+            return ResponseEntity.ok(user);
         }
         return ResponseEntity.notFound().build();
     }
-    
-    @PatchMapping("/{id}/disable")
-    public ResponseEntity<User> disableUser(@PathVariable Long id) {
-        return userService.disableUser(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+
+    @PostMapping
+    public ResponseEntity<User> createUser(@RequestBody User user) {
+        User savedUser = userService.saveUser(user);
+        return ResponseEntity.ok(savedUser);
     }
-    
+
+    @PutMapping("/{id}")
+    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody User user) {
+        User existingUser = userService.getUserById(id);
+        if (existingUser == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        user.setId(id);
+        User updatedUser = userService.updateUser(user);
+        return ResponseEntity.ok(updatedUser);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+        User existingUser = userService.getUserById(id);
+        if (existingUser == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        userService.deleteUser(id);
+        return ResponseEntity.ok().build();
+    }
+
     @PatchMapping("/{id}/enable")
-    public ResponseEntity<User> enableUser(@PathVariable Long id) {
-        return userService.enableUser(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<Map<String, Object>> enableUser(@PathVariable Long id) {
+        User user = userService.toggleUserStatus(id, false);
+        if (user != null) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("id", id);
+            response.put("disabled", 0);
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    @PatchMapping("/{id}/disable")
+    public ResponseEntity<Map<String, Object>> disableUser(@PathVariable Long id) {
+        User user = userService.toggleUserStatus(id, true);
+        if (user != null) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("id", id);
+            response.put("disabled", 1);
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.notFound().build();
     }
 }

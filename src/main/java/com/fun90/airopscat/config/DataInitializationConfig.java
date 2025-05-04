@@ -33,7 +33,7 @@ public class DataInitializationConfig {
                 admin.setNickName("管理员");
                 admin.setPassword(passwordEncoder.encode("admin123"));
                 admin.setRole("ADMIN");
-                admin.setDisabled((short) 0);
+                admin.setDisabled(0);
                 admin.setCreateTime(LocalDateTime.now());
                 admin.setUpdateTime(LocalDateTime.now());
                 userRepository.save(admin);
@@ -44,7 +44,7 @@ public class DataInitializationConfig {
                 partner.setNickName("合作伙伴");
                 partner.setPassword(passwordEncoder.encode("partner123"));
                 partner.setRole("PARTNER");
-                partner.setDisabled((short) 0);
+                partner.setDisabled(0);
                 partner.setCreateTime(LocalDateTime.now());
                 partner.setUpdateTime(LocalDateTime.now());
                 userRepository.save(partner);
@@ -55,7 +55,7 @@ public class DataInitializationConfig {
                 vip.setNickName("VIP用户");
                 vip.setPassword(passwordEncoder.encode("vip123"));
                 vip.setRole("VIP");
-                vip.setDisabled((short) 0);
+                vip.setDisabled(0);
                 vip.setCreateTime(LocalDateTime.now());
                 vip.setUpdateTime(LocalDateTime.now());
                 userRepository.save(vip);

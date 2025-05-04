@@ -2,12 +2,14 @@ package com.fun90.airopscat.model.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.LocalDateTime;
 
 @Data
 @Entity
 @Table(name = "user")
+@DynamicUpdate
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,12 +29,16 @@ public class User {
     
     private Long referrer;
     
-    private Short disabled = 0;
+    private Integer disabled = 0;
+
+    private int failedAttempts;
+
+    private LocalDateTime lockTime;
     
     private LocalDateTime createTime;
     
     private LocalDateTime updateTime;
-    
+
     @PrePersist
     protected void onCreate() {
         this.createTime = LocalDateTime.now();
