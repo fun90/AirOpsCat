@@ -16,3 +16,19 @@ mvn clean package
 mvn -Pnative native:compile
 
 ./target/airopscat --spring.config.location=file:src/main/resources/application.yaml
+
+
+用户账户
+用户管理
+账户管理
+
+基础设备
+域名管理
+服务器管理
+
+VPN
+配置模板
+协议模板
+中转
+节点管理
+

@@ -4,9 +4,8 @@
         <!-- 面包屑导航 -->
         <div class="d-flex">
             <ol class="breadcrumb" aria-label="breadcrumbs">
-                <li class="breadcrumb-item"><a href="#">Dashboard</a></li>
-                <li class="breadcrumb-item"><a href="#">账号</a></li>
-                <li class="breadcrumb-item active" aria-current="page">账号管理</li>
+                <li class="breadcrumb-item"><a href="/dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item active" aria-current="page" th:text="${breadcrumbTitle}"></li>
             </ol>
         </div>
 

@@ -24,7 +24,7 @@ public class AuthController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.isAuthenticated()) {
             String email = authentication.getName();
-            Optional<User> user = userService.findByEmail(email);
+            Optional<User> user = userService.getByEmail(email);
             if (user.isPresent()) {
                 return ResponseEntity.ok(userService.convertToDto(user.get()));
             }
