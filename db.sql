@@ -15,6 +15,34 @@ CREATE TABLE IF NOT EXISTS user
     update_time   DATETIME
 );
 
+-- User IP表
+CREATE TABLE IF NOT EXISTS user_ip
+(
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id       INTEGER NOT NULL,
+    uuid          VARCHAR(300) NOT NULL,
+    client_ip     VARCHAR(300) NOT NULL,
+    create_time   DATETIME,
+    update_time   DATETIME
+);
+
+-- User 流量统计表
+CREATE TABLE IF NOT EXISTS user_traffic_stats
+(
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id           INTEGER NOT NULL,     -- 关联到用户表的ID
+    period_start      DATETIME NOT NULL,    -- 统计周期开始时间
+    period_end        DATETIME NOT NULL,    -- 统计周期结束时间
+    upload_bytes      BIGINT DEFAULT 0,     -- 上传流量字节数
+    download_bytes    BIGINT DEFAULT 0,     -- 下载流量字节数
+    create_time       DATETIME,
+    update_time       DATETIME,
+    FOREIGN KEY (user_id) REFERENCES user(id)
+);
+
+-- 为用户ID和周期创建索引，优化查询效率
+CREATE INDEX IF NOT EXISTS idx_user_traffic_user_id ON user_traffic_stats(user_id);
+
 -- Website 表
 CREATE TABLE IF NOT EXISTS website
 (
