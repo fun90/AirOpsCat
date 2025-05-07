@@ -20,6 +20,8 @@ mvn -Pnative native:compile
 
 用户账户
 用户管理
+用户流量
+用户IP
 账户管理
 
 基础设备
