@@ -15,34 +15,6 @@ CREATE TABLE IF NOT EXISTS user
     update_time   DATETIME
 );
 
--- User IP表
-CREATE TABLE IF NOT EXISTS user_ip
-(
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id       INTEGER NOT NULL,
-    uuid          VARCHAR(300) NOT NULL,
-    client_ip     VARCHAR(300) NOT NULL,
-    create_time   DATETIME,
-    update_time   DATETIME
-);
-
--- User 流量统计表
-CREATE TABLE IF NOT EXISTS user_traffic_stats
-(
-    id                INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id           INTEGER NOT NULL,     -- 关联到用户表的ID
-    period_start      DATETIME NOT NULL,    -- 统计周期开始时间
-    period_end        DATETIME NOT NULL,    -- 统计周期结束时间
-    upload_bytes      BIGINT DEFAULT 0,     -- 上传流量字节数
-    download_bytes    BIGINT DEFAULT 0,     -- 下载流量字节数
-    create_time       DATETIME,
-    update_time       DATETIME,
-    FOREIGN KEY (user_id) REFERENCES user(id)
-);
-
--- 为用户ID和周期创建索引，优化查询效率
-CREATE INDEX IF NOT EXISTS idx_user_traffic_user_id ON user_traffic_stats(user_id);
-
 -- Website 表
 CREATE TABLE IF NOT EXISTS website
 (
@@ -90,8 +62,8 @@ CREATE TABLE IF NOT EXISTS node
     domain          VARCHAR(300),
     inbound         JSON,
     outbound        JSON,
-    level           SHORT,
-    disabled        SHORT DEFAULT 0,
+    level           INTEGER,
+    disabled        INTEGER DEFAULT 0,
     name            VARCHAR(300),
     remark          VARCHAR(300),
     create_time     DATETIME,
@@ -102,16 +74,16 @@ CREATE TABLE IF NOT EXISTS node
 CREATE TABLE IF NOT EXISTS account
 (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    level            SHORT,
+    level            INTEGER,
     from_date        DATETIME,
     to_date          DATETIME,
-    cycle            INTEGER,
+    period_type       VARCHAR(20) NOT NULL, -- 统计周期类型: DAILY, WEEKLY, MONTHLY, CUSTOM
     account_no       VARCHAR(300) NOT NULL,
     uuid             VARCHAR(300) NOT NULL,
     subscription_code VARCHAR(300),
     speed            INTEGER,
     bandwidth        INTEGER,
-    disabled         SHORT DEFAULT 0,
+    disabled         INTEGER DEFAULT 0,
     user_id          INTEGER,
     create_time   DATETIME,
     update_time   DATETIME
@@ -126,3 +98,22 @@ CREATE TABLE IF NOT EXISTS account_node
     create_time   DATETIME,
     update_time   DATETIME
 );
+
+
+-- Account 流量统计表
+CREATE TABLE IF NOT EXISTS account_traffic_stats
+(
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id           INTEGER NOT NULL,     -- 关联到用户表的ID
+    account_id        INTEGER NOT NULL,     -- 关联到账户表的ID
+    period_start      DATETIME NOT NULL,    -- 统计周期开始时间
+    period_end        DATETIME NOT NULL,    -- 统计周期结束时间
+    upload_bytes      BIGINT DEFAULT 0,     -- 上传流量字节数
+    download_bytes    BIGINT DEFAULT 0,     -- 下载流量字节数
+    create_time       DATETIME,
+    update_time       DATETIME,
+    FOREIGN KEY (user_id) REFERENCES user(id)
+);
+-- 创建索引，优化查询效率
+CREATE INDEX IF NOT EXISTS idx_account_traffic_user_id ON account_traffic_stats(user_id);
+CREATE INDEX IF NOT EXISTS idx_account_traffic_account_id ON account_traffic_stats(account_id);
