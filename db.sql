@@ -2,11 +2,11 @@
 CREATE TABLE IF NOT EXISTS user
 (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    email         VARCHAR(300) NOT NULL,
-    nick_name     VARCHAR(300),
-    password      VARCHAR(300) NOT NULL,
+    email         VARCHAR(100) NOT NULL,
+    nick_name     VARCHAR(100),
+    password      VARCHAR(100) NOT NULL,
     remark        VARCHAR(300),
-    role          VARCHAR(300), -- ADMIN,PARTNER,VIP
+    role          VARCHAR(100), -- ADMIN,PARTNER,VIP
     referrer      INTEGER,
     disabled      INTEGER DEFAULT 0,
     failed_attempts      INTEGER NOT NULL DEFAULT 0,
@@ -19,8 +19,7 @@ CREATE TABLE IF NOT EXISTS user
 CREATE TABLE IF NOT EXISTS website
 (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    from_date     DATE,
-    to_date       DATE,
+    expire_date       DATE, -- 到期日
     domain        VARCHAR(300),
     price         DECIMAL(10, 2),
     cost          DECIMAL(10, 2),
@@ -35,15 +34,14 @@ CREATE TABLE IF NOT EXISTS server
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     ip            VARCHAR(300) NOT NULL,
     ssh_port      INTEGER,
-    auth_type     VARCHAR(300),
-    auth          VARCHAR(300),
-    host          VARCHAR(300),
-    name          VARCHAR(300),
-    from_date     DATE,
-    to_date       DATE,
-    supplier      VARCHAR(300),
-    price         DECIMAL(10, 2),
-    cost          DECIMAL(10, 2),
+    auth_type     VARCHAR(50), -- 认证方式
+    auth          VARCHAR(500), -- 认证密码/密钥
+    host          VARCHAR(100), -- 域名
+    name          VARCHAR(100), -- 名称
+    expire_date       DATE, -- 到期日
+    supplier      VARCHAR(100), -- 供应商
+    price         DECIMAL(10, 2), -- 价格
+    cost          DECIMAL(10, 2), -- 费用
     multiple      DECIMAL(10, 2),
     disabled      INTEGER DEFAULT 0,
     remark        VARCHAR(300),
@@ -57,14 +55,16 @@ CREATE TABLE IF NOT EXISTS server
 CREATE TABLE IF NOT EXISTS node
 (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    port            INTEGER,
     server_id       INTEGER,
-    domain          VARCHAR(300),
+    port            INTEGER,
+    --protocol        VARCHAR(50), -- VLESS、Hysteria2、Socks、Shadowsocks、ShadowTLS
+    type            INTEGER, -- 0:代理，1:落地
     inbound         JSON,
     outbound        JSON,
+    rule            JSON,
     level           INTEGER,
     disabled        INTEGER DEFAULT 0,
-    name            VARCHAR(300),
+    name            VARCHAR(100),
     remark          VARCHAR(300),
     create_time     DATETIME,
     update_time     DATETIME
@@ -78,9 +78,9 @@ CREATE TABLE IF NOT EXISTS account
     from_date        DATETIME,
     to_date          DATETIME,
     period_type       VARCHAR(20) NOT NULL, -- 统计周期类型: DAILY, WEEKLY, MONTHLY, CUSTOM
-    account_no       VARCHAR(300) NOT NULL,
-    uuid             VARCHAR(300) NOT NULL,
-    subscription_code VARCHAR(300),
+    account_no       VARCHAR(100) NOT NULL,
+    uuid             VARCHAR(100) NOT NULL,
+    subscription_code VARCHAR(100),
     speed            INTEGER,
     bandwidth        INTEGER,
     disabled         INTEGER DEFAULT 0,
