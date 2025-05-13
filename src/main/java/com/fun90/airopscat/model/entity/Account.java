@@ -8,34 +8,36 @@ import java.time.LocalDateTime;
 
 @Data
 @Entity
-@Table(name = "user")
+@Table(name = "account")
 @DynamicUpdate
-public class User {
+public class Account {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false, unique = true)
-    private String email;
+    private Integer level;
     
-    private String nickName;
-
-    private String remarkName;
-
+    private LocalDateTime fromDate;
+    
+    private LocalDateTime toDate;
+    
     @Column(nullable = false)
-    private String password;
+    private String periodType;
     
-    private String remark;
+    @Column(nullable = false, unique = true)
+    private String uuid;
     
-    private String role;
+    private String authCode;
     
-    private Long referrer;
+    private Integer maxOnlineIps;
+    
+    private Integer speed;
+    
+    private Integer bandwidth;
     
     private Integer disabled = 0;
-
-    private int failedAttempts;
-
-    private LocalDateTime lockTime;
+    
+    private Long userId;
     
     private LocalDateTime createTime;
     

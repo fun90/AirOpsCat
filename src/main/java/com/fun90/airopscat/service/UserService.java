@@ -83,6 +83,7 @@ public class UserService {
         dto.setId(user.getId());
         dto.setEmail(user.getEmail());
         dto.setNickName(user.getNickName());
+        dto.setRemarkName(user.getRemarkName());
         dto.setRole(user.getRole());
         return dto;
     }
