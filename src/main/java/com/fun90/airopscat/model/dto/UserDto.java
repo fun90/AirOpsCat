@@ -7,5 +7,6 @@ public class UserDto {
     private Long id;
     private String email;
     private String nickName;
+    private String remarkName;
     private String role;
 }
