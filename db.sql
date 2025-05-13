@@ -15,14 +15,13 @@ CREATE TABLE IF NOT EXISTS user
     update_time   DATETIME
 );
 
--- Website 表
-CREATE TABLE IF NOT EXISTS website
+-- Domain 表
+CREATE TABLE IF NOT EXISTS domain
 (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     expire_date       DATE, -- 到期日
-    domain        VARCHAR(300),
+    domain        VARCHAR(100),
     price         DECIMAL(10, 2),
-    cost          DECIMAL(10, 2),
     remark        VARCHAR(300),
     create_time   DATETIME,
     update_time   DATETIME
@@ -35,13 +34,12 @@ CREATE TABLE IF NOT EXISTS server
     ip            VARCHAR(300) NOT NULL,
     ssh_port      INTEGER,
     auth_type     VARCHAR(50), -- 认证方式
-    auth          VARCHAR(500), -- 认证密码/密钥
+    auth          VARCHAR(3000), -- 认证密码/密钥
     host          VARCHAR(100), -- 域名
     name          VARCHAR(100), -- 名称
     expire_date       DATE, -- 到期日
     supplier      VARCHAR(100), -- 供应商
     price         DECIMAL(10, 2), -- 价格
-    cost          DECIMAL(10, 2), -- 费用
     multiple      DECIMAL(10, 2),
     disabled      INTEGER DEFAULT 0,
     remark        VARCHAR(300),
@@ -57,7 +55,7 @@ CREATE TABLE IF NOT EXISTS node
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     server_id       INTEGER,
     port            INTEGER,
-    --protocol        VARCHAR(50), -- VLESS、Hysteria2、Socks、Shadowsocks、ShadowTLS
+    -- protocol        VARCHAR(50), -- VLESS、Hysteria2、Socks、Shadowsocks、ShadowTLS
     type            INTEGER, -- 0:代理，1:落地
     inbound         JSON,
     outbound        JSON,
@@ -115,5 +113,24 @@ CREATE TABLE IF NOT EXISTS account_traffic_stats
     FOREIGN KEY (user_id) REFERENCES user(id)
 );
 -- 创建索引，优化查询效率
-CREATE INDEX IF NOT EXISTS idx_account_traffic_user_id ON account_traffic_stats(user_id);
-CREATE INDEX IF NOT EXISTS idx_account_traffic_account_id ON account_traffic_stats(account_id);
+# CREATE INDEX IF NOT EXISTS idx_account_traffic_user_id ON account_traffic_stats(user_id);
+# CREATE INDEX IF NOT EXISTS idx_account_traffic_account_id ON account_traffic_stats(account_id);
+
+-- 账单流水表
+CREATE TABLE transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键，自动递增
+      transaction_date DATETIME NOT NULL,    -- 交易日期时间
+      amount DECIMAL(10,2) NOT NULL,         -- 交易金额，保留两位小数
+      type INTEGER NOT NULL,                 -- 交易类型（收入：0、支出：1）
+      business_table VARCHAR(50),            -- 关联的业务表名称
+      business_id INTEGER,                   -- 关联的业务表ID
+      description VARCHAR(300),              -- 交易描述
+      payment_method VARCHAR(30),            -- 支付方式（如信用卡、微信支付、支付宝）
+      remark VARCHAR(300),                           -- 备注信息
+      create_time DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 记录创建时间
+      update_time DATETIME DEFAULT CURRENT_TIMESTAMP   -- 记录更新时间
+);
+
+-- 创建索引以提高查询效率
+# CREATE INDEX idx_transaction_date ON transactions(transaction_date);
+# CREATE INDEX idx_category ON transactions(business_id);

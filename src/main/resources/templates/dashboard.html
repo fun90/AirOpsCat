@@ -51,18 +51,18 @@
     <!-- 页面布局 -->
     <div class="page">
         <!-- 侧边栏 -->
-        <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+        <div th:replace="~{fragments/common/sidebar :: sidebar}"></div>
 
         <!-- 主内容区 -->
         <div class="page-wrapper">
             <!-- 顶部导航 -->
-            <div th:replace="~{fragments/header :: header}"></div>
+            <div th:replace="~{fragments/common/header :: header}"></div>
 
             <!-- 主内容 -->
-            <div th:replace="'fragments/' + ${entityName} :: content"></div>
+            <div th:replace="'fragments' + ${uri} :: content"></div>
 
             <!-- 页脚 -->
-            <div th:replace="~{fragments/footer :: footer}"></div>
+            <div th:replace="~{fragments/common/footer :: footer}"></div>
         </div>
     </div>
 </div>
@@ -76,7 +76,7 @@
 <!-- Common JS -->
 <script th:src="@{/static/js/toast-utils.js}"></script>
 
-<script th:replace="~{fragments/user :: script}"></script>
+<script th:replace="'fragments' + ${uri} :: script"></script>
 
 </body>
 </html>

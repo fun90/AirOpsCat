@@ -1,0 +1,81 @@
+<aside th:fragment="sidebar" class="navbar navbar-vertical navbar-expand-lg sidebar">
+    <div class="container-fluid">
+        <!-- 侧边栏头部 -->
+        <div class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+            <img th:src="@{/static/img/logo.png}" style="height: 80px" alt="Logo" />
+        </div>
+
+        <!-- 移动端菜单切换按钮 -->
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <!-- 侧边菜单 -->
+        <div class="collapse navbar-collapse" id="navbar-menu">
+            <ul class="navbar-nav pt-lg-3">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard">
+                        <span class="nav-link-icon d-md-none d-lg-inline-block"
+                        ><!-- Download SVG icon from http://tabler-icons.io/i/home -->
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                <polyline points="5 12 3 12 12 3 21 12 19 12"></polyline>
+                                <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"></path>
+                                <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"></path>
+                            </svg>
+                        </span>
+                        <span class="nav-link-title"> 主页 </span>
+                    </a>
+                </li>
+                <li class="nav-item" th:classappend="${moduleTitle == '用户'} ? ' dropdown active'">
+                    <a class="nav-link dropdown-toggle" href="#/person" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                        <span class="nav-link-icon d-md-none d-lg-inline-block">
+                            <svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-user-circle"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 10m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M6.168 18.849a4 4 0 0 1 3.832 -2.849h4a4 4 0 0 1 3.834 2.855" /></svg>
+                        </span>
+                        <span class="nav-link-title"> 用户 </span>
+                    </a>
+                    <div class="dropdown-menu" th:classappend="${moduleTitle == '用户'} ? ' show'">
+                        <a class="dropdown-item" th:classappend="${uri == '/person/user'} ? ' active'" href="/console/person/user"> 用户管理 </a>
+                        <a class="dropdown-item" th:classappend="${uri == '/person/account'} ? ' active'" href="/console/person/account"> 账户管理 </a>
+                        <a class="dropdown-item" th:classappend="${uri == '/person/account-traffic'} ? ' active'" href="/console/person/account-traffic"> 账户流量 </a>
+                    </div>
+                </li>
+                <li class="nav-item" th:classappend="${moduleTitle == '设备'} ? ' dropdown active'">
+                    <a class="nav-link dropdown-toggle" href="#/device" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                        <span class="nav-link-icon d-md-none d-lg-inline-block">
+                            <svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-server-2"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 4m0 3a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3z" /><path d="M3 12m0 3a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3z" /><path d="M7 8l0 .01" /><path d="M7 16l0 .01" /><path d="M11 8h6" /><path d="M11 16h6" /></svg>
+                        </span>
+                        <span class="nav-link-title"> 设备 </span>
+                    </a>
+                    <div class="dropdown-menu" th:classappend="${moduleTitle == '设备'} ? ' show'">
+                        <a class="dropdown-item" th:classappend="${uri == '/device/domain'} ? ' active'" href="/console/device/domain"> 域名 </a>
+                        <a class="dropdown-item" th:classappend="${uri == '/device/server'} ? ' active'" href="/console/device/server"> 服务器 </a>
+                    </div>
+                </li>
+                <li class="nav-item" th:classappend="${moduleTitle == '代理'} ? ' dropdown active'">
+                    <a class="nav-link dropdown-toggle" href="#/vpn" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                        <span class="nav-link-icon d-md-none d-lg-inline-block">
+                            <svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-network"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 9a6 6 0 1 0 12 0a6 6 0 0 0 -12 0" /><path d="M12 3c1.333 .333 2 2.333 2 6s-.667 5.667 -2 6" /><path d="M12 3c-1.333 .333 -2 2.333 -2 6s.667 5.667 2 6" /><path d="M6 9h12" /><path d="M3 20h7" /><path d="M14 20h7" /><path d="M10 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M12 15v3" /></svg>
+                        </span>
+                        <span class="nav-link-title"> 代理 </span>
+                    </a>
+                    <div class="dropdown-menu" th:classappend="${moduleTitle == '代理'} ? ' show'">
+                        <a class="dropdown-item" th:classappend="${uri == '/vpn/config-template'} ? ' active'" href="/console/vpn/config-template"> 配置模板 </a>
+                        <a class="dropdown-item" th:classappend="${uri == '/vpn/node'} ? ' active'" href="/console/vpn/node"> 节点管理 </a>
+                    </div>
+                </li>
+                <li class="nav-item" th:classappend="${moduleTitle == '财务'} ? ' dropdown active'">
+                    <a class="nav-link dropdown-toggle" href="#/money" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                        <span class="nav-link-icon d-md-none d-lg-inline-block">
+                            <svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-tax"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8.487 21h7.026a4 4 0 0 0 3.808 -5.224l-1.706 -5.306a5 5 0 0 0 -4.76 -3.47h-1.71a5 5 0 0 0 -4.76 3.47l-1.706 5.306a4 4 0 0 0 3.808 5.224" /><path d="M15 3q -1 4 -3 4t -3 -4z" /><path d="M14 11h-2.5a1.5 1.5 0 0 0 0 3h1a1.5 1.5 0 0 1 0 3h-2.5" /><path d="M12 10v1" /><path d="M12 17v1" /></svg>
+                        </span>
+                        <span class="nav-link-title"> 财务 </span>
+                    </a>
+                    <div class="dropdown-menu" th:classappend="${moduleTitle == '财务'} ? ' show'">
+                        <a class="dropdown-item" th:classappend="${uri == '/money/transactions'} ? ' active'" href="/console/money/transactions"> 交易流水 </a>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+</aside>

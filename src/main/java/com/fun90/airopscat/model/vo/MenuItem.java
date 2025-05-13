@@ -5,7 +5,8 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class Breadcrumb {
+public class MenuItem {
+    private String moduleTitle;
     private String title;
-    private String url;
+    private String uri;
 }
