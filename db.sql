@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS user
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     email         VARCHAR(100) NOT NULL,
     nick_name     VARCHAR(100),
+    remark_name   VARCHAR(100),
     password      VARCHAR(100) NOT NULL,
     remark        VARCHAR(300),
     role          VARCHAR(100), -- ADMIN,PARTNER,VIP
@@ -75,12 +76,12 @@ CREATE TABLE IF NOT EXISTS account
     level            INTEGER,
     from_date        DATETIME,
     to_date          DATETIME,
-    period_type       VARCHAR(20) NOT NULL, -- 统计周期类型: DAILY, WEEKLY, MONTHLY, CUSTOM
-    account_no       VARCHAR(100) NOT NULL,
+    period_type      VARCHAR(20) NOT NULL, -- 统计周期类型: DAILY, WEEKLY, MONTHLY, CUSTOM
     uuid             VARCHAR(100) NOT NULL,
-    subscription_code VARCHAR(100),
-    speed            INTEGER,
-    bandwidth        INTEGER,
+    auth_code        VARCHAR(100),
+    max_online_ips   INTEGER, -- 最大在线 IP 数
+    speed            INTEGER, -- 最大速度，预留字段
+    bandwidth        INTEGER, -- 流量
     disabled         INTEGER DEFAULT 0,
     user_id          INTEGER,
     create_time   DATETIME,
