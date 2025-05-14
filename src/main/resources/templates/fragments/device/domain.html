@@ -1,75 +1,158 @@
 <div th:fragment="content" class="page-body">
     <div class="container-xl">
-        <div class="card" id="users-app" @vue:mounted="mounted">
+        <div class="card" id="domains-app" @vue:mounted="mounted">
             <div class="card-header">
-                <h3 class="card-title">Users</h3>
+                <h3 class="card-title">域名管理</h3>
                 <div class="card-actions">
                     <div class="row g-2">
                         <div class="col">
                             <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
                         </div>
                         <div class="col-auto">
-                            <select class="form-select" v-model="filterRole" @change="fetchUsers">
-                                <option value="">全部角色</option>
-                                <option value="ADMIN">ADMIN</option>
-                                <option value="PARTNER">PARTNER</option>
-                                <option value="VIP">VIP</option>
-                            </select>
+                            <div class="input-group">
+                                <span class="input-group-text">到期从</span>
+                                <input type="date" class="form-control" v-model="expiryFrom" @change="fetchDomains">
+                            </div>
                         </div>
                         <div class="col-auto">
-                            <select class="form-select" v-model="filterStatus" @change="fetchUsers">
-                                <option value="">全部状态</option>
-                                <option value="active">Active</option>
-                                <option value="disabled">Disabled</option>
-                            </select>
+                            <div class="input-group">
+                                <span class="input-group-text">到期至</span>
+                                <input type="date" class="form-control" v-model="expiryTo" @change="fetchDomains">
+                            </div>
                         </div>
                         <div class="col-auto">
-                            <button class="btn btn-primary" @click="openCreateUserModal">
-                                <i class="ti ti-plus"></i> 添加用户
+                            <button class="btn btn-primary" @click="openCreateDomainModal">
+                                <i class="ti ti-plus"></i> 添加域名
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- 域名统计卡片 -->
+            <div class="card-body border-bottom">
+                <div class="row">
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-primary text-white avatar">
+                                            <i class="ti ti-world"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            域名总数
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ totalItems }} 个域名
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-red text-white avatar">
+                                            <i class="ti ti-alert-triangle"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            已过期
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ expiredCount }} 个域名
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-yellow text-white avatar">
+                                            <i class="ti ti-clock"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            即将到期
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ expiringCount }} 个域名 (30天内)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-blue text-white avatar">
+                                            <i class="ti ti-coin"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            总成本
+                                        </div>
+                                        <div class="text-muted">
+                                            ¥ {{ totalCost.toFixed(2) }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table id="tablePage" class="table table-vcenter card-table">
+                    <table class="table table-vcenter card-table">
                         <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Email</th>
-                            <th>Nickname</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Actions</th>
+                            <th>域名</th>
+                            <th>到期日</th>
+                            <th>状态</th>
+                            <th>价格</th>
+                            <th>备注</th>
+                            <th>操作</th>
                         </tr>
                         </thead>
                         <tbody>
-                        <tr v-for="user in users" :key="user.id">
-                            <td v-text="user.id"></td>
-                            <td v-text="user.email"></td>
-                            <td v-text="user.nickName || '-'"></td>
+                        <tr v-for="domain in domains" :key="domain.id">
+                            <td v-text="domain.id"></td>
                             <td>
-                                <span class="badge" :class="getRoleBadgeClass(user.role)" v-text="user.role || 'PARTNER'"></span>
+                                <a :href="'http://' + domain.domain" target="_blank" class="text-reset">{{ domain.domain }}</a>
                             </td>
+                            <td v-text="formatDate(domain.expireDate)"></td>
                             <td>
-                                <span class="badge" :class="getStatusBadgeClass(user.disabled)">
-                                    {{ user.disabled === 0 ? 'Active' : 'Disabled' }}
+                                <span class="badge" :class="getStatusBadgeClass(domain.daysUntilExpiration)">
+                                    {{ getDomainStatus(domain.daysUntilExpiration) }}
                                 </span>
                             </td>
-                            <td v-text="formatDate(user.createTime)"></td>
+                            <td>¥ {{ domain.price ? domain.price.toFixed(2) : '-' }}</td>
+                            <td v-text="domain.remark || '-'"></td>
                             <td>
                                 <div class="btn-list flex-nowrap">
-                                    <button @click="openEditUserModal(user)" class="btn btn-sm btn-outline-primary">
+                                    <button @click="openEditDomainModal(domain)" class="btn btn-sm btn-outline-primary">
                                         <i class="ti ti-edit"></i> 编辑
                                     </button>
-                                    <button @click="toggleUserStatus(user)" class="btn btn-sm"
-                                            :class="user.disabled === 0 ? 'btn-outline-danger' : 'btn-outline-success'">
-                                        <i class="ti" :class="user.disabled === 0 ? 'ti-ban' : 'ti-check'"></i>
-                                        {{ user.disabled === 0 ? '禁用' : '启用' }}
-                                    </button>
-                                    <button @click="confirmDelete(user)" class="btn btn-sm btn-outline-danger">
+                                    <button @click="confirmDelete(domain)" class="btn btn-sm btn-outline-danger">
                                         <i class="ti ti-trash"></i> 删除
                                     </button>
                                 </div>
@@ -82,7 +165,7 @@
                                 </div>
                             </td>
                         </tr>
-                        <tr v-else-if="users.length === 0">
+                        <tr v-else-if="domains.length === 0">
                             <td colspan="7" class="text-center py-3">没有查到数据.</td>
                         </tr>
                         </tbody>
@@ -140,101 +223,85 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-danger" @click="deleteUser">确认</button>
+                            <button type="button" class="btn btn-danger" @click="deleteDomain">确认</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Create User Modal -->
-            <div class="modal modal-blur fade" id="createUserModal" tabindex="-1" role="dialog">
+            <!-- Create Domain Modal -->
+            <div class="modal modal-blur fade" id="createDomainModal" tabindex="-1" role="dialog">
                 <div class="modal-dialog modal-dialog-centered" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">添加用户</h5>
+                            <h5 class="modal-title">添加域名</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-<!--                            <fieldset class="form-fieldset">-->
                             <div class="mb-3">
-                                <label class="form-label required">邮箱</label>
-                                <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }" placeholder="user@example.com" v-model="newUser.email">
-                                <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                                <label class="form-label required">域名</label>
+                                <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.domain }" placeholder="example.com" v-model="newDomain.domain">
+                                <div class="invalid-feedback" v-if="validationErrors.domain">{{ validationErrors.domain }}</div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label required">密码</label>
-                                <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }" placeholder="Password" v-model="newUser.password">
-                                <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
+                                <label class="form-label">到期日期</label>
+                                <input type="date" class="form-control" :class="{ 'is-invalid': validationErrors.expireDate }" v-model="newDomain.expireDate">
+                                <div class="invalid-feedback" v-if="validationErrors.expireDate">{{ validationErrors.expireDate }}</div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">昵称</label>
-                                <input type="text" class="form-control" placeholder="Nickname" v-model="newUser.nickName">
+                                <label class="form-label">价格</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="number" class="form-control" step="0.01" min="0" v-model="newDomain.price">
+                                </div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">角色</label>
-                                <select class="form-select" v-model="newUser.role">
-                                    <option value="PARTNER">PARTNER</option>
-                                    <option value="ADMIN">ADMIN</option>
-                                    <option value="VIP">VIP</option>
-                                </select>
+                                <label class="form-label">备注</label>
+                                <textarea class="form-control" rows="3" v-model="newDomain.remark"></textarea>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" v-model="newUser.disabled">
-                                    <span class="form-check-label">禁用账户</span>
-                                </label>
-                            </div>
-<!--                            </fieldset>-->
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" @click="createUser">创建用户</button>
+                            <button type="button" class="btn btn-primary" @click="createDomain">创建</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Edit User Modal -->
-            <div class="modal modal-blur fade" id="editUserModal" tabindex="-1" role="dialog">
+            <!-- Edit Domain Modal -->
+            <div class="modal modal-blur fade" id="editDomainModal" tabindex="-1" role="dialog">
                 <div class="modal-dialog modal-dialog-centered" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">编辑用户</h5>
+                            <h5 class="modal-title">编辑域名</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
                             <div class="mb-3">
-                                <label class="form-label required">邮箱</label>
-                                <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }" placeholder="user@example.com" v-model="editedUser.email">
-                                <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                                <label class="form-label required">域名</label>
+                                <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.domain }" placeholder="example.com" v-model="editedDomain.domain">
+                                <div class="invalid-feedback" v-if="validationErrors.domain">{{ validationErrors.domain }}</div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">密码 <span class="text-muted">(留空表示不修改)</span></label>
-                                <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }" placeholder="New password" v-model="editedUser.password">
-                                <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
+                                <label class="form-label">到期日期</label>
+                                <input type="date" class="form-control" :class="{ 'is-invalid': validationErrors.expireDate }" v-model="editedDomain.expireDate">
+                                <div class="invalid-feedback" v-if="validationErrors.expireDate">{{ validationErrors.expireDate }}</div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">昵称</label>
-                                <input type="text" class="form-control" placeholder="Nickname" v-model="editedUser.nickName">
+                                <label class="form-label">价格</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="number" class="form-control" step="0.01" min="0" v-model="editedDomain.price">
+                                </div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">角色</label>
-                                <select class="form-select" v-model="editedUser.role">
-                                    <option value="PARTNER">PARTNER</option>
-                                    <option value="ADMIN">ADMIN</option>
-                                    <option value="VIP">VIP</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" :checked="editedUser.disabled === 1" @change="editedUser.disabled = $event.target.checked ? 1 : 0">
-                                    <span class="form-check-label">禁用账户</span>
-                                </label>
+                                <label class="form-label">备注</label>
+                                <textarea class="form-control" rows="3" v-model="editedDomain.remark"></textarea>
                             </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" @click="updateUser">保存修改</button>
+                            <button type="button" class="btn btn-primary" @click="updateDomain">保存</button>
                         </div>
                     </div>
                 </div>
@@ -246,40 +313,41 @@
 <script th:fragment="script" th:inline="javascript">
     PetiteVue.createApp({
         // Data
-        users: [],
+        domains: [],
         searchQuery: '',
-        filterRole: '',
-        filterStatus: '',
+        expiryFrom: '',
+        expiryTo: '',
         currentPage: 1,
         pageSize: 10,
         totalItems: 0,
         totalPages: 0,
-        selectedUser: null,
+        expiredCount: 0,
+        expiringCount: 0,
+        totalCost: 0,
+        selectedDomain: null,
         deleteModal: null,
         createModal: null,
         editModal: null,
         loading: true,
         searchTimeout: null,
-        newUser: {
-            email: '',
-            password: '',
-            nickName: '',
-            role: 'PARTNER',
-            disabled: false
+        newDomain: {
+            domain: '',
+            expireDate: '',
+            price: '',
+            remark: ''
         },
-        editedUser: {
+        editedDomain: {
             id: null,
-            email: '',
-            password: '',
-            nickName: '',
-            role: 'PARTNER',
-            disabled: 0
+            domain: '',
+            expireDate: '',
+            price: '',
+            remark: ''
         },
         validationErrors: {},
 
         // Lifecycle hooks
         mounted() {
-            this.fetchUsers();
+            this.fetchDomains();
         },
 
         // Computed properties
@@ -310,7 +378,7 @@
         },
 
         // Methods
-        fetchUsers() {
+        fetchDomains() {
             this.loading = true;
 
             // Build query parameters
@@ -323,15 +391,15 @@
                 params.append('search', this.searchQuery);
             }
 
-            if (this.filterRole) {
-                params.append('role', this.filterRole);
+            if (this.expiryFrom) {
+                params.append('expiryFrom', this.expiryFrom);
             }
 
-            if (this.filterStatus) {
-                params.append('status', this.filterStatus);
+            if (this.expiryTo) {
+                params.append('expiryTo', this.expiryTo);
             }
 
-            fetch(`/api/admin/users?${params.toString()}`)
+            fetch(`/api/admin/domains?${params.toString()}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
@@ -339,15 +407,21 @@
                     return response.json();
                 })
                 .then(data => {
-                    this.users = data.records;
+                    this.domains = data.records;
                     this.totalItems = data.total;
                     this.totalPages = data.pages;
                     this.currentPage = data.current;
+
+                    // 统计数据
+                    this.expiredCount = data.expiredCount || 0;
+                    this.expiringCount = data.expiringCount || 0;
+                    this.totalCost = data.totalCost || 0;
+
                     this.loading = false;
                 })
                 .catch(error => {
-                    console.error('Error fetching users:', error);
-                    ToastUtils.show('Error', 'Failed to load users.', 'danger');
+                    console.error('Error fetching domains:', error);
+                    ToastUtils.show('Error', 'Failed to load domains.', 'danger');
                     this.loading = false;
                 });
         },
@@ -361,92 +435,80 @@
             // Set new timeout to delay the API call
             this.searchTimeout = setTimeout(() => {
                 this.currentPage = 1; // Reset to first page when searching
-                this.fetchUsers();
+                this.fetchDomains();
             }, 500); // Wait for 500ms after user stops typing
         },
 
         formatDate(dateString) {
             if (!dateString) return '-';
             const date = new Date(dateString);
-            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            return date.toLocaleDateString();
         },
 
-        getRoleBadgeClass(role) {
-            switch (role && role.toUpperCase()) {
-                case 'ADMIN': return 'text-bg-purple';
-                case 'PARTNER': return 'text-bg-indigo';
-                default: return 'text-bg-blue'; // VIP or other roles
+        getDomainStatus(daysUntilExpiration) {
+            if (daysUntilExpiration === undefined || daysUntilExpiration === null) {
+                return "未设置到期日";
+            }
+
+            if (daysUntilExpiration < 0) {
+                return "已过期 " + Math.abs(daysUntilExpiration) + " 天";
+            } else if (daysUntilExpiration === 0) {
+                return "今天到期";
+            } else if (daysUntilExpiration <= 30) {
+                return "即将到期 " + daysUntilExpiration + " 天";
+            } else {
+                return "正常 (还有 " + daysUntilExpiration + " 天)";
             }
         },
 
-        getStatusBadgeClass(disabled) {
-            return disabled === 0 ? 'text-bg-success' : 'text-bg-danger';
+        getStatusBadgeClass(daysUntilExpiration) {
+            if (daysUntilExpiration === undefined || daysUntilExpiration === null) {
+                return "text-bg-secondary";
+            }
+
+            if (daysUntilExpiration < 0) {
+                return "text-bg-danger";
+            } else if (daysUntilExpiration <= 30) {
+                return "text-bg-warning";
+            } else {
+                return "text-bg-success";
+            }
         },
 
         prevPage() {
             if (this.currentPage > 1) {
                 this.currentPage--;
-                this.fetchUsers();
+                this.fetchDomains();
             }
         },
 
         nextPage() {
             if (this.currentPage < this.totalPages) {
                 this.currentPage++;
-                this.fetchUsers();
+                this.fetchDomains();
             }
         },
 
         goToPage(page) {
             this.currentPage = page;
-            this.fetchUsers();
+            this.fetchDomains();
         },
 
         changePageSize() {
             this.currentPage = 1; // Reset to first page when changing page size
-            this.fetchUsers();
+            this.fetchDomains();
         },
 
-        toggleUserStatus(user) {
-            const action = user.disabled === 0 ? 'disable' : 'enable';
-
-            fetch(`/api/admin/users/${user.id}/${action}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('更新状态失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    // Update user status in the local array
-                    const index = this.users.findIndex(u => u.id === user.id);
-                    if (index !== -1) {
-                        this.users[index].disabled = data.disabled;
-                    }
-
-                    ToastUtils.show('Success', '更新状态成功', 'success');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', '更新状态发生错误', 'danger');
-                });
-        },
-
-        confirmDelete(user) {
-            this.selectedUser = user;
+        confirmDelete(domain) {
+            this.selectedDomain = domain;
             this.deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
             this.deleteModal.show();
         },
 
-        deleteUser() {
-            if (!this.selectedUser) return;
+        deleteDomain() {
+            if (!this.selectedDomain) return;
 
-            fetch(`/api/admin/users/${this.selectedUser.id}`, {
+            fetch(`/api/admin/domains/${this.selectedDomain.id}`, {
                 method: 'DELETE'
             })
                 .then(response => {
@@ -454,8 +516,8 @@
                         throw new Error('删除失败');
                     }
 
-                    // Refetch the users data to update the list and pagination
-                    this.fetchUsers();
+                    // Refetch the domains data to update the list and pagination
+                    this.fetchDomains();
                     ToastUtils.show('Success', '删除成功', 'success');
 
                     // Hide modal
@@ -467,70 +529,62 @@
                 });
         },
 
-        // Create User methods
-        openCreateUserModal() {
+        // Create Domain methods
+        openCreateDomainModal() {
+            // Get today's date for default expiration date (1 year from now)
+            const today = new Date();
+            today.setFullYear(today.getFullYear() + 1); // Add one year
+            const oneYearFromNow = today.toISOString().split('T')[0];
+
             // Reset form
-            this.newUser = {
-                email: '',
-                password: '',
-                nickName: '',
-                role: 'PARTNER',
-                disabled: false
+            this.newDomain = {
+                domain: '',
+                expireDate: oneYearFromNow,
+                price: '',
+                remark: ''
             };
             this.validationErrors = {};
 
             // Show modal
-            this.createModal = new bootstrap.Modal(document.getElementById('createUserModal'));
+            this.createModal = new bootstrap.Modal(document.getElementById('createDomainModal'));
             this.createModal.show();
         },
 
-        validateUserForm(user, isCreate = true) {
+        validateDomainForm(domain) {
             let isValid = true;
             this.validationErrors = {};
 
-            // Email validation
-            if (!user.email || !user.email.trim()) {
-                this.validationErrors.email = '邮箱地址不能为空';
+            // Domain validation
+            if (!domain.domain || !domain.domain.trim()) {
+                this.validationErrors.domain = '域名不能为空';
                 isValid = false;
-            } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) {
-                this.validationErrors.email = '请输入有效的邮箱地址';
-                isValid = false;
-            }
-
-            // Password validation (only required for new users)
-            if (isCreate && (!user.password || user.password.trim().length < 6)) {
-                this.validationErrors.password = '密码长度至少为6个字符';
-                isValid = false;
-            } else if (!isCreate && user.password && user.password.trim().length > 0 && user.password.trim().length < 6) {
-                // For edit form, validate password only if it's provided
-                this.validationErrors.password = '密码长度至少为6个字符';
+            } else if (!/^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/.test(domain.domain)) {
+                this.validationErrors.domain = '请输入有效的域名';
                 isValid = false;
             }
 
             return isValid;
         },
 
-        createUser() {
-            if (!this.validateUserForm(this.newUser)) {
-                console.info(222222)
+        createDomain() {
+            if (!this.validateDomainForm(this.newDomain)) {
                 return;
             }
 
             // Prepare data for API
-            const userData = {
-                email: this.newUser.email,
-                password: this.newUser.password,
-                nickName: this.newUser.nickName || null,
-                role: this.newUser.role,
-                disabled: this.newUser.disabled ? 1 : 0
+            const domainData = {
+                domain: this.newDomain.domain,
+                expireDate: this.newDomain.expireDate || null,
+                price: this.newDomain.price || null,
+                remark: this.newDomain.remark || null
             };
 
-            fetch('/api/admin/users', {
+            fetch('/api/admin/domains', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(userData)
+                body: JSON.stringify(domainData)
             })
                 .then(response => {
                     if (!response.ok) {
@@ -544,7 +598,7 @@
                     return response.json();
                 })
                 .then(data => {
-                    this.fetchUsers(); // Refresh the user list
+                    this.fetchDomains(); // Refresh the domain list
                     this.createModal.hide();
                     ToastUtils.show('Success', '创建成功', 'success');
                 })
@@ -554,48 +608,49 @@
                 });
         },
 
-        // Edit User methods
-        openEditUserModal(user) {
-            // Clone user data to avoid direct mutation
-            this.editedUser = {
-                id: user.id,
-                email: user.email,
-                password: '', // Empty password field
-                nickName: user.nickName || '',
-                role: user.role || 'PARTNER',
-                disabled: user.disabled
+        // Edit Domain methods
+        openEditDomainModal(domain) {
+            // Format date for date input
+            const formatDateForInput = (dateString) => {
+                if (!dateString) return '';
+                const date = new Date(dateString);
+                return date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+            };
+
+            // Clone domain data to avoid direct mutation
+            this.editedDomain = {
+                id: domain.id,
+                domain: domain.domain,
+                expireDate: formatDateForInput(domain.expireDate),
+                price: domain.price,
+                remark: domain.remark || ''
             };
             this.validationErrors = {};
 
             // Show modal
-            this.editModal = new bootstrap.Modal(document.getElementById('editUserModal'));
+            this.editModal = new bootstrap.Modal(document.getElementById('editDomainModal'));
             this.editModal.show();
         },
 
-        updateUser() {
-            if (!this.validateUserForm(this.editedUser, false)) {
+        updateDomain() {
+            if (!this.validateDomainForm(this.editedDomain)) {
                 return;
             }
 
             // Prepare data for API
-            const userData = {
-                email: this.editedUser.email,
-                nickName: this.editedUser.nickName || null,
-                role: this.editedUser.role,
-                disabled: this.editedUser.disabled
+            const domainData = {
+                domain: this.editedDomain.domain,
+                expireDate: this.editedDomain.expireDate || null,
+                price: this.editedDomain.price || null,
+                remark: this.editedDomain.remark || null
             };
 
-            // Only include password if it's provided
-            if (this.editedUser.password) {
-                userData.password = this.editedUser.password;
-            }
-
-            fetch(`/api/admin/users/${this.editedUser.id}`, {
+            fetch(`/api/admin/domains/${this.editedDomain.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(userData)
+                body: JSON.stringify(domainData)
             })
                 .then(response => {
                     if (!response.ok) {
@@ -609,11 +664,8 @@
                     return response.json();
                 })
                 .then(data => {
-                    // Update user in the local array
-                    const index = this.users.findIndex(u => u.id === this.editedUser.id);
-                    if (index !== -1) {
-                        this.users[index] = data;
-                    }
+                    // Refresh the domain list to get updated data including expiry status
+                    this.fetchDomains();
 
                     this.editModal.hide();
                     ToastUtils.show('Success', '更新成功', 'success');
@@ -623,5 +675,5 @@
                     ToastUtils.show('Error', error.message || '更新失败', 'danger');
                 });
         },
-    }).mount('#users-app');
+    }).mount('#domains-app');
 </script>

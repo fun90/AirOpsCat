@@ -1,89 +1,222 @@
 <div th:fragment="content" class="page-body">
     <div class="container-xl">
-        <div class="card" id="users-app" @vue:mounted="mounted">
+        <div class="card" id="accounts-app" @vue:mounted="mounted">
             <div class="card-header">
-                <h3 class="card-title">Users</h3>
+                <h3 class="card-title">账户管理</h3>
                 <div class="card-actions">
                     <div class="row g-2">
                         <div class="col">
-                            <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
+                            <input type="text" class="form-control" placeholder="搜索UUID或认证码..." v-model="searchQuery" @input="searchDebounced">
                         </div>
                         <div class="col-auto">
-                            <select class="form-select" v-model="filterRole" @change="fetchUsers">
-                                <option value="">全部角色</option>
-                                <option value="ADMIN">ADMIN</option>
-                                <option value="PARTNER">PARTNER</option>
-                                <option value="VIP">VIP</option>
+                            <select class="form-select" v-model="filterUserId" @change="fetchAccounts">
+                                <option value="">全部用户</option>
+                                <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
                             </select>
                         </div>
                         <div class="col-auto">
-                            <select class="form-select" v-model="filterStatus" @change="fetchUsers">
+                            <select class="form-select" v-model="filterStatus" @change="fetchAccounts">
                                 <option value="">全部状态</option>
-                                <option value="active">Active</option>
-                                <option value="disabled">Disabled</option>
+                                <option value="active">活跃</option>
+                                <option value="expired">已过期</option>
+                                <option value="disabled">已禁用</option>
                             </select>
                         </div>
                         <div class="col-auto">
-                            <button class="btn btn-primary" @click="openCreateUserModal">
-                                <i class="ti ti-plus"></i> 添加用户
+                            <button class="btn btn-primary" @click="openCreateAccountModal">
+                                <i class="ti ti-plus"></i> 添加账户
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- 账户统计卡片 -->
+            <div class="card-body border-bottom">
+                <div class="row">
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-primary text-white avatar">
+                                            <i class="ti ti-device-desktop"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            总账户数
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ stats.total || 0 }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-green text-white avatar">
+                                            <i class="ti ti-circle-check"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            活跃账户
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ stats.active || 0 }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-red text-white avatar">
+                                            <i class="ti ti-calendar-x"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            已过期
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ stats.expired || 0 }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-yellow text-white avatar">
+                                            <i class="ti ti-clock"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            即将过期
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ stats.expiringSoon || 0 }} (7天内)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table id="tablePage" class="table table-vcenter card-table">
+                    <table class="table table-vcenter card-table">
                         <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Email</th>
-                            <th>Nickname</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Actions</th>
+                            <th>用户</th>
+                            <th>UUID</th>
+                            <th>状态</th>
+                            <th>流量使用</th>
+                            <th>到期时间</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
                         </tr>
                         </thead>
                         <tbody>
-                        <tr v-for="user in users" :key="user.id">
-                            <td v-text="user.id"></td>
-                            <td v-text="user.email"></td>
-                            <td v-text="user.nickName || '-'"></td>
+                        <tr v-for="account in accounts" :key="account.id">
+                            <td v-text="account.id"></td>
                             <td>
-                                <span class="badge" :class="getRoleBadgeClass(user.role)" v-text="user.role || 'PARTNER'"></span>
+                                <a href="#" @click.prevent="viewUserDetails(account.userId)">{{ account.userEmail || account.userId }}</a>
                             </td>
                             <td>
-                                <span class="badge" :class="getStatusBadgeClass(user.disabled)">
-                                    {{ user.disabled === 0 ? 'Active' : 'Disabled' }}
+                                <div class="d-flex align-items-center">
+                                    <span v-text="account.uuid" class="text-truncate" style="max-width: 150px;"></span>
+                                    <button @click="copyToClipboard(account.uuid)" class="btn btn-sm btn-ghost-secondary ms-2">
+                                        <i class="ti ti-copy"></i>
+                                    </button>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge" :class="getStatusBadgeClass(account.statusType)">
+                                    {{ account.statusDescription }}
                                 </span>
                             </td>
-                            <td v-text="formatDate(user.createTime)"></td>
+                            <td>
+                                <div v-if="account.bandwidth">
+                                    <div class="row align-items-center">
+                                        <div class="col-auto">
+                                            {{ formatBytes(account.totalUsedBytes) }} / {{ account.bandwidth }} GB
+                                        </div>
+                                        <div class="col">
+                                            <div class="progress progress-sm">
+                                                <div class="progress-bar" :class="getProgressBarClass(account.usagePercentage)" :style="{ width: account.usagePercentage + '%' }"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-else>
+                                    {{ formatBytes(account.totalUsedBytes) }}
+                                </div>
+                            </td>
+                            <td v-text="formatDateTime(account.toDate) || '永不过期'"></td>
+                            <td v-text="formatDateTime(account.createTime)"></td>
                             <td>
                                 <div class="btn-list flex-nowrap">
-                                    <button @click="openEditUserModal(user)" class="btn btn-sm btn-outline-primary">
-                                        <i class="ti ti-edit"></i> 编辑
-                                    </button>
-                                    <button @click="toggleUserStatus(user)" class="btn btn-sm"
-                                            :class="user.disabled === 0 ? 'btn-outline-danger' : 'btn-outline-success'">
-                                        <i class="ti" :class="user.disabled === 0 ? 'ti-ban' : 'ti-check'"></i>
-                                        {{ user.disabled === 0 ? '禁用' : '启用' }}
-                                    </button>
-                                    <button @click="confirmDelete(user)" class="btn btn-sm btn-outline-danger">
-                                        <i class="ti ti-trash"></i> 删除
-                                    </button>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                                            操作
+                                        </button>
+                                        <div class="dropdown-menu dropdown-menu-end">
+                                            <a class="dropdown-item" href="#" @click.prevent="openEditAccountModal(account)">
+                                                <i class="ti ti-edit"></i> 编辑
+                                            </a>
+                                            <a class="dropdown-item" href="#" @click.prevent="openConfigUrlModal(account)">
+                                                <i class="ti ti-link"></i> 配置链接
+                                            </a>
+                                            <a class="dropdown-item" href="#" @click.prevent="openRenewAccountModal(account)">
+                                                <i class="ti ti-calendar-plus"></i> 续期
+                                            </a>
+                                            <a class="dropdown-item" href="#" @click.prevent="resetAuthCode(account)">
+                                                <i class="ti ti-refresh"></i> 重置认证码
+                                            </a>
+                                            <a v-if="account.statusType === 'active'" class="dropdown-item" href="#" @click.prevent="toggleAccountStatus(account, true)">
+                                                <i class="ti ti-ban"></i> 禁用
+                                            </a>
+                                            <a v-else class="dropdown-item" href="#" @click.prevent="toggleAccountStatus(account, false)">
+                                                <i class="ti ti-check"></i> 启用
+                                            </a>
+                                            <div class="dropdown-divider"></div>
+                                            <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(account)">
+                                                <i class="ti ti-trash"></i> 删除
+                                            </a>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
                         <tr v-if="loading">
-                            <td colspan="7" class="text-center py-3">
+                            <td colspan="8" class="text-center py-3">
                                 <div class="spinner-border text-primary" role="status">
                                     <span class="visually-hidden">Loading...</span>
                                 </div>
                             </td>
                         </tr>
-                        <tr v-else-if="users.length === 0">
-                            <td colspan="7" class="text-center py-3">没有查到数据.</td>
+                        <tr v-else-if="accounts.length === 0">
+                            <td colspan="8" class="text-center py-3">没有查到数据.</td>
                         </tr>
                         </tbody>
                     </table>
@@ -140,101 +273,292 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-danger" @click="deleteUser">确认</button>
+                            <button type="button" class="btn btn-danger" @click="deleteAccount">确认</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Create User Modal -->
-            <div class="modal modal-blur fade" id="createUserModal" tabindex="-1" role="dialog">
-                <div class="modal-dialog modal-dialog-centered" role="document">
+            <!-- Create Account Modal -->
+            <div class="modal modal-blur fade" id="createAccountModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">添加用户</h5>
+                            <h5 class="modal-title">添加账户</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-<!--                            <fieldset class="form-fieldset">-->
-                            <div class="mb-3">
-                                <label class="form-label required">邮箱</label>
-                                <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }" placeholder="user@example.com" v-model="newUser.email">
-                                <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">用户</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="newAccount.userId">
+                                            <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">级别</label>
+                                        <input type="number" class="form-control" v-model="newAccount.level" min="0">
+                                    </div>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label required">密码</label>
-                                <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }" placeholder="Password" v-model="newUser.password">
-                                <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">UUID</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" v-model="newAccount.uuid" placeholder="留空自动生成">
+                                            <button class="btn" type="button" @click="generateUuid">生成</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">认证码</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" v-model="newAccount.authCode" placeholder="留空自动生成">
+                                            <button class="btn" type="button" @click="generateAuthCode">生成</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">昵称</label>
-                                <input type="text" class="form-control" placeholder="Nickname" v-model="newUser.nickName">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">开始时间</label>
+                                        <input type="datetime-local" class="form-control" v-model="newAccount.fromDate">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">到期时间</label>
+                                        <input type="datetime-local" class="form-control" v-model="newAccount.toDate">
+                                    </div>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">角色</label>
-                                <select class="form-select" v-model="newUser.role">
-                                    <option value="PARTNER">PARTNER</option>
-                                    <option value="ADMIN">ADMIN</option>
-                                    <option value="VIP">VIP</option>
-                                </select>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">统计周期类型</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.periodType }" v-model="newAccount.periodType">
+                                            <option v-for="type in periodTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.periodType">{{ validationErrors.periodType }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">最大在线IP数</label>
+                                        <input type="number" class="form-control" v-model="newAccount.maxOnlineIps" min="0">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">最大速度 (预留字段)</label>
+                                        <input type="number" class="form-control" v-model="newAccount.speed" min="0">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">流量限制 (GB)</label>
+                                        <input type="number" class="form-control" v-model="newAccount.bandwidth" min="0">
+                                    </div>
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" v-model="newUser.disabled">
+                                    <input class="form-check-input" type="checkbox" v-model="newAccount.disabled">
                                     <span class="form-check-label">禁用账户</span>
                                 </label>
                             </div>
-<!--                            </fieldset>-->
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" @click="createUser">创建用户</button>
+                            <button type="button" class="btn btn-primary" @click="createAccount">创建</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Edit User Modal -->
-            <div class="modal modal-blur fade" id="editUserModal" tabindex="-1" role="dialog">
-                <div class="modal-dialog modal-dialog-centered" role="document">
+            <!-- Edit Account Modal -->
+            <div class="modal modal-blur fade" id="editAccountModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">编辑用户</h5>
+                            <h5 class="modal-title">编辑账户</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-                            <div class="mb-3">
-                                <label class="form-label required">邮箱</label>
-                                <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }" placeholder="user@example.com" v-model="editedUser.email">
-                                <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">用户</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="editedAccount.userId">
+                                            <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">级别</label>
+                                        <input type="number" class="form-control" v-model="editedAccount.level" min="0">
+                                    </div>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">密码 <span class="text-muted">(留空表示不修改)</span></label>
-                                <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }" placeholder="New password" v-model="editedUser.password">
-                                <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">UUID</label>
+                                        <input type="text" class="form-control" v-model="editedAccount.uuid" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">认证码</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" v-model="editedAccount.authCode" readonly>
+                                            <button class="btn" type="button" @click="regenerateAuthCode">重新生成</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">昵称</label>
-                                <input type="text" class="form-control" placeholder="Nickname" v-model="editedUser.nickName">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">开始时间</label>
+                                        <input type="datetime-local" class="form-control" v-model="editedAccount.fromDate">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">到期时间</label>
+                                        <input type="datetime-local" class="form-control" v-model="editedAccount.toDate">
+                                    </div>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">角色</label>
-                                <select class="form-select" v-model="editedUser.role">
-                                    <option value="PARTNER">PARTNER</option>
-                                    <option value="ADMIN">ADMIN</option>
-                                    <option value="VIP">VIP</option>
-                                </select>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">统计周期类型</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.periodType }" v-model="editedAccount.periodType">
+                                            <option v-for="type in periodTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.periodType">{{ validationErrors.periodType }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">最大在线IP数</label>
+                                        <input type="number" class="form-control" v-model="editedAccount.maxOnlineIps" min="0">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">最大速度 (预留字段)</label>
+                                        <input type="number" class="form-control" v-model="editedAccount.speed" min="0">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">流量限制 (GB)</label>
+                                        <input type="number" class="form-control" v-model="editedAccount.bandwidth" min="0">
+                                    </div>
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" :checked="editedUser.disabled === 1" @change="editedUser.disabled = $event.target.checked ? 1 : 0">
+                                    <input class="form-check-input" type="checkbox" :checked="editedAccount.disabled === 1" @change="editedAccount.disabled = $event.target.checked ? 1 : 0">
                                     <span class="form-check-label">禁用账户</span>
                                 </label>
                             </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" @click="updateUser">保存修改</button>
+                            <button type="button" class="btn btn-primary" @click="updateAccount">保存</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Config URL Modal -->
+            <div class="modal modal-blur fade" id="configUrlModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">配置链接</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">配置链接</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" v-model="configUrl" readonly>
+                                    <button class="btn" type="button" @click="copyToClipboard(configUrl)">复制</button>
+                                </div>
+                                <small class="form-hint">用户可以通过此链接获取配置信息</small>
+                            </div>
+                            <div v-if="selectedAccount" class="alert" :class="getStatusAlertClass(selectedAccount.statusType)">
+                                <div class="d-flex">
+                                    <div>
+                                        <i class="ti ti-info-circle"></i>
+                                    </div>
+                                    <div class="ms-2">
+                                        账户状态：{{ selectedAccount.statusDescription }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Renew Account Modal -->
+            <div class="modal modal-blur fade" id="renewAccountModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">续期账户</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div v-if="selectedAccount" class="alert" :class="getStatusAlertClass(selectedAccount.statusType)">
+                                <div class="d-flex">
+                                    <div>
+                                        <i class="ti ti-info-circle"></i>
+                                    </div>
+                                    <div class="ms-2">
+                                        当前状态：{{ selectedAccount.statusDescription }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label required">新到期时间</label>
+                                <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.expiryDate }" v-model="renewData.expiryDate">
+                                <div class="invalid-feedback" v-if="validationErrors.expiryDate">{{ validationErrors.expiryDate }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="btn-list">
+                                    <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'months')">+1个月</button>
+                                    <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(3, 'months')">+3个月</button>
+                                    <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(6, 'months')">+6个月</button>
+                                    <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'years')">+1年</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" @click="renewAccount">续期</button>
                         </div>
                     </div>
                 </div>
@@ -246,40 +570,69 @@
 <script th:fragment="script" th:inline="javascript">
     PetiteVue.createApp({
         // Data
+        accounts: [],
         users: [],
+        periodTypes: [],
         searchQuery: '',
-        filterRole: '',
+        filterUserId: '',
         filterStatus: '',
         currentPage: 1,
         pageSize: 10,
         totalItems: 0,
         totalPages: 0,
-        selectedUser: null,
+        stats: {
+            total: 0,
+            active: 0,
+            expired: 0,
+            disabled: 0,
+            expiringSoon: 0
+        },
+        selectedAccount: null,
+        configUrl: '',
         deleteModal: null,
         createModal: null,
         editModal: null,
+        configUrlModal: null,
+        renewModal: null,
         loading: true,
         searchTimeout: null,
-        newUser: {
-            email: '',
-            password: '',
-            nickName: '',
-            role: 'PARTNER',
+        newAccount: {
+            userId: '',
+            level: 0,
+            fromDate: '',
+            toDate: '',
+            periodType: 'MONTHLY',
+            uuid: '',
+            authCode: '',
+            maxOnlineIps: 0,
+            speed: 0,
+            bandwidth: 0,
             disabled: false
         },
-        editedUser: {
+        editedAccount: {
             id: null,
-            email: '',
-            password: '',
-            nickName: '',
-            role: 'PARTNER',
+            userId: '',
+            level: 0,
+            fromDate: '',
+            toDate: '',
+            periodType: 'MONTHLY',
+            uuid: '',
+            authCode: '',
+            maxOnlineIps: 0,
+            speed: 0,
+            bandwidth: 0,
             disabled: 0
+        },
+        renewData: {
+            expiryDate: ''
         },
         validationErrors: {},
 
         // Lifecycle hooks
         mounted() {
             this.fetchUsers();
+            this.fetchPeriodTypes();
+            this.fetchAccounts();
         },
 
         // Computed properties
@@ -310,7 +663,7 @@
         },
 
         // Methods
-        fetchUsers() {
+        fetchAccounts() {
             this.loading = true;
 
             // Build query parameters
@@ -323,15 +676,20 @@
                 params.append('search', this.searchQuery);
             }
 
-            if (this.filterRole) {
-                params.append('role', this.filterRole);
+            if (this.filterUserId) {
+                params.append('userId', this.filterUserId);
             }
 
-            if (this.filterStatus) {
-                params.append('status', this.filterStatus);
+            if (this.filterStatus === 'active') {
+                params.append('expired', false);
+                params.append('disabled', false);
+            } else if (this.filterStatus === 'expired') {
+                params.append('expired', true);
+            } else if (this.filterStatus === 'disabled') {
+                params.append('disabled', true);
             }
 
-            fetch(`/api/admin/users?${params.toString()}`)
+            fetch(`/api/admin/accounts?${params.toString()}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
@@ -339,16 +697,49 @@
                     return response.json();
                 })
                 .then(data => {
-                    this.users = data.records;
+                    this.accounts = data.records;
                     this.totalItems = data.total;
                     this.totalPages = data.pages;
                     this.currentPage = data.current;
+
+                    // 统计数据
+                    if (data.stats) {
+                        this.stats = data.stats;
+                    }
+
                     this.loading = false;
                 })
                 .catch(error => {
-                    console.error('Error fetching users:', error);
-                    ToastUtils.show('Error', 'Failed to load users.', 'danger');
+                    console.error('Error fetching accounts:', error);
+                    ToastUtils.show('Error', 'Failed to load accounts.', 'danger');
                     this.loading = false;
+                });
+        },
+
+        fetchUsers() {
+            fetch('/api/admin/users')
+                .then(response => response.json())
+                .then(data => {
+                    this.users = data.records;
+
+                    // 如果是第一次加载且当前没有选中用户，选择第一个用户
+                    if (this.users.length > 0 && !this.newAccount.userId) {
+                        this.newAccount.userId = this.users[0].id;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching users:', error);
+                });
+        },
+
+        fetchPeriodTypes() {
+            fetch('/api/admin/accounts/period-types')
+                .then(response => response.json())
+                .then(data => {
+                    this.periodTypes = data;
+                })
+                .catch(error => {
+                    console.error('Error fetching period types:', error);
                 });
         },
 
@@ -361,92 +752,99 @@
             // Set new timeout to delay the API call
             this.searchTimeout = setTimeout(() => {
                 this.currentPage = 1; // Reset to first page when searching
-                this.fetchUsers();
+                this.fetchAccounts();
             }, 500); // Wait for 500ms after user stops typing
         },
 
-        formatDate(dateString) {
-            if (!dateString) return '-';
+        formatDateTime(dateString) {
+            if (!dateString) return null;
             const date = new Date(dateString);
-            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            return date.toLocaleString();
         },
 
-        getRoleBadgeClass(role) {
-            switch (role && role.toUpperCase()) {
-                case 'ADMIN': return 'text-bg-purple';
-                case 'PARTNER': return 'text-bg-indigo';
-                default: return 'text-bg-blue'; // VIP or other roles
+        formatBytes(bytes) {
+            bytes = Number(bytes);
+            if (isNaN(bytes) || bytes === 0) return '0 B';
+
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + units[i];
+        },
+
+        getStatusBadgeClass(statusType) {
+            switch (statusType) {
+                case 'active': return 'text-bg-success';
+                case 'expired': return 'text-bg-danger';
+                case 'disabled': return 'text-bg-secondary';
+                default: return 'text-bg-secondary';
             }
         },
 
-        getStatusBadgeClass(disabled) {
-            return disabled === 0 ? 'text-bg-success' : 'text-bg-danger';
+        getStatusAlertClass(statusType) {
+            switch (statusType) {
+                case 'active': return 'alert-success';
+                case 'expired': return 'alert-danger';
+                case 'disabled': return 'alert-secondary';
+                default: return 'alert-secondary';
+            }
+        },
+
+        getProgressBarClass(percentage) {
+            if (percentage >= 90) return 'bg-danger';
+            if (percentage >= 70) return 'bg-warning';
+            return 'bg-success';
+        },
+
+        viewUserDetails(userId) {
+            // 这里可以实现跳转到用户详情页
+            window.location.href = `/admin/users/${userId}`;
+        },
+
+        copyToClipboard(text) {
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    ToastUtils.show('Success', '已复制到剪贴板', 'success');
+                })
+                .catch(err => {
+                    console.error('Failed to copy text: ', err);
+                    ToastUtils.show('Error', '复制失败', 'danger');
+                });
         },
 
         prevPage() {
             if (this.currentPage > 1) {
                 this.currentPage--;
-                this.fetchUsers();
+                this.fetchAccounts();
             }
         },
 
         nextPage() {
             if (this.currentPage < this.totalPages) {
                 this.currentPage++;
-                this.fetchUsers();
+                this.fetchAccounts();
             }
         },
 
         goToPage(page) {
             this.currentPage = page;
-            this.fetchUsers();
+            this.fetchAccounts();
         },
 
         changePageSize() {
             this.currentPage = 1; // Reset to first page when changing page size
-            this.fetchUsers();
+            this.fetchAccounts();
         },
 
-        toggleUserStatus(user) {
-            const action = user.disabled === 0 ? 'disable' : 'enable';
-
-            fetch(`/api/admin/users/${user.id}/${action}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('更新状态失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    // Update user status in the local array
-                    const index = this.users.findIndex(u => u.id === user.id);
-                    if (index !== -1) {
-                        this.users[index].disabled = data.disabled;
-                    }
-
-                    ToastUtils.show('Success', '更新状态成功', 'success');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', '更新状态发生错误', 'danger');
-                });
-        },
-
-        confirmDelete(user) {
-            this.selectedUser = user;
+        confirmDelete(account) {
+            this.selectedAccount = account;
             this.deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
             this.deleteModal.show();
         },
 
-        deleteUser() {
-            if (!this.selectedUser) return;
+        deleteAccount() {
+            if (!this.selectedAccount) return;
 
-            fetch(`/api/admin/users/${this.selectedUser.id}`, {
+            fetch(`/api/admin/accounts/${this.selectedAccount.id}`, {
                 method: 'DELETE'
             })
                 .then(response => {
@@ -454,8 +852,8 @@
                         throw new Error('删除失败');
                     }
 
-                    // Refetch the users data to update the list and pagination
-                    this.fetchUsers();
+                    // Refetch the accounts data to update the list and pagination
+                    this.fetchAccounts();
                     ToastUtils.show('Success', '删除成功', 'success');
 
                     // Hide modal
@@ -467,70 +865,158 @@
                 });
         },
 
-        // Create User methods
-        openCreateUserModal() {
+        generateUuid() {
+            this.newAccount.uuid = this.uuidv4();
+        },
+
+        generateAuthCode() {
+            this.newAccount.authCode = this.randomString(16);
+        },
+
+        regenerateAuthCode() {
+            if (!this.editedAccount.id) return;
+
+            fetch(`/api/admin/accounts/${this.editedAccount.id}/reset-auth`, {
+                method: 'PATCH'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('重置认证码失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.editedAccount.authCode = data.authCode;
+                    ToastUtils.show('Success', '重置认证码成功', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', '重置认证码失败', 'danger');
+                });
+        },
+
+        resetAuthCode(account) {
+            if (!account.id) return;
+
+            fetch(`/api/admin/accounts/${account.id}/reset-auth`, {
+                method: 'PATCH'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('重置认证码失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // 更新账户列表中的认证码
+                    const index = this.accounts.findIndex(a => a.id === account.id);
+                    if (index !== -1) {
+                        this.accounts[index].authCode = data.authCode;
+                    }
+                    ToastUtils.show('Success', '重置认证码成功', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', '重置认证码失败', 'danger');
+                });
+        },
+
+        // 生成UUID
+        uuidv4() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        },
+
+        // 生成随机字符串
+        randomString(length) {
+            let result = '';
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            const charactersLength = characters.length;
+            for (let i = 0; i < length; i++) {
+                result += characters.charAt(Math.floor(Math.random() * charactersLength));
+            }
+            return result;
+        },
+
+        // Create Account methods
+        openCreateAccountModal() {
+            // 获取当前时间
+            const now = new Date();
+            const localDateTimeFormat = now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+
+            // 获取一个月后的时间
+            const oneMonthLater = new Date();
+            oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+            const oneMonthLaterFormat = oneMonthLater.toISOString().slice(0, 16);
+
             // Reset form
-            this.newUser = {
-                email: '',
-                password: '',
-                nickName: '',
-                role: 'PARTNER',
+            this.newAccount = {
+                userId: this.users.length > 0 ? this.users[0].id : '',
+                level: 0,
+                fromDate: localDateTimeFormat,
+                toDate: oneMonthLaterFormat,
+                periodType: 'MONTHLY',
+                uuid: '',
+                authCode: '',
+                maxOnlineIps: 0,
+                speed: 0,
+                bandwidth: 0,
                 disabled: false
             };
             this.validationErrors = {};
 
             // Show modal
-            this.createModal = new bootstrap.Modal(document.getElementById('createUserModal'));
+            this.createModal = new bootstrap.Modal(document.getElementById('createAccountModal'));
             this.createModal.show();
         },
 
-        validateUserForm(user, isCreate = true) {
+        validateAccountForm(account) {
             let isValid = true;
             this.validationErrors = {};
 
-            // Email validation
-            if (!user.email || !user.email.trim()) {
-                this.validationErrors.email = '邮箱地址不能为空';
-                isValid = false;
-            } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) {
-                this.validationErrors.email = '请输入有效的邮箱地址';
+            // UserID validation
+            if (!account.userId) {
+                this.validationErrors.userId = '请选择用户';
                 isValid = false;
             }
 
-            // Password validation (only required for new users)
-            if (isCreate && (!user.password || user.password.trim().length < 6)) {
-                this.validationErrors.password = '密码长度至少为6个字符';
-                isValid = false;
-            } else if (!isCreate && user.password && user.password.trim().length > 0 && user.password.trim().length < 6) {
-                // For edit form, validate password only if it's provided
-                this.validationErrors.password = '密码长度至少为6个字符';
+            // PeriodType validation
+            if (!account.periodType) {
+                this.validationErrors.periodType = '请选择统计周期类型';
                 isValid = false;
             }
 
             return isValid;
         },
 
-        createUser() {
-            if (!this.validateUserForm(this.newUser)) {
-                console.info(222222)
+        createAccount() {
+            if (!this.validateAccountForm(this.newAccount)) {
                 return;
             }
 
             // Prepare data for API
-            const userData = {
-                email: this.newUser.email,
-                password: this.newUser.password,
-                nickName: this.newUser.nickName || null,
-                role: this.newUser.role,
-                disabled: this.newUser.disabled ? 1 : 0
+            const accountData = {
+                userId: this.newAccount.userId,
+                level: this.newAccount.level || null,
+                fromDate: this.newAccount.fromDate || null,
+                toDate: this.newAccount.toDate || null,
+                periodType: this.newAccount.periodType,
+                uuid: this.newAccount.uuid || null,
+                authCode: this.newAccount.authCode || null,
+                maxOnlineIps: this.newAccount.maxOnlineIps || null,
+                speed: this.newAccount.speed || null,
+                bandwidth: this.newAccount.bandwidth || null,
+                disabled: this.newAccount.disabled ? 1 : 0
             };
 
-            fetch('/api/admin/users', {
+            fetch('/api/admin/accounts', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(userData)
+                body: JSON.stringify(accountData)
             })
                 .then(response => {
                     if (!response.ok) {
@@ -544,7 +1030,7 @@
                     return response.json();
                 })
                 .then(data => {
-                    this.fetchUsers(); // Refresh the user list
+                    this.fetchAccounts(); // Refresh the account list
                     this.createModal.hide();
                     ToastUtils.show('Success', '创建成功', 'success');
                 })
@@ -554,48 +1040,61 @@
                 });
         },
 
-        // Edit User methods
-        openEditUserModal(user) {
-            // Clone user data to avoid direct mutation
-            this.editedUser = {
-                id: user.id,
-                email: user.email,
-                password: '', // Empty password field
-                nickName: user.nickName || '',
-                role: user.role || 'PARTNER',
-                disabled: user.disabled
+        // Edit Account methods
+        openEditAccountModal(account) {
+            // Format dates for datetime-local input
+            const formatDateForInput = (dateString) => {
+                if (!dateString) return '';
+                const date = new Date(dateString);
+                return date.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+            };
+
+            // Clone account data to avoid direct mutation
+            this.editedAccount = {
+                id: account.id,
+                userId: account.userId,
+                level: account.level,
+                fromDate: formatDateForInput(account.fromDate),
+                toDate: formatDateForInput(account.toDate),
+                periodType: account.periodType,
+                uuid: account.uuid,
+                authCode: account.authCode,
+                maxOnlineIps: account.maxOnlineIps,
+                speed: account.speed,
+                bandwidth: account.bandwidth,
+                disabled: account.disabled
             };
             this.validationErrors = {};
 
             // Show modal
-            this.editModal = new bootstrap.Modal(document.getElementById('editUserModal'));
+            this.editModal = new bootstrap.Modal(document.getElementById('editAccountModal'));
             this.editModal.show();
         },
 
-        updateUser() {
-            if (!this.validateUserForm(this.editedUser, false)) {
+        updateAccount() {
+            if (!this.validateAccountForm(this.editedAccount)) {
                 return;
             }
 
             // Prepare data for API
-            const userData = {
-                email: this.editedUser.email,
-                nickName: this.editedUser.nickName || null,
-                role: this.editedUser.role,
-                disabled: this.editedUser.disabled
+            const accountData = {
+                userId: this.editedAccount.userId,
+                level: this.editedAccount.level,
+                fromDate: this.editedAccount.fromDate || null,
+                toDate: this.editedAccount.toDate || null,
+                periodType: this.editedAccount.periodType,
+                maxOnlineIps: this.editedAccount.maxOnlineIps,
+                speed: this.editedAccount.speed,
+                bandwidth: this.editedAccount.bandwidth,
+                disabled: this.editedAccount.disabled
             };
 
-            // Only include password if it's provided
-            if (this.editedUser.password) {
-                userData.password = this.editedUser.password;
-            }
-
-            fetch(`/api/admin/users/${this.editedUser.id}`, {
+            fetch(`/api/admin/accounts/${this.editedAccount.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(userData)
+                body: JSON.stringify(accountData)
             })
                 .then(response => {
                     if (!response.ok) {
@@ -609,19 +1108,159 @@
                     return response.json();
                 })
                 .then(data => {
-                    // Update user in the local array
-                    const index = this.users.findIndex(u => u.id === this.editedUser.id);
-                    if (index !== -1) {
-                        this.users[index] = data;
-                    }
-
+                    this.fetchAccounts(); // Refresh the account list
                     this.editModal.hide();
                     ToastUtils.show('Success', '更新成功', 'success');
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    ToastUtils.show('Error', error.message || '更新失败', 'danger');
+                    ToastUtils.show('Error', error.message || '更新失败.', 'danger');
                 });
         },
-    }).mount('#users-app');
+
+        // Toggle account status methods
+        toggleAccountStatus(account, disabled) {
+            const action = disabled ? 'disable' : 'enable';
+
+            fetch(`/api/admin/accounts/${account.id}/${action}`, {
+                method: 'PATCH'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('更新状态失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Update account status in the local array
+                    const index = this.accounts.findIndex(a => a.id === account.id);
+                    if (index !== -1) {
+                        this.accounts[index].disabled = data.disabled;
+                        this.accounts[index].statusType = data.disabled === 1 ? 'disabled' : 'active';
+                        this.accounts[index].statusDescription = data.disabled === 1 ? '已禁用' : '活跃';
+                    }
+
+                    ToastUtils.show('Success', '更新状态成功', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', '更新状态发生错误', 'danger');
+                });
+        },
+
+        // Config URL modal methods
+        openConfigUrlModal(account) {
+            this.selectedAccount = account;
+
+            fetch(`/api/admin/accounts/${account.id}/config-url`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('获取配置链接失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.configUrl = data.configUrl;
+                    this.configUrlModal = new bootstrap.Modal(document.getElementById('configUrlModal'));
+                    this.configUrlModal.show();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', '获取配置链接失败', 'danger');
+                });
+        },
+
+        // Renew account methods
+        openRenewAccountModal(account) {
+            this.selectedAccount = account;
+
+            // 计算默认的续期时间（从当前时间或过期时间开始 +1个月）
+            let baseDate;
+            if (account.toDate && new Date(account.toDate) > new Date()) {
+                baseDate = new Date(account.toDate);
+            } else {
+                baseDate = new Date();
+            }
+
+            // 加一个月
+            baseDate.setMonth(baseDate.getMonth() + 1);
+            this.renewData = {
+                expiryDate: baseDate.toISOString().slice(0, 16) // Format: YYYY-MM-DDTHH:MM
+            };
+
+            this.validationErrors = {};
+            this.renewModal = new bootstrap.Modal(document.getElementById('renewAccountModal'));
+            this.renewModal.show();
+        },
+
+        setRenewPeriod(value, unit) {
+            // 计算新的续期时间（从当前时间或过期时间开始）
+            let baseDate;
+            if (this.selectedAccount.toDate && new Date(this.selectedAccount.toDate) > new Date()) {
+                baseDate = new Date(this.selectedAccount.toDate);
+            } else {
+                baseDate = new Date();
+            }
+
+            // 根据单位增加时间
+            if (unit === 'days') {
+                baseDate.setDate(baseDate.getDate() + value);
+            } else if (unit === 'months') {
+                baseDate.setMonth(baseDate.getMonth() + value);
+            } else if (unit === 'years') {
+                baseDate.setFullYear(baseDate.getFullYear() + value);
+            }
+
+            this.renewData.expiryDate = baseDate.toISOString().slice(0, 16);
+        },
+
+        validateRenewForm() {
+            let isValid = true;
+            this.validationErrors = {};
+
+            if (!this.renewData.expiryDate) {
+                this.validationErrors.expiryDate = '请选择到期时间';
+                isValid = false;
+            } else {
+                const expiryDate = new Date(this.renewData.expiryDate);
+                const now = new Date();
+                if (expiryDate <= now) {
+                    this.validationErrors.expiryDate = '到期时间必须大于当前时间';
+                    isValid = false;
+                }
+            }
+
+            return isValid;
+        },
+
+        renewAccount() {
+            if (!this.validateRenewForm()) {
+                return;
+            }
+
+            fetch(`/api/admin/accounts/${this.selectedAccount.id}/renew?expiryDate=${encodeURIComponent(this.renewData.expiryDate)}`, {
+                method: 'PATCH'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('续期失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // 更新账户列表中的到期时间
+                    const index = this.accounts.findIndex(a => a.id === this.selectedAccount.id);
+                    if (index !== -1) {
+                        this.accounts[index] = data;
+                    }
+
+                    this.renewModal.hide();
+                    ToastUtils.show('Success', '续期成功', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', '续期失败', 'danger');
+                });
+        }
+    }).mount('#accounts-app');
 </script>
