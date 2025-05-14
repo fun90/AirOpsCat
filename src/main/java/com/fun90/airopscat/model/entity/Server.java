@@ -1,5 +1,7 @@
 package com.fun90.airopscat.model.entity;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fun90.airopscat.support.util.RawJsonDeserializer;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.DynamicUpdate;
@@ -45,10 +47,12 @@ public class Server {
     private Integer disabled = 0;
     
     private String remark;
-    
+
+    @JsonDeserialize(using = RawJsonDeserializer.class)
     @Column(name = "transit_config", columnDefinition = "json")
     private String transitConfig;
-    
+
+    @JsonDeserialize(using = RawJsonDeserializer.class)
     @Column(name = "core_config", columnDefinition = "json")
     private String coreConfig;
     

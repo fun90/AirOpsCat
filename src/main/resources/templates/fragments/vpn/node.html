@@ -127,94 +127,92 @@
             </div>
 
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-vcenter card-table">
-                        <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>名称</th>
-                            <th>服务器</th>
-                            <th>端口</th>
-                            <th>类型</th>
-                            <th>协议</th>
-                            <th>级别</th>
-                            <th>状态</th>
-                            <th>操作</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <tr v-for="node in nodes" :key="node.id">
-                            <td v-text="node.id"></td>
-                            <td>
-                                <div class="d-flex flex-column">
-                                    <span v-text="node.name || '-'"></span>
-                                    <span v-if="node.remark" class="text-muted small">{{ node.remark }}</span>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="d-flex flex-column">
-                                    <span v-text="node.serverIp"></span>
-                                    <span v-if="node.serverHost" class="text-muted small">{{ node.serverHost }}</span>
-                                </div>
-                            </td>
-                            <td v-text="node.port"></td>
-                            <td>
-                                <span class="badge" :class="getTypeBadgeClass(node.type)">
-                                    {{ node.typeDesc }}
-                                </span>
-                            </td>
-                            <td>
-                                <span class="badge text-bg-info">
-                                    {{ node.protocol }}
-                                </span>
-                            </td>
-                            <td v-text="node.level || '-'"></td>
-                            <td>
-                                <span class="badge" :class="getStatusBadgeClass(node.disabled)">
-                                    {{ node.statusDescription }}
-                                </span>
-                            </td>
-                            <td>
-                                <div class="btn-list flex-nowrap">
-                                    <div class="dropdown">
-                                        <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
-                                            操作
-                                        </button>
-                                        <div class="dropdown-menu dropdown-menu-end">
-                                            <a class="dropdown-item" href="#" @click.prevent="openEditNodeModal(node)">
-                                                <i class="ti ti-edit"></i> 编辑
-                                            </a>
-                                            <a class="dropdown-item" href="#" @click.prevent="viewNodeConfig(node)">
-                                                <i class="ti ti-code"></i> 查看配置
-                                            </a>
-                                            <a v-if="node.disabled === 1" class="dropdown-item" href="#" @click.prevent="toggleNodeStatus(node, false)">
-                                                <i class="ti ti-check"></i> 启用
-                                            </a>
-                                            <a v-else class="dropdown-item" href="#" @click.prevent="toggleNodeStatus(node, true)">
-                                                <i class="ti ti-ban"></i> 禁用
-                                            </a>
-                                            <div class="dropdown-divider"></div>
-                                            <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(node)">
-                                                <i class="ti ti-trash"></i> 删除
-                                            </a>
-                                        </div>
+                <table class="table table-vcenter card-table">
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>名称</th>
+                        <th>服务器</th>
+                        <th>端口</th>
+                        <th>类型</th>
+                        <th>协议</th>
+                        <th>级别</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr v-for="node in nodes" :key="node.id">
+                        <td v-text="node.id"></td>
+                        <td>
+                            <div class="d-flex flex-column">
+                                <span v-text="node.name || '-'"></span>
+                                <span v-if="node.remark" class="text-muted small">{{ node.remark }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-column">
+                                <span v-text="node.serverIp"></span>
+                                <span v-if="node.serverHost" class="text-muted small">{{ node.serverHost }}</span>
+                            </div>
+                        </td>
+                        <td v-text="node.port"></td>
+                        <td>
+                            <span class="badge" :class="getTypeBadgeClass(node.type)">
+                                {{ node.typeDesc }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge text-bg-info">
+                                {{ node.protocol }}
+                            </span>
+                        </td>
+                        <td v-text="node.level || '-'"></td>
+                        <td>
+                            <span class="badge" :class="getStatusBadgeClass(node.disabled)">
+                                {{ node.statusDescription }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="btn-list flex-nowrap">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                                        操作
+                                    </button>
+                                    <div class="dropdown-menu dropdown-menu-end">
+                                        <a class="dropdown-item" href="#" @click.prevent="openEditNodeModal(node)">
+                                            <i class="ti ti-edit"></i> 编辑
+                                        </a>
+                                        <a class="dropdown-item" href="#" @click.prevent="viewNodeConfig(node)">
+                                            <i class="ti ti-code"></i> 查看配置
+                                        </a>
+                                        <a v-if="node.disabled === 1" class="dropdown-item" href="#" @click.prevent="toggleNodeStatus(node, false)">
+                                            <i class="ti ti-check"></i> 启用
+                                        </a>
+                                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleNodeStatus(node, true)">
+                                            <i class="ti ti-ban"></i> 禁用
+                                        </a>
+                                        <div class="dropdown-divider"></div>
+                                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(node)">
+                                            <i class="ti ti-trash"></i> 删除
+                                        </a>
                                     </div>
                                 </div>
-                            </td>
-                        </tr>
-                        <tr v-if="loading">
-                            <td colspan="9" class="text-center py-3">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr v-else-if="nodes.length === 0">
-                            <td colspan="9" class="text-center py-3">没有查到数据.</td>
-                        </tr>
-                        </tbody>
-                    </table>
-                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-if="loading">
+                        <td colspan="9" class="text-center py-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-else-if="nodes.length === 0">
+                        <td colspan="9" class="text-center py-3">没有查到数据.</td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
             <!-- 分页 -->
             <div class="card-footer d-flex align-items-center">
