@@ -105,58 +105,56 @@
             </div>
 
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-vcenter card-table">
-                        <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>用户</th>
-                            <th>账户ID</th>
-                            <th>开始时间</th>
-                            <th>结束时间</th>
-                            <th>上传流量</th>
-                            <th>下载流量</th>
-                            <th>总流量</th>
-                            <th>操作</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <tr v-for="stat in stats" :key="stat.id">
-                            <td v-text="stat.id"></td>
-                            <td>
-                                <span v-if="getUserEmail(stat.userId)">{{ getUserEmail(stat.userId) }}</span>
-                                <span v-else>{{ stat.userId }}</span>
-                            </td>
-                            <td v-text="stat.accountId"></td>
-                            <td v-text="formatDate(stat.periodStart)"></td>
-                            <td v-text="formatDate(stat.periodEnd)"></td>
-                            <td v-text="formatBytes(stat.uploadBytes)"></td>
-                            <td v-text="formatBytes(stat.downloadBytes)"></td>
-                            <td v-text="formatBytes(stat.uploadBytes + stat.downloadBytes)"></td>
-                            <td>
-                                <div class="btn-list flex-nowrap">
-                                    <button @click="openEditStatsModal(stat)" class="btn btn-sm btn-outline-primary">
-                                        <i class="ti ti-edit"></i> 编辑
-                                    </button>
-                                    <button @click="confirmDelete(stat)" class="btn btn-sm btn-outline-danger">
-                                        <i class="ti ti-trash"></i> 删除
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr v-if="loading">
-                            <td colspan="9" class="text-center py-3">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr v-else-if="stats.length === 0">
-                            <td colspan="9" class="text-center py-3">没有查到数据.</td>
-                        </tr>
-                        </tbody>
-                    </table>
-                </div>
+                <table class="table table-vcenter card-table">
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户</th>
+                        <th>账户ID</th>
+                        <th>开始时间</th>
+                        <th>结束时间</th>
+                        <th>上传流量</th>
+                        <th>下载流量</th>
+                        <th>总流量</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr v-for="stat in stats" :key="stat.id">
+                        <td v-text="stat.id"></td>
+                        <td>
+                            <span v-if="getUserEmail(stat.userId)">{{ getUserEmail(stat.userId) }}</span>
+                            <span v-else>{{ stat.userId }}</span>
+                        </td>
+                        <td v-text="stat.accountId"></td>
+                        <td v-text="formatDate(stat.periodStart)"></td>
+                        <td v-text="formatDate(stat.periodEnd)"></td>
+                        <td v-text="formatBytes(stat.uploadBytes)"></td>
+                        <td v-text="formatBytes(stat.downloadBytes)"></td>
+                        <td v-text="formatBytes(stat.uploadBytes + stat.downloadBytes)"></td>
+                        <td>
+                            <div class="btn-list flex-nowrap">
+                                <button @click="openEditStatsModal(stat)" class="btn btn-sm btn-outline-primary">
+                                    <i class="ti ti-edit"></i> 编辑
+                                </button>
+                                <button @click="confirmDelete(stat)" class="btn btn-sm btn-outline-danger">
+                                    <i class="ti ti-trash"></i> 删除
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-if="loading">
+                        <td colspan="9" class="text-center py-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-else-if="stats.length === 0">
+                        <td colspan="9" class="text-center py-3">没有查到数据.</td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
             <!-- 分页 -->
             <div class="card-footer d-flex align-items-center">

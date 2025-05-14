@@ -32,62 +32,60 @@
                 </div>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table id="tablePage" class="table table-vcenter card-table">
-                        <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Email</th>
-                            <th>Nickname</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Actions</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <tr v-for="user in users" :key="user.id">
-                            <td v-text="user.id"></td>
-                            <td v-text="user.email"></td>
-                            <td v-text="user.nickName || '-'"></td>
-                            <td>
-                                <span class="badge" :class="getRoleBadgeClass(user.role)" v-text="user.role || 'PARTNER'"></span>
-                            </td>
-                            <td>
-                                <span class="badge" :class="getStatusBadgeClass(user.disabled)">
-                                    {{ user.disabled === 0 ? 'Active' : 'Disabled' }}
-                                </span>
-                            </td>
-                            <td v-text="formatDate(user.createTime)"></td>
-                            <td>
-                                <div class="btn-list flex-nowrap">
-                                    <button @click="openEditUserModal(user)" class="btn btn-sm btn-outline-primary">
-                                        <i class="ti ti-edit"></i> 编辑
-                                    </button>
-                                    <button @click="toggleUserStatus(user)" class="btn btn-sm"
-                                            :class="user.disabled === 0 ? 'btn-outline-danger' : 'btn-outline-success'">
-                                        <i class="ti" :class="user.disabled === 0 ? 'ti-ban' : 'ti-check'"></i>
-                                        {{ user.disabled === 0 ? '禁用' : '启用' }}
-                                    </button>
-                                    <button @click="confirmDelete(user)" class="btn btn-sm btn-outline-danger">
-                                        <i class="ti ti-trash"></i> 删除
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr v-if="loading">
-                            <td colspan="7" class="text-center py-3">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr v-else-if="users.length === 0">
-                            <td colspan="7" class="text-center py-3">没有查到数据.</td>
-                        </tr>
-                        </tbody>
-                    </table>
-                </div>
+                <table id="tablePage" class="table table-vcenter card-table">
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Email</th>
+                        <th>Nickname</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr v-for="user in users" :key="user.id">
+                        <td v-text="user.id"></td>
+                        <td v-text="user.email"></td>
+                        <td v-text="user.nickName || '-'"></td>
+                        <td>
+                            <span class="badge" :class="getRoleBadgeClass(user.role)" v-text="user.role || 'PARTNER'"></span>
+                        </td>
+                        <td>
+                            <span class="badge" :class="getStatusBadgeClass(user.disabled)">
+                                {{ user.disabled === 0 ? 'Active' : 'Disabled' }}
+                            </span>
+                        </td>
+                        <td v-text="formatDate(user.createTime)"></td>
+                        <td>
+                            <div class="btn-list flex-nowrap">
+                                <button @click="openEditUserModal(user)" class="btn btn-sm btn-outline-primary">
+                                    <i class="ti ti-edit"></i> 编辑
+                                </button>
+                                <button @click="toggleUserStatus(user)" class="btn btn-sm"
+                                        :class="user.disabled === 0 ? 'btn-outline-danger' : 'btn-outline-success'">
+                                    <i class="ti" :class="user.disabled === 0 ? 'ti-ban' : 'ti-check'"></i>
+                                    {{ user.disabled === 0 ? '禁用' : '启用' }}
+                                </button>
+                                <button @click="confirmDelete(user)" class="btn btn-sm btn-outline-danger">
+                                    <i class="ti ti-trash"></i> 删除
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-if="loading">
+                        <td colspan="7" class="text-center py-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-else-if="users.length === 0">
+                        <td colspan="7" class="text-center py-3">没有查到数据.</td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
             <!-- 分页 -->
             <div class="card-footer d-flex align-items-center">
