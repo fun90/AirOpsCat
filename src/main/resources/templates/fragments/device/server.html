@@ -1,93 +1,218 @@
 <div th:fragment="content" class="page-body">
     <div class="container-xl">
-        <div class="card" id="users-app" @vue:mounted="mounted">
+        <div class="card" id="servers-app" @vue:mounted="mounted">
             <div class="card-header">
-                <h3 class="card-title">Users</h3>
+                <h3 class="card-title">服务器管理</h3>
                 <div class="card-actions">
                     <div class="row g-2">
                         <div class="col">
-                            <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
+                            <input type="text" class="form-control" placeholder="搜索IP、主机名、供应商..." v-model="searchQuery" @input="searchDebounced">
                         </div>
                         <div class="col-auto">
-                            <select class="form-select" v-model="filterRole" @change="fetchUsers">
-                                <option value="">全部角色</option>
-                                <option value="ADMIN">ADMIN</option>
-                                <option value="PARTNER">PARTNER</option>
-                                <option value="VIP">VIP</option>
+                            <select class="form-select" v-model="filterSupplier" @change="fetchServers">
+                                <option value="">全部供应商</option>
+                                <option v-for="(count, supplier) in supplierStats" :key="supplier" :value="supplier">{{ supplier }} ({{ count }})</option>
                             </select>
                         </div>
                         <div class="col-auto">
-                            <select class="form-select" v-model="filterStatus" @change="fetchUsers">
+                            <select class="form-select" v-model="filterStatus" @change="fetchServers">
                                 <option value="">全部状态</option>
-                                <option value="active">Active</option>
-                                <option value="disabled">Disabled</option>
+                                <option value="active">活跃</option>
+                                <option value="expired">已过期</option>
+                                <option value="disabled">已禁用</option>
                             </select>
                         </div>
                         <div class="col-auto">
-                            <button class="btn btn-primary" @click="openCreateUserModal">
-                                <i class="ti ti-plus"></i> 添加用户
+                            <button class="btn btn-primary" @click="openCreateServerModal">
+                                <i class="ti ti-plus"></i> 添加服务器
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table id="tablePage" class="table table-vcenter card-table">
-                        <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Email</th>
-                            <th>Nickname</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Actions</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <tr v-for="user in users" :key="user.id">
-                            <td v-text="user.id"></td>
-                            <td v-text="user.email"></td>
-                            <td v-text="user.nickName || '-'"></td>
-                            <td>
-                                <span class="badge" :class="getRoleBadgeClass(user.role)" v-text="user.role || 'PARTNER'"></span>
-                            </td>
-                            <td>
-                                <span class="badge" :class="getStatusBadgeClass(user.disabled)">
-                                    {{ user.disabled === 0 ? 'Active' : 'Disabled' }}
-                                </span>
-                            </td>
-                            <td v-text="formatDate(user.createTime)"></td>
-                            <td>
-                                <div class="btn-list flex-nowrap">
-                                    <button @click="openEditUserModal(user)" class="btn btn-sm btn-outline-primary">
-                                        <i class="ti ti-edit"></i> 编辑
-                                    </button>
-                                    <button @click="toggleUserStatus(user)" class="btn btn-sm"
-                                            :class="user.disabled === 0 ? 'btn-outline-danger' : 'btn-outline-success'">
-                                        <i class="ti" :class="user.disabled === 0 ? 'ti-ban' : 'ti-check'"></i>
-                                        {{ user.disabled === 0 ? '禁用' : '启用' }}
-                                    </button>
-                                    <button @click="confirmDelete(user)" class="btn btn-sm btn-outline-danger">
-                                        <i class="ti ti-trash"></i> 删除
-                                    </button>
+
+            <!-- 服务器统计卡片 -->
+            <div class="card-body border-bottom">
+                <div class="row">
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-primary text-white avatar">
+                                            <i class="ti ti-server"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            总服务器数
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ stats.total || 0 }}
+                                        </div>
+                                    </div>
                                 </div>
-                            </td>
-                        </tr>
-                        <tr v-if="loading">
-                            <td colspan="7" class="text-center py-3">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-green text-white avatar">
+                                            <i class="ti ti-circle-check"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            活跃服务器
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ stats.active || 0 }}
+                                        </div>
+                                    </div>
                                 </div>
-                            </td>
-                        </tr>
-                        <tr v-else-if="users.length === 0">
-                            <td colspan="7" class="text-center py-3">没有查到数据.</td>
-                        </tr>
-                        </tbody>
-                    </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-red text-white avatar">
+                                            <i class="ti ti-calendar-x"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            已过期
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ stats.expired || 0 }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-yellow text-white avatar">
+                                            <i class="ti ti-coin"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            总成本
+                                        </div>
+                                        <div class="text-muted">
+                                            ¥ {{ parseFloat(totalEffectiveCost).toFixed(2) }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+            </div>
+
+            <div class="card-body p-0">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>主机名/名称</th>
+                        <th>状态</th>
+                        <th>供应商</th>
+                        <th>SSH</th>
+                        <th>认证方式</th>
+                        <th>到期时间</th>
+                        <th>价格</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr v-for="server in servers" :key="server.id">
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span v-text="server.ip" class="text-truncate"></span>
+                                <button @click="copyToClipboard(server.ip)" class="btn btn-sm btn-ghost-secondary ms-2">
+                                    <i class="ti ti-copy"></i>
+                                </button>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-column">
+                                <span v-if="server.host">{{ server.host }}</span>
+                                <span v-if="server.name" class="text-muted">{{ server.name }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge" :class="getStatusBadgeClass(server.statusType)">
+                                {{ server.statusDescription }}
+                            </span>
+                        </td>
+                        <td v-text="server.supplier || '-'"></td>
+                        <td v-text="server.sshPort || 22"></td>
+                        <td v-text="getAuthTypeLabel(server.authType)"></td>
+                        <td v-text="formatDate(server.expireDate) || '永不过期'"></td>
+                        <td>
+                            <span v-if="server.price">
+                                ¥ {{ server.price.toFixed(2) }}
+                                <span v-if="server.multiple && server.multiple != 1" class="text-muted">
+                                    (×{{ server.multiple }})
+                                </span>
+                            </span>
+                            <span v-else>-</span>
+                        </td>
+                        <td>
+                            <div class="btn-list flex-nowrap">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                                        操作
+                                    </button>
+                                    <div class="dropdown-menu dropdown-menu-end">
+                                        <a class="dropdown-item" href="#" @click.prevent="openEditServerModal(server)">
+                                            <i class="ti ti-edit"></i> 编辑
+                                        </a>
+                                        <a class="dropdown-item" href="#" @click.prevent="openTestConnectionModal(server)">
+                                            <i class="ti ti-connection"></i> 测试连接
+                                        </a>
+                                        <a class="dropdown-item" href="#" @click.prevent="openRenewServerModal(server)">
+                                            <i class="ti ti-calendar-plus"></i> 续期
+                                        </a>
+                                        <a v-if="server.statusType === 'active'" class="dropdown-item" href="#" @click.prevent="toggleServerStatus(server, true)">
+                                            <i class="ti ti-ban"></i> 禁用
+                                        </a>
+                                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleServerStatus(server, false)">
+                                            <i class="ti ti-check"></i> 启用
+                                        </a>
+                                        <div class="dropdown-divider"></div>
+                                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(server)">
+                                            <i class="ti ti-trash"></i> 删除
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-if="loading">
+                        <td colspan="9" class="text-center py-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-else-if="servers.length === 0">
+                        <td colspan="9" class="text-center py-3">没有查到数据.</td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
             <!-- 分页 -->
             <div class="card-footer d-flex align-items-center">
@@ -140,101 +265,385 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-danger" @click="deleteUser">确认</button>
+                            <button type="button" class="btn btn-danger" @click="deleteServer">确认</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Create User Modal -->
-            <div class="modal modal-blur fade" id="createUserModal" tabindex="-1" role="dialog">
-                <div class="modal-dialog modal-dialog-centered" role="document">
+            <!-- Create Server Modal -->
+            <div class="modal modal-blur fade" id="createServerModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">添加用户</h5>
+                            <h5 class="modal-title">添加服务器</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-<!--                            <fieldset class="form-fieldset">-->
-                            <div class="mb-3">
-                                <label class="form-label required">邮箱</label>
-                                <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }" placeholder="user@example.com" v-model="newUser.email">
-                                <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                            <ul class="nav nav-tabs" data-bs-toggle="tabs">
+                                <li class="nav-item">
+                                    <a href="#tabs-basic" class="nav-link active" data-bs-toggle="tab">基本信息</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="#tabs-auth" class="nav-link" data-bs-toggle="tab">认证信息</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="#tabs-config" class="nav-link" data-bs-toggle="tab">配置信息</a>
+                                </li>
+                            </ul>
+                            <div class="tab-content">
+                                <div class="tab-pane active show" id="tabs-basic">
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label required">IP地址</label>
+                                                <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.ip }" v-model="newServer.ip">
+                                                <div class="invalid-feedback" v-if="validationErrors.ip">{{ validationErrors.ip }}</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">SSH端口</label>
+                                                <input type="number" class="form-control" v-model="newServer.sshPort" placeholder="22">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">主机名</label>
+                                                <input type="text" class="form-control" v-model="newServer.host">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">名称</label>
+                                                <input type="text" class="form-control" v-model="newServer.name">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">供应商</label>
+                                                <input type="text" class="form-control" v-model="newServer.supplier">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">到期日期</label>
+                                                <input type="date" class="form-control" v-model="newServer.expireDate">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">价格</label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text">¥</span>
+                                                    <input type="number" step="0.01" min="0" class="form-control" v-model="newServer.price">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">倍率</label>
+                                                <input type="number" step="0.01" min="0" class="form-control" v-model="newServer.multiple" placeholder="1.0">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">备注</label>
+                                        <textarea class="form-control" v-model="newServer.remark" rows="3"></textarea>
+                                    </div>
+                                </div>
+                                <div class="tab-pane" id="tabs-auth">
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label required">认证方式</label>
+                                                <select class="form-select" :class="{ 'is-invalid': validationErrors.authType }" v-model="newServer.authType">
+                                                    <option v-for="type in authTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                                </select>
+                                                <div class="invalid-feedback" v-if="validationErrors.authType">{{ validationErrors.authType }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="newServer.authType === 'PASSWORD'">
+                                        <div class="mb-3">
+                                            <label class="form-label required">密码</label>
+                                            <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="newServer.auth">
+                                            <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                        </div>
+                                    </div>
+                                    <div v-else-if="newServer.authType === 'KEY'">
+                                        <div class="mb-3">
+                                            <label class="form-label required">密钥</label>
+                                            <textarea class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="newServer.auth" rows="8"></textarea>
+                                            <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane" id="tabs-config">
+                                    <div class="row mt-3">
+                                        <div class="col-md-12">
+                                            <div class="mb-3">
+                                                <label class="form-label">中转配置 (JSON)</label>
+                                                <textarea class="form-control font-monospace" v-model="newServerTransitConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
+                                                <small class="form-hint">用于配置中转节点相关参数</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-12">
+                                            <div class="mb-3">
+                                                <label class="form-label">核心配置 (JSON)</label>
+                                                <textarea class="form-control font-monospace" v-model="newServerCoreConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
+                                                <small class="form-hint">用于配置核心节点相关参数</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label required">密码</label>
-                                <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }" placeholder="Password" v-model="newUser.password">
-                                <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">昵称</label>
-                                <input type="text" class="form-control" placeholder="Nickname" v-model="newUser.nickName">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">角色</label>
-                                <select class="form-select" v-model="newUser.role">
-                                    <option value="PARTNER">PARTNER</option>
-                                    <option value="ADMIN">ADMIN</option>
-                                    <option value="VIP">VIP</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
+                            <div class="mb-3 mt-3">
                                 <label class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" v-model="newUser.disabled">
-                                    <span class="form-check-label">禁用账户</span>
+                                    <input class="form-check-input" type="checkbox" v-model="newServer.disabled">
+                                    <span class="form-check-label">禁用服务器</span>
                                 </label>
                             </div>
-<!--                            </fieldset>-->
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" @click="createUser">创建用户</button>
+                            <button type="button" class="btn btn-primary" @click="createServer">创建</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Edit User Modal -->
-            <div class="modal modal-blur fade" id="editUserModal" tabindex="-1" role="dialog">
-                <div class="modal-dialog modal-dialog-centered" role="document">
+            <!-- Edit Server Modal -->
+            <div class="modal modal-blur fade" id="editServerModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">编辑用户</h5>
+                            <h5 class="modal-title">编辑服务器</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-                            <div class="mb-3">
-                                <label class="form-label required">邮箱</label>
-                                <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }" placeholder="user@example.com" v-model="editedUser.email">
-                                <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                            <ul class="nav nav-tabs" data-bs-toggle="tabs">
+                                <li class="nav-item">
+                                    <a href="#edit-tabs-basic" class="nav-link active" data-bs-toggle="tab">基本信息</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="#edit-tabs-auth" class="nav-link" data-bs-toggle="tab">认证信息</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="#edit-tabs-config" class="nav-link" data-bs-toggle="tab">配置信息</a>
+                                </li>
+                            </ul>
+                            <div class="tab-content">
+                                <div class="tab-pane active show" id="edit-tabs-basic">
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label required">IP地址</label>
+                                                <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.ip }" v-model="editedServer.ip">
+                                                <div class="invalid-feedback" v-if="validationErrors.ip">{{ validationErrors.ip }}</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">SSH端口</label>
+                                                <input type="number" class="form-control" v-model="editedServer.sshPort" placeholder="22">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">主机名</label>
+                                                <input type="text" class="form-control" v-model="editedServer.host">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">名称</label>
+                                                <input type="text" class="form-control" v-model="editedServer.name">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">供应商</label>
+                                                <input type="text" class="form-control" v-model="editedServer.supplier">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">到期日期</label>
+                                                <input type="date" class="form-control" v-model="editedServer.expireDate">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">价格</label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text">¥</span>
+                                                    <input type="number" step="0.01" min="0" class="form-control" v-model="editedServer.price">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">倍率</label>
+                                                <input type="number" step="0.01" min="0" class="form-control" v-model="editedServer.multiple" placeholder="1.0">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">备注</label>
+                                        <textarea class="form-control" v-model="editedServer.remark" rows="3"></textarea>
+                                    </div>
+                                </div>
+                                <div class="tab-pane" id="edit-tabs-auth">
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label required">认证方式</label>
+                                                <select class="form-select" :class="{ 'is-invalid': validationErrors.authType }" v-model="editedServer.authType">
+                                                    <option v-for="type in authTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                                </select>
+                                                <div class="invalid-feedback" v-if="validationErrors.authType">{{ validationErrors.authType }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="editedServer.authType === 'PASSWORD'">
+                                        <div class="mb-3">
+                                            <label class="form-label required">密码</label>
+                                            <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="editedServer.auth">
+                                            <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                        </div>
+                                    </div>
+                                    <div v-else-if="editedServer.authType === 'KEY'">
+                                        <div class="mb-3">
+                                            <label class="form-label required">密钥</label>
+                                            <textarea class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="editedServer.auth" rows="8"></textarea>
+                                            <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane" id="edit-tabs-config">
+                                    <div class="row mt-3">
+                                        <div class="col-md-12">
+                                            <div class="mb-3">
+                                                <label class="form-label">中转配置 (JSON)</label>
+                                                <textarea class="form-control font-monospace" v-model="editedServerTransitConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
+                                                <small class="form-hint">用于配置中转节点相关参数</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-12">
+                                            <div class="mb-3">
+                                                <label class="form-label">核心配置 (JSON)</label>
+                                                <textarea class="form-control font-monospace" v-model="editedServerCoreConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
+                                                <small class="form-hint">用于配置核心节点相关参数</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">密码 <span class="text-muted">(留空表示不修改)</span></label>
-                                <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }" placeholder="New password" v-model="editedUser.password">
-                                <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">昵称</label>
-                                <input type="text" class="form-control" placeholder="Nickname" v-model="editedUser.nickName">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">角色</label>
-                                <select class="form-select" v-model="editedUser.role">
-                                    <option value="PARTNER">PARTNER</option>
-                                    <option value="ADMIN">ADMIN</option>
-                                    <option value="VIP">VIP</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
+                            <div class="mb-3 mt-3">
                                 <label class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" :checked="editedUser.disabled === 1" @change="editedUser.disabled = $event.target.checked ? 1 : 0">
-                                    <span class="form-check-label">禁用账户</span>
+                                    <input class="form-check-input" type="checkbox" :checked="editedServer.disabled === 1" @change="editedServer.disabled = $event.target.checked ? 1 : 0">
+                                    <span class="form-check-label">禁用服务器</span>
                                 </label>
                             </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" @click="updateUser">保存修改</button>
+                            <button type="button" class="btn btn-primary" @click="updateServer">保存</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test Connection Modal -->
+            <div class="modal modal-blur fade" id="testConnectionModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">测试连接</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div v-if="testingConnection" class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status"></div>
+                                <p class="mt-2">正在测试连接，请稍候...</p>
+                            </div>
+                            <div v-else-if="connectionTestResult !== null" class="alert" :class="connectionTestResult ? 'alert-success' : 'alert-danger'">
+                                <div class="d-flex">
+                                    <div>
+                                        <i :class="connectionTestResult ? 'ti ti-check' : 'ti ti-x'"></i>
+                                    </div>
+                                    <div class="ms-2">
+                                        {{ connectionTestResult ? '连接成功' : '连接失败' }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-else>
+                                <p>准备测试连接到服务器：<strong>{{ selectedServer ? selectedServer.ip + (selectedServer.sshPort && selectedServer.sshPort !== 22 ? ':' + selectedServer.sshPort : '') : '' }}</strong></p>
+                                <p>认证方式：{{ selectedServer ? getAuthTypeLabel(selectedServer.authType) : '' }}</p>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                            <button v-if="!testingConnection && connectionTestResult === null" type="button" class="btn btn-primary" @click="testConnection">开始测试</button>
+                            <button v-else-if="connectionTestResult !== null" type="button" class="btn btn-primary" @click="resetConnectionTest">重新测试</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Renew Server Modal -->
+            <div class="modal modal-blur fade" id="renewServerModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">续期服务器</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div v-if="selectedServer" class="alert" :class="getStatusAlertClass(selectedServer.statusType)">
+                                <div class="d-flex">
+                                    <div>
+                                        <i class="ti ti-info-circle"></i>
+                                    </div>
+                                    <div class="ms-2">
+                                        当前状态：{{ selectedServer.statusDescription }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label required">新到期日期</label>
+                                <input type="date" class="form-control" :class="{ 'is-invalid': validationErrors.expiryDate }" v-model="renewData.expiryDate">
+                                <div class="invalid-feedback" v-if="validationErrors.expiryDate">{{ validationErrors.expiryDate }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="btn-list">
+                                    <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'months')">+1个月</button>
+                                    <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(3, 'months')">+3个月</button>
+                                    <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(6, 'months')">+6个月</button>
+                                    <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'years')">+1年</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" @click="renewServer">续期</button>
                         </div>
                     </div>
                 </div>
@@ -246,40 +655,81 @@
 <script th:fragment="script" th:inline="javascript">
     PetiteVue.createApp({
         // Data
-        users: [],
+        servers: [],
+        authTypes: [],
         searchQuery: '',
-        filterRole: '',
+        filterSupplier: '',
         filterStatus: '',
         currentPage: 1,
         pageSize: 10,
         totalItems: 0,
         totalPages: 0,
-        selectedUser: null,
+        stats: {
+            total: 0,
+            active: 0,
+            expired: 0,
+            disabled: 0,
+            expiringSoon: 0
+        },
+        supplierStats: {},
+        totalCost: 0,
+        totalEffectiveCost: 0,
+        selectedServer: null,
         deleteModal: null,
         createModal: null,
         editModal: null,
+        testConnectionModal: null,
+        renewModal: null,
         loading: true,
         searchTimeout: null,
-        newUser: {
-            email: '',
-            password: '',
-            nickName: '',
-            role: 'PARTNER',
-            disabled: false
+        testingConnection: false,
+        connectionTestResult: null,
+        newServer: {
+            ip: '',
+            sshPort: 22,
+            authType: 'PASSWORD',
+            auth: '',
+            host: '',
+            name: '',
+            expireDate: '',
+            supplier: '',
+            price: '',
+            multiple: 1,
+            disabled: false,
+            remark: '',
+            transitConfig: null,
+            coreConfig: null
         },
-        editedUser: {
+        newServerTransitConfigJson: '',
+        newServerCoreConfigJson: '',
+        editedServer: {
             id: null,
-            email: '',
-            password: '',
-            nickName: '',
-            role: 'PARTNER',
-            disabled: 0
+            ip: '',
+            sshPort: 22,
+            authType: 'PASSWORD',
+            auth: '',
+            host: '',
+            name: '',
+            expireDate: '',
+            supplier: '',
+            price: '',
+            multiple: 1,
+            disabled: 0,
+            remark: '',
+            transitConfig: null,
+            coreConfig: null
+        },
+        editedServerTransitConfigJson: '',
+        editedServerCoreConfigJson: '',
+        renewData: {
+            expiryDate: ''
         },
         validationErrors: {},
 
         // Lifecycle hooks
         mounted() {
-            this.fetchUsers();
+            this.fetchAuthTypes();
+            this.fetchServers();
         },
 
         // Computed properties
@@ -310,7 +760,7 @@
         },
 
         // Methods
-        fetchUsers() {
+        fetchServers() {
             this.loading = true;
 
             // Build query parameters
@@ -323,15 +773,20 @@
                 params.append('search', this.searchQuery);
             }
 
-            if (this.filterRole) {
-                params.append('role', this.filterRole);
+            if (this.filterSupplier) {
+                params.append('supplier', this.filterSupplier);
             }
 
-            if (this.filterStatus) {
-                params.append('status', this.filterStatus);
+            if (this.filterStatus === 'active') {
+                params.append('expired', false);
+                params.append('disabled', false);
+            } else if (this.filterStatus === 'expired') {
+                params.append('expired', true);
+            } else if (this.filterStatus === 'disabled') {
+                params.append('disabled', true);
             }
 
-            fetch(`/api/admin/users?${params.toString()}`)
+            fetch(`/api/admin/servers?${params.toString()}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
@@ -339,16 +794,43 @@
                     return response.json();
                 })
                 .then(data => {
-                    this.users = data.records;
+                    this.servers = data.records;
                     this.totalItems = data.total;
                     this.totalPages = data.pages;
                     this.currentPage = data.current;
+
+                    // 统计数据
+                    if (data.stats) {
+                        this.stats = data.stats;
+                    }
+                    if (data.supplierStats) {
+                        this.supplierStats = data.supplierStats;
+                    }
+                    this.totalCost = data.totalCost || 0;
+                    this.totalEffectiveCost = data.totalEffectiveCost || 0;
+
                     this.loading = false;
                 })
                 .catch(error => {
-                    console.error('Error fetching users:', error);
-                    ToastUtils.show('Error', 'Failed to load users.', 'danger');
+                    console.error('Error fetching servers:', error);
+                    ToastUtils.show('Error', 'Failed to load servers.', 'danger');
                     this.loading = false;
+                });
+        },
+
+        fetchAuthTypes() {
+            fetch('/api/admin/servers/auth-types')
+                .then(response => response.json())
+                .then(data => {
+                    this.authTypes = data;
+
+                    // 设置默认认证类型
+                    if (this.authTypes.length > 0) {
+                        this.newServer.authType = this.authTypes[0].value;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching auth types:', error);
                 });
         },
 
@@ -361,92 +843,84 @@
             // Set new timeout to delay the API call
             this.searchTimeout = setTimeout(() => {
                 this.currentPage = 1; // Reset to first page when searching
-                this.fetchUsers();
+                this.fetchServers();
             }, 500); // Wait for 500ms after user stops typing
         },
 
         formatDate(dateString) {
-            if (!dateString) return '-';
+            if (!dateString) return null;
             const date = new Date(dateString);
-            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            return date.toLocaleDateString();
         },
 
-        getRoleBadgeClass(role) {
-            switch (role && role.toUpperCase()) {
-                case 'ADMIN': return 'text-bg-purple';
-                case 'PARTNER': return 'text-bg-indigo';
-                default: return 'text-bg-blue'; // VIP or other roles
+        getAuthTypeLabel(authType) {
+            const type = this.authTypes.find(t => t.value === authType);
+            return type ? type.label : authType;
+        },
+
+        getStatusBadgeClass(statusType) {
+            switch (statusType) {
+                case 'active': return 'text-bg-success';
+                case 'expired': return 'text-bg-danger';
+                case 'disabled': return 'text-bg-secondary';
+                default: return 'text-bg-secondary';
             }
         },
 
-        getStatusBadgeClass(disabled) {
-            return disabled === 0 ? 'text-bg-success' : 'text-bg-danger';
+        getStatusAlertClass(statusType) {
+            switch (statusType) {
+                case 'active': return 'alert-success';
+                case 'expired': return 'alert-danger';
+                case 'disabled': return 'alert-secondary';
+                default: return 'alert-secondary';
+            }
+        },
+
+        copyToClipboard(text) {
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    ToastUtils.show('Success', '已复制到剪贴板', 'success');
+                })
+                .catch(err => {
+                    console.error('Failed to copy text: ', err);
+                    ToastUtils.show('Error', '复制失败', 'danger');
+                });
         },
 
         prevPage() {
             if (this.currentPage > 1) {
                 this.currentPage--;
-                this.fetchUsers();
+                this.fetchServers();
             }
         },
 
         nextPage() {
             if (this.currentPage < this.totalPages) {
                 this.currentPage++;
-                this.fetchUsers();
+                this.fetchServers();
             }
         },
 
         goToPage(page) {
             this.currentPage = page;
-            this.fetchUsers();
+            this.fetchServers();
         },
 
         changePageSize() {
             this.currentPage = 1; // Reset to first page when changing page size
-            this.fetchUsers();
+            this.fetchServers();
         },
 
-        toggleUserStatus(user) {
-            const action = user.disabled === 0 ? 'disable' : 'enable';
-
-            fetch(`/api/admin/users/${user.id}/${action}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('更新状态失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    // Update user status in the local array
-                    const index = this.users.findIndex(u => u.id === user.id);
-                    if (index !== -1) {
-                        this.users[index].disabled = data.disabled;
-                    }
-
-                    ToastUtils.show('Success', '更新状态成功', 'success');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', '更新状态发生错误', 'danger');
-                });
-        },
-
-        confirmDelete(user) {
-            this.selectedUser = user;
+        confirmDelete(server) {
+            this.selectedServer = server;
             this.deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
             this.deleteModal.show();
         },
 
-        deleteUser() {
-            if (!this.selectedUser) return;
+        deleteServer() {
+            if (!this.selectedServer) return;
 
-            fetch(`/api/admin/users/${this.selectedUser.id}`, {
+            fetch(`/api/admin/servers/${this.selectedServer.id}`, {
                 method: 'DELETE'
             })
                 .then(response => {
@@ -454,8 +928,8 @@
                         throw new Error('删除失败');
                     }
 
-                    // Refetch the users data to update the list and pagination
-                    this.fetchUsers();
+                    // Refetch the servers data to update the list and pagination
+                    this.fetchServers();
                     ToastUtils.show('Success', '删除成功', 'success');
 
                     // Hide modal
@@ -467,70 +941,106 @@
                 });
         },
 
-        // Create User methods
-        openCreateUserModal() {
+        // Create Server methods
+        openCreateServerModal() {
+            // 获取一个月后的时间
+            const oneMonthLater = new Date();
+            oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+            const oneMonthLaterFormat = oneMonthLater.toISOString().split('T')[0];
+
             // Reset form
-            this.newUser = {
-                email: '',
-                password: '',
-                nickName: '',
-                role: 'PARTNER',
-                disabled: false
+            this.newServer = {
+                ip: '',
+                sshPort: 22,
+                authType: this.authTypes.length > 0 ? this.authTypes[0].value : 'PASSWORD',
+                auth: '',
+                host: '',
+                name: '',
+                expireDate: oneMonthLaterFormat,
+                supplier: '',
+                price: '',
+                multiple: 1,
+                disabled: false,
+                remark: '',
+                transitConfig: null,
+                coreConfig: null
             };
+            this.newServerTransitConfigJson = '';
+            this.newServerCoreConfigJson = '';
             this.validationErrors = {};
 
             // Show modal
-            this.createModal = new bootstrap.Modal(document.getElementById('createUserModal'));
+            this.createModal = new bootstrap.Modal(document.getElementById('createServerModal'));
             this.createModal.show();
         },
 
-        validateUserForm(user, isCreate = true) {
+        validateServerForm(server) {
             let isValid = true;
             this.validationErrors = {};
 
-            // Email validation
-            if (!user.email || !user.email.trim()) {
-                this.validationErrors.email = '邮箱地址不能为空';
-                isValid = false;
-            } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) {
-                this.validationErrors.email = '请输入有效的邮箱地址';
+            // IP validation
+            if (!server.ip || !server.ip.trim()) {
+                this.validationErrors.ip = 'IP地址不能为空';
                 isValid = false;
             }
 
-            // Password validation (only required for new users)
-            if (isCreate && (!user.password || user.password.trim().length < 6)) {
-                this.validationErrors.password = '密码长度至少为6个字符';
+            // Auth type validation
+            if (!server.authType) {
+                this.validationErrors.authType = '请选择认证方式';
                 isValid = false;
-            } else if (!isCreate && user.password && user.password.trim().length > 0 && user.password.trim().length < 6) {
-                // For edit form, validate password only if it's provided
-                this.validationErrors.password = '密码长度至少为6个字符';
+            }
+
+            // Auth validation
+            if (server.authType && !server.auth) {
+                this.validationErrors.auth = '认证信息不能为空';
                 isValid = false;
             }
 
             return isValid;
         },
 
-        createUser() {
-            if (!this.validateUserForm(this.newUser)) {
-                console.info(222222)
+        createServer() {
+            // 处理JSON配置
+            try {
+                if (this.newServerTransitConfigJson) {
+                    this.newServer.transitConfig = JSON.parse(this.newServerTransitConfigJson);
+                }
+                if (this.newServerCoreConfigJson) {
+                    this.newServer.coreConfig = JSON.parse(this.newServerCoreConfigJson);
+                }
+            } catch (e) {
+                ToastUtils.show('Error', 'JSON配置格式错误: ' + e.message, 'danger');
+                return;
+            }
+
+            if (!this.validateServerForm(this.newServer)) {
                 return;
             }
 
             // Prepare data for API
-            const userData = {
-                email: this.newUser.email,
-                password: this.newUser.password,
-                nickName: this.newUser.nickName || null,
-                role: this.newUser.role,
-                disabled: this.newUser.disabled ? 1 : 0
+            const serverData = {
+                ip: this.newServer.ip,
+                sshPort: this.newServer.sshPort || 22,
+                authType: this.newServer.authType,
+                auth: this.newServer.auth,
+                host: this.newServer.host || null,
+                name: this.newServer.name || null,
+                expireDate: this.newServer.expireDate || null,
+                supplier: this.newServer.supplier || null,
+                price: this.newServer.price || null,
+                multiple: this.newServer.multiple || 1,
+                disabled: this.newServer.disabled ? 1 : 0,
+                remark: this.newServer.remark || null,
+                transitConfig: this.newServer.transitConfig,
+                coreConfig: this.newServer.coreConfig
             };
 
-            fetch('/api/admin/users', {
+            fetch('/api/admin/servers', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(userData)
+                body: JSON.stringify(serverData)
             })
                 .then(response => {
                     if (!response.ok) {
@@ -544,7 +1054,7 @@
                     return response.json();
                 })
                 .then(data => {
-                    this.fetchUsers(); // Refresh the user list
+                    this.fetchServers(); // Refresh the server list
                     this.createModal.hide();
                     ToastUtils.show('Success', '创建成功', 'success');
                 })
@@ -554,48 +1064,94 @@
                 });
         },
 
-        // Edit User methods
-        openEditUserModal(user) {
-            // Clone user data to avoid direct mutation
-            this.editedUser = {
-                id: user.id,
-                email: user.email,
-                password: '', // Empty password field
-                nickName: user.nickName || '',
-                role: user.role || 'PARTNER',
-                disabled: user.disabled
+        // Edit Server methods
+        openEditServerModal(server) {
+            // Format dates for date input
+            const formatDateForInput = (dateString) => {
+                if (!dateString) return '';
+                const date = new Date(dateString);
+                return date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
             };
+
+            // Clone server data to avoid direct mutation
+            this.editedServer = {
+                id: server.id,
+                ip: server.ip,
+                sshPort: server.sshPort || 22,
+                authType: server.authType,
+                auth: server.auth,
+                host: server.host || '',
+                name: server.name || '',
+                expireDate: formatDateForInput(server.expireDate),
+                supplier: server.supplier || '',
+                price: server.price,
+                multiple: server.multiple || 1,
+                disabled: server.disabled,
+                remark: server.remark || '',
+                transitConfig: server.transitConfig,
+                coreConfig: server.coreConfig
+            };
+
+            // 处理JSON数据
+            this.editedServerTransitConfigJson = server.transitConfig ?
+                JSON.stringify(server.transitConfig, null, 2) : '';
+            this.editedServerCoreConfigJson = server.coreConfig ?
+                JSON.stringify(server.coreConfig, null, 2) : '';
+
             this.validationErrors = {};
 
             // Show modal
-            this.editModal = new bootstrap.Modal(document.getElementById('editUserModal'));
+            this.editModal = new bootstrap.Modal(document.getElementById('editServerModal'));
             this.editModal.show();
         },
 
-        updateUser() {
-            if (!this.validateUserForm(this.editedUser, false)) {
+        updateServer() {
+            // 处理JSON配置
+            try {
+                if (this.editedServerTransitConfigJson) {
+                    this.editedServer.transitConfig = JSON.parse(this.editedServerTransitConfigJson);
+                } else {
+                    this.editedServer.transitConfig = null;
+                }
+
+                if (this.editedServerCoreConfigJson) {
+                    this.editedServer.coreConfig = JSON.parse(this.editedServerCoreConfigJson);
+                } else {
+                    this.editedServer.coreConfig = null;
+                }
+            } catch (e) {
+                ToastUtils.show('Error', 'JSON配置格式错误: ' + e.message, 'danger');
+                return;
+            }
+
+            if (!this.validateServerForm(this.editedServer)) {
                 return;
             }
 
             // Prepare data for API
-            const userData = {
-                email: this.editedUser.email,
-                nickName: this.editedUser.nickName || null,
-                role: this.editedUser.role,
-                disabled: this.editedUser.disabled
+            const serverData = {
+                ip: this.editedServer.ip,
+                sshPort: this.editedServer.sshPort || 22,
+                authType: this.editedServer.authType,
+                auth: this.editedServer.auth,
+                host: this.editedServer.host || null,
+                name: this.editedServer.name || null,
+                expireDate: this.editedServer.expireDate || null,
+                supplier: this.editedServer.supplier || null,
+                price: this.editedServer.price || null,
+                multiple: this.editedServer.multiple || 1,
+                disabled: this.editedServer.disabled,
+                remark: this.editedServer.remark || null,
+                transitConfig: this.editedServer.transitConfig,
+                coreConfig: this.editedServer.coreConfig
             };
 
-            // Only include password if it's provided
-            if (this.editedUser.password) {
-                userData.password = this.editedUser.password;
-            }
-
-            fetch(`/api/admin/users/${this.editedUser.id}`, {
+            fetch(`/api/admin/servers/${this.editedServer.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(userData)
+                body: JSON.stringify(serverData)
             })
                 .then(response => {
                     if (!response.ok) {
@@ -609,19 +1165,175 @@
                     return response.json();
                 })
                 .then(data => {
-                    // Update user in the local array
-                    const index = this.users.findIndex(u => u.id === this.editedUser.id);
-                    if (index !== -1) {
-                        this.users[index] = data;
-                    }
-
+                    this.fetchServers(); // Refresh the server list
                     this.editModal.hide();
                     ToastUtils.show('Success', '更新成功', 'success');
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    ToastUtils.show('Error', error.message || '更新失败', 'danger');
+                    ToastUtils.show('Error', error.message || '更新失败.', 'danger');
                 });
         },
-    }).mount('#users-app');
+
+        // Toggle server status methods
+        toggleServerStatus(server, disabled) {
+            const action = disabled ? 'disable' : 'enable';
+
+            fetch(`/api/admin/servers/${server.id}/${action}`, {
+                method: 'PATCH'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('更新状态失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Update server status in the local array
+                    const index = this.servers.findIndex(s => s.id === server.id);
+                    if (index !== -1) {
+                        this.servers[index].disabled = data.disabled;
+                        this.servers[index].statusType = data.disabled === 1 ? 'disabled' : 'active';
+                        this.servers[index].statusDescription = data.disabled === 1 ? '已禁用' : '活跃';
+                    }
+
+                    ToastUtils.show('Success', '更新状态成功', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', '更新状态发生错误', 'danger');
+                });
+        },
+
+        // Test connection methods
+        openTestConnectionModal(server) {
+            this.selectedServer = server;
+            this.connectionTestResult = null;
+            this.testingConnection = false;
+
+            this.testConnectionModal = new bootstrap.Modal(document.getElementById('testConnectionModal'));
+            this.testConnectionModal.show();
+        },
+
+        testConnection() {
+            if (!this.selectedServer) return;
+
+            this.testingConnection = true;
+
+            fetch('/api/admin/servers/test-connection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(this.selectedServer)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    this.connectionTestResult = data.success;
+                    this.testingConnection = false;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    this.connectionTestResult = false;
+                    this.testingConnection = false;
+                });
+        },
+
+        resetConnectionTest() {
+            this.connectionTestResult = null;
+        },
+
+        // Renew server methods
+        openRenewServerModal(server) {
+            this.selectedServer = server;
+
+            // 计算默认的续期时间（从当前时间或过期时间开始 +1个月）
+            let baseDate;
+            if (server.expireDate && new Date(server.expireDate) > new Date()) {
+                baseDate = new Date(server.expireDate);
+            } else {
+                baseDate = new Date();
+            }
+
+            // 加一个月
+            baseDate.setMonth(baseDate.getMonth() + 1);
+            this.renewData = {
+                expiryDate: baseDate.toISOString().split('T')[0] // Format: YYYY-MM-DD
+            };
+
+            this.validationErrors = {};
+            this.renewModal = new bootstrap.Modal(document.getElementById('renewServerModal'));
+            this.renewModal.show();
+        },
+
+        setRenewPeriod(value, unit) {
+            // 计算新的续期时间（从当前时间或过期时间开始）
+            let baseDate;
+            if (this.selectedServer.expireDate && new Date(this.selectedServer.expireDate) > new Date()) {
+                baseDate = new Date(this.selectedServer.expireDate);
+            } else {
+                baseDate = new Date();
+            }
+
+            // 根据单位增加时间
+            if (unit === 'days') {
+                baseDate.setDate(baseDate.getDate() + value);
+            } else if (unit === 'months') {
+                baseDate.setMonth(baseDate.getMonth() + value);
+            } else if (unit === 'years') {
+                baseDate.setFullYear(baseDate.getFullYear() + value);
+            }
+
+            this.renewData.expiryDate = baseDate.toISOString().split('T')[0];
+        },
+
+        validateRenewForm() {
+            let isValid = true;
+            this.validationErrors = {};
+
+            if (!this.renewData.expiryDate) {
+                this.validationErrors.expiryDate = '请选择到期时间';
+                isValid = false;
+            } else {
+                const expiryDate = new Date(this.renewData.expiryDate);
+                const now = new Date();
+                if (expiryDate <= now) {
+                    this.validationErrors.expiryDate = '到期时间必须大于当前时间';
+                    isValid = false;
+                }
+            }
+
+            return isValid;
+        },
+
+        renewServer() {
+            if (!this.validateRenewForm()) {
+                return;
+            }
+
+            fetch(`/api/admin/servers/${this.selectedServer.id}/renew?expiryDate=${encodeURIComponent(this.renewData.expiryDate)}`, {
+                method: 'PATCH'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('续期失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // 更新服务器列表中的到期时间
+                    const index = this.servers.findIndex(s => s.id === this.selectedServer.id);
+                    if (index !== -1) {
+                        this.servers[index] = data;
+                    }
+
+                    this.renewModal.hide();
+                    ToastUtils.show('Success', '续期成功', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', '续期失败', 'danger');
+                });
+        }
+    }).mount('#servers-app');
 </script>
