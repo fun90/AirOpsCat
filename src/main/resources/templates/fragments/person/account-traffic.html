@@ -1,89 +1,158 @@
 <div th:fragment="content" class="page-body">
     <div class="container-xl">
-        <div class="card" id="users-app" @vue:mounted="mounted">
+        <div class="card" id="traffic-stats-app" @vue:mounted="mounted">
             <div class="card-header">
-                <h3 class="card-title">Users</h3>
+                <h3 class="card-title">流量统计</h3>
                 <div class="card-actions">
                     <div class="row g-2">
                         <div class="col">
                             <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
                         </div>
                         <div class="col-auto">
-                            <select class="form-select" v-model="filterRole" @change="fetchUsers">
-                                <option value="">全部角色</option>
-                                <option value="ADMIN">ADMIN</option>
-                                <option value="PARTNER">PARTNER</option>
-                                <option value="VIP">VIP</option>
+                            <select class="form-select" v-model="filterUserId" @change="fetchStats">
+                                <option value="">全部用户</option>
+                                <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
                             </select>
                         </div>
                         <div class="col-auto">
-                            <select class="form-select" v-model="filterStatus" @change="fetchUsers">
-                                <option value="">全部状态</option>
-                                <option value="active">Active</option>
-                                <option value="disabled">Disabled</option>
-                            </select>
+                            <div class="input-group">
+                                <span class="input-group-text">开始日期</span>
+                                <input type="date" class="form-control" v-model="startDate" @change="fetchStats">
+                            </div>
                         </div>
                         <div class="col-auto">
-                            <button class="btn btn-primary" @click="openCreateUserModal">
-                                <i class="ti ti-plus"></i> 添加用户
+                            <div class="input-group">
+                                <span class="input-group-text">结束日期</span>
+                                <input type="date" class="form-control" v-model="endDate" @change="fetchStats">
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-primary" @click="openCreateStatsModal">
+                                <i class="ti ti-plus"></i> 添加记录
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- 流量使用概览卡片 -->
+            <div class="card-body border-bottom" v-if="filterUserId">
+                <div class="row">
+                    <div class="col-md-6 col-xl-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-blue text-white avatar">
+                                            <i class="ti ti-arrow-up"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            上传流量
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ totalUploadFormatted }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-xl-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-green text-white avatar">
+                                            <i class="ti ti-arrow-down"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            下载流量
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ totalDownloadFormatted }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-xl-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-purple text-white avatar">
+                                            <i class="ti ti-exchange"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            总流量
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ formatBytes(totalUpload + totalDownload) }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table id="tablePage" class="table table-vcenter card-table">
+                    <table class="table table-vcenter card-table">
                         <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Email</th>
-                            <th>Nickname</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Actions</th>
+                            <th>用户</th>
+                            <th>账户ID</th>
+                            <th>开始时间</th>
+                            <th>结束时间</th>
+                            <th>上传流量</th>
+                            <th>下载流量</th>
+                            <th>总流量</th>
+                            <th>操作</th>
                         </tr>
                         </thead>
                         <tbody>
-                        <tr v-for="user in users" :key="user.id">
-                            <td v-text="user.id"></td>
-                            <td v-text="user.email"></td>
-                            <td v-text="user.nickName || '-'"></td>
+                        <tr v-for="stat in stats" :key="stat.id">
+                            <td v-text="stat.id"></td>
                             <td>
-                                <span class="badge" :class="getRoleBadgeClass(user.role)" v-text="user.role || 'PARTNER'"></span>
+                                <span v-if="getUserEmail(stat.userId)">{{ getUserEmail(stat.userId) }}</span>
+                                <span v-else>{{ stat.userId }}</span>
                             </td>
-                            <td>
-                                <span class="badge" :class="getStatusBadgeClass(user.disabled)">
-                                    {{ user.disabled === 0 ? 'Active' : 'Disabled' }}
-                                </span>
-                            </td>
-                            <td v-text="formatDate(user.createTime)"></td>
+                            <td v-text="stat.accountId"></td>
+                            <td v-text="formatDate(stat.periodStart)"></td>
+                            <td v-text="formatDate(stat.periodEnd)"></td>
+                            <td v-text="formatBytes(stat.uploadBytes)"></td>
+                            <td v-text="formatBytes(stat.downloadBytes)"></td>
+                            <td v-text="formatBytes(stat.uploadBytes + stat.downloadBytes)"></td>
                             <td>
                                 <div class="btn-list flex-nowrap">
-                                    <button @click="openEditUserModal(user)" class="btn btn-sm btn-outline-primary">
+                                    <button @click="openEditStatsModal(stat)" class="btn btn-sm btn-outline-primary">
                                         <i class="ti ti-edit"></i> 编辑
                                     </button>
-                                    <button @click="toggleUserStatus(user)" class="btn btn-sm"
-                                            :class="user.disabled === 0 ? 'btn-outline-danger' : 'btn-outline-success'">
-                                        <i class="ti" :class="user.disabled === 0 ? 'ti-ban' : 'ti-check'"></i>
-                                        {{ user.disabled === 0 ? '禁用' : '启用' }}
-                                    </button>
-                                    <button @click="confirmDelete(user)" class="btn btn-sm btn-outline-danger">
+                                    <button @click="confirmDelete(stat)" class="btn btn-sm btn-outline-danger">
                                         <i class="ti ti-trash"></i> 删除
                                     </button>
                                 </div>
                             </td>
                         </tr>
                         <tr v-if="loading">
-                            <td colspan="7" class="text-center py-3">
+                            <td colspan="9" class="text-center py-3">
                                 <div class="spinner-border text-primary" role="status">
                                     <span class="visually-hidden">Loading...</span>
                                 </div>
                             </td>
                         </tr>
-                        <tr v-else-if="users.length === 0">
-                            <td colspan="7" class="text-center py-3">没有查到数据.</td>
+                        <tr v-else-if="stats.length === 0">
+                            <td colspan="9" class="text-center py-3">没有查到数据.</td>
                         </tr>
                         </tbody>
                     </table>
@@ -140,101 +209,107 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-danger" @click="deleteUser">确认</button>
+                            <button type="button" class="btn btn-danger" @click="deleteStats">确认</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Create User Modal -->
-            <div class="modal modal-blur fade" id="createUserModal" tabindex="-1" role="dialog">
+            <!-- Create Stats Modal -->
+            <div class="modal modal-blur fade" id="createStatsModal" tabindex="-1" role="dialog">
                 <div class="modal-dialog modal-dialog-centered" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">添加用户</h5>
+                            <h5 class="modal-title">添加流量统计</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-<!--                            <fieldset class="form-fieldset">-->
                             <div class="mb-3">
-                                <label class="form-label required">邮箱</label>
-                                <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }" placeholder="user@example.com" v-model="newUser.email">
-                                <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label required">密码</label>
-                                <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }" placeholder="Password" v-model="newUser.password">
-                                <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">昵称</label>
-                                <input type="text" class="form-control" placeholder="Nickname" v-model="newUser.nickName">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">角色</label>
-                                <select class="form-select" v-model="newUser.role">
-                                    <option value="PARTNER">PARTNER</option>
-                                    <option value="ADMIN">ADMIN</option>
-                                    <option value="VIP">VIP</option>
+                                <label class="form-label required">用户</label>
+                                <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="newStats.userId">
+                                    <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
                                 </select>
+                                <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" v-model="newUser.disabled">
-                                    <span class="form-check-label">禁用账户</span>
-                                </label>
+                                <label class="form-label required">账户ID</label>
+                                <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.accountId }" v-model="newStats.accountId">
+                                <div class="invalid-feedback" v-if="validationErrors.accountId">{{ validationErrors.accountId }}</div>
                             </div>
-<!--                            </fieldset>-->
+                            <div class="mb-3">
+                                <label class="form-label required">开始时间</label>
+                                <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.periodStart }" v-model="newStats.periodStart">
+                                <div class="invalid-feedback" v-if="validationErrors.periodStart">{{ validationErrors.periodStart }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label required">结束时间</label>
+                                <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.periodEnd }" v-model="newStats.periodEnd">
+                                <div class="invalid-feedback" v-if="validationErrors.periodEnd">{{ validationErrors.periodEnd }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">上传流量 (字节)</label>
+                                <input type="number" class="form-control" v-model="newStats.uploadBytes">
+                                <small class="form-hint">{{ formatBytes(newStats.uploadBytes || 0) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">下载流量 (字节)</label>
+                                <input type="number" class="form-control" v-model="newStats.downloadBytes">
+                                <small class="form-hint">{{ formatBytes(newStats.downloadBytes || 0) }}</small>
+                            </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" @click="createUser">创建用户</button>
+                            <button type="button" class="btn btn-primary" @click="createStats">创建</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Edit User Modal -->
-            <div class="modal modal-blur fade" id="editUserModal" tabindex="-1" role="dialog">
+            <!-- Edit Stats Modal -->
+            <div class="modal modal-blur fade" id="editStatsModal" tabindex="-1" role="dialog">
                 <div class="modal-dialog modal-dialog-centered" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">编辑用户</h5>
+                            <h5 class="modal-title">编辑流量统计</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
                             <div class="mb-3">
-                                <label class="form-label required">邮箱</label>
-                                <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }" placeholder="user@example.com" v-model="editedUser.email">
-                                <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">密码 <span class="text-muted">(留空表示不修改)</span></label>
-                                <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }" placeholder="New password" v-model="editedUser.password">
-                                <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">昵称</label>
-                                <input type="text" class="form-control" placeholder="Nickname" v-model="editedUser.nickName">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">角色</label>
-                                <select class="form-select" v-model="editedUser.role">
-                                    <option value="PARTNER">PARTNER</option>
-                                    <option value="ADMIN">ADMIN</option>
-                                    <option value="VIP">VIP</option>
+                                <label class="form-label required">用户</label>
+                                <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="editedStats.userId">
+                                    <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
                                 </select>
+                                <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" :checked="editedUser.disabled === 1" @change="editedUser.disabled = $event.target.checked ? 1 : 0">
-                                    <span class="form-check-label">禁用账户</span>
-                                </label>
+                                <label class="form-label required">账户ID</label>
+                                <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.accountId }" v-model="editedStats.accountId">
+                                <div class="invalid-feedback" v-if="validationErrors.accountId">{{ validationErrors.accountId }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label required">开始时间</label>
+                                <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.periodStart }" v-model="editedStats.periodStart">
+                                <div class="invalid-feedback" v-if="validationErrors.periodStart">{{ validationErrors.periodStart }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label required">结束时间</label>
+                                <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.periodEnd }" v-model="editedStats.periodEnd">
+                                <div class="invalid-feedback" v-if="validationErrors.periodEnd">{{ validationErrors.periodEnd }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">上传流量 (字节)</label>
+                                <input type="number" class="form-control" v-model="editedStats.uploadBytes">
+                                <small class="form-hint">{{ formatBytes(editedStats.uploadBytes || 0) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">下载流量 (字节)</label>
+                                <input type="number" class="form-control" v-model="editedStats.downloadBytes">
+                                <small class="form-hint">{{ formatBytes(editedStats.downloadBytes || 0) }}</small>
                             </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" @click="updateUser">保存修改</button>
+                            <button type="button" class="btn btn-primary" @click="updateStats">保存</button>
                         </div>
                     </div>
                 </div>
@@ -246,40 +321,51 @@
 <script th:fragment="script" th:inline="javascript">
     PetiteVue.createApp({
         // Data
+        stats: [],
         users: [],
         searchQuery: '',
-        filterRole: '',
-        filterStatus: '',
+        filterUserId: '',
+        filterAccountId: '',
+        startDate: '',
+        endDate: '',
         currentPage: 1,
         pageSize: 10,
         totalItems: 0,
         totalPages: 0,
-        selectedUser: null,
+        totalUpload: 0,
+        totalDownload: 0,
+        totalUploadFormatted: '0 B',
+        totalDownloadFormatted: '0 B',
+        selectedStats: null,
         deleteModal: null,
         createModal: null,
         editModal: null,
         loading: true,
         searchTimeout: null,
-        newUser: {
-            email: '',
-            password: '',
-            nickName: '',
-            role: 'PARTNER',
-            disabled: false
+        newStats: {
+            userId: '',
+            accountId: '',
+            periodStart: '',
+            periodEnd: '',
+            uploadBytes: 0,
+            downloadBytes: 0
         },
-        editedUser: {
+        editedStats: {
             id: null,
-            email: '',
-            password: '',
-            nickName: '',
-            role: 'PARTNER',
-            disabled: 0
+            userId: '',
+            accountId: '',
+            periodStart: '',
+            periodEnd: '',
+            uploadBytes: 0,
+            downloadBytes: 0
         },
         validationErrors: {},
+        userMap: {}, // 用于缓存用户ID和邮箱的映射
 
         // Lifecycle hooks
         mounted() {
             this.fetchUsers();
+            this.fetchStats();
         },
 
         // Computed properties
@@ -310,7 +396,7 @@
         },
 
         // Methods
-        fetchUsers() {
+        fetchStats() {
             this.loading = true;
 
             // Build query parameters
@@ -323,15 +409,33 @@
                 params.append('search', this.searchQuery);
             }
 
-            if (this.filterRole) {
-                params.append('role', this.filterRole);
+            if (this.filterUserId) {
+                params.append('userId', this.filterUserId);
             }
 
-            if (this.filterStatus) {
-                params.append('status', this.filterStatus);
+            if (this.filterAccountId) {
+                params.append('accountId', this.filterAccountId);
             }
 
-            fetch(`/api/admin/users?${params.toString()}`)
+            if (this.startDate) {
+                // Convert to ISO string format for API
+                const startDateTime = new Date(this.startDate);
+                startDateTime.setHours(0, 0, 0, 0);
+                params.append('startDate', startDateTime.toISOString());
+            }
+
+            if (this.endDate) {
+                // Convert to ISO string format for API
+                const endDateTime = new Date(this.endDate);
+                endDateTime.setHours(23, 59, 59, 999);
+                params.append('endDate', endDateTime.toISOString());
+            }
+
+            const url = this.filterUserId ?
+                `/api/admin/traffic-stats/user/${this.filterUserId}?${params.toString()}` :
+                `/api/admin/traffic-stats?${params.toString()}`;
+
+            fetch(url)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
@@ -339,17 +443,51 @@
                     return response.json();
                 })
                 .then(data => {
-                    this.users = data.records;
+                    this.stats = data.records;
                     this.totalItems = data.total;
                     this.totalPages = data.pages;
                     this.currentPage = data.current;
+
+                    // 总流量统计数据，只有在按用户或账户筛选时才有
+                    if (data.totalUpload !== undefined) {
+                        this.totalUpload = data.totalUpload;
+                        this.totalDownload = data.totalDownload;
+                        this.totalUploadFormatted = data.totalUploadFormatted;
+                        this.totalDownloadFormatted = data.totalDownloadFormatted;
+                    } else {
+                        this.totalUpload = 0;
+                        this.totalDownload = 0;
+                        this.totalUploadFormatted = '0 B';
+                        this.totalDownloadFormatted = '0 B';
+                    }
+
                     this.loading = false;
                 })
                 .catch(error => {
-                    console.error('Error fetching users:', error);
-                    ToastUtils.show('Error', 'Failed to load users.', 'danger');
+                    console.error('Error fetching traffic stats:', error);
+                    ToastUtils.show('Error', 'Failed to load traffic stats.', 'danger');
                     this.loading = false;
                 });
+        },
+
+        fetchUsers() {
+            fetch('/api/admin/users')
+                .then(response => response.json())
+                .then(data => {
+                    this.users = data.records;
+
+                    // 建立用户ID到邮箱的映射
+                    this.users.forEach(user => {
+                        this.userMap[user.id] = user.email || user.nickName || user.id;
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching users:', error);
+                });
+        },
+
+        getUserEmail(userId) {
+            return this.userMap[userId] || userId;
         },
 
         searchDebounced() {
@@ -361,7 +499,7 @@
             // Set new timeout to delay the API call
             this.searchTimeout = setTimeout(() => {
                 this.currentPage = 1; // Reset to first page when searching
-                this.fetchUsers();
+                this.fetchStats();
             }, 500); // Wait for 500ms after user stops typing
         },
 
@@ -371,82 +509,49 @@
             return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
         },
 
-        getRoleBadgeClass(role) {
-            switch (role && role.toUpperCase()) {
-                case 'ADMIN': return 'text-bg-purple';
-                case 'PARTNER': return 'text-bg-indigo';
-                default: return 'text-bg-blue'; // VIP or other roles
-            }
-        },
+        formatBytes(bytes) {
+            bytes = Number(bytes);
+            if (isNaN(bytes) || bytes === 0) return '0 B';
 
-        getStatusBadgeClass(disabled) {
-            return disabled === 0 ? 'text-bg-success' : 'text-bg-danger';
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + units[i];
         },
 
         prevPage() {
             if (this.currentPage > 1) {
                 this.currentPage--;
-                this.fetchUsers();
+                this.fetchStats();
             }
         },
 
         nextPage() {
             if (this.currentPage < this.totalPages) {
                 this.currentPage++;
-                this.fetchUsers();
+                this.fetchStats();
             }
         },
 
         goToPage(page) {
             this.currentPage = page;
-            this.fetchUsers();
+            this.fetchStats();
         },
 
         changePageSize() {
             this.currentPage = 1; // Reset to first page when changing page size
-            this.fetchUsers();
+            this.fetchStats();
         },
 
-        toggleUserStatus(user) {
-            const action = user.disabled === 0 ? 'disable' : 'enable';
-
-            fetch(`/api/admin/users/${user.id}/${action}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('更新状态失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    // Update user status in the local array
-                    const index = this.users.findIndex(u => u.id === user.id);
-                    if (index !== -1) {
-                        this.users[index].disabled = data.disabled;
-                    }
-
-                    ToastUtils.show('Success', '更新状态成功', 'success');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', '更新状态发生错误', 'danger');
-                });
-        },
-
-        confirmDelete(user) {
-            this.selectedUser = user;
+        confirmDelete(stats) {
+            this.selectedStats = stats;
             this.deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
             this.deleteModal.show();
         },
 
-        deleteUser() {
-            if (!this.selectedUser) return;
+        deleteStats() {
+            if (!this.selectedStats) return;
 
-            fetch(`/api/admin/users/${this.selectedUser.id}`, {
+            fetch(`/api/admin/traffic-stats/${this.selectedStats.id}`, {
                 method: 'DELETE'
             })
                 .then(response => {
@@ -454,8 +559,8 @@
                         throw new Error('删除失败');
                     }
 
-                    // Refetch the users data to update the list and pagination
-                    this.fetchUsers();
+                    // Refetch the stats data to update the list and pagination
+                    this.fetchStats();
                     ToastUtils.show('Success', '删除成功', 'success');
 
                     // Hide modal
@@ -467,70 +572,83 @@
                 });
         },
 
-        // Create User methods
-        openCreateUserModal() {
+        // Create Stats methods
+        openCreateStatsModal() {
+            // Initialize with current date for period start/end
+            const now = new Date();
+            const localDateTimeFormat = now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+
             // Reset form
-            this.newUser = {
-                email: '',
-                password: '',
-                nickName: '',
-                role: 'PARTNER',
-                disabled: false
+            this.newStats = {
+                userId: this.users.length > 0 ? this.users[0].id : '',
+                accountId: '',
+                periodStart: localDateTimeFormat,
+                periodEnd: localDateTimeFormat,
+                uploadBytes: 0,
+                downloadBytes: 0
             };
             this.validationErrors = {};
 
             // Show modal
-            this.createModal = new bootstrap.Modal(document.getElementById('createUserModal'));
+            this.createModal = new bootstrap.Modal(document.getElementById('createStatsModal'));
             this.createModal.show();
         },
 
-        validateUserForm(user, isCreate = true) {
+        validateStatsForm(stats) {
             let isValid = true;
             this.validationErrors = {};
 
-            // Email validation
-            if (!user.email || !user.email.trim()) {
-                this.validationErrors.email = '邮箱地址不能为空';
-                isValid = false;
-            } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) {
-                this.validationErrors.email = '请输入有效的邮箱地址';
+            // UserID validation
+            if (!stats.userId) {
+                this.validationErrors.userId = '请选择用户';
                 isValid = false;
             }
 
-            // Password validation (only required for new users)
-            if (isCreate && (!user.password || user.password.trim().length < 6)) {
-                this.validationErrors.password = '密码长度至少为6个字符';
+            // AccountID validation
+            if (!stats.accountId) {
+                this.validationErrors.accountId = '账户ID不能为空';
                 isValid = false;
-            } else if (!isCreate && user.password && user.password.trim().length > 0 && user.password.trim().length < 6) {
-                // For edit form, validate password only if it's provided
-                this.validationErrors.password = '密码长度至少为6个字符';
+            }
+
+            // Period start validation
+            if (!stats.periodStart) {
+                this.validationErrors.periodStart = '开始时间不能为空';
+                isValid = false;
+            }
+
+            // Period end validation
+            if (!stats.periodEnd) {
+                this.validationErrors.periodEnd = '结束时间不能为空';
+                isValid = false;
+            } else if (stats.periodStart && new Date(stats.periodEnd) < new Date(stats.periodStart)) {
+                this.validationErrors.periodEnd = '结束时间必须晚于开始时间';
                 isValid = false;
             }
 
             return isValid;
         },
 
-        createUser() {
-            if (!this.validateUserForm(this.newUser)) {
-                console.info(222222)
+        createStats() {
+            if (!this.validateStatsForm(this.newStats)) {
                 return;
             }
 
             // Prepare data for API
-            const userData = {
-                email: this.newUser.email,
-                password: this.newUser.password,
-                nickName: this.newUser.nickName || null,
-                role: this.newUser.role,
-                disabled: this.newUser.disabled ? 1 : 0
+            const statsData = {
+                userId: this.newStats.userId,
+                accountId: this.newStats.accountId,
+                periodStart: this.newStats.periodStart,
+                periodEnd: this.newStats.periodEnd,
+                uploadBytes: this.newStats.uploadBytes || 0,
+                downloadBytes: this.newStats.downloadBytes || 0
             };
 
-            fetch('/api/admin/users', {
+            fetch('/api/admin/traffic-stats', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(userData)
+                body: JSON.stringify(statsData)
             })
                 .then(response => {
                     if (!response.ok) {
@@ -544,7 +662,7 @@
                     return response.json();
                 })
                 .then(data => {
-                    this.fetchUsers(); // Refresh the user list
+                    this.fetchStats(); // Refresh the stats list
                     this.createModal.hide();
                     ToastUtils.show('Success', '创建成功', 'success');
                 })
@@ -554,48 +672,53 @@
                 });
         },
 
-        // Edit User methods
-        openEditUserModal(user) {
-            // Clone user data to avoid direct mutation
-            this.editedUser = {
-                id: user.id,
-                email: user.email,
-                password: '', // Empty password field
-                nickName: user.nickName || '',
-                role: user.role || 'PARTNER',
-                disabled: user.disabled
+        // Edit Stats methods
+        openEditStatsModal(stats) {
+            // Format dates for datetime-local input
+            const formatDateForInput = (dateString) => {
+                if (!dateString) return '';
+                const date = new Date(dateString);
+                return date.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+            };
+
+            // Clone stats data to avoid direct mutation
+            this.editedStats = {
+                id: stats.id,
+                userId: stats.userId,
+                accountId: stats.accountId,
+                periodStart: formatDateForInput(stats.periodStart),
+                periodEnd: formatDateForInput(stats.periodEnd),
+                uploadBytes: stats.uploadBytes || 0,
+                downloadBytes: stats.downloadBytes || 0
             };
             this.validationErrors = {};
 
             // Show modal
-            this.editModal = new bootstrap.Modal(document.getElementById('editUserModal'));
+            this.editModal = new bootstrap.Modal(document.getElementById('editStatsModal'));
             this.editModal.show();
         },
 
-        updateUser() {
-            if (!this.validateUserForm(this.editedUser, false)) {
+        updateStats() {
+            if (!this.validateStatsForm(this.editedStats)) {
                 return;
             }
 
             // Prepare data for API
-            const userData = {
-                email: this.editedUser.email,
-                nickName: this.editedUser.nickName || null,
-                role: this.editedUser.role,
-                disabled: this.editedUser.disabled
+            const statsData = {
+                userId: this.editedStats.userId,
+                accountId: this.editedStats.accountId,
+                periodStart: this.editedStats.periodStart,
+                periodEnd: this.editedStats.periodEnd,
+                uploadBytes: this.editedStats.uploadBytes || 0,
+                downloadBytes: this.editedStats.downloadBytes || 0
             };
 
-            // Only include password if it's provided
-            if (this.editedUser.password) {
-                userData.password = this.editedUser.password;
-            }
-
-            fetch(`/api/admin/users/${this.editedUser.id}`, {
+            fetch(`/api/admin/traffic-stats/${this.editedStats.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(userData)
+                body: JSON.stringify(statsData)
             })
                 .then(response => {
                     if (!response.ok) {
@@ -609,10 +732,10 @@
                     return response.json();
                 })
                 .then(data => {
-                    // Update user in the local array
-                    const index = this.users.findIndex(u => u.id === this.editedUser.id);
+                    // Update stats in the local array
+                    const index = this.stats.findIndex(s => s.id === this.editedStats.id);
                     if (index !== -1) {
-                        this.users[index] = data;
+                        this.stats[index] = data;
                     }
 
                     this.editModal.hide();
@@ -623,5 +746,5 @@
                     ToastUtils.show('Error', error.message || '更新失败', 'danger');
                 });
         },
-    }).mount('#users-app');
+    }).mount('#traffic-stats-app');
 </script>

@@ -1,25 +1,34 @@
 package com.fun90.airopscat.controller;
 
+import com.fun90.airopscat.model.dto.AccountDto;
 import com.fun90.airopscat.model.entity.Account;
+import com.fun90.airopscat.model.enums.PeriodType;
 import com.fun90.airopscat.service.AccountService;
+import com.fun90.airopscat.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @RestController
 @RequestMapping("/api/admin/accounts")
 public class AccountController {
     
     private final AccountService accountService;
+    private final UserService userService;
     
     @Autowired
-    public AccountController(AccountService accountService) {
+    public AccountController(AccountService accountService, UserService userService) {
         this.accountService = accountService;
+        this.userService = userService;
     }
 
     @GetMapping
@@ -27,38 +36,86 @@ public class AccountController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String search,
-            @RequestParam(required = false) String periodType,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) Long userId
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) Boolean expired,
+            @RequestParam(required = false) Boolean disabled
     ) {
-        Page<Account> accountPage = accountService.getAccountPage(page, size, search, periodType, status, userId);
+        Page<Account> accountPage = accountService.getAccountPage(page, size, search, userId, expired, disabled);
+        
+        // Convert to DTOs
+        List<AccountDto> accountDtos = accountPage.getContent().stream()
+                .map(account -> accountService.convertToDto(account))
+                .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
-        response.put("records", accountPage.getContent());
+        response.put("records", accountDtos);
         response.put("total", accountPage.getTotalElements());
         response.put("pages", accountPage.getTotalPages());
         response.put("current", page);
         response.put("size", size);
+        
+        // Add statistics
+        response.put("stats", accountService.getAccountsStats());
 
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Account> getAccountById(@PathVariable Long id) {
+    public ResponseEntity<AccountDto> getAccountById(@PathVariable Long id) {
         Account account = accountService.getAccountById(id);
         if (account != null) {
-            return ResponseEntity.ok(account);
+            AccountDto dto = accountService.convertToDto(account);
+            return ResponseEntity.ok(dto);
         }
         return ResponseEntity.notFound().build();
+    }
+    
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<Map<String, Object>> getAccountsByUser(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String search
+    ) {
+        Page<Account> accountPage = accountService.getAccountPage(page, size, search, userId, null, null);
+        
+        // Convert to DTOs
+        List<AccountDto> accountDtos = accountPage.getContent().stream()
+                .map(account -> accountService.convertToDto(account))
+                .collect(Collectors.toList());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("records", accountDtos);
+        response.put("total", accountPage.getTotalElements());
+        response.put("pages", accountPage.getTotalPages());
+        response.put("current", page);
+        response.put("size", size);
+        response.put("user", userService.getUserById(userId));
+
+        return ResponseEntity.ok(response);
+    }
+    
+    @GetMapping("/period-types")
+    public ResponseEntity<List<Map<String, String>>> getPeriodTypes() {
+        List<Map<String, String>> periodTypes = Stream.of(PeriodType.values())
+                .map(type -> {
+                    Map<String, String> map = new HashMap<>();
+                    map.put("value", type.name());
+                    map.put("label", type.getDescription());
+                    return map;
+                })
+                .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(periodTypes);
+    }
+    
+    @GetMapping("/stats")
+    public ResponseEntity<Map<String, Long>> getAccountsStats() {
+        return ResponseEntity.ok(accountService.getAccountsStats());
     }
 
     @PostMapping
     public ResponseEntity<Account> createAccount(@RequestBody Account account) {
-        // 如果没有UUID，自动生成一个
-        if (account.getUuid() == null || account.getUuid().isEmpty()) {
-            account.setUuid(UUID.randomUUID().toString());
-        }
-        
         Account savedAccount = accountService.saveAccount(account);
         return ResponseEntity.ok(savedAccount);
     }
@@ -110,10 +167,31 @@ public class AccountController {
         return ResponseEntity.notFound().build();
     }
     
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<Map<String, Object>> getAccountsByUser(@PathVariable Long userId) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("accounts", accountService.findActiveAccountsByUserId(userId));
-        return ResponseEntity.ok(response);
+    @PatchMapping("/{id}/renew")
+    public ResponseEntity<AccountDto> renewAccount(
+            @PathVariable Long id, 
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime expiryDate
+    ) {
+        Account account = accountService.renewAccount(id, expiryDate);
+        AccountDto dto = accountService.convertToDto(account);
+        return ResponseEntity.ok(dto);
+    }
+    
+    @PatchMapping("/{id}/reset-auth")
+    public ResponseEntity<AccountDto> resetAuthCode(@PathVariable Long id) {
+        Account account = accountService.resetAuthCode(id);
+        AccountDto dto = accountService.convertToDto(account);
+        return ResponseEntity.ok(dto);
+    }
+    
+    @GetMapping("/{id}/config-url")
+    public ResponseEntity<Map<String, String>> getConfigUrl(@PathVariable Long id) {
+        Account account = accountService.getAccountById(id);
+        if (account != null) {
+            Map<String, String> response = new HashMap<>();
+            response.put("configUrl", accountService.getConfigUrl(account));
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.notFound().build();
     }
 }

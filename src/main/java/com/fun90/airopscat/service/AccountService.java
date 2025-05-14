@@ -2,8 +2,11 @@ package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.AccountDto;
 import com.fun90.airopscat.model.entity.Account;
+import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import com.fun90.airopscat.model.entity.User;
+import com.fun90.airopscat.model.enums.PeriodType;
 import com.fun90.airopscat.repository.AccountRepository;
+import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.criteria.Predicate;
@@ -12,6 +15,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,21 +26,31 @@ import org.springframework.util.StringUtils;
 
 import java.beans.PropertyDescriptor;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class AccountService {
 
+    @Value("${app.config.base-url:https://example.com}")
+    private String configBaseUrl;
+
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
+    private final AccountTrafficStatsRepository accountTrafficStatsRepository;
 
     @Autowired
-    public AccountService(AccountRepository accountRepository, UserRepository userRepository) {
+    public AccountService(
+            AccountRepository accountRepository, 
+            UserRepository userRepository,
+            AccountTrafficStatsRepository accountTrafficStatsRepository) {
         this.accountRepository = accountRepository;
         this.userRepository = userRepository;
+        this.accountTrafficStatsRepository = accountTrafficStatsRepository;
     }
 
-    public Page<Account> getAccountPage(int page, int size, String search, String periodType, String status, Long userId) {
+    public Page<Account> getAccountPage(int page, int size, String search, Long userId, Boolean expired, Boolean disabled) {
         // Create pageable with sorting (newest first)
         Pageable pageable = PageRequest.of(page - 1, size, Sort.by("createTime").descending());
 
@@ -57,21 +71,30 @@ public class AccountService {
                 predicates.add(criteriaBuilder.or(uuidPredicate, authCodePredicate));
             }
 
-            // Filter by periodType
-            if (StringUtils.hasText(periodType)) {
-                predicates.add(criteriaBuilder.equal(root.get("periodType"), periodType));
-            }
-
             // Filter by userId
             if (userId != null) {
                 predicates.add(criteriaBuilder.equal(root.get("userId"), userId));
             }
 
-            // Filter by status
-            if ("active".equals(status)) {
-                predicates.add(criteriaBuilder.equal(root.get("disabled"), 0));
-            } else if ("disabled".equals(status)) {
-                predicates.add(criteriaBuilder.equal(root.get("disabled"), 1));
+            // Filter by expired status
+            LocalDateTime now = LocalDateTime.now();
+            if (expired != null) {
+                if (expired) {
+                    predicates.add(criteriaBuilder.and(
+                            criteriaBuilder.isNotNull(root.get("toDate")),
+                            criteriaBuilder.lessThan(root.get("toDate"), now)
+                    ));
+                } else {
+                    predicates.add(criteriaBuilder.or(
+                            criteriaBuilder.isNull(root.get("toDate")),
+                            criteriaBuilder.greaterThanOrEqualTo(root.get("toDate"), now)
+                    ));
+                }
+            }
+
+            // Filter by disabled status
+            if (disabled != null) {
+                predicates.add(criteriaBuilder.equal(root.get("disabled"), disabled ? 1 : 0));
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
@@ -88,15 +111,75 @@ public class AccountService {
         return accountRepository.findByUuid(uuid);
     }
 
+    public List<Account> getAccountsByUser(Long userId) {
+        return accountRepository.findByUserId(userId);
+    }
+
+    public List<Account> getExpiringAccounts(int days) {
+        LocalDateTime expiryDate = LocalDateTime.now().plusDays(days);
+        return accountRepository.findExpiringAccounts(expiryDate);
+    }
+
+    public Map<String, Long> getAccountsStats() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime inOneWeek = now.plusWeeks(1);
+        
+        Map<String, Long> stats = new HashMap<>();
+        stats.put("total", accountRepository.count());
+        stats.put("active", accountRepository.countActiveAccounts(now));
+        stats.put("expired", accountRepository.countExpiredAccounts(now));
+        stats.put("disabled", accountRepository.countDisabledAccounts());
+        stats.put("expiringSoon", accountRepository.countExpiringInOneWeek(now, inOneWeek));
+        
+        return stats;
+    }
+
     public AccountDto convertToDto(Account account) {
         AccountDto dto = new AccountDto();
         BeanUtils.copyProperties(account, dto);
         
-        // 获取关联用户信息
+        // Calculate days until expiration
+        if (account.getToDate() != null) {
+            LocalDateTime now = LocalDateTime.now();
+            dto.setDaysUntilExpiration(ChronoUnit.DAYS.between(now, account.getToDate()));
+            
+            // Set status type
+            if (account.getDisabled() != null && account.getDisabled() == 1) {
+                dto.setStatusType("disabled");
+            } else if (now.isAfter(account.getToDate())) {
+                dto.setStatusType("expired");
+            } else {
+                dto.setStatusType("active");
+            }
+        } else {
+            // No expiration date
+            if (account.getDisabled() != null && account.getDisabled() == 1) {
+                dto.setStatusType("disabled");
+            } else {
+                dto.setStatusType("active");
+            }
+        }
+        
+        // Enrich with user email if available
         if (account.getUserId() != null) {
-            userRepository.findById(account.getUserId()).ifPresent(user -> {
-                dto.setUserEmail(user.getEmail());
-            });
+            Optional<User> userOpt = userRepository.findById(account.getUserId());
+            userOpt.ifPresent(user -> dto.setUserEmail(user.getEmail()));
+        }
+        
+        // Add traffic usage data
+        Long uploadBytes = accountTrafficStatsRepository.sumUploadBytesByAccountId(account.getId());
+        Long downloadBytes = accountTrafficStatsRepository.sumDownloadBytesByAccountId(account.getId());
+        dto.setUsedUploadBytes(uploadBytes != null ? uploadBytes : 0L);
+        dto.setUsedDownloadBytes(downloadBytes != null ? downloadBytes : 0L);
+        dto.setTotalUsedBytes(dto.getUsedUploadBytes() + dto.getUsedDownloadBytes());
+        
+        // Calculate usage percentage if bandwidth is set
+        if (account.getBandwidth() != null && account.getBandwidth() > 0) {
+            // Convert bandwidth from GB to bytes for comparison (bandwidth is stored in GB)
+            long bandwidthInBytes = account.getBandwidth() * 1024L * 1024L * 1024L;
+            dto.setUsagePercentage(Math.min(100.0, (dto.getTotalUsedBytes() * 100.0) / bandwidthInBytes));
+        } else {
+            dto.setUsagePercentage(0.0);
         }
         
         return dto;
@@ -104,13 +187,28 @@ public class AccountService {
 
     @Transactional
     public Account saveAccount(Account account) {
+        // Generate UUID if not provided
+        if (account.getUuid() == null || account.getUuid().trim().isEmpty()) {
+            account.setUuid(UUID.randomUUID().toString());
+        }
+        
+        // Generate auth code if not provided
+        if (account.getAuthCode() == null || account.getAuthCode().trim().isEmpty()) {
+            account.setAuthCode(generateAuthCode());
+        }
+        
+        // Ensure user exists
+        if (account.getUserId() != null && !userRepository.existsById(account.getUserId())) {
+            throw new EntityNotFoundException("User with ID " + account.getUserId() + " not found");
+        }
+        
+        // Set default values if not provided
         if (account.getDisabled() == null) {
             account.setDisabled(0);
         }
         
-        // 生成唯一UUID如果未提供
-        if (account.getUuid() == null || account.getUuid().isEmpty()) {
-            account.setUuid(UUID.randomUUID().toString());
+        if (account.getPeriodType() == null || account.getPeriodType().trim().isEmpty()) {
+            account.setPeriodType(PeriodType.MONTHLY.name());
         }
         
         return accountRepository.save(account);
@@ -163,11 +261,57 @@ public class AccountService {
         return null;
     }
     
-    public List<Account> findActiveAccountsByUserId(Long userId) {
-        return accountRepository.findActiveAccountsByUserId(userId);
+    @Transactional
+    public Account renewAccount(Long id, LocalDateTime newExpiryDate) {
+        Account account = accountRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Account not found"));
+        
+        account.setToDate(newExpiryDate);
+        if (account.getDisabled() == 1) {
+            account.setDisabled(0); // Reactivate account if disabled
+        }
+        
+        return accountRepository.save(account);
     }
     
-    public List<Account> findByPeriodType(String periodType) {
-        return accountRepository.findByPeriodType(periodType);
+    @Transactional
+    public Account resetAuthCode(Long id) {
+        Account account = accountRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Account not found"));
+        
+        account.setAuthCode(generateAuthCode());
+        return accountRepository.save(account);
+    }
+    
+    // 生成随机认证码
+    private String generateAuthCode() {
+        return UUID.randomUUID().toString().replaceAll("-", "").substring(0, 16);
+    }
+    
+    // 格式化流量大小 (B, KB, MB, GB)
+    public String formatBytes(long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        } else if (bytes < 1024 * 1024) {
+            return String.format("%.2f KB", bytes / 1024.0);
+        } else if (bytes < 1024 * 1024 * 1024) {
+            return String.format("%.2f MB", bytes / (1024.0 * 1024));
+        } else {
+            return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
+        }
+    }
+    
+    // 获取配置URL
+    public String getConfigUrl(Account account) {
+        if (account == null || account.getUuid() == null) {
+            return null;
+        }
+        return configBaseUrl + "/config/" + account.getUuid() + 
+                (account.getAuthCode() != null ? "?auth=" + account.getAuthCode() : "");
+    }
+    
+    // 获取指定用户的账户数量
+    public Long countAccountsByUser(Long userId) {
+        return accountRepository.countByUserId(userId);
     }
 }

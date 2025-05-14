@@ -17,18 +17,22 @@ public class Account {
     
     private Integer level;
     
+    @Column(name = "from_date")
     private LocalDateTime fromDate;
     
+    @Column(name = "to_date")
     private LocalDateTime toDate;
     
-    @Column(nullable = false)
-    private String periodType;
+    @Column(name = "period_type", nullable = false)
+    private String periodType; // DAILY, WEEKLY, MONTHLY, CUSTOM
     
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String uuid;
     
+    @Column(name = "auth_code")
     private String authCode;
     
+    @Column(name = "max_online_ips")
     private Integer maxOnlineIps;
     
     private Integer speed;
@@ -37,12 +41,17 @@ public class Account {
     
     private Integer disabled = 0;
     
+    @Column(name = "user_id")
     private Long userId;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", insertable = false, updatable = false)
+    private User user;
     
     private LocalDateTime createTime;
     
     private LocalDateTime updateTime;
-
+    
     @PrePersist
     protected void onCreate() {
         this.createTime = LocalDateTime.now();
@@ -52,5 +61,20 @@ public class Account {
     @PreUpdate
     protected void onUpdate() {
         this.updateTime = LocalDateTime.now();
+    }
+    
+    // 辅助方法：判断账户是否过期
+    @Transient
+    public boolean isExpired() {
+        if (toDate == null) {
+            return false;
+        }
+        return LocalDateTime.now().isAfter(toDate);
+    }
+    
+    // 辅助方法：判断账户是否激活
+    @Transient
+    public boolean isActive() {
+        return !isExpired() && (disabled == null || disabled == 0);
     }
 }
