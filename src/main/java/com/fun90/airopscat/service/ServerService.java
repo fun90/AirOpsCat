@@ -101,6 +101,10 @@ public class ServerService {
         return serverRepository.findAll(spec, pageable);
     }
 
+    public List<Server> getAllActiveServers() {
+        return serverRepository.findByDisabled(0);
+    }
+
     public Server getServerById(Long id) {
         return serverRepository.findById(id).orElse(null);
     }
