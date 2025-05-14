@@ -1,89 +1,216 @@
 <div th:fragment="content" class="page-body">
     <div class="container-xl">
-        <div class="card" id="users-app" @vue:mounted="mounted">
+        <div class="card" id="nodes-app" @vue:mounted="mounted">
             <div class="card-header">
-                <h3 class="card-title">Users</h3>
+                <h3 class="card-title">节点管理</h3>
                 <div class="card-actions">
                     <div class="row g-2">
                         <div class="col">
-                            <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
+                            <input type="text" class="form-control" placeholder="搜索节点名称、备注、服务器..." v-model="searchQuery" @input="searchDebounced">
                         </div>
                         <div class="col-auto">
-                            <select class="form-select" v-model="filterRole" @change="fetchUsers">
-                                <option value="">全部角色</option>
-                                <option value="ADMIN">ADMIN</option>
-                                <option value="PARTNER">PARTNER</option>
-                                <option value="VIP">VIP</option>
+                            <select class="form-select" v-model="filterServerId" @change="fetchNodes">
+                                <option value="">全部服务器</option>
+                                <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
                             </select>
                         </div>
                         <div class="col-auto">
-                            <select class="form-select" v-model="filterStatus" @change="fetchUsers">
+                            <select class="form-select" v-model="filterType" @change="fetchNodes">
+                                <option value="">全部类型</option>
+                                <option v-for="type in nodeTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <select class="form-select" v-model="filterStatus" @change="fetchNodes">
                                 <option value="">全部状态</option>
-                                <option value="active">Active</option>
-                                <option value="disabled">Disabled</option>
+                                <option value="active">已启用</option>
+                                <option value="disabled">已禁用</option>
                             </select>
                         </div>
                         <div class="col-auto">
-                            <button class="btn btn-primary" @click="openCreateUserModal">
-                                <i class="ti ti-plus"></i> 添加用户
+                            <button class="btn btn-primary" @click="openCreateNodeModal">
+                                <i class="ti ti-plus"></i> 添加节点
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- 节点统计卡片 -->
+            <div class="card-body border-bottom">
+                <div class="row">
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-primary text-white avatar">
+                                            <i class="ti ti-router"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            总节点数
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ stats.total || 0 }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-green text-white avatar">
+                                            <i class="ti ti-circle-check"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            活跃节点
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ stats.active || 0 }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-blue text-white avatar">
+                                            <i class="ti ti-arrow-bar-to-up"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            代理节点
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ stats.proxy || 0 }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-purple text-white avatar">
+                                            <i class="ti ti-arrow-bar-down"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            落地节点
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ stats.landing || 0 }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table id="tablePage" class="table table-vcenter card-table">
+                    <table class="table table-vcenter card-table">
                         <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Email</th>
-                            <th>Nickname</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Actions</th>
+                            <th>名称</th>
+                            <th>服务器</th>
+                            <th>端口</th>
+                            <th>类型</th>
+                            <th>协议</th>
+                            <th>级别</th>
+                            <th>状态</th>
+                            <th>操作</th>
                         </tr>
                         </thead>
                         <tbody>
-                        <tr v-for="user in users" :key="user.id">
-                            <td v-text="user.id"></td>
-                            <td v-text="user.email"></td>
-                            <td v-text="user.nickName || '-'"></td>
+                        <tr v-for="node in nodes" :key="node.id">
+                            <td v-text="node.id"></td>
                             <td>
-                                <span class="badge" :class="getRoleBadgeClass(user.role)" v-text="user.role || 'PARTNER'"></span>
+                                <div class="d-flex flex-column">
+                                    <span v-text="node.name || '-'"></span>
+                                    <span v-if="node.remark" class="text-muted small">{{ node.remark }}</span>
+                                </div>
                             </td>
                             <td>
-                                <span class="badge" :class="getStatusBadgeClass(user.disabled)">
-                                    {{ user.disabled === 0 ? 'Active' : 'Disabled' }}
+                                <div class="d-flex flex-column">
+                                    <span v-text="node.serverIp"></span>
+                                    <span v-if="node.serverHost" class="text-muted small">{{ node.serverHost }}</span>
+                                </div>
+                            </td>
+                            <td v-text="node.port"></td>
+                            <td>
+                                <span class="badge" :class="getTypeBadgeClass(node.type)">
+                                    {{ node.typeDesc }}
                                 </span>
                             </td>
-                            <td v-text="formatDate(user.createTime)"></td>
+                            <td>
+                                <span class="badge text-bg-info">
+                                    {{ node.protocol }}
+                                </span>
+                            </td>
+                            <td v-text="node.level || '-'"></td>
+                            <td>
+                                <span class="badge" :class="getStatusBadgeClass(node.disabled)">
+                                    {{ node.statusDescription }}
+                                </span>
+                            </td>
                             <td>
                                 <div class="btn-list flex-nowrap">
-                                    <button @click="openEditUserModal(user)" class="btn btn-sm btn-outline-primary">
-                                        <i class="ti ti-edit"></i> 编辑
-                                    </button>
-                                    <button @click="toggleUserStatus(user)" class="btn btn-sm"
-                                            :class="user.disabled === 0 ? 'btn-outline-danger' : 'btn-outline-success'">
-                                        <i class="ti" :class="user.disabled === 0 ? 'ti-ban' : 'ti-check'"></i>
-                                        {{ user.disabled === 0 ? '禁用' : '启用' }}
-                                    </button>
-                                    <button @click="confirmDelete(user)" class="btn btn-sm btn-outline-danger">
-                                        <i class="ti ti-trash"></i> 删除
-                                    </button>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                                            操作
+                                        </button>
+                                        <div class="dropdown-menu dropdown-menu-end">
+                                            <a class="dropdown-item" href="#" @click.prevent="openEditNodeModal(node)">
+                                                <i class="ti ti-edit"></i> 编辑
+                                            </a>
+                                            <a class="dropdown-item" href="#" @click.prevent="viewNodeConfig(node)">
+                                                <i class="ti ti-code"></i> 查看配置
+                                            </a>
+                                            <a v-if="node.disabled === 1" class="dropdown-item" href="#" @click.prevent="toggleNodeStatus(node, false)">
+                                                <i class="ti ti-check"></i> 启用
+                                            </a>
+                                            <a v-else class="dropdown-item" href="#" @click.prevent="toggleNodeStatus(node, true)">
+                                                <i class="ti ti-ban"></i> 禁用
+                                            </a>
+                                            <div class="dropdown-divider"></div>
+                                            <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(node)">
+                                                <i class="ti ti-trash"></i> 删除
+                                            </a>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
                         <tr v-if="loading">
-                            <td colspan="7" class="text-center py-3">
+                            <td colspan="9" class="text-center py-3">
                                 <div class="spinner-border text-primary" role="status">
                                     <span class="visually-hidden">Loading...</span>
                                 </div>
                             </td>
                         </tr>
-                        <tr v-else-if="users.length === 0">
-                            <td colspan="7" class="text-center py-3">没有查到数据.</td>
+                        <tr v-else-if="nodes.length === 0">
+                            <td colspan="9" class="text-center py-3">没有查到数据.</td>
                         </tr>
                         </tbody>
                     </table>
@@ -140,101 +267,472 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-danger" @click="deleteUser">确认</button>
+                            <button type="button" class="btn btn-danger" @click="deleteNode">确认</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Create User Modal -->
-            <div class="modal modal-blur fade" id="createUserModal" tabindex="-1" role="dialog">
-                <div class="modal-dialog modal-dialog-centered" role="document">
+            <!-- Create Node Modal -->
+            <div class="modal modal-blur fade" id="createNodeModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">添加用户</h5>
+                            <h5 class="modal-title">添加节点</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-<!--                            <fieldset class="form-fieldset">-->
-                            <div class="mb-3">
-                                <label class="form-label required">邮箱</label>
-                                <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }" placeholder="user@example.com" v-model="newUser.email">
-                                <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                            <ul class="nav nav-tabs" data-bs-toggle="tabs">
+                                <li class="nav-item">
+                                    <a href="#tabs-basic" class="nav-link active" data-bs-toggle="tab">基本信息</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="#tabs-inbound" class="nav-link" data-bs-toggle="tab">入站配置</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="#tabs-outbound" class="nav-link" data-bs-toggle="tab">出站配置</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="#tabs-rule" class="nav-link" data-bs-toggle="tab">规则配置</a>
+                                </li>
+                            </ul>
+                            <div class="tab-content">
+                                <div class="tab-pane active show" id="tabs-basic">
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">节点名称</label>
+                                                <input type="text" class="form-control" v-model="newNode.name">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label required">节点类型</label>
+                                                <select class="form-select" :class="{ 'is-invalid': validationErrors.type }" v-model="newNode.type">
+                                                    <option v-for="type in nodeTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                                </select>
+                                                <div class="invalid-feedback" v-if="validationErrors.type">{{ validationErrors.type }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label required">服务器</label>
+                                                <select class="form-select" :class="{ 'is-invalid': validationErrors.serverId }" v-model="newNode.serverId" @change="onServerChange">
+                                                    <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
+                                                </select>
+                                                <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.serverId }}</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label required">端口</label>
+                                                <div class="input-group">
+                                                    <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.port }" v-model="newNode.port" min="1" max="65535">
+                                                    <button class="btn" type="button" @click="getAvailablePort">自动获取</button>
+                                                </div>
+                                                <div class="invalid-feedback" v-if="validationErrors.port">{{ validationErrors.port }}</div>
+                                                <small class="form-hint" v-if="portCheckMessage">{{ portCheckMessage }}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">级别</label>
+                                                <input type="number" class="form-control" v-model="newNode.level" min="0">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">备注</label>
+                                        <textarea class="form-control" v-model="newNode.remark" rows="2"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" v-model="newNode.disabled">
+                                            <span class="form-check-label">禁用节点</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="tab-pane" id="tabs-inbound">
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label required">协议</label>
+                                                <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="newNodeInbound.protocol" @change="onProtocolChange">
+                                                    <option v-for="protocol in protocolTypes" :key="protocol.value" :value="protocol.value">{{ protocol.label }}</option>
+                                                </select>
+                                                <div class="invalid-feedback" v-if="validationErrors.protocol">{{ validationErrors.protocol }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- 根据不同的协议类型显示不同的参数表单 -->
+                                    <div v-if="newNodeInbound.protocol === 'VLESS'">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">加密方式</label>
+                                                    <select class="form-select" v-model="newNodeInbound.encryption">
+                                                        <option value="none">none</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">UUID</label>
+                                                    <div class="input-group">
+                                                        <input type="text" class="form-control" v-model="newNodeInbound.uuid">
+                                                        <button class="btn" type="button" @click="generateUuid">生成</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-else-if="newNodeInbound.protocol === 'Shadowsocks'">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">加密方式</label>
+                                                    <select class="form-select" v-model="newNodeInbound.method">
+                                                        <option value="aes-256-gcm">aes-256-gcm</option>
+                                                        <option value="chacha20-poly1305">chacha20-poly1305</option>
+                                                        <option value="2022-blake3-aes-256-gcm">2022-blake3-aes-256-gcm</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">密码</label>
+                                                    <div class="input-group">
+                                                        <input type="text" class="form-control" v-model="newNodeInbound.password">
+                                                        <button class="btn" type="button" @click="generateRandomPassword">生成</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-else-if="newNodeInbound.protocol === 'Socks'">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">用户名</label>
+                                                    <input type="text" class="form-control" v-model="newNodeInbound.username">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">密码</label>
+                                                    <div class="input-group">
+                                                        <input type="text" class="form-control" v-model="newNodeInbound.password">
+                                                        <button class="btn" type="button" @click="generateRandomPassword">生成</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-else-if="newNodeInbound.protocol === 'Hysteria2'">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">密码</label>
+                                                    <div class="input-group">
+                                                        <input type="text" class="form-control" v-model="newNodeInbound.password">
+                                                        <button class="btn" type="button" @click="generateRandomPassword">生成</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">上行带宽 (Mbps)</label>
+                                                    <input type="number" class="form-control" v-model="newNodeInbound.up_mbps" min="1">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">下行带宽 (Mbps)</label>
+                                                    <input type="number" class="form-control" v-model="newNodeInbound.down_mbps" min="1">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-else-if="newNodeInbound.protocol === 'ShadowTLS'">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">版本</label>
+                                                    <select class="form-select" v-model="newNodeInbound.version">
+                                                        <option :value="1">1</option>
+                                                        <option :value="2">2</option>
+                                                        <option :value="3">3</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">密码</label>
+                                                    <div class="input-group">
+                                                        <input type="text" class="form-control" v-model="newNodeInbound.password">
+                                                        <button class="btn" type="button" @click="generateRandomPassword">生成</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-3">
+                                        <div class="col-md-12">
+                                            <div class="mb-3">
+                                                <label class="form-label">高级配置 (JSON)</label>
+                                                <textarea class="form-control font-monospace" v-model="newNodeInboundJson" rows="5" placeholder='{"key": "value"}'></textarea>
+                                                <small class="form-hint">可以添加协议特有的其他配置参数</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane" id="tabs-outbound">
+                                    <div class="row mt-3">
+                                        <div class="col-md-12">
+                                            <div class="mb-3">
+                                                <label class="form-label">出站配置 (JSON)</label>
+                                                <textarea class="form-control font-monospace" v-model="newNodeOutboundJson" rows="10" placeholder='{"key": "value"}'></textarea>
+                                                <small class="form-hint">用于配置节点的出站连接</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane" id="tabs-rule">
+                                    <div class="row mt-3">
+                                        <div class="col-md-12">
+                                            <div class="mb-3">
+                                                <label class="form-label">规则配置 (JSON)</label>
+                                                <textarea class="form-control font-monospace" v-model="newNodeRuleJson" rows="10" placeholder='{"key": "value"}'></textarea>
+                                                <small class="form-hint">用于配置节点的路由规则</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label required">密码</label>
-                                <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }" placeholder="Password" v-model="newUser.password">
-                                <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">昵称</label>
-                                <input type="text" class="form-control" placeholder="Nickname" v-model="newUser.nickName">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">角色</label>
-                                <select class="form-select" v-model="newUser.role">
-                                    <option value="PARTNER">PARTNER</option>
-                                    <option value="ADMIN">ADMIN</option>
-                                    <option value="VIP">VIP</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" v-model="newUser.disabled">
-                                    <span class="form-check-label">禁用账户</span>
-                                </label>
-                            </div>
-<!--                            </fieldset>-->
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" @click="createUser">创建用户</button>
+                            <button type="button" class="btn btn-primary" @click="createNode">创建</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Edit User Modal -->
-            <div class="modal modal-blur fade" id="editUserModal" tabindex="-1" role="dialog">
-                <div class="modal-dialog modal-dialog-centered" role="document">
+            <!-- Edit Node Modal -->
+            <div class="modal modal-blur fade" id="editNodeModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">编辑用户</h5>
+                            <h5 class="modal-title">编辑节点</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-                            <div class="mb-3">
-                                <label class="form-label required">邮箱</label>
-                                <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }" placeholder="user@example.com" v-model="editedUser.email">
-                                <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">密码 <span class="text-muted">(留空表示不修改)</span></label>
-                                <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }" placeholder="New password" v-model="editedUser.password">
-                                <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">昵称</label>
-                                <input type="text" class="form-control" placeholder="Nickname" v-model="editedUser.nickName">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">角色</label>
-                                <select class="form-select" v-model="editedUser.role">
-                                    <option value="PARTNER">PARTNER</option>
-                                    <option value="ADMIN">ADMIN</option>
-                                    <option value="VIP">VIP</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" :checked="editedUser.disabled === 1" @change="editedUser.disabled = $event.target.checked ? 1 : 0">
-                                    <span class="form-check-label">禁用账户</span>
-                                </label>
+                            <ul class="nav nav-tabs" data-bs-toggle="tabs">
+                                <li class="nav-item">
+                                    <a href="#edit-tabs-basic" class="nav-link active" data-bs-toggle="tab">基本信息</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="#edit-tabs-inbound" class="nav-link" data-bs-toggle="tab">入站配置</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="#edit-tabs-outbound" class="nav-link" data-bs-toggle="tab">出站配置</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="#edit-tabs-rule" class="nav-link" data-bs-toggle="tab">规则配置</a>
+                                </li>
+                            </ul>
+                            <div class="tab-content">
+                                <div class="tab-pane active show" id="edit-tabs-basic">
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">节点名称</label>
+                                                <input type="text" class="form-control" v-model="editedNode.name">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label required">节点类型</label>
+                                                <select class="form-select" :class="{ 'is-invalid': validationErrors.type }" v-model="editedNode.type">
+                                                    <option v-for="type in nodeTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                                </select>
+                                                <div class="invalid-feedback" v-if="validationErrors.type">{{ validationErrors.type }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label required">服务器</label>
+                                                <select class="form-select" :class="{ 'is-invalid': validationErrors.serverId }" v-model="editedNode.serverId" @change="onEditServerChange">
+                                                    <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
+                                                </select>
+                                                <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.serverId }}</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label required">端口</label>
+                                                <div class="input-group">
+                                                    <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.port }" v-model="editedNode.port" min="1" max="65535">
+                                                    <button class="btn" type="button" @click="getEditAvailablePort">自动获取</button>
+                                                </div>
+                                                <div class="invalid-feedback" v-if="validationErrors.port">{{ validationErrors.port }}</div>
+                                                <small class="form-hint" v-if="editPortCheckMessage">{{ editPortCheckMessage }}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">级别</label>
+                                                <input type="number" class="form-control" v-model="editedNode.level" min="0">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">备注</label>
+                                        <textarea class="form-control" v-model="editedNode.remark" rows="2"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" :checked="editedNode.disabled === 1" @change="editedNode.disabled = $event.target.checked ? 1 : 0">
+                                            <span class="form-check-label">禁用节点</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="tab-pane" id="edit-tabs-inbound">
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label required">协议</label>
+                                                <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="editedNodeInbound.protocol" @change="onEditProtocolChange">
+                                                    <option v-for="protocol in protocolTypes" :key="protocol.value" :value="protocol.value">{{ protocol.label }}</option>
+                                                </select>
+                                                <div class="invalid-feedback" v-if="validationErrors.protocol">{{ validationErrors.protocol }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 根据不同的协议类型显示不同的参数表单 -->
+                                    <div v-if="editedNodeInbound.protocol === 'VLESS'">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">加密方式</label>
+                                                    <select class="form-select" v-model="editedNodeInbound.encryption">
+                                                        <option value="none">none</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">UUID</label>
+                                                    <div class="input-group">
+                                                        <input type="text" class="form-control" v-model="editedNodeInbound.uuid">
+                                                        <button class="btn" type="button" @click="generateEditUuid">生成</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 其他协议配置项与创建模态框类似，省略重复代码 -->
+
+                                    <div class="row mt-3">
+                                        <div class="col-md-12">
+                                            <div class="mb-3">
+                                                <label class="form-label">高级配置 (JSON)</label>
+                                                <textarea class="form-control font-monospace" v-model="editedNodeInboundJson" rows="5" placeholder='{"key": "value"}'></textarea>
+                                                <small class="form-hint">可以添加协议特有的其他配置参数</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane" id="edit-tabs-outbound">
+                                    <div class="row mt-3">
+                                        <div class="col-md-12">
+                                            <div class="mb-3">
+                                                <label class="form-label">出站配置 (JSON)</label>
+                                                <textarea class="form-control font-monospace" v-model="editedNodeOutboundJson" rows="10" placeholder='{"key": "value"}'></textarea>
+                                                <small class="form-hint">用于配置节点的出站连接</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane" id="edit-tabs-rule">
+                                    <div class="row mt-3">
+                                        <div class="col-md-12">
+                                            <div class="mb-3">
+                                                <label class="form-label">规则配置 (JSON)</label>
+                                                <textarea class="form-control font-monospace" v-model="editedNodeRuleJson" rows="10" placeholder='{"key": "value"}'></textarea>
+                                                <small class="form-hint">用于配置节点的路由规则</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" @click="updateUser">保存修改</button>
+                            <button type="button" class="btn btn-primary" @click="updateNode">保存</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View Config Modal -->
+            <div class="modal modal-blur fade" id="viewConfigModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">节点配置</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <ul class="nav nav-tabs" data-bs-toggle="tabs">
+                                <li class="nav-item">
+                                    <a href="#view-tabs-inbound" class="nav-link active" data-bs-toggle="tab">入站配置</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="#view-tabs-outbound" class="nav-link" data-bs-toggle="tab">出站配置</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="#view-tabs-rule" class="nav-link" data-bs-toggle="tab">规则配置</a>
+                                </li>
+                            </ul>
+                            <div class="tab-content">
+                                <div class="tab-pane active show" id="view-tabs-inbound">
+                                    <div class="row mt-3">
+                                        <div class="col-md-12">
+                                            <pre class="bg-light p-3 rounded">{{ selectedNodeInboundFormatted }}</pre>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane" id="view-tabs-outbound">
+                                    <div class="row mt-3">
+                                        <div class="col-md-12">
+                                            <pre class="bg-light p-3 rounded">{{ selectedNodeOutboundFormatted }}</pre>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane" id="view-tabs-rule">
+                                    <div class="row mt-3">
+                                        <div class="col-md-12">
+                                            <pre class="bg-light p-3 rounded">{{ selectedNodeRuleFormatted }}</pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
                         </div>
                     </div>
                 </div>
@@ -246,40 +744,79 @@
 <script th:fragment="script" th:inline="javascript">
     PetiteVue.createApp({
         // Data
-        users: [],
+        nodes: [],
+        servers: [],
+        nodeTypes: [],
+        protocolTypes: [],
         searchQuery: '',
-        filterRole: '',
+        filterServerId: '',
+        filterType: '',
         filterStatus: '',
         currentPage: 1,
         pageSize: 10,
         totalItems: 0,
         totalPages: 0,
-        selectedUser: null,
+        stats: {
+            total: 0,
+            proxy: 0,
+            landing: 0,
+            active: 0,
+            disabled: 0
+        },
+        selectedNode: null,
         deleteModal: null,
         createModal: null,
         editModal: null,
+        viewConfigModal: null,
         loading: true,
         searchTimeout: null,
-        newUser: {
-            email: '',
-            password: '',
-            nickName: '',
-            role: 'PARTNER',
-            disabled: false
+        portCheckMessage: '',
+        editPortCheckMessage: '',
+        newNode: {
+            serverId: '',
+            port: null,
+            type: 0, // 默认为代理节点
+            level: 0,
+            disabled: false,
+            name: '',
+            remark: '',
+            inbound: null,
+            outbound: null,
+            rule: null
         },
-        editedUser: {
+        newNodeInbound: {
+            protocol: 'VLESS'
+        },
+        newNodeInboundJson: '',
+        newNodeOutboundJson: '',
+        newNodeRuleJson: '',
+        editedNode: {
             id: null,
-            email: '',
-            password: '',
-            nickName: '',
-            role: 'PARTNER',
-            disabled: 0
+            serverId: '',
+            port: null,
+            type: 0,
+            level: 0,
+            disabled: 0,
+            name: '',
+            remark: '',
+            inbound: null,
+            outbound: null,
+            rule: null
         },
+        editedNodeInbound: {
+            protocol: 'VLESS'
+        },
+        editedNodeInboundJson: '',
+        editedNodeOutboundJson: '',
+        editedNodeRuleJson: '',
         validationErrors: {},
 
         // Lifecycle hooks
         mounted() {
-            this.fetchUsers();
+            this.fetchServers();
+            this.fetchNodeTypes();
+            this.fetchProtocolTypes();
+            this.fetchNodes();
         },
 
         // Computed properties
@@ -309,8 +846,44 @@
             return pages;
         },
 
+        get selectedNodeInboundFormatted() {
+            if (!this.selectedNode || !this.selectedNode.inbound) {
+                return "{}";
+            }
+
+            try {
+                return JSON.stringify(this.selectedNode.inbound, null, 2);
+            } catch (e) {
+                return "{}";
+            }
+        },
+
+        get selectedNodeOutboundFormatted() {
+            if (!this.selectedNode || !this.selectedNode.outbound) {
+                return "{}";
+            }
+
+            try {
+                return JSON.stringify(this.selectedNode.outbound, null, 2);
+            } catch (e) {
+                return "{}";
+            }
+        },
+
+        get selectedNodeRuleFormatted() {
+            if (!this.selectedNode || !this.selectedNode.rule) {
+                return "{}";
+            }
+
+            try {
+                return JSON.stringify(this.selectedNode.rule, null, 2);
+            } catch (e) {
+                return "{}";
+            }
+        },
+
         // Methods
-        fetchUsers() {
+        fetchNodes() {
             this.loading = true;
 
             // Build query parameters
@@ -323,15 +896,21 @@
                 params.append('search', this.searchQuery);
             }
 
-            if (this.filterRole) {
-                params.append('role', this.filterRole);
+            if (this.filterServerId) {
+                params.append('serverId', this.filterServerId);
             }
 
-            if (this.filterStatus) {
-                params.append('status', this.filterStatus);
+            if (this.filterType !== '') {
+                params.append('type', this.filterType);
             }
 
-            fetch(`/api/admin/users?${params.toString()}`)
+            if (this.filterStatus === 'active') {
+                params.append('disabled', false);
+            } else if (this.filterStatus === 'disabled') {
+                params.append('disabled', true);
+            }
+
+            fetch(`/api/admin/nodes?${params.toString()}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
@@ -339,16 +918,60 @@
                     return response.json();
                 })
                 .then(data => {
-                    this.users = data.records;
+                    this.nodes = data.records;
                     this.totalItems = data.total;
                     this.totalPages = data.pages;
                     this.currentPage = data.current;
+
+                    // 统计数据
+                    if (data.stats) {
+                        this.stats = data.stats;
+                    }
+
                     this.loading = false;
                 })
                 .catch(error => {
-                    console.error('Error fetching users:', error);
-                    ToastUtils.show('Error', 'Failed to load users.', 'danger');
+                    console.error('Error fetching nodes:', error);
+                    ToastUtils.show('Error', 'Failed to load nodes.', 'danger');
                     this.loading = false;
+                });
+        },
+
+        fetchServers() {
+            fetch('/api/admin/nodes/servers')
+                .then(response => response.json())
+                .then(data => {
+                    this.servers = data;
+
+                    // 如果是第一次加载且当前没有选中服务器，选择第一个服务器
+                    if (this.servers.length > 0 && !this.newNode.serverId) {
+                        this.newNode.serverId = this.servers[0].id;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching servers:', error);
+                });
+        },
+
+        fetchNodeTypes() {
+            fetch('/api/admin/nodes/types')
+                .then(response => response.json())
+                .then(data => {
+                    this.nodeTypes = data;
+                })
+                .catch(error => {
+                    console.error('Error fetching node types:', error);
+                });
+        },
+
+        fetchProtocolTypes() {
+            fetch('/api/admin/nodes/protocols')
+                .then(response => response.json())
+                .then(data => {
+                    this.protocolTypes = data;
+                })
+                .catch(error => {
+                    console.error('Error fetching protocol types:', error);
                 });
         },
 
@@ -361,21 +984,15 @@
             // Set new timeout to delay the API call
             this.searchTimeout = setTimeout(() => {
                 this.currentPage = 1; // Reset to first page when searching
-                this.fetchUsers();
+                this.fetchNodes();
             }, 500); // Wait for 500ms after user stops typing
         },
 
-        formatDate(dateString) {
-            if (!dateString) return '-';
-            const date = new Date(dateString);
-            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-        },
-
-        getRoleBadgeClass(role) {
-            switch (role && role.toUpperCase()) {
-                case 'ADMIN': return 'text-bg-purple';
-                case 'PARTNER': return 'text-bg-indigo';
-                default: return 'text-bg-blue'; // VIP or other roles
+        getTypeBadgeClass(type) {
+            switch (type) {
+                case 0: return 'text-bg-blue';
+                case 1: return 'text-bg-purple';
+                default: return 'text-bg-secondary';
             }
         },
 
@@ -386,67 +1003,37 @@
         prevPage() {
             if (this.currentPage > 1) {
                 this.currentPage--;
-                this.fetchUsers();
+                this.fetchNodes();
             }
         },
 
         nextPage() {
             if (this.currentPage < this.totalPages) {
                 this.currentPage++;
-                this.fetchUsers();
+                this.fetchNodes();
             }
         },
 
         goToPage(page) {
             this.currentPage = page;
-            this.fetchUsers();
+            this.fetchNodes();
         },
 
         changePageSize() {
             this.currentPage = 1; // Reset to first page when changing page size
-            this.fetchUsers();
+            this.fetchNodes();
         },
 
-        toggleUserStatus(user) {
-            const action = user.disabled === 0 ? 'disable' : 'enable';
-
-            fetch(`/api/admin/users/${user.id}/${action}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('更新状态失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    // Update user status in the local array
-                    const index = this.users.findIndex(u => u.id === user.id);
-                    if (index !== -1) {
-                        this.users[index].disabled = data.disabled;
-                    }
-
-                    ToastUtils.show('Success', '更新状态成功', 'success');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', '更新状态发生错误', 'danger');
-                });
-        },
-
-        confirmDelete(user) {
-            this.selectedUser = user;
+        confirmDelete(node) {
+            this.selectedNode = node;
             this.deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
             this.deleteModal.show();
         },
 
-        deleteUser() {
-            if (!this.selectedUser) return;
+        deleteNode() {
+            if (!this.selectedNode) return;
 
-            fetch(`/api/admin/users/${this.selectedUser.id}`, {
+            fetch(`/api/admin/nodes/${this.selectedNode.id}`, {
                 method: 'DELETE'
             })
                 .then(response => {
@@ -454,8 +1041,8 @@
                         throw new Error('删除失败');
                     }
 
-                    // Refetch the users data to update the list and pagination
-                    this.fetchUsers();
+                    // Refetch the nodes data to update the list and pagination
+                    this.fetchNodes();
                     ToastUtils.show('Success', '删除成功', 'success');
 
                     // Hide modal
@@ -467,161 +1054,424 @@
                 });
         },
 
-        // Create User methods
-        openCreateUserModal() {
+        // 查看节点配置
+        viewNodeConfig(node) {
+            this.selectedNode = node;
+            this.viewConfigModal = new bootstrap.Modal(document.getElementById('viewConfigModal'));
+            this.viewConfigModal.show();
+        },
+
+        // 服务器和端口相关方法
+        onServerChange() {
+            this.checkPortAvailability();
+        },
+
+        onEditServerChange() {
+            this.checkEditPortAvailability();
+        },
+
+        checkPortAvailability() {
+            if (!this.newNode.serverId || !this.newNode.port) {
+                this.portCheckMessage = '';
+                return;
+            }
+
+            fetch(`/api/admin/nodes/check-port?serverId=${this.newNode.serverId}&port=${this.newNode.port}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.available) {
+                        this.portCheckMessage = '端口可用';
+                    } else {
+                        this.portCheckMessage = '端口已被占用';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking port:', error);
+                    this.portCheckMessage = '检查端口失败';
+                });
+        },
+
+        checkEditPortAvailability() {
+            if (!this.editedNode.serverId || !this.editedNode.port || !this.editedNode.id) {
+                this.editPortCheckMessage = '';
+                return;
+            }
+
+            fetch(`/api/admin/nodes/check-port?serverId=${this.editedNode.serverId}&port=${this.editedNode.port}&nodeId=${this.editedNode.id}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.available) {
+                        this.editPortCheckMessage = '端口可用';
+                    } else {
+                        this.editPortCheckMessage = '端口已被占用';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking port:', error);
+                    this.editPortCheckMessage = '检查端口失败';
+                });
+        },
+
+        getAvailablePort() {
+            if (!this.newNode.serverId) {
+                ToastUtils.show('Warning', '请先选择服务器', 'warning');
+                return;
+            }
+
+            fetch(`/api/admin/nodes/available-port?serverId=${this.newNode.serverId}`)
+                .then(response => response.json())
+                .then(data => {
+                    this.newNode.port = data.port;
+                    this.checkPortAvailability();
+                })
+                .catch(error => {
+                    console.error('Error getting available port:', error);
+                    ToastUtils.show('Error', '获取可用端口失败', 'danger');
+                });
+        },
+
+        getEditAvailablePort() {
+            if (!this.editedNode.serverId) {
+                ToastUtils.show('Warning', '请先选择服务器', 'warning');
+                return;
+            }
+
+            fetch(`/api/admin/nodes/available-port?serverId=${this.editedNode.serverId}`)
+                .then(response => response.json())
+                .then(data => {
+                    this.editedNode.port = data.port;
+                    this.checkEditPortAvailability();
+                })
+                .catch(error => {
+                    console.error('Error getting available port:', error);
+                    ToastUtils.show('Error', '获取可用端口失败', 'danger');
+                });
+        },
+
+        // 协议相关方法
+        onProtocolChange() {
+            // 获取默认配置
+            fetch(`/api/admin/nodes/default-inbound?protocol=${this.newNodeInbound.protocol}`)
+                .then(response => response.json())
+                .then(data => {
+                    this.newNodeInbound = data;
+                    this.newNodeInboundJson = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    console.error('Error getting default inbound config:', error);
+                });
+        },
+
+        onEditProtocolChange() {
+            // 获取默认配置
+            fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedNodeInbound.protocol}`)
+                .then(response => response.json())
+                .then(data => {
+                    this.editedNodeInbound = data;
+                    this.editedNodeInboundJson = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    console.error('Error getting default inbound config:', error);
+                });
+        },
+
+        // 生成UUID
+        generateUuid() {
+            this.newNodeInbound.uuid = this.uuidv4();
+        },
+
+        generateEditUuid() {
+            this.editedNodeInbound.uuid = this.uuidv4();
+        },
+
+        uuidv4() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        },
+
+        // 生成随机密码
+        generateRandomPassword() {
+            const length = 16;
+            const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            let password = "";
+            for (let i = 0; i < length; i++) {
+                password += charset.charAt(Math.floor(Math.random() * charset.length));
+            }
+
+            if (this.newNodeInbound.password !== undefined) {
+                this.newNodeInbound.password = password;
+            }
+
+            if (this.editedNodeInbound.password !== undefined) {
+                this.editedNodeInbound.password = password;
+            }
+        },
+
+        // Create Node methods
+        openCreateNodeModal() {
             // Reset form
-            this.newUser = {
-                email: '',
-                password: '',
-                nickName: '',
-                role: 'PARTNER',
-                disabled: false
+            this.newNode = {
+                serverId: this.servers.length > 0 ? this.servers[0].id : '',
+                port: null,
+                type: 0, // 默认为代理节点
+                level: 0,
+                disabled: false,
+                name: '',
+                remark: '',
+                inbound: null,
+                outbound: null,
+                rule: null
             };
+
+            // 获取默认入站配置
+            this.newNodeInbound = {
+                protocol: 'VLESS'
+            };
+            this.onProtocolChange(); // 获取默认配置
+
+            this.newNodeOutboundJson = '{}';
+            this.newNodeRuleJson = '{}';
+            this.portCheckMessage = '';
             this.validationErrors = {};
 
             // Show modal
-            this.createModal = new bootstrap.Modal(document.getElementById('createUserModal'));
+            this.createModal = new bootstrap.Modal(document.getElementById('createNodeModal'));
             this.createModal.show();
         },
 
-        validateUserForm(user, isCreate = true) {
+        validateNodeForm(node) {
             let isValid = true;
             this.validationErrors = {};
 
-            // Email validation
-            if (!user.email || !user.email.trim()) {
-                this.validationErrors.email = '邮箱地址不能为空';
-                isValid = false;
-            } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) {
-                this.validationErrors.email = '请输入有效的邮箱地址';
+            // Check server
+            if (!node.serverId) {
+                this.validationErrors.serverId = '请选择服务器';
                 isValid = false;
             }
 
-            // Password validation (only required for new users)
-            if (isCreate && (!user.password || user.password.trim().length < 6)) {
-                this.validationErrors.password = '密码长度至少为6个字符';
+            // Check port
+            if (!node.port) {
+                this.validationErrors.port = '请输入端口';
                 isValid = false;
-            } else if (!isCreate && user.password && user.password.trim().length > 0 && user.password.trim().length < 6) {
-                // For edit form, validate password only if it's provided
-                this.validationErrors.password = '密码长度至少为6个字符';
+            } else if (node.port < 1 || node.port > 65535) {
+                this.validationErrors.port = '端口范围应为1-65535';
+                isValid = false;
+            }
+
+            // Check node type
+            if (node.type === null || node.type === undefined) {
+                this.validationErrors.type = '请选择节点类型';
                 isValid = false;
             }
 
             return isValid;
         },
 
-        createUser() {
-            if (!this.validateUserForm(this.newUser)) {
-                console.info(222222)
+        createNode() {
+            // 验证表单
+            if (!this.validateNodeForm(this.newNode)) {
                 return;
             }
 
-            // Prepare data for API
-            const userData = {
-                email: this.newUser.email,
-                password: this.newUser.password,
-                nickName: this.newUser.nickName || null,
-                role: this.newUser.role,
-                disabled: this.newUser.disabled ? 1 : 0
-            };
+            // 合并JSON到inbound
+            try {
+                let inboundConfig = this.newNodeInbound;
+                if (this.newNodeInboundJson) {
+                    const jsonData = JSON.parse(this.newNodeInboundJson);
+                    inboundConfig = { ...inboundConfig, ...jsonData };
+                }
 
-            fetch('/api/admin/users', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(userData)
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        if (response.status === 400) {
+                // 处理出站和规则配置
+                let outboundConfig = null;
+                let ruleConfig = null;
+
+                if (this.newNodeOutboundJson && this.newNodeOutboundJson.trim() !== '{}') {
+                    outboundConfig = JSON.parse(this.newNodeOutboundJson);
+                }
+
+                if (this.newNodeRuleJson && this.newNodeRuleJson.trim() !== '{}') {
+                    ruleConfig = JSON.parse(this.newNodeRuleJson);
+                }
+
+                // 准备发送的数据
+                const nodeData = {
+                    serverId: this.newNode.serverId,
+                    port: this.newNode.port,
+                    type: this.newNode.type,
+                    level: this.newNode.level || 0,
+                    disabled: this.newNode.disabled ? 1 : 0,
+                    name: this.newNode.name || null,
+                    remark: this.newNode.remark || null,
+                    inbound: inboundConfig,
+                    outbound: outboundConfig,
+                    rule: ruleConfig
+                };
+
+                fetch('/api/admin/nodes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(nodeData)
+                })
+                    .then(response => {
+                        if (!response.ok) {
                             return response.json().then(data => {
                                 throw new Error(data.message || 'Validation error');
                             });
                         }
-                        throw new Error('响应失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    this.fetchUsers(); // Refresh the user list
-                    this.createModal.hide();
-                    ToastUtils.show('Success', '创建成功', 'success');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', error.message || '创建失败.', 'danger');
-                });
+                        return response.json();
+                    })
+                    .then(data => {
+                        this.fetchNodes(); // Refresh the node list
+                        this.createModal.hide();
+                        ToastUtils.show('Success', '创建成功', 'success');
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        ToastUtils.show('Error', error.message || '创建失败', 'danger');
+                    });
+            } catch (e) {
+                console.error('Error parsing JSON:', e);
+                ToastUtils.show('Error', 'JSON格式错误: ' + e.message, 'danger');
+            }
         },
 
-        // Edit User methods
-        openEditUserModal(user) {
-            // Clone user data to avoid direct mutation
-            this.editedUser = {
-                id: user.id,
-                email: user.email,
-                password: '', // Empty password field
-                nickName: user.nickName || '',
-                role: user.role || 'PARTNER',
-                disabled: user.disabled
+        // Edit Node methods
+        openEditNodeModal(node) {
+            // Clone node data to avoid direct mutation
+            this.editedNode = {
+                id: node.id,
+                serverId: node.serverId,
+                port: node.port,
+                type: node.type,
+                level: node.level || 0,
+                disabled: node.disabled,
+                name: node.name || '',
+                remark: node.remark || '',
+                inbound: node.inbound,
+                outbound: node.outbound,
+                rule: node.rule
             };
+
+            // 处理inbound配置
+            this.editedNodeInbound = node.inbound || { protocol: 'VLESS' };
+            this.editedNodeInboundJson = JSON.stringify(node.inbound || {}, null, 2);
+
+            // 处理outbound配置
+            this.editedNodeOutboundJson = JSON.stringify(node.outbound || {}, null, 2);
+
+            // 处理rule配置
+            this.editedNodeRuleJson = JSON.stringify(node.rule || {}, null, 2);
+
+            this.editPortCheckMessage = '';
             this.validationErrors = {};
 
             // Show modal
-            this.editModal = new bootstrap.Modal(document.getElementById('editUserModal'));
+            this.editModal = new bootstrap.Modal(document.getElementById('editNodeModal'));
             this.editModal.show();
         },
 
-        updateUser() {
-            if (!this.validateUserForm(this.editedUser, false)) {
+        updateNode() {
+            // 验证表单
+            if (!this.validateNodeForm(this.editedNode)) {
                 return;
             }
 
-            // Prepare data for API
-            const userData = {
-                email: this.editedUser.email,
-                nickName: this.editedUser.nickName || null,
-                role: this.editedUser.role,
-                disabled: this.editedUser.disabled
-            };
+            // 合并JSON到inbound
+            try {
+                let inboundConfig = this.editedNodeInbound;
+                if (this.editedNodeInboundJson) {
+                    const jsonData = JSON.parse(this.editedNodeInboundJson);
+                    inboundConfig = { ...inboundConfig, ...jsonData };
+                }
 
-            // Only include password if it's provided
-            if (this.editedUser.password) {
-                userData.password = this.editedUser.password;
-            }
+                // 处理出站和规则配置
+                let outboundConfig = null;
+                let ruleConfig = null;
 
-            fetch(`/api/admin/users/${this.editedUser.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(userData)
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        if (response.status === 400) {
+                if (this.editedNodeOutboundJson && this.editedNodeOutboundJson.trim() !== '{}') {
+                    outboundConfig = JSON.parse(this.editedNodeOutboundJson);
+                }
+
+                if (this.editedNodeRuleJson && this.editedNodeRuleJson.trim() !== '{}') {
+                    ruleConfig = JSON.parse(this.editedNodeRuleJson);
+                }
+
+                // 准备发送的数据
+                const nodeData = {
+                    id: this.editedNode.id,
+                    serverId: this.editedNode.serverId,
+                    port: this.editedNode.port,
+                    type: this.editedNode.type,
+                    level: this.editedNode.level || 0,
+                    disabled: this.editedNode.disabled,
+                    name: this.editedNode.name || null,
+                    remark: this.editedNode.remark || null,
+                    inbound: inboundConfig,
+                    outbound: outboundConfig,
+                    rule: ruleConfig
+                };
+
+                fetch(`/api/admin/nodes/${this.editedNode.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(nodeData)
+                })
+                    .then(response => {
+                        if (!response.ok) {
                             return response.json().then(data => {
                                 throw new Error(data.message || 'Validation error');
                             });
                         }
-                        throw new Error('响应失败');
+                        return response.json();
+                    })
+                    .then(data => {
+                        this.fetchNodes(); // Refresh the node list
+                        this.editModal.hide();
+                        ToastUtils.show('Success', '更新成功', 'success');
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        ToastUtils.show('Error', error.message || '更新失败', 'danger');
+                    });
+            } catch (e) {
+                console.error('Error parsing JSON:', e);
+                ToastUtils.show('Error', 'JSON格式错误: ' + e.message, 'danger');
+            }
+        },
+
+        // Toggle node status methods
+        toggleNodeStatus(node, disabled) {
+            const action = disabled ? 'disable' : 'enable';
+
+            fetch(`/api/admin/nodes/${node.id}/${action}`, {
+                method: 'PATCH'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('更新状态失败');
                     }
                     return response.json();
                 })
                 .then(data => {
-                    // Update user in the local array
-                    const index = this.users.findIndex(u => u.id === this.editedUser.id);
+                    // Update node status in the local array
+                    const index = this.nodes.findIndex(n => n.id === node.id);
                     if (index !== -1) {
-                        this.users[index] = data;
+                        this.nodes[index].disabled = data.disabled;
+                        this.nodes[index].statusDescription = data.disabled === 1 ? '已禁用' : '已启用';
                     }
 
-                    this.editModal.hide();
-                    ToastUtils.show('Success', '更新成功', 'success');
+                    ToastUtils.show('Success', '更新状态成功', 'success');
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    ToastUtils.show('Error', error.message || '更新失败', 'danger');
+                    ToastUtils.show('Error', '更新状态发生错误', 'danger');
                 });
-        },
-    }).mount('#users-app');
+        }
+    }).mount('#nodes-app');
 </script>
