@@ -122,105 +122,103 @@
             </div>
 
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-vcenter card-table">
-                        <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>用户</th>
-                            <th>UUID</th>
-                            <th>状态</th>
-                            <th>流量使用</th>
-                            <th>到期时间</th>
-                            <th>创建时间</th>
-                            <th>操作</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <tr v-for="account in accounts" :key="account.id">
-                            <td v-text="account.id"></td>
-                            <td>
-                                <a href="#" @click.prevent="viewUserDetails(account.userId)">{{ account.userEmail || account.userId }}</a>
-                            </td>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <span v-text="account.uuid" class="text-truncate" style="max-width: 150px;"></span>
-                                    <button @click="copyToClipboard(account.uuid)" class="btn btn-sm btn-ghost-secondary ms-2">
-                                        <i class="ti ti-copy"></i>
+                <table class="table table-vcenter card-table">
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户</th>
+                        <th>UUID</th>
+                        <th>状态</th>
+                        <th>流量使用</th>
+                        <th>到期时间</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr v-for="account in accounts" :key="account.id">
+                        <td v-text="account.id"></td>
+                        <td>
+                            <a href="#" @click.prevent="viewUserDetails(account.userId)">{{ account.userEmail || account.userId }}</a>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span v-text="account.uuid" class="text-truncate" style="max-width: 150px;"></span>
+                                <button @click="copyToClipboard(account.uuid)" class="btn btn-sm btn-ghost-secondary ms-2">
+                                    <i class="ti ti-copy"></i>
+                                </button>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge" :class="getStatusBadgeClass(account.statusType)">
+                                {{ account.statusDescription }}
+                            </span>
+                        </td>
+                        <td>
+                            <div v-if="account.bandwidth">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        {{ formatBytes(account.totalUsedBytes) }} / {{ account.bandwidth }} GB
+                                    </div>
+                                    <div class="col">
+                                        <div class="progress progress-sm">
+                                            <div class="progress-bar" :class="getProgressBarClass(account.usagePercentage)" :style="{ width: account.usagePercentage + '%' }"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-else>
+                                {{ formatBytes(account.totalUsedBytes) }}
+                            </div>
+                        </td>
+                        <td v-text="formatDateTime(account.toDate) || '永不过期'"></td>
+                        <td v-text="formatDateTime(account.createTime)"></td>
+                        <td>
+                            <div class="btn-list flex-nowrap">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                                        操作
                                     </button>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="badge" :class="getStatusBadgeClass(account.statusType)">
-                                    {{ account.statusDescription }}
-                                </span>
-                            </td>
-                            <td>
-                                <div v-if="account.bandwidth">
-                                    <div class="row align-items-center">
-                                        <div class="col-auto">
-                                            {{ formatBytes(account.totalUsedBytes) }} / {{ account.bandwidth }} GB
-                                        </div>
-                                        <div class="col">
-                                            <div class="progress progress-sm">
-                                                <div class="progress-bar" :class="getProgressBarClass(account.usagePercentage)" :style="{ width: account.usagePercentage + '%' }"></div>
-                                            </div>
-                                        </div>
+                                    <div class="dropdown-menu dropdown-menu-end">
+                                        <a class="dropdown-item" href="#" @click.prevent="openEditAccountModal(account)">
+                                            <i class="ti ti-edit"></i> 编辑
+                                        </a>
+                                        <a class="dropdown-item" href="#" @click.prevent="openConfigUrlModal(account)">
+                                            <i class="ti ti-link"></i> 配置链接
+                                        </a>
+                                        <a class="dropdown-item" href="#" @click.prevent="openRenewAccountModal(account)">
+                                            <i class="ti ti-calendar-plus"></i> 续期
+                                        </a>
+                                        <a class="dropdown-item" href="#" @click.prevent="resetAuthCode(account)">
+                                            <i class="ti ti-refresh"></i> 重置认证码
+                                        </a>
+                                        <a v-if="account.statusType === 'active'" class="dropdown-item" href="#" @click.prevent="toggleAccountStatus(account, true)">
+                                            <i class="ti ti-ban"></i> 禁用
+                                        </a>
+                                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleAccountStatus(account, false)">
+                                            <i class="ti ti-check"></i> 启用
+                                        </a>
+                                        <div class="dropdown-divider"></div>
+                                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(account)">
+                                            <i class="ti ti-trash"></i> 删除
+                                        </a>
                                     </div>
                                 </div>
-                                <div v-else>
-                                    {{ formatBytes(account.totalUsedBytes) }}
-                                </div>
-                            </td>
-                            <td v-text="formatDateTime(account.toDate) || '永不过期'"></td>
-                            <td v-text="formatDateTime(account.createTime)"></td>
-                            <td>
-                                <div class="btn-list flex-nowrap">
-                                    <div class="dropdown">
-                                        <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
-                                            操作
-                                        </button>
-                                        <div class="dropdown-menu dropdown-menu-end">
-                                            <a class="dropdown-item" href="#" @click.prevent="openEditAccountModal(account)">
-                                                <i class="ti ti-edit"></i> 编辑
-                                            </a>
-                                            <a class="dropdown-item" href="#" @click.prevent="openConfigUrlModal(account)">
-                                                <i class="ti ti-link"></i> 配置链接
-                                            </a>
-                                            <a class="dropdown-item" href="#" @click.prevent="openRenewAccountModal(account)">
-                                                <i class="ti ti-calendar-plus"></i> 续期
-                                            </a>
-                                            <a class="dropdown-item" href="#" @click.prevent="resetAuthCode(account)">
-                                                <i class="ti ti-refresh"></i> 重置认证码
-                                            </a>
-                                            <a v-if="account.statusType === 'active'" class="dropdown-item" href="#" @click.prevent="toggleAccountStatus(account, true)">
-                                                <i class="ti ti-ban"></i> 禁用
-                                            </a>
-                                            <a v-else class="dropdown-item" href="#" @click.prevent="toggleAccountStatus(account, false)">
-                                                <i class="ti ti-check"></i> 启用
-                                            </a>
-                                            <div class="dropdown-divider"></div>
-                                            <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(account)">
-                                                <i class="ti ti-trash"></i> 删除
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr v-if="loading">
-                            <td colspan="8" class="text-center py-3">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr v-else-if="accounts.length === 0">
-                            <td colspan="8" class="text-center py-3">没有查到数据.</td>
-                        </tr>
-                        </tbody>
-                    </table>
-                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-if="loading">
+                        <td colspan="8" class="text-center py-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-else-if="accounts.length === 0">
+                        <td colspan="8" class="text-center py-3">没有查到数据.</td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
             <!-- 分页 -->
             <div class="card-footer d-flex align-items-center">
