@@ -114,8 +114,8 @@ CREATE TABLE IF NOT EXISTS account_traffic_stats
     FOREIGN KEY (user_id) REFERENCES user(id)
 );
 -- 创建索引，优化查询效率
-# CREATE INDEX IF NOT EXISTS idx_account_traffic_user_id ON account_traffic_stats(user_id);
-# CREATE INDEX IF NOT EXISTS idx_account_traffic_account_id ON account_traffic_stats(account_id);
+-- CREATE INDEX IF NOT EXISTS idx_account_traffic_user_id ON account_traffic_stats(user_id);
+-- CREATE INDEX IF NOT EXISTS idx_account_traffic_account_id ON account_traffic_stats(account_id);
 
 -- 账单流水表
 CREATE TABLE transactions (
@@ -123,7 +123,7 @@ CREATE TABLE transactions (
       transaction_date DATETIME NOT NULL,    -- 交易日期时间
       amount DECIMAL(10,2) NOT NULL,         -- 交易金额，保留两位小数
       type INTEGER NOT NULL,                 -- 交易类型（收入：0、支出：1）
-      business_table VARCHAR(50),            -- 关联的业务表名称
+      business_table VARCHAR(50),            -- 关联的业务表名称（account、domain、server）
       business_id INTEGER,                   -- 关联的业务表ID
       description VARCHAR(300),              -- 交易描述
       payment_method VARCHAR(30),            -- 支付方式（如信用卡、微信支付、支付宝）
@@ -133,5 +133,5 @@ CREATE TABLE transactions (
 );
 
 -- 创建索引以提高查询效率
-# CREATE INDEX idx_transaction_date ON transactions(transaction_date);
-# CREATE INDEX idx_category ON transactions(business_id);
+-- CREATE INDEX idx_transaction_date ON transactions(transaction_date);
+-- CREATE INDEX idx_category ON transactions(business_id);
