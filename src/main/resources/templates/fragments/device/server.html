@@ -1,649 +1,123 @@
 <div th:fragment="content" class="page-body">
     <div class="container-xl">
-        <div class="card" id="servers-app" @vue:mounted="mounted">
-            <div class="card-header">
-                <h3 class="card-title">服务器管理</h3>
-                <div class="card-actions">
-                    <div class="row g-2">
+        <!-- Use the common data table template -->
+        <div th:replace="~{fragments/common/data-table :: data-table(
+            '服务器管理',
+            '添加服务器',
+            'servers-app',
+            'servers',
+            ~{fragments/device/server :: filters},
+            ~{fragments/device/server :: table-content},
+            ~{fragments/device/server :: stats-cards},
+            ~{fragments/device/server :: modals},
+            'server-',
+            true
+        )}"></div>
+    </div>
+</div>
+
+<!-- Filters Fragment -->
+<th:block th:fragment="filters">
+    <!-- Supplier filter -->
+    <div class="col-auto">
+        <select class="form-select" v-model="filters.supplier" @change="fetchRecords">
+            <option value="">全部供应商</option>
+            <option v-for="(count, supplier) in supplierStats" :key="supplier" :value="supplier">{{ supplier }} ({{ count }})</option>
+        </select>
+    </div>
+    <!-- Status filter -->
+    <div class="col-auto">
+        <select class="form-select" v-model="filters.status" @change="fetchRecords">
+            <option value="">全部状态</option>
+            <option value="active">活跃</option>
+            <option value="expired">已过期</option>
+            <option value="disabled">已禁用</option>
+        </select>
+    </div>
+</th:block>
+
+<!-- Stats Cards Fragment -->
+<div th:fragment="stats-cards" class="card-body border-bottom">
+    <div class="row">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-primary text-white avatar">
+                                <i class="ti ti-server"></i>
+                            </span>
+                        </div>
                         <div class="col">
-                            <input type="text" class="form-control" placeholder="搜索IP、主机名、供应商..." v-model="searchQuery" @input="searchDebounced">
-                        </div>
-                        <div class="col-auto">
-                            <select class="form-select" v-model="filterSupplier" @change="fetchServers">
-                                <option value="">全部供应商</option>
-                                <option v-for="(count, supplier) in supplierStats" :key="supplier" :value="supplier">{{ supplier }} ({{ count }})</option>
-                            </select>
-                        </div>
-                        <div class="col-auto">
-                            <select class="form-select" v-model="filterStatus" @change="fetchServers">
-                                <option value="">全部状态</option>
-                                <option value="active">活跃</option>
-                                <option value="expired">已过期</option>
-                                <option value="disabled">已禁用</option>
-                            </select>
-                        </div>
-                        <div class="col-auto">
-                            <button class="btn btn-primary" @click="openCreateServerModal">
-                                <i class="ti ti-plus"></i> 添加服务器
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 服务器统计卡片 -->
-            <div class="card-body border-bottom">
-                <div class="row">
-                    <div class="col-sm-6 col-lg-3">
-                        <div class="card card-sm">
-                            <div class="card-body">
-                                <div class="row align-items-center">
-                                    <div class="col-auto">
-                                        <span class="bg-primary text-white avatar">
-                                            <i class="ti ti-server"></i>
-                                        </span>
-                                    </div>
-                                    <div class="col">
-                                        <div class="font-weight-medium">
-                                            总服务器数
-                                        </div>
-                                        <div class="text-muted">
-                                            {{ stats.total || 0 }}
-                                        </div>
-                                    </div>
-                                </div>
+                            <div class="font-weight-medium">
+                                总服务器数
                             </div>
-                        </div>
-                    </div>
-                    <div class="col-sm-6 col-lg-3">
-                        <div class="card card-sm">
-                            <div class="card-body">
-                                <div class="row align-items-center">
-                                    <div class="col-auto">
-                                        <span class="bg-green text-white avatar">
-                                            <i class="ti ti-circle-check"></i>
-                                        </span>
-                                    </div>
-                                    <div class="col">
-                                        <div class="font-weight-medium">
-                                            活跃服务器
-                                        </div>
-                                        <div class="text-muted">
-                                            {{ stats.active || 0 }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-sm-6 col-lg-3">
-                        <div class="card card-sm">
-                            <div class="card-body">
-                                <div class="row align-items-center">
-                                    <div class="col-auto">
-                                        <span class="bg-red text-white avatar">
-                                            <i class="ti ti-calendar-x"></i>
-                                        </span>
-                                    </div>
-                                    <div class="col">
-                                        <div class="font-weight-medium">
-                                            已过期
-                                        </div>
-                                        <div class="text-muted">
-                                            {{ stats.expired || 0 }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-sm-6 col-lg-3">
-                        <div class="card card-sm">
-                            <div class="card-body">
-                                <div class="row align-items-center">
-                                    <div class="col-auto">
-                                        <span class="bg-yellow text-white avatar">
-                                            <i class="ti ti-coin"></i>
-                                        </span>
-                                    </div>
-                                    <div class="col">
-                                        <div class="font-weight-medium">
-                                            总成本
-                                        </div>
-                                        <div class="text-muted">
-                                            ¥ {{ parseFloat(totalEffectiveCost).toFixed(2) }}
-                                        </div>
-                                    </div>
-                                </div>
+                            <div class="text-muted">
+                                {{ stats.total || 0 }}
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <div class="card-body p-0">
-                <table class="table table-vcenter card-table">
-                    <thead>
-                    <tr>
-                        <th>IP</th>
-                        <th>主机名/名称</th>
-                        <th>状态</th>
-                        <th>供应商</th>
-                        <th>SSH</th>
-                        <th>认证方式</th>
-                        <th>到期时间</th>
-                        <th>价格</th>
-                        <th>操作</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <tr v-for="server in servers" :key="server.id">
-                        <td>
-                            <div class="d-flex align-items-center">
-                                <span v-text="server.ip" class="text-truncate"></span>
-                                <button @click="copyToClipboard(server.ip)" class="btn btn-sm btn-ghost-secondary ms-2">
-                                    <i class="ti ti-copy"></i>
-                                </button>
-                            </div>
-                        </td>
-                        <td>
-                            <div class="d-flex flex-column">
-                                <span v-if="server.host">{{ server.host }}</span>
-                                <span v-if="server.name" class="text-muted">{{ server.name }}</span>
-                            </div>
-                        </td>
-                        <td>
-                            <span class="badge" :class="getStatusBadgeClass(server.statusType)">
-                                {{ server.statusDescription }}
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-green text-white avatar">
+                                <i class="ti ti-circle-check"></i>
                             </span>
-                        </td>
-                        <td v-text="server.supplier || '-'"></td>
-                        <td v-text="server.sshPort || 22"></td>
-                        <td v-text="getAuthTypeLabel(server.authType)"></td>
-                        <td v-text="formatDate(server.expireDate) || '永不过期'"></td>
-                        <td>
-                            <span v-if="server.price">
-                                ¥ {{ server.price.toFixed(2) }}
-                                <span v-if="server.multiple && server.multiple != 1" class="text-muted">
-                                    (×{{ server.multiple }})
-                                </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                活跃服务器
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.active || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-red text-white avatar">
+                                <i class="ti ti-calendar-x"></i>
                             </span>
-                            <span v-else>-</span>
-                        </td>
-                        <td>
-                            <div class="btn-list flex-nowrap">
-                                <div class="dropdown">
-                                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
-                                        操作
-                                    </button>
-                                    <div class="dropdown-menu dropdown-menu-end">
-                                        <a class="dropdown-item" href="#" @click.prevent="openEditServerModal(server)">
-                                            <i class="ti ti-edit"></i> 编辑
-                                        </a>
-                                        <a class="dropdown-item" href="#" @click.prevent="openTestConnectionModal(server)">
-                                            <i class="ti ti-connection"></i> 测试连接
-                                        </a>
-                                        <a class="dropdown-item" href="#" @click.prevent="openRenewServerModal(server)">
-                                            <i class="ti ti-calendar-plus"></i> 续期
-                                        </a>
-                                        <a v-if="server.statusType === 'active'" class="dropdown-item" href="#" @click.prevent="toggleServerStatus(server, true)">
-                                            <i class="ti ti-ban"></i> 禁用
-                                        </a>
-                                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleServerStatus(server, false)">
-                                            <i class="ti ti-check"></i> 启用
-                                        </a>
-                                        <div class="dropdown-divider"></div>
-                                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(server)">
-                                            <i class="ti ti-trash"></i> 删除
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr v-if="loading">
-                        <td colspan="9" class="text-center py-3">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr v-else-if="servers.length === 0">
-                        <td colspan="9" class="text-center py-3">没有查到数据.</td>
-                    </tr>
-                    </tbody>
-                </table>
-            </div>
-            <!-- 分页 -->
-            <div class="card-footer d-flex align-items-center">
-                <div class="d-flex">
-                    <div class="text-muted">
-                        每页显示
-                        <div class="mx-2 d-inline-block">
-                            <select class="form-select form-select-sm" v-model="pageSize" @change="changePageSize">
-                                <option value="5">5</option>
-                                <option value="10">10</option>
-                                <option value="25">25</option>
-                                <option value="50">50</option>
-                            </select>
                         </div>
-                        条记录
-                    </div>
-                    <div class="ms-auto text-muted" v-if="totalItems > 0">
-                        显示
-                        <span class="text-body strong">{{ startIndex }}</span> 到
-                        <span class="text-body strong">{{ endIndex }}</span> 条，共
-                        <span class="text-body strong">{{ totalItems }}</span> 条
-                    </div>
-                </div>
-                <ul class="pagination m-0 ms-auto" v-if="totalPages > 0">
-                    <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                        <a class="page-link" href="#" @click.prevent="prevPage">
-                            <i class="ti ti-chevron-left"></i> 上一页
-                        </a>
-                    </li>
-                    <!-- Display page numbers dynamically -->
-                    <li class="page-item" v-for="page in paginationPages" :key="page"
-                        :class="{ active: page === currentPage }">
-                        <a class="page-link" href="#" @click.prevent="goToPage(page)">{{ page }}</a>
-                    </li>
-                    <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                        <a class="page-link" href="#" @click.prevent="nextPage">
-                            下一页 <i class="ti ti-chevron-right"></i>
-                        </a>
-                    </li>
-                </ul>
-            </div>
-
-            <!-- Delete Confirmation Modal -->
-            <div class="modal modal-blur fade" id="deleteModal" tabindex="-1" role="dialog">
-                <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
-                    <div class="modal-content">
-                        <div class="modal-body">
-                            <div class="modal-title">确定删除吗?</div>
-                            <div>若确认删除，数据将无法恢复</div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-danger" @click="deleteServer">确认</button>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                已过期
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.expired || 0 }}
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <!-- Create Server Modal -->
-            <div class="modal modal-blur fade" id="createServerModal" tabindex="-1" role="dialog">
-                <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">添加服务器</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-yellow text-white avatar">
+                                <i class="ti ti-coin"></i>
+                            </span>
                         </div>
-                        <div class="modal-body">
-                            <ul class="nav nav-tabs" data-bs-toggle="tabs">
-                                <li class="nav-item">
-                                    <a href="#tabs-basic" class="nav-link active" data-bs-toggle="tab">基本信息</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a href="#tabs-auth" class="nav-link" data-bs-toggle="tab">认证信息</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a href="#tabs-config" class="nav-link" data-bs-toggle="tab">配置信息</a>
-                                </li>
-                            </ul>
-                            <div class="tab-content">
-                                <div class="tab-pane active show" id="tabs-basic">
-                                    <div class="row mt-3">
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label required">IP地址</label>
-                                                <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.ip }" v-model="newServer.ip">
-                                                <div class="invalid-feedback" v-if="validationErrors.ip">{{ validationErrors.ip }}</div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">SSH端口</label>
-                                                <input type="number" class="form-control" v-model="newServer.sshPort" placeholder="22">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">主机名</label>
-                                                <input type="text" class="form-control" v-model="newServer.host">
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">名称</label>
-                                                <input type="text" class="form-control" v-model="newServer.name">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">供应商</label>
-                                                <input type="text" class="form-control" v-model="newServer.supplier">
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">到期日期</label>
-                                                <input type="date" class="form-control" v-model="newServer.expireDate">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">价格</label>
-                                                <div class="input-group">
-                                                    <span class="input-group-text">¥</span>
-                                                    <input type="number" step="0.01" min="0" class="form-control" v-model="newServer.price">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">倍率</label>
-                                                <input type="number" step="0.01" min="0" class="form-control" v-model="newServer.multiple" placeholder="1.0">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">备注</label>
-                                        <textarea class="form-control" v-model="newServer.remark" rows="3"></textarea>
-                                    </div>
-                                </div>
-                                <div class="tab-pane" id="tabs-auth">
-                                    <div class="row mt-3">
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label required">认证方式</label>
-                                                <select class="form-select" :class="{ 'is-invalid': validationErrors.authType }" v-model="newServer.authType">
-                                                    <option v-for="type in authTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
-                                                </select>
-                                                <div class="invalid-feedback" v-if="validationErrors.authType">{{ validationErrors.authType }}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div v-if="newServer.authType === 'PASSWORD'">
-                                        <div class="mb-3">
-                                            <label class="form-label required">密码</label>
-                                            <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="newServer.auth">
-                                            <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
-                                        </div>
-                                    </div>
-                                    <div v-else-if="newServer.authType === 'KEY'">
-                                        <div class="mb-3">
-                                            <label class="form-label required">密钥</label>
-                                            <textarea class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="newServer.auth" rows="8"></textarea>
-                                            <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="tab-pane" id="tabs-config">
-                                    <div class="row mt-3">
-                                        <div class="col-md-12">
-                                            <div class="mb-3">
-                                                <label class="form-label">中转配置 (JSON)</label>
-                                                <textarea class="form-control font-monospace" v-model="newServerTransitConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
-                                                <small class="form-hint">用于配置中转节点相关参数</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-12">
-                                            <div class="mb-3">
-                                                <label class="form-label">核心配置 (JSON)</label>
-                                                <textarea class="form-control font-monospace" v-model="newServerCoreConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
-                                                <small class="form-hint">用于配置核心节点相关参数</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                总成本
                             </div>
-                            <div class="mb-3 mt-3">
-                                <label class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" v-model="newServer.disabled">
-                                    <span class="form-check-label">禁用服务器</span>
-                                </label>
+                            <div class="text-muted">
+                                ¥ {{ parseFloat(totalEffectiveCost).toFixed(2) }}
                             </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" @click="createServer">创建</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Edit Server Modal -->
-            <div class="modal modal-blur fade" id="editServerModal" tabindex="-1" role="dialog">
-                <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">编辑服务器</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <ul class="nav nav-tabs" data-bs-toggle="tabs">
-                                <li class="nav-item">
-                                    <a href="#edit-tabs-basic" class="nav-link active" data-bs-toggle="tab">基本信息</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a href="#edit-tabs-auth" class="nav-link" data-bs-toggle="tab">认证信息</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a href="#edit-tabs-config" class="nav-link" data-bs-toggle="tab">配置信息</a>
-                                </li>
-                            </ul>
-                            <div class="tab-content">
-                                <div class="tab-pane active show" id="edit-tabs-basic">
-                                    <div class="row mt-3">
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label required">IP地址</label>
-                                                <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.ip }" v-model="editedServer.ip">
-                                                <div class="invalid-feedback" v-if="validationErrors.ip">{{ validationErrors.ip }}</div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">SSH端口</label>
-                                                <input type="number" class="form-control" v-model="editedServer.sshPort" placeholder="22">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">主机名</label>
-                                                <input type="text" class="form-control" v-model="editedServer.host">
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">名称</label>
-                                                <input type="text" class="form-control" v-model="editedServer.name">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">供应商</label>
-                                                <input type="text" class="form-control" v-model="editedServer.supplier">
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">到期日期</label>
-                                                <input type="date" class="form-control" v-model="editedServer.expireDate">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">价格</label>
-                                                <div class="input-group">
-                                                    <span class="input-group-text">¥</span>
-                                                    <input type="number" step="0.01" min="0" class="form-control" v-model="editedServer.price">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">倍率</label>
-                                                <input type="number" step="0.01" min="0" class="form-control" v-model="editedServer.multiple" placeholder="1.0">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">备注</label>
-                                        <textarea class="form-control" v-model="editedServer.remark" rows="3"></textarea>
-                                    </div>
-                                </div>
-                                <div class="tab-pane" id="edit-tabs-auth">
-                                    <div class="row mt-3">
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label required">认证方式</label>
-                                                <select class="form-select" :class="{ 'is-invalid': validationErrors.authType }" v-model="editedServer.authType">
-                                                    <option v-for="type in authTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
-                                                </select>
-                                                <div class="invalid-feedback" v-if="validationErrors.authType">{{ validationErrors.authType }}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div v-if="editedServer.authType === 'PASSWORD'">
-                                        <div class="mb-3">
-                                            <label class="form-label required">密码</label>
-                                            <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="editedServer.auth">
-                                            <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
-                                        </div>
-                                    </div>
-                                    <div v-else-if="editedServer.authType === 'KEY'">
-                                        <div class="mb-3">
-                                            <label class="form-label required">密钥</label>
-                                            <textarea class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="editedServer.auth" rows="8"></textarea>
-                                            <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="tab-pane" id="edit-tabs-config">
-                                    <div class="row mt-3">
-                                        <div class="col-md-12">
-                                            <div class="mb-3">
-                                                <label class="form-label">中转配置 (JSON)</label>
-                                                <textarea class="form-control font-monospace" v-model="editedServerTransitConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
-                                                <small class="form-hint">用于配置中转节点相关参数</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-12">
-                                            <div class="mb-3">
-                                                <label class="form-label">核心配置 (JSON)</label>
-                                                <textarea class="form-control font-monospace" v-model="editedServerCoreConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
-                                                <small class="form-hint">用于配置核心节点相关参数</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="mb-3 mt-3">
-                                <label class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" :checked="editedServer.disabled === 1" @change="editedServer.disabled = $event.target.checked ? 1 : 0">
-                                    <span class="form-check-label">禁用服务器</span>
-                                </label>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" @click="updateServer">保存</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Test Connection Modal -->
-            <div class="modal modal-blur fade" id="testConnectionModal" tabindex="-1" role="dialog">
-                <div class="modal-dialog modal-dialog-centered" role="document">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">测试连接</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div v-if="testingConnection" class="text-center py-4">
-                                <div class="spinner-border text-primary" role="status"></div>
-                                <p class="mt-2">正在测试连接，请稍候...</p>
-                            </div>
-                            <div v-else-if="connectionTestResult !== null" class="alert" :class="connectionTestResult ? 'alert-success' : 'alert-danger'">
-                                <div class="d-flex">
-                                    <div>
-                                        <i :class="connectionTestResult ? 'ti ti-check' : 'ti ti-x'"></i>
-                                    </div>
-                                    <div class="ms-2">
-                                        {{ connectionTestResult ? '连接成功' : '连接失败' }}
-                                    </div>
-                                </div>
-                            </div>
-                            <div v-else>
-                                <p>准备测试连接到服务器：<strong>{{ selectedServer ? selectedServer.ip + (selectedServer.sshPort && selectedServer.sshPort !== 22 ? ':' + selectedServer.sshPort : '') : '' }}</strong></p>
-                                <p>认证方式：{{ selectedServer ? getAuthTypeLabel(selectedServer.authType) : '' }}</p>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
-                            <button v-if="!testingConnection && connectionTestResult === null" type="button" class="btn btn-primary" @click="testConnection">开始测试</button>
-                            <button v-else-if="connectionTestResult !== null" type="button" class="btn btn-primary" @click="resetConnectionTest">重新测试</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Renew Server Modal -->
-            <div class="modal modal-blur fade" id="renewServerModal" tabindex="-1" role="dialog">
-                <div class="modal-dialog modal-dialog-centered" role="document">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">续期服务器</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div v-if="selectedServer" class="alert" :class="getStatusAlertClass(selectedServer.statusType)">
-                                <div class="d-flex">
-                                    <div>
-                                        <i class="ti ti-info-circle"></i>
-                                    </div>
-                                    <div class="ms-2">
-                                        当前状态：{{ selectedServer.statusDescription }}
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label required">新到期日期</label>
-                                <input type="date" class="form-control" :class="{ 'is-invalid': validationErrors.expiryDate }" v-model="renewData.expiryDate">
-                                <div class="invalid-feedback" v-if="validationErrors.expiryDate">{{ validationErrors.expiryDate }}</div>
-                            </div>
-                            <div class="mb-3">
-                                <div class="btn-list">
-                                    <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'months')">+1个月</button>
-                                    <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(3, 'months')">+3个月</button>
-                                    <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(6, 'months')">+6个月</button>
-                                    <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'years')">+1年</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" @click="renewServer">续期</button>
                         </div>
                     </div>
                 </div>
@@ -652,311 +126,520 @@
     </div>
 </div>
 
+<!-- Table Content Fragment -->
+<div th:fragment="table-content">
+    <table class="table table-vcenter card-table">
+        <thead>
+        <tr>
+            <th>IP</th>
+            <th>主机名/名称</th>
+            <th>状态</th>
+            <th>供应商</th>
+            <th>SSH</th>
+            <th>认证方式</th>
+            <th>到期时间</th>
+            <th>价格</th>
+            <th>操作</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr v-for="server in records" :key="server.id">
+            <td>
+                <div class="d-flex align-items-center">
+                    <span v-text="server.ip" class="text-truncate"></span>
+                    <button @click="copyToClipboard(server.ip)" class="btn btn-sm btn-ghost-secondary ms-2">
+                        <i class="ti ti-copy"></i>
+                    </button>
+                </div>
+            </td>
+            <td>
+                <div class="d-flex flex-column">
+                    <span v-if="server.host">{{ server.host }}</span>
+                    <span v-if="server.name" class="text-muted">{{ server.name }}</span>
+                </div>
+            </td>
+            <td>
+                <span class="badge" :class="getStatusBadgeClass(server.statusType)">
+                    {{ server.statusDescription }}
+                </span>
+            </td>
+            <td v-text="server.supplier || '-'"></td>
+            <td v-text="server.sshPort || 22"></td>
+            <td v-text="getAuthTypeLabel(server.authType)"></td>
+            <td v-text="formatDate(server.expireDate) || '永不过期'"></td>
+            <td>
+                <span v-if="server.price">
+                    ¥ {{ server.price.toFixed(2) }}
+                    <span v-if="server.multiple && server.multiple != 1" class="text-muted">
+                        (×{{ server.multiple }})
+                    </span>
+                </span>
+                <span v-else>-</span>
+            </td>
+            <td>
+                <div class="btn-list flex-nowrap">
+                    <div class="dropdown">
+                        <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                            操作
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a class="dropdown-item" href="#" @click.prevent="openEditModal(server)">
+                                <i class="ti ti-edit"></i> 编辑
+                            </a>
+                            <a class="dropdown-item" href="#" @click.prevent="openTestConnectionModal(server)">
+                                <i class="ti ti-connection"></i> 测试连接
+                            </a>
+                            <a class="dropdown-item" href="#" @click.prevent="openRenewServerModal(server)">
+                                <i class="ti ti-calendar-plus"></i> 续期
+                            </a>
+                            <a v-if="server.statusType === 'active'" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(server, true)">
+                                <i class="ti ti-ban"></i> 禁用
+                            </a>
+                            <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(server, false)">
+                                <i class="ti ti-check"></i> 启用
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(server)">
+                                <i class="ti ti-trash"></i> 删除
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </td>
+        </tr>
+        <tr v-if="loading">
+            <td colspan="9" class="text-center py-3">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </td>
+        </tr>
+        <tr v-else-if="records.length === 0">
+            <td colspan="9" class="text-center py-3">没有查到数据.</td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Modals Fragment -->
+<div th:fragment="modals">
+    <!-- Create Server Modal -->
+    <div class="modal modal-blur fade" id="server-createModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加服务器</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs" data-bs-toggle="tabs">
+                        <li class="nav-item">
+                            <a href="#tabs-basic" class="nav-link active" data-bs-toggle="tab">基本信息</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#tabs-auth" class="nav-link" data-bs-toggle="tab">认证信息</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#tabs-config" class="nav-link" data-bs-toggle="tab">配置信息</a>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane active show" id="tabs-basic">
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">IP地址</label>
+                                        <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.ip }" v-model="newItem.ip">
+                                        <div class="invalid-feedback" v-if="validationErrors.ip">{{ validationErrors.ip }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">SSH端口</label>
+                                        <input type="number" class="form-control" v-model="newItem.sshPort" placeholder="22">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">主机名</label>
+                                        <input type="text" class="form-control" v-model="newItem.host">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">名称</label>
+                                        <input type="text" class="form-control" v-model="newItem.name">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">供应商</label>
+                                        <input type="text" class="form-control" v-model="newItem.supplier">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">到期日期</label>
+                                        <input type="date" class="form-control" v-model="newItem.expireDate">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">价格</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">¥</span>
+                                            <input type="number" step="0.01" min="0" class="form-control" v-model="newItem.price">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">倍率</label>
+                                        <input type="number" step="0.01" min="0" class="form-control" v-model="newItem.multiple" placeholder="1.0">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">备注</label>
+                                <textarea class="form-control" v-model="newItem.remark" rows="3"></textarea>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="tabs-auth">
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">认证方式</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.authType }" v-model="newItem.authType">
+                                            <option v-for="type in authTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.authType">{{ validationErrors.authType }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-if="newItem.authType === 'PASSWORD'">
+                                <div class="mb-3">
+                                    <label class="form-label required">密码</label>
+                                    <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="newItem.auth">
+                                    <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                </div>
+                            </div>
+                            <div v-else-if="newItem.authType === 'KEY'">
+                                <div class="mb-3">
+                                    <label class="form-label required">密钥</label>
+                                    <textarea class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="newItem.auth" rows="8"></textarea>
+                                    <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="tabs-config">
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">中转配置 (JSON)</label>
+                                        <textarea class="form-control font-monospace" v-model="transitConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
+                                        <small class="form-hint">用于配置中转节点相关参数</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">核心配置 (JSON)</label>
+                                        <textarea class="form-control font-monospace" v-model="coreConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
+                                        <small class="form-hint">用于配置核心节点相关参数</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3 mt-3">
+                        <label class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" v-model="newItem.disabled">
+                            <span class="form-check-label">禁用服务器</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="createItem">创建</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Server Modal -->
+    <div class="modal modal-blur fade" id="server-editModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑服务器</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs" data-bs-toggle="tabs">
+                        <li class="nav-item">
+                            <a href="#edit-tabs-basic" class="nav-link active" data-bs-toggle="tab">基本信息</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#edit-tabs-auth" class="nav-link" data-bs-toggle="tab">认证信息</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#edit-tabs-config" class="nav-link" data-bs-toggle="tab">配置信息</a>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane active show" id="edit-tabs-basic">
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">IP地址</label>
+                                        <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.ip }" v-model="editedItem.ip">
+                                        <div class="invalid-feedback" v-if="validationErrors.ip">{{ validationErrors.ip }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">SSH端口</label>
+                                        <input type="number" class="form-control" v-model="editedItem.sshPort" placeholder="22">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">主机名</label>
+                                        <input type="text" class="form-control" v-model="editedItem.host">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">名称</label>
+                                        <input type="text" class="form-control" v-model="editedItem.name">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">供应商</label>
+                                        <input type="text" class="form-control" v-model="editedItem.supplier">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">到期日期</label>
+                                        <input type="date" class="form-control" v-model="editedItem.expireDate">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">价格</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">¥</span>
+                                            <input type="number" step="0.01" min="0" class="form-control" v-model="editedItem.price">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">倍率</label>
+                                        <input type="number" step="0.01" min="0" class="form-control" v-model="editedItem.multiple" placeholder="1.0">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">备注</label>
+                                <textarea class="form-control" v-model="editedItem.remark" rows="3"></textarea>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="edit-tabs-auth">
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">认证方式</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.authType }" v-model="editedItem.authType">
+                                            <option v-for="type in authTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.authType">{{ validationErrors.authType }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-if="editedItem.authType === 'PASSWORD'">
+                                <div class="mb-3">
+                                    <label class="form-label required">密码</label>
+                                    <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="editedItem.auth">
+                                    <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                </div>
+                            </div>
+                            <div v-else-if="editedItem.authType === 'KEY'">
+                                <div class="mb-3">
+                                    <label class="form-label required">密钥</label>
+                                    <textarea class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="editedItem.auth" rows="8"></textarea>
+                                    <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="edit-tabs-config">
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">中转配置 (JSON)</label>
+                                        <textarea class="form-control font-monospace" v-model="editTransitConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
+                                        <small class="form-hint">用于配置中转节点相关参数</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">核心配置 (JSON)</label>
+                                        <textarea class="form-control font-monospace" v-model="editCoreConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
+                                        <small class="form-hint">用于配置核心节点相关参数</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3 mt-3">
+                        <label class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" :checked="editedItem.disabled === 1" @change="editedItem.disabled = $event.target.checked ? 1 : 0">
+                            <span class="form-check-label">禁用服务器</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="updateItem">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Connection Modal -->
+    <div class="modal modal-blur fade" id="testConnectionModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">测试连接</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div v-if="testingConnection" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2">正在测试连接，请稍候...</p>
+                    </div>
+                    <div v-else-if="connectionTestResult !== null" class="alert" :class="connectionTestResult ? 'alert-success' : 'alert-danger'">
+                        <div class="d-flex">
+                            <div>
+                                <i :class="connectionTestResult ? 'ti ti-check' : 'ti ti-x'"></i>
+                            </div>
+                            <div class="ms-2">
+                                {{ connectionTestResult ? '连接成功' : '连接失败' }}
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else>
+                        <p>准备测试连接到服务器：<strong>{{ selectedItem ? selectedItem.ip + (selectedItem.sshPort && selectedItem.sshPort !== 22 ? ':' + selectedItem.sshPort : '') : '' }}</strong></p>
+                        <p>认证方式：{{ selectedItem ? getAuthTypeLabel(selectedItem.authType) : '' }}</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button v-if="!testingConnection && connectionTestResult === null" type="button" class="btn btn-primary" @click="testConnection">开始测试</button>
+                    <button v-else-if="connectionTestResult !== null" type="button" class="btn btn-primary" @click="resetConnectionTest">重新测试</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Renew Server Modal -->
+    <div class="modal modal-blur fade" id="renewServerModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">续期服务器</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div v-if="selectedItem" class="alert" :class="getStatusAlertClass(selectedItem.statusType)">
+                        <div class="d-flex">
+                            <div>
+                                <i class="ti ti-info-circle"></i>
+                            </div>
+                            <div class="ms-2">
+                                当前状态：{{ selectedItem.statusDescription }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label required">新到期日期</label>
+                        <input type="date" class="form-control" :class="{ 'is-invalid': validationErrors.expiryDate }" v-model="renewData.expiryDate">
+                        <div class="invalid-feedback" v-if="validationErrors.expiryDate">{{ validationErrors.expiryDate }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="btn-list">
+                            <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'months')">+1个月</button>
+                            <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(3, 'months')">+3个月</button>
+                            <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(6, 'months')">+6个月</button>
+                            <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'years')">+1年</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="renewServer">续期</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script th:fragment="script" th:inline="javascript">
-    PetiteVue.createApp({
-        // Data
-        servers: [],
-        authTypes: [],
-        searchQuery: '',
-        filterSupplier: '',
-        filterStatus: '',
-        currentPage: 1,
-        pageSize: 10,
-        totalItems: 0,
-        totalPages: 0,
-        stats: {
-            total: 0,
-            active: 0,
-            expired: 0,
-            disabled: 0,
-            expiringSoon: 0
-        },
-        supplierStats: {},
-        totalCost: 0,
-        totalEffectiveCost: 0,
-        selectedServer: null,
-        deleteModal: null,
-        createModal: null,
-        editModal: null,
-        testConnectionModal: null,
-        renewModal: null,
-        loading: true,
-        searchTimeout: null,
-        testingConnection: false,
-        connectionTestResult: null,
-        newServer: {
-            ip: '',
-            sshPort: 22,
-            authType: 'PASSWORD',
-            auth: '',
-            host: '',
-            name: '',
-            expireDate: '',
-            supplier: '',
-            price: '',
-            multiple: 1,
-            disabled: false,
-            remark: '',
-            transitConfig: null,
-            coreConfig: null
-        },
-        newServerTransitConfigJson: '',
-        newServerCoreConfigJson: '',
-        editedServer: {
-            id: null,
-            ip: '',
-            sshPort: 22,
-            authType: 'PASSWORD',
-            auth: '',
-            host: '',
-            name: '',
-            expireDate: '',
-            supplier: '',
-            price: '',
-            multiple: 1,
-            disabled: 0,
-            remark: '',
-            transitConfig: null,
-            coreConfig: null
-        },
-        editedServerTransitConfigJson: '',
-        editedServerCoreConfigJson: '',
-        renewData: {
-            expiryDate: ''
-        },
-        validationErrors: {},
-
-        // Lifecycle hooks
-        mounted() {
-            this.fetchAuthTypes();
-            this.fetchServers();
-        },
-
-        // Computed properties
-        get startIndex() {
-            return (this.currentPage - 1) * this.pageSize + 1;
-        },
-
-        get endIndex() {
-            return Math.min(this.startIndex + this.pageSize - 1, this.totalItems);
-        },
-
-        get paginationPages() {
-            // Show at most 5 page numbers
-            const maxPages = 5;
-            const pages = [];
-            let startPage = Math.max(1, this.currentPage - Math.floor(maxPages / 2));
-            let endPage = Math.min(this.totalPages, startPage + maxPages - 1);
-
-            if (endPage - startPage + 1 < maxPages) {
-                startPage = Math.max(1, endPage - maxPages + 1);
-            }
-
-            for (let i = startPage; i <= endPage; i++) {
-                pages.push(i);
-            }
-
-            return pages;
-        },
-
-        // Methods
-        fetchServers() {
-            this.loading = true;
-
-            // Build query parameters
-            const params = new URLSearchParams({
-                page: this.currentPage,
-                size: this.pageSize
-            });
-
-            if (this.searchQuery) {
-                params.append('search', this.searchQuery);
-            }
-
-            if (this.filterSupplier) {
-                params.append('supplier', this.filterSupplier);
-            }
-
-            if (this.filterStatus === 'active') {
-                params.append('expired', false);
-                params.append('disabled', false);
-            } else if (this.filterStatus === 'expired') {
-                params.append('expired', true);
-            } else if (this.filterStatus === 'disabled') {
-                params.append('disabled', true);
-            }
-
-            fetch(`/api/admin/servers?${params.toString()}`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    this.servers = data.records;
-                    this.totalItems = data.total;
-                    this.totalPages = data.pages;
-                    this.currentPage = data.current;
-
-                    // 统计数据
-                    if (data.stats) {
-                        this.stats = data.stats;
-                    }
-                    if (data.supplierStats) {
-                        this.supplierStats = data.supplierStats;
-                    }
-                    this.totalCost = data.totalCost || 0;
-                    this.totalEffectiveCost = data.totalEffectiveCost || 0;
-
-                    this.loading = false;
-                })
-                .catch(error => {
-                    console.error('Error fetching servers:', error);
-                    ToastUtils.show('Error', 'Failed to load servers.', 'danger');
-                    this.loading = false;
-                });
-        },
-
-        fetchAuthTypes() {
-            fetch('/api/admin/servers/auth-types')
-                .then(response => response.json())
-                .then(data => {
-                    this.authTypes = data;
-
-                    // 设置默认认证类型
-                    if (this.authTypes.length > 0) {
-                        this.newServer.authType = this.authTypes[0].value;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching auth types:', error);
-                });
-        },
-
-        searchDebounced() {
-            // Clear existing timeout
-            if (this.searchTimeout) {
-                clearTimeout(this.searchTimeout);
-            }
-
-            // Set new timeout to delay the API call
-            this.searchTimeout = setTimeout(() => {
-                this.currentPage = 1; // Reset to first page when searching
-                this.fetchServers();
-            }, 500); // Wait for 500ms after user stops typing
-        },
-
-        formatDate(dateString) {
-            if (!dateString) return null;
-            const date = new Date(dateString);
-            return date.toLocaleDateString();
-        },
-
-        getAuthTypeLabel(authType) {
-            const type = this.authTypes.find(t => t.value === authType);
-            return type ? type.label : authType;
-        },
-
-        getStatusBadgeClass(statusType) {
-            switch (statusType) {
-                case 'active': return 'text-bg-success';
-                case 'expired': return 'text-bg-danger';
-                case 'disabled': return 'text-bg-secondary';
-                default: return 'text-bg-secondary';
-            }
-        },
-
-        getStatusAlertClass(statusType) {
-            switch (statusType) {
-                case 'active': return 'alert-success';
-                case 'expired': return 'alert-danger';
-                case 'disabled': return 'alert-secondary';
-                default: return 'alert-secondary';
-            }
-        },
-
-        copyToClipboard(text) {
-            navigator.clipboard.writeText(text)
-                .then(() => {
-                    ToastUtils.show('Success', '已复制到剪贴板', 'success');
-                })
-                .catch(err => {
-                    console.error('Failed to copy text: ', err);
-                    ToastUtils.show('Error', '复制失败', 'danger');
-                });
-        },
-
-        prevPage() {
-            if (this.currentPage > 1) {
-                this.currentPage--;
-                this.fetchServers();
-            }
-        },
-
-        nextPage() {
-            if (this.currentPage < this.totalPages) {
-                this.currentPage++;
-                this.fetchServers();
-            }
-        },
-
-        goToPage(page) {
-            this.currentPage = page;
-            this.fetchServers();
-        },
-
-        changePageSize() {
-            this.currentPage = 1; // Reset to first page when changing page size
-            this.fetchServers();
-        },
-
-        confirmDelete(server) {
-            this.selectedServer = server;
-            this.deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-            this.deleteModal.show();
-        },
-
-        deleteServer() {
-            if (!this.selectedServer) return;
-
-            fetch(`/api/admin/servers/${this.selectedServer.id}`, {
-                method: 'DELETE'
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('删除失败');
-                    }
-
-                    // Refetch the servers data to update the list and pagination
-                    this.fetchServers();
-                    ToastUtils.show('Success', '删除成功', 'success');
-
-                    // Hide modal
-                    this.deleteModal.hide();
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', '删除失败', 'danger');
-                });
-        },
-
-        // Create Server methods
-        openCreateServerModal() {
-            // 获取一个月后的时间
-            const oneMonthLater = new Date();
-            oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
-            const oneMonthLaterFormat = oneMonthLater.toISOString().split('T')[0];
-
-            // Reset form
-            this.newServer = {
+    // Server-specific implementation of the common data table
+    const serverTable = new CommonDataTable({
+        data: {
+            entityName: 'servers',
+            modalIdPrefix: 'server-',
+            stats: {
+                total: 0,
+                active: 0,
+                expired: 0,
+                disabled: 0,
+                expiringSoon: 0
+            },
+            filters: {
+                supplier: '',
+                status: ''
+            },
+            supplierStats: {},
+            totalCost: 0,
+            totalEffectiveCost: 0,
+            authTypes: [],
+            testingConnection: false,
+            connectionTestResult: null,
+            renewData: {
+                expiryDate: ''
+            },
+            transitConfigJson: '',
+            coreConfigJson: '',
+            editTransitConfigJson: '',
+            editCoreConfigJson: '',
+            newItem: {
                 ip: '',
                 sshPort: 22,
-                authType: this.authTypes.length > 0 ? this.authTypes[0].value : 'PASSWORD',
+                authType: 'PASSWORD',
                 auth: '',
                 host: '',
                 name: '',
-                expireDate: oneMonthLaterFormat,
+                expireDate: '',
                 supplier: '',
                 price: '',
                 multiple: 1,
@@ -964,376 +647,387 @@
                 remark: '',
                 transitConfig: null,
                 coreConfig: null
-            };
-            this.newServerTransitConfigJson = '';
-            this.newServerCoreConfigJson = '';
-            this.validationErrors = {};
-
-            // Show modal
-            this.createModal = new bootstrap.Modal(document.getElementById('createServerModal'));
-            this.createModal.show();
+            }
         },
+        methods: {
+            // Initialize any additional data
+            initialize() {
+                this.fetchAuthTypes();
+            },
 
-        validateServerForm(server) {
-            let isValid = true;
-            this.validationErrors = {};
+            // Fetch authentication types
+            fetchAuthTypes() {
+                fetch('/api/admin/servers/auth-types')
+                    .then(response => response.json())
+                    .then(data => {
+                        this.authTypes = data;
 
-            // IP validation
-            if (!server.ip || !server.ip.trim()) {
-                this.validationErrors.ip = 'IP地址不能为空';
-                isValid = false;
-            }
-
-            // Auth type validation
-            if (!server.authType) {
-                this.validationErrors.authType = '请选择认证方式';
-                isValid = false;
-            }
-
-            // Auth validation
-            if (server.authType && !server.auth) {
-                this.validationErrors.auth = '认证信息不能为空';
-                isValid = false;
-            }
-
-            return isValid;
-        },
-
-        createServer() {
-            // 处理JSON配置
-            try {
-                if (this.newServerTransitConfigJson) {
-                    this.newServer.transitConfig = JSON.parse(this.newServerTransitConfigJson);
-                }
-                if (this.newServerCoreConfigJson) {
-                    this.newServer.coreConfig = JSON.parse(this.newServerCoreConfigJson);
-                }
-            } catch (e) {
-                ToastUtils.show('Error', 'JSON配置格式错误: ' + e.message, 'danger');
-                return;
-            }
-
-            if (!this.validateServerForm(this.newServer)) {
-                return;
-            }
-
-            // Prepare data for API
-            const serverData = {
-                ip: this.newServer.ip,
-                sshPort: this.newServer.sshPort || 22,
-                authType: this.newServer.authType,
-                auth: this.newServer.auth,
-                host: this.newServer.host || null,
-                name: this.newServer.name || null,
-                expireDate: this.newServer.expireDate || null,
-                supplier: this.newServer.supplier || null,
-                price: this.newServer.price || null,
-                multiple: this.newServer.multiple || 1,
-                disabled: this.newServer.disabled ? 1 : 0,
-                remark: this.newServer.remark || null,
-                transitConfig: this.newServer.transitConfig,
-                coreConfig: this.newServer.coreConfig
-            };
-
-            fetch('/api/admin/servers', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(serverData)
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        if (response.status === 400) {
-                            return response.json().then(data => {
-                                throw new Error(data.message || 'Validation error');
-                            });
+                        // Set default auth type if available
+                        if (this.authTypes.length > 0) {
+                            this.newItem.authType = this.authTypes[0].value;
                         }
-                        throw new Error('响应失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    this.fetchServers(); // Refresh the server list
-                    this.createModal.hide();
-                    ToastUtils.show('Success', '创建成功', 'success');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', error.message || '创建失败.', 'danger');
-                });
-        },
+                    })
+                    .catch(error => {
+                        console.error('Error fetching auth types:', error);
+                    });
+            },
 
-        // Edit Server methods
-        openEditServerModal(server) {
-            // Format dates for date input
-            const formatDateForInput = (dateString) => {
-                if (!dateString) return '';
-                const date = new Date(dateString);
-                return date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-            };
-
-            // Clone server data to avoid direct mutation
-            this.editedServer = {
-                id: server.id,
-                ip: server.ip,
-                sshPort: server.sshPort || 22,
-                authType: server.authType,
-                auth: server.auth,
-                host: server.host || '',
-                name: server.name || '',
-                expireDate: formatDateForInput(server.expireDate),
-                supplier: server.supplier || '',
-                price: server.price,
-                multiple: server.multiple || 1,
-                disabled: server.disabled,
-                remark: server.remark || '',
-                transitConfig: server.transitConfig,
-                coreConfig: server.coreConfig
-            };
-
-            // 处理JSON数据
-            this.editedServerTransitConfigJson = server.transitConfig ?
-                JSON.stringify(server.transitConfig, null, 2) : '';
-            this.editedServerCoreConfigJson = server.coreConfig ?
-                JSON.stringify(server.coreConfig, null, 2) : '';
-
-            this.validationErrors = {};
-
-            // Show modal
-            this.editModal = new bootstrap.Modal(document.getElementById('editServerModal'));
-            this.editModal.show();
-        },
-
-        updateServer() {
-            // 处理JSON配置
-            try {
-                if (this.editedServerTransitConfigJson) {
-                    this.editedServer.transitConfig = JSON.parse(this.editedServerTransitConfigJson);
-                } else {
-                    this.editedServer.transitConfig = null;
+            // Get Badge classes
+            getStatusBadgeClass(statusType) {
+                switch (statusType) {
+                    case 'active': return 'text-bg-success';
+                    case 'expired': return 'text-bg-danger';
+                    case 'disabled': return 'text-bg-secondary';
+                    default: return 'text-bg-secondary';
                 }
+            },
 
-                if (this.editedServerCoreConfigJson) {
-                    this.editedServer.coreConfig = JSON.parse(this.editedServerCoreConfigJson);
-                } else {
-                    this.editedServer.coreConfig = null;
+            getStatusAlertClass(statusType) {
+                switch (statusType) {
+                    case 'active': return 'alert-success';
+                    case 'expired': return 'alert-danger';
+                    case 'disabled': return 'alert-secondary';
+                    default: return 'alert-secondary';
                 }
-            } catch (e) {
-                ToastUtils.show('Error', 'JSON配置格式错误: ' + e.message, 'danger');
-                return;
-            }
+            },
 
-            if (!this.validateServerForm(this.editedServer)) {
-                return;
-            }
+            getAuthTypeLabel(authType) {
+                const type = this.authTypes.find(t => t.value === authType);
+                return type ? type.label : authType;
+            },
 
-            // Prepare data for API
-            const serverData = {
-                ip: this.editedServer.ip,
-                sshPort: this.editedServer.sshPort || 22,
-                authType: this.editedServer.authType,
-                auth: this.editedServer.auth,
-                host: this.editedServer.host || null,
-                name: this.editedServer.name || null,
-                expireDate: this.editedServer.expireDate || null,
-                supplier: this.editedServer.supplier || null,
-                price: this.editedServer.price || null,
-                multiple: this.editedServer.multiple || 1,
-                disabled: this.editedServer.disabled,
-                remark: this.editedServer.remark || null,
-                transitConfig: this.editedServer.transitConfig,
-                coreConfig: this.editedServer.coreConfig
-            };
+            // Form validation and preparation
+            validateCreateForm() {
+                let isValid = true;
+                this.validationErrors = {};
 
-            fetch(`/api/admin/servers/${this.editedServer.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(serverData)
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        if (response.status === 400) {
-                            return response.json().then(data => {
-                                throw new Error(data.message || 'Validation error');
-                            });
-                        }
-                        throw new Error('响应失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    this.fetchServers(); // Refresh the server list
-                    this.editModal.hide();
-                    ToastUtils.show('Success', '更新成功', 'success');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', error.message || '更新失败.', 'danger');
-                });
-        },
-
-        // Toggle server status methods
-        toggleServerStatus(server, disabled) {
-            const action = disabled ? 'disable' : 'enable';
-
-            fetch(`/api/admin/servers/${server.id}/${action}`, {
-                method: 'PATCH'
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('更新状态失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    // Update server status in the local array
-                    const index = this.servers.findIndex(s => s.id === server.id);
-                    if (index !== -1) {
-                        this.servers[index].disabled = data.disabled;
-                        this.servers[index].statusType = data.disabled === 1 ? 'disabled' : 'active';
-                        this.servers[index].statusDescription = data.disabled === 1 ? '已禁用' : '活跃';
-                    }
-
-                    ToastUtils.show('Success', '更新状态成功', 'success');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', '更新状态发生错误', 'danger');
-                });
-        },
-
-        // Test connection methods
-        openTestConnectionModal(server) {
-            this.selectedServer = server;
-            this.connectionTestResult = null;
-            this.testingConnection = false;
-
-            this.testConnectionModal = new bootstrap.Modal(document.getElementById('testConnectionModal'));
-            this.testConnectionModal.show();
-        },
-
-        testConnection() {
-            if (!this.selectedServer) return;
-
-            this.testingConnection = true;
-
-            fetch('/api/admin/servers/test-connection', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(this.selectedServer)
-            })
-                .then(response => response.json())
-                .then(data => {
-                    this.connectionTestResult = data.success;
-                    this.testingConnection = false;
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    this.connectionTestResult = false;
-                    this.testingConnection = false;
-                });
-        },
-
-        resetConnectionTest() {
-            this.connectionTestResult = null;
-        },
-
-        // Renew server methods
-        openRenewServerModal(server) {
-            this.selectedServer = server;
-
-            // 计算默认的续期时间（从当前时间或过期时间开始 +1个月）
-            let baseDate;
-            if (server.expireDate && new Date(server.expireDate) > new Date()) {
-                baseDate = new Date(server.expireDate);
-            } else {
-                baseDate = new Date();
-            }
-
-            // 加一个月
-            baseDate.setMonth(baseDate.getMonth() + 1);
-            this.renewData = {
-                expiryDate: baseDate.toISOString().split('T')[0] // Format: YYYY-MM-DD
-            };
-
-            this.validationErrors = {};
-            this.renewModal = new bootstrap.Modal(document.getElementById('renewServerModal'));
-            this.renewModal.show();
-        },
-
-        setRenewPeriod(value, unit) {
-            // 计算新的续期时间（从当前时间或过期时间开始）
-            let baseDate;
-            if (this.selectedServer.expireDate && new Date(this.selectedServer.expireDate) > new Date()) {
-                baseDate = new Date(this.selectedServer.expireDate);
-            } else {
-                baseDate = new Date();
-            }
-
-            // 根据单位增加时间
-            if (unit === 'days') {
-                baseDate.setDate(baseDate.getDate() + value);
-            } else if (unit === 'months') {
-                baseDate.setMonth(baseDate.getMonth() + value);
-            } else if (unit === 'years') {
-                baseDate.setFullYear(baseDate.getFullYear() + value);
-            }
-
-            this.renewData.expiryDate = baseDate.toISOString().split('T')[0];
-        },
-
-        validateRenewForm() {
-            let isValid = true;
-            this.validationErrors = {};
-
-            if (!this.renewData.expiryDate) {
-                this.validationErrors.expiryDate = '请选择到期时间';
-                isValid = false;
-            } else {
-                const expiryDate = new Date(this.renewData.expiryDate);
-                const now = new Date();
-                if (expiryDate <= now) {
-                    this.validationErrors.expiryDate = '到期时间必须大于当前时间';
+                // IP validation
+                if (!this.newItem.ip || !this.newItem.ip.trim()) {
+                    this.validationErrors.ip = 'IP地址不能为空';
                     isValid = false;
                 }
-            }
 
-            return isValid;
-        },
+                // Auth type validation
+                if (!this.newItem.authType) {
+                    this.validationErrors.authType = '请选择认证方式';
+                    isValid = false;
+                }
 
-        renewServer() {
-            if (!this.validateRenewForm()) {
-                return;
-            }
+                // Auth validation
+                if (this.newItem.authType && !this.newItem.auth) {
+                    this.validationErrors.auth = '认证信息不能为空';
+                    isValid = false;
+                }
 
-            fetch(`/api/admin/servers/${this.selectedServer.id}/renew?expiryDate=${encodeURIComponent(this.renewData.expiryDate)}`, {
-                method: 'PATCH'
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('续期失败');
+                return isValid;
+            },
+
+            validateEditForm() {
+                let isValid = true;
+                this.validationErrors = {};
+
+                // IP validation
+                if (!this.editedItem.ip || !this.editedItem.ip.trim()) {
+                    this.validationErrors.ip = 'IP地址不能为空';
+                    isValid = false;
+                }
+
+                // Auth type validation
+                if (!this.editedItem.authType) {
+                    this.validationErrors.authType = '请选择认证方式';
+                    isValid = false;
+                }
+
+                // Auth validation
+                if (this.editedItem.authType && !this.editedItem.auth) {
+                    this.validationErrors.auth = '认证信息不能为空';
+                    isValid = false;
+                }
+
+                return isValid;
+            },
+
+            prepareCreateData() {
+                // Process JSON configs
+                let transitConfig = null;
+                let coreConfig = null;
+
+                try {
+                    if (this.transitConfigJson) {
+                        transitConfig = JSON.parse(this.transitConfigJson);
                     }
-                    return response.json();
-                })
-                .then(data => {
-                    // 更新服务器列表中的到期时间
-                    const index = this.servers.findIndex(s => s.id === this.selectedServer.id);
-                    if (index !== -1) {
-                        this.servers[index] = data;
+                    if (this.coreConfigJson) {
+                        coreConfig = JSON.parse(this.coreConfigJson);
                     }
+                } catch (e) {
+                    ToastUtils.show('Error', 'JSON配置格式错误: ' + e.message, 'danger');
+                    return null;
+                }
 
-                    this.renewModal.hide();
-                    ToastUtils.show('Success', '续期成功', 'success');
+                return {
+                    ip: this.newItem.ip,
+                    sshPort: this.newItem.sshPort || 22,
+                    authType: this.newItem.authType,
+                    auth: this.newItem.auth,
+                    host: this.newItem.host || null,
+                    name: this.newItem.name || null,
+                    expireDate: this.newItem.expireDate || null,
+                    supplier: this.newItem.supplier || null,
+                    price: this.newItem.price || null,
+                    multiple: this.newItem.multiple || 1,
+                    disabled: this.newItem.disabled ? 1 : 0,
+                    remark: this.newItem.remark || null,
+                    transitConfig: transitConfig,
+                    coreConfig: coreConfig
+                };
+            },
+
+            prepareUpdateData() {
+                // Process JSON configs
+                let transitConfig = null;
+                let coreConfig = null;
+
+                try {
+                    if (this.editTransitConfigJson) {
+                        transitConfig = JSON.parse(this.editTransitConfigJson);
+                    }
+                    if (this.editCoreConfigJson) {
+                        coreConfig = JSON.parse(this.editCoreConfigJson);
+                    }
+                } catch (e) {
+                    ToastUtils.show('Error', 'JSON配置格式错误: ' + e.message, 'danger');
+                    return null;
+                }
+
+                return {
+                    ip: this.editedItem.ip,
+                    sshPort: this.editedItem.sshPort || 22,
+                    authType: this.editedItem.authType,
+                    auth: this.editedItem.auth,
+                    host: this.editedItem.host || null,
+                    name: this.editedItem.name || null,
+                    expireDate: this.editedItem.expireDate || null,
+                    supplier: this.editedItem.supplier || null,
+                    price: this.editedItem.price || null,
+                    multiple: this.editedItem.multiple || 1,
+                    disabled: this.editedItem.disabled,
+                    remark: this.editedItem.remark || null,
+                    transitConfig: transitConfig,
+                    coreConfig: coreConfig
+                };
+            },
+
+            resetCreateForm() {
+                // Get one month later for default expiration date
+                const oneMonthLater = new Date();
+                oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+                const oneMonthLaterFormat = oneMonthLater.toISOString().split('T')[0];
+
+                this.newItem = {
+                    ip: '',
+                    sshPort: 22,
+                    authType: this.authTypes.length > 0 ? this.authTypes[0].value : 'PASSWORD',
+                    auth: '',
+                    host: '',
+                    name: '',
+                    expireDate: oneMonthLaterFormat,
+                    supplier: '',
+                    price: '',
+                    multiple: 1,
+                    disabled: false,
+                    remark: '',
+                    transitConfig: null,
+                    coreConfig: null
+                };
+
+                this.transitConfigJson = '';
+                this.coreConfigJson = '';
+            },
+
+            prepareEditForm(server) {
+                // Format dates for input
+                const formatDateForInput = (dateString) => {
+                    if (!dateString) return '';
+                    const date = new Date(dateString);
+                    return date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+                };
+
+                // Set JSON configs
+                this.editTransitConfigJson = server.transitConfig ?
+                    JSON.stringify(server.transitConfig, null, 2) : '';
+                this.editCoreConfigJson = server.coreConfig ?
+                    JSON.stringify(server.coreConfig, null, 2) : '';
+
+                return {
+                    id: server.id,
+                    ip: server.ip,
+                    sshPort: server.sshPort || 22,
+                    authType: server.authType,
+                    auth: server.auth,
+                    host: server.host || '',
+                    name: server.name || '',
+                    expireDate: formatDateForInput(server.expireDate),
+                    supplier: server.supplier || '',
+                    price: server.price,
+                    multiple: server.multiple || 1,
+                    disabled: server.disabled,
+                    remark: server.remark || '',
+                    transitConfig: server.transitConfig,
+                    coreConfig: server.coreConfig
+                };
+            },
+
+            afterFetch(data) {
+                // Additional processing after fetch
+                if (data.supplierStats) {
+                    this.supplierStats = data.supplierStats;
+                }
+                if (data.totalCost !== undefined) {
+                    this.totalCost = data.totalCost;
+                }
+                if (data.totalEffectiveCost !== undefined) {
+                    this.totalEffectiveCost = data.totalEffectiveCost;
+                }
+            },
+
+            // Test connection functionality
+            openTestConnectionModal(server) {
+                this.selectedItem = server;
+                this.connectionTestResult = null;
+                this.testingConnection = false;
+
+                this.testConnectionModal = new bootstrap.Modal(document.getElementById('testConnectionModal'));
+                this.testConnectionModal.show();
+            },
+
+            testConnection() {
+                if (!this.selectedItem) return;
+
+                this.testingConnection = true;
+
+                fetch('/api/admin/servers/test-connection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(this.selectedItem)
                 })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', '续期失败', 'danger');
-                });
+                    .then(response => response.json())
+                    .then(data => {
+                        this.connectionTestResult = data.success;
+                        this.testingConnection = false;
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        this.connectionTestResult = false;
+                        this.testingConnection = false;
+                    });
+            },
+
+            resetConnectionTest() {
+                this.connectionTestResult = null;
+            },
+
+            // Renew server functionality
+            openRenewServerModal(server) {
+                this.selectedItem = server;
+
+                // Calculate default renewal date (from current time or expiry time +1 month)
+                let baseDate;
+                if (server.expireDate && new Date(server.expireDate) > new Date()) {
+                    baseDate = new Date(server.expireDate);
+                } else {
+                    baseDate = new Date();
+                }
+
+                // Add one month
+                baseDate.setMonth(baseDate.getMonth() + 1);
+                this.renewData = {
+                    expiryDate: baseDate.toISOString().split('T')[0] // Format: YYYY-MM-DD
+                };
+
+                this.validationErrors = {};
+                this.renewModal = new bootstrap.Modal(document.getElementById('renewServerModal'));
+                this.renewModal.show();
+            },
+
+            setRenewPeriod(value, unit) {
+                // Calculate new renewal time (from current time or expiry time)
+                let baseDate;
+                if (this.selectedItem.expireDate && new Date(this.selectedItem.expireDate) > new Date()) {
+                    baseDate = new Date(this.selectedItem.expireDate);
+                } else {
+                    baseDate = new Date();
+                }
+
+                // Add time based on unit
+                if (unit === 'days') {
+                    baseDate.setDate(baseDate.getDate() + value);
+                } else if (unit === 'months') {
+                    baseDate.setMonth(baseDate.getMonth() + value);
+                } else if (unit === 'years') {
+                    baseDate.setFullYear(baseDate.getFullYear() + value);
+                }
+
+                this.renewData.expiryDate = baseDate.toISOString().split('T')[0];
+            },
+
+            validateRenewForm() {
+                let isValid = true;
+                this.validationErrors = {};
+
+                if (!this.renewData.expiryDate) {
+                    this.validationErrors.expiryDate = '请选择到期时间';
+                    isValid = false;
+                } else {
+                    const expiryDate = new Date(this.renewData.expiryDate);
+                    const now = new Date();
+                    if (expiryDate <= now) {
+                        this.validationErrors.expiryDate = '到期时间必须大于当前时间';
+                        isValid = false;
+                    }
+                }
+
+                return isValid;
+            },
+
+            renewServer() {
+                if (!this.validateRenewForm()) {
+                    return;
+                }
+
+                fetch(`/api/admin/servers/${this.selectedItem.id}/renew?expiryDate=${encodeURIComponent(this.renewData.expiryDate)}`, {
+                    method: 'PATCH'
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('续期失败');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Refresh the server list
+                        this.fetchRecords();
+                        this.renewModal.hide();
+                        ToastUtils.show('Success', '续期成功', 'success');
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        ToastUtils.show('Error', '续期失败', 'danger');
+                    });
+            },
+
+            // URLs for API calls
+            getApiUrl() {
+                return '/api/admin/servers';
+            },
+
+            getToggleStatusUrl(item, action) {
+                return `/api/admin/servers/${item.id}/${action}`;
+            }
         }
-    }).mount('#servers-app');
+    });
+
+    // Initialize the Vue app
+    serverTable.createApp('#servers-app');
 </script>
