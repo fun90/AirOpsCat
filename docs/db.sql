@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS node
     outbound        JSON,
     rule            JSON,
     level           INTEGER,
+    status        INTEGER DEFAULT 0, -- 0:待部署，1:已部署
     disabled        INTEGER DEFAULT 0,
     name            VARCHAR(100),
     remark          VARCHAR(300),
@@ -69,12 +70,14 @@ CREATE TABLE IF NOT EXISTS node
     update_time     DATETIME
 );
 
--- Node 表
-CREATE TABLE IF NOT EXISTS task
+-- 服务Node 表
+CREATE TABLE IF NOT EXISTS server_node
 (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     server_id       INTEGER,
     port            INTEGER,
+    protocol        VARCHAR(50), -- VLESS、Hysteria2、Socks、Shadowsocks、ShadowTLS
+    type            INTEGER, -- 0:代理，1:落地
     inbound         JSON,
     outbound        JSON,
     rule            JSON,
@@ -82,6 +85,18 @@ CREATE TABLE IF NOT EXISTS task
     disabled        INTEGER DEFAULT 0,
     name            VARCHAR(100),
     remark          VARCHAR(300),
+    create_time     DATETIME,
+    update_time     DATETIME
+);
+
+-- 服务配置 表
+CREATE TABLE IF NOT EXISTS server_config
+(
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    server_id       INTEGER,
+    xray_config     JSON,
+    status        INTEGER DEFAULT 0, -- 0:待部署，1:已部署, 2:作废
+    deploy_time     DATETIME,
     create_time     DATETIME,
     update_time     DATETIME
 );
