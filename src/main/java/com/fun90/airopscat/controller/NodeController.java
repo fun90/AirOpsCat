@@ -5,6 +5,7 @@ import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.ServerService;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
@@ -195,5 +196,35 @@ public class NodeController {
                 })
                 .collect(Collectors.toList());
         return ResponseEntity.ok(serverOptions);
+    }
+
+    @PostMapping("/{id}/copy")
+    public ResponseEntity<Node> copyNode(@PathVariable Long id) {
+        Node existingNode = nodeService.getNodeById(id);
+        if (existingNode == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        // Create a copy of the node
+        Node nodeCopy = new Node();
+        // Copy all properties except ID (which will be auto-generated)
+        BeanUtils.copyProperties(existingNode, nodeCopy, "id", "createTime", "updateTime");
+
+        // Modify the name to indicate it's a copy
+        if (nodeCopy.getName() != null) {
+            nodeCopy.setName(nodeCopy.getName() + " (Copy)");
+        } else {
+            nodeCopy.setName("Copy of Node " + id);
+        }
+
+        // The port must be unique per server, so get a new available port
+        if (nodeCopy.getServerId() != null) {
+            Integer availablePort = nodeService.getAvailablePort(nodeCopy.getServerId());
+            nodeCopy.setPort(availablePort);
+        }
+
+        // Save the new node
+        Node savedNode = nodeService.saveNode(nodeCopy);
+        return ResponseEntity.ok(savedNode);
     }
 }
