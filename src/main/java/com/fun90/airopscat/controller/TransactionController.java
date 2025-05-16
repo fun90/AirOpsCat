@@ -2,6 +2,7 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.TransactionDto;
 import com.fun90.airopscat.model.entity.Transaction;
+import com.fun90.airopscat.model.enums.PaymentMethod;
 import com.fun90.airopscat.model.enums.TransactionType;
 import com.fun90.airopscat.service.TransactionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -81,6 +82,20 @@ public class TransactionController {
                 })
                 .collect(Collectors.toList());
         
+        return ResponseEntity.ok(types);
+    }
+
+    @GetMapping("/paymentMethods")
+    public ResponseEntity<List<Map<String, String>>> getPaymentMethods() {
+        List<Map<String, String>> types = Stream.of(PaymentMethod.values())
+                .map(type -> {
+                    Map<String, String> map = new HashMap<>();
+                    map.put("value", type.getValue());
+                    map.put("label", type.getDescription());
+                    return map;
+                })
+                .collect(Collectors.toList());
+
         return ResponseEntity.ok(types);
     }
     
