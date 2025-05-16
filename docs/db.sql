@@ -69,6 +69,23 @@ CREATE TABLE IF NOT EXISTS node
     update_time     DATETIME
 );
 
+-- Node 表
+CREATE TABLE IF NOT EXISTS task
+(
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    server_id       INTEGER,
+    port            INTEGER,
+    inbound         JSON,
+    outbound        JSON,
+    rule            JSON,
+    level           INTEGER,
+    disabled        INTEGER DEFAULT 0,
+    name            VARCHAR(100),
+    remark          VARCHAR(300),
+    create_time     DATETIME,
+    update_time     DATETIME
+);
+
 -- Account 表
 CREATE TABLE IF NOT EXISTS account
 (

@@ -200,6 +200,10 @@
                                 <i class="ti ti-ban"></i> 禁用
                             </a>
                             <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="#" @click.prevent="copyNode(node)">
+                                <i class="ti ti-copy"></i> 复制
+                            </a>
+                            <div class="dropdown-divider"></div>
                             <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(node)">
                                 <i class="ti ti-trash"></i> 删除
                             </a>
@@ -1157,6 +1161,32 @@
 
             getToggleStatusUrl(item, enabled) {
                 return `/api/admin/nodes/${item.id}/${enabled ? 'enable' : 'disable'}`;
+            },
+
+            copyNode(node) {
+                if (!node.id) return;
+
+                // Show loading toast
+                ToastUtils.show('Info', '正在复制节点...', 'info');
+
+                fetch(`/api/admin/nodes/${node.id}/copy`, {
+                    method: 'POST'
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('复制节点失败');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Refresh the node list
+                        this.fetchRecords();
+                        ToastUtils.show('Success', '复制节点成功', 'success');
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        ToastUtils.show('Error', '复制节点失败', 'danger');
+                    });
             }
         }
     });
