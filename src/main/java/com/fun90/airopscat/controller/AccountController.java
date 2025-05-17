@@ -121,7 +121,7 @@ public class AccountController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Account> updateAccount(@PathVariable Long id, @RequestBody Account account) {
+    public ResponseEntity<AccountDto> updateAccount(@PathVariable Long id, @RequestBody Account account) {
         Account existingAccount = accountService.getAccountById(id);
         if (existingAccount == null) {
             return ResponseEntity.notFound().build();
@@ -129,7 +129,7 @@ public class AccountController {
 
         account.setId(id);
         Account updatedAccount = accountService.updateAccount(account);
-        return ResponseEntity.ok(updatedAccount);
+        return ResponseEntity.ok(accountService.convertToDto(updatedAccount));
     }
 
     @DeleteMapping("/{id}")

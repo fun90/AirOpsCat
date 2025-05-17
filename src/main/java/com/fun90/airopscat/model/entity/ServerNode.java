@@ -39,7 +39,7 @@ public class ServerNode {
     
     private Integer level;
     
-    private Integer disabled = 0;
+    private Integer disabled;
     
     private String name;
     

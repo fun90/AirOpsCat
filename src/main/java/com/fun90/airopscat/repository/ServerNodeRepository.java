@@ -17,8 +17,6 @@ public interface ServerNodeRepository extends JpaRepository<ServerNode, Long>, J
     
     List<ServerNode> findByNodeId(Long nodeId);
     
-    Optional<ServerNode> findByServerIdAndNodeId(Long serverId, Long nodeId);
-    
     @Query("SELECT sn FROM ServerNode sn WHERE sn.serverId = :serverId AND sn.port = :port")
     Optional<ServerNode> findByServerIdAndPort(@Param("serverId") Long serverId, @Param("port") Integer port);
 

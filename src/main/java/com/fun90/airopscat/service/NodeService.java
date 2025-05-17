@@ -220,13 +220,13 @@ public class NodeService {
     public Node updateNode(Node node) {
         Node existingNode = nodeRepository.findById(node.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Node not found"));
-        
+
         // 检查端口是否已被使用
-        if (node.getServerId() != null && node.getPort() != null && 
+        if (node.getServerId() != null && node.getPort() != null &&
                 !isPortAvailable(node.getServerId(), node.getPort(), node.getId())) {
             throw new IllegalArgumentException("Port " + node.getPort() + " is already in use on this server");
         }
-        
+
         // 处理JSON配置
         try {
             if (node.getInbound() == null) {
@@ -234,13 +234,13 @@ public class NodeService {
             } else if (!(node.getInbound() instanceof String)) {
                 node.setInbound(objectMapper.writeValueAsString(node.getInbound()));
             }
-            
+
             if (node.getOutbound() == null) {
                 node.setOutbound(null);
             } else if (!(node.getOutbound() instanceof String)) {
                 node.setOutbound(objectMapper.writeValueAsString(node.getOutbound()));
             }
-            
+
             if (node.getRule() == null) {
                 node.setRule(null);
             } else if (!(node.getRule() instanceof String)) {
@@ -250,10 +250,54 @@ public class NodeService {
             throw new RuntimeException("Error converting config to JSON: " + e.getMessage(), e);
         }
 
+        // 检查节点是否有实质性变更
+        boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node);
+
         // 使用工具方法复制非null属性
         copyNonNullProperties(node, existingNode);
 
+        // 如果有实质性变更，将状态设置为"未部署"
+        if (hasSubstantialChanges) {
+            existingNode.setDeployed(0); // 设置为"未部署"
+        }
+
         return nodeRepository.save(existingNode);
+    }
+
+    /**
+     * 检查节点是否有实质性变更（影响部署的变更）
+     */
+    private boolean hasSubstantialChanges(Node oldNode, Node newNode) {
+        // 检查端口变更
+        if (newNode.getPort() != null && !newNode.getPort().equals(oldNode.getPort())) {
+            return true;
+        }
+
+        // 检查类型变更
+        if (newNode.getType() != null && !newNode.getType().equals(oldNode.getType())) {
+            return true;
+        }
+
+        // 检查服务器变更
+        if (newNode.getServerId() != null && !newNode.getServerId().equals(oldNode.getServerId())) {
+            return true;
+        }
+
+        // 检查配置变更
+        if ((newNode.getInbound() != null && !newNode.getInbound().equals(oldNode.getInbound())) ||
+                (newNode.getOutbound() != null && !newNode.getOutbound().equals(oldNode.getOutbound())) ||
+                (newNode.getRule() != null && !newNode.getRule().equals(oldNode.getRule()))) {
+            return true;
+        }
+
+        // 如果级别变更（会影响访问权限）
+        if (newNode.getLevel() != null && !newNode.getLevel().equals(oldNode.getLevel())) {
+            return true;
+        }
+
+        // 其他可能影响部署的字段...
+
+        return false;
     }
 
     // 工具方法：复制非null属性
