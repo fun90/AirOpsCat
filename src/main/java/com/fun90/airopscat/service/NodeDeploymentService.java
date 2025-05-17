@@ -61,7 +61,7 @@ public class NodeDeploymentService {
         
         try {
             // Check if node is already deployed
-            Optional<ServerNode> existingDeployment = serverNodeRepository.findByServerIdAndNodeId(server.getId(), nodeId);
+            Optional<ServerNode> existingDeployment = serverNodeRepository.findById(nodeId);
             if (existingDeployment.isPresent()) {
                 // Update existing deployment
                 ServerNode serverNode = existingDeployment.get();
@@ -69,6 +69,10 @@ public class NodeDeploymentService {
                 serverNodeRepository.save(serverNode);
                 
                 // TODO: Execute remote commands to update the deployed node configuration
+
+                // Update node status
+                node.setDeployed(1); // Set to deployed
+                nodeRepository.save(node);
                 
                 result.setSuccess(true);
                 result.setMessage("Node updated successfully");

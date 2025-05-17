@@ -107,7 +107,7 @@ public class ServerController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Server> updateServer(@PathVariable Long id, @RequestBody Server server) {
+    public ResponseEntity<ServerDto> updateServer(@PathVariable Long id, @RequestBody Server server) {
         Server existingServer = serverService.getServerById(id);
         if (existingServer == null) {
             return ResponseEntity.notFound().build();
@@ -115,7 +115,8 @@ public class ServerController {
 
         server.setId(id);
         Server updatedServer = serverService.updateServer(server);
-        return ResponseEntity.ok(updatedServer);
+        ServerDto dto = serverService.convertToDto(updatedServer);
+        return ResponseEntity.ok(dto);
     }
 
     @DeleteMapping("/{id}")

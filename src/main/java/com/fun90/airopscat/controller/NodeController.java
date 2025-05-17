@@ -142,7 +142,7 @@ public class NodeController {
         node.setId(id);
         try {
             Node updatedNode = nodeService.updateNode(node);
-            return ResponseEntity.ok(updatedNode);
+            return ResponseEntity.ok(nodeService.convertToDto(updatedNode));
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());

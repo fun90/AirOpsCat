@@ -44,7 +44,7 @@ public class Server {
     
     private BigDecimal multiple;
     
-    private Integer disabled = 0;
+    private Integer disabled;
     
     private String remark;
 

@@ -31,7 +31,7 @@ public class User {
     
     private Long referrer;
     
-    private Integer disabled = 0;
+    private Integer disabled;
 
     private int failedAttempts;
 

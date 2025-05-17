@@ -39,9 +39,9 @@ public class Node {
     private Integer level;
 
     // 0:未部署,1:已部署
-    private Integer deployed = 0;
+    private Integer deployed;
 
-    private Integer disabled = 0;
+    private Integer disabled;
     
     private String name;
     

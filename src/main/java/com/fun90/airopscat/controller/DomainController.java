@@ -93,7 +93,7 @@ public class DomainController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Domain> updateDomain(@PathVariable Long id, @RequestBody Domain domain) {
+    public ResponseEntity<DomainDto> updateDomain(@PathVariable Long id, @RequestBody Domain domain) {
         Domain existingDomain = domainService.getDomainById(id);
         if (existingDomain == null) {
             return ResponseEntity.notFound().build();
@@ -101,7 +101,7 @@ public class DomainController {
 
         domain.setId(id);
         Domain updatedDomain = domainService.updateDomain(domain);
-        return ResponseEntity.ok(updatedDomain);
+        return ResponseEntity.ok(domainService.convertToDto(updatedDomain));
     }
 
     @DeleteMapping("/{id}")
