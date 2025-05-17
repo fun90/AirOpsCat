@@ -3,15 +3,5 @@
     "name": "org.hibernate.community.dialect.SQLiteDialect",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true
-  },
-  {
-    "name": "com.github.benmanes.caffeine.cache.SSMSA",
-    "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
-  },
-  {
-    "name": "com.github.benmanes.caffeine.cache.PSAMS",
-    "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
   }
 ]
