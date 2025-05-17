@@ -10,17 +10,18 @@ import java.time.LocalDateTime;
 
 @Data
 @Entity
-@Table(name = "node")
+@Table(name = "server_node")
 @DynamicUpdate
-public class Node {
+public class ServerNode {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
     @Column(name = "server_id")
     private Long serverId;
     
     private Integer port;
+    
+    private String protocol;
     
     private Integer type; // 0:代理，1:落地
 
@@ -37,23 +38,24 @@ public class Node {
     private String rule;
     
     private Integer level;
-
-    // 0:未部署,1:已部署
-    private Integer deployed = 0;
-
+    
     private Integer disabled = 0;
     
     private String name;
     
     private String remark;
     
+    private LocalDateTime createTime;
+    
+    private LocalDateTime updateTime;
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "server_id", insertable = false, updatable = false)
     private Server server;
     
-    private LocalDateTime createTime;
-    
-    private LocalDateTime updateTime;
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id", insertable = false, updatable = false)
+    private Node node;
     
     @PrePersist
     protected void onCreate() {
@@ -64,14 +66,5 @@ public class Node {
     @PreUpdate
     protected void onUpdate() {
         this.updateTime = LocalDateTime.now();
-    }
-
-    // 辅助方法：获取节点类型描述
-    @Transient
-    public String getTypeDescription() {
-        if (type == null) {
-            return "未知";
-        }
-        return type == 0 ? "代理" : "落地";
     }
 }

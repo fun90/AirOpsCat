@@ -1,8 +1,10 @@
 package com.fun90.airopscat.controller;
 
+import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.service.NodeDeploymentService;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.ServerService;
 import org.springframework.beans.BeanUtils;
@@ -22,11 +24,13 @@ public class NodeController {
     
     private final NodeService nodeService;
     private final ServerService serverService;
+    private final NodeDeploymentService nodeDeploymentService;
     
     @Autowired
-    public NodeController(NodeService nodeService, ServerService serverService) {
+    public NodeController(NodeService nodeService, ServerService serverService, NodeDeploymentService nodeDeploymentService) {
         this.nodeService = nodeService;
         this.serverService = serverService;
+        this.nodeDeploymentService = nodeDeploymentService;
     }
 
     @GetMapping
@@ -226,5 +230,23 @@ public class NodeController {
         // Save the new node
         Node savedNode = nodeService.saveNode(nodeCopy);
         return ResponseEntity.ok(savedNode);
+    }
+
+    @PostMapping("/{id}/deploy")
+    public ResponseEntity<DeploymentResult> deployNode(@PathVariable Long id) {
+        DeploymentResult result = nodeDeploymentService.deployNode(id);
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/{id}/undeploy")
+    public ResponseEntity<DeploymentResult> undeployNode(@PathVariable Long id) {
+        DeploymentResult result = nodeDeploymentService.undeployNode(id);
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/deploy-batch")
+    public ResponseEntity<List<DeploymentResult>> deployNodes(@RequestBody List<Long> nodeIds) {
+        List<DeploymentResult> results = nodeDeploymentService.deployNodes(nodeIds);
+        return ResponseEntity.ok(results);
     }
 }
