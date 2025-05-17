@@ -15,7 +15,7 @@ mvn clean package
 
 mvn -Pnative native:compile
 
-./target/airopscat --spring.config.location=file:src/main/resources/application.yaml
+./target/airopscat --spring.config.location=file:src/main/resources/application.properties
 
 
 用户账户

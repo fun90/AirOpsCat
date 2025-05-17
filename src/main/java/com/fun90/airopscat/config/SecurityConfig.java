@@ -122,8 +122,6 @@ public class SecurityConfig {
                 }
             }
 
-            System.out.println(errorMessage);
-
             // 设置错误消息并重定向到登录页
             request.getSession().setAttribute("error", errorMessage);
             response.sendRedirect("/login?error");
