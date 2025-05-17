@@ -131,7 +131,7 @@ public class NodeService {
         
         // 设置类型描述
         dto.setTypeDescription(node.getTypeDescription());
-        
+
         // 获取服务器信息
         if (node.getServerId() != null) {
             Optional<Server> serverOpt = serverRepository.findById(node.getServerId());
@@ -175,8 +175,8 @@ public class NodeService {
     @Transactional
     public Node saveNode(Node node) {
         // 设置默认值（如果未提供）
-        if (node.getDisabled() == null) {
-            node.setDisabled(0);
+        if (node.getDeployed() == null) {
+            node.setDeployed(0);
         }
         
         // 确保服务器存在
@@ -286,7 +286,7 @@ public class NodeService {
         Optional<Node> optionalNode = nodeRepository.findById(id);
         if (optionalNode.isPresent()) {
             Node node = optionalNode.get();
-            node.setDisabled(disabled ? 1 : 0);
+            node.setDeployed(disabled ? 1 : 0);
             return nodeRepository.save(node);
         }
         return null;

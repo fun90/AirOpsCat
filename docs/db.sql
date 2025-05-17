@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS node
     outbound        JSON,
     rule            JSON,
     level           INTEGER,
-    status        INTEGER DEFAULT 0, -- 0:待部署，1:已部署
+    deployed        INTEGER DEFAULT 0, -- 0:未部署，1:已部署
     disabled        INTEGER DEFAULT 0,
     name            VARCHAR(100),
     remark          VARCHAR(300),
@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS server_node
 (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     server_id       INTEGER,
+    node_id         INTEGER,
     port            INTEGER,
     protocol        VARCHAR(50), -- VLESS、Hysteria2、Socks、Shadowsocks、ShadowTLS
     type            INTEGER, -- 0:代理，1:落地
@@ -94,9 +95,8 @@ CREATE TABLE IF NOT EXISTS server_config
 (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     server_id       INTEGER,
-    xray_config     JSON,
-    status        INTEGER DEFAULT 0, -- 0:待部署，1:已部署, 2:作废
-    deploy_time     DATETIME,
+    config          TEXT,
+    config_type     VARCHAR(100), -- Xray、Hysteria2
     create_time     DATETIME,
     update_time     DATETIME
 );

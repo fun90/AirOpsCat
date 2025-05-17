@@ -20,18 +20,27 @@ public class NodeDto {
     private Map<String, Object> outbound = new HashMap<>();
     private Map<String, Object> rule = new HashMap<>();
     private Integer level;
+    private Integer deployed;
     private Integer disabled;
     private String name;
     private String remark;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
-    
+
     // 辅助方法：获取状态描述
-    public String getStatusDescription() {
+    public String getActiveDescription() {
         if (disabled != null && disabled == 1) {
             return "已禁用";
         }
         return "已启用";
+    }
+    
+    // 辅助方法：获取状态描述
+    public String getDeploymentStatusDescription() {
+        if (deployed != null && deployed == 1) {
+            return "已部署";
+        }
+        return "未部署";
     }
     
     // 辅助方法：获取类型描述

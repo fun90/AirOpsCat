@@ -130,6 +130,12 @@
             <option value="disabled">已禁用</option>
         </select>
     </div>
+
+    <div class="col-auto">
+        <button class="btn btn-secondary" @click="openBatchDeployModal">
+            <i class="ti ti-rocket"></i> 批量部署
+        </button>
+    </div>
 </th:block>
 
 <!-- Table Content Fragment -->
@@ -144,7 +150,8 @@
             <th>类型</th>
             <th>协议</th>
             <th>级别</th>
-            <th>状态</th>
+            <th>激活状态</th>
+            <th>部署状态</th>
             <th>操作</th>
         </tr>
         </thead>
@@ -177,7 +184,12 @@
             <td v-text="node.level || '-'"></td>
             <td>
                 <span class="badge" :class="getStatusBadgeClass(node.disabled)">
-                    {{ node.statusDescription }}
+                    {{ node.activeDescription }}
+                </span>
+            </td>
+            <td>
+                <span class="badge" :class="getDeploymentStatusBadgeClass(node.deployed)">
+                    {{ node.deploymentStatusDescription }}
                 </span>
             </td>
             <td>
@@ -202,6 +214,12 @@
                             <div class="dropdown-divider"></div>
                             <a class="dropdown-item" href="#" @click.prevent="copyNode(node)">
                                 <i class="ti ti-copy"></i> 复制
+                            </a>
+                            <a v-if="node.deployed === 0" class="dropdown-item" href="#" @click.prevent="deployNode(node)">
+                                <i class="ti ti-rocket"></i> 部署
+                            </a>
+                            <a v-else class="dropdown-item" href="#" @click.prevent="undeployNode(node)">
+                                <i class="ti ti-arrow-back-up"></i> 取消部署
                             </a>
                             <div class="dropdown-divider"></div>
                             <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(node)">
@@ -679,6 +697,29 @@
             </div>
         </div>
     </div>
+
+
+    <!-- Batch Deploy Modal -->
+    <div class="modal modal-blur fade" id="batchDeployModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">批量部署节点</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>确定要批量部署已选择的 {{ selectedNodeIds.length }} 个节点吗?</p>
+                    <div v-if="batchDeploying" class="progress">
+                        <div class="progress-bar progress-bar-indeterminate bg-primary"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="deploySelectedNodes" :disabled="batchDeploying">部署</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script th:fragment="script" th:inline="javascript">
@@ -731,7 +772,10 @@
             editedNodeRuleJson: '',
             // For viewing configs
             viewConfigModal: null,
-            selectedNode: null
+            selectedNode: null,
+            batchDeployModal: null,
+            selectedNodeIds: [],
+            batchDeploying: false
         },
         computed: {
             selectedNodeInboundFormatted() {
@@ -1187,6 +1231,120 @@
                         console.error('Error:', error);
                         ToastUtils.show('Error', '复制节点失败', 'danger');
                     });
+            },
+
+            openBatchDeployModal() {
+                // Get all selected nodes (those with status = 0)
+                this.selectedNodeIds = this.records
+                    .filter(node => node.deployed === 0)
+                    .map(node => node.id);
+
+                if (this.selectedNodeIds.length === 0) {
+                    ToastUtils.show('Warning', '没有可部署的节点', 'warning');
+                    return;
+                }
+
+                this.batchDeployModal = new bootstrap.Modal(document.getElementById('batchDeployModal'));
+                this.batchDeployModal.show();
+            },
+
+            deploySelectedNodes() {
+                this.batchDeploying = true;
+
+                fetch('/api/admin/nodes/deploy-batch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(this.selectedNodeIds)
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('批量部署失败');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        const successCount = data.filter(result => result.success).length;
+                        const failureCount = data.length - successCount;
+
+                        this.batchDeploying = false;
+                        this.batchDeployModal.hide();
+
+                        if (failureCount === 0) {
+                            ToastUtils.show('Success', `成功部署 ${successCount} 个节点`, 'success');
+                        } else {
+                            ToastUtils.show('Warning', `成功: ${successCount}, 失败: ${failureCount}`, 'warning');
+                        }
+
+                        // Refresh the node list
+                        this.fetchRecords();
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        this.batchDeploying = false;
+                        ToastUtils.show('Error', '批量部署失败', 'danger');
+                    });
+            },
+
+            deployNode(node) {
+                // Show loading toast
+                ToastUtils.show('Info', '正在部署节点...', 'info');
+
+                fetch(`/api/admin/nodes/${node.id}/deploy`, {
+                    method: 'POST'
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('部署节点失败');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            // Refresh the node list
+                            this.fetchRecords();
+                            ToastUtils.show('Success', data.message, 'success');
+                        } else {
+                            ToastUtils.show('Error', data.message, 'danger');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        ToastUtils.show('Error', '部署节点失败', 'danger');
+                    });
+            },
+
+            undeployNode(node) {
+                // Show loading toast
+                ToastUtils.show('Info', '正在取消部署节点...', 'info');
+
+                fetch(`/api/admin/nodes/${node.id}/undeploy`, {
+                    method: 'POST'
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('取消部署节点失败');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            // Refresh the node list
+                            this.fetchRecords();
+                            ToastUtils.show('Success', data.message, 'success');
+                        } else {
+                            ToastUtils.show('Error', data.message, 'danger');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        ToastUtils.show('Error', '取消部署节点失败', 'danger');
+                    });
+            },
+
+            getDeploymentStatusBadgeClass(deployed) {
+                return deployed === 1 ? 'text-bg-success' : 'text-bg-warning';
             }
         }
     });
