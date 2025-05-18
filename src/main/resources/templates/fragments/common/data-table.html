@@ -1,4 +1,4 @@
-<div th:fragment="data-table(title, buttonText, tableId, entityName, filterFragment, tableFragment, statsFragment, modalsFragment, modalIdPrefix, showAddButton)">
+<div th:fragment="data-table(title, buttonText, tableId, entityName, filterFragment, tableFragment, statsFragment, modalsFragment, modalIdPrefix, showAddButton)" class="col-12">
     <div class="card" th:id="${tableId}" @vue:mounted="mounted">
         <div class="card-header">
             <h3 class="card-title" th:text="${title}">数据表格</h3>
@@ -14,7 +14,7 @@
 
                     <!-- Add button -->
                     <div class="col-auto">
-                        <button class="btn btn-primary" @click="openCreateModal" th:if="${showAddButton != false}">
+                        <button th:if="${showAddButton != false}" class="btn btn-primary btn-5" data-bs-toggle="modal" data-bs-target="#createModal">
                             <i class="ti ti-plus"></i> <span th:text="${buttonText ?: '添加'}">添加</span>
                         </button>
                     </div>
@@ -25,15 +25,14 @@
         <!-- Stats cards - provided by the specific implementation -->
         <th:block th:replace="${statsFragment} ?: ~{}"></th:block>
 
-        <div class="card-body p-0">
+        <div class="table-responsive">
             <!-- Table content - provided by the specific implementation -->
             <th:block th:replace="${tableFragment}"></th:block>
         </div>
 
-        <!-- Pagination -->
-        <div class="card-footer d-flex align-items-center">
-            <div class="d-flex">
-                <div class="text-muted">
+        <div class="card-footer">
+            <div class="row g-2 justify-content-center justify-content-sm-between">
+                <div class="col-auto d-flex align-items-center">
                     每页显示
                     <div class="mx-2 d-inline-block">
                         <select class="form-select form-select-sm" v-model="pageSize" @change="changePageSize">
@@ -45,30 +44,64 @@
                     </div>
                     条记录
                 </div>
-                <div class="ms-auto text-muted" v-if="totalItems > 0">
-                     显示
-                    <span class="text-body strong">{{ startIndex }}</span> 到
-                    <span class="text-body strong">{{ endIndex }}</span> 条，共
-                    <span class="text-body strong">{{ totalItems }}</span> 条
+                <div class="col-auto">
+                    <ul class="pagination m-0 ms-auto">
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                                <!-- Download SVG icon from http://tabler.io/icons/icon/chevron-left -->
+                                <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="24"
+                                        height="24"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="icon icon-1"
+                                >
+                                    <path d="M15 6l-6 6l6 6" />
+                                </svg>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="#">1</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="#">2</a>
+                        </li>
+                        <li class="page-item active">
+                            <a class="page-link" href="#">3</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="#">4</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="#">5</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="#">
+                                <!-- Download SVG icon from http://tabler.io/icons/icon/chevron-right -->
+                                <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="24"
+                                        height="24"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="icon icon-1"
+                                >
+                                    <path d="M9 6l6 6l-6 6" />
+                                </svg>
+                            </a>
+                        </li>
+                    </ul>
                 </div>
             </div>
-            <ul class="pagination m-0 ms-auto" v-if="totalPages > 0">
-                <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                    <a class="page-link" href="#" @click.prevent="prevPage">
-                        <i class="ti ti-chevron-left"></i> 上一页
-                    </a>
-                </li>
-                <!-- Display page numbers dynamically -->
-                <li class="page-item" v-for="page in paginationPages" :key="page"
-                    :class="{ active: page === currentPage }">
-                    <a class="page-link" href="#" @click.prevent="goToPage(page)">{{ page }}</a>
-                </li>
-                <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                    <a class="page-link" href="#" @click.prevent="nextPage">
-                        下一页 <i class="ti ti-chevron-right"></i>
-                    </a>
-                </li>
-            </ul>
         </div>
 
         <!-- Delete Confirmation Modal -->

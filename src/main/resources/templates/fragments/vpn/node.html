@@ -1,18 +1,19 @@
-<div th:fragment="content" class="page-body">
+<div th:fragment="content"  class="page-body">
     <div class="container-xl">
-        <!-- Use the common data table template -->
-        <div th:replace="~{fragments/common/data-table :: data-table(
-            '节点管理',
-            '添加节点',
-            'nodes-app',
-            'nodes',
-            ~{fragments/vpn/node :: filters},
-            ~{fragments/vpn/node :: table-content},
-            ~{fragments/vpn/node :: stats-cards},
-            ~{fragments/vpn/node :: modals},
-            'node-',
-            true
-        )}"></div>
+        <div class="row row-deck row-cards">
+            <th:block th:replace="~{fragments/common/data-table :: data-table(
+                    '节点管理',
+                    '添加节点',
+                    'nodes-app',
+                    'nodes',
+                    ~{fragments/vpn/node :: filters},
+                    ~{fragments/vpn/node :: table-content},
+                    ~{fragments/vpn/node :: stats-cards},
+                    ~{fragments/vpn/node :: modals},
+                    'node-',
+                    true
+                )}"></th:block>
+        </div>
     </div>
 </div>
 
@@ -139,9 +140,8 @@
 </th:block>
 
 <!-- Table Content Fragment -->
-<div th:fragment="table-content">
-    <table class="table table-vcenter card-table">
-        <thead>
+<table th:fragment="table-content" class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
         <tr>
             <th>ID</th>
             <th>名称</th>
@@ -152,103 +152,102 @@
             <th>级别</th>
             <th>激活状态</th>
             <th>部署状态</th>
-            <th>操作</th>
+            <th class="w-1">操作</th>
         </tr>
-        </thead>
-        <tbody>
-        <tr v-for="node in records" :key="node.id">
-            <td v-text="node.id"></td>
-            <td>
-                <div class="d-flex flex-column">
-                    <span v-text="node.name || '-'"></span>
-                    <span v-if="node.remark" class="text-muted small">{{ node.remark }}</span>
-                </div>
-            </td>
-            <td>
-                <div class="d-flex flex-column">
-                    <span v-text="node.serverIp"></span>
-                    <span v-if="node.serverHost" class="text-muted small">{{ node.serverHost }}</span>
-                </div>
-            </td>
-            <td v-text="node.port"></td>
-            <td>
+    </thead>
+    <tbody>
+    <tr v-for="node in records" :key="node.id">
+        <td v-text="node.id"></td>
+        <td>
+            <div class="d-flex flex-column">
+                <span v-text="node.name || '-'"></span>
+                <span v-if="node.remark" class="text-muted small">{{ node.remark }}</span>
+            </div>
+        </td>
+        <td>
+            <div class="d-flex flex-column">
+                <span v-text="node.serverIp"></span>
+                <span v-if="node.serverHost" class="text-muted small">{{ node.serverHost }}</span>
+            </div>
+        </td>
+        <td v-text="node.port"></td>
+        <td>
                 <span class="badge" :class="getTypeBadgeClass(node.type)">
                     {{ node.typeDescription }}
                 </span>
-            </td>
-            <td>
+        </td>
+        <td>
                 <span class="badge text-bg-info">
                     {{ node.protocol }}
                 </span>
-            </td>
-            <td v-text="node.level || '-'"></td>
-            <td>
+        </td>
+        <td v-text="node.level || '-'"></td>
+        <td>
                 <span class="badge" :class="getStatusBadgeClass(node.disabled)">
                     {{ node.activeDescription }}
                 </span>
-            </td>
-            <td>
+        </td>
+        <td>
                 <span class="badge" :class="getDeploymentStatusBadgeClass(node.deployed)">
                     {{ node.deploymentStatusDescription }}
                 </span>
-            </td>
-            <td>
-                <div class="btn-list flex-nowrap">
-                    <div class="dropdown">
-                        <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
-                            操作
-                        </button>
-                        <div class="dropdown-menu dropdown-menu-end">
-                            <a class="dropdown-item" href="#" @click.prevent="openEditModal(node)">
-                                <i class="ti ti-edit"></i> 编辑
-                            </a>
-                            <a class="dropdown-item" href="#" @click.prevent="viewNodeConfig(node)">
-                                <i class="ti ti-code"></i> 查看配置
-                            </a>
-                            <a v-if="node.disabled === 1" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(node, false)">
-                                <i class="ti ti-check"></i> 启用
-                            </a>
-                            <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(node, true)">
-                                <i class="ti ti-ban"></i> 禁用
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item" href="#" @click.prevent="copyNode(node)">
-                                <i class="ti ti-copy"></i> 复制
-                            </a>
-                            <a v-if="node.deployed === 0" class="dropdown-item" href="#" @click.prevent="deployNode(node)">
-                                <i class="ti ti-rocket"></i> 部署
-                            </a>
-                            <a v-else class="dropdown-item" href="#" @click.prevent="undeployNode(node)">
-                                <i class="ti ti-arrow-back-up"></i> 取消部署
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(node)">
-                                <i class="ti ti-trash"></i> 删除
-                            </a>
-                        </div>
+        </td>
+        <td>
+            <div class="btn-list">
+                <div class="dropdown position-static action-dropdown">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click.prevent="openEditModal(node)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="viewNodeConfig(node)">
+                            <i class="ti ti-code"></i> 查看配置
+                        </a>
+                        <a v-if="node.disabled === 1" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(node, false)">
+                            <i class="ti ti-check"></i> 启用
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(node, true)">
+                            <i class="ti ti-ban"></i> 禁用
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="#" @click.prevent="copyNode(node)">
+                            <i class="ti ti-copy"></i> 复制
+                        </a>
+                        <a v-if="node.deployed === 0" class="dropdown-item" href="#" @click.prevent="deployNode(node)">
+                            <i class="ti ti-rocket"></i> 部署
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="undeployNode(node)">
+                            <i class="ti ti-arrow-back-up"></i> 取消部署
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(node)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
                     </div>
                 </div>
-            </td>
-        </tr>
-        <tr v-if="loading">
-            <td colspan="9" class="text-center py-3">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-            </td>
-        </tr>
-        <tr v-else-if="records.length === 0">
-            <td colspan="9" class="text-center py-3">没有查到数据.</td>
-        </tr>
-        </tbody>
-    </table>
-</div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="9" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="9" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table>
 
 <!-- Modals Fragment -->
 <div th:fragment="modals">
     <!-- Create Node Modal -->
-    <div class="modal modal-blur fade" id="node-createModal" tabindex="-1" role="dialog">
-        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal modal-blur fade" id="createModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">添加节点</h5>
@@ -500,8 +499,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-primary" @click="createItem">创建</button>
+                    <button type="button" class="btn btn-link link-secondary btn-3" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary btn-5 ms-auto" @click="createItem">创建</button>
                 </div>
             </div>
         </div>

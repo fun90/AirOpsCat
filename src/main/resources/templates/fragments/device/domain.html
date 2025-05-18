@@ -125,62 +125,60 @@
 </div>
 
 <!-- Table Content Fragment -->
-<div th:fragment="table-content">
-    <table class="table table-vcenter card-table">
-        <thead>
-        <tr>
-            <th>ID</th>
-            <th>域名</th>
-            <th>到期日</th>
-            <th>状态</th>
-            <th>价格</th>
-            <th>备注</th>
-            <th>操作</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr v-for="domain in records" :key="domain.id">
-            <td v-text="domain.id"></td>
-            <td>
-                <a :href="'http://' + domain.domain" target="_blank" class="text-reset">{{ domain.domain }}</a>
-            </td>
-            <td v-text="formatDate(domain.expireDate)"></td>
-            <td>
-                <span class="badge" :class="getStatusBadgeClass(domain.daysUntilExpiration)">
-                    {{ getDomainStatus(domain.daysUntilExpiration) }}
-                </span>
-            </td>
-            <td>¥ {{ domain.price ? domain.price.toFixed(2) : '-' }}</td>
-            <td v-text="domain.remark || '-'"></td>
-            <td>
-                <div class="btn-list flex-nowrap">
-                    <button @click="openEditModal(domain)" class="btn btn-sm btn-outline-primary">
-                        <i class="ti ti-edit"></i> 编辑
-                    </button>
-                    <button @click="confirmDelete(domain)" class="btn btn-sm btn-outline-danger">
-                        <i class="ti ti-trash"></i> 删除
-                    </button>
-                </div>
-            </td>
-        </tr>
-        <tr v-if="loading">
-            <td colspan="7" class="text-center py-3">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-            </td>
-        </tr>
-        <tr v-else-if="records.length === 0">
-            <td colspan="7" class="text-center py-3">没有查到数据.</td>
-        </tr>
-        </tbody>
-    </table>
-</div>
+<table th:fragment="table-content" class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>域名</th>
+        <th>到期日</th>
+        <th>状态</th>
+        <th>价格</th>
+        <th>备注</th>
+        <th>操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="domain in records" :key="domain.id">
+        <td v-text="domain.id"></td>
+        <td>
+            <a :href="'http://' + domain.domain" target="_blank" class="text-reset">{{ domain.domain }}</a>
+        </td>
+        <td v-text="formatDate(domain.expireDate)"></td>
+        <td>
+            <span class="badge" :class="getStatusBadgeClass(domain.daysUntilExpiration)">
+                {{ getDomainStatus(domain.daysUntilExpiration) }}
+            </span>
+        </td>
+        <td>¥ {{ domain.price ? domain.price.toFixed(2) : '-' }}</td>
+        <td v-text="domain.remark || '-'"></td>
+        <td>
+            <div class="btn-list flex-nowrap">
+                <button @click="openEditModal(domain)" class="btn btn-sm btn-outline-primary">
+                    <i class="ti ti-edit"></i> 编辑
+                </button>
+                <button @click="confirmDelete(domain)" class="btn btn-sm btn-outline-danger">
+                    <i class="ti ti-trash"></i> 删除
+                </button>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="7" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="7" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table>
 
 <!-- Modals Fragment -->
 <div th:fragment="modals">
     <!-- Create Domain Modal -->
-    <div class="modal modal-blur fade" id="domain-createModal" tabindex="-1" role="dialog">
+    <div class="modal modal-blur fade" id="createModal" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-dialog-centered" role="document">
             <div class="modal-content">
                 <div class="modal-header">
