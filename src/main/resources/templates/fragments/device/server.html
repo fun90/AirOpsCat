@@ -127,104 +127,102 @@
 </div>
 
 <!-- Table Content Fragment -->
-<div th:fragment="table-content">
-    <table class="table table-vcenter card-table">
-        <thead>
-        <tr>
-            <th>IP</th>
-            <th>主机名/名称</th>
-            <th>状态</th>
-            <th>供应商</th>
-            <th>SSH</th>
-            <th>认证方式</th>
-            <th>到期时间</th>
-            <th>价格</th>
-            <th>操作</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr v-for="server in records" :key="server.id">
-            <td>
-                <div class="d-flex align-items-center">
-                    <span v-text="server.ip" class="text-truncate"></span>
-                    <button @click="copyToClipboard(server.ip)" class="btn btn-sm btn-ghost-secondary ms-2">
-                        <i class="ti ti-copy"></i>
+<table th:fragment="table-content" class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+    <tr>
+        <th>IP</th>
+        <th>主机名/名称</th>
+        <th>状态</th>
+        <th>供应商</th>
+        <th>SSH</th>
+        <th>认证方式</th>
+        <th>到期时间</th>
+        <th>价格</th>
+        <th>操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="server in records" :key="server.id">
+        <td>
+            <div class="d-flex align-items-center">
+                <span v-text="server.ip" class="text-truncate"></span>
+                <button @click="copyToClipboard(server.ip)" class="btn btn-sm btn-ghost-secondary ms-2">
+                    <i class="ti ti-copy"></i>
+                </button>
+            </div>
+        </td>
+        <td>
+            <div class="d-flex flex-column">
+                <span v-if="server.host">{{ server.host }}</span>
+                <span v-if="server.name" class="text-muted">{{ server.name }}</span>
+            </div>
+        </td>
+        <td>
+            <span class="badge" :class="getStatusBadgeClass(server.statusType)">
+                {{ server.statusDescription }}
+            </span>
+        </td>
+        <td v-text="server.supplier || '-'"></td>
+        <td v-text="server.sshPort || 22"></td>
+        <td v-text="getAuthTypeLabel(server.authType)"></td>
+        <td v-text="formatDate(server.expireDate) || '永不过期'"></td>
+        <td>
+            <span v-if="server.price">
+                ¥ {{ server.price.toFixed(2) }}
+                <span v-if="server.multiple && server.multiple != 1" class="text-muted">
+                    (×{{ server.multiple }})
+                </span>
+            </span>
+            <span v-else>-</span>
+        </td>
+        <td>
+            <div class="btn-list flex-nowrap">
+                <div class="dropdown">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
                     </button>
-                </div>
-            </td>
-            <td>
-                <div class="d-flex flex-column">
-                    <span v-if="server.host">{{ server.host }}</span>
-                    <span v-if="server.name" class="text-muted">{{ server.name }}</span>
-                </div>
-            </td>
-            <td>
-                <span class="badge" :class="getStatusBadgeClass(server.statusType)">
-                    {{ server.statusDescription }}
-                </span>
-            </td>
-            <td v-text="server.supplier || '-'"></td>
-            <td v-text="server.sshPort || 22"></td>
-            <td v-text="getAuthTypeLabel(server.authType)"></td>
-            <td v-text="formatDate(server.expireDate) || '永不过期'"></td>
-            <td>
-                <span v-if="server.price">
-                    ¥ {{ server.price.toFixed(2) }}
-                    <span v-if="server.multiple && server.multiple != 1" class="text-muted">
-                        (×{{ server.multiple }})
-                    </span>
-                </span>
-                <span v-else>-</span>
-            </td>
-            <td>
-                <div class="btn-list flex-nowrap">
-                    <div class="dropdown">
-                        <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
-                            操作
-                        </button>
-                        <div class="dropdown-menu dropdown-menu-end">
-                            <a class="dropdown-item" href="#" @click.prevent="openEditModal(server)">
-                                <i class="ti ti-edit"></i> 编辑
-                            </a>
-                            <a class="dropdown-item" href="#" @click.prevent="openTestConnectionModal(server)">
-                                <i class="ti ti-connection"></i> 测试连接
-                            </a>
-                            <a class="dropdown-item" href="#" @click.prevent="openRenewServerModal(server)">
-                                <i class="ti ti-calendar-plus"></i> 续期
-                            </a>
-                            <a v-if="server.statusType === 'active'" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(server, true)">
-                                <i class="ti ti-ban"></i> 禁用
-                            </a>
-                            <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(server, false)">
-                                <i class="ti ti-check"></i> 启用
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(server)">
-                                <i class="ti ti-trash"></i> 删除
-                            </a>
-                        </div>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click.prevent="openEditModal(server)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openTestConnectionModal(server)">
+                            <i class="ti ti-connection"></i> 测试连接
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openRenewServerModal(server)">
+                            <i class="ti ti-calendar-plus"></i> 续期
+                        </a>
+                        <a v-if="server.statusType === 'active'" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(server, true)">
+                            <i class="ti ti-ban"></i> 禁用
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(server, false)">
+                            <i class="ti ti-check"></i> 启用
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(server)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
                     </div>
                 </div>
-            </td>
-        </tr>
-        <tr v-if="loading">
-            <td colspan="9" class="text-center py-3">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-            </td>
-        </tr>
-        <tr v-else-if="records.length === 0">
-            <td colspan="9" class="text-center py-3">没有查到数据.</td>
-        </tr>
-        </tbody>
-    </table>
-</div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="9" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="9" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table>
 
 <!-- Modals Fragment -->
 <div th:fragment="modals">
     <!-- Create Server Modal -->
-    <div class="modal modal-blur fade" id="server-createModal" tabindex="-1" role="dialog">
+    <div class="modal modal-blur fade" id="createModal" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
             <div class="modal-content">
                 <div class="modal-header">

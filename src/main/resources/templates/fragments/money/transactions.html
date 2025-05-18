@@ -134,83 +134,81 @@
 </div>
 
 <!-- Table Content Fragment -->
-<div th:fragment="table-content">
-    <table class="table table-vcenter card-table">
-        <thead>
-        <tr>
-            <th style="width: 10%">日期</th>
-            <th style="width: 15%">金额</th>
-            <th style="width: 10%">类型</th>
-            <th style="width: 15%">关联业务</th>
-            <th style="width: 20%">描述</th>
-            <th style="width: 15%">支付方式</th>
-            <th style="width: 15%">操作</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr v-for="transaction in records" :key="transaction.id">
-            <td>{{ formatDateTime(transaction.transactionDate) }}</td>
-            <td>
-                <span :class="transaction.type == 0 ? 'text-success' : 'text-danger'">
-                    {{ transaction.type == 0 ? '+' : '-' }} ¥ {{ formatCurrency(transaction.amount) }}
-                </span>
-            </td>
-            <td>
-                <span class="badge" :class="getTypeBadgeClass(transaction.type)">
-                    {{ transaction.typeDescription }}
-                </span>
-            </td>
-            <td>
-                <div v-if="transaction.businessTable">
-                    {{ getBusinessTableLabel(transaction.businessTable) }}:
-                    <span class="text-muted">{{ transaction.businessName }}</span>
-                </div>
-                <span v-else>-</span>
-            </td>
-            <td>
-                <div class="d-flex flex-column">
-                    <span v-text="transaction.description || '-'"></span>
-                    <span v-if="transaction.remark" class="text-muted small">{{ transaction.remark }}</span>
-                </div>
-            </td>
-            <td v-text="transaction.paymentMethod || '-'"></td>
-            <td>
-                <div class="btn-list flex-nowrap">
-                    <div class="dropdown">
-                        <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
-                            操作
-                        </button>
-                        <div class="dropdown-menu dropdown-menu-end">
-                            <a class="dropdown-item" href="#" @click.prevent="openEditModal(transaction)">
-                                <i class="ti ti-edit"></i> 编辑
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(transaction)">
-                                <i class="ti ti-trash"></i> 删除
-                            </a>
-                        </div>
+<table th:fragment="table-content" class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+    <tr>
+        <th style="width: 10%">日期</th>
+        <th style="width: 15%">金额</th>
+        <th style="width: 10%">类型</th>
+        <th style="width: 15%">关联业务</th>
+        <th style="width: 20%">描述</th>
+        <th style="width: 15%">支付方式</th>
+        <th style="width: 15%">操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="transaction in records" :key="transaction.id">
+        <td>{{ formatDateTime(transaction.transactionDate) }}</td>
+        <td>
+            <span :class="transaction.type == 0 ? 'text-success' : 'text-danger'">
+                {{ transaction.type == 0 ? '+' : '-' }} ¥ {{ formatCurrency(transaction.amount) }}
+            </span>
+        </td>
+        <td>
+            <span class="badge" :class="getTypeBadgeClass(transaction.type)">
+                {{ transaction.typeDescription }}
+            </span>
+        </td>
+        <td>
+            <div v-if="transaction.businessTable">
+                {{ getBusinessTableLabel(transaction.businessTable) }}:
+                <span class="text-muted">{{ transaction.businessName }}</span>
+            </div>
+            <span v-else>-</span>
+        </td>
+        <td>
+            <div class="d-flex flex-column">
+                <span v-text="transaction.description || '-'"></span>
+                <span v-if="transaction.remark" class="text-muted small">{{ transaction.remark }}</span>
+            </div>
+        </td>
+        <td v-text="transaction.paymentMethod || '-'"></td>
+        <td>
+            <div class="btn-list flex-nowrap">
+                <div class="dropdown">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click.prevent="openEditModal(transaction)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(transaction)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
                     </div>
                 </div>
-            </td>
-        </tr>
-        <tr v-if="loading">
-            <td colspan="7" class="text-center py-3">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-            </td>
-        </tr>
-        <tr v-else-if="records.length === 0">
-            <td colspan="7" class="text-center py-3">没有查到数据.</td>
-        </tr>
-        </tbody>
-    </table>
-</div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="7" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="7" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table>
 
 <!-- Modals Fragment -->
 <div th:fragment="modals">
     <!-- Create Transaction Modal -->
-    <div class="modal modal-blur fade" id="transaction-createModal" tabindex="-1" role="dialog">
+    <div class="modal modal-blur fade" id="createModal" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
             <div class="modal-content">
                 <div class="modal-header">
