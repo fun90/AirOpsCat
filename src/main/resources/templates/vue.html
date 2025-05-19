@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tabler UI with Vue.js</title>
+
+    <!-- Import Tabler UI CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.1.1/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.1.1/dist/css/tabler-vendors.min.css">
+
+    <!-- Import Vue.js -->
+<!--    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>-->
+<!--    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>-->
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.14/dist/vue.global.min.js"></script>
+</head>
+<body>
+<div class="page" id="app">
+    <!-- Navbar -->
+    <header class="navbar navbar-expand-md navbar-light d-print-none">
+        <div class="container-xl">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+                <a href=".">
+                    Tabler + Vue.js
+                </a>
+            </h1>
+            <div class="navbar-nav flex-row order-md-last">
+                <div class="nav-item dropdown">
+                    <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown">
+                        <div class="d-none d-xl-block ps-2">
+                            <div>{{ currentUser.name }}</div>
+                            <div class="mt-1 small text-muted">{{ currentUser.role }}</div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="page-wrapper">
+        <!-- Page header -->
+        <div class="page-header d-print-none">
+            <div class="container-xl">
+                <div class="row g-2 align-items-center">
+                    <div class="col">
+                        <h2 class="page-title">
+                            {{ pageTitle }}
+                        </h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page body -->
+        <div class="page-body">
+            <div class="container-xl">
+                <div class="row row-deck row-cards">
+                    <!-- Stats cards -->
+                    <div class="col-sm-6 col-lg-3" v-for="stat in statsData" :key="stat.id">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="subheader">{{ stat.title }}</div>
+                                </div>
+                                <div class="h1 mb-3">{{ stat.value }}</div>
+                                <div class="d-flex mb-2">
+                                    <div>{{ stat.description }}</div>
+                                    <div class="ms-auto">
+                      <span class="text-green d-inline-flex align-items-center lh-1">
+                        {{ stat.change }}%
+                      </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Table card -->
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">{{ tableTitle }}</h3>
+                            </div>
+                            <div class="card-body border-bottom py-3">
+                                <div class="d-flex">
+                                    <div class="text-muted">
+                                        Show
+                                        <div class="mx-2 d-inline-block">
+                                            <select class="form-select form-select-sm" v-model="itemsPerPage">
+                                                <option value="5">5</option>
+                                                <option value="10">10</option>
+                                                <option value="20">20</option>
+                                                <option value="50">50</option>
+                                            </select>
+                                        </div>
+                                        entries
+                                    </div>
+                                    <div class="ms-auto text-muted">
+                                        Search:
+                                        <div class="ms-2 d-inline-block">
+                                            <input type="text" class="form-control form-control-sm" v-model="searchQuery">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table card-table table-vcenter text-nowrap datatable">
+                                    <thead>
+                                    <tr>
+                                        <th v-for="header in tableHeaders" :key="header.key"
+                                            @click="sortTable(header.key)"
+                                            class="w-1 cursor-pointer">
+                                            {{ header.label }}
+                                            <span v-if="sortKey === header.key">
+                            {{ sortOrder === 'asc' ? '↑' : '↓' }}
+                          </span>
+                                        </th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr v-for="item in filteredAndSortedData" :key="item.id">
+                                        <td>{{ item.id }}</td>
+                                        <td>{{ item.name }}</td>
+                                        <td>{{ item.title }}</td>
+                                        <td>{{ item.email }}</td>
+                                        <td>{{ item.role }}</td>
+                                        <td class="text-end">
+                                            <button class="btn btn-primary btn-sm" @click="editItem(item)">
+                                                Edit
+                                            </button>
+                                            <button class="btn btn-danger btn-sm ms-2" @click="deleteItem(item)">
+                                                Delete
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="card-footer d-flex align-items-center">
+                                <p class="m-0 text-muted">Showing <span>{{ startItem }}</span> to <span>{{ endItem }}</span> of <span>{{ totalItems }}</span> entries</p>
+                                <ul class="pagination m-0 ms-auto">
+                                    <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                                        <a class="page-link" href="#" @click.prevent="changePage(currentPage - 1)">
+                                            <!-- Download SVG icon from http://tabler-icons.io/i/chevron-left -->
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"></path><polyline points="15 6 9 12 15 18"></polyline></svg>
+                                            prev
+                                        </a>
+                                    </li>
+                                    <li class="page-item" v-for="page in totalPages" :key="page" :class="{ active: page === currentPage }">
+                                        <a class="page-link" href="#" @click.prevent="changePage(page)">{{ page }}</a>
+                                    </li>
+                                    <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                                        <a class="page-link" href="#" @click.prevent="changePage(currentPage + 1)">
+                                            next
+                                            <!-- Download SVG icon from http://tabler-icons.io/i/chevron-right -->
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"></path><polyline points="9 6 15 12 9 18"></polyline></svg>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Form card -->
+                    <div class="col-md-6 mt-3">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">{{ formTitle }}</h3>
+                            </div>
+                            <div class="card-body">
+                                <form @submit.prevent="submitForm">
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">Name</label>
+                                        <input type="text" class="form-control" v-model="formData.name" placeholder="Enter name">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">Title</label>
+                                        <input type="text" class="form-control" v-model="formData.title" placeholder="Enter title">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">Email</label>
+                                        <input type="email" class="form-control" v-model="formData.email" placeholder="Enter email">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">Role</label>
+                                        <select class="form-select" v-model="formData.role">
+                                            <option value="Admin">Admin</option>
+                                            <option value="User">User</option>
+                                            <option value="Manager">Manager</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-footer">
+                                        <button type="submit" class="btn btn-primary">Submit</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chart card -->
+                    <div class="col-md-6 mt-3">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">{{ chartTitle }}</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container" style="position: relative; height:300px;">
+                                    <canvas id="myChart" ref="chartCanvas"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer footer-transparent d-print-none">
+            <div class="container-xl">
+                <div class="row text-center align-items-center flex-row-reverse">
+                    <div class="col-lg-auto ms-lg-auto">
+                        <ul class="list-inline list-inline-dots mb-0">
+                            <li class="list-inline-item"><a href="#" class="link-secondary">Documentation</a></li>
+                            <li class="list-inline-item"><a href="#" class="link-secondary">License</a></li>
+                            <li class="list-inline-item"><a href="#" class="link-secondary">Source Code</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-12 col-lg-auto mt-3 mt-lg-0">
+                        <ul class="list-inline list-inline-dots mb-0">
+                            <li class="list-inline-item">
+                                Copyright © 2025 Tabler + Vue.js
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+</div>
+
+<!-- Import Tabler UI JS -->
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.2.0/dist/js/tabler.min.js"></script>
+
+<!-- Import Chart.js for the chart component -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+
+<!-- Vue App -->
+<script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    const app = createApp({
+        setup() {
+            // Page data
+            const pageTitle = ref('Dashboard');
+            const currentUser = ref({
+                name: 'Jane Doe',
+                role: 'Administrator'
+            });
+
+            // Stats data
+            const statsData = ref([
+                { id: 1, title: 'Total Users', value: '1,352', description: 'Active users', change: 12 },
+                { id: 2, title: 'Revenue', value: '$15,200', description: 'This month', change: 8 },
+                { id: 3, title: 'New Clients', value: '342', description: 'This week', change: 4 },
+                { id: 4, title: 'Projects', value: '132', description: 'Completed', change: 9 }
+            ]);
+
+            // Table data
+            const tableTitle = ref('Users');
+            const tableHeaders = ref([
+                { key: 'id', label: 'ID' },
+                { key: 'name', label: 'Name' },
+                { key: 'title', label: 'Title' },
+                { key: 'email', label: 'Email' },
+                { key: 'role', label: 'Role' },
+                { key: 'actions', label: 'Actions' }
+            ]);
+
+            const tableData = ref([
+                { id: 1, name: 'John Doe', title: 'CEO', email: 'john@example.com', role: 'Admin' },
+                { id: 2, name: 'Jane Smith', title: 'CTO', email: 'jane@example.com', role: 'Admin' },
+                { id: 3, name: 'Bob Johnson', title: 'Developer', email: 'bob@example.com', role: 'User' },
+                { id: 4, name: 'Alice Brown', title: 'Designer', email: 'alice@example.com', role: 'User' },
+                { id: 5, name: 'Charlie Davis', title: 'Manager', email: 'charlie@example.com', role: 'Manager' },
+                { id: 6, name: 'Eve Wilson', title: 'Product Owner', email: 'eve@example.com', role: 'Manager' },
+                { id: 7, name: 'Frank Miller', title: 'Developer', email: 'frank@example.com', role: 'User' },
+                { id: 8, name: 'Grace Lee', title: 'Designer', email: 'grace@example.com', role: 'User' },
+                { id: 9, name: 'Henry Taylor', title: 'Tester', email: 'henry@example.com', role: 'User' },
+                { id: 10, name: 'Ivy Martin', title: 'Developer', email: 'ivy@example.com', role: 'User' },
+                { id: 11, name: 'Jack Robinson', title: 'Designer', email: 'jack@example.com', role: 'User' },
+                { id: 12, name: 'Kelly White', title: 'Manager', email: 'kelly@example.com', role: 'Manager' }
+            ]);
+
+            // Table pagination and sorting
+            const itemsPerPage = ref(5);
+            const currentPage = ref(1);
+            const searchQuery = ref('');
+            const sortKey = ref('id');
+            const sortOrder = ref('asc');
+
+            // Form data
+            const formTitle = ref('Add User');
+            const formData = ref({
+                id: null,
+                name: '',
+                title: '',
+                email: '',
+                role: 'User'
+            });
+
+            // Chart data
+            const chartTitle = ref('User Growth');
+            let chart = null;
+            const chartCanvas = ref(null);
+
+            // Filtered and sorted data
+            const filteredData = computed(() => {
+                if (!searchQuery.value) {
+                    return tableData.value;
+                }
+                const query = searchQuery.value.toLowerCase();
+                return tableData.value.filter(item => {
+                    return item.name.toLowerCase().includes(query) ||
+                        item.title.toLowerCase().includes(query) ||
+                        item.email.toLowerCase().includes(query) ||
+                        item.role.toLowerCase().includes(query);
+                });
+            });
+
+            const sortedData = computed(() => {
+                return [...filteredData.value].sort((a, b) => {
+                    const aValue = a[sortKey.value];
+                    const bValue = b[sortKey.value];
+
+                    if (sortOrder.value === 'asc') {
+                        return aValue > bValue ? 1 : -1;
+                    } else {
+                        return aValue < bValue ? 1 : -1;
+                    }
+                });
+            });
+
+            const paginatedData = computed(() => {
+                const startIndex = (currentPage.value - 1) * itemsPerPage.value;
+                const endIndex = startIndex + itemsPerPage.value;
+                return sortedData.value.slice(startIndex, endIndex);
+            });
+
+            const filteredAndSortedData = computed(() => {
+                return paginatedData.value;
+            });
+
+            // Pagination calculations
+            const totalItems = computed(() => filteredData.value.length);
+
+            const totalPages = computed(() => {
+                return Math.ceil(totalItems.value / itemsPerPage.value);
+            });
+
+            const startItem = computed(() => {
+                return (currentPage.value - 1) * itemsPerPage.value + 1;
+            });
+
+            const endItem = computed(() => {
+                const end = currentPage.value * itemsPerPage.value;
+                return end > totalItems.value ? totalItems.value : end;
+            });
+
+            // Methods
+            const changePage = (page) => {
+                if (page < 1 || page > totalPages.value) {
+                    return;
+                }
+                currentPage.value = page;
+            };
+
+            const sortTable = (key) => {
+                if (sortKey.value === key) {
+                    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortKey.value = key;
+                    sortOrder.value = 'asc';
+                }
+            };
+
+            const editItem = (item) => {
+                formData.value = { ...item };
+                formTitle.value = 'Edit User';
+            };
+
+            const deleteItem = (item) => {
+                const index = tableData.value.findIndex(i => i.id === item.id);
+                if (index !== -1) {
+                    tableData.value.splice(index, 1);
+                }
+            };
+
+            const submitForm = () => {
+                if (formData.value.id) {
+                    // Update existing record
+                    const index = tableData.value.findIndex(item => item.id === formData.value.id);
+                    if (index !== -1) {
+                        tableData.value[index] = { ...formData.value };
+                    }
+                } else {
+                    // Add new record
+                    const newId = Math.max(...tableData.value.map(item => item.id)) + 1;
+                    tableData.value.push({
+                        ...formData.value,
+                        id: newId
+                    });
+                }
+
+                // Reset form
+                formData.value = {
+                    id: null,
+                    name: '',
+                    title: '',
+                    email: '',
+                    role: 'User'
+                };
+                formTitle.value = 'Add User';
+            };
+
+            const initChart = () => {
+                const ctx = chartCanvas.value.getContext('2d');
+
+                // Sample data
+                const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const data = {
+                    labels: labels,
+                    datasets: [{
+                        label: 'User Growth 2025',
+                        data: [65, 78, 90, 115, 135, 150, 170, 185, 195, 210, 232, 250],
+                        fill: false,
+                        borderColor: '#206bc4',
+                        tension: 0.1
+                    }]
+                };
+
+                // Chart configuration
+                const config = {
+                    type: 'line',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                };
+
+                chart = new Chart(ctx, config);
+            };
+
+            // Lifecycle hooks
+            onMounted(() => {
+                initChart();
+            });
+
+            return {
+                // Data
+                pageTitle,
+                currentUser,
+                statsData,
+                tableTitle,
+                tableHeaders,
+                tableData,
+                itemsPerPage,
+                currentPage,
+                searchQuery,
+                sortKey,
+                sortOrder,
+                formTitle,
+                formData,
+                chartTitle,
+                chartCanvas,
+
+                // Computed
+                filteredAndSortedData,
+                totalItems,
+                totalPages,
+                startItem,
+                endItem,
+
+                // Methods
+                changePage,
+                sortTable,
+                editItem,
+                deleteItem,
+                submitForm
+            };
+        }
+    });
+
+    app.mount('#app');
+</script>
+</body>
+</html>
