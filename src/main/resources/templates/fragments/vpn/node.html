@@ -670,21 +670,21 @@
                         <div class="tab-pane active show" id="view-tabs-inbound">
                             <div class="row mt-3">
                                 <div class="col-md-12">
-                                    <pre class="bg-light p-3 rounded">{{ selectedNodeInboundFormatted }}</pre>
+                                    <pre class="p-3 rounded">{{ editedNodeInboundJson }}</pre>
                                 </div>
                             </div>
                         </div>
                         <div class="tab-pane" id="view-tabs-outbound">
                             <div class="row mt-3">
                                 <div class="col-md-12">
-                                    <pre class="bg-light p-3 rounded">{{ selectedNodeOutboundFormatted }}</pre>
+                                    <pre class="p-3 rounded">{{ editedNodeOutboundJson }}</pre>
                                 </div>
                             </div>
                         </div>
                         <div class="tab-pane" id="view-tabs-rule">
                             <div class="row mt-3">
                                 <div class="col-md-12">
-                                    <pre class="bg-light p-3 rounded">{{ selectedNodeRuleFormatted }}</pre>
+                                    <pre class="p-3 rounded">{{ editedNodeRuleJson }}</pre>
                                 </div>
                             </div>
                         </div>
@@ -723,7 +723,7 @@
 
 <script th:fragment="script" th:inline="javascript" type="module">
     import { CommonDataTable } from '/static/js/CommonDataTable.js';
-    import { Modal } from 'https://cdn.jsdelivr.net/npm/@tabler/core@1.3.0/dist/js/tabler.esm.min.js';
+    import { Modal } from '/static/dist/js/tabler.esm.min.js';
     // Node-specific implementation of the common data table
     const nodeTable = new CommonDataTable({
         data: {
@@ -773,47 +773,9 @@
             editedNodeRuleJson: '',
             // For viewing configs
             viewConfigModal: null,
-            selectedNode: null,
             batchDeployModal: null,
             selectedNodeIds: [],
             batchDeploying: false
-        },
-        computed: {
-            selectedNodeInboundFormatted() {
-                if (!this.selectedNode || !this.selectedNode.inbound) {
-                    return "{}";
-                }
-
-                try {
-                    return JSON.stringify(this.selectedNode.inbound, null, 2);
-                } catch (e) {
-                    return "{}";
-                }
-            },
-
-            selectedNodeOutboundFormatted() {
-                if (!this.selectedNode || !this.selectedNode.outbound) {
-                    return "{}";
-                }
-
-                try {
-                    return JSON.stringify(this.selectedNode.outbound, null, 2);
-                } catch (e) {
-                    return "{}";
-                }
-            },
-
-            selectedNodeRuleFormatted() {
-                if (!this.selectedNode || !this.selectedNode.rule) {
-                    return "{}";
-                }
-
-                try {
-                    return JSON.stringify(this.selectedNode.rule, null, 2);
-                } catch (e) {
-                    return "{}";
-                }
-            }
         },
         methods: {
             // Initialize additional data
@@ -1008,7 +970,9 @@
 
             // View configuration
             viewNodeConfig(node) {
-                this.selectedNode = node;
+                this.editedNodeInboundJson = JSON.stringify(node.inbound || {}, null, 2);
+                this.editedNodeOutboundJson = JSON.stringify(node.outbound || {}, null, 2);
+                this.editedNodeRuleJson = JSON.stringify(node.rule || {}, null, 2);
                 this.viewConfigModal = new Modal(document.getElementById('viewConfigModal'));
                 this.viewConfigModal.show();
             },
