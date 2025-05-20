@@ -199,7 +199,7 @@
                         操作
                     </button>
                     <div class="dropdown-menu dropdown-menu-end">
-                        <a class="dropdown-item" href="#" @click.prevent="openEditModal(node)">
+                        <a class="dropdown-item" href="#" @click="openEditModal(node)">
                             <i class="ti ti-edit"></i> 编辑
                         </a>
                         <a class="dropdown-item" href="#" @click.prevent="viewNodeConfig(node)">
@@ -246,7 +246,7 @@
 <!-- Modals Fragment -->
 <div th:fragment="modals">
     <!-- Create Node Modal -->
-    <div class="modal modal-blur fade" id="createModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal modal-blur fade" id="node-createModal" tabindex="-1" role="dialog" aria-hidden="true">
         <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content">
                 <div class="modal-header">
@@ -721,7 +721,8 @@
     </div>
 </div>
 
-<script th:fragment="script" th:inline="javascript">
+<script th:fragment="script" th:inline="javascript" type="module">
+    import { CommonDataTable } from '/static/js/CommonDataTable.js';
     // Node-specific implementation of the common data table
     const nodeTable = new CommonDataTable({
         data: {

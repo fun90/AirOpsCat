@@ -14,7 +14,7 @@
 
                     <!-- Add button -->
                     <div class="col-auto">
-                        <button th:if="${showAddButton != false}" class="btn btn-primary btn-5" data-bs-toggle="modal" data-bs-target="#createModal">
+                        <button th:if="${showAddButton != false}" class="btn btn-primary btn-5" @click="openCreateModal" >
                             <i class="ti ti-plus"></i> <span th:text="${buttonText ?: '添加'}">添加</span>
                         </button>
                     </div>

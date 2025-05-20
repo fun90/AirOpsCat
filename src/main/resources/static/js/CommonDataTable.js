@@ -12,8 +12,9 @@
  * 2. Create a Vue application and extend from CommonDataTable
  * 3. Override necessary methods and properties for your specific entity
  */
+import { Modal } from '/static/dist/js/tabler.esm.min.js';
 
-class CommonDataTable {
+export class CommonDataTable {
   constructor(options = {}) {
     // Default data structure that will be extended by specific implementations
     this.data = {
@@ -229,7 +230,7 @@ class CommonDataTable {
       // CRUD Operations
       confirmDelete(item) {
         this.selectedItem = item;
-        this.deleteModal = new bootstrap.Modal(document.getElementById(`${this.modalIdPrefix || ''}deleteModal`));
+        this.deleteModal = new Modal(document.getElementById(`${this.modalIdPrefix || ''}deleteModal`));
         this.deleteModal.show();
       },
       
@@ -272,7 +273,7 @@ class CommonDataTable {
         this.validationErrors = {};
         
         // Show modal
-        this.createModal = new bootstrap.Modal(document.getElementById(`${this.modalIdPrefix || ''}createModal`));
+        this.createModal = new Modal(document.getElementById(`${this.modalIdPrefix || ''}createModal`));
         this.createModal.show();
       },
       
@@ -336,7 +337,7 @@ class CommonDataTable {
         this.validationErrors = {};
         
         // Show modal
-        this.editModal = new bootstrap.Modal(document.getElementById(`${this.modalIdPrefix || ''}editModal`));
+        this.editModal = new Modal(document.getElementById(`${this.modalIdPrefix || ''}editModal`));
         this.editModal.show();
       },
       
@@ -473,4 +474,4 @@ class CommonDataTable {
 }
 
 // Make it available globally
-window.CommonDataTable = CommonDataTable;
+// window.CommonDataTable = CommonDataTable;
