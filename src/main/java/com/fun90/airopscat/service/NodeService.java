@@ -106,6 +106,10 @@ public class NodeService {
         return nodeRepository.findById(id).orElse(null);
     }
 
+    public List<Node> getNodeByType(NodeType nodeType) {
+        return nodeRepository.findByType(nodeType.getValue());
+    }
+
     public List<Node> getNodesByServer(Long serverId) {
         return nodeRepository.findByServerId(serverId);
     }
@@ -141,15 +145,18 @@ public class NodeService {
                 dto.setServerHost(server.getHost());
             }
         }
+
+        // 设置出站信息
+        if (node.getOutNode() != null) {
+            dto.setOutName(node.getOutNode().getName());
+            dto.setOutPort(node.getOutNode().getPort());
+            dto.setOutServerHost(node.getOutNode().getServer().getHost());
+        }
         
         // 转换JSON配置
         try {
             if (StringUtils.hasText(node.getInbound())) {
                 dto.setInbound(objectMapper.readValue(node.getInbound(), Map.class));
-            }
-            
-            if (StringUtils.hasText(node.getOutbound())) {
-                dto.setOutbound(objectMapper.readValue(node.getOutbound(), Map.class));
             }
             
             if (StringUtils.hasText(node.getRule())) {
@@ -198,12 +205,6 @@ public class NodeService {
                 node.setInbound(objectMapper.writeValueAsString(node.getInbound()));
             }
             
-            if (node.getOutbound() == null) {
-                node.setOutbound(null);
-            } else if (!(node.getOutbound() instanceof String)) {
-                node.setOutbound(objectMapper.writeValueAsString(node.getOutbound()));
-            }
-            
             if (node.getRule() == null) {
                 node.setRule(null);
             } else if (!(node.getRule() instanceof String)) {
@@ -233,12 +234,6 @@ public class NodeService {
                 node.setInbound(null);
             } else if (!(node.getInbound() instanceof String)) {
                 node.setInbound(objectMapper.writeValueAsString(node.getInbound()));
-            }
-
-            if (node.getOutbound() == null) {
-                node.setOutbound(null);
-            } else if (!(node.getOutbound() instanceof String)) {
-                node.setOutbound(objectMapper.writeValueAsString(node.getOutbound()));
             }
 
             if (node.getRule() == null) {
@@ -285,7 +280,7 @@ public class NodeService {
 
         // 检查配置变更
         if ((newNode.getInbound() != null && !newNode.getInbound().equals(oldNode.getInbound())) ||
-                (newNode.getOutbound() != null && !newNode.getOutbound().equals(oldNode.getOutbound())) ||
+                (newNode.getOutId() != null && !newNode.getOutId().equals(oldNode.getOutId())) ||
                 (newNode.getRule() != null && !newNode.getRule().equals(oldNode.getRule()))) {
             return true;
         }

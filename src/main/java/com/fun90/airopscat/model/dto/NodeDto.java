@@ -17,7 +17,10 @@ public class NodeDto {
     private Integer type;
     private String typeDescription;
     private Map<String, Object> inbound = new HashMap<>();
-    private Map<String, Object> outbound = new HashMap<>();
+    private Long outId;
+    private String outName;
+    private String outServerHost;
+    private Integer outPort;
     private Map<String, Object> rule = new HashMap<>();
     private Integer level;
     private Integer deployed;

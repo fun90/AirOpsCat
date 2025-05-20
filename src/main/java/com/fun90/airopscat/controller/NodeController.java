@@ -4,6 +4,7 @@ import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.service.NodeDeploymentService;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.ServerService;
@@ -75,6 +76,15 @@ public class NodeController {
     @GetMapping("/server/{serverId}")
     public ResponseEntity<List<NodeDto>> getNodesByServer(@PathVariable Long serverId) {
         List<Node> nodes = nodeService.getNodesByServer(serverId);
+        List<NodeDto> nodeDtos = nodes.stream()
+                .map(node -> nodeService.convertToDto(node))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(nodeDtos);
+    }
+
+    @GetMapping("/landing")
+    public ResponseEntity<List<NodeDto>> getLandingNodes() {
+        List<Node> nodes = nodeService.getNodeByType(NodeType.LANDING);
         List<NodeDto> nodeDtos = nodes.stream()
                 .map(node -> nodeService.convertToDto(node))
                 .collect(Collectors.toList());

@@ -29,9 +29,8 @@ public class ServerNode {
     @Column(columnDefinition = "json")
     private String inbound;
 
-    @JsonDeserialize(using = RawJsonDeserializer.class)
-    @Column(columnDefinition = "json")
-    private String outbound;
+    @Column(name = "out_id")
+    private Long outId;
 
     @JsonDeserialize(using = RawJsonDeserializer.class)
     @Column(columnDefinition = "json")
@@ -56,6 +55,10 @@ public class ServerNode {
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id", insertable = false, updatable = false)
     private Node node;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "out_id", insertable = false, updatable = false)
+    private Node outNode;
     
     @PrePersist
     protected void onCreate() {

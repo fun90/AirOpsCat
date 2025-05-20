@@ -28,9 +28,8 @@ public class Node {
     @Column(columnDefinition = "json")
     private String inbound;
 
-    @JsonDeserialize(using = RawJsonDeserializer.class)
-    @Column(columnDefinition = "json")
-    private String outbound;
+    @Column(name = "out_id")
+    private Long outId;
 
     @JsonDeserialize(using = RawJsonDeserializer.class)
     @Column(columnDefinition = "json")
@@ -50,6 +49,10 @@ public class Node {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "server_id", insertable = false, updatable = false)
     private Server server;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "out_id", insertable = false, updatable = false)
+    private Node outNode;
     
     private LocalDateTime createTime;
     

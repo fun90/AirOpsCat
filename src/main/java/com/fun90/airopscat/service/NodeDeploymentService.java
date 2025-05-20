@@ -168,7 +168,7 @@ public class NodeDeploymentService {
         
         serverNode.setType(node.getType());
         serverNode.setInbound(node.getInbound());
-        serverNode.setOutbound(node.getOutbound());
+        serverNode.setOutId(node.getOutId());
         serverNode.setRule(node.getRule());
         serverNode.setLevel(node.getLevel());
         serverNode.setDisabled(0);
@@ -192,7 +192,7 @@ public class NodeDeploymentService {
         
         serverNode.setType(node.getType());
         serverNode.setInbound(node.getInbound());
-        serverNode.setOutbound(node.getOutbound());
+        serverNode.setOutId(node.getOutId());
         serverNode.setRule(node.getRule());
         serverNode.setLevel(node.getLevel());
         serverNode.setDisabled(0);
