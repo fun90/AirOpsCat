@@ -260,7 +260,8 @@
     </div>
 </div>
 
-<script th:fragment="script" th:inline="javascript">
+<script th:fragment="script" th:inline="javascript" type="module">
+    import { CommonDataTable } from '/static/js/CommonDataTable.js';
     // Domain-specific implementation of the common data table
     const domainTable = new CommonDataTable({
         data: {

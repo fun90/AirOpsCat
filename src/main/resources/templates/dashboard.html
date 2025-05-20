@@ -319,10 +319,12 @@
         </form>
     </div>
     <!-- BEGIN GLOBAL MANDATORY SCRIPTS -->
-    <script th:src="@{/static/dist/js/tabler.min.js}" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/petite-vue@0.4.1/dist/petite-vue.umd.js"></script>
-    <script th:src="@{/static/js/toast-utils.js}"></script>
-    <script th:src="@{/static/js/CommonDataTable.js}"></script>
+    <!--    <script type="module" src="https://cdn.jsdelivr.net/npm/@tabler/core@1.2.0/dist/js/tabler.esm.min.js"></script>-->
+    <!--    <script th:src="@{/static/dist/js/tabler.min.js}" defer></script>-->
+    <!--    <script type="module" th:src="@{/static/dist/js/tabler.esm.min.js}"></script>-->
+    <script type="module" th:src="@{/static/js/toast-utils.js}"></script>
+    <script type="module" th:src="@{/static/js/CommonDataTable.js}"></script>
     <!-- END GLOBAL MANDATORY SCRIPTS -->
 
     <!-- BEGIN PAGE SCRIPTS -->

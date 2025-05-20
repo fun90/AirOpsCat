@@ -1,4 +1,14 @@
-// toast-utils.js
+/**
+ * Utility functions for working with toasts in Tabler UI 1.2.0
+ * This version uses ES6 modules and Bootstrap 5's native toast API
+ */
+
+/**
+ * Import the Toast class from Tabler UI's bundled version of Bootstrap
+ * Note: The actual path may need to be adjusted based on your project structure
+ */
+import { Toast } from '/static/dist/js/tabler.esm.min.js';
+
 const ToastUtils = {
     /**
      * 显示一个 Toast 通知
@@ -37,7 +47,7 @@ const ToastUtils = {
         toastContainer.appendChild(toastEl);
 
         // 初始化 toast 并显示
-        const toast = new bootstrap.Toast(toastEl, {
+        const toast = new Toast(toastEl, {
             delay: delay,
             autohide: true
         });
@@ -95,7 +105,7 @@ const ToastUtils = {
         if (container) {
             const toasts = container.querySelectorAll('.toast');
             toasts.forEach(toastEl => {
-                const toast = bootstrap.Toast.getInstance(toastEl);
+                const toast = Toast.getInstance(toastEl);
                 if (toast) {
                     toast.hide();
                 }
@@ -106,3 +116,4 @@ const ToastUtils = {
 
 // 导出为全局对象，以便在任何地方使用
 window.ToastUtils = ToastUtils;
+// export default ToastUtils;

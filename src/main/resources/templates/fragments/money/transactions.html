@@ -378,7 +378,8 @@
     </div>
 </div>
 
-<script th:fragment="script" th:inline="javascript">
+<script th:fragment="script" th:inline="javascript" type="module">
+    import { CommonDataTable } from '/static/js/CommonDataTable.js';
     // Transaction-specific implementation of the common data table
     const transactionTable = new CommonDataTable({
         data: {

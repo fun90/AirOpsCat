@@ -96,7 +96,7 @@
 <!-- Modals Fragment -->
 <div th:fragment="modals">
     <!-- Create User Modal -->
-    <div class="modal modal-blur fade" id="createModal" tabindex="-1" role="dialog">
+    <div class="modal modal-blur fade" id="user-createModal" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-dialog-centered" role="document">
             <div class="modal-content">
                 <div class="modal-header">
@@ -144,7 +144,7 @@
     </div>
 
     <!-- Edit User Modal -->
-    <div class="modal modal-blur fade" id="editModal" tabindex="-1" role="dialog">
+    <div class="modal modal-blur fade" id="user-editModal" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-dialog-centered" role="document">
             <div class="modal-content">
                 <div class="modal-header">
@@ -193,7 +193,8 @@
     </div>
 </div>
 
-<script th:fragment="script" th:inline="javascript">
+<script th:fragment="script" th:inline="javascript" type="module">
+    import { CommonDataTable } from '/static/js/CommonDataTable.js';
     // User-specific implementation of the common data table
     const userTable = new CommonDataTable({
         data: {
