@@ -6,12 +6,11 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
     <title>后台管理系统</title>
     <!-- BEGIN GLOBAL MANDATORY STYLES -->
-    <link th:href="@{/static/dist/css/tabler.css}" rel="stylesheet" />
-    <!-- Tabler Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.0.0/tabler-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/static/dist/css/tabler.min.css}" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.0.0/tabler-icons.min.css">
     <!-- END GLOBAL MANDATORY STYLES -->
     <!-- BEGIN PLUGINS STYLES -->
-    <link th:href="@{/static/dist/css/tabler-themes.css}" rel="stylesheet" />
+    <link rel="stylesheet" th:href="@{/static/dist/css/tabler-themes.min.css}" />
     <!-- END PLUGINS STYLES -->
     <!-- BEGIN CUSTOM FONT -->
     <style>
@@ -320,9 +319,6 @@
     </div>
     <!-- BEGIN GLOBAL MANDATORY SCRIPTS -->
     <script src="https://cdn.jsdelivr.net/npm/petite-vue@0.4.1/dist/petite-vue.umd.js"></script>
-    <!--    <script type="module" src="https://cdn.jsdelivr.net/npm/@tabler/core@1.2.0/dist/js/tabler.esm.min.js"></script>-->
-    <!--    <script th:src="@{/static/dist/js/tabler.min.js}" defer></script>-->
-    <!--    <script type="module" th:src="@{/static/dist/js/tabler.esm.min.js}"></script>-->
     <script type="module" th:src="@{/static/js/toast-utils.js}"></script>
     <script type="module" th:src="@{/static/js/CommonDataTable.js}"></script>
     <!-- END GLOBAL MANDATORY SCRIPTS -->

@@ -131,7 +131,7 @@
     <thead>
     <tr>
         <th>ID</th>
-        <th>用户</th>
+        <th>人员</th>
         <th>UUID</th>
         <th>状态</th>
         <th>流量使用</th>
@@ -239,7 +239,7 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label required">用户</label>
+                                <label class="form-label required">人员</label>
                                 <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="newItem.userId">
                                     <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
                                 </select>
@@ -345,7 +345,7 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label required">用户</label>
+                                <label class="form-label required">人员</label>
                                 <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="editedItem.userId">
                                     <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
                                 </select>

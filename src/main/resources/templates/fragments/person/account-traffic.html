@@ -109,7 +109,7 @@
                     <thead>
                     <tr>
                         <th>ID</th>
-                        <th>用户</th>
+                        <th>人员</th>
                         <th>账户ID</th>
                         <th>开始时间</th>
                         <th>结束时间</th>
@@ -223,7 +223,7 @@
                         </div>
                         <div class="modal-body">
                             <div class="mb-3">
-                                <label class="form-label required">用户</label>
+                                <label class="form-label required">人员</label>
                                 <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="newStats.userId">
                                     <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
                                 </select>
@@ -273,7 +273,7 @@
                         </div>
                         <div class="modal-body">
                             <div class="mb-3">
-                                <label class="form-label required">用户</label>
+                                <label class="form-label required">人员</label>
                                 <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="editedStats.userId">
                                     <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
                                 </select>

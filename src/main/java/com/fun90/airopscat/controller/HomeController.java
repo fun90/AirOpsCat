@@ -28,9 +28,9 @@ public class HomeController {
     @Autowired
     public HomeController(UserService userService) {
         this.userService = userService;
-        menu.put("/person/user", new MenuItem("用户", "用户管理", "/person/user"));
-        menu.put("/person/account", new MenuItem("用户", "账户管理", "/person/account"));
-        menu.put("/person/account-traffic", new MenuItem("用户", "账户流量", "/person/account-traffic"));
+        menu.put("/person/user", new MenuItem("人员", "用户管理", "/person/user"));
+        menu.put("/person/account", new MenuItem("人员", "账户管理", "/person/account"));
+        menu.put("/person/account-traffic", new MenuItem("人员", "账户流量", "/person/account-traffic"));
         menu.put("/device/domain", new MenuItem("设备", "域名", "/device/domain"));
         menu.put("/device/server", new MenuItem("设备", "服务器", "/device/server"));
         menu.put("/vpn/config-template", new MenuItem("代理", "配置模板", "/vpn/config-template"));
@@ -41,7 +41,7 @@ public class HomeController {
     @RequestMapping( "/dashboard")
     public String dashboard(Model model) {
         model.addAttribute("appName", appName);
-        model.addAttribute("moduleTitle", "用户");
+        model.addAttribute("moduleTitle", "人员");
         model.addAttribute("breadcrumbTitle", "用户管理");
         model.addAttribute("uri", "/person/user");
         return "dashboard";
