@@ -149,6 +149,7 @@
             <th>端口</th>
             <th>类型</th>
             <th>协议</th>
+            <th>出站</th>
             <th>级别</th>
             <th>激活状态</th>
             <th>部署状态</th>
@@ -180,6 +181,15 @@
                 <span class="badge text-bg-info">
                     {{ node.protocol }}
                 </span>
+        </td>
+        <td v-if="node.type === 1">
+            -
+        </td>
+        <td v-else>
+            <div class="d-flex flex-column">
+                <span>{{ node.outName || '默认' }}</span>
+                <span v-if="node.outServerHost" class="text-muted small">{{ node.outServerHost }}:{{ node.outPort }}</span>
+            </div>
         </td>
         <td v-text="node.level || '-'"></td>
         <td>
@@ -261,7 +271,7 @@
                         <li class="nav-item">
                             <a href="#tabs-inbound" class="nav-link" data-bs-toggle="tab">入站配置</a>
                         </li>
-                        <li class="nav-item">
+                        <li class="nav-item" v-if="newItem.type === 0">
                             <a href="#tabs-outbound" class="nav-link" data-bs-toggle="tab">出站配置</a>
                         </li>
                         <li class="nav-item">
@@ -280,7 +290,7 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label class="form-label required">节点类型</label>
-                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.type }" v-model="newItem.type">
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.type }" v-model="newItem.type" @change="onTypeChange">
                                             <option v-for="type in nodeTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
                                         </select>
                                         <div class="invalid-feedback" v-if="validationErrors.type">{{ validationErrors.type }}</div>
@@ -474,13 +484,17 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="tab-pane" id="tabs-outbound">
+                        <div class="tab-pane" id="tabs-outbound" v-if="newItem.type === 0">
                             <div class="row mt-3">
                                 <div class="col-md-12">
                                     <div class="mb-3">
-                                        <label class="form-label">出站配置 (JSON)</label>
-                                        <textarea class="form-control font-monospace" v-model="newNodeOutboundJson" rows="10" placeholder='{"key": "value"}'></textarea>
-                                        <small class="form-hint">用于配置节点的出站连接</small>
+                                        <label class="form-label">出站配置</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="newItem.outId">
+                                            <option value="null">默认</option>
+                                            <option v-for="node in landingNodes" :key="node.id" :value="node.id">{{ node.name }}({{ node.serverHost }}:{{ node.port }})</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.outId }}</div>
+                                        <small class="form-hint">用于配置节点的出站</small>
                                     </div>
                                 </div>
                             </div>
@@ -522,7 +536,7 @@
                         <li class="nav-item">
                             <a href="#edit-tabs-inbound" class="nav-link" data-bs-toggle="tab">入站配置</a>
                         </li>
-                        <li class="nav-item">
+                        <li class="nav-item" v-if="editedItem.type === 0">
                             <a href="#edit-tabs-outbound" class="nav-link" data-bs-toggle="tab">出站配置</a>
                         </li>
                         <li class="nav-item">
@@ -542,6 +556,7 @@
                                     <div class="mb-3">
                                         <label class="form-label required">节点类型</label>
                                         <select class="form-select" :class="{ 'is-invalid': validationErrors.type }" v-model="editedItem.type">
+                                            <option value=""></option>
                                             <option v-for="type in nodeTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
                                         </select>
                                         <div class="invalid-feedback" v-if="validationErrors.type">{{ validationErrors.type }}</div>
@@ -614,13 +629,17 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="tab-pane" id="edit-tabs-outbound">
+                        <div class="tab-pane" id="edit-tabs-outbound" v-if="editedItem.type === 0">
                             <div class="row mt-3">
                                 <div class="col-md-12">
                                     <div class="mb-3">
-                                        <label class="form-label">出站配置 (JSON)</label>
-                                        <textarea class="form-control font-monospace" v-model="editedNodeOutboundJson" rows="10" placeholder='{"key": "value"}'></textarea>
-                                        <small class="form-hint">用于配置节点的出站连接</small>
+                                        <label class="form-label">出站配置</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="editedItem.outId">
+                                            <option :value="0">默认</option>
+                                            <option v-for="node in landingNodes" :key="node.id" :value="node.id">{{ node.name }}({{ node.serverHost }}:{{ node.port }})</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.outId }}</div>
+                                        <small class="form-hint">用于配置节点的出站</small>
                                     </div>
                                 </div>
                             </div>
@@ -677,7 +696,7 @@
                         <div class="tab-pane" id="view-tabs-outbound">
                             <div class="row mt-3">
                                 <div class="col-md-12">
-                                    <pre class="p-3 rounded">{{ editedNodeOutboundJson }}</pre>
+                                    <pre class="p-3 rounded">{{ editedNodeOutbound }}</pre>
                                 </div>
                             </div>
                         </div>
@@ -735,6 +754,7 @@
                 status: ''
             },
             servers: [],
+            landingNodes: [],
             nodeTypes: [],
             protocolTypes: [],
             stats: {
@@ -753,7 +773,7 @@
                 name: '',
                 remark: '',
                 inbound: null,
-                outbound: null,
+                outId: null,
                 rule: null
             },
             // Additional data for node management
@@ -763,13 +783,12 @@
                 protocol: 'VLESS'
             },
             newNodeInboundJson: '',
-            newNodeOutboundJson: '',
             newNodeRuleJson: '',
             editedNodeInbound: {
                 protocol: 'VLESS'
             },
             editedNodeInboundJson: '',
-            editedNodeOutboundJson: '',
+            editedNodeOutbound: '',
             editedNodeRuleJson: '',
             // For viewing configs
             viewConfigModal: null,
@@ -781,6 +800,7 @@
             // Initialize additional data
             initialize() {
                 this.fetchServers();
+                this.fetchLandingNodes();
                 this.fetchNodeTypes();
                 this.fetchProtocolTypes();
             },
@@ -796,6 +816,17 @@
                         if (this.servers.length > 0 && !this.newItem.serverId) {
                             this.newItem.serverId = this.servers[0].id;
                         }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching servers:', error);
+                    });
+            },
+
+            fetchLandingNodes() {
+                fetch('/api/admin/nodes/landing')
+                    .then(response => response.json())
+                    .then(data => {
+                        this.landingNodes = data;
                     })
                     .catch(error => {
                         console.error('Error fetching servers:', error);
@@ -835,6 +866,12 @@
 
             getStatusBadgeClass(disabled) {
                 return disabled === 0 ? 'text-bg-success' : 'text-bg-danger';
+            },
+
+            onTypeChange() {
+                if (this.newItem.type === 1) {
+                    this.newItem.outId = null;
+                }
             },
 
             // Server and port related methods
@@ -971,8 +1008,8 @@
             // View configuration
             viewNodeConfig(node) {
                 this.editedNodeInboundJson = JSON.stringify(node.inbound || {}, null, 2);
-                this.editedNodeOutboundJson = JSON.stringify(node.outbound || {}, null, 2);
                 this.editedNodeRuleJson = JSON.stringify(node.rule || {}, null, 2);
+                this.editedNodeOutbound = node.outName + ' (' + node.serverHost + ':' + node.outPort + ')';
                 this.viewConfigModal = new Modal(document.getElementById('viewConfigModal'));
                 this.viewConfigModal.show();
             },
@@ -1041,13 +1078,8 @@
                         inboundConfig = { ...inboundConfig, ...jsonData };
                     }
 
-                    // Process outbound and rule configs
-                    let outboundConfig = null;
+                    // Process rule configs
                     let ruleConfig = null;
-
-                    if (this.newNodeOutboundJson && this.newNodeOutboundJson.trim() !== '{}') {
-                        outboundConfig = JSON.parse(this.newNodeOutboundJson);
-                    }
 
                     if (this.newNodeRuleJson && this.newNodeRuleJson.trim() !== '{}') {
                         ruleConfig = JSON.parse(this.newNodeRuleJson);
@@ -1063,7 +1095,7 @@
                         name: this.newItem.name || null,
                         remark: this.newItem.remark || null,
                         inbound: inboundConfig,
-                        outbound: outboundConfig,
+                        outId: this.newItem.outId || null,
                         rule: ruleConfig
                     };
                 } catch (e) {
@@ -1082,12 +1114,7 @@
                         inboundConfig = { ...inboundConfig, ...jsonData };
                     }
 
-                    let outboundConfig = null;
                     let ruleConfig = null;
-
-                    if (this.editedNodeOutboundJson && this.editedNodeOutboundJson.trim() !== '{}') {
-                        outboundConfig = JSON.parse(this.editedNodeOutboundJson);
-                    }
 
                     if (this.editedNodeRuleJson && this.editedNodeRuleJson.trim() !== '{}') {
                         ruleConfig = JSON.parse(this.editedNodeRuleJson);
@@ -1103,7 +1130,7 @@
                         name: this.editedItem.name || null,
                         remark: this.editedItem.remark || null,
                         inbound: inboundConfig,
-                        outbound: outboundConfig,
+                        outId: this.editedItem.outId === 0 ? null : this.editedItem.outId,
                         rule: ruleConfig
                     };
                 } catch (e) {
@@ -1123,7 +1150,7 @@
                     name: '',
                     remark: '',
                     inbound: null,
-                    outbound: null,
+                    outId: null,
                     rule: null
                 };
 
@@ -1133,16 +1160,14 @@
                 };
                 this.onProtocolChange(); // Get default configuration
 
-                this.newNodeOutboundJson = '{}';
                 this.newNodeRuleJson = '{}';
                 this.portCheckMessage = '';
             },
 
             prepareEditForm(node) {
-                // Format inbound, outbound and rule data
+                // Format inbound and rule data
                 this.editedNodeInbound = node.inbound || { protocol: 'VLESS' };
                 this.editedNodeInboundJson = JSON.stringify(node.inbound || {}, null, 2);
-                this.editedNodeOutboundJson = JSON.stringify(node.outbound || {}, null, 2);
                 this.editedNodeRuleJson = JSON.stringify(node.rule || {}, null, 2);
 
                 this.editPortCheckMessage = '';
@@ -1158,7 +1183,7 @@
                     name: node.name || '',
                     remark: node.remark || '',
                     inbound: node.inbound,
-                    outbound: node.outbound,
+                    outId: !node.outId ? 0 : node.outId,
                     rule: node.rule
                 };
             },
