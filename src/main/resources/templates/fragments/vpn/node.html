@@ -723,6 +723,7 @@
 
 <script th:fragment="script" th:inline="javascript" type="module">
     import { CommonDataTable } from '/static/js/CommonDataTable.js';
+    import { Modal } from 'https://cdn.jsdelivr.net/npm/@tabler/core@1.3.0/dist/js/tabler.esm.min.js';
     // Node-specific implementation of the common data table
     const nodeTable = new CommonDataTable({
         data: {
@@ -1008,7 +1009,7 @@
             // View configuration
             viewNodeConfig(node) {
                 this.selectedNode = node;
-                this.viewConfigModal = new bootstrap.Modal(document.getElementById('viewConfigModal'));
+                this.viewConfigModal = new Modal(document.getElementById('viewConfigModal'));
                 this.viewConfigModal.show();
             },
 
@@ -1244,7 +1245,7 @@
                     return;
                 }
 
-                this.batchDeployModal = new bootstrap.Modal(document.getElementById('batchDeployModal'));
+                this.batchDeployModal = new Modal(document.getElementById('batchDeployModal'));
                 this.batchDeployModal.show();
             },
 
