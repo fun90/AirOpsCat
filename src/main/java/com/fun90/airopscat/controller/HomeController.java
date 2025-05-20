@@ -44,7 +44,7 @@ public class HomeController {
         model.addAttribute("moduleTitle", "人员");
         model.addAttribute("breadcrumbTitle", "用户管理");
         model.addAttribute("uri", "/person/user");
-        return "dashboard";
+        return "layout";
     }
 
     @RequestMapping("/console/{module}/{page}")
@@ -56,7 +56,7 @@ public class HomeController {
             model.addAttribute("moduleTitle", breadcrumb.getModuleTitle());
             model.addAttribute("breadcrumbTitle", breadcrumb.getTitle());
             model.addAttribute("uri", breadcrumb.getUri());
-            return "dashboard";
+            return "layout";
         }
         return "404";
     }
