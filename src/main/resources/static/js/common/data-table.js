@@ -9,12 +9,12 @@
  * 
  * Usage:
  * 1. Import this file in your HTML
- * 2. Create a Vue application and extend from CommonDataTable
+ * 2. Create a Vue application and extend from DataTable
  * 3. Override necessary methods and properties for your specific entity
  */
-import { Modal } from '/static/dist/js/tabler.esm.min.js';
+import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 
-export class CommonDataTable {
+export class DataTable {
   constructor(options = {}) {
     // Default data structure that will be extended by specific implementations
     this.data = {
@@ -108,7 +108,7 @@ export class CommonDataTable {
             this.endIndex = Math.min(this.startIndex + this.pageSize - 1, this.totalItems);
             this.totalPages = data.pages || 0;
             this.currentPage = data.current || 1;
-            
+
             // Update stats if available
             if (data.stats) {
               this.stats = data.stats;
@@ -176,7 +176,7 @@ export class CommonDataTable {
       //   return Math.min(this.startIndex + this.pageSize - 1, this.totalItems);
       // },
       
-      get paginationPages() {
+      paginationPages() {
         // Show at most 5 page numbers
         const maxPages = 5;
         const pages = [];
@@ -474,4 +474,4 @@ export class CommonDataTable {
 }
 
 // Make it available globally
-// window.CommonDataTable = CommonDataTable;
+// window.DataTable = DataTable;

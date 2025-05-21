@@ -350,6 +350,7 @@ public class NodeService {
                     Map<String, Object> option = new HashMap<>();
                     option.put("value", type.getValue());
                     option.put("label", type.getValue());
+                    option.put("type", type.getType());
                     return option;
                 })
                 .collect(Collectors.toList());
