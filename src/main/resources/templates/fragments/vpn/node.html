@@ -151,7 +151,7 @@
             <th>协议</th>
             <th>出站</th>
             <th>级别</th>
-            <th>激活状态</th>
+            <th>启用状态</th>
             <th>部署状态</th>
             <th class="w-1">操作</th>
         </tr>
@@ -193,14 +193,14 @@
         </td>
         <td v-text="node.level || '-'"></td>
         <td>
-                <span class="badge" :class="getStatusBadgeClass(node.disabled)">
-                    {{ node.activeDescription }}
-                </span>
+            <span class="badge" :class="getStatusBadgeClass(node.disabled)">
+                {{ node.disabled === 0 ? '已启用' : '已禁用' }}
+            </span>
         </td>
         <td>
-                <span class="badge" :class="getDeploymentStatusBadgeClass(node.deployed)">
-                    {{ node.deploymentStatusDescription }}
-                </span>
+            <span class="badge" :class="getDeploymentStatusBadgeClass(node.deployed)">
+                {{ node.deployed === 0 ? '未部署' : '已部署' }}
+            </span>
         </td>
         <td>
             <div class="btn-list">
@@ -227,6 +227,10 @@
                         </a>
                         <a v-if="node.deployed === 0" class="dropdown-item" href="#" @click.prevent="deployNode(node)">
                             <i class="ti ti-rocket"></i> 部署
+                        </a>
+                        <div v-if="node.deployed === 1 && node.disabled === 1" class="dropdown-divider"></div>
+                        <a v-if="node.deployed === 1 && node.disabled === 1" class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(node)">
+                            <i class="ti ti-trash"></i> 删除
                         </a>
                     </div>
                 </div>
