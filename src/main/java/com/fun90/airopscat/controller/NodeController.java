@@ -178,6 +178,7 @@ public class NodeController {
             Map<String, Object> response = new HashMap<>();
             response.put("id", id);
             response.put("disabled", 0);
+            response.put("deployed", 0);
             return ResponseEntity.ok(response);
         }
         return ResponseEntity.notFound().build();
@@ -190,6 +191,7 @@ public class NodeController {
             Map<String, Object> response = new HashMap<>();
             response.put("id", id);
             response.put("disabled", 1);
+            response.put("deployed", 0);
             return ResponseEntity.ok(response);
         }
         return ResponseEntity.notFound().build();

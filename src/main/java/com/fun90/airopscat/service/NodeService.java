@@ -291,6 +291,9 @@ public class NodeService {
         }
 
         // 其他可能影响部署的字段...
+        if (newNode.getDisabled() != null && !newNode.getDisabled().equals(oldNode.getDisabled())) {
+            return true;
+        }
 
         return false;
     }
@@ -325,7 +328,8 @@ public class NodeService {
         Optional<Node> optionalNode = nodeRepository.findById(id);
         if (optionalNode.isPresent()) {
             Node node = optionalNode.get();
-            node.setDeployed(disabled ? 1 : 0);
+            node.setDisabled(disabled ? 1 : 0);
+            node.setDeployed(0);
             return nodeRepository.save(node);
         }
         return null;

@@ -451,8 +451,16 @@ const nodeTable = new DataTable({
             return '/api/admin/nodes';
         },
 
-        getToggleStatusUrl(item, enabled) {
-            return `/api/admin/nodes/${item.id}/${enabled ? 'enable' : 'disable'}`;
+        getToggleStatusUrl(item, action) {
+            return `/api/admin/nodes/${item.id}/${action}`;
+        },
+
+        updateItemStatus(item, data) {
+            const index = this.records.findIndex(r => r.id === item.id);
+            if (index !== -1) {
+                this.records[index].disabled = data.disabled;
+                this.records[index].deployed = data.deployed;
+            }
         },
 
         copyNode(node) {
