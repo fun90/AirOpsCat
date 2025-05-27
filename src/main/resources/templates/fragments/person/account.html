@@ -155,8 +155,8 @@
             </div>
         </td>
         <td>
-            <span class="badge" :class="getStatusBadgeClass(account.statusType)">
-                {{ account.statusDescription }}
+            <span class="badge" :class="getStatusBadgeClass(account)">
+                {{ getStatusDescription(account) }}
             </span>
         </td>
         <td>
@@ -197,7 +197,7 @@
                         <a class="dropdown-item" href="#" @click.prevent="resetAuthCode(account)">
                             <i class="ti ti-refresh"></i> 重置认证码
                         </a>
-                        <a v-if="account.statusType === 'active'" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(account, true)">
+                        <a v-if="account.disabled === 0" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(account, true)">
                             <i class="ti ti-ban"></i> 禁用
                         </a>
                         <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(account, false)">
@@ -453,13 +453,13 @@
                         </div>
                         <small class="form-hint">用户可以通过此链接获取配置信息</small>
                     </div>
-                    <div v-if="selectedItem" class="alert" :class="getStatusAlertClass(selectedItem.statusType)">
+                    <div v-if="selectedItem" class="alert" :class="getStatusAlertClass(selectedItem)">
                         <div class="d-flex">
                             <div>
                                 <i class="ti ti-info-circle"></i>
                             </div>
                             <div class="ms-2">
-                                账户状态：{{ selectedItem.statusDescription }}
+                                账户状态：{{ getStatusDescription(selectedItem) }}
                             </div>
                         </div>
                     </div>
@@ -480,13 +480,13 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div v-if="selectedItem" class="alert" :class="getStatusAlertClass(selectedItem.statusType)">
+                    <div v-if="selectedItem" class="alert" :class="getStatusAlertClass(selectedItem)">
                         <div class="d-flex">
                             <div>
                                 <i class="ti ti-info-circle"></i>
                             </div>
                             <div class="ms-2">
-                                当前状态：{{ selectedItem.statusDescription }}
+                                当前状态：{{ getStatusDescription(selectedItem) }}
                             </div>
                         </div>
                     </div>

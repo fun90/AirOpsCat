@@ -24,7 +24,6 @@ import org.springframework.util.StringUtils;
 import java.beans.PropertyDescriptor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -168,28 +167,6 @@ public class ServerService {
     public ServerDto convertToDto(Server server) {
         ServerDto dto = new ServerDto();
         BeanUtils.copyProperties(server, dto);
-        
-        // Calculate days until expiration
-        if (server.getExpireDate() != null) {
-            LocalDate now = LocalDate.now();
-            dto.setDaysUntilExpiration(ChronoUnit.DAYS.between(now, server.getExpireDate()));
-            
-            // Set status type
-            if (server.getDisabled() != null && server.getDisabled() == 1) {
-                dto.setStatusType("disabled");
-            } else if (now.isAfter(server.getExpireDate())) {
-                dto.setStatusType("expired");
-            } else {
-                dto.setStatusType("active");
-            }
-        } else {
-            // No expiration date
-            if (server.getDisabled() != null && server.getDisabled() == 1) {
-                dto.setStatusType("disabled");
-            } else {
-                dto.setStatusType("active");
-            }
-        }
         
         // Convert JSON strings to Map objects
         try {
