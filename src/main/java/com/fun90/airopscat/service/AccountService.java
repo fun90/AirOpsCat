@@ -138,28 +138,6 @@ public class AccountService {
         AccountDto dto = new AccountDto();
         BeanUtils.copyProperties(account, dto);
         
-        // Calculate days until expiration
-        if (account.getToDate() != null) {
-            LocalDateTime now = LocalDateTime.now();
-            dto.setDaysUntilExpiration(ChronoUnit.DAYS.between(now, account.getToDate()));
-            
-            // Set status type
-            if (account.getDisabled() != null && account.getDisabled() == 1) {
-                dto.setStatusType("disabled");
-            } else if (now.isAfter(account.getToDate())) {
-                dto.setStatusType("expired");
-            } else {
-                dto.setStatusType("active");
-            }
-        } else {
-            // No expiration date
-            if (account.getDisabled() != null && account.getDisabled() == 1) {
-                dto.setStatusType("disabled");
-            } else {
-                dto.setStatusType("active");
-            }
-        }
-        
         // Enrich with user email if available
         if (account.getUserId() != null) {
             Optional<User> userOpt = userRepository.findById(account.getUserId());

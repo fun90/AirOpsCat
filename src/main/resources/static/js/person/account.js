@@ -1,5 +1,6 @@
 
 import { DataTable } from '/static/js/common/data-table.js';
+import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 
 const accountTable = new DataTable({
     data: {
@@ -73,8 +74,65 @@ const accountTable = new DataTable({
                 });
         },
 
+        getStatusDescription(item) {
+            if (item.disabled != null && item.disabled === 1) {
+                return "已禁用";
+            }
+
+            if (item.toDate == null) {
+                return "永不过期";
+            }
+
+            const now = new Date();
+            const toDate = new Date(item.toDate);
+
+            // 计算天数差
+            const timeDiff = toDate.getTime() - now.getTime();
+            const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+
+            if (days < 0) {
+                return "已过期 " + Math.abs(days) + " 天";
+            } else if (days === 0) {
+                // 计算小时差
+                const hours = Math.floor(timeDiff / (1000 * 60 * 60));
+                if (hours <= 0) {
+                    // 计算分钟差
+                    const minutes = Math.floor(timeDiff / (1000 * 60));
+                    return "即将过期 " + minutes + " 分钟";
+                }
+                return "今天过期 " + hours + " 小时后";
+            } else if (days <= 7) {
+                return days + " 天后过期";
+            } else {
+                return "正常 (还有 " + days + " 天)";
+            }
+        },
+
+        getStatusTyp(item) {
+            if (item.disabled != null && item.disabled === 1) {
+                return 'disabled';
+            }
+
+            if (item.toDate == null) {
+                return "active";
+            }
+
+            const now = new Date();
+            const toDate = new Date(item.toDate);
+
+            // 计算天数差
+            const timeDiff = toDate.getTime() - now.getTime();
+            const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+
+            if (days < 0) {
+                return 'expired';
+            }
+            return "active";
+        },
+
         // Get Badge classes
-        getStatusBadgeClass(statusType) {
+        getStatusBadgeClass(item) {
+            const statusType = this.getStatusTyp(item);
             switch (statusType) {
                 case 'active': return 'text-bg-success';
                 case 'expired': return 'text-bg-danger';
@@ -83,7 +141,8 @@ const accountTable = new DataTable({
             }
         },
 
-        getStatusAlertClass(statusType) {
+        getStatusAlertClass(item) {
+            const statusType = this.getStatusTyp(item);
             switch (statusType) {
                 case 'active': return 'alert-success';
                 case 'expired': return 'alert-danger';
@@ -174,7 +233,7 @@ const accountTable = new DataTable({
                 })
                 .then(data => {
                     this.configUrl = data.configUrl;
-                    this.configUrlModal = new bootstrap.Modal(document.getElementById('configUrlModal'));
+                    this.configUrlModal = new Modal(document.getElementById('configUrlModal'));
                     this.configUrlModal.show();
                 })
                 .catch(error => {
@@ -202,7 +261,7 @@ const accountTable = new DataTable({
             };
 
             this.validationErrors = {};
-            this.renewModal = new bootstrap.Modal(document.getElementById('renewAccountModal'));
+            this.renewModal = new Modal(document.getElementById('renewAccountModal'));
             this.renewModal.show();
         },
 
