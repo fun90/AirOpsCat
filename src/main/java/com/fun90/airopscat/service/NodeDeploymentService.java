@@ -5,14 +5,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.NodeDto;
+import com.fun90.airopscat.model.dto.xray.OutboundConfig;
+import com.fun90.airopscat.model.dto.xray.XrayConfig;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.entity.ServerNode;
+import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerNodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
+import com.fun90.airopscat.support.util.JsonUtil;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -122,9 +126,34 @@ public class NodeDeploymentService {
             List<NodeDto> nodeDtos = nodes.stream()
                     .map(NodeConverter::toDto)
                     .toList();
-            // 查询服务器配置，未查到则新建
-//            String coreType = getCoreType(node.getProtocol());
-//            Optional<ServerConfig> serverConfigOptional = serverConfigRepository.findByServerIdAndConfigType(serverId, "core");
+            // 按protocol分类
+            Map<String, List<NodeDto>> protocolNodeMap = nodeDtos.stream()
+                    .collect(Collectors.groupingBy(NodeDto::getProtocol));
+            protocolNodeMap.forEach((protocol, protocolNodes) -> {
+                // 查询服务器配置，未查到则新建
+                String coreType = getCoreType(protocol);
+                Optional<ServerConfig> serverConfigOptional = serverConfigRepository.findByServerIdAndConfigType(serverId, coreType);
+                ServerConfig serverConfig = serverConfigOptional.orElseGet(() -> {
+                    ServerConfig newServerConfig = new ServerConfig();
+                    newServerConfig.setServerId(serverId);
+                    newServerConfig.setConfigType(coreType);
+                    newServerConfig.setConfig("{}");
+                    return newServerConfig;
+                });
+
+                if (coreType.equalsIgnoreCase(CoreType.XRAY.name())) {
+                    XrayConfig xrayConfig = JsonUtil.toObject(serverConfig.getConfig(), XrayConfig.class);
+                    protocolNodes.forEach(nodeDto -> {
+                        if (nodeDto.getDisabled() == 1) {
+                            xrayConfig.getInbounds().removeIf(inbound -> inbound.getTag().equals("node_" + nodeDto.getId()));
+                        } else {
+                            OutboundConfig outbound = xrayConfig.getOutbounds().stream()
+                                    .filter(o -> o.getTag().equals("node_" + nodeDto.getId()))
+                                    .findFirst().orElse(null);
+                        }
+                    });
+                }
+            });
         });
         
         for (Long nodeId : nodeIds) {
@@ -151,7 +180,7 @@ public class NodeDeploymentService {
         serverNode.setId(node.getId());
         serverNode.setPort(node.getPort());
         
-        // Extract protocol from inbound configuration
+        // Extract protocol from setting configuration
         if (node.getInbound() != null) {
             Map<String, Object> inbound = objectMapper.readValue(node.getInbound(), Map.class);
             serverNode.setProtocol((String) inbound.get("protocol"));
@@ -175,7 +204,7 @@ public class NodeDeploymentService {
     private void updateServerNodeFromNode(ServerNode serverNode, Node node) throws JsonProcessingException {
         serverNode.setPort(node.getPort());
         
-        // Extract protocol from inbound configuration
+        // Extract protocol from setting configuration
         if (node.getInbound() != null) {
             Map<String, Object> inbound = objectMapper.readValue(node.getInbound(), Map.class);
             serverNode.setProtocol((String) inbound.get("protocol"));
