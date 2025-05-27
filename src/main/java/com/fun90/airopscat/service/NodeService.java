@@ -14,6 +14,8 @@ import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
@@ -33,6 +35,7 @@ import java.util.stream.Collectors;
 @Service
 public class NodeService {
 
+    private static final Logger log = LoggerFactory.getLogger(NodeService.class);
     private final NodeRepository nodeRepository;
     private final ServerRepository serverRepository;
     private final ObjectMapper objectMapper;
@@ -127,47 +130,6 @@ public class NodeService {
         stats.put("disabled", nodeRepository.countDisabledNodes());
         
         return stats;
-    }
-
-    public NodeDto convertToDto(Node node) {
-        NodeDto dto = new NodeDto();
-        BeanUtils.copyProperties(node, dto);
-        
-        // 设置类型描述
-        dto.setTypeDescription(node.getTypeDescription());
-
-        // 获取服务器信息
-        if (node.getServerId() != null) {
-            Optional<Server> serverOpt = serverRepository.findById(node.getServerId());
-            if (serverOpt.isPresent()) {
-                Server server = serverOpt.get();
-                dto.setServerIp(server.getIp());
-                dto.setServerHost(server.getHost());
-            }
-        }
-
-        // 设置出站信息
-        if (node.getOutNode() != null) {
-            dto.setOutName(node.getOutNode().getName());
-            dto.setOutPort(node.getOutNode().getPort());
-            dto.setOutServerHost(node.getOutNode().getServer().getHost());
-        }
-        
-        // 转换JSON配置
-        try {
-            if (StringUtils.hasText(node.getInbound())) {
-                dto.setInbound(objectMapper.readValue(node.getInbound(), Map.class));
-            }
-            
-            if (StringUtils.hasText(node.getRule())) {
-                dto.setRule(objectMapper.readValue(node.getRule(), Map.class));
-            }
-        } catch (JsonProcessingException e) {
-            // 记录错误但继续
-            System.err.println("Error parsing JSON config: " + e.getMessage());
-        }
-        
-        return dto;
     }
     
     // 检查端口是否可用

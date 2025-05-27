@@ -2,11 +2,15 @@ package com.fun90.airopscat.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.DeploymentResult;
+import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.entity.ServerNode;
 import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerNodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import jakarta.transaction.Transactional;
@@ -17,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class NodeDeploymentService {
@@ -24,6 +29,7 @@ public class NodeDeploymentService {
     private final NodeRepository nodeRepository;
     private final ServerRepository serverRepository;
     private final ServerNodeRepository serverNodeRepository;
+    private final ServerConfigRepository serverConfigRepository;
     private final SshService sshService;
     private final ObjectMapper objectMapper;
     
@@ -32,11 +38,13 @@ public class NodeDeploymentService {
             NodeRepository nodeRepository,
             ServerRepository serverRepository,
             ServerNodeRepository serverNodeRepository,
+            ServerConfigRepository serverConfigRepository,
             SshService sshService,
             ObjectMapper objectMapper) {
         this.nodeRepository = nodeRepository;
         this.serverRepository = serverRepository;
         this.serverNodeRepository = serverNodeRepository;
+        this.serverConfigRepository = serverConfigRepository;
         this.sshService = sshService;
         this.objectMapper = objectMapper;
     }
@@ -99,55 +107,38 @@ public class NodeDeploymentService {
     }
     
     /**
-     * Undeploy a node from the server
-     */
-    @Transactional
-    public DeploymentResult undeployNode(Long nodeId) {
-        // Get the node
-        Node node = nodeRepository.findById(nodeId)
-                .orElseThrow(() -> new IllegalArgumentException("Node not found"));
-        
-        DeploymentResult result = new DeploymentResult();
-        result.setNodeId(nodeId);
-        result.setServerId(node.getServerId());
-        
-        try {
-            // Find all server nodes associated with this node
-            List<ServerNode> deployments = serverNodeRepository.findByNodeId(nodeId);
-            
-            for (ServerNode deployment : deployments) {
-                // TODO: Execute remote commands to remove the deployed node configuration
-                
-                // Delete the deployment record
-                serverNodeRepository.delete(deployment);
-            }
-            
-            // Update node status
-            node.setDeployed(0); // Set to undeployed
-            nodeRepository.save(node);
-            
-            result.setSuccess(true);
-            result.setMessage("Node undeployed successfully");
-        } catch (Exception e) {
-            result.setSuccess(false);
-            result.setMessage("Undeployment failed: " + e.getMessage());
-        }
-        
-        return result;
-    }
-    
-    /**
      * Deploy multiple nodes at once
      */
     @Transactional
     public List<DeploymentResult> deployNodes(List<Long> nodeIds) {
         List<DeploymentResult> results = new ArrayList<>();
+
+        // 找出未部署的节点
+        List<Node> nodeList = nodeRepository.findByDeployed(0);
+        // 按服务器分组
+        Map<Long, List<Node>> groupedNodes = nodeList.stream()
+                .collect(Collectors.groupingBy(Node::getServerId));
+        groupedNodes.forEach((serverId, nodes) -> {
+            List<NodeDto> nodeDtos = nodes.stream()
+                    .map(NodeConverter::toDto)
+                    .toList();
+            // 查询服务器配置，未查到则新建
+//            String coreType = getCoreType(node.getProtocol());
+//            Optional<ServerConfig> serverConfigOptional = serverConfigRepository.findByServerIdAndConfigType(serverId, "core");
+        });
         
         for (Long nodeId : nodeIds) {
             results.add(deployNode(nodeId));
         }
         
         return results;
+    }
+
+    private String getCoreType(String protocol) {
+        if (protocol.equalsIgnoreCase("hysteria2")) {
+            return "hysteria";
+        }
+        return "xray";
     }
     
     /**

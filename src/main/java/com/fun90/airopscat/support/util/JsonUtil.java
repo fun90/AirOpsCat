@@ -8,8 +8,8 @@ import org.springframework.boot.json.JsonParseException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-public class JacksonUtil {
-    private JacksonUtil() {
+public class JsonUtil {
+    private JsonUtil() {
         throw new IllegalStateException("Utility class");
     }
 
