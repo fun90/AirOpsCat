@@ -21,6 +21,9 @@ public class Node {
     private Long serverId;
     
     private Integer port;
+
+    // 代理协议：VLESS、Hysteria2、Socks、Shadowsocks、ShadowTLS
+    private String protocol;
     
     private Integer type; // 0:代理，1:落地
 

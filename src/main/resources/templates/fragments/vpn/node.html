@@ -341,7 +341,7 @@
                                     <div class="mb-3">
                                         <label class="form-label required">协议</label>
                                         <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="newNodeInbound.protocol" @change="onProtocolChange">
-                                            <option v-for="protocol in protocolTypes.filter(p => p.type === newItem.type)" :key="protocol.value" :value="protocol.value">{{ protocol.label }}</option>
+                                            <option v-for="protocol in protocolTypes" :key="protocol.value" :value="protocol.value" :disabled="protocol.type !== newItem.type">{{ protocol.label }} {{ protocol.type !== newItem.type ? '(不可选)' : '' }}</option>
                                         </select>
                                         <div class="invalid-feedback" v-if="validationErrors.protocol">{{ validationErrors.protocol }}</div>
                                     </div>
@@ -606,8 +606,8 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label class="form-label required">协议</label>
-                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="editedNodeInbound.protocol" @change="onEditProtocolChange">
-                                            <option v-for="protocol in protocolTypes.filter(p => p.type === editedItem.type)" :key="protocol.value" :value="protocol.value">{{ protocol.label }}</option>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="editedItem.protocol" @change="onEditProtocolChange">
+                                            <option v-for="protocol in protocolTypes" :key="protocol.value" :value="protocol.value" :disabled="protocol.type !== editedItem.type">{{ protocol.label }} {{ protocol.type !== editedItem.type ? '(不可选)' : '' }}</option>
                                         </select>
                                         <div class="invalid-feedback" v-if="validationErrors.protocol">{{ validationErrors.protocol }}</div>
                                     </div>

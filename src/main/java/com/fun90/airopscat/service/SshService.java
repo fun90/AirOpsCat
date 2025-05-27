@@ -2,7 +2,7 @@ package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.BatchCommandResult;
 import com.fun90.airopscat.model.dto.CommandResult;
-import com.fun90.airopscat.model.dto.ServerConfig;
+import com.fun90.airopscat.model.dto.SshConfig;
 import com.jcraft.jsch.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,7 +24,7 @@ public class SshService {
     /**
      * 连接到SSH服务器
      */
-    public Session connectToServer(ServerConfig config) throws JSchException {
+    public Session connectToServer(SshConfig config) throws JSchException {
         JSch jsch = new JSch();
         
         // 如果使用密钥认证
@@ -148,23 +148,23 @@ public class SshService {
      * 批量执行命令
      */
     public CompletableFuture<BatchCommandResult> batchExecuteCommand(
-            List<ServerConfig> serverConfigs, String command) {
+            List<SshConfig> sshConfigs, String command) {
         
         BatchCommandResult batchResult = new BatchCommandResult();
         
         return CompletableFuture.supplyAsync(() -> {
-            for (ServerConfig serverConfig : serverConfigs) {
+            for (SshConfig sshConfig : sshConfigs) {
                 try {
-                    Session session = connectToServer(serverConfig);
+                    Session session = connectToServer(sshConfig);
                     CommandResult result = executeCommand(session, command);
-                    batchResult.addResult(serverConfig.getHost(), result);
+                    batchResult.addResult(sshConfig.getHost(), result);
                     session.disconnect();
                 } catch (Exception e) {
                     log.error("批量执行命令失败: {}", e.getMessage(), e);
                     CommandResult errorResult = new CommandResult();
                     errorResult.setExitStatus(-1);
                     errorResult.setStderr("连接或执行错误: " + e.getMessage());
-                    batchResult.addResult(serverConfig.getHost(), errorResult);
+                    batchResult.addResult(sshConfig.getHost(), errorResult);
                 }
             }
             return batchResult;

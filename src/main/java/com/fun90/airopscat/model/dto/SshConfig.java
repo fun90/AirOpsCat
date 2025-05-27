@@ -3,10 +3,10 @@ package com.fun90.airopscat.model.dto;
 import lombok.Data;
 
 /**
- * 服务器配置
+ * SSH配置
  */
 @Data
-public class ServerConfig {
+public class SshConfig {
     private String host;
     private int port = 22;
     private String username;

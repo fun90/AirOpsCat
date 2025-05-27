@@ -25,6 +25,7 @@ const nodeTable = new DataTable({
         newItem: {
             serverId: '',
             port: null,
+            protocol: null,
             type: 0, // 默认为代理节点
             level: 0,
             disabled: false,
@@ -222,7 +223,7 @@ const nodeTable = new DataTable({
         // Protocol related methods
         onProtocolChange() {
             // 获取默认配置
-            fetch(`/api/admin/nodes/default-inbound?protocol=${this.newNodeInbound.protocol}`)
+            fetch(`/api/admin/nodes/default-inbound?protocol=${this.newItem.protocol}`)
                 .then(response => response.json())
                 .then(data => {
                     this.newNodeInbound = data;
@@ -235,7 +236,7 @@ const nodeTable = new DataTable({
 
         onEditProtocolChange() {
             // 获取默认配置
-            fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedNodeInbound.protocol}`)
+            fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedItem.protocol}`)
                 .then(response => response.json())
                 .then(data => {
                     this.editedNodeInbound = data;
@@ -347,6 +348,7 @@ const nodeTable = new DataTable({
                 return {
                     serverId: this.newItem.serverId,
                     port: this.newItem.port,
+                    protocol: this.newItem.protocol,
                     type: this.newItem.type,
                     level: this.newItem.level || 0,
                     disabled: this.newItem.disabled ? 1 : 0,
@@ -382,6 +384,7 @@ const nodeTable = new DataTable({
                     id: this.editedItem.id,
                     serverId: this.editedItem.serverId,
                     port: this.editedItem.port,
+                    protocol: this.editedItem.protocol,
                     type: this.editedItem.type,
                     level: this.editedItem.level || 0,
                     disabled: this.editedItem.disabled,
@@ -402,6 +405,7 @@ const nodeTable = new DataTable({
             this.newItem = {
                 serverId: this.servers.length > 0 ? this.servers[0].id : '',
                 port: null,
+                protocol: null,
                 type: 0,
                 level: 0,
                 disabled: false,
@@ -435,6 +439,7 @@ const nodeTable = new DataTable({
                 id: node.id,
                 serverId: node.serverId,
                 port: node.port,
+                protocol: node.protocol,
                 type: node.type,
                 level: node.level || 0,
                 disabled: node.disabled,
@@ -568,34 +573,6 @@ const nodeTable = new DataTable({
                 .catch(error => {
                     console.error('Error:', error);
                     ToastUtils.show('Error', '部署节点失败', 'danger');
-                });
-        },
-
-        undeployNode(node) {
-            // Show loading toast
-            ToastUtils.show('Info', '正在取消部署节点...', 'info');
-
-            fetch(`/api/admin/nodes/${node.id}/undeploy`, {
-                method: 'POST'
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('取消部署节点失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        // Refresh the node list
-                        this.fetchRecords();
-                        ToastUtils.show('Success', data.message, 'success');
-                    } else {
-                        ToastUtils.show('Error', data.message, 'danger');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', '取消部署节点失败', 'danger');
                 });
         },
 

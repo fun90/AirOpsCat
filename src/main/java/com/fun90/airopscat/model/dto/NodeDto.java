@@ -14,6 +14,7 @@ public class NodeDto {
     private String serverIp;
     private String serverHost;
     private Integer port;
+    private String protocol;
     private Integer type;
     private String typeDescription;
     private Map<String, Object> inbound = new HashMap<>();
@@ -50,14 +51,6 @@ public class NodeDto {
     public String getTypeDesc() {
         NodeType nodeType = NodeType.fromValue(type);
         return nodeType != null ? nodeType.getDescription() : "未知";
-    }
-    
-    // 辅助方法：获取协议类型
-    public String getProtocol() {
-        if (inbound != null && inbound.containsKey("protocol")) {
-            return (String) inbound.get("protocol");
-        }
-        return "未知";
     }
     
     // 辅助方法：获取完整地址

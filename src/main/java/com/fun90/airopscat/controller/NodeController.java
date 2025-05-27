@@ -1,5 +1,6 @@
 package com.fun90.airopscat.controller;
 
+import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.entity.Node;
@@ -47,7 +48,7 @@ public class NodeController {
         
         // Convert to DTOs
         List<NodeDto> nodeDtos = nodePage.getContent().stream()
-                .map(node -> nodeService.convertToDto(node))
+                .map(NodeConverter::toDto)
                 .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
@@ -67,7 +68,7 @@ public class NodeController {
     public ResponseEntity<NodeDto> getNodeById(@PathVariable Long id) {
         Node node = nodeService.getNodeById(id);
         if (node != null) {
-            NodeDto dto = nodeService.convertToDto(node);
+            NodeDto dto = NodeConverter.toDto(node);
             return ResponseEntity.ok(dto);
         }
         return ResponseEntity.notFound().build();
@@ -77,7 +78,7 @@ public class NodeController {
     public ResponseEntity<List<NodeDto>> getNodesByServer(@PathVariable Long serverId) {
         List<Node> nodes = nodeService.getNodesByServer(serverId);
         List<NodeDto> nodeDtos = nodes.stream()
-                .map(node -> nodeService.convertToDto(node))
+                .map(NodeConverter::toDto)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(nodeDtos);
     }
@@ -86,7 +87,7 @@ public class NodeController {
     public ResponseEntity<List<NodeDto>> getLandingNodes() {
         List<Node> nodes = nodeService.getNodeByType(NodeType.LANDING);
         List<NodeDto> nodeDtos = nodes.stream()
-                .map(node -> nodeService.convertToDto(node))
+                .map(NodeConverter::toDto)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(nodeDtos);
     }
@@ -152,7 +153,7 @@ public class NodeController {
         node.setId(id);
         try {
             Node updatedNode = nodeService.updateNode(node);
-            return ResponseEntity.ok(nodeService.convertToDto(updatedNode));
+            return ResponseEntity.ok(NodeConverter.toDto(updatedNode));
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
@@ -247,12 +248,6 @@ public class NodeController {
     @PostMapping("/{id}/deploy")
     public ResponseEntity<DeploymentResult> deployNode(@PathVariable Long id) {
         DeploymentResult result = nodeDeploymentService.deployNode(id);
-        return ResponseEntity.ok(result);
-    }
-
-    @PostMapping("/{id}/undeploy")
-    public ResponseEntity<DeploymentResult> undeployNode(@PathVariable Long id) {
-        DeploymentResult result = nodeDeploymentService.undeployNode(id);
         return ResponseEntity.ok(result);
     }
 
