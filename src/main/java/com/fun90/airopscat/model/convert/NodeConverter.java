@@ -1,9 +1,8 @@
 package com.fun90.airopscat.model.convert;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.entity.Node;
-import com.fun90.airopscat.support.util.JsonUtil;
+import com.fun90.airopscat.utils.JsonUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.util.StringUtils;

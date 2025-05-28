@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.NodeDto;
+import com.fun90.airopscat.model.dto.xray.InboundConfig;
 import com.fun90.airopscat.model.dto.xray.OutboundConfig;
 import com.fun90.airopscat.model.dto.xray.XrayConfig;
 import com.fun90.airopscat.model.entity.Node;
@@ -16,7 +17,7 @@ import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerNodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
-import com.fun90.airopscat.support.util.JsonUtil;
+import com.fun90.airopscat.utils.JsonUtil;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -145,20 +146,33 @@ public class NodeDeploymentService {
                     XrayConfig xrayConfig = JsonUtil.toObject(serverConfig.getConfig(), XrayConfig.class);
                     protocolNodes.forEach(nodeDto -> {
                         if (nodeDto.getDisabled() == 1) {
-                            xrayConfig.getInbounds().removeIf(inbound -> inbound.getTag().equals("node_" + nodeDto.getId()));
+                            xrayConfig.getInbounds().removeIf(inbound -> inbound.getTag().equals(nodeDto.getTag()));
                         } else {
-                            OutboundConfig outbound = xrayConfig.getOutbounds().stream()
-                                    .filter(o -> o.getTag().equals("node_" + nodeDto.getId()))
+                            List<InboundConfig> inbounds = xrayConfig.getInbounds();
+                            if (inbounds == null) {
+                                inbounds = new ArrayList<>();
+                                xrayConfig.setInbounds(inbounds);
+                            }
+                            InboundConfig inboundConfig = inbounds.stream()
+                                    .filter(o -> o.getTag().equals(nodeDto.getTag()))
                                     .findFirst().orElse(null);
+                            if (inboundConfig == null) {
+                                inboundConfig = objectMapper.convertValue(nodeDto.getInbound(), InboundConfig.class);
+                                inboundConfig.setTag(nodeDto.getTag());
+                                inboundConfig.setPort(nodeDto.getPort());
+                                inbounds.add(inboundConfig);
+                            }
                         }
+                        System.out.println(JsonUtil.toJsonString(xrayConfig));
+                        DeploymentResult result = new DeploymentResult();
+                        result.setNodeId(nodeDto.getId());
+                        result.setServerId(nodeDto.getServerId());
+                        result.setSuccess(true);
+                        results.add(result);
                     });
                 }
             });
         });
-        
-        for (Long nodeId : nodeIds) {
-            results.add(deployNode(nodeId));
-        }
         
         return results;
     }

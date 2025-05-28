@@ -1,11 +1,10 @@
 package com.fun90.airopscat.model.entity;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fun90.airopscat.support.util.RawJsonDeserializer;
+import com.fun90.airopscat.utils.RawJsonDeserializer;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.DynamicUpdate;
-import org.hibernate.annotations.Type;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;

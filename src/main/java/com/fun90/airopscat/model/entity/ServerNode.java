@@ -1,7 +1,7 @@
 package com.fun90.airopscat.model.entity;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fun90.airopscat.support.util.RawJsonDeserializer;
+import com.fun90.airopscat.utils.RawJsonDeserializer;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.DynamicUpdate;
@@ -20,7 +20,7 @@ public class ServerNode {
     private Long serverId;
     
     private Integer port;
-    
+
     private String protocol;
     
     private Integer type; // 0:代理，1:落地

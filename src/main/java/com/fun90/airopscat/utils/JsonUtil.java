@@ -1,4 +1,4 @@
-package com.fun90.airopscat.support.util;
+package com.fun90.airopscat.utils;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.type.TypeReference;

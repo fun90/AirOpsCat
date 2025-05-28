@@ -31,6 +31,12 @@ public class NodeDto {
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
+
+    // 辅助方法：获取tag
+    public String getTag() {
+        return "node_" + id;
+    }
+
     // 辅助方法：获取状态描述
     public String getActiveDescription() {
         if (disabled != null && disabled == 1) {
