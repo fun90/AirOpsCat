@@ -17,11 +17,13 @@ import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerNodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
+import com.fun90.airopscat.utils.ConfigFileReader;
 import com.fun90.airopscat.utils.JsonUtil;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +39,8 @@ public class NodeDeploymentService {
     private final ServerConfigRepository serverConfigRepository;
     private final SshService sshService;
     private final ObjectMapper objectMapper;
-    
+    private final ConfigFileReader configFileReader;
+
     @Autowired
     public NodeDeploymentService(
             NodeRepository nodeRepository,
@@ -45,13 +48,15 @@ public class NodeDeploymentService {
             ServerNodeRepository serverNodeRepository,
             ServerConfigRepository serverConfigRepository,
             SshService sshService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            ConfigFileReader configFileReader) {
         this.nodeRepository = nodeRepository;
         this.serverRepository = serverRepository;
         this.serverNodeRepository = serverNodeRepository;
         this.serverConfigRepository = serverConfigRepository;
         this.sshService = sshService;
         this.objectMapper = objectMapper;
+        this.configFileReader = configFileReader;
     }
     
     /**
@@ -138,7 +143,11 @@ public class NodeDeploymentService {
                     ServerConfig newServerConfig = new ServerConfig();
                     newServerConfig.setServerId(serverId);
                     newServerConfig.setConfigType(coreType);
-                    newServerConfig.setConfig("{}");
+                    try {
+                        newServerConfig.setConfig(configFileReader.readClasspathFile("config/xray-template.json"));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                     return newServerConfig;
                 });
 
