@@ -135,7 +135,10 @@ public class NodeDeploymentService {
             // 按protocol分类
             Map<String, List<NodeDto>> protocolNodeMap = nodeDtos.stream()
                     .collect(Collectors.groupingBy(NodeDto::getProtocol));
-            protocolNodeMap.forEach((protocol, protocolNodes) -> {
+            for (Map.Entry<String, List<NodeDto>> nodeListEntry : protocolNodeMap.entrySet()) {
+                String protocol = nodeListEntry.getKey();
+                List<NodeDto> protocolNodes = nodeListEntry.getValue();
+
                 // 查询服务器配置，未查到则新建
                 String coreType = getCoreType(protocol);
                 Optional<ServerConfig> serverConfigOptional = serverConfigRepository.findByServerIdAndConfigType(serverId, coreType);
@@ -170,6 +173,8 @@ public class NodeDeploymentService {
                                 inboundConfig.setTag(nodeDto.getTag());
                                 inboundConfig.setPort(nodeDto.getPort());
                                 inbounds.add(inboundConfig);
+                            } else {
+                                
                             }
                         }
                         System.out.println(JsonUtil.toJsonString(xrayConfig));
@@ -180,7 +185,7 @@ public class NodeDeploymentService {
                         results.add(result);
                     });
                 }
-            });
+            }
         });
         
         return results;
