@@ -28,8 +28,11 @@ public class Account {
     
     @Column(nullable = false)
     private String uuid;
+
+    @Column(nullable = false)
+    private String accountNo;
     
-    @Column(name = "auth_code")
+    @Column(nullable = false)
     private String authCode;
     
     @Column(name = "max_online_ips")

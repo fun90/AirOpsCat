@@ -12,6 +12,7 @@ public class AccountDto {
     private LocalDateTime toDate;
     private String periodType;
     private String uuid;
+    private String accountNo;
     private String authCode;
     private Integer maxOnlineIps;
     private Integer speed;
