@@ -33,6 +33,31 @@
         "network": "tcp,udp",
         "address": "127.0.0.1"
       }
+    },
+    {
+      "tag": "node_3",
+      "port": 8000,
+      "protocol": "vless",
+      "settings": {
+        "clients": [{"id": "1232121"}],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "www.amazon.com:443",
+          "serverNames": [
+            "amazon.com",
+            "www.amazon.com"
+          ],
+          "privateKey": "oCimWp0T_57KU3fPrBeL9Wl7G84Iy7gDyytAqJHOKlM",
+          "shortIds": [
+            "e3179a5e9f77c76c"
+          ]
+        }
+      }
     }
   ],
   "outbounds": [

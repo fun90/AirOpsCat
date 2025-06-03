@@ -368,10 +368,8 @@ const nodeTable = new DataTable({
         prepareUpdateData() {
             try {
                 // Similar to create data preparation
-                let inboundConfig = this.editedNodeInbound;
                 if (this.editedNodeInboundJson) {
-                    const jsonData = JSON.parse(this.editedNodeInboundJson);
-                    inboundConfig = { ...inboundConfig, ...jsonData };
+                    this.editedNodeInbound = JSON.parse(this.editedNodeInboundJson);
                 }
 
                 let ruleConfig = null;
@@ -390,7 +388,7 @@ const nodeTable = new DataTable({
                     disabled: this.editedItem.disabled,
                     name: this.editedItem.name || null,
                     remark: this.editedItem.remark || null,
-                    inbound: inboundConfig,
+                    inbound: this.editedNodeInbound,
                     outId: this.editedItem.outId === 0 ? null : this.editedItem.outId,
                     rule: ruleConfig
                 };

@@ -20,6 +20,7 @@ import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.utils.ConfigFileReader;
 import com.fun90.airopscat.utils.JsonUtil;
 import jakarta.transaction.Transactional;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -174,7 +175,12 @@ public class NodeDeploymentService {
                                 inboundConfig.setPort(nodeDto.getPort());
                                 inbounds.add(inboundConfig);
                             } else {
-                                
+                                InboundConfig newInboundConfig = objectMapper.convertValue(nodeDto.getInbound(), InboundConfig.class);
+                                // 使用newInboundConfig来替换inboundConfig
+                                int index = inbounds.indexOf(inboundConfig);
+                                if (index != -1) {
+                                    inbounds.set(index, newInboundConfig);
+                                }
                             }
                         }
                         System.out.println(JsonUtil.toJsonString(xrayConfig));
