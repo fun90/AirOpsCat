@@ -124,6 +124,7 @@ public class NodeDeploymentService {
     public List<DeploymentResult> deployNodes(List<Long> nodeIds) {
         List<DeploymentResult> results = new ArrayList<>();
 
+        // 第一步：生成节点配置
         // 找出未部署的节点
         List<Node> nodeList = nodeRepository.findByDeployed(0);
         // 按服务器分组
@@ -171,11 +172,12 @@ public class NodeDeploymentService {
                                     .findFirst().orElse(null);
                             if (inboundConfig == null) {
                                 inboundConfig = objectMapper.convertValue(nodeDto.getInbound(), InboundConfig.class);
+                                // TODO outbound、rule
                                 inboundConfig.setTag(nodeDto.getTag());
-                                inboundConfig.setPort(nodeDto.getPort());
                                 inbounds.add(inboundConfig);
                             } else {
                                 InboundConfig newInboundConfig = objectMapper.convertValue(nodeDto.getInbound(), InboundConfig.class);
+                                newInboundConfig.setTag(nodeDto.getTag());
                                 // 使用newInboundConfig来替换inboundConfig
                                 int index = inbounds.indexOf(inboundConfig);
                                 if (index != -1) {
