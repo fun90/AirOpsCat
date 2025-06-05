@@ -400,6 +400,7 @@ const nodeTable = new DataTable({
         },
 
         resetCreateForm() {
+            this.fetchLandingNodes();
             this.newItem = {
                 serverId: this.servers.length > 0 ? this.servers[0].id : '',
                 port: null,
@@ -425,6 +426,7 @@ const nodeTable = new DataTable({
         },
 
         prepareEditForm(node) {
+            this.fetchLandingNodes();
             // Format inbound and rule data
             this.editedNodeInbound = node.inbound || { protocol: 'VLESS' };
             this.editedNodeInboundJson = JSON.stringify(node.inbound || {}, null, 2);
