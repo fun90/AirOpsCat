@@ -1,11 +1,8 @@
 package com.fun90.airopscat.model.convert;
 
 import com.fun90.airopscat.model.dto.NodeDto;
-import com.fun90.airopscat.model.dto.xray.InboundConfig;
 import com.fun90.airopscat.model.entity.Node;
-import com.fun90.airopscat.utils.ConfigFileReader;
 import com.fun90.airopscat.utils.JsonUtil;
-import com.fun90.airopscat.utils.MustacheUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.util.StringUtils;
@@ -28,8 +25,6 @@ public class NodeConverter {
 
         // 设置出站信息
         if (node.getOutNode() != null) {
-            InboundConfig outbound = JsonUtil.toObject(node.getOutNode().getInbound(), InboundConfig.class);
-//            MustacheUtil.processTemplate(ConfigFileReader.readFileContent("config/xray/outbound-socks.json"), outbound);
             dto.setOutName(node.getOutNode().getName());
             dto.setOutPort(node.getOutNode().getPort());
             dto.setOutServerHost(node.getOutNode().getServer().getHost());

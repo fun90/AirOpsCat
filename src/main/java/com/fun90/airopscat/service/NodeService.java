@@ -218,7 +218,10 @@ public class NodeService {
             existingNode.setDeployed(0); // 设置为"未部署"
         }
 
-        return nodeRepository.save(existingNode);
+        Node updatedNode = nodeRepository.save(existingNode);
+        Server server = serverRepository.findById(updatedNode.getServerId()).orElse(null);
+        updatedNode.setServer(server);
+        return updatedNode;
     }
 
     /**
