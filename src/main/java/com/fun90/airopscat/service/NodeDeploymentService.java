@@ -6,7 +6,9 @@ import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.dto.xray.InboundConfig;
+import com.fun90.airopscat.model.dto.xray.OutboundConfig;
 import com.fun90.airopscat.model.dto.xray.XrayConfig;
+import com.fun90.airopscat.model.dto.xray.routing.RoutingRule;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
@@ -16,18 +18,19 @@ import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerNodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
+import com.fun90.airopscat.service.xray.registry.ConversionStrategyRegistry;
+import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
 import com.fun90.airopscat.utils.ConfigFileReader;
 import com.fun90.airopscat.utils.JsonUtil;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class NodeDeploymentService {
     
@@ -37,6 +40,7 @@ public class NodeDeploymentService {
     private final ServerConfigRepository serverConfigRepository;
     private final SshService sshService;
     private final ObjectMapper objectMapper;
+    private final ConversionStrategyRegistry strategyRegistry;
 
     @Autowired
     public NodeDeploymentService(
@@ -45,13 +49,15 @@ public class NodeDeploymentService {
             ServerNodeRepository serverNodeRepository,
             ServerConfigRepository serverConfigRepository,
             SshService sshService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            ConversionStrategyRegistry strategyRegistry) {
         this.nodeRepository = nodeRepository;
         this.serverRepository = serverRepository;
         this.serverNodeRepository = serverNodeRepository;
         this.serverConfigRepository = serverConfigRepository;
         this.sshService = sshService;
         this.objectMapper = objectMapper;
+        this.strategyRegistry = strategyRegistry;
     }
     
     /**
@@ -125,15 +131,15 @@ public class NodeDeploymentService {
         Map<Long, List<Node>> groupedNodes = nodeList.stream()
                 .collect(Collectors.groupingBy(Node::getServerId));
         groupedNodes.forEach((serverId, nodes) -> {
-            List<NodeDto> nodeDtos = nodes.stream()
-                    .map(NodeConverter::toDto)
-                    .toList();
+//            List<NodeDto> nodeDtos = nodes.stream()
+//                    .map(NodeConverter::toDto)
+//                    .toList();
             // 按protocol分类
-            Map<String, List<NodeDto>> protocolNodeMap = nodeDtos.stream()
-                    .collect(Collectors.groupingBy(NodeDto::getProtocol));
-            for (Map.Entry<String, List<NodeDto>> nodeListEntry : protocolNodeMap.entrySet()) {
+            Map<String, List<Node>> protocolNodeMap = nodes.stream()
+                    .collect(Collectors.groupingBy(Node::getProtocol));
+            for (Map.Entry<String, List<Node>> nodeListEntry : protocolNodeMap.entrySet()) {
                 String protocol = nodeListEntry.getKey();
-                List<NodeDto> protocolNodes = nodeListEntry.getValue();
+                List<Node> protocolNodes = nodeListEntry.getValue();
 
                 // 查询服务器配置，未查到则新建
                 String coreType = getCoreType(protocol);
@@ -148,9 +154,9 @@ public class NodeDeploymentService {
 
                 if (coreType.equalsIgnoreCase(CoreType.XRAY.name())) {
                     XrayConfig xrayConfig = JsonUtil.toObject(serverConfig.getConfig(), XrayConfig.class);
-                    protocolNodes.forEach(nodeDto -> {
-                        if (nodeDto.getDisabled() == 1) {
-                            xrayConfig.getInbounds().removeIf(inbound -> inbound.getTag().equals(nodeDto.getTag()));
+                    protocolNodes.forEach(node -> {
+                        if (node.getDisabled() == 1) {
+                            xrayConfig.getInbounds().removeIf(inbound -> inbound.getTag().equals(node.getTag()));
                         } else {
                             List<InboundConfig> inbounds = xrayConfig.getInbounds();
                             if (inbounds == null) {
@@ -158,30 +164,73 @@ public class NodeDeploymentService {
                                 xrayConfig.setInbounds(inbounds);
                             }
                             InboundConfig inboundConfig = inbounds.stream()
-                                    .filter(o -> o.getTag().equals(nodeDto.getTag()))
+                                    .filter(o -> o.getTag().equals(node.getTag()))
                                     .findFirst().orElse(null);
                             if (inboundConfig == null) {
-                                inboundConfig = objectMapper.convertValue(nodeDto.getInbound(), InboundConfig.class);
-                                // TODO outbound、rule
-                                inboundConfig.setTag(nodeDto.getTag());
+                                inboundConfig = objectMapper.convertValue(node.getInbound(), InboundConfig.class);
+                                inboundConfig.setTag(node.getTag());
                                 inbounds.add(inboundConfig);
                             } else {
-                                InboundConfig newInboundConfig = objectMapper.convertValue(nodeDto.getInbound(), InboundConfig.class);
-                                newInboundConfig.setTag(nodeDto.getTag());
+                                InboundConfig newInboundConfig = objectMapper.convertValue(node.getInbound(), InboundConfig.class);
+                                newInboundConfig.setTag(node.getTag());
                                 // 使用newInboundConfig来替换inboundConfig
                                 int index = inbounds.indexOf(inboundConfig);
-                                if (index != -1) {
-                                    inbounds.set(index, newInboundConfig);
+                                inbounds.set(index, newInboundConfig);
+                            }
+
+
+                            // 处理outbound
+                            Node outNode = node.getOutNode();
+                            if (outNode == null) {
+                                return;
+                            }
+                            String outboundProtocol = outNode.getProtocol();
+                            ConversionStrategy strategy = strategyRegistry.getStrategy(outboundProtocol);
+                            // 验证配置
+                            InboundConfig inboundConfigOfOutNode = objectMapper.convertValue(outNode.getInbound(), InboundConfig.class);
+                            if (!strategy.validate(inboundConfigOfOutNode)) {
+                                throw new IllegalArgumentException(
+                                        String.format("Invalid inbound configuration for protocol: %s", outboundProtocol));
+                            }
+                            try {
+                                OutboundConfig newOutboundConfig = strategy.convert(inboundConfigOfOutNode, outNode.getServer().getHost(), outNode.getPort());
+                                newOutboundConfig.setTag(outNode.getTag());
+
+                                log.debug("Successfully converted {} configuration", outboundProtocol);
+                                OutboundConfig outboundConfig =  xrayConfig.getOutbounds().stream()
+                                        .filter(o -> o.getTag().equals(outNode.getTag()))
+                                        .findFirst().orElse(null);
+                                if (outboundConfig != null) {
+                                    int index = xrayConfig.getOutbounds().indexOf(outboundConfig);
+                                    xrayConfig.getOutbounds().set(index, newOutboundConfig);
+                                    RoutingRule routingRule = xrayConfig.getRouting().getRules().stream().filter(rule -> rule.getInboundTag().contains(node.getTag()))
+                                            .findFirst().orElseThrow(() -> new IllegalArgumentException("Routing rule not found"));
+                                    routingRule.setOutboundTag(outNode.getTag());
+                                    int routingRuleIndex = xrayConfig.getRouting().getRules().indexOf(routingRule);
+                                    xrayConfig.getRouting().getRules().set(routingRuleIndex, routingRule);
+                                } else {
+                                    xrayConfig.getOutbounds().add(newOutboundConfig);
+                                    RoutingRule routingRule = new RoutingRule();
+                                    routingRule.setInboundTag(Collections.singletonList(node.getTag()));
+                                    routingRule.setOutboundTag(outNode.getTag());
+                                    routingRule.setType("field");
+                                    xrayConfig.getRouting().getRules().add(routingRule);
                                 }
+                            } catch (Exception e) {
+                                log.error("Failed to convert {} configuration: {}", outboundProtocol, e.getMessage(), e);
+                                throw new RuntimeException(
+                                        String.format("Failed to convert %s configuration: %s", outboundProtocol, e.getMessage()), e);
                             }
                         }
-                        System.out.println(JsonUtil.toJsonString(xrayConfig));
+
+                        // 添加部署结果
                         DeploymentResult result = new DeploymentResult();
-                        result.setNodeId(nodeDto.getId());
-                        result.setServerId(nodeDto.getServerId());
+                        result.setNodeId(node.getId());
+                        result.setServerId(node.getServerId());
                         result.setSuccess(true);
                         results.add(result);
                     });
+                    System.out.println(JsonUtil.toJsonString(xrayConfig));
                 }
             }
         });

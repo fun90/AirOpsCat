@@ -49,7 +49,8 @@ public class Node {
     
     private String remark;
     
-    @ManyToOne(fetch = FetchType.LAZY)
+//    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REFRESH})
     @JoinColumn(name = "server_id", insertable = false, updatable = false)
     private Server server;
 
@@ -79,5 +80,10 @@ public class Node {
             return "未知";
         }
         return type == 0 ? "代理" : "落地";
+    }
+
+    // 辅助方法：获取tag
+    public String getTag() {
+        return "node_" + id;
     }
 }

@@ -145,12 +145,6 @@ public class NodeController {
 
     @PutMapping("/{id}")
     public ResponseEntity<?> updateNode(@PathVariable Long id, @RequestBody Node node) {
-        Node existingNode = nodeService.getNodeById(id);
-        if (existingNode == null) {
-            return ResponseEntity.notFound().build();
-        }
-
-        node.setId(id);
         try {
             Node updatedNode = nodeService.updateNode(node);
             return ResponseEntity.ok(NodeConverter.toDto(updatedNode));
