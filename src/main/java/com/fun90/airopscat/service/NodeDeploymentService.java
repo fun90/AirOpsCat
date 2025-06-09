@@ -126,23 +126,19 @@ public class NodeDeploymentService {
 
         // 第一步：生成节点配置
         // 找出未部署的节点
-        List<Node> nodeList = nodeRepository.findByDeployed(0);
+        List<Node> unDeployedNodes = nodeRepository.findByDeployed(0);
         // 按服务器分组
-        Map<Long, List<Node>> groupedNodes = nodeList.stream()
+        Map<Long, List<Node>> serverNodeMap = unDeployedNodes.stream()
                 .collect(Collectors.groupingBy(Node::getServerId));
-        groupedNodes.forEach((serverId, nodes) -> {
-//            List<NodeDto> nodeDtos = nodes.stream()
-//                    .map(NodeConverter::toDto)
-//                    .toList();
-            // 按protocol分类
-            Map<String, List<Node>> protocolNodeMap = nodes.stream()
-                    .collect(Collectors.groupingBy(Node::getProtocol));
-            for (Map.Entry<String, List<Node>> nodeListEntry : protocolNodeMap.entrySet()) {
-                String protocol = nodeListEntry.getKey();
-                List<Node> protocolNodes = nodeListEntry.getValue();
+        serverNodeMap.forEach((serverId, nodes) -> {
+            // 按protocol找到对应的内核，按内核分组
+            Map<String, List<Node>> coreTypeNodeMap = nodes.stream()
+                    .collect(Collectors.groupingBy(o -> getCoreType(o.getProtocol())));
+            for (Map.Entry<String, List<Node>> nodeListEntry : coreTypeNodeMap.entrySet()) {
+                String coreType = nodeListEntry.getKey();
+                List<Node> coreNodes = nodeListEntry.getValue();
 
                 // 查询服务器配置，未查到则新建
-                String coreType = getCoreType(protocol);
                 Optional<ServerConfig> serverConfigOptional = serverConfigRepository.findByServerIdAndConfigType(serverId, coreType);
                 ServerConfig serverConfig = serverConfigOptional.orElseGet(() -> {
                     ServerConfig newServerConfig = new ServerConfig();
@@ -154,7 +150,7 @@ public class NodeDeploymentService {
 
                 if (coreType.equalsIgnoreCase(CoreType.XRAY.name())) {
                     XrayConfig xrayConfig = JsonUtil.toObject(serverConfig.getConfig(), XrayConfig.class);
-                    protocolNodes.forEach(node -> {
+                    coreNodes.forEach(node -> {
                         if (node.getDisabled() == 1) {
                             xrayConfig.getInbounds().removeIf(inbound -> inbound.getTag().equals(node.getTag()));
                         } else {
@@ -167,59 +163,57 @@ public class NodeDeploymentService {
                                     .filter(o -> o.getTag().equals(node.getTag()))
                                     .findFirst().orElse(null);
                             if (inboundConfig == null) {
-                                inboundConfig = objectMapper.convertValue(node.getInbound(), InboundConfig.class);
+                                inboundConfig = JsonUtil.toObject(node.getInbound(), InboundConfig.class);
                                 inboundConfig.setTag(node.getTag());
                                 inbounds.add(inboundConfig);
                             } else {
-                                InboundConfig newInboundConfig = objectMapper.convertValue(node.getInbound(), InboundConfig.class);
+                                InboundConfig newInboundConfig = JsonUtil.toObject(node.getInbound(), InboundConfig.class);
                                 newInboundConfig.setTag(node.getTag());
                                 // 使用newInboundConfig来替换inboundConfig
                                 int index = inbounds.indexOf(inboundConfig);
                                 inbounds.set(index, newInboundConfig);
                             }
 
-
                             // 处理outbound
                             Node outNode = node.getOutNode();
-                            if (outNode == null) {
-                                return;
-                            }
-                            String outboundProtocol = outNode.getProtocol();
-                            ConversionStrategy strategy = strategyRegistry.getStrategy(outboundProtocol);
-                            // 验证配置
-                            InboundConfig inboundConfigOfOutNode = objectMapper.convertValue(outNode.getInbound(), InboundConfig.class);
-                            if (!strategy.validate(inboundConfigOfOutNode)) {
-                                throw new IllegalArgumentException(
-                                        String.format("Invalid inbound configuration for protocol: %s", outboundProtocol));
-                            }
-                            try {
-                                OutboundConfig newOutboundConfig = strategy.convert(inboundConfigOfOutNode, outNode.getServer().getHost(), outNode.getPort());
-                                newOutboundConfig.setTag(outNode.getTag());
-
-                                log.debug("Successfully converted {} configuration", outboundProtocol);
-                                OutboundConfig outboundConfig =  xrayConfig.getOutbounds().stream()
-                                        .filter(o -> o.getTag().equals(outNode.getTag()))
-                                        .findFirst().orElse(null);
-                                if (outboundConfig != null) {
-                                    int index = xrayConfig.getOutbounds().indexOf(outboundConfig);
-                                    xrayConfig.getOutbounds().set(index, newOutboundConfig);
-                                    RoutingRule routingRule = xrayConfig.getRouting().getRules().stream().filter(rule -> rule.getInboundTag().contains(node.getTag()))
-                                            .findFirst().orElseThrow(() -> new IllegalArgumentException("Routing rule not found"));
-                                    routingRule.setOutboundTag(outNode.getTag());
-                                    int routingRuleIndex = xrayConfig.getRouting().getRules().indexOf(routingRule);
-                                    xrayConfig.getRouting().getRules().set(routingRuleIndex, routingRule);
-                                } else {
-                                    xrayConfig.getOutbounds().add(newOutboundConfig);
-                                    RoutingRule routingRule = new RoutingRule();
-                                    routingRule.setInboundTag(Collections.singletonList(node.getTag()));
-                                    routingRule.setOutboundTag(outNode.getTag());
-                                    routingRule.setType("field");
-                                    xrayConfig.getRouting().getRules().add(routingRule);
+                            if (outNode != null) {
+                                String outboundProtocol = outNode.getProtocol();
+                                ConversionStrategy strategy = strategyRegistry.getStrategy(outboundProtocol);
+                                // 验证配置
+                                InboundConfig inboundConfigOfOutNode = JsonUtil.toObject(outNode.getInbound(), InboundConfig.class);
+                                if (!strategy.validate(inboundConfigOfOutNode)) {
+                                    throw new IllegalArgumentException(
+                                            String.format("Invalid inbound configuration for protocol: %s", outboundProtocol));
                                 }
-                            } catch (Exception e) {
-                                log.error("Failed to convert {} configuration: {}", outboundProtocol, e.getMessage(), e);
-                                throw new RuntimeException(
-                                        String.format("Failed to convert %s configuration: %s", outboundProtocol, e.getMessage()), e);
+                                try {
+                                    OutboundConfig newOutboundConfig = strategy.convert(inboundConfigOfOutNode, outNode.getServer().getHost(), outNode.getPort());
+                                    newOutboundConfig.setTag(outNode.getTag());
+
+                                    log.debug("Successfully converted {} configuration", outboundProtocol);
+                                    OutboundConfig outboundConfig = xrayConfig.getOutbounds().stream()
+                                            .filter(o -> o.getTag().equals(outNode.getTag()))
+                                            .findFirst().orElse(null);
+                                    if (outboundConfig != null) {
+                                        int index = xrayConfig.getOutbounds().indexOf(outboundConfig);
+                                        xrayConfig.getOutbounds().set(index, newOutboundConfig);
+                                        RoutingRule routingRule = xrayConfig.getRouting().getRules().stream().filter(rule -> rule.getInboundTag().contains(node.getTag()))
+                                                .findFirst().orElseThrow(() -> new IllegalArgumentException("Routing rule not found"));
+                                        routingRule.setOutboundTag(outNode.getTag());
+                                        int routingRuleIndex = xrayConfig.getRouting().getRules().indexOf(routingRule);
+                                        xrayConfig.getRouting().getRules().set(routingRuleIndex, routingRule);
+                                    } else {
+                                        xrayConfig.getOutbounds().add(newOutboundConfig);
+                                        RoutingRule routingRule = new RoutingRule();
+                                        routingRule.setInboundTag(Collections.singletonList(node.getTag()));
+                                        routingRule.setOutboundTag(outNode.getTag());
+                                        routingRule.setType("field");
+                                        xrayConfig.getRouting().getRules().add(routingRule);
+                                    }
+                                } catch (Exception e) {
+                                    log.error("Failed to convert {} configuration: {}", outboundProtocol, e.getMessage(), e);
+                                    throw new RuntimeException(
+                                            String.format("Failed to convert %s configuration: %s", outboundProtocol, e.getMessage()), e);
+                                }
                             }
                         }
 
@@ -230,7 +224,7 @@ public class NodeDeploymentService {
                         result.setSuccess(true);
                         results.add(result);
                     });
-                    System.out.println(JsonUtil.toJsonString(xrayConfig));
+                    System.out.println("serverId:" + serverId + ": "+ JsonUtil.toJsonString(xrayConfig));
                 }
             }
         });
