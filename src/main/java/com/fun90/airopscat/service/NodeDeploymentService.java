@@ -217,15 +217,22 @@ public class NodeDeploymentService {
                             }
                         }
 
-                        // 添加部署结果
+                        // 添加节点部署结果
                         DeploymentResult result = new DeploymentResult();
                         result.setNodeId(node.getId());
                         result.setServerId(node.getServerId());
                         result.setSuccess(true);
                         results.add(result);
                     });
-                    System.out.println("serverId:" + serverId + ": "+ JsonUtil.toJsonString(xrayConfig));
+
+                    serverConfig.setConfig(JsonUtil.toJsonString(xrayConfig));
                 }
+
+                // 将配置保存到数据库
+                serverConfigRepository.save(serverConfig);
+
+                // 使用SSH重启Xray
+//                sshService.restartXray(server.getHost(), server.getPort(), server.getPassword());
             }
         });
         
