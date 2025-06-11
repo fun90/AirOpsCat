@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.NodeDto;
+import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.dto.xray.InboundConfig;
 import com.fun90.airopscat.model.dto.xray.OutboundConfig;
 import com.fun90.airopscat.model.dto.xray.XrayConfig;
@@ -13,11 +14,13 @@ import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.entity.ServerNode;
+import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerNodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
+import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.xray.registry.ConversionStrategyRegistry;
 import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
 import com.fun90.airopscat.utils.ConfigFileReader;
@@ -33,7 +36,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class NodeDeploymentService {
-    
+
     private final NodeRepository nodeRepository;
     private final ServerRepository serverRepository;
     private final ServerNodeRepository serverNodeRepository;
@@ -41,6 +44,7 @@ public class NodeDeploymentService {
     private final SshService sshService;
     private final ObjectMapper objectMapper;
     private final ConversionStrategyRegistry strategyRegistry;
+    private final CoreManagementService coreManagementService;
 
     @Autowired
     public NodeDeploymentService(
@@ -50,7 +54,8 @@ public class NodeDeploymentService {
             ServerConfigRepository serverConfigRepository,
             SshService sshService,
             ObjectMapper objectMapper,
-            ConversionStrategyRegistry strategyRegistry) {
+            ConversionStrategyRegistry strategyRegistry,
+            CoreManagementService coreManagementService) {
         this.nodeRepository = nodeRepository;
         this.serverRepository = serverRepository;
         this.serverNodeRepository = serverNodeRepository;
@@ -58,6 +63,7 @@ public class NodeDeploymentService {
         this.sshService = sshService;
         this.objectMapper = objectMapper;
         this.strategyRegistry = strategyRegistry;
+        this.coreManagementService = coreManagementService;
     }
     
     /**
@@ -233,6 +239,13 @@ public class NodeDeploymentService {
 
                 // 使用SSH重启Xray
 //                sshService.restartXray(server.getHost(), server.getPort(), server.getPassword());
+                Server server = serverRepository.findById(serverId).orElseThrow(() -> new IllegalArgumentException("Server not found"));
+                SshConfig sshConfig = new SshConfig();
+                sshConfig.setHost(server.getIp());
+                sshConfig.setPort(server.getSshPort());
+                sshConfig.setUsername(server.getUsername());
+                sshConfig.setPassword(server.getAuth());
+                coreManagementService.executeOperation(coreType, CoreOperation.RESTART, sshConfig);
             }
         });
         
