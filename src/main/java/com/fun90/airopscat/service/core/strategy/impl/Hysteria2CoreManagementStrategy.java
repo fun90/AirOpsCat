@@ -5,8 +5,8 @@ import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.service.SshService;
 import com.fun90.airopscat.service.core.strategy.CoreManagementStrategy;
-import com.jcraft.jsch.Session;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.sshd.client.session.ClientSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -33,22 +33,22 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     private SshService sshService;
     
     @Override
-    public CoreManagementResult start(Session session) {
+    public CoreManagementResult start(ClientSession session) {
         return executeSystemctlCommand(session, "start", "启动Hysteria2服务");
     }
     
     @Override
-    public CoreManagementResult stop(Session session) {
+    public CoreManagementResult stop(ClientSession session) {
         return executeSystemctlCommand(session, "stop", "停止Hysteria2服务");
     }
     
     @Override
-    public CoreManagementResult restart(Session session) {
+    public CoreManagementResult restart(ClientSession session) {
         return executeSystemctlCommand(session, "restart", "重启Hysteria2服务");
     }
     
     @Override
-    public CoreManagementResult reload(Session session) {
+    public CoreManagementResult reload(ClientSession session) {
         // Hysteria2 不支持 reload，使用 restart 代替
         log.info("Hysteria2不支持reload操作，使用restart代替");
         CoreManagementResult result = restart(session);
@@ -58,7 +58,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult status(Session session) {
+    public CoreManagementResult status(ClientSession session) {
         try {
             long startTime = System.currentTimeMillis();
             CommandResult result = sshService.executeCommand(session, 
@@ -68,7 +68,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation("status");
             coreResult.setCoreType("hysteria2");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(result.getExitStatus() == 0);
             coreResult.setOutput(result.getStdout());
             coreResult.setError(result.getStderr());
@@ -84,7 +84,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult validateConfig(Session session, String configPath) {
+    public CoreManagementResult validateConfig(ClientSession session, String configPath) {
         if (configPath == null || configPath.trim().isEmpty()) {
             configPath = CONFIG_PATH;
         }
@@ -109,7 +109,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation("validate");
             coreResult.setCoreType("hysteria2");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(result.getExitStatus() == 0);
             coreResult.setOutput(result.getStdout());
             coreResult.setError(result.getStderr());
@@ -125,7 +125,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult install(Session session, String version) {
+    public CoreManagementResult install(ClientSession session, String version) {
         try {
             long startTime = System.currentTimeMillis();
             
@@ -176,7 +176,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
             long duration = System.currentTimeMillis() - startTime;
             
             CoreManagementResult result = CoreManagementResult.success("install", "hysteria2", "Hysteria2安装成功");
-            result.setServerAddress(session.getHost());
+            result.setServerAddress(session.getConnectAddress().toString());
             result.setDuration(duration);
             result.setOutput("Hysteria2已安装并配置完成\n配置文件路径: " + CONFIG_PATH + 
                            "\n服务文件路径: " + SYSTEMD_SERVICE_PATH);
@@ -189,7 +189,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult uninstall(Session session) {
+    public CoreManagementResult uninstall(ClientSession session) {
         try {
             long startTime = System.currentTimeMillis();
             
@@ -215,7 +215,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
             long duration = System.currentTimeMillis() - startTime;
             
             CoreManagementResult result = CoreManagementResult.success("uninstall", "hysteria2", "Hysteria2卸载成功");
-            result.setServerAddress(session.getHost());
+            result.setServerAddress(session.getConnectAddress().toString());
             result.setDuration(duration);
             result.setOutput("已删除:\n- 二进制文件: " + BINARY_PATH + 
                            "\n- 配置目录: /etc/hysteria" + 
@@ -230,7 +230,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult updateConfig(Session session, String configContent, String configPath) {
+    public CoreManagementResult updateConfig(ClientSession session, String configContent, String configPath) {
         if (configPath == null || configPath.trim().isEmpty()) {
             configPath = CONFIG_PATH;
         }
@@ -269,7 +269,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
             long duration = System.currentTimeMillis() - startTime;
             
             CoreManagementResult result = CoreManagementResult.success("update_config", "hysteria2", "配置更新成功");
-            result.setServerAddress(session.getHost());
+            result.setServerAddress(session.getConnectAddress().toString());
             result.setDuration(duration);
             result.setOutput("配置文件已更新: " + configPath + "\n配置验证通过");
             
@@ -281,7 +281,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult getVersion(Session session) {
+    public CoreManagementResult getVersion(ClientSession session) {
         try {
             long startTime = System.currentTimeMillis();
             CommandResult result = sshService.executeCommand(session, BINARY_PATH + " version");
@@ -290,7 +290,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation("version");
             coreResult.setCoreType("hysteria2");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(result.getExitStatus() == 0);
             coreResult.setOutput(result.getStdout());
             coreResult.setError(result.getStderr());
@@ -306,7 +306,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult getLogs(Session session, int lines) {
+    public CoreManagementResult getLogs(ClientSession session, int lines) {
         try {
             long startTime = System.currentTimeMillis();
             String command = String.format("sudo journalctl -u %s -n %d --no-pager", SERVICE_NAME, lines);
@@ -316,7 +316,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation("logs");
             coreResult.setCoreType("hysteria2");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(result.getExitStatus() == 0);
             coreResult.setOutput(result.getStdout());
             coreResult.setError(result.getStderr());
@@ -332,7 +332,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult isInstalled(Session session) {
+    public CoreManagementResult isInstalled(ClientSession session) {
         try {
             long startTime = System.currentTimeMillis();
             CommandResult result = sshService.executeCommand(session, "which " + BINARY_PATH);
@@ -343,7 +343,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation("is_installed");
             coreResult.setCoreType("hysteria2");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(true); // 检查操作本身成功
             coreResult.setOutput(installed ? "Hysteria2已安装" : "Hysteria2未安装");
             coreResult.setExitCode(installed ? 0 : 1);
@@ -385,7 +385,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     /**
      * 执行systemctl命令的通用方法
      */
-    private CoreManagementResult executeSystemctlCommand(Session session, String action, String description) {
+    private CoreManagementResult executeSystemctlCommand(ClientSession session, String action, String description) {
         try {
             long startTime = System.currentTimeMillis();
             String command = String.format("sudo systemctl %s %s", action, SERVICE_NAME);
@@ -395,7 +395,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation(action);
             coreResult.setCoreType("hysteria2");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(result.getExitStatus() == 0);
             coreResult.setOutput(result.getStdout());
             coreResult.setError(result.getStderr());

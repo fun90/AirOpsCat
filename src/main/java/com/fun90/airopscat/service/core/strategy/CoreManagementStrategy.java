@@ -1,7 +1,7 @@
 package com.fun90.airopscat.service.core.strategy;
 
 import com.fun90.airopscat.model.dto.CoreManagementResult;
-import com.jcraft.jsch.Session;
+import org.apache.sshd.client.session.ClientSession;
 
 /**
  * 内核管理策略接口
@@ -13,35 +13,35 @@ public interface CoreManagementStrategy {
      * @param session SSH会话
      * @return 操作结果
      */
-    CoreManagementResult start(Session session);
+    CoreManagementResult start(ClientSession session);
     
     /**
      * 停止内核服务
      * @param session SSH会话
      * @return 操作结果
      */
-    CoreManagementResult stop(Session session);
+    CoreManagementResult stop(ClientSession session);
     
     /**
      * 重启内核服务
      * @param session SSH会话
      * @return 操作结果
      */
-    CoreManagementResult restart(Session session);
+    CoreManagementResult restart(ClientSession session);
     
     /**
      * 重新加载配置
      * @param session SSH会话
      * @return 操作结果
      */
-    CoreManagementResult reload(Session session);
+    CoreManagementResult reload(ClientSession session);
     
     /**
      * 检查服务状态
      * @param session SSH会话
      * @return 操作结果
      */
-    CoreManagementResult status(Session session);
+    CoreManagementResult status(ClientSession session);
     
     /**
      * 验证配置文件
@@ -49,7 +49,7 @@ public interface CoreManagementStrategy {
      * @param configPath 配置文件路径
      * @return 操作结果
      */
-    CoreManagementResult validateConfig(Session session, String configPath);
+    CoreManagementResult validateConfig(ClientSession session, String configPath);
     
     /**
      * 安装内核
@@ -57,14 +57,14 @@ public interface CoreManagementStrategy {
      * @param version 版本号，null表示最新版本
      * @return 操作结果
      */
-    CoreManagementResult install(Session session, String version);
+    CoreManagementResult install(ClientSession session, String version);
     
     /**
      * 卸载内核
      * @param session SSH会话
      * @return 操作结果
      */
-    CoreManagementResult uninstall(Session session);
+    CoreManagementResult uninstall(ClientSession session);
     
     /**
      * 更新内核配置
@@ -73,14 +73,14 @@ public interface CoreManagementStrategy {
      * @param configPath 配置文件路径
      * @return 操作结果
      */
-    CoreManagementResult updateConfig(Session session, String configContent, String configPath);
+    CoreManagementResult updateConfig(ClientSession session, String configContent, String configPath);
     
     /**
      * 获取内核版本信息
      * @param session SSH会话
      * @return 操作结果
      */
-    CoreManagementResult getVersion(Session session);
+    CoreManagementResult getVersion(ClientSession session);
     
     /**
      * 获取内核日志
@@ -88,14 +88,14 @@ public interface CoreManagementStrategy {
      * @param lines 日志行数
      * @return 操作结果
      */
-    CoreManagementResult getLogs(Session session, int lines);
+    CoreManagementResult getLogs(ClientSession session, int lines);
     
     /**
      * 检查内核是否已安装
      * @param session SSH会话
      * @return 操作结果
      */
-    CoreManagementResult isInstalled(Session session);
+    CoreManagementResult isInstalled(ClientSession session);
     
     /**
      * 获取策略名称

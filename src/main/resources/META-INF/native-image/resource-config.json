@@ -1,0 +1,18 @@
+{
+  "resources": {
+    "includes": [
+      {
+        "pattern": "org/apache/sshd/common/config/keys/loader/openssh/kdf/.*"
+      },
+      {
+        "pattern": "org/apache/sshd/common/cipher/.*"
+      },
+      {
+        "pattern": "org/apache/sshd/common/mac/.*"
+      },
+      {
+        "pattern": "org/apache/sshd/common/kex/.*"
+      }
+    ]
+  }
+}

@@ -7,8 +7,8 @@ import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.service.SshService;
 import com.fun90.airopscat.service.core.registry.CoreManagementStrategyRegistry;
 import com.fun90.airopscat.service.core.strategy.CoreManagementStrategy;
-import com.jcraft.jsch.Session;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.sshd.client.session.ClientSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -43,12 +43,12 @@ public class CoreManagementService {
                                                  SshConfig sshConfig, Object... params) {
         try {
             CoreManagementStrategy strategy = strategyRegistry.getStrategy(coreType);
-            Session session = sshService.connectToServer(sshConfig);
+            ClientSession session = sshService.connectToServer(sshConfig);
 
             CoreManagementResult result = executeOperationInternal(strategy, operation, session, params);
             result.setServerAddress(sshConfig.getHost());
 
-            session.disconnect();
+            session.close();
             return result;
         } catch (Exception e) {
             log.error("执行内核操作失败 [{}:{}]: {}", coreType, operation.getCode(), e.getMessage(), e);
@@ -80,12 +80,12 @@ public class CoreManagementService {
 
             for (SshConfig sshConfig : sshConfigs) {
                 try {
-                    Session session = sshService.connectToServer(sshConfig);
+                    ClientSession session = sshService.connectToServer(sshConfig);
                     CoreManagementResult result = executeOperationInternal(strategy, operation, session, params);
                     result.setServerAddress(sshConfig.getHost());
 
                     batchResult.addResult(sshConfig.getHost(), result);
-                    session.disconnect();
+                    session.close();
 
                 } catch (Exception e) {
                     log.error("批量执行内核操作失败 [{}]: {}", sshConfig.getHost(), e.getMessage(), e);
@@ -107,12 +107,12 @@ public class CoreManagementService {
     public CoreManagementResult restartWithValidation(String coreType, SshConfig sshConfig, String configPath) {
         try {
             CoreManagementStrategy strategy = strategyRegistry.getStrategy(coreType);
-            Session session = sshService.connectToServer(sshConfig);
+            ClientSession session = sshService.connectToServer(sshConfig);
 
             // 先验证配置
             CoreManagementResult validationResult = strategy.validateConfig(session, configPath);
             if (!validationResult.isSuccess()) {
-                session.disconnect();
+                session.close();
                 validationResult.setMessage("配置验证失败，取消重启操作");
                 return validationResult;
             }
@@ -121,7 +121,7 @@ public class CoreManagementService {
             CoreManagementResult restartResult = strategy.restart(session);
             restartResult.setServerAddress(sshConfig.getHost());
 
-            session.disconnect();
+            session.close();
             return restartResult;
         } catch (Exception e) {
             log.error("带验证的重启操作失败 [{}]: {}", coreType, e.getMessage(), e);
@@ -136,12 +136,12 @@ public class CoreManagementService {
                                                        String configContent, String configPath) {
         try {
             CoreManagementStrategy strategy = strategyRegistry.getStrategy(coreType);
-            Session session = sshService.connectToServer(sshConfig);
+            ClientSession session = sshService.connectToServer(sshConfig);
 
             // 更新配置
             CoreManagementResult updateResult = strategy.updateConfig(session, configContent, configPath);
             if (!updateResult.isSuccess()) {
-                session.disconnect();
+                session.close();
                 return updateResult;
             }
 
@@ -152,7 +152,7 @@ public class CoreManagementService {
             // 合并结果信息
             restartResult.setMessage(updateResult.getMessage() + "；" + restartResult.getMessage());
 
-            session.disconnect();
+            session.close();
             return restartResult;
         } catch (Exception e) {
             log.error("更新配置并重启失败 [{}]: {}", coreType, e.getMessage(), e);
@@ -167,12 +167,12 @@ public class CoreManagementService {
     public CoreManagementResult healthCheck(String coreType, SshConfig sshConfig) {
         try {
             CoreManagementStrategy strategy = strategyRegistry.getStrategy(coreType);
-            Session session = sshService.connectToServer(sshConfig);
+            ClientSession session = sshService.connectToServer(sshConfig);
 
             // 检查安装状态
             CoreManagementResult installCheck = strategy.isInstalled(session);
             if (!installCheck.getOutput().contains("已安装")) {
-                session.disconnect();
+                session.close();
                 return CoreManagementResult.failure("health_check", coreType,
                         "健康检查失败", "内核未安装");
             }
@@ -200,7 +200,7 @@ public class CoreManagementService {
             healthResult.setOutput(output.toString());
             healthResult.setMessage(healthResult.isSuccess() ? "健康检查通过" : "健康检查失败");
 
-            session.disconnect();
+            session.close();
             return healthResult;
         } catch (Exception e) {
             log.error("健康检查失败 [{}]: {}", coreType, e.getMessage(), e);
@@ -234,7 +234,7 @@ public class CoreManagementService {
      * 内部执行操作的方法
      */
     private CoreManagementResult executeOperationInternal(CoreManagementStrategy strategy,
-                                                          CoreOperation operation, Session session, Object... params) {
+                                                          CoreOperation operation, ClientSession session, Object... params) {
         switch (operation) {
             case START:
                 return strategy.start(session);

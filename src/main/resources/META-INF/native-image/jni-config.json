@@ -1,0 +1,8 @@
+[
+  {
+    "name": "sun.security.provider.NativePRNG"
+  },
+  {
+    "name": "sun.security.provider.SecureRandom"
+  }
+]

@@ -1,6 +1,7 @@
 package com.fun90.airopscat.model.dto;
 
 import lombok.Data;
+
 import java.time.LocalDateTime;
 import java.util.Map;
 
