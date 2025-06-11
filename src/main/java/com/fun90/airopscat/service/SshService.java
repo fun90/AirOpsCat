@@ -22,32 +22,163 @@ public class SshService {
     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
     /**
-     * 连接到SSH服务器
+     * 连接到SSH服务器，支持密码和密钥两种认证方式
+     *
+     * @param config SSH配置信息
+     * @return Session对象
+     * @throws JSchException 连接异常
      */
     public Session connectToServer(SshConfig config) throws JSchException {
         JSch jsch = new JSch();
-        
-        // 如果使用密钥认证
-        if (config.getPrivateKeyPath() != null && !config.getPrivateKeyPath().isEmpty()) {
-            jsch.addIdentity(config.getPrivateKeyPath(), config.getPassphrase());
+        Session session = null;
+
+        try {
+            log.info("开始连接SSH服务器: {}:{}", config.getHost(), config.getPort());
+
+            // 创建会话
+            session = jsch.getSession(config.getUsername(), config.getHost(), config.getPort());
+
+            // 设置连接属性
+            Properties props = new Properties();
+            props.put("StrictHostKeyChecking", "no");
+            props.put("UserKnownHostsFile", "/dev/null");
+            // 可选：设置加密算法优先级
+            props.put("PreferredAuthentications", "publickey,keyboard-interactive,password");
+            session.setConfig(props);
+
+            // 设置连接超时
+            if (config.getTimeout() > 0) {
+                session.setTimeout(config.getTimeout());
+            } else {
+                session.setTimeout(30000); // 默认30秒超时
+            }
+
+            // 判断认证方式并设置认证信息
+            boolean authConfigured = false;
+
+            // 1. 优先使用密钥认证
+            if (hasPrivateKeyAuth(config)) {
+                try {
+                    if (config.getPrivateKeyContent() != null && !config.getPrivateKeyContent().trim().isEmpty()) {
+                        // 使用私钥字符串内容
+                        byte[] privateKey = config.getPrivateKeyContent().getBytes();
+                        byte[] passphrase = null;
+                        if (config.getPassphrase() != null && !config.getPassphrase().isEmpty()) {
+                            passphrase = config.getPassphrase().getBytes();
+                        }
+
+                        // 生成一个唯一的标识名
+                        String keyName = "private_key_" + System.currentTimeMillis();
+                        jsch.addIdentity(keyName, privateKey, null, passphrase);
+                        log.info("使用私钥字符串认证{}", passphrase != null ? " (带密码短语)" : "");
+
+                    } else if (config.getPrivateKeyPath() != null && !config.getPrivateKeyPath().trim().isEmpty()) {
+                        // 使用私钥文件路径
+                        if (config.getPassphrase() != null && !config.getPassphrase().isEmpty()) {
+                            // 带密码短语的私钥文件
+                            jsch.addIdentity(config.getPrivateKeyPath(), config.getPassphrase());
+                            log.info("使用带密码短语的私钥文件认证: {}", config.getPrivateKeyPath());
+                        } else {
+                            // 无密码短语的私钥文件
+                            jsch.addIdentity(config.getPrivateKeyPath());
+                            log.info("使用私钥文件认证: {}", config.getPrivateKeyPath());
+                        }
+                    }
+                    authConfigured = true;
+                } catch (Exception e) {
+                    log.warn("私钥认证配置失败，将尝试其他认证方式: {}", e.getMessage(), e);
+                }
+            }
+
+            // 2. 如果私钥认证未配置或失败，使用密码认证
+            if (!authConfigured && config.getPassword() != null && !config.getPassword().trim().isEmpty()) {
+                session.setPassword(config.getPassword());
+                log.info("使用密码认证");
+                authConfigured = true;
+            }
+
+            // 3. 检查是否有认证方式
+            if (!authConfigured) {
+                throw new JSchException("未配置有效的认证方式，请提供私钥内容/路径或密码");
+            }
+
+            // 建立连接
+            log.info("正在连接到服务器...");
+            session.connect();
+
+            // 验证连接状态
+            if (!session.isConnected()) {
+                throw new JSchException("连接建立失败");
+            }
+
+            log.info("成功连接到SSH服务器: {}:{}, 用户: {}",
+                    config.getHost(), config.getPort(), config.getUsername());
+
+            return session;
+
+        } catch (JSchException e) {
+            // 连接失败时清理资源
+            if (session != null && session.isConnected()) {
+                session.disconnect();
+            }
+
+            log.error("SSH连接失败 {}:{} - {}", config.getHost(), config.getPort(), e.getMessage());
+
+            // 提供更友好的错误信息
+            String errorMessage = getConnectErrorMessage(e);
+            throw new JSchException(errorMessage);
         }
-        
-        Session session = jsch.getSession(config.getUsername(), config.getHost(), config.getPort());
-        
-        // 如果使用密码认证
-        if (config.getPassword() != null && !config.getPassword().isEmpty()) {
-            session.setPassword(config.getPassword());
+    }
+
+    /**
+     * 检查是否配置了私钥认证
+     */
+    private boolean hasPrivateKeyAuth(SshConfig config) {
+        return (config.getPrivateKeyContent() != null && !config.getPrivateKeyContent().trim().isEmpty()) ||
+                (config.getPrivateKeyPath() != null && !config.getPrivateKeyPath().trim().isEmpty());
+    }
+
+
+    /**
+     * 安全地断开SSH连接
+     *
+     * @param session 要断开的会话
+     */
+    public void disconnectSafely(Session session) {
+        if (session != null && session.isConnected()) {
+            try {
+                session.disconnect();
+                log.info("SSH连接已断开");
+            } catch (Exception e) {
+                log.warn("断开SSH连接时发生异常: {}", e.getMessage());
+            }
         }
-        
-        // 避免提示主机密钥确认
-        Properties props = new Properties();
-        props.put("StrictHostKeyChecking", "no");
-        session.setConfig(props);
-        
-        session.connect(config.getTimeout());
-        log.info("成功连接到服务器: {}:{}", config.getHost(), config.getPort());
-        
-        return session;
+    }
+
+    /**
+     * 获取连接错误的友好提示信息
+     *
+     * @param e JSch异常
+     * @return 友好的错误信息
+     */
+    private String getConnectErrorMessage(JSchException e) {
+        String message = e.getMessage().toLowerCase();
+
+        if (message.contains("auth fail") || message.contains("authentication fail")) {
+            return "认证失败：请检查用户名、密码或私钥是否正确";
+        } else if (message.contains("connection refused")) {
+            return "连接被拒绝：请检查服务器地址、端口是否正确，以及SSH服务是否运行";
+        } else if (message.contains("timeout") || message.contains("timed out")) {
+            return "连接超时：请检查网络连接和服务器状态";
+        } else if (message.contains("unknown host") || message.contains("name or service not known")) {
+            return "主机不存在：请检查服务器地址是否正确";
+        } else if (message.contains("permission denied")) {
+            return "权限被拒绝：请检查用户权限和认证信息";
+        } else if (message.contains("key") && message.contains("invalid")) {
+            return "私钥无效：请检查私钥文件格式和密码短语";
+        } else {
+            return "SSH连接失败：" + e.getMessage();
+        }
     }
     
     /**
