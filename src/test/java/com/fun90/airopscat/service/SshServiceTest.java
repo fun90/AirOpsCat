@@ -16,10 +16,6 @@ class SshServiceTest {
             sshConfig.setTimeout(10000);
             sshConfig.setPort(22);
 
-//            sshConfig.setHost("54.179.192.109");
-//            sshConfig.setUsername("root");
-//            String privateKeyPath = "/home/alex/data/keys/LightsailDefaultKey-ap-southeast-1.pem";
-
             sshConfig.setHost("127.0.0.1");
             sshConfig.setUsername("alex");
 //            sshConfig.setPassword("Omg1121");
