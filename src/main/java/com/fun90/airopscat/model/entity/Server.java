@@ -27,6 +27,8 @@ public class Server {
     
     @Column(name = "auth_type")
     private String authType;
+
+    private String username;
     
     private String auth;
     
