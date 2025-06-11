@@ -3,15 +3,15 @@ package com.fun90.airopscat.service.core.strategy.impl;
 import com.fun90.airopscat.annotation.SupportedCores;
 import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
-import com.fun90.airopscat.service.SshService;
+import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.core.strategy.CoreManagementStrategy;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.sshd.client.session.ClientSession;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+
 /**
- * Hysteria2内核管理策略
+ * Hysteria2内核管理策略 - 解耦版本
  */
 @Slf4j
 @Component
@@ -29,515 +29,278 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     private static final String LOG_PATH = "/var/log/hysteria/";
     private static final String SYSTEMD_SERVICE_PATH = "/etc/systemd/system/hysteria-server.service";
     
-    @Autowired
-    private SshService sshService;
-    
     @Override
-    public CoreManagementResult start(ClientSession session) {
-        return executeSystemctlCommand(session, "start", "启动Hysteria2服务");
+    public CoreManagementResult start(SshConnection connection) {
+        return executeSystemctlCommand(connection, "start", "启动Hysteria2服务");
     }
     
     @Override
-    public CoreManagementResult stop(ClientSession session) {
-        return executeSystemctlCommand(session, "stop", "停止Hysteria2服务");
+    public CoreManagementResult stop(SshConnection connection) {
+        return executeSystemctlCommand(connection, "stop", "停止Hysteria2服务");
     }
     
     @Override
-    public CoreManagementResult restart(ClientSession session) {
-        return executeSystemctlCommand(session, "restart", "重启Hysteria2服务");
+    public CoreManagementResult restart(SshConnection connection) {
+        return executeSystemctlCommand(connection, "restart", "重启Hysteria2服务");
     }
     
     @Override
-    public CoreManagementResult reload(ClientSession session) {
+    public CoreManagementResult reload(SshConnection connection) {
         // Hysteria2 不支持 reload，使用 restart 代替
         log.info("Hysteria2不支持reload操作，使用restart代替");
-        CoreManagementResult result = restart(session);
+        CoreManagementResult result = restart(connection);
         result.setOperation("reload");
-        result.setMessage(result.getMessage().replace("重启", "重新加载"));
+        result.setMessage("Hysteria2不支持reload，已执行restart操作");
         return result;
     }
     
     @Override
-    public CoreManagementResult status(ClientSession session) {
-        try {
-            long startTime = System.currentTimeMillis();
-            CommandResult result = sshService.executeCommand(session, 
-                "sudo systemctl status " + SERVICE_NAME + " --no-pager");
-            long duration = System.currentTimeMillis() - startTime;
-            
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation("status");
-            coreResult.setCoreType("hysteria2");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(result.getExitStatus() == 0);
-            coreResult.setOutput(result.getStdout());
-            coreResult.setError(result.getStderr());
-            coreResult.setExitCode(result.getExitStatus());
-            coreResult.setDuration(duration);
-            coreResult.setMessage(coreResult.isSuccess() ? "状态检查成功" : "状态检查失败");
-            
-            return coreResult;
-        } catch (Exception e) {
-            log.error("检查Hysteria2状态失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("status", "hysteria2", "状态检查失败", e.getMessage());
-        }
+    public CoreManagementResult status(SshConnection connection) {
+        return executeSystemctlCommand(connection, "status", "查询Hysteria2服务状态");
     }
     
     @Override
-    public CoreManagementResult validateConfig(ClientSession session, String configPath) {
-        if (configPath == null || configPath.trim().isEmpty()) {
-            configPath = CONFIG_PATH;
-        }
+    public CoreManagementResult install(SshConnection connection, Object... params) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation("install");
+        result.setTimestamp(LocalDateTime.now());
         
         try {
-            long startTime = System.currentTimeMillis();
-            
-            // 检查配置文件是否存在
-            CommandResult fileCheckResult = sshService.executeCommand(session, 
-                String.format("test -f %s && echo 'exists' || echo 'not found'", configPath));
-            
-            if (fileCheckResult.getStdout().contains("not found")) {
-                return CoreManagementResult.failure("validate", "hysteria2", 
-                    "配置文件验证失败", "配置文件不存在: " + configPath);
+            // 1. 检查是否已安装
+            CommandResult checkResult = connection.executeCommand("which " + BINARY_PATH);
+            if (checkResult.isSuccess()) {
+                result.setSuccess(true);
+                result.setMessage("Hysteria2已经安装");
+                return result;
             }
             
-            // Hysteria2 配置验证命令
-            String command = String.format("sudo %s server -c %s --check", BINARY_PATH, configPath);
-            CommandResult result = sshService.executeCommand(session, command);
-            long duration = System.currentTimeMillis() - startTime;
-            
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation("validate");
-            coreResult.setCoreType("hysteria2");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(result.getExitStatus() == 0);
-            coreResult.setOutput(result.getStdout());
-            coreResult.setError(result.getStderr());
-            coreResult.setExitCode(result.getExitStatus());
-            coreResult.setDuration(duration);
-            coreResult.setMessage(coreResult.isSuccess() ? "配置验证通过" : "配置验证失败");
-            
-            return coreResult;
-        } catch (Exception e) {
-            log.error("验证Hysteria2配置失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("validate", "hysteria2", "配置验证失败", e.getMessage());
-        }
-    }
-    
-    @Override
-    public CoreManagementResult install(ClientSession session, String version) {
-        try {
-            long startTime = System.currentTimeMillis();
-            
-            // 检查是否已安装
-            CoreManagementResult installedCheck = isInstalled(session);
-            if (installedCheck.getExitCode() == 0) {
-                return CoreManagementResult.success("install", "hysteria2", "Hysteria2已经安装");
-            }
-            
-            StringBuilder installScript = new StringBuilder();
-            
-            // 更新系统包
-            installScript.append("sudo apt-get update -y && ");
-            
-            // 下载并安装 Hysteria2
-            if (version != null && !version.trim().isEmpty()) {
-                installScript.append(String.format("HY2_VERSION=%s ", version));
-            }
-            installScript.append("bash <(curl -fsSL https://get.hy2.sh/)");
-            
-            CommandResult downloadResult = sshService.executeCommand(session, installScript.toString());
-            
-            if (downloadResult.getExitStatus() != 0) {
-                return CoreManagementResult.failure("install", "hysteria2", 
-                    "Hysteria2下载安装失败", downloadResult.getStderr());
-            }
-            
-            // 创建配置目录
-            sshService.executeCommand(session, "sudo mkdir -p /etc/hysteria");
-            sshService.executeCommand(session, "sudo mkdir -p /var/log/hysteria");
-            
-            // 创建默认配置文件
-            String defaultConfig = createDefaultConfig();
-            sshService.writeRemoteFile(session, defaultConfig, CONFIG_PATH);
-            sshService.executeCommand(session, "sudo chmod 644 " + CONFIG_PATH);
-            
-            // 创建systemd服务文件
-            String serviceContent = createSystemdServiceFile();
-            sshService.writeRemoteFile(session, serviceContent, SYSTEMD_SERVICE_PATH);
-            sshService.executeCommand(session, "sudo chmod 644 " + SYSTEMD_SERVICE_PATH);
-            
-            // 重新加载systemd
-            sshService.executeCommand(session, "sudo systemctl daemon-reload");
-            
-            // 启用服务
-            sshService.executeCommand(session, "sudo systemctl enable " + SERVICE_NAME);
-            
-            long duration = System.currentTimeMillis() - startTime;
-            
-            CoreManagementResult result = CoreManagementResult.success("install", "hysteria2", "Hysteria2安装成功");
-            result.setServerAddress(session.getConnectAddress().toString());
-            result.setDuration(duration);
-            result.setOutput("Hysteria2已安装并配置完成\n配置文件路径: " + CONFIG_PATH + 
-                           "\n服务文件路径: " + SYSTEMD_SERVICE_PATH);
-            
-            return result;
-        } catch (Exception e) {
-            log.error("安装Hysteria2失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("install", "hysteria2", "安装失败", e.getMessage());
-        }
-    }
-    
-    @Override
-    public CoreManagementResult uninstall(ClientSession session) {
-        try {
-            long startTime = System.currentTimeMillis();
-            
-            // 停止并禁用服务
-            sshService.executeCommand(session, "sudo systemctl stop " + SERVICE_NAME);
-            sshService.executeCommand(session, "sudo systemctl disable " + SERVICE_NAME);
-            
-            // 删除服务文件
-            sshService.executeCommand(session, "sudo rm -f " + SYSTEMD_SERVICE_PATH);
-            
-            // 重新加载systemd
-            sshService.executeCommand(session, "sudo systemctl daemon-reload");
-            
-            // 删除二进制文件
-            sshService.executeCommand(session, "sudo rm -f " + BINARY_PATH);
-            
-            // 删除配置目录（询问用户是否保留配置）
-            sshService.executeCommand(session, "sudo rm -rf /etc/hysteria");
-            
-            // 删除日志目录
-            sshService.executeCommand(session, "sudo rm -rf /var/log/hysteria");
-            
-            long duration = System.currentTimeMillis() - startTime;
-            
-            CoreManagementResult result = CoreManagementResult.success("uninstall", "hysteria2", "Hysteria2卸载成功");
-            result.setServerAddress(session.getConnectAddress().toString());
-            result.setDuration(duration);
-            result.setOutput("已删除:\n- 二进制文件: " + BINARY_PATH + 
-                           "\n- 配置目录: /etc/hysteria" + 
-                           "\n- 服务文件: " + SYSTEMD_SERVICE_PATH + 
-                           "\n- 日志目录: /var/log/hysteria");
-            
-            return result;
-        } catch (Exception e) {
-            log.error("卸载Hysteria2失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("uninstall", "hysteria2", "卸载失败", e.getMessage());
-        }
-    }
-    
-    @Override
-    public CoreManagementResult updateConfig(ClientSession session, String configContent, String configPath) {
-        if (configPath == null || configPath.trim().isEmpty()) {
-            configPath = CONFIG_PATH;
-        }
-        
-        try {
-            long startTime = System.currentTimeMillis();
-            
-            // 确保配置目录存在
-            sshService.executeCommand(session, "sudo mkdir -p /etc/hysteria");
-            
-            // 备份原配置
-            String timestamp = String.valueOf(System.currentTimeMillis());
-            String backupPath = configPath + ".backup." + timestamp;
-            CommandResult backupResult = sshService.executeCommand(session, 
-                String.format("sudo cp %s %s 2>/dev/null || true", configPath, backupPath));
-            
-            // 写入新配置
-            sshService.writeRemoteFile(session, configContent, configPath);
-            sshService.executeCommand(session, "sudo chmod 644 " + configPath);
-            
-            // 验证新配置
-            CoreManagementResult validationResult = validateConfig(session, configPath);
-            if (!validationResult.isSuccess()) {
-                // 恢复备份
-                sshService.executeCommand(session, 
-                    String.format("sudo mv %s %s 2>/dev/null || true", backupPath, configPath));
+            // 2. 下载并安装Hysteria2
+            String installScript = """
+                #!/bin/bash
+                # 创建目录
+                sudo mkdir -p /etc/hysteria /var/log/hysteria
                 
-                validationResult.setMessage("配置更新失败：新配置验证不通过，已恢复原配置");
-                validationResult.setOperation("update_config");
-                return validationResult;
+                # 下载Hysteria2二进制文件
+                wget -O /tmp/hysteria https://github.com/apernet/hysteria/releases/latest/download/hysteria-linux-amd64
+                
+                # 安装到系统路径
+                sudo mv /tmp/hysteria /usr/local/bin/hysteria
+                sudo chmod +x /usr/local/bin/hysteria
+                
+                # 创建systemd服务文件
+                sudo tee /etc/systemd/system/hysteria-server.service > /dev/null <<EOF
+                [Unit]
+                Description=Hysteria Server
+                After=network.target
+                
+                [Service]
+                Type=simple
+                User=nobody
+                ExecStart=/usr/local/bin/hysteria server -c /etc/hysteria/config.yaml
+                Restart=always
+                RestartSec=3
+                
+                [Install]
+                WantedBy=multi-user.target
+                EOF
+                
+                # 重新加载systemd
+                sudo systemctl daemon-reload
+                sudo systemctl enable hysteria-server
+                
+                echo "Hysteria2安装完成"
+                """;
+            
+            CommandResult installResult = connection.executeCommand(installScript);
+            
+            if (installResult.isSuccess()) {
+                result.setSuccess(true);
+                result.setMessage("Hysteria2安装成功");
+                result.setOutput(installResult.getOutput());
+            } else {
+                result.setSuccess(false);
+                result.setMessage("Hysteria2安装失败: " + installResult.getError());
+                result.setOutput(installResult.getOutput());
             }
             
-            // 删除备份文件（可选）
-            sshService.executeCommand(session, "sudo rm -f " + backupPath);
-            
-            long duration = System.currentTimeMillis() - startTime;
-            
-            CoreManagementResult result = CoreManagementResult.success("update_config", "hysteria2", "配置更新成功");
-            result.setServerAddress(session.getConnectAddress().toString());
-            result.setDuration(duration);
-            result.setOutput("配置文件已更新: " + configPath + "\n配置验证通过");
-            
-            return result;
         } catch (Exception e) {
-            log.error("更新Hysteria2配置失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("update_config", "hysteria2", "配置更新失败", e.getMessage());
+            log.error("安装Hysteria2失败", e);
+            result.setSuccess(false);
+            result.setMessage("安装异常: " + e.getMessage());
         }
+        
+        return result;
     }
     
     @Override
-    public CoreManagementResult getVersion(ClientSession session) {
+    public CoreManagementResult uninstall(SshConnection connection) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation("uninstall");
+        result.setTimestamp(LocalDateTime.now());
+        
         try {
-            long startTime = System.currentTimeMillis();
-            CommandResult result = sshService.executeCommand(session, BINARY_PATH + " version");
-            long duration = System.currentTimeMillis() - startTime;
+            String uninstallScript = """
+                #!/bin/bash
+                # 停止服务
+                sudo systemctl stop hysteria-server
+                sudo systemctl disable hysteria-server
+                
+                # 删除文件
+                sudo rm -f /usr/local/bin/hysteria
+                sudo rm -f /etc/systemd/system/hysteria-server.service
+                sudo rm -rf /etc/hysteria
+                sudo rm -rf /var/log/hysteria
+                
+                # 重新加载systemd
+                sudo systemctl daemon-reload
+                
+                echo "Hysteria2卸载完成"
+                """;
             
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation("version");
-            coreResult.setCoreType("hysteria2");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(result.getExitStatus() == 0);
-            coreResult.setOutput(result.getStdout());
-            coreResult.setError(result.getStderr());
-            coreResult.setExitCode(result.getExitStatus());
-            coreResult.setDuration(duration);
-            coreResult.setMessage(coreResult.isSuccess() ? "获取版本信息成功" : "获取版本信息失败");
+            CommandResult uninstallResult = connection.executeCommand(uninstallScript);
             
-            return coreResult;
+            if (uninstallResult.isSuccess()) {
+                result.setSuccess(true);
+                result.setMessage("Hysteria2卸载成功");
+                result.setOutput(uninstallResult.getOutput());
+            } else {
+                result.setSuccess(false);
+                result.setMessage("Hysteria2卸载失败: " + uninstallResult.getError());
+                result.setOutput(uninstallResult.getOutput());
+            }
+            
         } catch (Exception e) {
-            log.error("获取Hysteria2版本失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("version", "hysteria2", "获取版本失败", e.getMessage());
+            log.error("卸载Hysteria2失败", e);
+            result.setSuccess(false);
+            result.setMessage("卸载异常: " + e.getMessage());
         }
+        
+        return result;
     }
     
     @Override
-    public CoreManagementResult getLogs(ClientSession session, int lines) {
+    public CoreManagementResult update(SshConnection connection, Object... params) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation("update");
+        result.setTimestamp(LocalDateTime.now());
+        
         try {
-            long startTime = System.currentTimeMillis();
-            String command = String.format("sudo journalctl -u %s -n %d --no-pager", SERVICE_NAME, lines);
-            CommandResult result = sshService.executeCommand(session, command);
-            long duration = System.currentTimeMillis() - startTime;
+            // 停止服务
+            stop(connection);
             
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation("logs");
-            coreResult.setCoreType("hysteria2");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(result.getExitStatus() == 0);
-            coreResult.setOutput(result.getStdout());
-            coreResult.setError(result.getStderr());
-            coreResult.setExitCode(result.getExitStatus());
-            coreResult.setDuration(duration);
-            coreResult.setMessage(coreResult.isSuccess() ? "获取日志成功" : "获取日志失败");
+            // 备份当前版本
+            CommandResult backupResult = connection.executeCommand(
+                "sudo cp /usr/local/bin/hysteria /usr/local/bin/hysteria.backup");
             
-            return coreResult;
+            // 下载最新版本
+            String updateScript = """
+                #!/bin/bash
+                # 下载最新版本
+                wget -O /tmp/hysteria-new https://github.com/apernet/hysteria/releases/latest/download/hysteria-linux-amd64
+                
+                # 替换二进制文件
+                sudo mv /tmp/hysteria-new /usr/local/bin/hysteria
+                sudo chmod +x /usr/local/bin/hysteria
+                
+                echo "Hysteria2更新完成"
+                """;
+            
+            CommandResult updateResult = connection.executeCommand(updateScript);
+            
+            if (updateResult.isSuccess()) {
+                // 重启服务
+                restart(connection);
+                
+                result.setSuccess(true);
+                result.setMessage("Hysteria2更新成功");
+                result.setOutput(updateResult.getOutput());
+            } else {
+                // 恢复备份
+                connection.executeCommand("sudo mv /usr/local/bin/hysteria.backup /usr/local/bin/hysteria");
+                
+                result.setSuccess(false);
+                result.setMessage("Hysteria2更新失败: " + updateResult.getError());
+                result.setOutput(updateResult.getOutput());
+            }
+            
         } catch (Exception e) {
-            log.error("获取Hysteria2日志失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("logs", "hysteria2", "获取日志失败", e.getMessage());
+            log.error("更新Hysteria2失败", e);
+            result.setSuccess(false);
+            result.setMessage("更新异常: " + e.getMessage());
         }
+        
+        return result;
     }
     
     @Override
-    public CoreManagementResult isInstalled(ClientSession session) {
+    public CoreManagementResult config(SshConnection connection, Object... params) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation("config");
+        result.setTimestamp(LocalDateTime.now());
+        
         try {
-            long startTime = System.currentTimeMillis();
-            CommandResult result = sshService.executeCommand(session, "which " + BINARY_PATH);
-            long duration = System.currentTimeMillis() - startTime;
-            
-            boolean installed = result.getExitStatus() == 0;
-            
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation("is_installed");
-            coreResult.setCoreType("hysteria2");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(true); // 检查操作本身成功
-            coreResult.setOutput(installed ? "Hysteria2已安装" : "Hysteria2未安装");
-            coreResult.setExitCode(installed ? 0 : 1);
-            coreResult.setDuration(duration);
-            coreResult.setMessage("安装状态检查完成");
-            
-            // 如果已安装，获取更多信息
-            if (installed) {
-                try {
-                    CoreManagementResult versionResult = getVersion(session);
-                    if (versionResult.isSuccess()) {
-                        coreResult.setOutput(coreResult.getOutput() + "\n版本信息: " + versionResult.getOutput().trim());
-                    }
-                    
-                    // 检查配置文件是否存在
-                    CommandResult configCheck = sshService.executeCommand(session, "test -f " + CONFIG_PATH);
-                    if (configCheck.getExitStatus() == 0) {
-                        coreResult.setOutput(coreResult.getOutput() + "\n配置文件: " + CONFIG_PATH + " (存在)");
-                    } else {
-                        coreResult.setOutput(coreResult.getOutput() + "\n配置文件: " + CONFIG_PATH + " (不存在)");
-                    }
-                    
-                    // 检查服务状态
-                    CommandResult serviceCheck = sshService.executeCommand(session, 
-                        "sudo systemctl is-enabled " + SERVICE_NAME + " 2>/dev/null || echo 'not-enabled'");
-                    coreResult.setOutput(coreResult.getOutput() + "\n服务状态: " + serviceCheck.getStdout().trim());
-                } catch (Exception e) {
-                    log.debug("获取附加信息时出错: {}", e.getMessage());
+            if (params.length > 0 && params[0] instanceof String configContent) {
+                // 写入配置文件
+                connection.writeRemoteFile(CONFIG_PATH, configContent);
+                
+                // 验证配置文件语法
+                CommandResult validateResult = connection.executeCommand(
+                    "/usr/local/bin/hysteria server -c " + CONFIG_PATH + " --check");
+                
+                if (validateResult.isSuccess()) {
+                    result.setSuccess(true);
+                    result.setMessage("配置文件更新成功");
+                    result.setOutput("配置验证通过");
+                } else {
+                    result.setSuccess(false);
+                    result.setMessage("配置文件语法错误: " + validateResult.getError());
+                    result.setOutput(validateResult.getOutput());
                 }
+            } else {
+                // 读取当前配置
+                String currentConfig = connection.readRemoteFile(CONFIG_PATH);
+                result.setSuccess(true);
+                result.setMessage("获取配置文件成功");
+                result.setOutput(currentConfig);
             }
             
-            return coreResult;
         } catch (Exception e) {
-            log.error("检查Hysteria2安装状态失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("is_installed", "hysteria2", "检查安装状态失败", e.getMessage());
+            log.error("配置Hysteria2失败", e);
+            result.setSuccess(false);
+            result.setMessage("配置异常: " + e.getMessage());
         }
+        
+        return result;
     }
     
     /**
      * 执行systemctl命令的通用方法
      */
-    private CoreManagementResult executeSystemctlCommand(ClientSession session, String action, String description) {
+    private CoreManagementResult executeSystemctlCommand(SshConnection connection, String action, String description) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation(action);
+        result.setTimestamp(LocalDateTime.now());
+        
         try {
-            long startTime = System.currentTimeMillis();
-            String command = String.format("sudo systemctl %s %s", action, SERVICE_NAME);
-            CommandResult result = sshService.executeCommand(session, command);
-            long duration = System.currentTimeMillis() - startTime;
+            String command = "sudo systemctl " + action + " " + SERVICE_NAME;
+            CommandResult commandResult = connection.executeCommand(command);
             
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation(action);
-            coreResult.setCoreType("hysteria2");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(result.getExitStatus() == 0);
-            coreResult.setOutput(result.getStdout());
-            coreResult.setError(result.getStderr());
-            coreResult.setExitCode(result.getExitStatus());
-            coreResult.setDuration(duration);
-            coreResult.setMessage(coreResult.isSuccess() ? description + "成功" : description + "失败");
-            
-            // 如果是重启操作，额外进行状态检查
-            if ("restart".equals(action) && coreResult.isSuccess()) {
-                try {
-                    Thread.sleep(3000); // Hysteria2启动可能需要更多时间
-                    CoreManagementResult statusResult = status(session);
-                    if (statusResult.isSuccess() && statusResult.getOutput().contains("active (running)")) {
-                        coreResult.setOutput(coreResult.getOutput() + "\n服务状态验证：运行正常");
-                    } else {
-                        coreResult.setSuccess(false);
-                        coreResult.setMessage(description + "完成但服务状态异常");
-                        coreResult.setError("服务重启后状态检查失败: " + statusResult.getError());
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+            if (commandResult.isSuccess()) {
+                result.setSuccess(true);
+                result.setMessage(description + "成功");
+                result.setOutput(commandResult.getOutput());
+            } else {
+                result.setSuccess(false);
+                result.setMessage(description + "失败: " + commandResult.getError());
+                result.setOutput(commandResult.getOutput());
             }
             
-            return coreResult;
         } catch (Exception e) {
-            log.error("执行Hysteria2 {} 操作失败: {}", action, e.getMessage(), e);
-            return CoreManagementResult.failure(action, "hysteria2", description + "失败", e.getMessage());
+            log.error("{} 执行异常", description, e);
+            result.setSuccess(false);
+            result.setMessage(description + "异常: " + e.getMessage());
         }
-    }
-    
-    /**
-     * 创建默认配置文件内容
-     */
-    private String createDefaultConfig() {
-        return """
-listen: :443
-
-tls:
-  cert: /path/to/cert.pem
-  key: /path/to/key.pem
-
-auth:
-  type: password
-  password: your_password_here
-
-masquerade:
-  type: proxy
-  proxy:
-    url: https://www.bing.com
-    rewriteHost: true
-
-bandwidth:
-  up: 1 gbps
-  down: 1 gbps
-
-ignoreClientBandwidth: false
-
-udpIdleTimeout: 60s
-udpHopInterval: 30s
-
-# Quic settings
-quic:
-  initStreamReceiveWindow: 8388608
-  maxStreamReceiveWindow: 8388608
-  initConnReceiveWindow: 20971520
-  maxConnReceiveWindow: 20971520
-  maxIdleTimeout: 30s
-  maxIncomingStreams: 1024
-  disablePathMTUDiscovery: false
-
-# Logging
-log:
-  level: info
-  output: /var/log/hysteria/hysteria.log
-  maxSize: 10
-  maxBackups: 3
-  maxAge: 7
-  compress: true
-""";
-    }
-    
-    /**
-     * 创建systemd服务文件内容
-     */
-    private String createSystemdServiceFile() {
-        return String.format("""
-[Unit]
-Description=Hysteria Server Service
-Documentation=https://hysteria.network
-After=network.target nss-lookup.target
-Wants=network.target
-
-[Service]
-Type=simple
-User=hysteria
-Group=hysteria
-ExecStart=%s server -c %s
-Restart=on-failure
-RestartSec=10
-RestartPreventExitStatus=23
-LimitNPROC=10000
-LimitNOFILE=1000000
-
-# Security settings
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectProc=invisible
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/var/log/hysteria
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-
-[Install]
-WantedBy=multi-user.target
-""", BINARY_PATH, CONFIG_PATH);
-    }
-    
-    /**
-     * 验证参数
-     */
-    @Override
-    public boolean validateParams(String operation, Object... params) {
-        switch (operation) {
-            case "validate":
-            case "update_config":
-                return params != null && params.length > 0;
-            case "install":
-                // version 参数是可选的
-                return true;
-            case "logs":
-                if (params != null && params.length > 0) {
-                    try {
-                        int lines = (Integer) params[0];
-                        return lines > 0 && lines <= 10000; // 限制日志行数
-                    } catch (Exception e) {
-                        return false;
-                    }
-                }
-                return true;
-            default:
-                return true;
-        }
+        
+        return result;
     }
 }
