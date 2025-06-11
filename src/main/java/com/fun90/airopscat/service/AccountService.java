@@ -2,7 +2,6 @@ package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.AccountDto;
 import com.fun90.airopscat.model.entity.Account;
-import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.model.enums.PeriodType;
 import com.fun90.airopscat.repository.AccountRepository;
@@ -26,9 +25,7 @@ import org.springframework.util.StringUtils;
 
 import java.beans.PropertyDescriptor;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class AccountService {

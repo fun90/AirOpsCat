@@ -5,8 +5,8 @@ import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.service.SshService;
 import com.fun90.airopscat.service.core.strategy.CoreManagementStrategy;
-import com.jcraft.jsch.Session;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.sshd.client.session.ClientSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -32,27 +32,27 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
     private SshService sshService;
     
     @Override
-    public CoreManagementResult start(Session session) {
+    public CoreManagementResult start(ClientSession session) {
         return executeSystemctlCommand(session, "start", "启动Xray服务");
     }
     
     @Override
-    public CoreManagementResult stop(Session session) {
+    public CoreManagementResult stop(ClientSession session) {
         return executeSystemctlCommand(session, "stop", "停止Xray服务");
     }
     
     @Override
-    public CoreManagementResult restart(Session session) {
+    public CoreManagementResult restart(ClientSession session) {
         return executeSystemctlCommand(session, "restart", "重启Xray服务");
     }
     
     @Override
-    public CoreManagementResult reload(Session session) {
+    public CoreManagementResult reload(ClientSession session) {
         return executeSystemctlCommand(session, "reload", "重新加载Xray配置");
     }
     
     @Override
-    public CoreManagementResult status(Session session) {
+    public CoreManagementResult status(ClientSession session) {
         try {
             long startTime = System.currentTimeMillis();
             CommandResult result = sshService.executeCommand(session, 
@@ -62,7 +62,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation("status");
             coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(result.getExitStatus() == 0);
             coreResult.setOutput(result.getStdout());
             coreResult.setError(result.getStderr());
@@ -78,7 +78,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult validateConfig(Session session, String configPath) {
+    public CoreManagementResult validateConfig(ClientSession session, String configPath) {
         if (configPath == null || configPath.trim().isEmpty()) {
             configPath = CONFIG_PATH;
         }
@@ -92,7 +92,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation("validate");
             coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(result.getExitStatus() == 0);
             coreResult.setOutput(result.getStdout());
             coreResult.setError(result.getStderr());
@@ -108,7 +108,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult install(Session session, String version) {
+    public CoreManagementResult install(ClientSession session, String version) {
         try {
             long startTime = System.currentTimeMillis();
             
@@ -123,7 +123,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation("install");
             coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(result.getExitStatus() == 0);
             coreResult.setOutput(result.getStdout());
             coreResult.setError(result.getStderr());
@@ -139,7 +139,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult uninstall(Session session) {
+    public CoreManagementResult uninstall(ClientSession session) {
         try {
             long startTime = System.currentTimeMillis();
             String command = "bash -c \"$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)\" @ remove";
@@ -149,7 +149,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation("uninstall");
             coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(result.getExitStatus() == 0);
             coreResult.setOutput(result.getStdout());
             coreResult.setError(result.getStderr());
@@ -165,7 +165,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult updateConfig(Session session, String configContent, String configPath) {
+    public CoreManagementResult updateConfig(ClientSession session, String configContent, String configPath) {
         if (configPath == null || configPath.trim().isEmpty()) {
             configPath = CONFIG_PATH;
         }
@@ -195,7 +195,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
             long duration = System.currentTimeMillis() - startTime;
             
             CoreManagementResult result = CoreManagementResult.success("update_config", "xray", "配置更新成功");
-            result.setServerAddress(session.getHost());
+            result.setServerAddress(session.getConnectAddress().toString());
             result.setDuration(duration);
             
             return result;
@@ -206,7 +206,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult getVersion(Session session) {
+    public CoreManagementResult getVersion(ClientSession session) {
         try {
             long startTime = System.currentTimeMillis();
             CommandResult result = sshService.executeCommand(session, BINARY_PATH + " version");
@@ -215,7 +215,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation("version");
             coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(result.getExitStatus() == 0);
             coreResult.setOutput(result.getStdout());
             coreResult.setError(result.getStderr());
@@ -231,7 +231,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult getLogs(Session session, int lines) {
+    public CoreManagementResult getLogs(ClientSession session, int lines) {
         try {
             long startTime = System.currentTimeMillis();
             String command = String.format("sudo journalctl -u %s -n %d --no-pager", SERVICE_NAME, lines);
@@ -241,7 +241,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation("logs");
             coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(result.getExitStatus() == 0);
             coreResult.setOutput(result.getStdout());
             coreResult.setError(result.getStderr());
@@ -257,7 +257,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
     }
     
     @Override
-    public CoreManagementResult isInstalled(Session session) {
+    public CoreManagementResult isInstalled(ClientSession session) {
         try {
             long startTime = System.currentTimeMillis();
             CommandResult result = sshService.executeCommand(session, "which " + BINARY_PATH);
@@ -268,7 +268,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation("is_installed");
             coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(true); // 检查操作本身成功
             coreResult.setOutput(installed ? "Xray已安装" : "Xray未安装");
             coreResult.setExitCode(installed ? 0 : 1);
@@ -285,7 +285,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
     /**
      * 执行systemctl命令的通用方法
      */
-    private CoreManagementResult executeSystemctlCommand(Session session, String action, String description) {
+    private CoreManagementResult executeSystemctlCommand(ClientSession session, String action, String description) {
         try {
             long startTime = System.currentTimeMillis();
             String command = String.format("sudo systemctl %s %s", action, SERVICE_NAME);
@@ -295,7 +295,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
             CoreManagementResult coreResult = new CoreManagementResult();
             coreResult.setOperation(action);
             coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getHost());
+            coreResult.setServerAddress(session.getConnectAddress().toString());
             coreResult.setSuccess(result.getExitStatus() == 0);
             coreResult.setOutput(result.getStdout());
             coreResult.setError(result.getStderr());

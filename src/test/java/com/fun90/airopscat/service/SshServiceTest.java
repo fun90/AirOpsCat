@@ -1,9 +1,7 @@
 package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.SshConfig;
-import com.jcraft.jsch.JSchException;
-import com.jcraft.jsch.Session;
-import com.jcraft.jsch.SftpException;
+import org.apache.sshd.client.session.ClientSession;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -15,17 +13,27 @@ class SshServiceTest {
         try {
             SshService sshService = new SshService();
             SshConfig sshConfig = new SshConfig();
-            sshConfig.setHost("154.21.82.153");
-//            sshConfig.setHost("154.17.25.61");
+            sshConfig.setTimeout(10000);
             sshConfig.setPort(22);
-            sshConfig.setUsername("root");
+
+//            sshConfig.setHost("54.179.192.109");
+//            sshConfig.setUsername("root");
+//            String privateKeyPath = "/home/alex/data/keys/LightsailDefaultKey-ap-southeast-1.pem";
+
+            sshConfig.setHost("127.0.0.1");
+            sshConfig.setUsername("alex");
+//            sshConfig.setPassword("Omg1121");
+            String privateKeyPath = "/home/alex/.ssh/id_rsa";
+
+            sshConfig.setPrivateKeyPath(privateKeyPath);
 //            sshConfig.setPassphrase("");
-//            sshConfig.setPrivateKeyPath("/Users/omg/env/keys/LightsailDefaultKey-ap-southeast-1.pem");
-            sshConfig.setPrivateKeyPath("/Users/omg/env/keys/dmit2.pem");
-            Session session = sshService.connectToServer(sshConfig);
-            String string = sshService.readRemoteFile(session, "/etc/sing-box/config.json");
+//            String privateKeyContent = "";
+//            sshConfig.setPrivateKeyContent(privateKeyContent);
+
+            ClientSession session = sshService.connectToServer(sshConfig);
+            String string = sshService.readRemoteFile(session, "/home/alex/文档/tmp.json");
             System.out.println(string);
-        } catch (IOException | JSchException | SftpException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }

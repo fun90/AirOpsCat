@@ -3,112 +3,128 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.BatchCommandResult;
 import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.SshConfig;
-import com.jcraft.jsch.*;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.sshd.client.SshClient;
+import org.apache.sshd.client.channel.ChannelExec;
+import org.apache.sshd.client.future.AuthFuture;
+import org.apache.sshd.client.future.ConnectFuture;
+import org.apache.sshd.client.session.ClientSession;
+import org.apache.sshd.common.keyprovider.FileKeyPairProvider;
+import org.apache.sshd.sftp.client.SftpClient;
+import org.apache.sshd.sftp.client.SftpClientFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
 public class SshService {
 
     private final ExecutorService executorService = Executors.newCachedThreadPool();
+    private final SshClientManager clientManager = new SshClientManager();
+
+    /**
+     * SSH客户端管理器，负责创建和管理SSH客户端实例
+     */
+    private static class SshClientManager {
+        private volatile SshClient sshClient;
+
+        public SshClient getClient() {
+            if (sshClient == null) {
+                synchronized (this) {
+                    if (sshClient == null) {
+                        sshClient = SshClient.setUpDefaultClient();
+                        
+                        // 配置客户端超时设置
+                        sshClient.getProperties().put(org.apache.sshd.core.CoreModuleProperties.IDLE_TIMEOUT.getName(), 60000L);
+                        sshClient.getProperties().put(org.apache.sshd.core.CoreModuleProperties.NIO2_READ_TIMEOUT.getName(), 30000L);
+                        
+                        sshClient.start();
+                        log.info("SSH客户端已启动");
+                    }
+                }
+            }
+            return sshClient;
+        }
+
+        public void shutdown() {
+            if (sshClient != null) {
+                sshClient.stop();
+                log.info("SSH客户端已关闭");
+            }
+        }
+    }
 
     /**
      * 连接到SSH服务器，支持密码和密钥两种认证方式
      *
      * @param config SSH配置信息
-     * @return Session对象
-     * @throws JSchException 连接异常
+     * @return ClientSession对象
+     * @throws IOException 连接异常
      */
-    public Session connectToServer(SshConfig config) throws JSchException {
-        JSch jsch = new JSch();
-        Session session = null;
+    public ClientSession connectToServer(SshConfig config) throws IOException {
+        SshClient client = clientManager.getClient();
+        ClientSession session = null;
 
         try {
             log.info("开始连接SSH服务器: {}:{}", config.getHost(), config.getPort());
 
-            // 创建会话
-            session = jsch.getSession(config.getUsername(), config.getHost(), config.getPort());
-
-            // 设置连接属性
-            Properties props = new Properties();
-            props.put("StrictHostKeyChecking", "no");
-            props.put("UserKnownHostsFile", "/dev/null");
-            // 可选：设置加密算法优先级
-            props.put("PreferredAuthentications", "publickey,keyboard-interactive,password");
-            session.setConfig(props);
-
+            // 创建连接
+            ConnectFuture connectFuture = client.connect(config.getUsername(), config.getHost(), config.getPort());
+            
             // 设置连接超时
-            if (config.getTimeout() > 0) {
-                session.setTimeout(config.getTimeout());
-            } else {
-                session.setTimeout(30000); // 默认30秒超时
-            }
+            int timeout = config.getTimeout() > 0 ? config.getTimeout() : 30000;
+            session = connectFuture.verify(timeout, TimeUnit.MILLISECONDS).getSession();
 
-            // 判断认证方式并设置认证信息
-            boolean authConfigured = false;
+            // 注意：Apache MINA SSHD的会话超时通过客户端配置或在连接时设置
+
+            // 判断认证方式并进行认证
+            boolean authSuccess = false;
 
             // 1. 优先使用密钥认证
             if (hasPrivateKeyAuth(config)) {
                 try {
-                    if (config.getPrivateKeyContent() != null && !config.getPrivateKeyContent().trim().isEmpty()) {
-                        // 使用私钥字符串内容
-                        byte[] privateKey = config.getPrivateKeyContent().getBytes();
-                        byte[] passphrase = null;
-                        if (config.getPassphrase() != null && !config.getPassphrase().isEmpty()) {
-                            passphrase = config.getPassphrase().getBytes();
-                        }
-
-                        // 生成一个唯一的标识名
-                        String keyName = "private_key_" + System.currentTimeMillis();
-                        jsch.addIdentity(keyName, privateKey, null, passphrase);
-                        log.info("使用私钥字符串认证{}", passphrase != null ? " (带密码短语)" : "");
-
-                    } else if (config.getPrivateKeyPath() != null && !config.getPrivateKeyPath().trim().isEmpty()) {
-                        // 使用私钥文件路径
-                        if (config.getPassphrase() != null && !config.getPassphrase().isEmpty()) {
-                            // 带密码短语的私钥文件
-                            jsch.addIdentity(config.getPrivateKeyPath(), config.getPassphrase());
-                            log.info("使用带密码短语的私钥文件认证: {}", config.getPrivateKeyPath());
-                        } else {
-                            // 无密码短语的私钥文件
-                            jsch.addIdentity(config.getPrivateKeyPath());
-                            log.info("使用私钥文件认证: {}", config.getPrivateKeyPath());
-                        }
+                    authSuccess = authenticateWithPrivateKey(session, config);
+                    if (authSuccess) {
+                        log.info("私钥认证成功");
                     }
-                    authConfigured = true;
                 } catch (Exception e) {
-                    log.warn("私钥认证配置失败，将尝试其他认证方式: {}", e.getMessage(), e);
+                    log.warn("私钥认证失败，将尝试其他认证方式: {}", e.getMessage());
                 }
             }
 
-            // 2. 如果私钥认证未配置或失败，使用密码认证
-            if (!authConfigured && config.getPassword() != null && !config.getPassword().trim().isEmpty()) {
-                session.setPassword(config.getPassword());
-                log.info("使用密码认证");
-                authConfigured = true;
+            // 2. 如果私钥认证未成功，使用密码认证
+            if (!authSuccess && config.getPassword() != null && !config.getPassword().trim().isEmpty()) {
+                try {
+                    // 设置密码身份提供者
+                    session.setPasswordIdentityProvider(
+                        org.apache.sshd.client.auth.password.PasswordIdentityProvider.wrapPasswords(config.getPassword())
+                    );
+                    AuthFuture authFuture = session.auth();
+                    authSuccess = authFuture.verify(timeout, TimeUnit.MILLISECONDS).isSuccess();
+                    if (authSuccess) {
+                        log.info("密码认证成功");
+                    }
+                } catch (Exception e) {
+                    log.warn("密码认证失败: {}", e.getMessage());
+                }
             }
 
-            // 3. 检查是否有认证方式
-            if (!authConfigured) {
-                throw new JSchException("未配置有效的认证方式，请提供私钥内容/路径或密码");
-            }
-
-            // 建立连接
-            log.info("正在连接到服务器...");
-            session.connect();
-
-            // 验证连接状态
-            if (!session.isConnected()) {
-                throw new JSchException("连接建立失败");
+            // 3. 检查认证结果
+            if (!authSuccess) {
+                if (session != null) {
+                    session.close();
+                }
+                throw new IOException("认证失败：请检查用户名、密码或私钥是否正确");
             }
 
             log.info("成功连接到SSH服务器: {}:{}, 用户: {}",
@@ -116,18 +132,82 @@ public class SshService {
 
             return session;
 
-        } catch (JSchException e) {
+        } catch (Exception e) {
             // 连接失败时清理资源
-            if (session != null && session.isConnected()) {
-                session.disconnect();
+            if (session != null) {
+                try {
+                    session.close();
+                } catch (IOException closeException) {
+                    log.warn("关闭会话时发生异常: {}", closeException.getMessage());
+                }
             }
 
             log.error("SSH连接失败 {}:{} - {}", config.getHost(), config.getPort(), e.getMessage());
 
             // 提供更友好的错误信息
             String errorMessage = getConnectErrorMessage(e);
-            throw new JSchException(errorMessage);
+            throw new IOException(errorMessage, e);
         }
+    }
+
+    /**
+     * 使用私钥进行认证
+     */
+    private boolean authenticateWithPrivateKey(ClientSession session, SshConfig config) throws IOException {
+        try {
+            if (config.getPrivateKeyContent() != null && !config.getPrivateKeyContent().trim().isEmpty()) {
+                // 使用私钥字符串内容
+                log.info("使用私钥字符串认证");
+                
+                // 将私钥内容写入临时文件
+                Path tempKeyFile = Files.createTempFile("ssh_key", ".pem");
+                try {
+                    Files.write(tempKeyFile, config.getPrivateKeyContent().getBytes(StandardCharsets.UTF_8));
+                    
+                    // 设置密钥身份提供者
+                    FileKeyPairProvider keyPairProvider = new FileKeyPairProvider(tempKeyFile);
+                    
+                    // 如果有密码短语，设置密码提供者
+                    if (config.getPassphrase() != null && !config.getPassphrase().isEmpty()) {
+                        keyPairProvider.setPasswordFinder((session1, resourceKey, retryIndex) -> config.getPassphrase());
+                    }
+                    
+                    session.setKeyIdentityProvider(keyPairProvider);
+                    
+                    AuthFuture authFuture = session.auth();
+                    return authFuture.verify(30000, TimeUnit.MILLISECONDS).isSuccess();
+                } finally {
+                    Files.deleteIfExists(tempKeyFile);
+                }
+
+            } else if (config.getPrivateKeyPath() != null && !config.getPrivateKeyPath().trim().isEmpty()) {
+                // 使用私钥文件路径
+                log.info("使用私钥文件认证: {}", config.getPrivateKeyPath());
+                Path keyPath = Paths.get(config.getPrivateKeyPath());
+                
+                if (!Files.exists(keyPath)) {
+                    throw new IOException("私钥文件不存在: " + config.getPrivateKeyPath());
+                }
+
+                // 设置密钥身份提供者
+                FileKeyPairProvider keyPairProvider = new FileKeyPairProvider(keyPath);
+                
+                // 如果有密码短语，设置密码提供者
+                if (config.getPassphrase() != null && !config.getPassphrase().isEmpty()) {
+                    keyPairProvider.setPasswordFinder((session1, resourceKey, retryIndex) -> config.getPassphrase());
+                }
+                
+                session.setKeyIdentityProvider(keyPairProvider);
+                
+                AuthFuture authFuture = session.auth();
+                return authFuture.verify(30000, TimeUnit.MILLISECONDS).isSuccess();
+            }
+        } catch (Exception e) {
+            log.error("私钥认证过程中发生异常: {}", e.getMessage(), e);
+            throw new IOException("私钥认证失败", e);
+        }
+        
+        return false;
     }
 
     /**
@@ -138,16 +218,15 @@ public class SshService {
                 (config.getPrivateKeyPath() != null && !config.getPrivateKeyPath().trim().isEmpty());
     }
 
-
     /**
      * 安全地断开SSH连接
      *
      * @param session 要断开的会话
      */
-    public void disconnectSafely(Session session) {
-        if (session != null && session.isConnected()) {
+    public void disconnectSafely(ClientSession session) {
+        if (session != null && !session.isClosed()) {
             try {
-                session.disconnect();
+                session.close();
                 log.info("SSH连接已断开");
             } catch (Exception e) {
                 log.warn("断开SSH连接时发生异常: {}", e.getMessage());
@@ -158,13 +237,13 @@ public class SshService {
     /**
      * 获取连接错误的友好提示信息
      *
-     * @param e JSch异常
+     * @param e 异常
      * @return 友好的错误信息
      */
-    private String getConnectErrorMessage(JSchException e) {
+    private String getConnectErrorMessage(Exception e) {
         String message = e.getMessage().toLowerCase();
 
-        if (message.contains("auth fail") || message.contains("authentication fail")) {
+        if (message.contains("auth") && (message.contains("fail") || message.contains("denied"))) {
             return "认证失败：请检查用户名、密码或私钥是否正确";
         } else if (message.contains("connection refused")) {
             return "连接被拒绝：请检查服务器地址、端口是否正确，以及SSH服务是否运行";
@@ -180,101 +259,74 @@ public class SshService {
             return "SSH连接失败：" + e.getMessage();
         }
     }
-    
+
     /**
      * 执行命令并返回结果
      */
-    public CommandResult executeCommand(Session session, String command) throws JSchException, IOException {
-        ChannelExec channel = (ChannelExec) session.openChannel("exec");
+    public CommandResult executeCommand(ClientSession session, String command) throws IOException {
         CommandResult result = new CommandResult();
         
-        try {
-            channel.setCommand(command);
+        try (ChannelExec channel = session.createExecChannel(command)) {
+            // 设置输出流
+            ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+            ByteArrayOutputStream stderr = new ByteArrayOutputStream();
             
-            // 获取标准输出和错误输出
-            InputStream inputStream = channel.getInputStream();
-            InputStream errorStream = channel.getErrStream();
+            channel.setOut(stdout);
+            channel.setErr(stderr);
             
-            channel.connect();
+            // 执行命令
+            channel.open().verify(30000, TimeUnit.MILLISECONDS);
+            channel.waitFor(java.util.EnumSet.of(
+                org.apache.sshd.client.channel.ClientChannelEvent.CLOSED), 0);
             
-            // 获取命令输出
-            String stdout = new BufferedReader(new InputStreamReader(inputStream))
-                    .lines().collect(Collectors.joining("\n"));
-            String stderr = new BufferedReader(new InputStreamReader(errorStream))
-                    .lines().collect(Collectors.joining("\n"));
-            
+            // 获取结果
             result.setExitStatus(channel.getExitStatus());
-            result.setStdout(stdout);
-            result.setStderr(stderr);
+            result.setStdout(stdout.toString(StandardCharsets.UTF_8));
+            result.setStderr(stderr.toString(StandardCharsets.UTF_8));
             
             log.info("命令执行完成, 退出码: {}", result.getExitStatus());
-        } finally {
-            if (channel != null) {
-                channel.disconnect();
-            }
         }
         
         return result;
     }
-    
+
     /**
      * 读取远程文件
      */
-    public String readRemoteFile(Session session, String remotePath) throws JSchException, SftpException, IOException {
-        ChannelSftp channelSftp = (ChannelSftp) session.openChannel("sftp");
-        StringBuilder content = new StringBuilder();
-        
-        try {
-            channelSftp.connect();
+    public String readRemoteFile(ClientSession session, String remotePath) throws IOException {
+        try (SftpClient sftpClient = SftpClientFactory.instance().createSftpClient(session)) {
             
-            InputStream inputStream = channelSftp.get(remotePath);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-            
-            String line;
-            while ((line = reader.readLine()) != null) {
-                content.append(line).append("\n");
-            }
-            
-            reader.close();
-            log.info("成功读取文件: {}", remotePath);
-        } finally {
-            if (channelSftp != null) {
-                channelSftp.disconnect();
+            try (InputStream inputStream = sftpClient.read(remotePath);
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                
+                StringBuilder content = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line).append("\n");
+                }
+                
+                log.info("成功读取文件: {}", remotePath);
+                return content.toString();
             }
         }
-        
-        return content.toString();
     }
-    
+
     /**
      * 写入远程文件
      */
-    public void writeRemoteFile(Session session, String content, String remotePath) throws JSchException, SftpException, IOException {
-        ChannelSftp channelSftp = (ChannelSftp) session.openChannel("sftp");
-        
-        try {
-            channelSftp.connect();
+    public void writeRemoteFile(ClientSession session, String content, String remotePath) throws IOException {
+        try (SftpClient sftpClient = SftpClientFactory.instance().createSftpClient(session)) {
             
-            // 创建临时文件
-            File tempFile = File.createTempFile("upload", ".tmp");
-            FileWriter writer = new FileWriter(tempFile);
-            writer.write(content);
-            writer.close();
-            
-            // 上传文件
-            channelSftp.put(new FileInputStream(tempFile), remotePath, ChannelSftp.OVERWRITE);
-            
-            // 删除临时文件
-            tempFile.delete();
+            // 直接写入内容到远程文件
+            try (OutputStream outputStream = sftpClient.write(remotePath, SftpClient.OpenMode.Write, SftpClient.OpenMode.Create, SftpClient.OpenMode.Truncate)) {
+                outputStream.write(content.getBytes(StandardCharsets.UTF_8));
+                outputStream.flush();
+            }
             
             log.info("成功写入文件: {}", remotePath);
-        } finally {
-            if (channelSftp != null) {
-                channelSftp.disconnect();
-            }
         }
     }
-    
+
     /**
      * 批量执行命令
      */
@@ -285,20 +337,43 @@ public class SshService {
         
         return CompletableFuture.supplyAsync(() -> {
             for (SshConfig sshConfig : sshConfigs) {
+                ClientSession session = null;
                 try {
-                    Session session = connectToServer(sshConfig);
+                    session = connectToServer(sshConfig);
                     CommandResult result = executeCommand(session, command);
                     batchResult.addResult(sshConfig.getHost(), result);
-                    session.disconnect();
                 } catch (Exception e) {
                     log.error("批量执行命令失败: {}", e.getMessage(), e);
                     CommandResult errorResult = new CommandResult();
                     errorResult.setExitStatus(-1);
                     errorResult.setStderr("连接或执行错误: " + e.getMessage());
                     batchResult.addResult(sshConfig.getHost(), errorResult);
+                } finally {
+                    if (session != null) {
+                        disconnectSafely(session);
+                    }
                 }
             }
             return batchResult;
         }, executorService);
+    }
+
+    /**
+     * 关闭服务时清理资源
+     */
+    public void shutdown() {
+        try {
+            if (executorService != null && !executorService.isShutdown()) {
+                executorService.shutdown();
+                if (!executorService.awaitTermination(10, TimeUnit.SECONDS)) {
+                    executorService.shutdownNow();
+                }
+            }
+        } catch (InterruptedException e) {
+            executorService.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+        
+        clientManager.shutdown();
     }
 }
