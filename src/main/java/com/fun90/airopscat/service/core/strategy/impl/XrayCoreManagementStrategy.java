@@ -3,12 +3,13 @@ package com.fun90.airopscat.service.core.strategy.impl;
 import com.fun90.airopscat.annotation.SupportedCores;
 import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
-import com.fun90.airopscat.service.SshService;
 import com.fun90.airopscat.service.core.strategy.CoreManagementStrategy;
+import com.fun90.airopscat.service.ssh.SshConnection;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.sshd.client.session.ClientSession;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
  * Xray内核管理策略
@@ -27,303 +28,462 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
     private static final String BINARY_PATH = "/usr/local/bin/xray";
     private static final String CONFIG_PATH = "/usr/local/etc/xray/config.json";
     private static final String LOG_PATH = "/var/log/xray/";
-    
-    @Autowired
-    private SshService sshService;
+    private static final String SYSTEMD_SERVICE_PATH = "/etc/systemd/system/xray.service";
     
     @Override
-    public CoreManagementResult start(ClientSession session) {
-        return executeSystemctlCommand(session, "start", "启动Xray服务");
+    public CoreManagementResult start(SshConnection connection) {
+        return executeSystemctlCommand(connection, "start", "启动Xray服务");
     }
     
     @Override
-    public CoreManagementResult stop(ClientSession session) {
-        return executeSystemctlCommand(session, "stop", "停止Xray服务");
+    public CoreManagementResult stop(SshConnection connection) {
+        return executeSystemctlCommand(connection, "stop", "停止Xray服务");
     }
     
     @Override
-    public CoreManagementResult restart(ClientSession session) {
-        return executeSystemctlCommand(session, "restart", "重启Xray服务");
+    public CoreManagementResult restart(SshConnection connection) {
+        return executeSystemctlCommand(connection, "restart", "重启Xray服务");
     }
     
     @Override
-    public CoreManagementResult reload(ClientSession session) {
-        return executeSystemctlCommand(session, "reload", "重新加载Xray配置");
+    public CoreManagementResult reload(SshConnection connection) {
+        return executeSystemctlCommand(connection, "reload", "重新加载Xray配置");
     }
     
     @Override
-    public CoreManagementResult status(ClientSession session) {
-        try {
-            long startTime = System.currentTimeMillis();
-            CommandResult result = sshService.executeCommand(session, 
-                "sudo systemctl status " + SERVICE_NAME + " --no-pager");
-            long duration = System.currentTimeMillis() - startTime;
-            
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation("status");
-            coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(result.getExitStatus() == 0);
-            coreResult.setOutput(result.getStdout());
-            coreResult.setError(result.getStderr());
-            coreResult.setExitCode(result.getExitStatus());
-            coreResult.setDuration(duration);
-            coreResult.setMessage(coreResult.isSuccess() ? "状态检查成功" : "状态检查失败");
-            
-            return coreResult;
-        } catch (Exception e) {
-            log.error("检查Xray状态失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("status", "xray", "状态检查失败", e.getMessage());
-        }
+    public CoreManagementResult status(SshConnection connection) {
+        return executeSystemctlCommand(connection, "status", "查询Xray服务状态");
     }
     
     @Override
-    public CoreManagementResult validateConfig(ClientSession session, String configPath) {
-        if (configPath == null || configPath.trim().isEmpty()) {
-            configPath = CONFIG_PATH;
-        }
+    public CoreManagementResult install(SshConnection connection, Object... params) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation("install");
+        result.setCoreType("xray");
+        result.setOperationTime(LocalDateTime.now());
         
         try {
-            long startTime = System.currentTimeMillis();
-            String command = String.format("sudo %s run -test -config %s", BINARY_PATH, configPath);
-            CommandResult result = sshService.executeCommand(session, command);
-            long duration = System.currentTimeMillis() - startTime;
-            
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation("validate");
-            coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(result.getExitStatus() == 0);
-            coreResult.setOutput(result.getStdout());
-            coreResult.setError(result.getStderr());
-            coreResult.setExitCode(result.getExitStatus());
-            coreResult.setDuration(duration);
-            coreResult.setMessage(coreResult.isSuccess() ? "配置验证通过" : "配置验证失败");
-            
-            return coreResult;
-        } catch (Exception e) {
-            log.error("验证Xray配置失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("validate", "xray", "配置验证失败", e.getMessage());
-        }
-    }
-    
-    @Override
-    public CoreManagementResult install(ClientSession session, String version) {
-        try {
-            long startTime = System.currentTimeMillis();
-            
-            // 使用官方安装脚本
-            String command = version != null && !version.trim().isEmpty() 
-                ? String.format("bash -c \"$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)\" @ install --version %s", version)
-                : "bash -c \"$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)\" @ install";
-            
-            CommandResult result = sshService.executeCommand(session, command);
-            long duration = System.currentTimeMillis() - startTime;
-            
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation("install");
-            coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(result.getExitStatus() == 0);
-            coreResult.setOutput(result.getStdout());
-            coreResult.setError(result.getStderr());
-            coreResult.setExitCode(result.getExitStatus());
-            coreResult.setDuration(duration);
-            coreResult.setMessage(coreResult.isSuccess() ? "Xray安装成功" : "Xray安装失败");
-            
-            return coreResult;
-        } catch (Exception e) {
-            log.error("安装Xray失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("install", "xray", "安装失败", e.getMessage());
-        }
-    }
-    
-    @Override
-    public CoreManagementResult uninstall(ClientSession session) {
-        try {
-            long startTime = System.currentTimeMillis();
-            String command = "bash -c \"$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)\" @ remove";
-            CommandResult result = sshService.executeCommand(session, command);
-            long duration = System.currentTimeMillis() - startTime;
-            
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation("uninstall");
-            coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(result.getExitStatus() == 0);
-            coreResult.setOutput(result.getStdout());
-            coreResult.setError(result.getStderr());
-            coreResult.setExitCode(result.getExitStatus());
-            coreResult.setDuration(duration);
-            coreResult.setMessage(coreResult.isSuccess() ? "Xray卸载成功" : "Xray卸载失败");
-            
-            return coreResult;
-        } catch (Exception e) {
-            log.error("卸载Xray失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("uninstall", "xray", "卸载失败", e.getMessage());
-        }
-    }
-    
-    @Override
-    public CoreManagementResult updateConfig(ClientSession session, String configContent, String configPath) {
-        if (configPath == null || configPath.trim().isEmpty()) {
-            configPath = CONFIG_PATH;
-        }
-        
-        try {
-            long startTime = System.currentTimeMillis();
-            
-            // 备份原配置
-            String backupCommand = String.format("sudo cp %s %s.backup.%d", 
-                configPath, configPath, System.currentTimeMillis());
-            sshService.executeCommand(session, backupCommand);
-            
-            // 更新配置文件
-            sshService.writeRemoteFile(session, configContent, configPath);
-            
-            // 验证新配置
-            CoreManagementResult validationResult = validateConfig(session, configPath);
-            if (!validationResult.isSuccess()) {
-                // 恢复备份
-                String restoreCommand = String.format("sudo mv %s.backup.* %s", configPath, configPath);
-                sshService.executeCommand(session, restoreCommand);
-                
-                validationResult.setMessage("配置更新失败：新配置验证不通过，已恢复原配置");
-                return validationResult;
+            // 1. 检查是否已安装
+            CommandResult checkResult = connection.executeCommand("which " + BINARY_PATH);
+            if (checkResult.isSuccess()) {
+                result.setSuccess(true);
+                result.setMessage("Xray已经安装");
+                result.setOutput("Xray binary found at: " + BINARY_PATH);
+                return result;
             }
             
-            long duration = System.currentTimeMillis() - startTime;
+            // 2. 检查系统架构和操作系统
+            CommandResult archResult = connection.executeCommand("uname -m");
+            CommandResult osResult = connection.executeCommand("cat /etc/os-release | grep '^ID=' | cut -d'=' -f2 | tr -d '\"'");
             
-            CoreManagementResult result = CoreManagementResult.success("update_config", "xray", "配置更新成功");
-            result.setServerAddress(session.getConnectAddress().toString());
-            result.setDuration(duration);
+            if (!archResult.isSuccess() || !osResult.isSuccess()) {
+                result.setSuccess(false);
+                result.setMessage("无法检测系统信息");
+                result.setError("Architecture or OS detection failed");
+                return result;
+            }
             
-            return result;
+            // 3. 执行安装
+            String version = params.length > 0 && params[0] instanceof String ? (String) params[0] : null;
+            String installCommand = buildInstallCommand(version);
+            
+            log.info("开始安装Xray: {}", installCommand);
+            CommandResult installResult = connection.executeCommand(installCommand);
+            
+            if (installResult.isSuccess()) {
+                // 4. 验证安装
+                CommandResult verifyResult = connection.executeCommand(BINARY_PATH + " version");
+                if (verifyResult.isSuccess()) {
+                    result.setSuccess(true);
+                    result.setMessage("Xray安装成功");
+                    result.setOutput(verifyResult.getStdout());
+                } else {
+                    result.setSuccess(false);
+                    result.setMessage("Xray安装完成但验证失败");
+                    result.setError(verifyResult.getStderr());
+                }
+            } else {
+                result.setSuccess(false);
+                result.setMessage("Xray安装失败");
+                result.setError(installResult.getStderr());
+                result.setOutput(installResult.getStdout());
+            }
+            
         } catch (Exception e) {
-            log.error("更新Xray配置失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("update_config", "xray", "配置更新失败", e.getMessage());
+            log.error("安装Xray失败", e);
+            result.setSuccess(false);
+            result.setMessage("安装异常: " + e.getMessage());
+            result.setError(e.getMessage());
         }
+        
+        return result;
     }
     
     @Override
-    public CoreManagementResult getVersion(ClientSession session) {
+    public CoreManagementResult uninstall(SshConnection connection) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation("uninstall");
+        result.setCoreType("xray");
+        result.setOperationTime(LocalDateTime.now());
+        
         try {
-            long startTime = System.currentTimeMillis();
-            CommandResult result = sshService.executeCommand(session, BINARY_PATH + " version");
-            long duration = System.currentTimeMillis() - startTime;
+            // 1. 停止服务
+            log.info("停止Xray服务...");
+            executeSystemctlCommand(connection, "stop", "停止Xray服务");
             
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation("version");
-            coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(result.getExitStatus() == 0);
-            coreResult.setOutput(result.getStdout());
-            coreResult.setError(result.getStderr());
-            coreResult.setExitCode(result.getExitStatus());
-            coreResult.setDuration(duration);
-            coreResult.setMessage(coreResult.isSuccess() ? "获取版本信息成功" : "获取版本信息失败");
+            // 2. 禁用服务
+            connection.executeCommand("sudo systemctl disable " + SERVICE_NAME);
             
-            return coreResult;
+            // 3. 使用官方卸载脚本
+            String uninstallCommand = "bash -c \"$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)\" @ remove";
+            CommandResult uninstallResult = connection.executeCommand(uninstallCommand);
+            
+            if (uninstallResult.isSuccess()) {
+                // 4. 验证卸载
+                CommandResult verifyResult = connection.executeCommand("which " + BINARY_PATH);
+                if (!verifyResult.isSuccess()) {
+                    result.setSuccess(true);
+                    result.setMessage("Xray卸载成功");
+                    result.setOutput(uninstallResult.getStdout());
+                } else {
+                    result.setSuccess(false);
+                    result.setMessage("Xray卸载完成但文件仍存在");
+                    result.setError("Binary still exists after uninstall");
+                }
+            } else {
+                result.setSuccess(false);
+                result.setMessage("Xray卸载失败");
+                result.setError(uninstallResult.getStderr());
+                result.setOutput(uninstallResult.getStdout());
+            }
+            
         } catch (Exception e) {
-            log.error("获取Xray版本失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("version", "xray", "获取版本失败", e.getMessage());
+            log.error("卸载Xray失败", e);
+            result.setSuccess(false);
+            result.setMessage("卸载异常: " + e.getMessage());
+            result.setError(e.getMessage());
         }
+        
+        return result;
     }
     
     @Override
-    public CoreManagementResult getLogs(ClientSession session, int lines) {
+    public CoreManagementResult update(SshConnection connection, Object... params) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation("update");
+        result.setCoreType("xray");
+        result.setOperationTime(LocalDateTime.now());
+        
         try {
-            long startTime = System.currentTimeMillis();
+            // 1. 获取当前版本
+            CommandResult currentVersionResult = connection.executeCommand(BINARY_PATH + " version");
+            String currentVersion = currentVersionResult.isSuccess() ? 
+                parseVersionFromOutput(currentVersionResult.getStdout()) : "unknown";
+            
+            // 2. 执行更新
+            String targetVersion = params.length > 0 && params[0] instanceof String ? (String) params[0] : null;
+            String updateCommand = buildInstallCommand(targetVersion); // 使用安装脚本更新
+            
+            log.info("开始更新Xray从版本 {} 到 {}", currentVersion, targetVersion != null ? targetVersion : "latest");
+            CommandResult updateResult = connection.executeCommand(updateCommand);
+            
+            if (updateResult.isSuccess()) {
+                // 3. 验证更新
+                CommandResult newVersionResult = connection.executeCommand(BINARY_PATH + " version");
+                if (newVersionResult.isSuccess()) {
+                    String newVersion = parseVersionFromOutput(newVersionResult.getStdout());
+                    result.setSuccess(true);
+                    result.setMessage(String.format("Xray更新成功: %s -> %s", currentVersion, newVersion));
+                    result.setOutput(newVersionResult.getStdout());
+                } else {
+                    result.setSuccess(false);
+                    result.setMessage("Xray更新完成但版本验证失败");
+                    result.setError(newVersionResult.getStderr());
+                }
+            } else {
+                result.setSuccess(false);
+                result.setMessage("Xray更新失败");
+                result.setError(updateResult.getStderr());
+                result.setOutput(updateResult.getStdout());
+            }
+            
+        } catch (Exception e) {
+            log.error("更新Xray失败", e);
+            result.setSuccess(false);
+            result.setMessage("更新异常: " + e.getMessage());
+            result.setError(e.getMessage());
+        }
+        
+        return result;
+    }
+    
+    @Override
+    public CoreManagementResult config(SshConnection connection, Object... params) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation("config");
+        result.setCoreType("xray");
+        result.setOperationTime(LocalDateTime.now());
+        
+        try {
+            if (params.length > 0) {
+                // 更新配置
+                String configContent = params[0].toString();
+                String configPath = params.length > 1 && params[1] instanceof String ? 
+                    (String) params[1] : CONFIG_PATH;
+                
+                // 1. 备份现有配置
+                String backupPath = configPath + ".backup." + System.currentTimeMillis();
+                CommandResult backupResult = connection.executeCommand(
+                    String.format("sudo cp %s %s", configPath, backupPath));
+                
+                if (!backupResult.isSuccess()) {
+                    log.warn("无法备份配置文件: {}", backupResult.getStderr());
+                }
+                
+                // 2. 写入新配置
+                connection.writeRemoteFile(configPath, configContent);
+                
+                // 3. 验证配置
+                CommandResult validateResult = connection.executeCommand(
+                    String.format("sudo %s run -test -config %s", BINARY_PATH, configPath));
+                
+                if (validateResult.isSuccess()) {
+                    result.setSuccess(true);
+                    result.setMessage("配置文件更新成功");
+                    result.setOutput("配置验证通过");
+                } else {
+                    // 恢复备份
+                    if (backupResult.isSuccess()) {
+                        connection.executeCommand(String.format("sudo mv %s %s", backupPath, configPath));
+                        result.setMessage("配置文件验证失败，已恢复原配置: " + validateResult.getStderr());
+                    } else {
+                        result.setMessage("配置文件验证失败: " + validateResult.getStderr());
+                    }
+                    result.setSuccess(false);
+                    result.setError(validateResult.getStderr());
+                }
+            } else {
+                // 读取当前配置
+                String currentConfig = connection.readRemoteFile(CONFIG_PATH);
+                result.setSuccess(true);
+                result.setMessage("获取配置文件成功");
+                result.setOutput(currentConfig);
+            }
+            
+        } catch (Exception e) {
+            log.error("配置Xray失败", e);
+            result.setSuccess(false);
+            result.setMessage("配置异常: " + e.getMessage());
+            result.setError(e.getMessage());
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 获取Xray版本信息
+     */
+    public CoreManagementResult getVersion(SshConnection connection) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation("version");
+        result.setCoreType("xray");
+        result.setOperationTime(LocalDateTime.now());
+        
+        try {
+            CommandResult versionResult = connection.executeCommand(BINARY_PATH + " version");
+            
+            if (versionResult.isSuccess()) {
+                result.setSuccess(true);
+                result.setMessage("获取版本信息成功");
+                result.setOutput(versionResult.getStdout());
+            } else {
+                result.setSuccess(false);
+                result.setMessage("获取版本信息失败");
+                result.setError(versionResult.getStderr());
+            }
+            
+        } catch (Exception e) {
+            log.error("获取Xray版本失败", e);
+            result.setSuccess(false);
+            result.setMessage("获取版本异常: " + e.getMessage());
+            result.setError(e.getMessage());
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 获取Xray日志
+     */
+    public CoreManagementResult getLogs(SshConnection connection, int lines) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation("logs");
+        result.setCoreType("xray");
+        result.setOperationTime(LocalDateTime.now());
+        
+        try {
             String command = String.format("sudo journalctl -u %s -n %d --no-pager", SERVICE_NAME, lines);
-            CommandResult result = sshService.executeCommand(session, command);
-            long duration = System.currentTimeMillis() - startTime;
+            CommandResult logResult = connection.executeCommand(command);
             
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation("logs");
-            coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(result.getExitStatus() == 0);
-            coreResult.setOutput(result.getStdout());
-            coreResult.setError(result.getStderr());
-            coreResult.setExitCode(result.getExitStatus());
-            coreResult.setDuration(duration);
-            coreResult.setMessage(coreResult.isSuccess() ? "获取日志成功" : "获取日志失败");
+            if (logResult.isSuccess()) {
+                result.setSuccess(true);
+                result.setMessage("获取日志成功");
+                result.setOutput(logResult.getStdout());
+            } else {
+                result.setSuccess(false);
+                result.setMessage("获取日志失败");
+                result.setError(logResult.getStderr());
+            }
             
-            return coreResult;
         } catch (Exception e) {
-            log.error("获取Xray日志失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("logs", "xray", "获取日志失败", e.getMessage());
+            log.error("获取Xray日志失败", e);
+            result.setSuccess(false);
+            result.setMessage("获取日志异常: " + e.getMessage());
+            result.setError(e.getMessage());
         }
+        
+        return result;
     }
     
-    @Override
-    public CoreManagementResult isInstalled(ClientSession session) {
+    /**
+     * 检查Xray是否已安装
+     */
+    public CoreManagementResult isInstalled(SshConnection connection) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation("is_installed");
+        result.setCoreType("xray");
+        result.setOperationTime(LocalDateTime.now());
+        
         try {
-            long startTime = System.currentTimeMillis();
-            CommandResult result = sshService.executeCommand(session, "which " + BINARY_PATH);
-            long duration = System.currentTimeMillis() - startTime;
+            CommandResult checkResult = connection.executeCommand("which " + BINARY_PATH);
+            boolean installed = checkResult.isSuccess();
             
-            boolean installed = result.getExitStatus() == 0;
+            result.setSuccess(true); // 检查操作本身成功
+            result.setMessage(installed ? "Xray已安装" : "Xray未安装");
+            result.setOutput(installed ? "Binary found at: " + BINARY_PATH : "Binary not found");
             
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation("is_installed");
-            coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(true); // 检查操作本身成功
-            coreResult.setOutput(installed ? "Xray已安装" : "Xray未安装");
-            coreResult.setExitCode(installed ? 0 : 1);
-            coreResult.setDuration(duration);
-            coreResult.setMessage("安装状态检查完成");
+            // 在metadata中存储安装状态
+            result.setMetadata(Map.of("installed", installed));
             
-            return coreResult;
         } catch (Exception e) {
-            log.error("检查Xray安装状态失败: {}", e.getMessage(), e);
-            return CoreManagementResult.failure("is_installed", "xray", "检查安装状态失败", e.getMessage());
+            log.error("检查Xray安装状态失败", e);
+            result.setSuccess(false);
+            result.setMessage("检查安装状态异常: " + e.getMessage());
+            result.setError(e.getMessage());
         }
+        
+        return result;
+    }
+    
+    /**
+     * 验证Xray配置文件
+     */
+    public CoreManagementResult validateConfig(SshConnection connection, String configPath) {
+        if (configPath == null || configPath.trim().isEmpty()) {
+            configPath = CONFIG_PATH;
+        }
+        
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation("validate");
+        result.setCoreType("xray");
+        result.setOperationTime(LocalDateTime.now());
+        
+        try {
+            String command = String.format("sudo %s run -test -config %s", BINARY_PATH, configPath);
+            CommandResult validateResult = connection.executeCommand(command);
+            
+            if (validateResult.isSuccess()) {
+                result.setSuccess(true);
+                result.setMessage("配置验证通过");
+                result.setOutput(validateResult.getStdout());
+            } else {
+                result.setSuccess(false);
+                result.setMessage("配置验证失败");
+                result.setError(validateResult.getStderr());
+                result.setOutput(validateResult.getStdout());
+            }
+            
+        } catch (Exception e) {
+            log.error("验证Xray配置失败", e);
+            result.setSuccess(false);
+            result.setMessage("配置验证异常: " + e.getMessage());
+            result.setError(e.getMessage());
+        }
+        
+        return result;
     }
     
     /**
      * 执行systemctl命令的通用方法
      */
-    private CoreManagementResult executeSystemctlCommand(ClientSession session, String action, String description) {
+    private CoreManagementResult executeSystemctlCommand(SshConnection connection, String action, String description) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation(action);
+        result.setCoreType("xray");
+        result.setOperationTime(LocalDateTime.now());
+        
         try {
-            long startTime = System.currentTimeMillis();
-            String command = String.format("sudo systemctl %s %s", action, SERVICE_NAME);
-            CommandResult result = sshService.executeCommand(session, command);
-            long duration = System.currentTimeMillis() - startTime;
-            
-            CoreManagementResult coreResult = new CoreManagementResult();
-            coreResult.setOperation(action);
-            coreResult.setCoreType("xray");
-            coreResult.setServerAddress(session.getConnectAddress().toString());
-            coreResult.setSuccess(result.getExitStatus() == 0);
-            coreResult.setOutput(result.getStdout());
-            coreResult.setError(result.getStderr());
-            coreResult.setExitCode(result.getExitStatus());
-            coreResult.setDuration(duration);
-            coreResult.setMessage(coreResult.isSuccess() ? description + "成功" : description + "失败");
-            
-            // 如果是重启操作，额外进行状态检查
-            if ("restart".equals(action) && coreResult.isSuccess()) {
-                try {
-                    Thread.sleep(2000); // 等待服务完全启动
-                    CoreManagementResult statusResult = status(session);
-                    if (statusResult.isSuccess() && statusResult.getOutput().contains("active (running)")) {
-                        coreResult.setOutput(coreResult.getOutput() + "\n服务状态验证：运行正常");
-                    } else {
-                        coreResult.setSuccess(false);
-                        coreResult.setMessage(description + "完成但服务状态异常");
-                        coreResult.setError("服务重启后状态检查失败");
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+            String command = "sudo systemctl " + action + " " + SERVICE_NAME;
+            if ("status".equals(action)) {
+                command += " --no-pager"; // 避免分页输出
             }
             
-            return coreResult;
+            CommandResult commandResult = connection.executeCommand(command);
+            
+            if (commandResult.isSuccess()) {
+                result.setSuccess(true);
+                result.setMessage(description + "成功");
+                result.setOutput(commandResult.getStdout());
+            } else {
+                result.setSuccess(false);
+                result.setMessage(description + "失败");
+                result.setError(commandResult.getStderr());
+                result.setOutput(commandResult.getStdout());
+            }
+            
         } catch (Exception e) {
-            log.error("执行Xray {} 操作失败: {}", action, e.getMessage(), e);
-            return CoreManagementResult.failure(action, "xray", description + "失败", e.getMessage());
+            log.error("{} 执行异常", description, e);
+            result.setSuccess(false);
+            result.setMessage(description + "异常: " + e.getMessage());
+            result.setError(e.getMessage());
         }
+        
+        return result;
+    }
+    
+    /**
+     * 构建安装命令
+     */
+    private String buildInstallCommand(String version) {
+        if (version != null && !version.trim().isEmpty()) {
+            return String.format("bash -c \"$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)\" @ install --version %s", version);
+        } else {
+            return "bash -c \"$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)\" @ install";
+        }
+    }
+    
+    /**
+     * 从版本输出中解析版本号
+     */
+    private String parseVersionFromOutput(String versionOutput) {
+        if (versionOutput == null || versionOutput.trim().isEmpty()) {
+            return "unknown";
+        }
+        
+        // Xray版本输出通常格式为: "Xray 1.8.4 (Xray, Penetrates Everything.) Custom (go1.21.0 linux/amd64)"
+        // 提取版本号
+        String[] lines = versionOutput.split("\n");
+        for (String line : lines) {
+            if (line.contains("Xray") && line.matches(".*\\d+\\.\\d+\\.\\d+.*")) {
+                String[] parts = line.split("\\s+");
+                for (String part : parts) {
+                    if (part.matches("\\d+\\.\\d+\\.\\d+")) {
+                        return part;
+                    }
+                }
+            }
+        }
+        
+        return versionOutput.trim();
     }
 }

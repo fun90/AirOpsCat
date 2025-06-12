@@ -4,10 +4,10 @@ import com.fun90.airopscat.model.dto.BatchCoreManagementResult;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.enums.CoreOperation;
-import com.fun90.airopscat.service.ssh.SshConnection;
-import com.fun90.airopscat.service.ssh.SshConnectionService;
 import com.fun90.airopscat.service.core.registry.CoreManagementStrategyRegistry;
 import com.fun90.airopscat.service.core.strategy.CoreManagementStrategy;
+import com.fun90.airopscat.service.ssh.SshConnection;
+import com.fun90.airopscat.service.ssh.SshConnectionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -19,7 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * 内核管理服务 - 解耦版本
+ * 内核管理服务
  */
 @Slf4j
 @Service
