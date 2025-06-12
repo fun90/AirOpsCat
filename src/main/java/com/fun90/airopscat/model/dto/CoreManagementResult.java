@@ -64,27 +64,5 @@ public class CoreManagementResult {
      * 执行耗时（毫秒）
      */
     private long duration;
-    
-    public static CoreManagementResult success(String operation, String coreType, String message) {
-        CoreManagementResult result = new CoreManagementResult();
-        result.setSuccess(true);
-        result.setOperation(operation);
-        result.setCoreType(coreType);
-        result.setMessage(message);
-        result.setOperationTime(LocalDateTime.now());
-        result.setExitCode(0);
-        return result;
-    }
-    
-    public static CoreManagementResult failure(String operation, String coreType, String message, String error) {
-        CoreManagementResult result = new CoreManagementResult();
-        result.setSuccess(false);
-        result.setOperation(operation);
-        result.setCoreType(coreType);
-        result.setMessage(message);
-        result.setError(error);
-        result.setOperationTime(LocalDateTime.now());
-        result.setExitCode(-1);
-        return result;
-    }
+
 }

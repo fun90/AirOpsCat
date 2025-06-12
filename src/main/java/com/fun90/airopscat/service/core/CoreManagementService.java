@@ -108,8 +108,7 @@ public class CoreManagementService {
             case INSTALL -> strategy.install(connection, params);
             case UNINSTALL -> strategy.uninstall(connection);
             case UPDATE -> strategy.update(connection, params);
-            case UPDATE_CONFIG -> null;
-            case GET_CONFIG -> strategy.config(connection, params);
+            case CONFIG -> strategy.config(connection, params);
             case GET_VERSION -> null;
             case GET_LOGS -> null;
             case IS_INSTALLED -> null;
