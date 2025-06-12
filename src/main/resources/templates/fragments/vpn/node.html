@@ -134,7 +134,7 @@
 
     <div class="col-auto">
         <button class="btn btn-secondary" @click="openBatchDeployModal">
-            <i class="ti ti-rocket"></i> 批量部署
+            <i class="ti ti-rocket"></i> 全部部署
         </button>
     </div>
 </th:block>
@@ -723,7 +723,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p>确定要批量部署已选择的 {{ selectedNodeIds.length }} 个节点吗?</p>
+                    <p>确定要部署全部节点吗?</p>
                     <div v-if="batchDeploying" class="progress">
                         <div class="progress-bar progress-bar-indeterminate bg-primary"></div>
                     </div>

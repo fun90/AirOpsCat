@@ -1,7 +1,6 @@
 package com.fun90.airopscat.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.SshConfig;
@@ -20,18 +19,16 @@ import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerNodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
-import com.fun90.airopscat.service.ssh.SshConnection;
-import com.fun90.airopscat.service.ssh.SshConnectionService;
 import com.fun90.airopscat.service.xray.registry.ConversionStrategyRegistry;
 import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
 import com.fun90.airopscat.utils.ConfigFileReader;
 import com.fun90.airopscat.utils.JsonUtil;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -46,7 +43,6 @@ public class NodeDeploymentService {
     private final ServerConfigRepository serverConfigRepository;
     private final ConversionStrategyRegistry strategyRegistry;
     private final CoreManagementService coreManagementService;
-    private final SshConnectionService sshConnectionService;
 
     @Autowired
     public NodeDeploymentService(
@@ -54,76 +50,16 @@ public class NodeDeploymentService {
             ServerRepository serverRepository,
             ServerNodeRepository serverNodeRepository,
             ServerConfigRepository serverConfigRepository,
-            ObjectMapper objectMapper,
             ConversionStrategyRegistry strategyRegistry,
-            CoreManagementService coreManagementService,
-            SshConnectionService sshConnectionService) {
+            CoreManagementService coreManagementService) {
         this.nodeRepository = nodeRepository;
         this.serverRepository = serverRepository;
         this.serverNodeRepository = serverNodeRepository;
         this.serverConfigRepository = serverConfigRepository;
         this.strategyRegistry = strategyRegistry;
         this.coreManagementService = coreManagementService;
-        this.sshConnectionService = sshConnectionService;
     }
-    
-    /**
-     * Deploy a node to the server
-     */
-    @Transactional
-    public DeploymentResult deployNode(Long nodeId) {
-        // Get the node
-        Node node = nodeRepository.findById(nodeId)
-                .orElseThrow(() -> new IllegalArgumentException("Node not found"));
-        
-        // Get the server
-        Server server = serverRepository.findById(node.getServerId())
-                .orElseThrow(() -> new IllegalArgumentException("Server not found"));
-        
-        // Create deployment result
-        DeploymentResult result = new DeploymentResult();
-        result.setNodeId(nodeId);
-        result.setServerId(server.getId());
-        
-        try {
-            // Check if node is already deployed
-            Optional<ServerNode> existingDeployment = serverNodeRepository.findById(nodeId);
-            if (existingDeployment.isPresent()) {
-                // Update existing deployment
-                ServerNode serverNode = existingDeployment.get();
-                updateServerNodeFromNode(serverNode, node);
-                serverNodeRepository.save(serverNode);
-                
-                // TODO: Execute remote commands to update the deployed node configuration
 
-                // Update node status
-                node.setDeployed(1); // Set to deployed
-                nodeRepository.save(node);
-                
-                result.setSuccess(true);
-                result.setMessage("Node updated successfully");
-            } else {
-                // Create new deployment
-                ServerNode serverNode = createServerNodeFromNode(node);
-                serverNodeRepository.save(serverNode);
-                
-                // TODO: Execute remote commands to deploy the node configuration
-                
-                // Update node status
-                node.setDeployed(1); // Set to deployed
-                nodeRepository.save(node);
-                
-                result.setSuccess(true);
-                result.setMessage("Node deployed successfully");
-            }
-        } catch (Exception e) {
-            result.setSuccess(false);
-            result.setMessage("Deployment failed: " + e.getMessage());
-        }
-        
-        return result;
-    }
-    
     /**
      * Deploy multiple nodes at once
      */
@@ -133,7 +69,12 @@ public class NodeDeploymentService {
 
         // 第一步：生成节点配置
         // 找出未部署的节点
-        List<Node> unDeployedNodes = nodeRepository.findByDeployed(0);
+        List<Node> unDeployedNodes;
+        if (CollectionUtils.isNotEmpty(nodeIds)) {
+            unDeployedNodes = nodeRepository.findByDeployedAndIdIn(0, nodeIds);
+        } else {
+            unDeployedNodes = nodeRepository.findByDeployed(0);
+        }
         // 按服务器分组
         Map<Long, List<Node>> serverNodeMap = unDeployedNodes.stream()
                 .collect(Collectors.groupingBy(Node::getServerId));
@@ -239,6 +180,7 @@ public class NodeDeploymentService {
                         result.setNodeId(node.getId());
                         result.setServerId(node.getServerId());
                         result.setSuccess(true);
+                        result.setMessage("节点部署成功");
                         results.add(result);
                     });
 

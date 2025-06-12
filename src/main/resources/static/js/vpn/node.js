@@ -495,16 +495,6 @@ const nodeTable = new DataTable({
         },
 
         openBatchDeployModal() {
-            // Get all selected nodes (those with status = 0)
-            this.selectedNodeIds = this.records
-                .filter(node => node.deployed === 0)
-                .map(node => node.id);
-
-            if (this.selectedNodeIds.length === 0) {
-                ToastUtils.show('Warning', '没有可部署的节点', 'warning');
-                return;
-            }
-
             this.batchDeployModal = new Modal(document.getElementById('batchDeployModal'));
             this.batchDeployModal.show();
         },
@@ -517,7 +507,7 @@ const nodeTable = new DataTable({
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(this.selectedNodeIds)
+                body: "[]"
             })
                 .then(response => {
                     if (!response.ok) {

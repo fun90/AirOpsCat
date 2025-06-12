@@ -22,6 +22,8 @@ public interface NodeRepository extends JpaRepository<Node, Long>, JpaSpecificat
 
     List<Node> findByDeployed(Integer deployed);
 
+    List<Node> findByDeployedAndIdIn(Integer deployed, List<Long> nodeIds);
+
     List<Node> findByLevel(Integer level);
     
     @Query("SELECT n FROM Node n WHERE n.name LIKE %:keyword% OR n.remark LIKE %:keyword%")
