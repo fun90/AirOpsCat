@@ -63,7 +63,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     public CoreManagementResult install(SshConnection connection, Object... params) {
         CoreManagementResult result = new CoreManagementResult();
         result.setOperation("install");
-        result.setTimestamp(LocalDateTime.now());
+        result.setOperationTime(LocalDateTime.now());
         
         try {
             // 1. 检查是否已安装
@@ -116,11 +116,11 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
             if (installResult.isSuccess()) {
                 result.setSuccess(true);
                 result.setMessage("Hysteria2安装成功");
-                result.setOutput(installResult.getOutput());
+                result.setOutput(installResult.getStdout());
             } else {
                 result.setSuccess(false);
-                result.setMessage("Hysteria2安装失败: " + installResult.getError());
-                result.setOutput(installResult.getOutput());
+                result.setMessage("Hysteria2安装失败: " + installResult.getStderr());
+                result.setOutput(installResult.getStdout());
             }
             
         } catch (Exception e) {
@@ -136,7 +136,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     public CoreManagementResult uninstall(SshConnection connection) {
         CoreManagementResult result = new CoreManagementResult();
         result.setOperation("uninstall");
-        result.setTimestamp(LocalDateTime.now());
+        result.setOperationTime(LocalDateTime.now());
         
         try {
             String uninstallScript = """
@@ -162,11 +162,11 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
             if (uninstallResult.isSuccess()) {
                 result.setSuccess(true);
                 result.setMessage("Hysteria2卸载成功");
-                result.setOutput(uninstallResult.getOutput());
+                result.setOutput(uninstallResult.getStdout());
             } else {
                 result.setSuccess(false);
-                result.setMessage("Hysteria2卸载失败: " + uninstallResult.getError());
-                result.setOutput(uninstallResult.getOutput());
+                result.setMessage("Hysteria2卸载失败: " + uninstallResult.getStderr());
+                result.setOutput(uninstallResult.getStdout());
             }
             
         } catch (Exception e) {
@@ -182,7 +182,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     public CoreManagementResult update(SshConnection connection, Object... params) {
         CoreManagementResult result = new CoreManagementResult();
         result.setOperation("update");
-        result.setTimestamp(LocalDateTime.now());
+        result.setOperationTime(LocalDateTime.now());
         
         try {
             // 停止服务
@@ -213,14 +213,14 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
                 
                 result.setSuccess(true);
                 result.setMessage("Hysteria2更新成功");
-                result.setOutput(updateResult.getOutput());
+                result.setOutput(updateResult.getStdout());
             } else {
                 // 恢复备份
                 connection.executeCommand("sudo mv /usr/local/bin/hysteria.backup /usr/local/bin/hysteria");
                 
                 result.setSuccess(false);
-                result.setMessage("Hysteria2更新失败: " + updateResult.getError());
-                result.setOutput(updateResult.getOutput());
+                result.setMessage("Hysteria2更新失败: " + updateResult.getStderr());
+                result.setOutput(updateResult.getStdout());
             }
             
         } catch (Exception e) {
@@ -236,7 +236,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     public CoreManagementResult config(SshConnection connection, Object... params) {
         CoreManagementResult result = new CoreManagementResult();
         result.setOperation("config");
-        result.setTimestamp(LocalDateTime.now());
+        result.setOperationTime(LocalDateTime.now());
         
         try {
             if (params.length > 0 && params[0] instanceof String configContent) {
@@ -253,8 +253,8 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
                     result.setOutput("配置验证通过");
                 } else {
                     result.setSuccess(false);
-                    result.setMessage("配置文件语法错误: " + validateResult.getError());
-                    result.setOutput(validateResult.getOutput());
+                    result.setMessage("配置文件语法错误: " + validateResult.getStderr());
+                    result.setOutput(validateResult.getStdout());
                 }
             } else {
                 // 读取当前配置
@@ -279,7 +279,7 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     private CoreManagementResult executeSystemctlCommand(SshConnection connection, String action, String description) {
         CoreManagementResult result = new CoreManagementResult();
         result.setOperation(action);
-        result.setTimestamp(LocalDateTime.now());
+        result.setOperationTime(LocalDateTime.now());
         
         try {
             String command = "sudo systemctl " + action + " " + SERVICE_NAME;
@@ -288,11 +288,11 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
             if (commandResult.isSuccess()) {
                 result.setSuccess(true);
                 result.setMessage(description + "成功");
-                result.setOutput(commandResult.getOutput());
+                result.setOutput(commandResult.getStdout());
             } else {
                 result.setSuccess(false);
-                result.setMessage(description + "失败: " + commandResult.getError());
-                result.setOutput(commandResult.getOutput());
+                result.setMessage(description + "失败: " + commandResult.getStderr());
+                result.setOutput(commandResult.getStdout());
             }
             
         } catch (Exception e) {

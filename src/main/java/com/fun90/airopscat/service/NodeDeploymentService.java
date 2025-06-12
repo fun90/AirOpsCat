@@ -39,7 +39,6 @@ public class NodeDeploymentService {
     private final ServerRepository serverRepository;
     private final ServerNodeRepository serverNodeRepository;
     private final ServerConfigRepository serverConfigRepository;
-    private final SshService sshService;
     private final ObjectMapper objectMapper;
     private final ConversionStrategyRegistry strategyRegistry;
     private final CoreManagementService coreManagementService;
@@ -50,7 +49,6 @@ public class NodeDeploymentService {
             ServerRepository serverRepository,
             ServerNodeRepository serverNodeRepository,
             ServerConfigRepository serverConfigRepository,
-            SshService sshService,
             ObjectMapper objectMapper,
             ConversionStrategyRegistry strategyRegistry,
             CoreManagementService coreManagementService) {
@@ -58,7 +56,6 @@ public class NodeDeploymentService {
         this.serverRepository = serverRepository;
         this.serverNodeRepository = serverNodeRepository;
         this.serverConfigRepository = serverConfigRepository;
-        this.sshService = sshService;
         this.objectMapper = objectMapper;
         this.strategyRegistry = strategyRegistry;
         this.coreManagementService = coreManagementService;

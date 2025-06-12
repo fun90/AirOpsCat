@@ -36,7 +36,7 @@ class SshConnectionServiceTest {
                 
                 // 测试命令执行
                 var commandResult = connection.executeCommand("ls -la");
-                System.out.println("命令输出: " + commandResult.getOutput());
+                System.out.println("命令输出: " + commandResult.getStdout());
                 
                 // 测试连接状态
                 System.out.println("连接状态: " + connection.isConnected());
