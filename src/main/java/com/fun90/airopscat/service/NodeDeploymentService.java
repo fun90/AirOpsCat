@@ -2,6 +2,7 @@ package com.fun90.airopscat.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.dto.xray.InboundConfig;
@@ -19,6 +20,8 @@ import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerNodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
+import com.fun90.airopscat.service.ssh.SshConnection;
+import com.fun90.airopscat.service.ssh.SshConnectionService;
 import com.fun90.airopscat.service.xray.registry.ConversionStrategyRegistry;
 import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
 import com.fun90.airopscat.utils.ConfigFileReader;
@@ -28,6 +31,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,9 +44,9 @@ public class NodeDeploymentService {
     private final ServerRepository serverRepository;
     private final ServerNodeRepository serverNodeRepository;
     private final ServerConfigRepository serverConfigRepository;
-    private final ObjectMapper objectMapper;
     private final ConversionStrategyRegistry strategyRegistry;
     private final CoreManagementService coreManagementService;
+    private final SshConnectionService sshConnectionService;
 
     @Autowired
     public NodeDeploymentService(
@@ -51,14 +56,15 @@ public class NodeDeploymentService {
             ServerConfigRepository serverConfigRepository,
             ObjectMapper objectMapper,
             ConversionStrategyRegistry strategyRegistry,
-            CoreManagementService coreManagementService) {
+            CoreManagementService coreManagementService,
+            SshConnectionService sshConnectionService) {
         this.nodeRepository = nodeRepository;
         this.serverRepository = serverRepository;
         this.serverNodeRepository = serverNodeRepository;
         this.serverConfigRepository = serverConfigRepository;
-        this.objectMapper = objectMapper;
         this.strategyRegistry = strategyRegistry;
         this.coreManagementService = coreManagementService;
+        this.sshConnectionService = sshConnectionService;
     }
     
     /**
@@ -166,10 +172,12 @@ public class NodeDeploymentService {
                             if (inboundConfig == null) {
                                 inboundConfig = JsonUtil.toObject(node.getInbound(), InboundConfig.class);
                                 inboundConfig.setTag(node.getTag());
+                                inboundConfig.setPort(node.getPort());
                                 inbounds.add(inboundConfig);
                             } else {
                                 InboundConfig newInboundConfig = JsonUtil.toObject(node.getInbound(), InboundConfig.class);
                                 newInboundConfig.setTag(node.getTag());
+                                newInboundConfig.setPort(node.getPort());
                                 // 使用newInboundConfig来替换inboundConfig
                                 int index = inbounds.indexOf(inboundConfig);
                                 inbounds.set(index, newInboundConfig);
@@ -197,7 +205,7 @@ public class NodeDeploymentService {
                                     if (outboundConfig != null) {
                                         int index = xrayConfig.getOutbounds().indexOf(outboundConfig);
                                         xrayConfig.getOutbounds().set(index, newOutboundConfig);
-                                        RoutingRule routingRule = xrayConfig.getRouting().getRules().stream().filter(rule -> rule.getInboundTag().contains(node.getTag()))
+                                        RoutingRule routingRule = xrayConfig.getRouting().getRules().stream().filter(rule -> rule.getInboundTag() != null && rule.getInboundTag().contains(node.getTag()))
                                                 .findFirst().orElseThrow(() -> new IllegalArgumentException("Routing rule not found"));
                                         routingRule.setOutboundTag(outNode.getTag());
                                         int routingRuleIndex = xrayConfig.getRouting().getRules().indexOf(routingRule);
@@ -218,6 +226,14 @@ public class NodeDeploymentService {
                             }
                         }
 
+                        // 保存ServerNode
+                        ServerNode serverNode = createServerNodeFromNode(node);
+                        serverNodeRepository.save(serverNode);
+
+                        // 更新节点部署状态
+                        node.setDeployed(1);
+                        nodeRepository.save(node);
+
                         // 添加节点部署结果
                         DeploymentResult result = new DeploymentResult();
                         result.setNodeId(node.getId());
@@ -232,15 +248,25 @@ public class NodeDeploymentService {
                 // 将配置保存到数据库
                 serverConfigRepository.save(serverConfig);
 
-                // 使用SSH重启Xray
-//                sshService.restartXray(server.getHost(), server.getPort(), server.getPassword());
                 Server server = serverRepository.findById(serverId).orElseThrow(() -> new IllegalArgumentException("Server not found"));
                 SshConfig sshConfig = new SshConfig();
                 sshConfig.setHost(server.getIp());
                 sshConfig.setPort(server.getSshPort());
-                sshConfig.setUsername(server.getUsername());
+                sshConfig.setUsername("root");
+                if (server.getAuthType().equalsIgnoreCase("password")) {
+                    sshConfig.setPassword(server.getAuth());
+                } else {
+                    sshConfig.setPrivateKeyContent(server.getAuth());
+                }
                 sshConfig.setPassword(server.getAuth());
-                coreManagementService.executeOperation(coreType, CoreOperation.RESTART, sshConfig);
+                // 上传配置到服务器
+                CoreManagementResult configResult = coreManagementService.executeOperation(coreType, CoreOperation.CONFIG, sshConfig, serverConfig.getConfig());
+                // 重启Xray
+                CoreManagementResult restartResult = coreManagementService.executeOperation(coreType, CoreOperation.RESTART, sshConfig);
+                if (configResult == null || !configResult.isSuccess() || restartResult == null || !restartResult.isSuccess()) {
+                    throw new RuntimeException("服务器操作失败！" + (configResult != null ? configResult.getMessage() : "")
+                            + " " + (restartResult != null ? restartResult.getMessage() : ""));
+                }
             }
         });
         
@@ -257,7 +283,7 @@ public class NodeDeploymentService {
     /**
      * Create a ServerNode entity from a Node entity
      */
-    private ServerNode createServerNodeFromNode(Node node) throws JsonProcessingException {
+    private ServerNode createServerNodeFromNode(Node node) {
         ServerNode serverNode = new ServerNode();
         
         serverNode.setServerId(node.getServerId());
@@ -266,7 +292,7 @@ public class NodeDeploymentService {
         
         // Extract protocol from setting configuration
         if (node.getInbound() != null) {
-            Map<String, Object> inbound = objectMapper.readValue(node.getInbound(), Map.class);
+            Map<String, Object> inbound = JsonUtil.toObject(node.getInbound(), Map.class);
             serverNode.setProtocol((String) inbound.get("protocol"));
         }
         
@@ -278,6 +304,7 @@ public class NodeDeploymentService {
         serverNode.setDisabled(0);
         serverNode.setName(node.getName());
         serverNode.setRemark(node.getRemark());
+        serverNode.setUpdateTime(LocalDateTime.now());
         
         return serverNode;
     }
@@ -290,7 +317,7 @@ public class NodeDeploymentService {
         
         // Extract protocol from setting configuration
         if (node.getInbound() != null) {
-            Map<String, Object> inbound = objectMapper.readValue(node.getInbound(), Map.class);
+            Map<String, Object> inbound = JsonUtil.toObject(node.getInbound(), Map.class);
             serverNode.setProtocol((String) inbound.get("protocol"));
         }
         
@@ -302,5 +329,6 @@ public class NodeDeploymentService {
         serverNode.setDisabled(0);
         serverNode.setName(node.getName());
         serverNode.setRemark(node.getRemark());
+        serverNode.setUpdateTime(LocalDateTime.now());
     }
 }

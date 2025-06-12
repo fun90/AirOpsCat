@@ -3,6 +3,7 @@ package com.fun90.airopscat.utils;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.boot.json.JsonParseException;
 
 import java.io.IOException;
@@ -14,6 +15,8 @@ public class JsonUtil {
     }
 
     private static final ObjectMapper objectMapper = new ObjectMapper()
+            // 注册 JavaTimeModule 用于处理 ZonedDateTime 等 java.time 类
+            .registerModule(new JavaTimeModule())
             //取消默认转换timestamps形式
             .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
             //忽略空Bean转json的错误

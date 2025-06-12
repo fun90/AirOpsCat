@@ -13,8 +13,7 @@ public enum CoreOperation {
     INSTALL("install", "安装"),
     UNINSTALL("uninstall", "卸载"),
     UPDATE("update", "更新"),
-    UPDATE_CONFIG("update_config", "更新配置"),
-    GET_CONFIG("get_config", "获取配置"),
+    CONFIG("config", "配置"),
     GET_VERSION("version", "获取版本"),
     GET_LOGS("logs", "获取日志"),
     IS_INSTALLED("is_installed", "检查安装状态");

@@ -255,12 +255,12 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
                     // 恢复备份
                     if (backupResult.isSuccess()) {
                         connection.executeCommand(String.format("sudo mv %s %s", backupPath, configPath));
-                        result.setMessage("配置文件验证失败，已恢复原配置: " + validateResult.getStderr());
+                        result.setMessage("配置文件验证失败，已恢复原配置: " + validateResult.getStdout());
                     } else {
-                        result.setMessage("配置文件验证失败: " + validateResult.getStderr());
+                        result.setMessage("配置文件验证失败: " + validateResult.getStdout());
                     }
                     result.setSuccess(false);
-                    result.setError(validateResult.getStderr());
+                    result.setError(validateResult.getStdout());
                 }
             } else {
                 // 读取当前配置
