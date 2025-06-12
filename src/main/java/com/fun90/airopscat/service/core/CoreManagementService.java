@@ -56,7 +56,7 @@ public class CoreManagementService {
             CoreManagementResult result = new CoreManagementResult();
             result.setSuccess(false);
             result.setMessage("操作执行失败: " + e.getMessage());
-            result.setTimestamp(LocalDateTime.now());
+            result.setOperationTime(LocalDateTime.now());
             result.setOperation(operation.name());
             result.setServerAddress(sshConfig.getHost());
             
@@ -81,8 +81,8 @@ public class CoreManagementService {
 
         // 构建批量结果
         BatchCoreManagementResult batchResult = new BatchCoreManagementResult();
-        batchResult.setResults(results);
-        batchResult.setTimestamp(LocalDateTime.now());
+        batchResult.addResults(results);
+        batchResult.setOperationTime(LocalDateTime.now());
         batchResult.setOperation(operation.name());
         
         // 统计成功和失败数量
@@ -104,10 +104,15 @@ public class CoreManagementService {
             case RESTART -> strategy.restart(connection);
             case RELOAD -> strategy.reload(connection);
             case STATUS -> strategy.status(connection);
+            case VALIDATE_CONFIG -> null;
             case INSTALL -> strategy.install(connection, params);
             case UNINSTALL -> strategy.uninstall(connection);
             case UPDATE -> strategy.update(connection, params);
-            case CONFIG -> strategy.config(connection, params);
+            case UPDATE_CONFIG -> null;
+            case GET_CONFIG -> strategy.config(connection, params);
+            case GET_VERSION -> null;
+            case GET_LOGS -> null;
+            case IS_INSTALLED -> null;
         };
     }
 }
