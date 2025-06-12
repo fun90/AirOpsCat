@@ -3,8 +3,8 @@ package com.fun90.airopscat.model.dto;
 import lombok.Data;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 批量内核管理操作结果
@@ -24,17 +24,12 @@ public class BatchCoreManagementResult {
     /**
      * 操作开始时间
      */
-    private LocalDateTime startTime;
-    
-    /**
-     * 操作结束时间
-     */
-    private LocalDateTime endTime;
+    private LocalDateTime operationTime;
     
     /**
      * 各服务器的操作结果
      */
-    private Map<String, CoreManagementResult> results = new HashMap<>();
+    private List<CoreManagementResult> results = new ArrayList<>();
     
     /**
      * 成功数量
@@ -50,15 +45,17 @@ public class BatchCoreManagementResult {
      * 总数量
      */
     private int totalCount;
-    
-    public void addResult(String serverAddress, CoreManagementResult result) {
-        results.put(serverAddress, result);
-        if (result.isSuccess()) {
-            successCount++;
-        } else {
-            failureCount++;
+
+    public void addResults(List<CoreManagementResult> list) {
+        results.addAll(list);
+        for (CoreManagementResult result : list) {
+            if (result.isSuccess()) {
+                successCount++;
+            } else {
+                failureCount++;
+            }
+            totalCount++;
         }
-        totalCount++;
     }
     
     public boolean isAllSuccess() {

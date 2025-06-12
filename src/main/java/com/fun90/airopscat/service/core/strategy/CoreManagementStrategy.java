@@ -8,6 +8,14 @@ import com.fun90.airopscat.service.ssh.SshConnection;
  */
 public interface CoreManagementStrategy {
 
+    /**
+     * 获取策略名称
+     * @return 策略名称
+     */
+    default String getStrategyName() {
+        return this.getClass().getSimpleName();
+    }
+
     CoreManagementResult start(SshConnection connection);
 
     CoreManagementResult stop(SshConnection connection);
