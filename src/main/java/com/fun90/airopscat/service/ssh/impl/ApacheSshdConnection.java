@@ -4,14 +4,18 @@ import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.sshd.client.channel.ChannelExec;
+import org.apache.sshd.client.channel.ClientChannelEvent;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.sftp.client.SftpClient;
 import org.apache.sshd.sftp.client.SftpClientFactory;
 
 import java.io.*;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.EnumSet;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -26,10 +30,14 @@ public class ApacheSshdConnection implements SshConnection {
     
     public ApacheSshdConnection(ClientSession session) {
         this.session = session;
+        SocketAddress remoteAddress = session.getRemoteAddress();
+        int port = (remoteAddress instanceof InetSocketAddress) ? 
+            ((InetSocketAddress) remoteAddress).getPort() : 22;
+        
         this.connectionInfo = String.format("%s@%s:%d", 
             session.getUsername(), 
             session.getRemoteAddress(), 
-            session.getRemoteAddress().getPort());
+            port);
     }
     
     @Override
@@ -47,33 +55,23 @@ public class ApacheSshdConnection implements SshConnection {
             
             channel.setOut(stdout);
             channel.setErr(stderr);
-            
+
             // 执行命令
-            channel.open();
+            channel.open().verify(30000, TimeUnit.MILLISECONDS);
+            channel.waitFor(java.util.EnumSet.of(
+                    org.apache.sshd.client.channel.ClientChannelEvent.CLOSED), 0);
             
-            // 等待命令执行完成
-            boolean finished = channel.waitFor(ChannelExec.CLOSED, TimeUnit.SECONDS.toMillis(30));
-            
-            if (!finished) {
-                throw new IOException("命令执行超时: " + command);
-            }
-            
-            // 获取退出码
             Integer exitStatus = channel.getExitStatus();
-            result.setExitCode(exitStatus != null ? exitStatus : -1);
+            result.setExitStatus(exitStatus != null ? exitStatus : -1);
+            result.setStdout(stdout.toString(StandardCharsets.UTF_8));
+            result.setStderr(stderr.toString(StandardCharsets.UTF_8));
             
-            // 获取输出
-            result.setOutput(stdout.toString(StandardCharsets.UTF_8));
-            result.setError(stderr.toString(StandardCharsets.UTF_8));
-            result.setSuccess(result.getExitCode() == 0);
-            
-            log.debug("命令执行完成: {} (退出码: {})", command, result.getExitCode());
+            log.debug("命令执行完成: {} (退出码: {})", command, result.getExitStatus());
             
         } catch (Exception e) {
             log.error("命令执行失败: {} - {}", command, e.getMessage());
-            result.setSuccess(false);
-            result.setError("命令执行异常: " + e.getMessage());
-            result.setExitCode(-1);
+            result.setStderr("命令执行异常: " + e.getMessage());
+            result.setExitStatus(-1);
         }
         
         return result;

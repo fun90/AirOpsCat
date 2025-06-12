@@ -10,4 +10,7 @@ public class CommandResult {
     private int exitStatus;
     private String stdout;
     private String stderr;
+    public boolean isSuccess() {
+        return exitStatus == 0;
+    }
 }
