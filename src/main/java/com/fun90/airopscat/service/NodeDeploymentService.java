@@ -13,7 +13,6 @@ import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.entity.ServerNode;
 import com.fun90.airopscat.model.enums.CoreOperation;
-import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerNodeRepository;
@@ -24,17 +23,21 @@ import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
 import com.fun90.airopscat.utils.ConfigFileReader;
 import com.fun90.airopscat.utils.JsonUtil;
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * 节点部署服务 - 负责节点的部署和配置管理
+ */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class NodeDeploymentService {
 
     private final NodeRepository nodeRepository;
@@ -44,200 +47,378 @@ public class NodeDeploymentService {
     private final ConversionStrategyRegistry strategyRegistry;
     private final CoreManagementService coreManagementService;
 
-    @Autowired
-    public NodeDeploymentService(
-            NodeRepository nodeRepository,
-            ServerRepository serverRepository,
-            ServerNodeRepository serverNodeRepository,
-            ServerConfigRepository serverConfigRepository,
-            ConversionStrategyRegistry strategyRegistry,
-            CoreManagementService coreManagementService) {
-        this.nodeRepository = nodeRepository;
-        this.serverRepository = serverRepository;
-        this.serverNodeRepository = serverNodeRepository;
-        this.serverConfigRepository = serverConfigRepository;
-        this.strategyRegistry = strategyRegistry;
-        this.coreManagementService = coreManagementService;
-    }
+    private static final String CORE_TYPE_HYSTERIA = "hysteria";
+    private static final String CORE_TYPE_XRAY = "xray";
+    private static final String PROTOCOL_HYSTERIA2 = "hysteria2";
+    private static final String DEFAULT_USERNAME = "root";
 
     /**
-     * Deploy multiple nodes at once
+     * 批量部署节点
+     *
+     * @param nodeIds 节点ID列表，如果为空则部署所有未部署的节点
+     * @return 部署结果列表
      */
     @Transactional
     public List<DeploymentResult> deployNodes(List<Long> nodeIds) {
+        log.info("开始批量部署节点，节点ID列表: {}", nodeIds);
+
+        try {
+            List<Node> undeployedNodes = getUndeployedNodes(nodeIds);
+            if (undeployedNodes.isEmpty()) {
+                log.info("没有找到需要部署的节点");
+                return Collections.emptyList();
+            }
+
+            return processNodesByServer(undeployedNodes);
+        } catch (Exception e) {
+            log.error("批量部署节点失败", e);
+            throw new RuntimeException("节点部署失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 获取未部署的节点列表
+     */
+    private List<Node> getUndeployedNodes(List<Long> nodeIds) {
+        if (CollectionUtils.isNotEmpty(nodeIds)) {
+            return nodeRepository.findByDeployedAndIdIn(0, nodeIds);
+        } else {
+            return nodeRepository.findByDeployed(0);
+        }
+    }
+
+    /**
+     * 按服务器分组处理节点
+     */
+    private List<DeploymentResult> processNodesByServer(List<Node> nodes) {
         List<DeploymentResult> results = new ArrayList<>();
 
-        // 第一步：生成节点配置
-        // 找出未部署的节点
-        List<Node> unDeployedNodes;
-        if (CollectionUtils.isNotEmpty(nodeIds)) {
-            unDeployedNodes = nodeRepository.findByDeployedAndIdIn(0, nodeIds);
-        } else {
-            unDeployedNodes = nodeRepository.findByDeployed(0);
-        }
-        // 按服务器分组
-        Map<Long, List<Node>> serverNodeMap = unDeployedNodes.stream()
-                .collect(Collectors.groupingBy(Node::getServerId));
-        serverNodeMap.forEach((serverId, nodes) -> {
-            // 按protocol找到对应的内核，按内核分组
-            Map<String, List<Node>> coreTypeNodeMap = nodes.stream()
-                    .collect(Collectors.groupingBy(o -> getCoreType(o.getProtocol())));
-            for (Map.Entry<String, List<Node>> nodeListEntry : coreTypeNodeMap.entrySet()) {
-                String coreType = nodeListEntry.getKey();
-                List<Node> coreNodes = nodeListEntry.getValue();
+        Map<Long, List<Node>> serverNodeMap = nodes.stream().collect(Collectors.groupingBy(Node::getServerId));
 
-                // 查询服务器配置，未查到则新建
-                Optional<ServerConfig> serverConfigOptional = serverConfigRepository.findByServerIdAndConfigType(serverId, coreType);
-                ServerConfig serverConfig = serverConfigOptional.orElseGet(() -> {
-                    ServerConfig newServerConfig = new ServerConfig();
-                    newServerConfig.setServerId(serverId);
-                    newServerConfig.setConfigType(coreType);
-                    newServerConfig.setConfig(ConfigFileReader.readFileContent("config/xray/xray-template.json"));
-                    return newServerConfig;
-                });
+        for (Map.Entry<Long, List<Node>> entry : serverNodeMap.entrySet()) {
+            Long serverId = entry.getKey();
+            List<Node> serverNodes = entry.getValue();
 
-                if (coreType.equalsIgnoreCase(CoreType.XRAY.name())) {
-                    XrayConfig xrayConfig = JsonUtil.toObject(serverConfig.getConfig(), XrayConfig.class);
-                    coreNodes.forEach(node -> {
-                        if (node.getDisabled() == 1) {
-                            xrayConfig.getInbounds().removeIf(inbound -> inbound.getTag().equals(node.getTag()));
-                        } else {
-                            List<InboundConfig> inbounds = xrayConfig.getInbounds();
-                            if (inbounds == null) {
-                                inbounds = new ArrayList<>();
-                                xrayConfig.setInbounds(inbounds);
-                            }
-                            InboundConfig inboundConfig = inbounds.stream()
-                                    .filter(o -> o.getTag().equals(node.getTag()))
-                                    .findFirst().orElse(null);
-                            if (inboundConfig == null) {
-                                inboundConfig = JsonUtil.toObject(node.getInbound(), InboundConfig.class);
-                                inboundConfig.setTag(node.getTag());
-                                inboundConfig.setPort(node.getPort());
-                                inbounds.add(inboundConfig);
-                            } else {
-                                InboundConfig newInboundConfig = JsonUtil.toObject(node.getInbound(), InboundConfig.class);
-                                newInboundConfig.setTag(node.getTag());
-                                newInboundConfig.setPort(node.getPort());
-                                // 使用newInboundConfig来替换inboundConfig
-                                int index = inbounds.indexOf(inboundConfig);
-                                inbounds.set(index, newInboundConfig);
-                            }
-
-                            // 处理outbound
-                            Node outNode = node.getOutNode();
-                            if (outNode != null) {
-                                String outboundProtocol = outNode.getProtocol();
-                                ConversionStrategy strategy = strategyRegistry.getStrategy(outboundProtocol);
-                                // 验证配置
-                                InboundConfig inboundConfigOfOutNode = JsonUtil.toObject(outNode.getInbound(), InboundConfig.class);
-                                if (!strategy.validate(inboundConfigOfOutNode)) {
-                                    throw new IllegalArgumentException(
-                                            String.format("Invalid inbound configuration for protocol: %s", outboundProtocol));
-                                }
-                                try {
-                                    OutboundConfig newOutboundConfig = strategy.convert(inboundConfigOfOutNode, outNode.getServer().getHost(), outNode.getPort());
-                                    newOutboundConfig.setTag(outNode.getTag());
-
-                                    log.debug("Successfully converted {} configuration", outboundProtocol);
-                                    OutboundConfig outboundConfig = xrayConfig.getOutbounds().stream()
-                                            .filter(o -> o.getTag().equals(outNode.getTag()))
-                                            .findFirst().orElse(null);
-                                    if (outboundConfig != null) {
-                                        int index = xrayConfig.getOutbounds().indexOf(outboundConfig);
-                                        xrayConfig.getOutbounds().set(index, newOutboundConfig);
-                                        RoutingRule routingRule = xrayConfig.getRouting().getRules().stream().filter(rule -> rule.getInboundTag() != null && rule.getInboundTag().contains(node.getTag()))
-                                                .findFirst().orElseThrow(() -> new IllegalArgumentException("Routing rule not found"));
-                                        routingRule.setOutboundTag(outNode.getTag());
-                                        int routingRuleIndex = xrayConfig.getRouting().getRules().indexOf(routingRule);
-                                        xrayConfig.getRouting().getRules().set(routingRuleIndex, routingRule);
-                                    } else {
-                                        xrayConfig.getOutbounds().add(newOutboundConfig);
-                                        RoutingRule routingRule = new RoutingRule();
-                                        routingRule.setInboundTag(Collections.singletonList(node.getTag()));
-                                        routingRule.setOutboundTag(outNode.getTag());
-                                        routingRule.setType("field");
-                                        xrayConfig.getRouting().getRules().add(routingRule);
-                                    }
-                                } catch (Exception e) {
-                                    log.error("Failed to convert {} configuration: {}", outboundProtocol, e.getMessage(), e);
-                                    throw new RuntimeException(
-                                            String.format("Failed to convert %s configuration: %s", outboundProtocol, e.getMessage()), e);
-                                }
-                            }
-                        }
-
-                        // 保存ServerNode
-                        ServerNode serverNode = createServerNodeFromNode(node);
-                        serverNodeRepository.save(serverNode);
-
-                        // 更新节点部署状态
-                        node.setDeployed(1);
-                        nodeRepository.save(node);
-
-                        // 添加节点部署结果
-                        DeploymentResult result = new DeploymentResult();
-                        result.setNodeId(node.getId());
-                        result.setServerId(node.getServerId());
-                        result.setSuccess(true);
-                        result.setMessage("节点部署成功");
-                        results.add(result);
-                    });
-
-                    serverConfig.setConfig(JsonUtil.toJsonString(xrayConfig));
-                }
-
-                // 将配置保存到数据库
-                serverConfigRepository.save(serverConfig);
-
-                Server server = serverRepository.findById(serverId).orElseThrow(() -> new IllegalArgumentException("Server not found"));
-                SshConfig sshConfig = new SshConfig();
-                sshConfig.setHost(server.getIp());
-                sshConfig.setPort(server.getSshPort());
-                sshConfig.setUsername("root");
-                if (server.getAuthType().equalsIgnoreCase("password")) {
-                    sshConfig.setPassword(server.getAuth());
-                } else {
-                    sshConfig.setPrivateKeyContent(server.getAuth());
-                }
-                sshConfig.setPassword(server.getAuth());
-                // 上传配置到服务器
-                CoreManagementResult configResult = coreManagementService.executeOperation(coreType, CoreOperation.CONFIG, sshConfig, serverConfig.getConfig());
-                // 重启Xray
-                CoreManagementResult restartResult = coreManagementService.executeOperation(coreType, CoreOperation.RESTART, sshConfig);
-                if (configResult == null || !configResult.isSuccess() || restartResult == null || !restartResult.isSuccess()) {
-                    throw new RuntimeException("服务器操作失败！" + (configResult != null ? configResult.getMessage() : "")
-                            + " " + (restartResult != null ? restartResult.getMessage() : ""));
-                }
+            try {
+                results.addAll(deployNodesForServer(serverId, serverNodes));
+            } catch (Exception e) {
+                log.error("服务器 {} 的节点部署失败", serverId, e);
+                results.addAll(createFailureResults(serverNodes, e.getMessage()));
             }
-        });
-        
+        }
+
         return results;
     }
 
-    private String getCoreType(String protocol) {
-        if (protocol.equalsIgnoreCase("hysteria2")) {
-            return "hysteria";
-        }
-        return "xray";
-    }
-    
     /**
-     * Create a ServerNode entity from a Node entity
+     * 为特定服务器部署节点
      */
-    private ServerNode createServerNodeFromNode(Node node) {
+    private List<DeploymentResult> deployNodesForServer(Long serverId, List<Node> nodes) {
+        log.info("开始为服务器 {} 部署 {} 个节点", serverId, nodes.size());
+
+        Map<String, List<Node>> coreTypeNodeMap = nodes.stream().collect(Collectors.groupingBy(node -> determineCoreType(node.getProtocol())));
+
+        List<DeploymentResult> results = new ArrayList<>();
+
+        for (Map.Entry<String, List<Node>> coreEntry : coreTypeNodeMap.entrySet()) {
+            String coreType = coreEntry.getKey();
+            List<Node> coreNodes = coreEntry.getValue();
+
+            try {
+                results.addAll(deployNodesForCore(serverId, coreType, coreNodes));
+            } catch (Exception e) {
+                log.error("服务器 {} 的 {} 核心节点部署失败", serverId, coreType, e);
+                results.addAll(createFailureResults(coreNodes, e.getMessage()));
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * 为特定核心类型部署节点
+     */
+    private List<DeploymentResult> deployNodesForCore(Long serverId, String coreType, List<Node> nodes) {
+        log.info("为服务器 {} 的 {} 核心部署 {} 个节点", serverId, coreType, nodes.size());
+
+        List<DeploymentResult> results = new ArrayList<>();
+
+        if (CORE_TYPE_XRAY.equals(coreType)) {
+            results.addAll(deployXrayNodes(serverId, nodes));
+        } else if (CORE_TYPE_HYSTERIA.equals(coreType)) {
+            results.addAll(deployHysteriaNodes(serverId, nodes));
+        } else {
+            log.warn("不支持的核心类型: {}", coreType);
+            results.addAll(createFailureResults(nodes, "不支持的核心类型: " + coreType));
+        }
+
+        return results;
+    }
+
+    /**
+     * 部署Xray节点
+     */
+    private List<DeploymentResult> deployXrayNodes(Long serverId, List<Node> nodes) {
+        List<DeploymentResult> results = new ArrayList<>();
+
+        // 1. 生成Xray配置
+        XrayConfig xrayConfig = generateXrayConfig(nodes);
+
+        // 2. 保存服务器配置
+        ServerConfig serverConfig = saveServerConfig(serverId, CORE_TYPE_XRAY, xrayConfig);
+
+        // 3. 远程部署配置
+        deployConfigToServer(serverId, CORE_TYPE_XRAY, serverConfig.getConfig());
+
+        // 4. 更新节点状态
+        results.addAll(updateNodeDeploymentStatus(nodes));
+
+        return results;
+    }
+
+    /**
+     * 部署Hysteria节点
+     */
+    private List<DeploymentResult> deployHysteriaNodes(Long serverId, List<Node> nodes) {
+        List<DeploymentResult> results = new ArrayList<>();
+
+        for (Node node : nodes) {
+            try {
+                // Hysteria节点单独部署
+                String hysteriaConfig = generateHysteriaConfig(node);
+                ServerConfig serverConfig = saveServerConfig(serverId, CORE_TYPE_HYSTERIA, hysteriaConfig);
+                deployConfigToServer(serverId, CORE_TYPE_HYSTERIA, serverConfig.getConfig());
+
+                results.add(updateSingleNodeDeploymentStatus(node));
+            } catch (Exception e) {
+                log.error("Hysteria节点 {} 部署失败", node.getId(), e);
+                results.add(createFailureResult(node, e.getMessage()));
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * 生成Xray配置
+     */
+    private XrayConfig generateXrayConfig(List<Node> nodes) {
+        String configTemplate = ConfigFileReader.readFileContent("config-template/xray.json");
+        XrayConfig xrayConfig = JsonUtil.toObject(configTemplate, XrayConfig.class);
+
+        List<InboundConfig> inbounds = new ArrayList<>();
+        List<OutboundConfig> outbounds = new ArrayList<>();
+        List<RoutingRule> routingRules = new ArrayList<>();
+
+        for (Node node : nodes) {
+            processNodeConfiguration(node, inbounds, outbounds, routingRules);
+        }
+
+        xrayConfig.setInbounds(inbounds);
+        xrayConfig.setOutbounds(outbounds);
+        xrayConfig.getRouting().setRules(routingRules);
+
+        return xrayConfig;
+    }
+
+    /**
+     * 处理单个节点的配置
+     */
+    private void processNodeConfiguration(Node node, List<InboundConfig> inbounds, List<OutboundConfig> outbounds, List<RoutingRule> routingRules) {
+
+        if (node.getInbound() == null) {
+            log.warn("节点 {} 的入站配置为空，跳过处理", node.getId());
+            return;
+        }
+
+        InboundConfig inbound = JsonUtil.toObject(node.getInbound(), InboundConfig.class);
+        inbound.setPort(node.getPort());
+        inbounds.add(inbound);
+
+        if (node.getOutId() != null) {
+            addOutboundConfiguration(node, outbounds);
+        }
+
+        if (node.getRule() != null) {
+            addRoutingRule(node, routingRules);
+        }
+    }
+
+    /**
+     * 添加出站配置
+     */
+    private void addOutboundConfiguration(Node node, List<OutboundConfig> outbounds) {
+        Node outNode = nodeRepository.findById(node.getOutId()).orElseThrow(() -> new IllegalArgumentException("出站节点不存在: " + node.getOutId()));
+
+        InboundConfig outInbound = JsonUtil.toObject(outNode.getInbound(), InboundConfig.class);
+        Server outServer = serverRepository.findById(outNode.getServerId()).orElseThrow(() -> new IllegalArgumentException("出站服务器不存在: " + outNode.getServerId()));
+
+        ConversionStrategy strategy = strategyRegistry.getStrategy(outInbound.getProtocol());
+        if (strategy != null) {
+            OutboundConfig outbound = strategy.convert(outInbound, outServer.getHost(), outNode.getPort());
+            outbound.setTag(node.getId().toString());
+            outbounds.add(outbound);
+        }
+    }
+
+    /**
+     * 添加路由规则
+     */
+    private void addRoutingRule(Node node, List<RoutingRule> routingRules) {
+        RoutingRule rule = JsonUtil.toObject(node.getRule(), RoutingRule.class);
+        rule.setOutboundTag(node.getId().toString());
+        routingRules.add(rule);
+    }
+
+    /**
+     * 生成Hysteria配置
+     */
+    private String generateHysteriaConfig(Node node) {
+        // 实现Hysteria配置生成逻辑
+        Map<String, Object> config = new HashMap<>();
+        if (node.getInbound() != null) {
+            config = JsonUtil.toObject(node.getInbound(), Map.class);
+        }
+        config.put("listen", ":" + node.getPort());
+        return JsonUtil.toJsonString(config);
+    }
+
+    /**
+     * 保存服务器配置
+     */
+    private ServerConfig saveServerConfig(Long serverId, String coreType, Object config) {
+        ServerConfig serverConfig = serverConfigRepository.findByServerIdAndConfigType(serverId, coreType).orElse(createNewServerConfig(serverId, coreType));
+
+        if (config instanceof XrayConfig) {
+            serverConfig.setConfig(JsonUtil.toJsonString(config));
+        } else {
+            serverConfig.setConfig(config.toString());
+        }
+        return serverConfigRepository.save(serverConfig);
+    }
+
+    /**
+     * 创建新的服务器配置
+     */
+    private ServerConfig createNewServerConfig(Long serverId, String coreType) {
+        ServerConfig serverConfig = new ServerConfig();
+        serverConfig.setServerId(serverId);
+        serverConfig.setConfigType(coreType);
+        serverConfig.setCreateTime(LocalDateTime.now());
+        return serverConfig;
+    }
+
+    /**
+     * 部署配置到服务器
+     */
+    private void deployConfigToServer(Long serverId, String coreType, String config) {
+        Server server = serverRepository.findById(serverId).orElseThrow(() -> new IllegalArgumentException("服务器不存在: " + serverId));
+
+        SshConfig sshConfig = createSshConfig(server);
+
+        // 上传配置
+        CoreManagementResult configResult = coreManagementService.executeOperation(coreType, CoreOperation.CONFIG, sshConfig, config);
+
+        if (configResult == null || !configResult.isSuccess()) {
+            throw new RuntimeException("配置上传失败: " + (configResult != null ? configResult.getMessage() : "未知错误"));
+        }
+
+        // 重启服务
+        CoreManagementResult restartResult = coreManagementService.executeOperation(coreType, CoreOperation.RESTART, sshConfig);
+
+        if (restartResult == null || !restartResult.isSuccess()) {
+            throw new RuntimeException("服务重启失败: " + (restartResult != null ? restartResult.getMessage() : "未知错误"));
+        }
+
+        log.info("服务器 {} 的 {} 配置部署成功", serverId, coreType);
+    }
+
+    /**
+     * 创建SSH配置
+     */
+    private SshConfig createSshConfig(Server server) {
+        SshConfig sshConfig = new SshConfig();
+        sshConfig.setHost(server.getIp());
+        sshConfig.setPort(server.getSshPort());
+        sshConfig.setUsername(DEFAULT_USERNAME);
+
+        if ("password".equalsIgnoreCase(server.getAuthType())) {
+            sshConfig.setPassword(server.getAuth());
+        } else {
+            sshConfig.setPrivateKeyContent(server.getAuth());
+        }
+
+        return sshConfig;
+    }
+
+    /**
+     * 更新节点部署状态
+     */
+    private List<DeploymentResult> updateNodeDeploymentStatus(List<Node> nodes) {
+        List<DeploymentResult> results = new ArrayList<>();
+
+        for (Node node : nodes) {
+            try {
+                results.add(updateSingleNodeDeploymentStatus(node));
+            } catch (Exception e) {
+                log.error("更新节点 {} 状态失败", node.getId(), e);
+                results.add(createFailureResult(node, "状态更新失败: " + e.getMessage()));
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * 更新单个节点的部署状态
+     */
+    private DeploymentResult updateSingleNodeDeploymentStatus(Node node) {
+        try {
+            // 创建或更新ServerNode
+            ServerNode serverNode = serverNodeRepository.findByServerId(node.getServerId()).stream().filter(sn -> sn.getId().equals(node.getId())).findFirst().orElse(null);
+
+            if (serverNode == null) {
+                serverNode = createServerNodeFromNode(node);
+            } else {
+                updateServerNodeFromNode(serverNode, node);
+            }
+
+            serverNodeRepository.save(serverNode);
+
+            // 更新节点部署状态
+            node.setDeployed(1);
+            nodeRepository.save(node);
+
+            return createSuccessResult(node, "节点部署成功");
+        } catch (Exception e) {
+            log.error("更新节点 {} 部署状态失败", node.getId(), e);
+            return createFailureResult(node, "状态更新失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 从Node创建ServerNode
+     */
+    private ServerNode createServerNodeFromNode(Node node) throws JsonProcessingException {
         ServerNode serverNode = new ServerNode();
-        
+        copyNodeToServerNode(serverNode, node);
+        return serverNode;
+    }
+
+    /**
+     * 从Node更新ServerNode
+     */
+    private void updateServerNodeFromNode(ServerNode serverNode, Node node) throws JsonProcessingException {
+        copyNodeToServerNode(serverNode, node);
+    }
+
+    /**
+     * 复制Node属性到ServerNode
+     */
+    private void copyNodeToServerNode(ServerNode serverNode, Node node) throws JsonProcessingException {
         serverNode.setServerId(node.getServerId());
         serverNode.setId(node.getId());
         serverNode.setPort(node.getPort());
-        
-        // Extract protocol from setting configuration
-        if (node.getInbound() != null) {
-            Map<String, Object> inbound = JsonUtil.toObject(node.getInbound(), Map.class);
-            serverNode.setProtocol((String) inbound.get("protocol"));
-        }
-        
         serverNode.setType(node.getType());
         serverNode.setInbound(node.getInbound());
         serverNode.setOutId(node.getOutId());
@@ -247,30 +428,49 @@ public class NodeDeploymentService {
         serverNode.setName(node.getName());
         serverNode.setRemark(node.getRemark());
         serverNode.setUpdateTime(LocalDateTime.now());
-        
-        return serverNode;
+
+        // 提取协议信息
+        if (node.getInbound() != null) {
+            Map<String, Object> inbound = JsonUtil.toObject(node.getInbound(), Map.class);
+            serverNode.setProtocol((String) inbound.get("protocol"));
+        }
     }
-    
+
     /**
-     * Update a ServerNode entity from a Node entity
+     * 确定核心类型
      */
-    private void updateServerNodeFromNode(ServerNode serverNode, Node node) throws JsonProcessingException {
-        serverNode.setPort(node.getPort());
-        
-        // Extract protocol from setting configuration
-        if (node.getInbound() != null) {
-            Map<String, Object> inbound = JsonUtil.toObject(node.getInbound(), Map.class);
-            serverNode.setProtocol((String) inbound.get("protocol"));
-        }
-        
-        serverNode.setType(node.getType());
-        serverNode.setInbound(node.getInbound());
-        serverNode.setOutId(node.getOutId());
-        serverNode.setRule(node.getRule());
-        serverNode.setLevel(node.getLevel());
-        serverNode.setDisabled(0);
-        serverNode.setName(node.getName());
-        serverNode.setRemark(node.getRemark());
-        serverNode.setUpdateTime(LocalDateTime.now());
+    private String determineCoreType(String protocol) {
+        return PROTOCOL_HYSTERIA2.equalsIgnoreCase(protocol) ? CORE_TYPE_HYSTERIA : CORE_TYPE_XRAY;
+    }
+
+    /**
+     * 创建成功的部署结果
+     */
+    private DeploymentResult createSuccessResult(Node node, String message) {
+        DeploymentResult result = new DeploymentResult();
+        result.setNodeId(node.getId());
+        result.setServerId(node.getServerId());
+        result.setSuccess(true);
+        result.setMessage(message);
+        return result;
+    }
+
+    /**
+     * 创建失败的部署结果
+     */
+    private DeploymentResult createFailureResult(Node node, String message) {
+        DeploymentResult result = new DeploymentResult();
+        result.setNodeId(node.getId());
+        result.setServerId(node.getServerId());
+        result.setSuccess(false);
+        result.setMessage(message);
+        return result;
+    }
+
+    /**
+     * 批量创建失败的部署结果
+     */
+    private List<DeploymentResult> createFailureResults(List<Node> nodes, String message) {
+        return nodes.stream().map(node -> createFailureResult(node, message)).collect(Collectors.toList());
     }
 }
