@@ -203,7 +203,7 @@ public class NodeDeploymentService {
      * 生成Xray配置
      */
     private XrayConfig generateXrayConfig(List<Node> nodes) {
-        String configTemplate = ConfigFileReader.readFileContent("config-template/xray.json");
+        String configTemplate = ConfigFileReader.readFileContent("config/xray/config-template.json");
         XrayConfig xrayConfig = JsonUtil.toObject(configTemplate, XrayConfig.class);
 
         List<InboundConfig> inbounds = new ArrayList<>();
