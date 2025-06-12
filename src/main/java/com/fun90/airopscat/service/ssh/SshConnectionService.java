@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 
 /**
- * SSH服务 - 完全解耦版本
+ * SSH服务
  */
 @Slf4j
 @Service

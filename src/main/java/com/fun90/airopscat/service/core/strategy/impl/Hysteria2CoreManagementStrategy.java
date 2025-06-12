@@ -3,15 +3,15 @@ package com.fun90.airopscat.service.core.strategy.impl;
 import com.fun90.airopscat.annotation.SupportedCores;
 import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
-import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.core.strategy.CoreManagementStrategy;
+import com.fun90.airopscat.service.ssh.SshConnection;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 
 /**
- * Hysteria2内核管理策略 - 解耦版本
+ * Hysteria2内核管理策略
  */
 @Slf4j
 @Component

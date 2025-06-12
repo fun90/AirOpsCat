@@ -4,7 +4,7 @@ import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.service.ssh.SshConnection;
 
 /**
- * 内核管理策略接口 - 解耦版本
+ * 内核管理策略接口
  */
 public interface CoreManagementStrategy {
 
