@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -241,8 +242,8 @@ public class NodeController {
 
     @PostMapping("/{id}/deploy")
     public ResponseEntity<DeploymentResult> deployNode(@PathVariable Long id) {
-        DeploymentResult result = nodeDeploymentService.deployNode(id);
-        return ResponseEntity.ok(result);
+        List<DeploymentResult> results = nodeDeploymentService.deployNodes(Collections.singletonList(id));
+        return ResponseEntity.ok(results.getFirst());
     }
 
     @PostMapping("/deploy-batch")
