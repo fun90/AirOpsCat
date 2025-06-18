@@ -36,6 +36,7 @@ public class HomeController {
         menu.put("/vpn/config-template", new MenuItem("代理", "配置模板", "/vpn/config-template"));
         menu.put("/vpn/node", new MenuItem("代理", "节点管理", "/vpn/node"));
         menu.put("/money/transactions", new MenuItem("财务", "交易流水", "/money/transactions"));
+        menu.put("/system/tag", new MenuItem("系统", "标签管理", "/system/tag"));
     }
 
     @RequestMapping( "/dashboard")

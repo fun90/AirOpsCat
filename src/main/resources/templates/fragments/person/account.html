@@ -228,7 +228,7 @@
 <!-- All Modals Fragment -->
 <div th:fragment="modals">
     <!-- Create Account Modal -->
-    <div class="modal modal-blur fade" id="createModal" tabindex="-1" role="dialog">
+    <div class="modal modal-blur fade" id="account-createModal" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
             <div class="modal-content">
                 <div class="modal-header">
@@ -315,6 +315,20 @@
                             <div class="mb-3">
                                 <label class="form-label">流量限制 (GB)</label>
                                 <input type="number" class="form-control" v-model="newItem.bandwidth" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">标签</label>
+                        <div class="row">
+                            <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
+                                <label class="form-check">
+                                    <input type="checkbox" class="form-check-input" :value="tag.id" v-model="newItem.tagIds">
+                                    <span class="form-check-label d-flex align-items-center">
+                                        <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
+                                        {{ tag.name }}
+                                    </span>
+                                </label>
                             </div>
                         </div>
                     </div>
@@ -418,6 +432,20 @@
                             <div class="mb-3">
                                 <label class="form-label">流量限制 (GB)</label>
                                 <input type="number" class="form-control" v-model="editedItem.bandwidth" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">标签</label>
+                        <div class="row">
+                            <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
+                                <label class="form-check">
+                                    <input type="checkbox" class="form-check-input" :value="tag.id" v-model="editedItem.tagIds">
+                                    <span class="form-check-label d-flex align-items-center">
+                                        <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
+                                        {{ tag.name }}
+                                    </span>
+                                </label>
                             </div>
                         </div>
                     </div>

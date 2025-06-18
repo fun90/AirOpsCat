@@ -15,6 +15,7 @@ const nodeTable = new DataTable({
         landingNodes: [],
         nodeTypes: [],
         protocolTypes: [],
+        availableTags: [],
         stats: {
             total: 0,
             active: 0,
@@ -33,7 +34,8 @@ const nodeTable = new DataTable({
             remark: '',
             inbound: null,
             outId: null,
-            rule: null
+            rule: null,
+            tagIds: []
         },
         // Additional data for node management
         portCheckMessage: '',
@@ -62,6 +64,7 @@ const nodeTable = new DataTable({
             this.fetchLandingNodes();
             this.fetchNodeTypes();
             this.fetchProtocolTypes();
+            this.fetchAvailableTags();
         },
 
         // Fetch data methods
@@ -111,6 +114,17 @@ const nodeTable = new DataTable({
                 })
                 .catch(error => {
                     console.error('Error fetching protocol types:', error);
+                });
+        },
+
+        fetchAvailableTags() {
+            fetch('/api/admin/tags/enabled')
+                .then(response => response.json())
+                .then(data => {
+                    this.availableTags = data;
+                })
+                .catch(error => {
+                    console.error('Error fetching available tags:', error);
                 });
         },
 
@@ -356,7 +370,8 @@ const nodeTable = new DataTable({
                     remark: this.newItem.remark || null,
                     inbound: inboundConfig,
                     outId: this.newItem.outId || null,
-                    rule: ruleConfig
+                    rule: ruleConfig,
+                    tagIds: this.newItem.tagIds || []
                 };
             } catch (e) {
                 console.error('Error parsing JSON:', e);
@@ -390,7 +405,8 @@ const nodeTable = new DataTable({
                     remark: this.editedItem.remark || null,
                     inbound: this.editedNodeInbound,
                     outId: this.editedItem.outId === 0 ? null : this.editedItem.outId,
-                    rule: ruleConfig
+                    rule: ruleConfig,
+                    tagIds: this.editedItem.tagIds || []
                 };
             } catch (e) {
                 console.error('Error parsing JSON:', e);
@@ -412,7 +428,8 @@ const nodeTable = new DataTable({
                 remark: '',
                 inbound: null,
                 outId: null,
-                rule: null
+                rule: null,
+                tagIds: []
             };
 
             // Reset inbound data
@@ -425,6 +442,20 @@ const nodeTable = new DataTable({
             this.portCheckMessage = '';
         },
 
+
+
+        loadNodeTags(nodeId) {
+            fetch(`/api/admin/tags/nodes/${nodeId}`)
+                .then(response => response.json())
+                .then(data => {
+                    this.editedItem.tagIds = data.map(tag => tag.id);
+                })
+                .catch(error => {
+                    console.error('Error loading node tags:', error);
+                    this.editedItem.tagIds = [];
+                });
+        },
+
         prepareEditForm(node) {
             this.fetchLandingNodes();
             // Format inbound and rule data
@@ -433,6 +464,9 @@ const nodeTable = new DataTable({
             this.editedNodeRuleJson = JSON.stringify(node.rule || {}, null, 2);
 
             this.editPortCheckMessage = '';
+
+            // Load current node tags
+            this.loadNodeTags(node.id);
 
             // Return basic item data
             return {
@@ -447,7 +481,8 @@ const nodeTable = new DataTable({
                 remark: node.remark || '',
                 inbound: node.inbound,
                 outId: !node.outId ? 0 : node.outId,
-                rule: node.rule
+                rule: node.rule,
+                tagIds: [] // Will be loaded asynchronously
             };
         },
 
