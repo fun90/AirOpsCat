@@ -41,6 +41,9 @@ public interface TagRepository extends JpaRepository<Tag, Long>, JpaSpecificatio
     @Query("SELECT a FROM Account a JOIN a.tags t WHERE t.id = :tagId")
     List<Account> findAccountsByTagId(@Param("tagId") Long tagId);
 
+    @Query("SELECT a FROM Account a JOIN a.tags t WHERE t.id IN :tagIds")
+    List<Account> findAccountsByTagIds(@Param("tagIds") List<Long> tagIds);
+
     @Query("SELECT DISTINCT t FROM Tag t JOIN t.nodes n WHERE n.id IN :nodeIds")
     List<Tag> findByNodeIdIn(@Param("nodeIds") List<Long> nodeIds);
 
