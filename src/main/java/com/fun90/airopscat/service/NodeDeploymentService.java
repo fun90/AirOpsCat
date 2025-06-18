@@ -8,15 +8,22 @@ import com.fun90.airopscat.model.dto.xray.InboundConfig;
 import com.fun90.airopscat.model.dto.xray.OutboundConfig;
 import com.fun90.airopscat.model.dto.xray.XrayConfig;
 import com.fun90.airopscat.model.dto.xray.routing.RoutingRule;
+import com.fun90.airopscat.model.dto.xray.setting.InboundSetting;
+import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting;
+import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting.VlessClient;
+import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.entity.ServerNode;
+import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.CoreOperation;
+import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerNodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
+import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.xray.registry.ConversionStrategyRegistry;
 import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
@@ -46,6 +53,7 @@ public class NodeDeploymentService {
     private final ServerConfigRepository serverConfigRepository;
     private final ConversionStrategyRegistry strategyRegistry;
     private final CoreManagementService coreManagementService;
+    private final TagRepository tagRepository;
 
     private static final String CORE_TYPE_HYSTERIA = "hysteria";
     private static final String CORE_TYPE_XRAY = "xray";
@@ -116,7 +124,8 @@ public class NodeDeploymentService {
     private List<DeploymentResult> deployNodesForServer(Long serverId, List<Node> nodes) {
         log.info("开始为服务器 {} 部署 {} 个节点", serverId, nodes.size());
 
-        Map<String, List<Node>> coreTypeNodeMap = nodes.stream().collect(Collectors.groupingBy(node -> determineCoreType(node.getProtocol())));
+        Map<String, List<Node>> coreTypeNodeMap = nodes.stream()
+                .collect(Collectors.groupingBy(node -> determineCoreType(node.getProtocol())));
 
         List<DeploymentResult> results = new ArrayList<>();
 
@@ -224,7 +233,8 @@ public class NodeDeploymentService {
     /**
      * 处理单个节点的配置
      */
-    private void processNodeConfiguration(Node node, List<InboundConfig> inbounds, List<OutboundConfig> outbounds, List<RoutingRule> routingRules) {
+    private void processNodeConfiguration(Node node, List<InboundConfig> inbounds, List<OutboundConfig> outbounds,
+            List<RoutingRule> routingRules) {
 
         if (node.getInbound() == null) {
             log.warn("节点 {} 的入站配置为空，跳过处理", node.getId());
@@ -232,6 +242,21 @@ public class NodeDeploymentService {
         }
 
         InboundConfig inbound = JsonUtil.toObject(node.getInbound(), InboundConfig.class);
+        InboundSetting inboundSetting = inbound.getSettings();
+        // 如果inboundSetting是VlessInboundSetting，则设置clients
+        if (inboundSetting instanceof VlessInboundSetting) {
+            VlessInboundSetting vlessInboundSetting = (VlessInboundSetting) inboundSetting;
+            Set<Tag> tags = node.getTags();
+            List<Account> accounts = tagRepository.findAccountsByTagIds(tags.stream().map(Tag::getId).collect(Collectors.toList()));
+            List<VlessClient> clients = accounts.stream().map(a -> {
+                VlessClient client = new VlessClient();
+                client.setId(a.getUuid());
+                client.setEmail(a.getAccountNo());
+                client.setFlow("xtls-rprx-vision");
+                return client;
+            }).collect(Collectors.toList());
+            vlessInboundSetting.setClients(clients);
+        }
         inbound.setPort(node.getPort());
         inbounds.add(inbound);
 
@@ -248,10 +273,12 @@ public class NodeDeploymentService {
      * 添加出站配置
      */
     private void addOutboundConfiguration(Node node, List<OutboundConfig> outbounds) {
-        Node outNode = nodeRepository.findById(node.getOutId()).orElseThrow(() -> new IllegalArgumentException("出站节点不存在: " + node.getOutId()));
+        Node outNode = nodeRepository.findById(node.getOutId())
+                .orElseThrow(() -> new IllegalArgumentException("出站节点不存在: " + node.getOutId()));
 
         InboundConfig outInbound = JsonUtil.toObject(outNode.getInbound(), InboundConfig.class);
-        Server outServer = serverRepository.findById(outNode.getServerId()).orElseThrow(() -> new IllegalArgumentException("出站服务器不存在: " + outNode.getServerId()));
+        Server outServer = serverRepository.findById(outNode.getServerId())
+                .orElseThrow(() -> new IllegalArgumentException("出站服务器不存在: " + outNode.getServerId()));
 
         ConversionStrategy strategy = strategyRegistry.getStrategy(outInbound.getProtocol());
         if (strategy != null) {
@@ -287,7 +314,8 @@ public class NodeDeploymentService {
      * 保存服务器配置
      */
     private ServerConfig saveServerConfig(Long serverId, String coreType, Object config) {
-        ServerConfig serverConfig = serverConfigRepository.findByServerIdAndConfigType(serverId, coreType).orElse(createNewServerConfig(serverId, coreType));
+        ServerConfig serverConfig = serverConfigRepository.findByServerIdAndConfigType(serverId, coreType)
+                .orElse(createNewServerConfig(serverId, coreType));
 
         if (config instanceof XrayConfig) {
             serverConfig.setConfig(JsonUtil.toJsonString(config));
@@ -312,19 +340,22 @@ public class NodeDeploymentService {
      * 部署配置到服务器
      */
     private void deployConfigToServer(Long serverId, String coreType, String config) {
-        Server server = serverRepository.findById(serverId).orElseThrow(() -> new IllegalArgumentException("服务器不存在: " + serverId));
+        Server server = serverRepository.findById(serverId)
+                .orElseThrow(() -> new IllegalArgumentException("服务器不存在: " + serverId));
 
         SshConfig sshConfig = createSshConfig(server);
 
         // 上传配置
-        CoreManagementResult configResult = coreManagementService.executeOperation(coreType, CoreOperation.CONFIG, sshConfig, config);
+        CoreManagementResult configResult = coreManagementService.executeOperation(coreType, CoreOperation.CONFIG,
+                sshConfig, config);
 
         if (configResult == null || !configResult.isSuccess()) {
             throw new RuntimeException("配置上传失败: " + (configResult != null ? configResult.getMessage() : "未知错误"));
         }
 
         // 重启服务
-        CoreManagementResult restartResult = coreManagementService.executeOperation(coreType, CoreOperation.RESTART, sshConfig);
+        CoreManagementResult restartResult = coreManagementService.executeOperation(coreType, CoreOperation.RESTART,
+                sshConfig);
 
         if (restartResult == null || !restartResult.isSuccess()) {
             throw new RuntimeException("服务重启失败: " + (restartResult != null ? restartResult.getMessage() : "未知错误"));
@@ -375,7 +406,8 @@ public class NodeDeploymentService {
     private DeploymentResult updateSingleNodeDeploymentStatus(Node node) {
         try {
             // 创建或更新ServerNode
-            ServerNode serverNode = serverNodeRepository.findByServerId(node.getServerId()).stream().filter(sn -> sn.getId().equals(node.getId())).findFirst().orElse(null);
+            ServerNode serverNode = serverNodeRepository.findByServerId(node.getServerId()).stream()
+                    .filter(sn -> sn.getId().equals(node.getId())).findFirst().orElse(null);
 
             if (serverNode == null) {
                 serverNode = createServerNodeFromNode(node);
