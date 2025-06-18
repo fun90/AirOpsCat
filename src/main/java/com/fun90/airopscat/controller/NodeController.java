@@ -3,12 +3,14 @@ package com.fun90.airopscat.controller;
 import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.NodeDto;
+import com.fun90.airopscat.model.dto.NodeRequest;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.service.NodeDeploymentService;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.ServerService;
+import com.fun90.airopscat.service.TagService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -28,12 +30,14 @@ public class NodeController {
     private final NodeService nodeService;
     private final ServerService serverService;
     private final NodeDeploymentService nodeDeploymentService;
+    private final TagService tagService;
     
     @Autowired
-    public NodeController(NodeService nodeService, ServerService serverService, NodeDeploymentService nodeDeploymentService) {
+    public NodeController(NodeService nodeService, ServerService serverService, NodeDeploymentService nodeDeploymentService, TagService tagService) {
         this.nodeService = nodeService;
         this.serverService = serverService;
         this.nodeDeploymentService = nodeDeploymentService;
+        this.tagService = tagService;
     }
 
     @GetMapping
@@ -132,10 +136,31 @@ public class NodeController {
     }
 
     @PostMapping
-    public ResponseEntity<?> createNode(@RequestBody Node node) {
+    public ResponseEntity<?> createNode(@RequestBody NodeRequest request) {
         try {
+            // 创建Node实体
+            Node node = new Node();
+            node.setServerId(request.getServerId());
+            node.setPort(request.getPort());
+            node.setProtocol(request.getProtocol());
+            node.setType(request.getType());
+            node.setInbound(request.getInbound() != null ? 
+                com.fun90.airopscat.utils.JsonUtil.toJsonString(request.getInbound()) : null);
+            node.setOutId(request.getOutId());
+            node.setRule(request.getRule() != null ? 
+                com.fun90.airopscat.utils.JsonUtil.toJsonString(request.getRule()) : null);
+            node.setLevel(request.getLevel());
+            node.setDisabled(request.getDisabled());
+            node.setName(request.getName());
+            node.setRemark(request.getRemark());
 
             Node savedNode = nodeService.saveNode(node);
+            
+            // 处理标签关联
+            if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
+                tagService.updateNodeTags(savedNode.getId(), request.getTagIds());
+            }
+            
             return ResponseEntity.ok(savedNode);
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
@@ -145,9 +170,32 @@ public class NodeController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateNode(@PathVariable Long id, @RequestBody Node node) {
+    public ResponseEntity<?> updateNode(@PathVariable Long id, @RequestBody NodeRequest request) {
         try {
+            // 创建Node实体
+            Node node = new Node();
+            node.setId(id);
+            node.setServerId(request.getServerId());
+            node.setPort(request.getPort());
+            node.setProtocol(request.getProtocol());
+            node.setType(request.getType());
+            node.setInbound(request.getInbound() != null ? 
+                com.fun90.airopscat.utils.JsonUtil.toJsonString(request.getInbound()) : null);
+            node.setOutId(request.getOutId());
+            node.setRule(request.getRule() != null ? 
+                com.fun90.airopscat.utils.JsonUtil.toJsonString(request.getRule()) : null);
+            node.setLevel(request.getLevel());
+            node.setDisabled(request.getDisabled());
+            node.setName(request.getName());
+            node.setRemark(request.getRemark());
+            
             Node updatedNode = nodeService.updateNode(node);
+            
+            // 处理标签关联
+            if (request.getTagIds() != null) {
+                tagService.updateNodeTags(updatedNode.getId(), request.getTagIds());
+            }
+            
             return ResponseEntity.ok(NodeConverter.toDto(updatedNode));
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();

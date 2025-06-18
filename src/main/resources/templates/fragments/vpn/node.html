@@ -329,6 +329,20 @@
                                 <textarea class="form-control" v-model="newItem.remark" rows="2"></textarea>
                             </div>
                             <div class="mb-3">
+                                <label class="form-label">标签</label>
+                                <div class="row">
+                                    <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
+                                        <label class="form-check">
+                                            <input type="checkbox" class="form-check-input" :value="tag.id" v-model="newItem.tagIds">
+                                            <span class="form-check-label d-flex align-items-center">
+                                                <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
+                                                {{ tag.name }}
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" v-model="newItem.disabled">
                                     <span class="form-check-label">禁用节点</span>
@@ -593,6 +607,20 @@
                             <div class="mb-3">
                                 <label class="form-label">备注</label>
                                 <textarea class="form-control" v-model="editedItem.remark" rows="2"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">标签</label>
+                                <div class="row">
+                                    <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
+                                        <label class="form-check">
+                                            <input type="checkbox" class="form-check-input" :value="tag.id" v-model="editedItem.tagIds">
+                                            <span class="form-check-label d-flex align-items-center">
+                                                <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
+                                                {{ tag.name }}
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-check form-switch">

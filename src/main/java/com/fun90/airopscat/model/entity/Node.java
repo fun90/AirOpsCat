@@ -7,6 +7,8 @@ import lombok.Data;
 import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Data
 @Entity
@@ -57,6 +59,14 @@ public class Node {
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "out_id", insertable = false, updatable = false)
     private Node outNode;
+    
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+        name = "node_tag",
+        joinColumns = @JoinColumn(name = "node_id"),
+        inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    private Set<Tag> tags = new HashSet<>();
     
     private LocalDateTime createTime;
     

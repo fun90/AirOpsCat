@@ -12,6 +12,7 @@ const accountTable = new DataTable({
         },
         users: [],
         periodTypes: [],
+        availableTags: [],
         stats: {
             total: 0,
             active: 0,
@@ -36,7 +37,8 @@ const accountTable = new DataTable({
             maxOnlineIps: 0,
             speed: 0,
             bandwidth: 0,
-            disabled: false
+            disabled: false,
+            tagIds: []
         }
     },
     methods: {
@@ -44,6 +46,7 @@ const accountTable = new DataTable({
         initialize() {
             this.fetchUsers();
             this.fetchPeriodTypes();
+            this.fetchAvailableTags();
         },
 
         // Fetch additional data
@@ -71,6 +74,17 @@ const accountTable = new DataTable({
                 })
                 .catch(error => {
                     console.error('Error fetching period types:', error);
+                });
+        },
+
+        fetchAvailableTags() {
+            fetch('/api/admin/tags/enabled')
+                .then(response => response.json())
+                .then(data => {
+                    this.availableTags = data;
+                })
+                .catch(error => {
+                    console.error('Error fetching available tags:', error);
                 });
         },
 
@@ -395,7 +409,8 @@ const accountTable = new DataTable({
                 maxOnlineIps: this.newItem.maxOnlineIps || null,
                 speed: this.newItem.speed || null,
                 bandwidth: this.newItem.bandwidth || null,
-                disabled: this.newItem.disabled ? 1 : 0
+                disabled: this.newItem.disabled ? 1 : 0,
+                tagIds: this.newItem.tagIds || []
             };
         },
 
@@ -409,7 +424,8 @@ const accountTable = new DataTable({
                 maxOnlineIps: this.editedItem.maxOnlineIps,
                 speed: this.editedItem.speed,
                 bandwidth: this.editedItem.bandwidth,
-                disabled: this.editedItem.disabled
+                disabled: this.editedItem.disabled,
+                tagIds: this.editedItem.tagIds || []
             };
         },
 
@@ -434,7 +450,8 @@ const accountTable = new DataTable({
                 maxOnlineIps: 0,
                 speed: 0,
                 bandwidth: 0,
-                disabled: false
+                disabled: false,
+                tagIds: []
             };
         },
 
@@ -445,6 +462,9 @@ const accountTable = new DataTable({
                 const date = new Date(dateString);
                 return date.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
             };
+
+            // Load current account tags
+            this.loadAccountTags(account.id);
 
             return {
                 id: account.id,
@@ -458,8 +478,21 @@ const accountTable = new DataTable({
                 maxOnlineIps: account.maxOnlineIps,
                 speed: account.speed,
                 bandwidth: account.bandwidth,
-                disabled: account.disabled
+                disabled: account.disabled,
+                tagIds: [] // Will be loaded asynchronously
             };
+        },
+
+        loadAccountTags(accountId) {
+            fetch(`/api/admin/tags/accounts/${accountId}`)
+                .then(response => response.json())
+                .then(data => {
+                    this.editedItem.tagIds = data.map(tag => tag.id);
+                })
+                .catch(error => {
+                    console.error('Error loading account tags:', error);
+                    this.editedItem.tagIds = [];
+                });
         },
 
         // URLs for API calls

@@ -5,6 +5,8 @@ import lombok.Data;
 import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Data
 @Entity
@@ -29,7 +31,7 @@ public class Account {
     @Column(nullable = false)
     private String uuid;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String accountNo;
     
     @Column(nullable = false)
@@ -50,6 +52,14 @@ public class Account {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", insertable = false, updatable = false)
     private User user;
+    
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+        name = "account_tag",
+        joinColumns = @JoinColumn(name = "account_id"),
+        inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    private Set<Tag> tags = new HashSet<>();
     
     private LocalDateTime createTime;
     
