@@ -254,6 +254,11 @@ public class NodeService {
             return true;
         }
 
+        // 检查是否存在tag变更
+        if (newNode.getTags() != null && !newNode.getTags().equals(oldNode.getTags())) {
+            return true;
+        }
+
         // 其他可能影响部署的字段...
         if (newNode.getDisabled() != null && !newNode.getDisabled().equals(oldNode.getDisabled())) {
             return true;

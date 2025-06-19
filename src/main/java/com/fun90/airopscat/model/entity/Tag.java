@@ -1,14 +1,16 @@
 package com.fun90.airopscat.model.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
-@Data
+@Getter
+@Setter
 @Entity
 @Table(name = "tag")
 @DynamicUpdate
@@ -45,6 +47,19 @@ public class Tag {
     @PreUpdate
     protected void onUpdate() {
         this.updateTime = LocalDateTime.now();
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Tag tag = (Tag) o;
+        return id != null && id.equals(tag.id);
+    }
+    
+    @Override
+    public int hashCode() {
+        return id != null ? id.hashCode() : 0;
     }
     
     // 注意：这些方法可能触发懒加载，不建议在DTO转换中使用

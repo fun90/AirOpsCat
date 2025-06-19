@@ -18,7 +18,6 @@ import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.entity.ServerNode;
 import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.CoreOperation;
-import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerNodeRepository;
@@ -318,7 +317,7 @@ public class NodeDeploymentService {
                 .orElse(createNewServerConfig(serverId, coreType));
 
         if (config instanceof XrayConfig) {
-            serverConfig.setConfig(JsonUtil.toJsonString(config));
+            serverConfig.setConfig(JsonUtil.toJsonStringPretty(config));
         } else {
             serverConfig.setConfig(config.toString());
         }
