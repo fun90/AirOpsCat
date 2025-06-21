@@ -16,6 +16,8 @@ public interface AccountRepository extends JpaRepository<Account, Long>, JpaSpec
 
     Optional<Account> findByUuid(String uuid);
     
+    Optional<Account> findByAuthCode(String authCode);
+    
     List<Account> findByUserId(Long userId);
     
     List<Account> findByDisabled(Integer disabled);

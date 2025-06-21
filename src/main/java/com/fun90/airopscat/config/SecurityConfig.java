@@ -53,7 +53,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .addFilterBefore(loginAttemptFilter, UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/static/**", "/login",  "/register").permitAll()
+                .requestMatchers("/static/**", "/login",  "/register", "/subscribe/**").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/partner/**").hasAnyRole("ADMIN", "PARTNER")
                 .requestMatchers("/api/vip/**").hasAnyRole("ADMIN", "PARTNER", "VIP")
