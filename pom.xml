@@ -162,11 +162,11 @@
             <version>2.15.0</version>
         </dependency>
 
-        <!-- Mustache模板引擎 -->
+        <!-- OGNL for Thymeleaf expression evaluation -->
         <dependency>
-            <groupId>com.github.spullara.mustache.java</groupId>
-            <artifactId>compiler</artifactId>
-            <version>0.9.10</version>
+            <groupId>ognl</groupId>
+            <artifactId>ognl</artifactId>
+            <version>3.2.21</version>
         </dependency>
     </dependencies>
 

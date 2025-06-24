@@ -1,6 +1,6 @@
-# AirOpsCat Subscription Config for Clash Meta (HarmonyOS)
-# Generated at: {{timestamp}}
-# Account: {{account.uuid}}
+# AirOpsCat Subscription Config for Clash Meta (Android)
+# Generated at: [[${timestamp}]]
+# Account: [[${account.uuid}]]
 
 mixed-port: 7890
 allow-lan: true
@@ -25,7 +25,6 @@ dns:
     - localhost.ptlogin2.qq.com
   nameserver:
     - 114.114.114.114
-    - 223.5.5.5
     - 8.8.8.8
   fallback:
     - tls://1.1.1.1:853
@@ -37,28 +36,30 @@ dns:
       - 240.0.0.0/4
 
 proxies:
-{{#proxies}}
-  - name: "{{name}}"
-    type: {{type}}
-    server: {{server}}
-    port: {{port}}
-    {{#uuid}}uuid: {{uuid}}{{/uuid}}
-    {{#password}}password: {{password}}{{/password}}
-    {{#cipher}}cipher: {{cipher}}{{/cipher}}
-    {{#alterId}}alterId: {{alterId}}{{/alterId}}
-    {{#username}}username: {{username}}{{/username}}
+[# th:each="node : ${nodes}"]
+  - name: "[(${node.name} != null ? ${node.name} : ${node.server.name + '-' + node.protocol + '-' + node.port})]"
+    type: [(${node.protocol?.toLowerCase()})]
+    server: [(${node.server.host})]
+    port: [(${node.port})]
+    [# th:if="${node.protocol?.toLowerCase() == 'vless'}"]uuid: [(${account.uuid})]
+    alterId: 0[/]
+    [# th:if="${node.protocol?.toLowerCase() == 'shadowsocks'}"]password: [(${account.authCode})]
+    cipher: chacha20-ietf-poly1305[/]
+    [# th:if="${node.protocol?.toLowerCase() == 'socks'}"]username: [(${account.uuid})]
+    password: [(${account.authCode})][/]
+    [# th:if="${node.protocol?.toLowerCase() == 'hysteria2'}"]password: [(${account.authCode})][/]
     tls: false
     skip-cert-verify: true
     udp: true
-{{/proxies}}
+[/]
 
 proxy-groups:
   - name: "♻️ 自动选择"
     type: url-test
     proxies:
-{{#proxyNames}}
-      - "{{.}}"
-{{/proxyNames}}
+[# th:each="node : ${nodes}"]
+      - "[(${node.name} != null ? ${node.name} : ${node.server.name + '-' + node.protocol + '-' + node.port})]"
+[/]
     url: 'http://www.gstatic.com/generate_204'
     interval: 300
     tolerance: 50
@@ -67,9 +68,9 @@ proxy-groups:
     type: select
     proxies:
       - "♻️ 自动选择"
-{{#proxyNames}}
-      - "{{.}}"
-{{/proxyNames}}
+[# th:each="node : ${nodes}"]
+      - "[(${node.name} != null ? ${node.name} : ${node.server.name + '-' + node.protocol + '-' + node.port})]"
+[/]
 
   - name: "🐟 漏网之鱼"
     type: select

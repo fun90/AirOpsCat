@@ -1,6 +1,6 @@
 # AirOpsCat Subscription Config for Loon
-# Generated at: {{timestamp}}
-# Account: {{account.uuid}}
+# Generated at: [[${timestamp}]]
+# Account: [[${account.uuid}]]
 
 [General]
 ipv6 = false
@@ -15,13 +15,13 @@ test-timeout = 3
 [Host]
 
 [Proxy]
-{{#proxies}}
-{{name}} = {{type}}, {{server}}, {{port}}{{#uuid}}, {{uuid}}{{/uuid}}{{#password}}, {{password}}{{/password}}{{#cipher}}, {{cipher}}{{/cipher}}{{#username}}, {{username}}{{/username}}
-{{/proxies}}
+[# th:each="proxy : ${proxies}"]
+[(${proxy.name})] = [(${proxy.type})], [(${proxy.server})], [(${proxy.port})][# th:if="${proxy.uuid != null}"], [(${proxy.uuid})][/][# th:if="${proxy.password != null}"], [(${proxy.password})][/][# th:if="${proxy.cipher != null}"], [(${proxy.cipher})][/][# th:if="${proxy.username != null}"], [(${proxy.username})][/]
+[/]
 
 [Proxy Group]
-🔰 节点选择 = select{{#proxyNames}}, {{.}}{{/proxyNames}}
-♻️ 自动选择 = url-test{{#proxyNames}}, {{.}}{{/proxyNames}}, url = http://www.gstatic.com/generate_204, interval = 600, tolerance = 100
+🔰 节点选择 = select[# th:each="proxyName : ${proxyNames}"], [(${proxyName})][/]
+♻️ 自动选择 = url-test[# th:each="proxyName : ${proxyNames}"], [(${proxyName})][/], url = http://www.gstatic.com/generate_204, interval = 600, tolerance = 100
 🐟 漏网之鱼 = select, 🔰 节点选择, DIRECT
 
 [Rule]
