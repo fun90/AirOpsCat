@@ -1,0 +1,102 @@
+# AirOpsCat Subscription Config for Clash Meta (Android)
+# Generated at: [[${timestamp}]]
+# Account: [[${account.uuid}]]
+
+mixed-port: 7890
+allow-lan: true
+bind-address: "*"
+mode: rule
+log-level: info
+external-controller: 127.0.0.1:9090
+secret: ""
+
+profile:
+  store-selected: true
+  store-fake-ip: true
+
+dns:
+  enable: true
+  ipv6: false
+  listen: 0.0.0.0:53
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - '*.lan'
+    - localhost.ptlogin2.qq.com
+  nameserver:
+    - 114.114.114.114
+    - 8.8.8.8
+  fallback:
+    - tls://1.1.1.1:853
+    - tls://8.8.4.4:853
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+    ipcidr:
+      - 240.0.0.0/4
+
+proxies:
+[# th:each="node : ${nodes}"]
+  - name: "[(${node.name} != null ? ${node.name} : ${node.server.name + '-' + node.protocol + '-' + node.port})]"
+    type: [(${node.protocol?.toLowerCase()})]
+    server: [(${node.server.host})]
+    port: [(${node.port})]
+    [# th:if="${node.protocol?.toLowerCase() == 'vless'}"]uuid: [(${account.uuid})]
+    alterId: 0[/]
+    [# th:if="${node.protocol?.toLowerCase() == 'shadowsocks'}"]password: [(${account.authCode})]
+    cipher: chacha20-ietf-poly1305[/]
+    [# th:if="${node.protocol?.toLowerCase() == 'socks'}"]username: [(${account.uuid})]
+    password: [(${account.authCode})][/]
+    [# th:if="${node.protocol?.toLowerCase() == 'hysteria2'}"]password: [(${account.authCode})][/]
+    tls: false
+    skip-cert-verify: true
+    udp: true
+[/]
+
+proxy-groups:
+  - name: "♻️ 自动选择"
+    type: url-test
+    proxies:
+[# th:each="node : ${nodes}"]
+      - "[(${node.name} != null ? ${node.name} : ${node.server.name + '-' + node.protocol + '-' + node.port})]"
+[/]
+    url: 'http://www.gstatic.com/generate_204'
+    interval: 300
+    tolerance: 50
+
+  - name: "🔰 节点选择"
+    type: select
+    proxies:
+      - "♻️ 自动选择"
+[# th:each="node : ${nodes}"]
+      - "[(${node.name} != null ? ${node.name} : ${node.server.name + '-' + node.protocol + '-' + node.port})]"
+[/]
+
+  - name: "🐟 漏网之鱼"
+    type: select
+    proxies:
+      - "🔰 节点选择"
+      - "DIRECT"
+
+  - name: "🚫 广告拦截"
+    type: select
+    proxies:
+      - "REJECT"
+      - "DIRECT"
+
+  - name: "🍃 应用净化"
+    type: select
+    proxies:
+      - "REJECT"
+      - "DIRECT"
+
+rules:
+  - DOMAIN-SUFFIX,local,DIRECT
+  - IP-CIDR,127.0.0.0/8,DIRECT
+  - IP-CIDR,172.16.0.0/12,DIRECT
+  - IP-CIDR,192.168.0.0/16,DIRECT
+  - IP-CIDR,10.0.0.0/8,DIRECT
+  - IP-CIDR,17.0.0.0/8,DIRECT
+  - IP-CIDR,100.64.0.0/10,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,🐟 漏网之鱼 
