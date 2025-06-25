@@ -1,5 +1,18 @@
 package com.fun90.airopscat.service;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Service;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.DeploymentResult;
@@ -28,15 +41,10 @@ import com.fun90.airopscat.service.xray.registry.ConversionStrategyRegistry;
 import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
 import com.fun90.airopscat.utils.ConfigFileReader;
 import com.fun90.airopscat.utils.JsonUtil;
+
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
-import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * 节点部署服务 - 负责节点的部署和配置管理
@@ -214,9 +222,9 @@ public class NodeDeploymentService {
         String configTemplate = ConfigFileReader.readFileContent("config/xray/config-template.json");
         XrayConfig xrayConfig = JsonUtil.toObject(configTemplate, XrayConfig.class);
 
-        List<InboundConfig> inbounds = new ArrayList<>();
-        List<OutboundConfig> outbounds = new ArrayList<>();
-        List<RoutingRule> routingRules = new ArrayList<>();
+        List<InboundConfig> inbounds = xrayConfig.getInbounds().stream().filter(o ->  StringUtils.startsWith(o.getTag(), "default-")).collect(Collectors.toList());
+        List<OutboundConfig> outbounds = xrayConfig.getOutbounds().stream().filter(o ->  StringUtils.startsWith(o.getTag(), "default-")).collect(Collectors.toList());
+        List<RoutingRule> routingRules = xrayConfig.getRouting().getRules().stream().filter(o -> StringUtils.startsWith(o.getRuleTag(), "default-")).collect(Collectors.toList());
 
         for (Node node : nodes) {
             processNodeConfiguration(node, inbounds, outbounds, routingRules);
@@ -256,6 +264,7 @@ public class NodeDeploymentService {
             }).collect(Collectors.toList());
             vlessInboundSetting.setClients(clients);
         }
+        inbound.setTag(node.getTag());
         inbound.setPort(node.getPort());
         inbounds.add(inbound);
 

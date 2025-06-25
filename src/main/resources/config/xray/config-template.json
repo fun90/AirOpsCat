@@ -25,7 +25,7 @@
   },
   "inbounds": [
     {
-      "tag": "api",
+      "tag": "default-api",
       "listen": "0.0.0.0",
       "port": 62789,
       "protocol": "dokodemo-door",
@@ -37,41 +37,30 @@
   ],
   "outbounds": [
     {
-      "tag": "direct",
+      "tag": "default-direct",
       "protocol": "freedom",
       "settings": {}
     },
     {
+      "tag": "default-blocked",
       "protocol": "blackhole",
-      "settings": {},
-      "tag": "blocked"
-    },
-    {
-      "tag": "warp",
-      "protocol": "Socks",
-      "version": "5",
-      "settings": {
-        "servers": [
-          {
-            "address": "127.0.0.1",
-            "port": 40000
-          }
-        ]
-      }
+      "settings": {}
     }
   ],
   "routing": {
     "domainStrategy": "AsIs",
     "rules": [
       {
-        "inboundTag": ["api"],
+        "ruleTag": "default-api",
+        "inboundTag": ["default-api"],
         "outboundTag": "api",
         "type": "field"
       },
       {
+        "ruleTag": "default-blocked",
         "type": "field",
         "ip": ["geoip:private", "geoip:cn"],
-        "outboundTag": "block"
+        "outboundTag": "default-blocked"
       }
     ]
   }

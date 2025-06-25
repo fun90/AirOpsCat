@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -70,5 +71,18 @@ public class SubscriptionController {
             log.error("Error generating subscription: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().build();
         }
+    }
+
+    @GetMapping("/rules/{clientName}/{ruleName}")
+    public ResponseEntity<String> rule(
+        @PathVariable String clientName,
+        @PathVariable String ruleName) {
+            String ruleContent = subscriptionService.getRule(clientName, ruleName);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.TEXT_PLAIN);
+            headers.set("charset", StandardCharsets.UTF_8.name());
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(ruleContent);
     }
 } 

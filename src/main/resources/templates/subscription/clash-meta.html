@@ -37,17 +37,17 @@ dns:
 
 proxies:
 [# th:each="node : ${nodes}"]
-  - name: "[(${node.name} != null ? ${node.name} : ${node.server.name + '-' + node.protocol + '-' + node.port})]"
-    type: [(${node.protocol?.toLowerCase()})]
+  - name: "[(${node.name != null ? node.name : node.server.name + '-' + node.protocol + '-' + node.port})]"
+    type: [(${node.protocol != null ? node.protocol.toLowerCase() : ''})]
     server: [(${node.server.host})]
     port: [(${node.port})]
-    [# th:if="${node.protocol?.toLowerCase() == 'vless'}"]uuid: [(${account.uuid})]
+    [# th:if="${node.protocol != null and node.protocol.toLowerCase() == 'vless'}"]uuid: [(${account.uuid})]
     alterId: 0[/]
-    [# th:if="${node.protocol?.toLowerCase() == 'shadowsocks'}"]password: [(${account.authCode})]
+    [# th:if="${node.protocol != null and node.protocol.toLowerCase() == 'shadowsocks'}"]password: [(${account.authCode})]
     cipher: chacha20-ietf-poly1305[/]
-    [# th:if="${node.protocol?.toLowerCase() == 'socks'}"]username: [(${account.uuid})]
+    [# th:if="${node.protocol != null and node.protocol.toLowerCase() == 'socks'}"]username: [(${account.uuid})]
     password: [(${account.authCode})][/]
-    [# th:if="${node.protocol?.toLowerCase() == 'hysteria2'}"]password: [(${account.authCode})][/]
+    [# th:if="${node.protocol != null and node.protocol.toLowerCase() == 'hysteria2'}"]password: [(${account.authCode})][/]
     tls: false
     skip-cert-verify: true
     udp: true
@@ -58,7 +58,7 @@ proxy-groups:
     type: url-test
     proxies:
 [# th:each="node : ${nodes}"]
-      - "[(${node.name} != null ? ${node.name} : ${node.server.name + '-' + node.protocol + '-' + node.port})]"
+      - "[(${node.name != null ? node.name : node.server.name + '-' + node.protocol + '-' + node.port})]"
 [/]
     url: 'http://www.gstatic.com/generate_204'
     interval: 300
@@ -69,7 +69,7 @@ proxy-groups:
     proxies:
       - "♻️ 自动选择"
 [# th:each="node : ${nodes}"]
-      - "[(${node.name} != null ? ${node.name} : ${node.server.name + '-' + node.protocol + '-' + node.port})]"
+      - "[(${node.name != null ? node.name : node.server.name + '-' + node.protocol + '-' + node.port})]"
 [/]
 
   - name: "🐟 漏网之鱼"
