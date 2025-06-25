@@ -1,6 +1,7 @@
 package com.fun90.airopscat.model.entity;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fun90.airopscat.config.CryptoConverter;
 import com.fun90.airopscat.utils.RawJsonDeserializer;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -30,6 +31,7 @@ public class Server {
 
     private String username;
     
+    @Convert(converter = CryptoConverter.class)
     private String auth;
     
     private String host;

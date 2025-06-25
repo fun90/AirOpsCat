@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -219,7 +220,7 @@ public class NodeDeploymentService {
      * 生成Xray配置
      */
     private XrayConfig generateXrayConfig(List<Node> nodes) {
-        String configTemplate = ConfigFileReader.readFileContent("config/xray/config-template.json");
+        String configTemplate = ConfigFileReader.readFileContent("templates/core/xray.json");
         XrayConfig xrayConfig = JsonUtil.toObject(configTemplate, XrayConfig.class);
 
         List<InboundConfig> inbounds = xrayConfig.getInbounds().stream().filter(o ->  StringUtils.startsWith(o.getTag(), "default-")).collect(Collectors.toList());
@@ -379,12 +380,15 @@ public class NodeDeploymentService {
         SshConfig sshConfig = new SshConfig();
         sshConfig.setHost(server.getIp());
         sshConfig.setPort(server.getSshPort());
-        sshConfig.setUsername(DEFAULT_USERNAME);
+        sshConfig.setUsername(Objects.toString(server.getUsername(), DEFAULT_USERNAME));
 
-        if ("password".equalsIgnoreCase(server.getAuthType())) {
-            sshConfig.setPassword(server.getAuth());
+        // 现在 auth 字段通过 JPA 转换器自动解密，直接使用即可
+        String auth = server.getAuth();
+        
+        if ("PASSWORD".equalsIgnoreCase(server.getAuthType()) || "password".equalsIgnoreCase(server.getAuthType())) {
+            sshConfig.setPassword(auth);
         } else {
-            sshConfig.setPrivateKeyContent(server.getAuth());
+            sshConfig.setPrivateKeyContent(auth);
         }
 
         return sshConfig;

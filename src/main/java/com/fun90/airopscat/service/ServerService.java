@@ -168,6 +168,8 @@ public class ServerService {
         ServerDto dto = new ServerDto();
         BeanUtils.copyProperties(server, dto);
         
+        // 注意：auth 字段现在通过 JPA 转换器自动解密，无需手动处理
+        
         // Convert JSON strings to Map objects
         try {
             if (StringUtils.hasText(server.getTransitConfig())) {
@@ -196,6 +198,8 @@ public class ServerService {
             server.setSshPort(22); // 默认SSH端口
         }
         
+        // 注意：auth 字段现在通过 JPA 转换器自动加密，无需手动处理
+        
         // 如果有提供配置JSON对象，转换为JSON字符串
         try {
             if (server.getTransitConfig() == null) {
@@ -220,6 +224,8 @@ public class ServerService {
     public Server updateServer(Server server) {
         Server existingServer = serverRepository.findById(server.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Server not found"));
+        
+        // 注意：auth 字段现在通过 JPA 转换器自动加密，无需手动处理
         
         // 处理配置JSON
         try {
@@ -302,6 +308,37 @@ public class ServerService {
                     return option;
                 })
                 .collect(Collectors.toList());
+    }
+    
+    /**
+     * 获取认证信息（现在直接返回明文，因为 JPA 转换器自动处理解密）
+     * @param serverId 服务器ID
+     * @return 认证信息
+     */
+    public String getAuth(Long serverId) {
+        Server server = serverRepository.findById(serverId)
+                .orElseThrow(() -> new EntityNotFoundException("Server not found"));
+        
+        return server.getAuth();
+    }
+    
+    /**
+     * 验证认证信息
+     * @param serverId 服务器ID
+     * @param inputAuth 输入的认证信息
+     * @return 是否匹配
+     */
+    public boolean verifyAuth(Long serverId, String inputAuth) {
+        Server server = serverRepository.findById(serverId)
+                .orElseThrow(() -> new EntityNotFoundException("Server not found"));
+        
+        String serverAuth = server.getAuth();
+        
+        if (!StringUtils.hasText(serverAuth)) {
+            return !StringUtils.hasText(inputAuth);
+        }
+        
+        return serverAuth.equals(inputAuth);
     }
     
     // 测试服务器连接
