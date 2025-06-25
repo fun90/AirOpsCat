@@ -21,4 +21,5 @@ public class RoutingRule {
     private String attrs;
     private String outboundTag;
     private String balancerTag;
+    private String ruleTag;
 }

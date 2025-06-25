@@ -211,6 +211,9 @@ public class NodeService {
 
         // 使用工具方法复制非null属性
         copyNonNullProperties(node, existingNode);
+        
+        // 特殊处理 outId 字段，确保 null 值也能被更新
+        existingNode.setOutId(node.getOutId());
 
         // 如果有实质性变更，将状态设置为"未部署"
         if (hasSubstantialChanges) {
@@ -244,8 +247,15 @@ public class NodeService {
 
         // 检查配置变更
         if ((newNode.getInbound() != null && !newNode.getInbound().equals(oldNode.getInbound())) ||
-                (newNode.getOutId() != null && !newNode.getOutId().equals(oldNode.getOutId())) ||
                 (newNode.getRule() != null && !newNode.getRule().equals(oldNode.getRule()))) {
+            return true;
+        }
+        
+        // 特殊处理 outId 变更，包括从有值变为 null 的情况
+        if (newNode.getOutId() == null && oldNode.getOutId() != null) {
+            return true;
+        }
+        if (newNode.getOutId() != null && !newNode.getOutId().equals(oldNode.getOutId())) {
             return true;
         }
 
