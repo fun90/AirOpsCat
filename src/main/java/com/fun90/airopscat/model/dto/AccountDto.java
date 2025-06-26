@@ -20,6 +20,7 @@ public class AccountDto {
     private Integer disabled;
     private Long userId;
     private String userEmail; // 关联用户的邮箱
+    private String nickName; // 关联用户的昵称
     private LocalDateTime createTime;
     private Long daysUntilExpiration; // 到期剩余天数
     

@@ -9,6 +9,7 @@ import java.util.List;
 public class AccountRequest {
     private Long id;
     private Long userId;
+    private String accountNo;
     private Integer level;
     private LocalDateTime fromDate;
     private LocalDateTime toDate;
