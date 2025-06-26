@@ -48,6 +48,7 @@ const accountTable = new DataTable({
         renewData: {
             expiryDate: ''
         },
+        resetAuthCodeModal: null,
         newItem: {
             userId: '',
             level: 0,
@@ -56,6 +57,7 @@ const accountTable = new DataTable({
             periodType: 'MONTHLY',
             uuid: '',
             authCode: '',
+            accountNo: '',
             maxOnlineIps: 0,
             speed: 0,
             bandwidth: 0,
@@ -211,29 +213,26 @@ const accountTable = new DataTable({
         regenerateAuthCode() {
             if (!this.editedItem.id) return;
 
-            fetch(`/api/admin/accounts/${this.editedItem.id}/reset-auth`, {
-                method: 'PATCH'
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('重置认证码失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    this.editedItem.authCode = data.authCode;
-                    ToastUtils.show('Success', '重置认证码成功', 'success');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', '重置认证码失败', 'danger');
-                });
+            // 显示确认弹窗
+            this.resetAuthCodeModal = new Modal(document.getElementById('resetAuthCodeModal'));
+            this.resetAuthCodeModal.show();
         },
 
         resetAuthCode(account) {
             if (!account.id) return;
 
-            fetch(`/api/admin/accounts/${account.id}/reset-auth`, {
+            // 设置选中的账户并显示确认弹窗
+            this.selectedItem = account;
+            this.resetAuthCodeModal = new Modal(document.getElementById('resetAuthCodeModal'));
+            this.resetAuthCodeModal.show();
+        },
+
+        confirmResetAuthCode() {
+            // 确定要重置的账户ID
+            const accountId = this.selectedItem ? this.selectedItem.id : this.editedItem.id;
+            if (!accountId) return;
+
+            fetch(`/api/admin/accounts/${accountId}/reset-auth`, {
                 method: 'PATCH'
             })
                 .then(response => {
@@ -243,11 +242,23 @@ const accountTable = new DataTable({
                     return response.json();
                 })
                 .then(data => {
-                    // Update the auth code in the local records array
-                    const index = this.records.findIndex(a => a.id === account.id);
-                    if (index !== -1) {
-                        this.records[index].authCode = data.authCode;
+                    // 关闭确认弹窗
+                    if (this.resetAuthCodeModal) {
+                        this.resetAuthCodeModal.hide();
                     }
+
+                    // 更新认证码
+                    if (this.selectedItem) {
+                        // 从表格操作调用的重置
+                        const index = this.records.findIndex(a => a.id === accountId);
+                        if (index !== -1) {
+                            this.records[index].authCode = data.authCode;
+                        }
+                    } else if (this.editedItem) {
+                        // 从编辑弹窗调用的重置
+                        this.editedItem.authCode = data.authCode;
+                    }
+
                     ToastUtils.show('Success', '重置认证码成功', 'success');
                 })
                 .catch(error => {
@@ -301,7 +312,6 @@ const accountTable = new DataTable({
 
         // 当操作系统改变时的处理
         onOsNameChange() {
-            console.log('onOsNameChange executed, new osName:', this.configOptions.osName);
             // 清空应用选择
             this.configOptions.appName = '';
             // 清空配置链接
@@ -460,6 +470,7 @@ const accountTable = new DataTable({
 
             return {
                 userId: this.newItem.userId,
+                accountNo: this.newItem.accountNo,
                 level: this.newItem.level || null,
                 fromDate: this.newItem.fromDate || localDateTimeFormat,
                 toDate: this.newItem.toDate || oneMonthLaterFormat,
@@ -477,6 +488,7 @@ const accountTable = new DataTable({
         prepareUpdateData() {
             return {
                 userId: this.editedItem.userId,
+                accountNo: this.editedItem.accountNo,
                 level: this.editedItem.level,
                 fromDate: this.editedItem.fromDate || null,
                 toDate: this.editedItem.toDate || null,
@@ -501,6 +513,7 @@ const accountTable = new DataTable({
 
             this.newItem = {
                 userId: this.users.length > 0 ? this.users[0].id : '',
+                accountNo: '',
                 level: 0,
                 fromDate: localDateTimeFormat,
                 toDate: oneMonthLaterFormat,
@@ -529,6 +542,7 @@ const accountTable = new DataTable({
             return {
                 id: account.id,
                 userId: account.userId,
+                accountNo: account.accountNo,
                 level: account.level,
                 fromDate: formatDateForInput(account.fromDate),
                 toDate: formatDateForInput(account.toDate),

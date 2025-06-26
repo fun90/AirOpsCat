@@ -42,6 +42,10 @@ public class SubscriptionController {
         
         try {
             SubscrptionDto subscriptionDto = subscriptionService.generateSubscription(authCode, osName, appName);
+            if (subscriptionDto == null) {
+                return ResponseEntity.notFound().build();
+            }
+            
             String subscriptionContent = subscriptionDto.getContent();
             
             if (subscriptionContent == null) {

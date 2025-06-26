@@ -156,6 +156,7 @@ public class AccountController {
         Account account = new Account();
         account.setId(id);
         account.setUserId(request.getUserId());
+        account.setAccountNo(request.getAccountNo());
         account.setLevel(request.getLevel());
         account.setFromDate(request.getFromDate());
         account.setToDate(request.getToDate());

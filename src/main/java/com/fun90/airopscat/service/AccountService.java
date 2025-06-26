@@ -138,7 +138,10 @@ public class AccountService {
         // Enrich with user email if available
         if (account.getUserId() != null) {
             Optional<User> userOpt = userRepository.findById(account.getUserId());
-            userOpt.ifPresent(user -> dto.setUserEmail(user.getEmail()));
+            userOpt.ifPresent(user -> {
+                dto.setUserEmail(user.getEmail());
+                dto.setNickName(user.getNickName());
+            });
         }
         
         // Add traffic usage data

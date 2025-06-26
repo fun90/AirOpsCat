@@ -133,6 +133,7 @@
         <th>ID</th>
         <th>人员</th>
         <th>UUID</th>
+        <th>账号</th>
         <th>状态</th>
         <th>流量使用</th>
         <th>到期时间</th>
@@ -144,7 +145,7 @@
     <tr v-for="account in records" :key="account.id">
         <td v-text="account.id"></td>
         <td>
-            <a href="#" @click.prevent="viewUserDetails(account.userId)">{{ account.userEmail || account.userId }}</a>
+            <a href="#" @click.prevent="viewUserDetails(account.userId)">{{ account.userEmail }}({{ account.nickName }})</a>
         </td>
         <td>
             <div class="d-flex align-items-center">
@@ -153,6 +154,9 @@
                     <i class="ti ti-copy"></i>
                 </button>
             </div>
+        </td>
+        <td>
+            <span v-text="account.accountNo" class="text-truncate" style="max-width: 150px;"></span>
         </td>
         <td>
             <span class="badge" :class="getStatusBadgeClass(account)">
@@ -248,8 +252,8 @@
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label">级别</label>
-                                <input type="number" class="form-control" v-model="newItem.level" min="0">
+                                <label class="form-label required">账号</label>
+                                <input type="text" class="form-control" v-model="newItem.accountNo">
                             </div>
                         </div>
                     </div>
@@ -318,6 +322,15 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">级别</label>
+                                <input type="number" class="form-control" v-model="newItem.level" min="0">
+                            </div>
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">标签</label>
                         <div class="row">
@@ -368,8 +381,8 @@
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label">级别</label>
-                                <input type="number" class="form-control" v-model="editedItem.level" min="0">
+                                <label class="form-label required">账号</label>
+                                <input type="text" class="form-control" v-model="editedItem.accountNo">
                             </div>
                         </div>
                     </div>
@@ -432,6 +445,14 @@
                             <div class="mb-3">
                                 <label class="form-label">流量限制 (GB)</label>
                                 <input type="number" class="form-control" v-model="editedItem.bandwidth" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">级别</label>
+                                <input type="number" class="form-control" v-model="editedItem.level" min="0">
                             </div>
                         </div>
                     </div>
@@ -560,6 +581,22 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
                     <button type="button" class="btn btn-primary" @click="renewAccount">续期</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Auth Code Confirmation Modal -->
+    <div class="modal modal-blur fade" id="resetAuthCodeModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <div class="modal-title">重置认证码</div>
+                    <div>确定要重置该账户的认证码吗？重置后原配置链接将失效。</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-danger" @click="confirmResetAuthCode">确认重置</button>
                 </div>
             </div>
         </div>

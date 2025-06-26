@@ -1,13 +1,14 @@
-package com.fun90.airopscat.demo;
+package com.fun90.airopscat.utils;
 
-import com.fun90.airopscat.utils.CryptoUtil;
+import org.junit.jupiter.api.Test;
 
 /**
  * 加密功能演示
  */
-public class CryptoDemo {
+public class CryptoUtilTest {
 
-    public static void main(String[] args) {
+    @Test
+    public void test() {
         // 创建加密工具实例
         CryptoUtil cryptoUtil = new CryptoUtil();
         
