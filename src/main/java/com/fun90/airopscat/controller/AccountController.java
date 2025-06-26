@@ -230,11 +230,11 @@ public class AccountController {
     }
     
     @GetMapping("/{id}/config-url")
-    public ResponseEntity<Map<String, String>> getConfigUrl(@PathVariable Long id) {
+    public ResponseEntity<Map<String, String>> getConfigUrl(@PathVariable Long id, @RequestParam String osName, @RequestParam String appName) {
         Account account = accountService.getAccountById(id);
         if (account != null) {
             Map<String, String> response = new HashMap<>();
-            response.put("configUrl", accountService.getConfigUrl(account));
+            response.put("configUrl", accountService.getConfigUrl(account, osName, appName));
             return ResponseEntity.ok(response);
         }
         return ResponseEntity.notFound().build();

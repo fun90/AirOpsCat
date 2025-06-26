@@ -1,20 +1,22 @@
 package com.fun90.airopscat.controller;
 
-import com.fun90.airopscat.model.dto.SubscrptionDto;
-import com.fun90.airopscat.model.entity.Account;
-import com.fun90.airopscat.model.entity.Node;
-import com.fun90.airopscat.service.SubscriptionService;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
+import com.fun90.airopscat.model.dto.SubscrptionDto;
+import com.fun90.airopscat.service.SubscriptionService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,7 +32,7 @@ public class SubscriptionController {
         this.subscriptionService = subscriptionService;
     }
 
-    @GetMapping("/{authCode}/{osName}/{appName}")
+    @GetMapping("/config/{authCode}/{osName}/{appName}")
     public ResponseEntity<String> getSubscription(
             @PathVariable String authCode,
             @PathVariable String osName,
@@ -52,7 +54,8 @@ public class SubscriptionController {
             // 配置文件的 更新间隔 将被设置为对应的值（单位: 小时）
             headers.set("profile-update-interval", "72");
             if (!"1".equals(view)) {
-                headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + subscriptionDto.getName() + ".yaml\"");
+                String fileName = URLEncoder.encode(subscriptionDto.getFileName(), StandardCharsets.UTF_8);
+                headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename*=UTF-8''" + fileName);
             }
             if ("shadowrocket".equals(appName)) {
                 String usedFlow = new BigDecimal(subscriptionDto.getUsedFlow()).divide(new BigDecimal(1024 * 1024 * 1024), 2, RoundingMode.HALF_UP).toPlainString();
@@ -73,16 +76,29 @@ public class SubscriptionController {
         }
     }
 
-    @GetMapping("/rules/{clientName}/{ruleName}")
+    @GetMapping("/rules/{appType}/{ruleName}")
     public ResponseEntity<String> rule(
-        @PathVariable String clientName,
+        @PathVariable String appType,
         @PathVariable String ruleName) {
-            String ruleContent = subscriptionService.getRule(clientName, ruleName);
+            String ruleContent = subscriptionService.getRule(appType, ruleName);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.TEXT_PLAIN);
             headers.set("charset", StandardCharsets.UTF_8.name());
             return ResponseEntity.ok()
                     .headers(headers)
                     .body(ruleContent);
+    }
+
+    @GetMapping("/nodes/{authCode}/{appType}")
+    public ResponseEntity<String> nodes(
+        @PathVariable String authCode,
+        @PathVariable String appType) {
+            String nodesContent = subscriptionService.getNodes(authCode, appType);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.TEXT_PLAIN);
+            headers.set("charset", StandardCharsets.UTF_8.name());
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(nodesContent);
     }
 } 

@@ -16,6 +16,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,26 +25,79 @@ public class SubscriptionService {
     private final AccountRepository accountRepository;
     private final TagService tagService;
     private final ThymeleafUtil thymeleafUtil;
-    private final String ruleUrl;
+    private final String subscriptionUrl;
 
     @Autowired
     public SubscriptionService(
             AccountRepository accountRepository,
             TagService tagService,
             ThymeleafUtil thymeleafUtil,
-            @Value("${airopscat.rule.url}") String ruleUrl) {
+            @Value("${airopscat.subscription.url}") String subscriptionUrl) {
         this.accountRepository = accountRepository;
         this.tagService = tagService;
         this.thymeleafUtil = thymeleafUtil;
-        this.ruleUrl = ruleUrl;
+        this.subscriptionUrl = subscriptionUrl;
     }
 
     /**
      * 获取规则内容
      */
-    public String getRule(String clientName, String ruleName) {
-        String templateName = "rules/" + clientName + "/" + ruleName;
-        return ConfigFileReader.readFileContent("templates/subscription/" + templateName);
+    public String getRule(String appType, String ruleName) {
+        String templateName = "rules/" + appType + "/" + ruleName;
+        return getTemplateContent(templateName);
+    }
+
+    public String getNodes(String authCode, String appType) {
+        // 根据authCode查找账户
+        Optional<Account> optionalAccount = accountRepository.findByAuthCode(authCode);
+        if (optionalAccount.isEmpty()) {
+            return "";
+        }
+
+        Account account = optionalAccount.get();
+        
+        // 检查账户状态
+        if (!account.isActive()) {
+            return "";
+        }
+
+        // 获取账户可用的节点
+        List<Node> availableNodes = tagService.getAvailableNodesByAccount(account.getId());
+        
+        if (availableNodes.isEmpty()) {
+            return "";
+        }
+
+        // 过滤已部署且启用的节点
+        List<NodeDto> activeNodes = availableNodes.stream()
+                .filter(node -> node.getDeployed() != null && node.getDeployed() == 1)
+                .filter(node -> node.getDisabled() == null || node.getDisabled() == 0)
+                .map(NodeConverter::toDto)
+                .collect(Collectors.toList());
+
+        if (activeNodes.isEmpty()) {
+            return "";
+        }
+
+        List<NodeDto> activeNodes2 = activeNodes.stream().collect(Collectors.toList());
+        activeNodes.addAll(activeNodes2);
+
+        Map<String, Object> templateData = new HashMap<>();
+        templateData.put("account", account);
+        templateData.put("nodes", activeNodes);
+        templateData.put("subscriptionUrl", subscriptionUrl);
+        templateData.put("timestamp", System.currentTimeMillis());
+
+        String templateName = "nodes/" + appType + ".html";
+        String templateContent = getTemplateContent(templateName);
+
+        if (templateContent == null) {
+            return "";
+        }
+
+        String result = thymeleafUtil.processStringTemplate(templateContent, templateData);
+        // 清理多余的空行
+        return result.replaceAll("(?m)^\\s*$[\n\r]+", "").trim();
     }
 
     /**
@@ -88,7 +142,8 @@ public class SubscriptionService {
         // 根据应用类型生成配置
         String content = generateConfigByApp(account, activeNodes, osName, appName);
         String expireDate = account.getToDate().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
-        return new SubscrptionDto(account.getUser().getNickName(), content, expireDate, 0L, 500L);
+        String fileName = account.getUser().getNickName() + getSubscriptionFileSuffix(appName);
+        return new SubscrptionDto(fileName, content, expireDate, 0L, 500L);
     }
 
     /**
@@ -100,7 +155,7 @@ public class SubscriptionService {
         templateData.put("nodes", nodes);
         templateData.put("osName", osName);
         templateData.put("appName", appName);
-        templateData.put("ruleUrl", ruleUrl);
+        templateData.put("subscriptionUrl", subscriptionUrl);
         templateData.put("timestamp", System.currentTimeMillis());
 
         String templateName = getTemplateName(osName, appName);
@@ -117,7 +172,14 @@ public class SubscriptionService {
      * 获取模板名称
      */
     private String getTemplateName(String osName, String appName) {
-        return appName + ".html";
+        return appName + getSubscriptionFileSuffix(appName);
+    }
+
+    private String getSubscriptionFileSuffix(String appName) {
+        if ("loon".equalsIgnoreCase(appName)) {
+            return ".conf";
+        }
+        return ".yaml";
     }
 
     /**

@@ -30,8 +30,8 @@ import java.util.*;
 @Service
 public class AccountService {
 
-    @Value("${app.config.base-url:https://example.com}")
-    private String configBaseUrl;
+    @Value("${airopscat.subscription.url:https://example.com}")
+    private String subscriptionUrl;
 
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
@@ -277,12 +277,11 @@ public class AccountService {
     }
     
     // 获取配置URL
-    public String getConfigUrl(Account account) {
+    public String getConfigUrl(Account account, String osName, String appName) {
         if (account == null || account.getUuid() == null) {
             return null;
         }
-        return configBaseUrl + "/config/" + account.getUuid() + 
-                (account.getAuthCode() != null ? "?auth=" + account.getAuthCode() : "");
+        return subscriptionUrl + "/config/" + account.getAuthCode() + "/" + osName + "/" + appName;
     }
     
     // 获取指定用户的账户数量

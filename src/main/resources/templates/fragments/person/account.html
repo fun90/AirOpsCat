@@ -473,11 +473,36 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label required">操作系统</label>
+                                <select class="form-select" v-model="configOptions.osName" @change="onOsNameChange">
+                                    <option value="">请选择操作系统</option>
+                                    <option value="windows">Windows</option>
+                                    <option value="macos">MacOS</option>
+                                    <option value="linux">Linux</option>
+                                    <option value="android">Android</option>
+                                    <option value="harmony">HarmonyOS</option>
+                                    <option value="ios">iOS</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label required">应用</label>
+                                <select class="form-select" v-model="configOptions.appName" @change="updateConfigUrl" :disabled="!configOptions.osName">
+                                    <option value="">请选择应用</option>
+                                    <option v-for="app in availableApps" :key="app.value" :value="app.value">{{ app.label }}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">配置链接</label>
                         <div class="input-group">
                             <input type="text" class="form-control" v-model="configUrl" readonly>
-                            <button class="btn" type="button" @click="copyToClipboard(configUrl)">复制</button>
+                            <button class="btn" type="button" @click="copyToClipboard(configUrl)" :disabled="!configUrl">复制</button>
                         </div>
                         <small class="form-hint">用户可以通过此链接获取配置信息</small>
                     </div>

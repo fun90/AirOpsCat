@@ -1,4 +1,3 @@
-
 import { DataTable } from '/static/js/common/data-table.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 
@@ -22,6 +21,29 @@ const accountTable = new DataTable({
         },
         configUrl: '',
         configUrlModal: null,
+        configOptions: {
+            osName: '',
+            appName: ''
+        },
+        // 操作系统和应用的关联关系
+        osAppMapping: {
+            'windows': ['clash-verge'],
+            'macos': ['clash-verge'],
+            'linux': ['clash-verge'],
+            'android': ['clash-meta'],
+            'harmony': ['clash-meta'],
+            'ios': ['shadowrocket', 'loon', 'stash']
+        },
+        // 所有可用的应用列表
+        allApps: [
+            { value: 'clash-verge', label: 'Clash Verge' },
+            { value: 'clash-meta', label: 'Clash Meta' },
+            { value: 'stash', label: 'Stash' },
+            { value: 'shadowrocket', label: 'Shadowrocket' },
+            { value: 'loon', label: 'Loon' },
+            { value: 'v2rayng', label: 'V2rayNG' }
+        ],
+        availableApps: [],
         renewModal: null,
         renewData: {
             expiryDate: ''
@@ -237,8 +259,30 @@ const accountTable = new DataTable({
         // Config URL modal methods
         openConfigUrlModal(account) {
             this.selectedItem = account;
+            // Reset config options
+            this.configOptions = {
+                osName: '',
+                appName: ''
+            };
+            this.configUrl = '';
+            
+            this.configUrlModal = new Modal(document.getElementById('configUrlModal'));
+            this.configUrlModal.show();
+        },
 
-            fetch(`/api/admin/accounts/${account.id}/config-url`)
+        updateConfigUrl() {
+            // Only fetch config URL if both osName and appName are selected
+            if (!this.configOptions.osName || !this.configOptions.appName || !this.selectedItem) {
+                this.configUrl = '';
+                return;
+            }
+
+            const params = new URLSearchParams({
+                osName: this.configOptions.osName,
+                appName: this.configOptions.appName
+            });
+
+            fetch(`/api/admin/accounts/${this.selectedItem.id}/config-url?${params}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('获取配置链接失败');
@@ -247,13 +291,29 @@ const accountTable = new DataTable({
                 })
                 .then(data => {
                     this.configUrl = data.configUrl;
-                    this.configUrlModal = new Modal(document.getElementById('configUrlModal'));
-                    this.configUrlModal.show();
                 })
                 .catch(error => {
                     console.error('Error:', error);
                     ToastUtils.show('Error', '获取配置链接失败', 'danger');
+                    this.configUrl = '';
                 });
+        },
+
+        // 当操作系统改变时的处理
+        onOsNameChange() {
+            console.log('onOsNameChange executed, new osName:', this.configOptions.osName);
+            // 清空应用选择
+            this.configOptions.appName = '';
+            // 清空配置链接
+            this.configUrl = '';
+
+            if (!this.configOptions.osName) {
+                this.availableApps = [];
+            } else {
+                const allowedApps = this.osAppMapping[this.configOptions.osName] || [];
+                console.log('availableApps ，allowedApps： {}', allowedApps);
+                this.availableApps = this.allApps.filter(app => allowedApps.includes(app.value));
+            }
         },
 
         // Renew account methods

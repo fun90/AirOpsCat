@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SubscrptionDto {
-    private String name;
+    private String fileName;
 
     private String content;
 
