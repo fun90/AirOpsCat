@@ -1,4 +1,4 @@
-# AirOpsCat Subscription Config for Clash Verge
+# AirOpsCat Subscription Config for Stash
 # Generated at: [[${timestamp}]]
 # Account: [[${account.uuid}]]
 
@@ -14,7 +14,6 @@ geox-url:
   mmdb: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb
   asn: https://github.com/xishang0128/geoip/releases/download/latest/GeoLite2-ASN.mmdb
 
-external-controller: 127.0.0.1:9095
 
 mixed-port: 7890
 
@@ -29,32 +28,13 @@ tun:
     - tcp://any:53
 
 dns:
-  enable: true
-  ipv6: true
-  listen: 0.0.0.0:1053
-  enhanced-mode: redir-host
   default-nameserver:
     - 223.5.5.5
     - 114.114.114.114
   nameserver:
     - https://doh.pub/dns-query
     - https://dns.alidns.com/dns-query
-
-  nameserver-policy:
-    '+.fun90.com':
-      - https://doh.pub/dns-query
-      - https://dns.alidns.com/dns-query
-    'rule-set:hst':
-      - [(${dns != null ? dns : 'system'})]
-    'rule-set:myproxy':
-      - 'https://dns.google/dns-query#代理'
-      - 'https://dns.adguard.com/dns-query#代理'
-    'rule-set:proxy':
-      - 'https://dns.google/dns-query#代理'
-      - 'https://dns.adguard.com/dns-query#代理'
-  proxy-server-nameserver:
-      - 'https://doh.pub/dns-query'
-      - 'https://dns.alidns.com/dns-query'
+    
 profile:
   store-selected: true
 
@@ -144,25 +124,25 @@ rule-providers:
   hst:
     type: http
     behavior: classical
-    url: [(${ruleUrl})]/clash/hst.yaml
+    url: [(${subscriptionUrl})]/rules/clash/hst.yaml
     path: ./ruleset/hst.yaml
     interval: 86400
   myreject:
     type: http
     behavior: classical
-    url: "[(${ruleUrl})]/clash/myreject.yaml"
+    url: "[(${subscriptionUrl})]/rules/clash/myreject.yaml"
     path: ./ruleset/myreject.yaml
     interval: 86400
   mydirect:
     type: http
     behavior: classical
-    url: "[(${ruleUrl})]/clash/mydirect.yaml"
+    url: "[(${subscriptionUrl})]/rules/clash/mydirect.yaml"
     path: ./ruleset/mydirect.yaml
     interval: 86400
   myproxy:
     type: http
     behavior: classical
-    url: "[(${ruleUrl})]/clash/myproxy.yaml"
+    url: "[(${subscriptionUrl})]/rules/clash/myproxy.yaml"
     path: ./ruleset/myproxy.yaml
     interval: 86400
   applications:
