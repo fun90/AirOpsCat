@@ -69,11 +69,17 @@ public class ScheduledTaskService {
             log.info("需要重新部署的节点数量: {}", nodes.size());
             
             // 3. 批量重新部署节点
-            List<DeploymentResult> deploymentResults = nodeDeploymentService.deployNodesForcely(
+            List<DeploymentResult> deploymentResults = nodeDeploymentService.deployNodesForcibly(
                     nodes.stream().toList()
             );
+
+            // 4. 批量禁用过期账户
+            accountRepository.disableExpiredAccounts(
+                    expiredAccounts.stream().map(Account::getId).collect(Collectors.toList()),
+                    LocalDateTime.now()
+            );
             
-            // 4. 统计部署结果
+            // 5. 统计部署结果
             long successCount = deploymentResults.stream()
                     .mapToLong(result -> result.isSuccess() ? 1 : 0)
                     .sum();
@@ -81,7 +87,7 @@ public class ScheduledTaskService {
             
             log.info("节点重新部署完成 - 成功: {}, 失败: {}", successCount, failureCount);
             
-            // 5. 记录失败的部署结果
+            // 6. 记录失败的部署结果
             if (failureCount > 0) {
                 deploymentResults.stream()
                         .filter(result -> !result.isSuccess())

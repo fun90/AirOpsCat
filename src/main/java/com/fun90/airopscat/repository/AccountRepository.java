@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -55,4 +57,9 @@ public interface AccountRepository extends JpaRepository<Account, Long>, JpaSpec
     
     @Query("SELECT a FROM Account a WHERE a.disabled = 0 AND a.toDate IS NOT NULL AND a.toDate < :now")
     List<Account> findExpiredButNotDisabledAccounts(@Param("now") LocalDateTime now);
+    
+    @Query("UPDATE Account a SET a.disabled = 1, a.updateTime = :updateTime WHERE a.id IN :accountIds")
+    @Modifying
+    @Transactional
+    int disableExpiredAccounts(@Param("accountIds") List<Long> accountIds, @Param("updateTime") LocalDateTime updateTime);
 }

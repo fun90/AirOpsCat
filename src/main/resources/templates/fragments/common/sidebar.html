@@ -89,8 +89,8 @@
                         <span class="nav-link-title"> 代理 </span>
                     </a>
                     <div class="dropdown-menu" th:classappend="${moduleTitle == '代理'} ? ' show'">
-                        <a class="dropdown-item" th:classappend="${uri == '/vpn/config-template'} ? ' active'" href="/console/vpn/config-template"> 配置模板 </a>
                         <a class="dropdown-item" th:classappend="${uri == '/vpn/node'} ? ' active'" href="/console/vpn/node"> 节点管理 </a>
+                        <a class="dropdown-item" th:classappend="${uri == '/vpn/server-config'} ? ' active'" href="/console/vpn/server-config"> 配置管理 </a>
                     </div>
                 </li>
                 <li class="nav-item" th:classappend="${moduleTitle == '财务'} ? ' dropdown active'">

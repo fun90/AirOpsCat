@@ -228,6 +228,9 @@
                         <a v-if="node.deployed === 0" class="dropdown-item" href="#" @click.prevent="deployNode(node)">
                             <i class="ti ti-rocket"></i> 部署
                         </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="deployNode(node, true)">
+                            <i class="ti ti-rocket"></i> 重新部署
+                        </a>
                         <div v-if="node.deployed === 1 && node.disabled === 1" class="dropdown-divider"></div>
                         <a v-if="node.deployed === 1 && node.disabled === 1" class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(node)">
                             <i class="ti ti-trash"></i> 删除

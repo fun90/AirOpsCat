@@ -23,10 +23,16 @@ public class ServerConfig {
     
     @Column(name = "config_type")
     private String configType;
+
+    private String path;
     
     private LocalDateTime createTime;
     
     private LocalDateTime updateTime;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "server_id", insertable = false, updatable = false)
+    private Server server;
     
     @PrePersist
     protected void onCreate() {

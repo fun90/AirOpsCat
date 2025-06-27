@@ -93,7 +93,7 @@ public class NodeDeploymentService {
     }
 
     @Transactional
-    public List<DeploymentResult> deployNodesForcely(List<Node> nodes) {
+    public List<DeploymentResult> deployNodesForcibly(List<Node> nodes) {
         log.info("开始批量部署节点，节点列表: {}", nodes);
 
         try {
