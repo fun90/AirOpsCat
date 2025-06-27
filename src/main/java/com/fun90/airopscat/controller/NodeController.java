@@ -291,7 +291,17 @@ public class NodeController {
     @PostMapping("/{id}/deploy")
     public ResponseEntity<DeploymentResult> deployNode(@PathVariable Long id) {
         List<DeploymentResult> results = nodeDeploymentService.deployNodes(Collections.singletonList(id));
-        return ResponseEntity.ok(results.getFirst());
+        return ResponseEntity.ok(results.isEmpty() ? new DeploymentResult(id, null, false, "无需重复部署") : results.getFirst());
+    }
+
+    @PostMapping("/{id}/deployForcibly")
+    public ResponseEntity<DeploymentResult> deployNodeForcibly(@PathVariable Long id) {
+        Node node = nodeService.getNodeById(id);
+        if (node == null) {
+            return ResponseEntity.ok(new DeploymentResult(id, null, false, "节点不存在"));
+        }
+        List<DeploymentResult> results = nodeDeploymentService.deployNodesForcibly(Collections.singletonList(node));
+        return ResponseEntity.ok(results.isEmpty() ? new DeploymentResult(id, null, false, "无需部署") : results.getFirst());
     }
 
     @PostMapping("/deploy-batch")

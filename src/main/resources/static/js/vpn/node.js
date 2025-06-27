@@ -573,11 +573,11 @@ const nodeTable = new DataTable({
                 });
         },
 
-        deployNode(node) {
+        deployNode(node, forcibly = false) {
             // Show loading toast
             ToastUtils.show('Info', '正在部署节点...', 'info');
 
-            fetch(`/api/admin/nodes/${node.id}/deploy`, {
+            fetch(`/api/admin/nodes/${node.id}/${forcibly ? 'deployForcibly' : 'deploy'}`, {
                 method: 'POST'
             })
                 .then(response => {
