@@ -17,6 +17,8 @@ import java.util.Optional;
 public interface AccountRepository extends JpaRepository<Account, Long>, JpaSpecificationExecutor<Account> {
 
     Optional<Account> findByUuid(String uuid);
+
+    Optional<Account> findByAccountNo(String accountNo);
     
     Optional<Account> findByAuthCode(String authCode);
     

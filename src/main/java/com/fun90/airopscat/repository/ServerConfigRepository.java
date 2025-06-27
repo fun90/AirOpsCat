@@ -16,6 +16,8 @@ public interface ServerConfigRepository extends JpaRepository<ServerConfig, Long
     
     List<ServerConfig> findByServerId(Long serverId);
     
+    List<ServerConfig> findByConfigType(String configType);
+    
     @Query("SELECT DISTINCT sc.configType FROM ServerConfig sc")
     List<String> findDistinctConfigTypes();
     
