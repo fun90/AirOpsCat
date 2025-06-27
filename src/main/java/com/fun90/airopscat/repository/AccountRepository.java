@@ -52,4 +52,7 @@ public interface AccountRepository extends JpaRepository<Account, Long>, JpaSpec
     
     @Query("SELECT COUNT(a) FROM Account a WHERE a.userId = :userId")
     Long countByUserId(@Param("userId") Long userId);
+    
+    @Query("SELECT a FROM Account a WHERE a.disabled = 0 AND a.toDate IS NOT NULL AND a.toDate < :now")
+    List<Account> findExpiredButNotDisabledAccounts(@Param("now") LocalDateTime now);
 }

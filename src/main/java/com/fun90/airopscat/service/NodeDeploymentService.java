@@ -92,6 +92,18 @@ public class NodeDeploymentService {
         }
     }
 
+    @Transactional
+    public List<DeploymentResult> deployNodesForcely(List<Node> nodes) {
+        log.info("开始批量部署节点，节点列表: {}", nodes);
+
+        try {
+            return processNodesByServer(nodes);
+        } catch (Exception e) {
+            log.error("批量部署节点失败", e);
+            throw new RuntimeException("节点部署失败: " + e.getMessage(), e);
+        }
+    }
+
     /**
      * 获取未部署的节点列表
      */
@@ -255,7 +267,11 @@ public class NodeDeploymentService {
         if (inboundSetting instanceof VlessInboundSetting) {
             VlessInboundSetting vlessInboundSetting = (VlessInboundSetting) inboundSetting;
             Set<Tag> tags = node.getTags();
-            List<Account> accounts = tagRepository.findAccountsByTagIds(tags.stream().map(Tag::getId).collect(Collectors.toList()));
+            // 直接在数据库层面查询有效的账户，避免在应用层过滤
+            List<Account> accounts = tagRepository.findActiveAccountsByTagIds(
+                tags.stream().map(Tag::getId).collect(Collectors.toList()), 
+                LocalDateTime.now()
+            );
             List<VlessClient> clients = accounts.stream().map(a -> {
                 VlessClient client = new VlessClient();
                 client.setId(a.getUuid());
