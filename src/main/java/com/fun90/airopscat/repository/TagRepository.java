@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -40,9 +41,12 @@ public interface TagRepository extends JpaRepository<Tag, Long>, JpaSpecificatio
     
     @Query("SELECT a FROM Account a JOIN a.tags t WHERE t.id = :tagId")
     List<Account> findAccountsByTagId(@Param("tagId") Long tagId);
-
+    
     @Query("SELECT a FROM Account a JOIN a.tags t WHERE t.id IN :tagIds")
     List<Account> findAccountsByTagIds(@Param("tagIds") List<Long> tagIds);
+
+    @Query("SELECT a FROM Account a JOIN a.tags t WHERE t.id IN :tagIds AND a.disabled = 0 AND (a.toDate IS NULL OR a.toDate > :currentTime)")
+    List<Account> findActiveAccountsByTagIds(@Param("tagIds") List<Long> tagIds, @Param("currentTime") LocalDateTime currentTime);
 
     @Query("SELECT DISTINCT t FROM Tag t JOIN t.nodes n WHERE n.id IN :nodeIds")
     List<Tag> findByNodeIdIn(@Param("nodeIds") List<Long> nodeIds);
