@@ -42,4 +42,14 @@ public interface AccountTrafficStatsRepository extends JpaRepository<AccountTraf
     
     @Query("SELECT SUM(ats.downloadBytes) FROM AccountTrafficStats ats WHERE ats.accountId = :accountId")
     Long sumDownloadBytesByAccountId(@Param("accountId") Long accountId);
+    
+    /**
+     * 查找指定账户在指定时间范围内的流量统计记录（当前时间在时间范围内）
+     * @param accountId 账户ID
+     * @param currentTime 当前时间
+     * @return 匹配的流量统计记录列表
+     */
+    @Query("SELECT ats FROM AccountTrafficStats ats WHERE ats.accountId = :accountId AND :currentTime BETWEEN ats.periodStart AND ats.periodEnd")
+    List<AccountTrafficStats> findByAccountIdAndCurrentTime(@Param("accountId") Long accountId, 
+                                                           @Param("currentTime") LocalDateTime currentTime);
 }

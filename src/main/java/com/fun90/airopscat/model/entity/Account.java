@@ -26,7 +26,7 @@ public class Account {
     private LocalDateTime toDate;
     
     @Column(name = "period_type", nullable = false)
-    private String periodType; // DAILY, WEEKLY, MONTHLY, CUSTOM
+    private String periodType; // MONTHLY, YEARLY
     
     @Column(nullable = false)
     private String uuid;

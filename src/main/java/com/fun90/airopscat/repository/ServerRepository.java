@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +26,9 @@ public interface ServerRepository extends JpaRepository<Server, Long>, JpaSpecif
     
     @Query("SELECT s FROM Server s WHERE s.expireDate IS NOT NULL AND s.expireDate <= :date")
     List<Server> findExpiringServers(@Param("date") LocalDate date);
+
+    @Query("SELECT s FROM Server s WHERE s.id = :id AND s.disabled = 0 AND (s.expireDate IS NULL OR s.expireDate > :now)")
+    Optional<Server> findAvailableServer(@Param("id") Long id, @Param("now") LocalDate now);
     
     @Query("SELECT s FROM Server s WHERE s.expireDate IS NOT NULL AND s.expireDate BETWEEN :startDate AND :endDate")
     List<Server> findServersExpiringBetween(

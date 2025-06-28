@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS account
     level            INTEGER,
     from_date        DATETIME,
     to_date          DATETIME,
-    period_type      VARCHAR(20) NOT NULL, -- 统计周期类型: DAILY, WEEKLY, MONTHLY, CUSTOM
+    period_type      VARCHAR(20) NOT NULL, -- 统计周期类型: MONTHLY, YEARLY
     uuid             VARCHAR(100) NOT NULL,
     auth_code        VARCHAR(100),
     max_online_ips   INTEGER, -- 最大在线 IP 数
