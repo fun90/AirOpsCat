@@ -1,10 +1,8 @@
 package com.fun90.airopscat.model.enums;
 
 public enum PeriodType {
-    DAILY("每日"),
-    WEEKLY("每周"),
     MONTHLY("每月"),
-    CUSTOM("自定义");
+    YEARLY("每年");
 
     private final String description;
 
@@ -22,6 +20,6 @@ public enum PeriodType {
                 return type;
             }
         }
-        return CUSTOM; // 默认为自定义
+        return MONTHLY; // 默认为每月
     }
 }

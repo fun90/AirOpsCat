@@ -87,6 +87,10 @@ public class AccountTrafficStatsService {
         return accountTrafficStatsRepository.findByAccountIdAndPeriod(accountId, startDate, endDate);
     }
 
+    public List<AccountTrafficStats> getStatsByAccountAndCurrentTime(Long accountId, LocalDateTime currentTime) {
+        return accountTrafficStatsRepository.findByAccountIdAndCurrentTime(accountId, currentTime);
+    }
+
     public Long getTotalUploadByUser(Long userId) {
         Long sum = accountTrafficStatsRepository.sumUploadBytesByUserId(userId);
         return sum != null ? sum : 0L;
@@ -165,6 +169,54 @@ public class AccountTrafficStatsService {
     @Transactional
     public void deleteStats(Long id) {
         accountTrafficStatsRepository.deleteById(id);
+    }
+    
+    /**
+     * 智能保存或更新流量统计
+     * 如果在当前时间段内已有记录，则累加流量；否则创建新记录
+     */
+    @Transactional
+    public AccountTrafficStats saveOrUpdateTrafficStats(Long accountId, Long userId, String periodType, 
+                                                       long uploadBytes, long downloadBytes) {
+        LocalDateTime currentTime = LocalDateTime.now();
+        
+        // 查找当前时间段内的流量统计记录
+        List<AccountTrafficStats> existingStats = getStatsByAccountAndCurrentTime(accountId, currentTime);
+        
+        if (!existingStats.isEmpty()) {
+            // 如果找到记录，累加流量数据
+            AccountTrafficStats stats = existingStats.get(0);
+            stats.setUploadBytes(stats.getUploadBytes() + uploadBytes);
+            stats.setDownloadBytes(stats.getDownloadBytes() + downloadBytes);
+            return accountTrafficStatsRepository.save(stats);
+        } else {
+            // 如果没有找到记录，创建新记录
+            AccountTrafficStats newStats = new AccountTrafficStats();
+            newStats.setUserId(userId);
+            newStats.setAccountId(accountId);
+            newStats.setPeriodStart(currentTime);
+            newStats.setPeriodEnd(calculatePeriodEnd(currentTime, periodType));
+            newStats.setUploadBytes(uploadBytes);
+            newStats.setDownloadBytes(downloadBytes);
+            return accountTrafficStatsRepository.save(newStats);
+        }
+    }
+    
+    /**
+     * 根据统计周期类型计算周期结束时间
+     */
+    private LocalDateTime calculatePeriodEnd(LocalDateTime periodStart, String periodType) {
+        switch (periodType.toUpperCase()) {
+            case "MONTHLY":
+                // 月周期：从当前时间开始，1个月后
+                return periodStart.plusMonths(1).minusNanos(1);
+            case "YEARLY":
+                // 年周期：从当前时间开始，1年后
+                return periodStart.plusYears(1).minusNanos(1);
+            default:
+                // 默认使用月周期
+                return periodStart.plusMonths(1).minusNanos(1);
+        }
     }
 
     // 格式化流量大小 (B, KB, MB, GB)

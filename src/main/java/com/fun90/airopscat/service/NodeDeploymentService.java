@@ -142,7 +142,7 @@ public class NodeDeploymentService {
      * 为特定服务器部署节点
      */
     private List<DeploymentResult> deployNodesForServer(Long serverId, List<Node> nodes) {
-        log.info("开始为服务器 {} 部署 {} 个节点", serverId, nodes.size());
+        log.info("开始为服务器(ID: {}) 部署 {} 个节点", serverId, nodes.size());
 
         Map<String, List<Node>> coreTypeNodeMap = nodes.stream()
                 .collect(Collectors.groupingBy(node -> determineCoreType(node.getProtocol())));
@@ -298,9 +298,10 @@ public class NodeDeploymentService {
      * 添加出站配置
      */
     private void addOutboundConfiguration(Node node, List<OutboundConfig> outbounds) {
-        Node outNode = nodeRepository.findById(node.getOutId())
-                .orElseThrow(() -> new IllegalArgumentException("出站节点不存在: " + node.getOutId()));
-
+        Node outNode = node.getOutNode();
+        if (outNode == null) {
+            return;
+        }
         InboundConfig outInbound = JsonUtil.toObject(outNode.getInbound(), InboundConfig.class);
         Server outServer = serverRepository.findById(outNode.getServerId())
                 .orElseThrow(() -> new IllegalArgumentException("出站服务器不存在: " + outNode.getServerId()));
@@ -317,9 +318,15 @@ public class NodeDeploymentService {
      * 添加路由规则
      */
     private void addRoutingRule(Node node, List<RoutingRule> routingRules) {
-        RoutingRule rule = JsonUtil.toObject(node.getRule(), RoutingRule.class);
-        rule.setOutboundTag(node.getId().toString());
-        routingRules.add(rule);
+        Node outNode = node.getOutNode();
+        if (outNode == null) {
+            return;
+        }
+        RoutingRule routingRule = new RoutingRule();
+        routingRule.setInboundTag(Collections.singletonList(node.getTag()));
+        routingRule.setOutboundTag(outNode.getTag());
+        routingRule.setType("field");
+        routingRules.add(routingRule);
     }
 
     /**

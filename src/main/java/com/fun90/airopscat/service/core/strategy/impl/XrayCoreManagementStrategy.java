@@ -132,7 +132,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
             executeSystemctlCommand(connection, "stop", "停止Xray服务");
             
             // 2. 禁用服务
-            connection.executeCommand("sudo systemctl disable " + SERVICE_NAME);
+            connection.executeCommand("systemctl disable " + SERVICE_NAME);
             
             // 3. 使用官方卸载脚本
             String uninstallCommand = "bash -c \"$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)\" @ remove";
@@ -234,7 +234,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
                 // 1. 备份现有配置
                 String backupPath = configPath + ".backup." + System.currentTimeMillis();
                 CommandResult backupResult = connection.executeCommand(
-                    String.format("sudo cp %s %s", configPath, backupPath));
+                    String.format("cp %s %s", configPath, backupPath));
                 
                 if (!backupResult.isSuccess()) {
                     log.warn("无法备份配置文件: {}", backupResult.getStderr());
@@ -245,7 +245,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
                 
                 // 3. 验证配置
                 CommandResult validateResult = connection.executeCommand(
-                    String.format("sudo %s run -test -config %s", BINARY_PATH, configPath));
+                    String.format("%s run -test -config %s", BINARY_PATH, configPath));
                 
                 if (validateResult.isSuccess()) {
                     result.setSuccess(true);
@@ -254,7 +254,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
                 } else {
                     // 恢复备份
                     if (backupResult.isSuccess()) {
-                        connection.executeCommand(String.format("sudo mv %s %s", backupPath, configPath));
+                        connection.executeCommand(String.format("mv %s %s", backupPath, configPath));
                         result.setMessage("配置文件验证失败，已恢复原配置: " + validateResult.getStdout());
                     } else {
                         result.setMessage("配置文件验证失败: " + validateResult.getStdout());
@@ -322,7 +322,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
         result.setOperationTime(LocalDateTime.now());
         
         try {
-            String command = String.format("sudo journalctl -u %s -n %d --no-pager", SERVICE_NAME, lines);
+            String command = String.format("journalctl -u %s -n %d --no-pager", SERVICE_NAME, lines);
             CommandResult logResult = connection.executeCommand(command);
             
             if (logResult.isSuccess()) {
@@ -389,7 +389,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
         result.setOperationTime(LocalDateTime.now());
         
         try {
-            String command = String.format("sudo %s run -test -config %s", BINARY_PATH, configPath);
+            String command = String.format("%s run -test -config %s", BINARY_PATH, configPath);
             CommandResult validateResult = connection.executeCommand(command);
             
             if (validateResult.isSuccess()) {
@@ -423,7 +423,7 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
         result.setOperationTime(LocalDateTime.now());
         
         try {
-            String command = "sudo systemctl " + action + " " + SERVICE_NAME;
+            String command = "systemctl " + action + " " + SERVICE_NAME;
             if ("status".equals(action)) {
                 command += " --no-pager"; // 避免分页输出
             }
