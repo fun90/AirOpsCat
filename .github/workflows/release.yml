@@ -1,362 +1,164 @@
-name: Release Build
+name: Build Native Executables
 
 on:
-  # ! 为了避免重复发布版本，应当通过独特 git tag 触发。
-  # ! 不再使用 workflow_dispatch 触发。
-  # workflow_dispatch:
   push:
-    # 应当限制在 main 分支上触发发布。
-    branches:
-      - main
-    # 应当限制 v*.*.* 的 tag 触发发布。
-    tags:
-      - "v*.*.*"
-
-permissions: write-all
-
-env:
-  JAVA_HOME: /opt/hostedtoolcache/graalvm-community-openjdk-21.0.2+13.1/linux-x64
-  GRAALVM_HOME: /opt/hostedtoolcache/graalvm-community-openjdk-21.0.2+13.1/linux-x64
-
-concurrency:
-  # only allow per workflow per commit (and not pr) to run at a time
-  group: "${{ github.workflow }} - ${{ github.head_ref || github.ref }}"
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+    tags: [ 'v*' ]
+  workflow_dispatch:
 
 jobs:
-  check_tag_version:
-    name: Check Release Tag and pom.xml Version Consistency
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Check tag and pom.xml version
-        run: |
-          TAG_REF="${GITHUB_REF##*/}"
-          echo "Current tag: $TAG_REF"
-          PKG_VERSION=$(xmllint --xpath "/*[local-name()='project']/*[local-name()='version']/text()" pom.xml)
-          echo "pom.xml version: $PKG_VERSION"
-          if [[ "$TAG_REF" != "v$PKG_VERSION" ]]; then
-            echo "Tag ($TAG_REF) does not match pom.xml version (v$PKG_VERSION)."
-            exit 1
-          fi
-          echo "Tag and pom.xml version are consistent."
-
-  release:
-    name: Release Build
-    needs: check_tag_version
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
         include:
           - os: ubuntu-latest
             platform: linux
             executable_suffix: ""
             artifact_name: airopscat-linux-amd64
-            arch: x86_64
           - os: macos-latest
             platform: macos
             executable_suffix: ""
             artifact_name: airopscat-macos-amd64
-            arch: x86_64
           - os: windows-latest
             platform: windows
             executable_suffix: ".exe"
             artifact_name: airopscat-windows-amd64.exe
-            arch: x86_64
 
-    runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Setup GraalVM
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '21'
-          distribution: 'graalvm-community'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          native-image-job-reports: 'true'
+    - name: Setup GraalVM
+      uses: graalvm/setup-graalvm@v1
+      with:
+        java-version: '21'
+        distribution: 'graalvm-community'
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        native-image-job-reports: 'true'
 
-      - name: Cache Maven dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2
-          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-m2
+    - name: Cache Maven dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
 
-      - name: Verify GraalVM installation
-        run: |
-          echo "GRAALVM_HOME: $GRAALVM_HOME"
-          echo "JAVA_HOME: $JAVA_HOME"
-          java --version
-          native-image --version
+    - name: Verify GraalVM installation
+      run: |
+        echo "GRAALVM_HOME: $GRAALVM_HOME"
+        echo "JAVA_HOME: $JAVA_HOME"
+        java --version
+        native-image --version
 
-      - name: Build with Maven
-        run: ./mvnw clean compile
+    - name: Build with Maven
+      run: ./mvnw clean compile
 
-      - name: Run tests
-        run: ./mvnw test
+    - name: Run tests
+      run: ./mvnw test
 
-      - name: Build native executable
-        run: ./mvnw -Pnative native:compile
+    - name: Build native executable
+      run: ./mvnw -Pnative native:compile
 
-      - name: Rename executable (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          move target\airopscat.exe target\${{ matrix.artifact_name }}
-        shell: cmd
+    - name: Rename executable (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        move target\airopscat.exe target\${{ matrix.artifact_name }}
+      shell: cmd
 
-      - name: Rename executable (Unix)
-        if: matrix.os != 'windows-latest'
-        run: |
-          mv target/airopscat target/${{ matrix.artifact_name }}
+    - name: Rename executable (Unix)
+      if: matrix.os != 'windows-latest'
+      run: |
+        mv target/airopscat target/${{ matrix.artifact_name }}
 
-      - name: Create distribution directory
-        run: mkdir -p dist
+    - name: Upload executable
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: target/${{ matrix.artifact_name }}
+        retention-days: 30
 
-      - name: Copy executable to dist (Windows)
-        if: matrix.os == 'windows-latest'
-        run: copy target\${{ matrix.artifact_name }} dist\
-        shell: cmd
+    - name: Create distribution directory
+      run: mkdir -p dist
 
-      - name: Copy executable to dist (Unix)
-        if: matrix.os != 'windows-latest'
-        run: cp target/${{ matrix.artifact_name }} dist/
+    - name: Copy executable to dist (Windows)
+      if: matrix.os == 'windows-latest'
+      run: copy target\${{ matrix.artifact_name }} dist\
+      shell: cmd
 
-      - name: Create README for distribution
-        run: |
-          echo "# AirOpsCat Native Executable" > dist/README.txt
-          echo "" >> dist/README.txt
-          echo "Platform: ${{ matrix.platform }}" >> dist/README.txt
-          echo "Architecture: ${{ matrix.arch }}" >> dist/README.txt
-          echo "Built on: $(date)" >> dist/README.txt
-          echo "Version: ${{ github.ref_name }}" >> dist/README.txt
-          echo "" >> dist/README.txt
-          echo "## Usage" >> dist/README.txt
-          echo "./${{ matrix.artifact_name }}" >> dist/README.txt
-          echo "" >> dist/README.txt
-          echo "The application will start on http://localhost:8080" >> dist/README.txt
-          echo "" >> dist/README.txt
-          echo "## System Requirements" >> dist/README.txt
-          echo "- No Java runtime required (native executable)" >> dist/README.txt
-          echo "- ${{ matrix.platform }}: ${{ matrix.arch }} architecture" >> dist/README.txt
+    - name: Copy executable to dist (Unix)
+      if: matrix.os != 'windows-latest'
+      run: cp target/${{ matrix.artifact_name }} dist/
 
-      - name: Create distribution archive (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          7z a -tzip ${{ matrix.artifact_name }}.zip dist\*
-        shell: cmd
+    - name: Create README for distribution
+      run: |
+        echo "# AirOpsCat Native Executable" > dist/README.txt
+        echo "" >> dist/README.txt
+        echo "Platform: ${{ matrix.platform }}" >> dist/README.txt
+        echo "Built on: $(date)" >> dist/README.txt
+        echo "Version: ${{ github.ref_name }}" >> dist/README.txt
+        echo "" >> dist/README.txt
+        echo "## Usage" >> dist/README.txt
+        echo "./${{ matrix.artifact_name }}" >> dist/README.txt
+        echo "" >> dist/README.txt
+        echo "The application will start on http://localhost:8080" >> dist/README.txt
 
-      - name: Create distribution archive (Unix)
-        if: matrix.os != 'windows-latest'
-        run: |
-          cd dist && tar -czf ../${{ matrix.artifact_name }}.tar.gz *
+    - name: Create distribution archive (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        7z a -tzip ${{ matrix.artifact_name }}.zip dist\*
+      shell: cmd
 
-      - name: Get Version
-        run: |
-          echo "VERSION=$(xmllint --xpath "/*[local-name()='project']/*[local-name()='version']/text()" pom.xml)" >> $GITHUB_ENV
-          echo "BUILDTIME=$(TZ=Asia/Shanghai date)" >> $GITHUB_ENV
+    - name: Create distribution archive (Unix)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cd dist && tar -czf ../${{ matrix.artifact_name }}.tar.gz *
 
-      - name: Upload Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{env.VERSION}}
-          name: "AirOpsCat v${{env.VERSION}}"
-          body: |
-            ## AirOpsCat ${{env.VERSION}}
-            
-            A lightweight, agile, and efficient server management system. Stay nimble, stay in control. 🐱💨
-            
-            ### Download Instructions:
-            - **Linux**: Download `${{ matrix.artifact_name }}.tar.gz`
-            - **macOS**: Download `${{ matrix.artifact_name }}.tar.gz`  
-            - **Windows**: Download `${{ matrix.artifact_name }}.zip`
-            
-            ### Usage:
-            1. Extract the archive (if applicable)
-            2. Run the executable directly
-            3. Open http://localhost:8080 in your browser
-            
-            ### System Requirements:
-            - No Java runtime required (native executable)
-            - ${{ matrix.platform }}: ${{ matrix.arch }} architecture
-            
-            ### Features:
-            - Server management and monitoring
-            - Node deployment and configuration
-            - User and account management
-            - Traffic statistics
-            - Subscription management
-          token: ${{ secrets.GITHUB_TOKEN }}
-          files: |
-            ${{ matrix.artifact_name }}.zip
-            ${{ matrix.artifact_name }}.tar.gz
+    - name: Upload distribution archive
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}-distribution
+        path: |
+          ${{ matrix.artifact_name }}.zip
+          ${{ matrix.artifact_name }}.tar.gz
+        retention-days: 30
 
-  release-for-linux-arm:
-    name: Release Build for Linux ARM
-    needs: check_tag_version
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            target: aarch64-unknown-linux-gnu
-            arch: arm64
-            artifact_name: airopscat-linux-arm64
-          - os: ubuntu-22.04
-            target: armv7-unknown-linux-gnueabihf
-            arch: armhf
-            artifact_name: airopscat-linux-armv7
-
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup GraalVM
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '21'
-          distribution: 'graalvm-community'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          native-image-job-reports: 'true'
-
-      - name: Cache Maven dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2
-          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-m2
-
-      - name: Install ARM dependencies
-        run: |
-          sudo dpkg --add-architecture ${{ matrix.arch }}
-          sudo apt update
-          sudo apt install -y \
-            gcc-${{ matrix.target }} \
-            g++-${{ matrix.target }} \
-            libc6-dev-${{ matrix.arch }} \
-            libstdc++6-${{ matrix.arch }}
-
-      - name: Build with Maven for ARM
-        run: |
-          export PKG_CONFIG_ALLOW_CROSS=1
-          if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
-            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig/:$PKG_CONFIG_PATH
-            export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu/
-          elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
-            export PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig/:$PKG_CONFIG_PATH
-            export PKG_CONFIG_SYSROOT_DIR=/usr/arm-linux-gnueabihf/
-          fi
-          ./mvnw clean compile test -Pnative native:compile
-
-      - name: Rename ARM executable
-        run: |
-          mv target/airopscat target/${{ matrix.artifact_name }}
-
-      - name: Create distribution directory
-        run: mkdir -p dist
-
-      - name: Copy executable to dist
-        run: cp target/${{ matrix.artifact_name }} dist/
-
-      - name: Create README for ARM distribution
-        run: |
-          echo "# AirOpsCat Native Executable" > dist/README.txt
-          echo "" >> dist/README.txt
-          echo "Platform: Linux ARM" >> dist/README.txt
-          echo "Architecture: ${{ matrix.arch }}" >> dist/README.txt
-          echo "Built on: $(date)" >> dist/README.txt
-          echo "Version: ${{ github.ref_name }}" >> dist/README.txt
-          echo "" >> dist/README.txt
-          echo "## Usage" >> dist/README.txt
-          echo "./${{ matrix.artifact_name }}" >> dist/README.txt
-          echo "" >> dist/README.txt
-          echo "The application will start on http://localhost:8080" >> dist/README.txt
-          echo "" >> dist/README.txt
-          echo "## System Requirements" >> dist/README.txt
-          echo "- No Java runtime required (native executable)" >> dist/README.txt
-          echo "- Linux ARM: ${{ matrix.arch }} architecture" >> dist/README.txt
-
-      - name: Create distribution archive
-        run: |
-          cd dist && tar -czf ../${{ matrix.artifact_name }}.tar.gz *
-
-      - name: Get Version
-        run: |
-          echo "VERSION=$(xmllint --xpath "/*[local-name()='project']/*[local-name()='version']/text()" pom.xml)" >> $GITHUB_ENV
-
-      - name: Upload Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{env.VERSION}}
-          name: "AirOpsCat v${{env.VERSION}}"
-          body: |
-            ## AirOpsCat ${{env.VERSION}} - Linux ARM
-            
-            A lightweight, agile, and efficient server management system. Stay nimble, stay in control. 🐱💨
-            
-            ### Download Instructions:
-            - **Linux ARM**: Download `${{ matrix.artifact_name }}.tar.gz`
-            
-            ### Usage:
-            1. Extract the archive
-            2. Run the executable directly
-            3. Open http://localhost:8080 in your browser
-            
-            ### System Requirements:
-            - No Java runtime required (native executable)
-            - Linux ARM: ${{ matrix.arch }} architecture
-            
-            ### Features:
-            - Server management and monitoring
-            - Node deployment and configuration
-            - User and account management
-            - Traffic statistics
-            - Subscription management
-          token: ${{ secrets.GITHUB_TOKEN }}
-          files: ${{ matrix.artifact_name }}.tar.gz
-
-  release-update:
-    name: Release Update
+  release:
+    name: Create Release
     runs-on: ubuntu-latest
-    needs: [release, release-for-linux-arm]
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
 
-      - name: Get Version
-        run: |
-          echo "VERSION=$(xmllint --xpath "/*[local-name()='project']/*[local-name()='version']/text()" pom.xml)" >> $GITHUB_ENV
-
-      - name: Create Release Summary
-        run: |
-          echo "## AirOpsCat ${{env.VERSION}} Release Summary" > RELEASE_SUMMARY.md
-          echo "" >> RELEASE_SUMMARY.md
-          echo "### Available Downloads:" >> RELEASE_SUMMARY.md
-          echo "- **Linux x86_64**: airopscat-linux-amd64.tar.gz" >> RELEASE_SUMMARY.md
-          echo "- **macOS x86_64**: airopscat-macos-amd64.tar.gz" >> RELEASE_SUMMARY.md
-          echo "- **Windows x86_64**: airopscat-windows-amd64.exe.zip" >> RELEASE_SUMMARY.md
-          echo "- **Linux ARM64**: airopscat-linux-arm64.tar.gz" >> RELEASE_SUMMARY.md
-          echo "- **Linux ARMv7**: airopscat-linux-armv7.tar.gz" >> RELEASE_SUMMARY.md
-          echo "" >> RELEASE_SUMMARY.md
-          echo "### Build Information:" >> RELEASE_SUMMARY.md
-          echo "- Built with GraalVM Native Image" >> RELEASE_SUMMARY.md
-          echo "- No Java runtime required" >> RELEASE_SUMMARY.md
-          echo "- Optimized for performance and startup time" >> RELEASE_SUMMARY.md
-          echo "" >> RELEASE_SUMMARY.md
-          echo "### Usage Instructions:" >> RELEASE_SUMMARY.md
-          echo "1. Download the appropriate archive for your platform" >> RELEASE_SUMMARY.md
-          echo "2. Extract the archive (if applicable)" >> RELEASE_SUMMARY.md
-          echo "3. Run the executable directly" >> RELEASE_SUMMARY.md
-          echo "4. Open http://localhost:8080 in your browser" >> RELEASE_SUMMARY.md
-
-      - name: Upload Release Summary
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{env.VERSION}}
-          name: "AirOpsCat v${{env.VERSION}}"
-          body_path: RELEASE_SUMMARY.md
-          token: ${{ secrets.GITHUB_TOKEN }} 
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          **/airopscat-*
+        body: |
+          ## AirOpsCat ${{ github.ref_name }}
+          
+          Native executables for Linux, macOS, and Windows.
+          
+          ### Download Instructions:
+          - **Linux**: Download `airopscat-linux-amd64.tar.gz`
+          - **macOS**: Download `airopscat-macos-amd64.tar.gz`  
+          - **Windows**: Download `airopscat-windows-amd64.exe.zip`
+          
+          ### Usage:
+          1. Extract the archive (if applicable)
+          2. Run the executable directly
+          3. Open http://localhost:8080 in your browser
+          
+          ### System Requirements:
+          - No Java runtime required (native executable)
+          - Linux: x86_64 architecture
+          - macOS: x86_64 architecture (Intel Macs)
+          - Windows: x86_64 architecture
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
