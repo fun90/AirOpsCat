@@ -174,12 +174,6 @@
                 <groupId>org.graalvm.buildtools</groupId>
                 <artifactId>native-maven-plugin</artifactId>
                 <configuration>
-                    <classesDirectory>${project.build.outputDirectory}</classesDirectory>
-                    <metadataRepository>
-                        <enabled>true</enabled>
-                    </metadataRepository>
-                    <requiredVersion>22.3</requiredVersion>
-                    <imageName>airopscat</imageName>
                     <buildArgs>
                         <buildArg>--enable-all-security-services</buildArg>
                         <buildArg>--allow-incomplete-classpath</buildArg>
@@ -187,9 +181,6 @@
                         <buildArg>-H:+AddAllCharsets</buildArg>
                         <buildArg>--enable-https</buildArg>
                         <buildArg>--enable-http</buildArg>
-                        <buildArg>-Dfile.encoding=UTF-8</buildArg>
-                        <!-- 根据环境变量设置目标架构 -->
-                        <buildArg>-H:TargetArchitecture=${env.NATIVE_IMAGE_ARCH:-amd64}</buildArg>
                     </buildArgs>
                 </configuration>
             </plugin>
@@ -263,7 +254,6 @@
                                 <enabled>true</enabled>
                             </metadataRepository>
                             <requiredVersion>22.3</requiredVersion>
-                            <imageName>airopscat</imageName>
                             <buildArgs>
                                 <buildArg>--enable-all-security-services</buildArg>
                                 <buildArg>--allow-incomplete-classpath</buildArg>
@@ -271,9 +261,6 @@
                                 <buildArg>-H:+AddAllCharsets</buildArg>
                                 <buildArg>--enable-https</buildArg>
                                 <buildArg>--enable-http</buildArg>
-                                <buildArg>-Dfile.encoding=UTF-8</buildArg>
-                                <!-- 根据环境变量设置目标架构 -->
-                                <buildArg>-H:TargetArchitecture=${env.NATIVE_IMAGE_ARCH:-amd64}</buildArg>
                             </buildArgs>
                         </configuration>
                         <executions>
