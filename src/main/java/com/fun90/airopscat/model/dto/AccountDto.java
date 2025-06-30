@@ -1,6 +1,7 @@
 package com.fun90.airopscat.model.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import lombok.Data;
 
@@ -29,4 +30,7 @@ public class AccountDto {
     private Long usedDownloadBytes;  // 已使用下载流量
     private Long totalUsedBytes;     // 总使用流量
     private Double usagePercentage;  // 使用百分比
+    
+    // 在线IP信息
+    private List<AccountOnlineIpDto> onlineIps; // 在线IP列表
 }

@@ -17,7 +17,8 @@ const accountTable = new DataTable({
             active: 0,
             expired: 0,
             disabled: 0,
-            expiringSoon: 0
+            expiringSoon: 0,
+            onlineUsers: 0
         },
         configUrl: '',
         configUrlModal: null,
@@ -49,6 +50,10 @@ const accountTable = new DataTable({
             expiryDate: ''
         },
         resetAuthCodeModal: null,
+        // 在线IP相关数据
+        onlineIpsModal: null,
+        onlineIps: [],
+        onlineIpsLoading: false,
         newItem: {
             userId: '',
             level: 0,
@@ -576,6 +581,65 @@ const accountTable = new DataTable({
 
         getToggleStatusUrl(item, action) {
             return `/api/admin/accounts/${item.id}/${action}`;
+        },
+
+        // 在线IP相关方法
+        viewOnlineIps(account) {
+            this.selectedItem = account;
+            this.onlineIpsModal = new Modal(document.getElementById('onlineIpsModal'));
+            this.onlineIpsModal.show();
+            this.fetchOnlineIps(account.accountNo);
+        },
+
+        fetchOnlineIps(accountNo) {
+            this.onlineIpsLoading = true;
+            this.onlineIps = [];
+
+            fetch(`/api/admin/accounts/online/accountNo/${encodeURIComponent(accountNo)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('获取在线IP记录失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.onlineIps = data;
+                })
+                .catch(error => {
+                    console.error('Error fetching online IPs:', error);
+                    ToastUtils.show('Error', '获取在线IP记录失败', 'danger');
+                })
+                .finally(() => {
+                    this.onlineIpsLoading = false;
+                });
+        },
+
+        refreshOnlineIps() {
+            if (this.selectedItem) {
+                this.fetchOnlineIps(this.selectedItem.accountNo);
+            }
+        },
+
+        getOnlineDuration(lastOnlineTime) {
+            if (!lastOnlineTime) return '-';
+            
+            const now = new Date();
+            const lastTime = new Date(lastOnlineTime);
+            const diffMs = now.getTime() - lastTime.getTime();
+            
+            const minutes = Math.floor(diffMs / (1000 * 60));
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+            
+            if (days > 0) {
+                return `${days}天${hours % 24}小时`;
+            } else if (hours > 0) {
+                return `${hours}小时${minutes % 60}分钟`;
+            } else if (minutes > 0) {
+                return `${minutes}分钟`;
+            } else {
+                return '刚刚';
+            }
         }
     }
 });

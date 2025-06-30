@@ -1,6 +1,7 @@
 package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.AccountDto;
+import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.model.enums.PeriodType;
@@ -36,15 +37,18 @@ public class AccountService {
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
     private final AccountTrafficStatsRepository accountTrafficStatsRepository;
+    private final AccountOnlineIpService accountOnlineIpService;
 
     @Autowired
     public AccountService(
             AccountRepository accountRepository, 
             UserRepository userRepository,
-            AccountTrafficStatsRepository accountTrafficStatsRepository) {
+            AccountTrafficStatsRepository accountTrafficStatsRepository,
+            AccountOnlineIpService accountOnlineIpService) {
         this.accountRepository = accountRepository;
         this.userRepository = userRepository;
         this.accountTrafficStatsRepository = accountTrafficStatsRepository;
+        this.accountOnlineIpService = accountOnlineIpService;
     }
 
     public Page<Account> getAccountPage(int page, int size, String search, Long userId, Boolean expired, Boolean disabled) {
@@ -128,6 +132,13 @@ public class AccountService {
         stats.put("disabled", accountRepository.countDisabledAccounts());
         stats.put("expiringSoon", accountRepository.countExpiringInOneWeek(now, inOneWeek));
         
+        // 添加在线用户统计（按accountNo去重）
+        long onlineUsers = accountOnlineIpService.getAllOnlineRecords().stream()
+                .map(ip -> ip.getAccountNo())
+                .distinct()
+                .count();
+        stats.put("onlineUsers", onlineUsers);
+        
         return stats;
     }
 
@@ -158,6 +169,12 @@ public class AccountService {
             dto.setUsagePercentage(Math.min(100.0, (dto.getTotalUsedBytes() * 100.0) / bandwidthInBytes));
         } else {
             dto.setUsagePercentage(0.0);
+        }
+        
+        // Add online IP information
+        if (account.getAccountNo() != null) {
+            List<AccountOnlineIpDto> onlineIps = accountOnlineIpService.getOnlineRecordsByAccountNo(account.getAccountNo());
+            dto.setOnlineIps(onlineIps);
         }
         
         return dto;
