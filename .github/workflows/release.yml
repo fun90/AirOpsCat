@@ -5,10 +5,7 @@ on:
   # ! 不再使用 workflow_dispatch 触发。
   # workflow_dispatch:
   push:
-    # 应当限制在 main 分支上触发发布。
-    branches:
-      - main
-    # 应当限制 v*.*.* 的 tag 触发发布。
+    # 只通过 v*.*.* 的 tag 触发发布，避免在 main 分支 push 时触发。
     tags:
       - "v*.*.*"
 permissions: write-all
