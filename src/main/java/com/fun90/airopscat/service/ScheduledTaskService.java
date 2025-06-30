@@ -46,6 +46,7 @@ public class ScheduledTaskService {
     private final ServerRepository serverRepository;
     private final SshConnectionService sshConnectionService;
     private final AccountTrafficStatsService accountTrafficStatsService;
+    private final AccountOnlineIpService accountOnlineIpService;
 
     /**
      * 每天凌晨5点执行的任务
@@ -464,5 +465,26 @@ public class ScheduledTaskService {
         public long getDownloadBytes() {
             return downloadBytes;
         }
+    }
+
+    /**
+     * 每小时执行一次的任务
+     * 清理过期的在线IP记录
+     */
+    @Scheduled(cron = "0 0 * * * ?") // 每小时执行一次
+    @Transactional
+    public void cleanupExpiredOnlineRecords() {
+        log.info("开始执行定时任务：清理过期的在线IP记录");
+        
+        try {
+            accountOnlineIpService.cleanupExpiredRecords();
+            log.info("过期在线IP记录清理完成");
+            
+        } catch (Exception e) {
+            log.error("清理过期在线IP记录时发生错误", e);
+            barkService.sendErrorNotification("AirOpsCat 在线记录清理失败", "清理过期在线IP记录时发生错误: " + e.getMessage());
+        }
+        
+        log.info("在线IP记录清理任务执行完成");
     }
 } 

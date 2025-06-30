@@ -86,6 +86,27 @@
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col-auto">
+                            <span class="bg-blue text-white avatar">
+                                <i class="ti ti-users"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                在线用户
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.onlineUsers || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
                             <span class="bg-red text-white avatar">
                                 <i class="ti ti-calendar-x"></i>
                             </span>
@@ -135,6 +156,7 @@
         <th>UUID</th>
         <th>账号</th>
         <th>状态</th>
+        <th>在线IP</th>
         <th>流量使用</th>
         <th>到期时间</th>
         <th>创建时间</th>
@@ -162,6 +184,19 @@
             <span class="badge" :class="getStatusBadgeClass(account)">
                 {{ getStatusDescription(account) }}
             </span>
+        </td>
+        <td>
+            <div v-if="account.onlineIps && account.onlineIps.length > 0">
+                <div class="d-flex align-items-center">
+                    <span class="badge text-bg-success me-2">{{ account.onlineIps.length }}</span>
+                    <button @click="viewOnlineIps(account)" class="btn btn-sm btn-ghost-secondary">
+                        <i class="ti ti-eye"></i>
+                    </button>
+                </div>
+            </div>
+            <div v-else>
+                <span class="text-muted">-</span>
+            </div>
         </td>
         <td>
             <div v-if="account.bandwidth">
@@ -217,14 +252,14 @@
         </td>
     </tr>
     <tr v-if="loading">
-        <td colspan="8" class="text-center py-3">
+        <td colspan="10" class="text-center py-3">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </td>
     </tr>
     <tr v-else-if="records.length === 0">
-        <td colspan="8" class="text-center py-3">没有查到数据.</td>
+        <td colspan="10" class="text-center py-3">没有查到数据.</td>
     </tr>
     </tbody>
 </table>
@@ -597,6 +632,77 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
                     <button type="button" class="btn btn-danger" @click="confirmResetAuthCode">确认重置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Online IPs Modal -->
+    <div class="modal modal-blur fade" id="onlineIpsModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">在线IP详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div v-if="selectedItem" class="alert alert-info">
+                        <div class="d-flex">
+                            <div>
+                                <i class="ti ti-info-circle"></i>
+                            </div>
+                            <div class="ms-2">
+                                <strong>{{ selectedItem.accountNo }}</strong> 的在线IP记录
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div v-if="onlineIpsLoading" class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    
+                    <div v-else-if="onlineIps.length === 0" class="text-center py-3">
+                        <div class="text-muted">暂无在线IP记录</div>
+                    </div>
+                    
+                    <div v-else>
+                        <div class="table-responsive">
+                            <table class="table table-vcenter">
+                                <thead>
+                                    <tr>
+                                        <th>客户端IP</th>
+                                        <th>节点IP</th>
+                                        <th>最后在线时间</th>
+                                        <th>在线时长</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="ip in onlineIps" :key="ip.id">
+                                        <td>
+                                            <span class="badge bg-primary">{{ ip.clientIp }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-muted">{{ ip.nodeIp }}</span>
+                                        </td>
+                                        <td>
+                                            {{ formatDateTime(ip.lastOnlineTime) }}
+                                        </td>
+                                        <td>
+                                            {{ getOnlineDuration(ip.lastOnlineTime) }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-outline-secondary" @click="refreshOnlineIps">
+                        <i class="ti ti-refresh"></i> 刷新
+                    </button>
                 </div>
             </div>
         </div>

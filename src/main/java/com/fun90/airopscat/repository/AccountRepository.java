@@ -25,7 +25,7 @@ public interface AccountRepository extends JpaRepository<Account, Long>, JpaSpec
     List<Account> findByUserId(Long userId);
     
     List<Account> findByDisabled(Integer disabled);
-    
+
     @Query("SELECT a FROM Account a WHERE a.toDate IS NOT NULL AND a.toDate <= :date")
     List<Account> findExpiringAccounts(@Param("date") LocalDateTime date);
     
@@ -64,4 +64,6 @@ public interface AccountRepository extends JpaRepository<Account, Long>, JpaSpec
     @Modifying
     @Transactional
     int disableExpiredAccounts(@Param("accountIds") List<Long> accountIds, @Param("updateTime") LocalDateTime updateTime);
+
+    List<Account> findByAccountNoIn(List<String> accountNos);
 }

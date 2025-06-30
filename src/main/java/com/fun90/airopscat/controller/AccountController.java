@@ -2,9 +2,13 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.AccountDto;
 import com.fun90.airopscat.model.dto.AccountRequest;
+import com.fun90.airopscat.model.dto.ClientRequest;
 import com.fun90.airopscat.model.entity.Account;
+import com.fun90.airopscat.model.entity.AccountOnlineIp;
+import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
 import com.fun90.airopscat.model.enums.PeriodType;
 import com.fun90.airopscat.service.AccountService;
+import com.fun90.airopscat.service.AccountOnlineIpService;
 import com.fun90.airopscat.service.UserService;
 import com.fun90.airopscat.service.TagService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,12 +31,14 @@ public class AccountController {
     private final AccountService accountService;
     private final UserService userService;
     private final TagService tagService;
+    private final AccountOnlineIpService accountOnlineIpService;
     
     @Autowired
-    public AccountController(AccountService accountService, UserService userService, TagService tagService) {
+    public AccountController(AccountService accountService, UserService userService, TagService tagService, AccountOnlineIpService accountOnlineIpService) {
         this.accountService = accountService;
         this.userService = userService;
         this.tagService = tagService;
+        this.accountOnlineIpService = accountOnlineIpService;
     }
 
     @GetMapping
@@ -239,5 +245,29 @@ public class AccountController {
             return ResponseEntity.ok(response);
         }
         return ResponseEntity.notFound().build();
+    }
+    
+    @GetMapping("/online/accountNo/{accountNo}")
+    public ResponseEntity<List<AccountOnlineIpDto>> getOnlineRecordsByAccountNo(@PathVariable String accountNo) {
+        List<AccountOnlineIpDto> records = accountOnlineIpService.getOnlineRecordsByAccountNo(accountNo);
+        return ResponseEntity.ok(records);
+    }
+    
+    @GetMapping("/online/node/{nodeIp}")
+    public ResponseEntity<List<AccountOnlineIpDto>> getOnlineRecordsByNodeIp(@PathVariable String nodeIp) {
+        List<AccountOnlineIpDto> records = accountOnlineIpService.getOnlineRecordsByNodeIp(nodeIp);
+        return ResponseEntity.ok(records);
+    }
+    
+    @GetMapping("/online/all")
+    public ResponseEntity<List<AccountOnlineIpDto>> getAllOnlineRecords() {
+        List<AccountOnlineIpDto> records = accountOnlineIpService.getAllOnlineRecords();
+        return ResponseEntity.ok(records);
+    }
+    
+    @DeleteMapping("/online/cleanup")
+    public ResponseEntity<Void> cleanupExpiredRecords() {
+        accountOnlineIpService.cleanupExpiredRecords();
+        return ResponseEntity.ok().build();
     }
 }
