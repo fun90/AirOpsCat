@@ -134,39 +134,19 @@
             <artifactId>commons-codec</artifactId>
             <version>1.16.0</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.sshd</groupId>
-            <artifactId>sshd-core</artifactId>
-            <version>2.15.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.sshd</groupId>
-            <artifactId>sshd-sftp</artifactId>
-            <version>2.15.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.sshd</groupId>
-            <artifactId>sshd-common</artifactId>
-            <version>2.15.0</version>
-        </dependency>
-        <!-- 如果需要支持更多的密钥格式，可以添加 -->
-        <dependency>
-            <groupId>org.apache.sshd</groupId>
-            <artifactId>sshd-putty</artifactId>
-            <version>2.15.0</version>
-        </dependency>
-        <!-- 如果需要支持 OpenSSH 格式的密钥，可以添加 -->
-        <dependency>
-            <groupId>org.apache.sshd</groupId>
-            <artifactId>sshd-openpgp</artifactId>
-            <version>2.15.0</version>
-        </dependency>
 
         <!-- OGNL for Thymeleaf expression evaluation -->
         <dependency>
             <groupId>ognl</groupId>
             <artifactId>ognl</artifactId>
             <version>3.2.21</version>
+        </dependency>
+
+        <!-- SSH 客户端 - 使用 JSch 替代 Apache SSHD，完全兼容 Native Image -->
+        <dependency>
+            <groupId>com.jcraft</groupId>
+            <artifactId>jsch</artifactId>
+            <version>0.1.55</version>
         </dependency>
     </dependencies>
 
@@ -195,10 +175,12 @@
                 <artifactId>native-maven-plugin</artifactId>
                 <configuration>
                     <buildArgs>
-                        <buildArg>--initialize-at-build-time=org.apache.sshd</buildArg>
                         <buildArg>--enable-all-security-services</buildArg>
                         <buildArg>--allow-incomplete-classpath</buildArg>
                         <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                        <buildArg>-H:+AddAllCharsets</buildArg>
+                        <buildArg>--enable-https</buildArg>
+                        <buildArg>--enable-http</buildArg>
                     </buildArgs>
                 </configuration>
             </plugin>
@@ -273,12 +255,10 @@
                             </metadataRepository>
                             <requiredVersion>22.3</requiredVersion>
                             <buildArgs>
-                                <buildArg>--initialize-at-build-time=org.apache.sshd</buildArg>
                                 <buildArg>--enable-all-security-services</buildArg>
                                 <buildArg>--allow-incomplete-classpath</buildArg>
                                 <buildArg>-H:+ReportExceptionStackTraces</buildArg>
                                 <buildArg>-H:+AddAllCharsets</buildArg>
-                                <buildArg>-H:IncludeResourceBundles=javax.servlet.LocalStrings</buildArg>
                                 <buildArg>--enable-https</buildArg>
                                 <buildArg>--enable-http</buildArg>
                             </buildArgs>
