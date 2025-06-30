@@ -16,16 +16,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest]
         include:
           - os: ubuntu-latest
             platform: linux
             executable_suffix: ""
             artifact_name: airopscat-linux-amd64
-          - os: macos-latest
-            platform: macos
-            executable_suffix: ""
-            artifact_name: airopscat-macos-amd64
           - os: windows-latest
             platform: windows
             executable_suffix: ".exe"
@@ -146,11 +142,10 @@ jobs:
         body: |
           ## AirOpsCat ${{ github.ref_name }}
           
-          Native executables for Linux, macOS, and Windows.
+          Native executables for Linux, Windows.
           
           ### Download Instructions:
           - **Linux**: Download `airopscat-linux-amd64.tar.gz`
-          - **macOS**: Download `airopscat-macos-amd64.tar.gz`  
           - **Windows**: Download `airopscat-windows-amd64.exe.zip`
           
           ### Usage:
@@ -161,7 +156,6 @@ jobs:
           ### System Requirements:
           - No Java runtime required (native executable)
           - Linux: x86_64 architecture
-          - macOS: x86_64 architecture (Intel Macs)
           - Windows: x86_64 architecture
         draft: false
         prerelease: false
