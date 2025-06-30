@@ -5,37 +5,31 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "org.apache.sshd.client.SshClient",
+    "name": "com.jcraft.jsch.JSch",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "org.apache.sshd.client.session.ClientSession",
+    "name": "com.jcraft.jsch.Session",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "org.apache.sshd.client.channel.ChannelExec",
+    "name": "com.jcraft.jsch.ChannelExec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "org.apache.sshd.sftp.client.SftpClient",
+    "name": "com.jcraft.jsch.ChannelSftp",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "org.apache.sshd.common.cipher.ECCurves",
-    "allDeclaredConstructors": true,
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "org.apache.sshd.common.mac.Mac",
+    "name": "com.jcraft.jsch.UserInfo",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
