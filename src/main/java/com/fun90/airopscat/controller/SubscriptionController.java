@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fun90.airopscat.model.dto.SubscrptionDto;
+import com.fun90.airopscat.model.dto.ApiResponseDto;
 import com.fun90.airopscat.service.SubscriptionService;
 
 import lombok.extern.slf4j.Slf4j;
@@ -41,15 +42,21 @@ public class SubscriptionController {
             @RequestParam(required = false) String dns) {
         
         try {
-            SubscrptionDto subscriptionDto = subscriptionService.generateSubscription(authCode, osName, appName);
-            if (subscriptionDto == null) {
-                return ResponseEntity.notFound().build();
+            ApiResponseDto<SubscrptionDto> response = subscriptionService.generateSubscription(authCode, osName, appName);
+            if (!response.isSuccess()) {
+                // 返回错误信息
+                return ResponseEntity.badRequest()
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .body("错误: " + response.getMessage());
             }
             
+            SubscrptionDto subscriptionDto = response.getData();
             String subscriptionContent = subscriptionDto.getContent();
             
             if (subscriptionContent == null) {
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.badRequest()
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .body("错误: 生成配置文件失败");
             }
 
             HttpHeaders headers = new HttpHeaders();
@@ -76,7 +83,9 @@ public class SubscriptionController {
                     .body(subscriptionContent);
         } catch (Exception e) {
             log.error("Error generating subscription: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest()
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body("错误: 系统内部错误，请联系管理员");
         }
     }
 

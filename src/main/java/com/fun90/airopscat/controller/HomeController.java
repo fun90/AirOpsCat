@@ -31,6 +31,7 @@ public class HomeController {
         menu.put("/person/user", new MenuItem("人员", "用户管理", "/person/user"));
         menu.put("/person/account", new MenuItem("人员", "账户管理", "/person/account"));
         menu.put("/person/account-traffic", new MenuItem("人员", "账户流量", "/person/account-traffic"));
+        menu.put("/person/user-panel", new MenuItem("人员", "用户面板", "/person/user-panel"));
         menu.put("/device/domain", new MenuItem("设备", "域名", "/device/domain"));
         menu.put("/device/server", new MenuItem("设备", "服务器", "/device/server"));
         menu.put("/vpn/node", new MenuItem("代理", "节点管理", "/vpn/node"));
@@ -43,8 +44,8 @@ public class HomeController {
     public String dashboard(Model model) {
         model.addAttribute("appName", appName);
         model.addAttribute("moduleTitle", "人员");
-        model.addAttribute("breadcrumbTitle", "用户管理");
-        model.addAttribute("uri", "/person/user");
+        model.addAttribute("breadcrumbTitle", "用户面板");
+        model.addAttribute("uri", "/person/user-panel");
         return "layout";
     }
 

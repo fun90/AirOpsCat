@@ -3,6 +3,7 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.dto.SubscrptionDto;
+import com.fun90.airopscat.model.dto.ApiResponseDto;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.repository.AccountRepository;
@@ -43,29 +44,47 @@ public class SubscriptionService {
      * 获取规则内容
      */
     public String getRule(String appType, String ruleName) {
+        if (!StringUtils.hasText(appType)) {
+            return "错误: 应用类型不能为空";
+        }
+        if (!StringUtils.hasText(ruleName)) {
+            return "错误: 规则名称不能为空";
+        }
+        
         String templateName = "rules/" + appType + "/" + ruleName;
-        return getTemplateContent(templateName);
+        String content = getTemplateContent(templateName);
+        
+        if (content == null) {
+            return "错误: 找不到对应的规则文件: " + templateName;
+        }
+        
+        return content;
     }
 
     public String getNodes(String authCode, String appType) {
         // 根据authCode查找账户
         Optional<Account> optionalAccount = accountRepository.findByAuthCode(authCode);
         if (optionalAccount.isEmpty()) {
-            return "";
+            return "错误: 无效的认证码，账户不存在";
         }
 
         Account account = optionalAccount.get();
         
         // 检查账户状态
         if (!account.isActive()) {
-            return "";
+            return "错误: 账户已被禁用，请联系管理员";
+        }
+
+        // 检查账户是否过期
+        if (account.getToDate() != null && account.getToDate().isBefore(java.time.LocalDateTime.now())) {
+            return "错误: 账户已过期，请续费后重试";
         }
 
         // 获取账户可用的节点
         List<Node> availableNodes = tagService.getAvailableNodesByAccount(account.getId());
         
         if (availableNodes.isEmpty()) {
-            return "";
+            return "错误: 当前账户没有可用的节点，请联系管理员";
         }
 
         // 过滤已部署且启用的节点
@@ -76,7 +95,7 @@ public class SubscriptionService {
                 .collect(Collectors.toList());
 
         if (activeNodes.isEmpty()) {
-            return "";
+            return "错误: 当前没有可用的活跃节点，请稍后重试";
         }
 
         List<NodeDto> activeNodes2 = activeNodes.stream().collect(Collectors.toList());
@@ -92,7 +111,7 @@ public class SubscriptionService {
         String templateContent = getTemplateContent(templateName);
 
         if (templateContent == null) {
-            return "";
+            return "错误: 找不到对应的节点模板: " + appType;
         }
 
         String result = thymeleafUtil.processStringTemplate(templateContent, templateData);
@@ -103,29 +122,40 @@ public class SubscriptionService {
     /**
      * 生成订阅内容
      */
-    public SubscrptionDto generateSubscription(String authCode, String osName, String appName) {
+    public ApiResponseDto<SubscrptionDto> generateSubscription(String authCode, String osName, String appName) {
         // 验证参数
-        if (!StringUtils.hasText(authCode) || !StringUtils.hasText(osName) || !StringUtils.hasText(appName)) {
-            return null;
+        if (!StringUtils.hasText(authCode)) {
+            return ApiResponseDto.error("认证码不能为空");
+        }
+        if (!StringUtils.hasText(osName)) {
+            return ApiResponseDto.error("操作系统名称不能为空");
+        }
+        if (!StringUtils.hasText(appName)) {
+            return ApiResponseDto.error("应用名称不能为空");
         }
 
         // 根据authCode查找账户
         Optional<Account> optionalAccount = accountRepository.findByAuthCode(authCode);
         if (optionalAccount.isEmpty()) {
-            return null;
+            return ApiResponseDto.error("无效的认证码，账户不存在");
         }
 
         Account account = optionalAccount.get();
         
         // 检查账户状态
         if (!account.isActive()) {
-            return null;
+            return ApiResponseDto.error("账户已被禁用，请联系管理员");
+        }
+
+        // 检查账户是否过期
+        if (account.getToDate() != null && account.getToDate().isBefore(java.time.LocalDateTime.now())) {
+            return ApiResponseDto.error("账户已过期，请续费后重试");
         }
 
         // 获取账户可用的节点
         List<Node> availableNodes = tagService.getAvailableNodesByAccount(account.getId());
         if (availableNodes.isEmpty()) {
-            return null;
+            return ApiResponseDto.error("当前账户没有可用的节点，请联系管理员");
         }
 
         // 过滤已部署且启用的节点
@@ -136,14 +166,19 @@ public class SubscriptionService {
                 .collect(Collectors.toList());
 
         if (activeNodes.isEmpty()) {
-            return null;
+            return ApiResponseDto.error("当前没有可用的活跃节点，请稍后重试");
         }
 
         // 根据应用类型生成配置
         String content = generateConfigByApp(account, activeNodes, osName, appName);
+        if (content == null) {
+            return ApiResponseDto.error("生成配置文件失败，不支持的应用类型: " + appName);
+        }
+        
         String expireDate = account.getToDate().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
         String fileName = account.getUser().getNickName() + getSubscriptionFileSuffix(appName);
-        return new SubscrptionDto(fileName, content, expireDate, 0L, 500L);
+        SubscrptionDto subscriptionDto = new SubscrptionDto(fileName, content, expireDate, 0L, 500L);
+        return ApiResponseDto.success(subscriptionDto);
     }
 
     /**
