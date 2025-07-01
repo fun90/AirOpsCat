@@ -1,28 +1,39 @@
 package com.fun90.airopscat.controller;
 
-import com.fun90.airopscat.model.dto.AccountDto;
-import com.fun90.airopscat.model.dto.AccountRequest;
-import com.fun90.airopscat.model.dto.ClientRequest;
-import com.fun90.airopscat.model.entity.Account;
-import com.fun90.airopscat.model.entity.AccountOnlineIp;
-import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
-import com.fun90.airopscat.model.enums.PeriodType;
-import com.fun90.airopscat.service.AccountService;
-import com.fun90.airopscat.service.AccountOnlineIpService;
-import com.fun90.airopscat.service.UserService;
-import com.fun90.airopscat.service.TagService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.fun90.airopscat.model.dto.AccountDto;
+import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
+import com.fun90.airopscat.model.dto.AccountRequest;
+import com.fun90.airopscat.model.entity.Account;
+import com.fun90.airopscat.model.entity.User;
+import com.fun90.airopscat.model.enums.PeriodType;
+import com.fun90.airopscat.service.AccountOnlineIpService;
+import com.fun90.airopscat.service.AccountService;
+import com.fun90.airopscat.service.TagService;
+import com.fun90.airopscat.service.UserService;
 
 @RestController
 @RequestMapping("/api/admin/accounts")
@@ -122,6 +133,43 @@ public class AccountController {
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Long>> getAccountsStats() {
         return ResponseEntity.ok(accountService.getAccountsStats());
+    }
+    
+    @GetMapping("/my-accounts")
+    public ResponseEntity<Map<String, Object>> getMyAccounts(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String search
+    ) {
+        // 获取当前登录用户
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401).build();
+        }
+        
+        String email = authentication.getName();
+        User currentUser = userService.getByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(401).build();
+        }
+        
+        // 获取当前用户的账户
+        Page<Account> accountPage = accountService.getAccountPage(page, size, search, currentUser.getId(), null, null);
+        
+        // Convert to DTOs
+        List<AccountDto> accountDtos = accountPage.getContent().stream()
+                .map(account -> accountService.convertToDto(account))
+                .collect(Collectors.toList());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("records", accountDtos);
+        response.put("total", accountPage.getTotalElements());
+        response.put("pages", accountPage.getTotalPages());
+        response.put("current", page);
+        response.put("size", size);
+        response.put("user", currentUser);
+
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping

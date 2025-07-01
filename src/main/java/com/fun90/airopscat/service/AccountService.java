@@ -26,6 +26,7 @@ import org.springframework.util.StringUtils;
 
 import java.beans.PropertyDescriptor;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Service
@@ -175,6 +176,14 @@ public class AccountService {
         if (account.getAccountNo() != null) {
             List<AccountOnlineIpDto> onlineIps = accountOnlineIpService.getOnlineRecordsByAccountNo(account.getAccountNo());
             dto.setOnlineIps(onlineIps);
+        }
+        
+        // Calculate days until expiration
+        if (account.getToDate() != null) {
+            LocalDateTime now = LocalDateTime.now();
+            dto.setDaysUntilExpiration(ChronoUnit.DAYS.between(now, account.getToDate()));
+        } else {
+            dto.setDaysUntilExpiration(null);
         }
         
         return dto;

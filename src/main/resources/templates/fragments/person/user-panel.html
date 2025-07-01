@@ -1,0 +1,374 @@
+<div th:fragment="content" class="page-body">
+    <div class="container-xl">
+        <!-- 页面标题 -->
+        <div class="page-header d-print-none">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h2 class="page-title">用户面板</h2>
+                    <div class="text-secondary mt-1">查看您的账户信息和客户端配置</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 用户面板内容 -->
+        <div id="userPanel" class="mt-3" v-scope>
+            <!-- 账户选择器 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3 class="card-title">选择账户</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <select class="form-select" v-model="selectedAccountId" @change="onAccountChange()">
+                                <option value="">请选择账户</option>
+                                <option v-for="account in accounts" :key="account.id" :value="account.id">
+                                    {{ account.accountNo || account.uuid }} - {{ account.userEmail }}
+                                </option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <button class="btn btn-primary" @click="refreshAccounts" :disabled="loading">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-refresh" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                    <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"></path>
+                                    <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"></path>
+                                </svg>
+                                刷新账户列表
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 账户信息卡片 -->
+            <div v-if="currentAccount" class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">账户信息</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">账户编号</label>
+                                        <div class="form-control-plaintext">{{ currentAccount.accountNo || '未设置' }}</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">用户邮箱</label>
+                                        <div class="form-control-plaintext">{{ currentAccount.userEmail }}</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">账户等级</label>
+                                        <div class="form-control-plaintext">
+                                            <span class="badge text-bg-primary">{{ currentAccount.level }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">认证码</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" :value="currentAccount.authCode" readonly>
+                                            <button class="btn btn-outline-secondary" @click="copyToClipboard(currentAccount.authCode)">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copy" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                                    <path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z"></path>
+                                                    <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"></path>
+                                                </svg>
+                                                复制
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">到期时间</label>
+                                        <div class="form-control-plaintext">
+                                            <span v-if="currentAccount.toDate" :class="getExpiryClass()">
+                                                {{ formatDate(currentAccount.toDate) }}
+                                                <span v-if="currentAccount.daysUntilExpiration !== null">
+                                                    (剩余 {{ currentAccount.daysUntilExpiration }} 天)
+                                                </span>
+                                            </span>
+                                            <span v-else class="text-muted">永久有效</span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">最大在线IP数</label>
+                                        <div class="form-control-plaintext">{{ currentAccount.maxOnlineIps || '无限制' }}</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">限速</label>
+                                        <div class="form-control-plaintext">{{ currentAccount.speed ? currentAccount.speed + ' Mbps' : '无限制' }}</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">状态</label>
+                                        <div class="form-control-plaintext">
+                                            <span v-if="currentAccount.disabled === 1" class="badge text-bg-danger">已禁用</span>
+                                            <span v-else class="badge text-bg-success">正常</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 流量使用情况 -->
+            <div v-if="currentAccount" class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">流量使用情况</h3>
+                        </div>
+                        <div class="card-body">
+                            <!-- 有限制时显示进度条 -->
+                            <div v-if="currentAccount.bandwidth && currentAccount.bandwidth > 0" class="mb-4">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <p class="mb-3">使用流量 <strong>{{ formatBytes(currentAccount.totalUsedBytes) }}</strong> / {{ formatBytes(currentAccount.bandwidth * 1024 * 1024 * 1024) }}</p>
+                                        <div class="progress progress-separated mb-3">
+                                            <div class="progress-bar bg-primary" role="progressbar" :style="{ width: getUploadPercentage() + '%' }" aria-label="上传流量"></div>
+                                            <div class="progress-bar bg-info" role="progressbar" :style="{ width: getDownloadPercentage() + '%' }" aria-label="下载流量"></div>
+                                            <div class="progress-bar bg-success" role="progressbar" :style="{ width: getFreePercentage() + '%' }" aria-label="剩余流量"></div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-auto d-flex align-items-center pe-2">
+                                                <span class="legend me-2 bg-primary"></span>
+                                                <span>上传</span>
+                                                <span class="d-none d-md-inline d-lg-none d-xxl-inline ms-2 text-secondary">{{ formatBytes(currentAccount.usedUploadBytes) }}</span>
+                                            </div>
+                                            <div class="col-auto d-flex align-items-center px-2">
+                                                <span class="legend me-2 bg-info"></span>
+                                                <span>下载</span>
+                                                <span class="d-none d-md-inline d-lg-none d-xxl-inline ms-2 text-secondary">{{ formatBytes(currentAccount.usedDownloadBytes) }}</span>
+                                            </div>
+                                            <div class="col-auto d-flex align-items-center px-2">
+                                                <span class="legend me-2 bg-success"></span>
+                                                <span>剩余</span>
+                                                <span class="d-none d-md-inline d-lg-none d-xxl-inline ms-2 text-secondary">{{ formatBytes(getFreeBytes()) }}</span>
+                                            </div>
+                                            <div class="col-auto d-flex align-items-center ps-2">
+                                                <span class="legend me-2"></span>
+                                                <span>总计</span>
+                                                <span class="d-none d-md-inline d-lg-none d-xxl-inline ms-2 text-secondary">{{ formatBytes(currentAccount.totalUsedBytes) }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- 无限制时只显示提示 -->
+                            <div v-else class="mb-4">
+                                <div class="alert alert-info">
+                                    <div class="d-flex align-items-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-infinity me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                            <path d="M9 12a6 6 0 1 0 6 0a6 6 0 0 0 -6 0"></path>
+                                            <path d="M15 12a6 6 0 1 0 -6 0a6 6 0 0 0 6 0"></path>
+                                        </svg>
+                                        <div>
+                                            <strong>无限制流量</strong>
+                                            <div class="text-muted small">您的账户没有流量限制</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 详细流量信息 -->
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <div class="text-muted mb-1">上传流量</div>
+                                            <div class="h3 mb-0">{{ formatBytes(currentAccount.usedUploadBytes) }}</div>
+                                            <div class="text-muted small">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-upload" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                                    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"></path>
+                                                    <path d="M7 9l5 -5l5 5"></path>
+                                                    <path d="M12 4l0 12"></path>
+                                                </svg>
+                                                上传
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <div class="text-muted mb-1">下载流量</div>
+                                            <div class="h3 mb-0">{{ formatBytes(currentAccount.usedDownloadBytes) }}</div>
+                                            <div class="text-muted small">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-download" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                                    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"></path>
+                                                    <path d="M7 11l5 5l5 -5"></path>
+                                                    <path d="M12 4l0 12"></path>
+                                                </svg>
+                                                下载
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <div class="text-muted mb-1">剩余流量</div>
+                                            <div class="h3 mb-0" :class="getUsageStatus().class">{{ formatBytes(getFreeBytes()) }}</div>
+                                            <div class="text-muted small">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-database-off" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                                    <path d="M12.983 8.978c3.955 -.182 7.017 -1.446 7.017 -2.978c0 -1.657 -3.582 -3 -8 -3c-1.661 0 -3.204 .19 -4.483 .515m-2.783 1.228c-.471 .382 -.734 .808 -.734 1.257c0 1.22 1.944 2.271 4.734 2.74"></path>
+                                                    <path d="M4 6v6c0 1.657 3.582 3 8 3c.986 0 1.93 -.067 2.802 -.19m3.187 -.82c1.251 -.53 2.011 -1.228 2.011 -1.99v-6"></path>
+                                                    <path d="M4 12v6c0 1.657 3.582 3 8 3c3.217 0 5.991 -.712 7.261 -1.74m.739 -3.26v-4"></path>
+                                                    <path d="M3 3l18 18"></path>
+                                                </svg>
+                                                剩余
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <div class="text-muted mb-1">总使用量</div>
+                                            <div class="h3 mb-0">{{ formatBytes(currentAccount.totalUsedBytes) }}</div>
+                                            <div class="text-muted small">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chart-bar" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                                    <path d="M3 3m0 1a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1z"></path>
+                                                    <path d="M12 7l0 10"></path>
+                                                    <path d="M8 11l0 6"></path>
+                                                    <path d="M16 9l0 8"></path>
+                                                </svg>
+                                                总计
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 客户端配置指南 -->
+            <div v-if="currentAccount" class="card">
+                <div class="card-header">
+                    <h3 class="card-title">客户端配置指南</h3>
+                </div>
+                <div class="card-body">
+                    <!-- 平台选择器 - 使用Tabler UI的nav-segmented组件 -->
+                    <div class="mb-4">
+                        <label class="form-label">选择您的平台</label>
+                        <nav class="nav-segmented">
+                            <input type="radio" class="nav-link-input" name="platform" id="android" value="android" v-model="selectedPlatform">
+                            <label class="nav-link" for="android">Android</label>
+                            
+                            <input type="radio" class="nav-link-input" name="platform" id="harmony" value="harmony" v-model="selectedPlatform">
+                            <label class="nav-link" for="harmony">HarmonyOS</label>
+                            
+                            <input type="radio" class="nav-link-input" name="platform" id="ios" value="ios" v-model="selectedPlatform">
+                            <label class="nav-link" for="ios">iOS</label>
+                            
+                            <input type="radio" class="nav-link-input" name="platform" id="windows" value="windows" v-model="selectedPlatform">
+                            <label class="nav-link" for="windows">Windows</label>
+                            
+                            <input type="radio" class="nav-link-input" name="platform" id="macos" value="macos" v-model="selectedPlatform">
+                            <label class="nav-link" for="macos">macOS</label>
+                            
+                            <input type="radio" class="nav-link-input" name="platform" id="linux" value="linux" v-model="selectedPlatform">
+                            <label class="nav-link" for="linux">Linux</label>
+                        </nav>
+                    </div>
+
+                    <!-- 客户端配置内容 -->
+                    <div v-if="selectedPlatform" class="platform-config">
+                        <!-- 使用Tabler UI的卡片布局简化配置展示 -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h4 class="card-title">{{ getPlatformTitle() }}</h4>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">订阅链接</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" :value="getSubscriptionUrl(selectedPlatform, getDefaultClient())" readonly>
+                                                <button class="btn btn-outline-secondary" @click="copyToClipboard(getSubscriptionUrl(selectedPlatform, getDefaultClient()))">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copy" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                                        <path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z"></path>
+                                                        <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"></path>
+                                                    </svg>
+                                                    复制
+                                                </button>
+                                                <button class="btn btn-primary" @click="importConfig(selectedPlatform, getDefaultClient())">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-download" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                                        <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"></path>
+                                                        <path d="M7 11l5 5l5 -5"></path>
+                                                        <path d="M12 4l0 12"></path>
+                                                    </svg>
+                                                    导入
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h4 class="card-title">配置步骤</h4>
+                                    </div>
+                                    <div class="card-body">
+                                        <ol class="list-unstyled">
+                                            <li v-for="(step, index) in getConfigSteps()" :key="index" class="mb-2">
+                                                {{ index + 1 }}. {{ step }}
+                                            </li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 其他客户端选项 -->
+                        <div v-if="getOtherClients().length > 0" class="mt-4">
+                            <h5>其他客户端</h5>
+                            <div class="row">
+                                <div v-for="client in getOtherClients()" :key="client.name" class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-title">{{ client.title }}</h6>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" :value="getSubscriptionUrl(selectedPlatform, client.name)" readonly>
+                                                <button class="btn btn-outline-secondary btn-sm" @click="copyToClipboard(getSubscriptionUrl(selectedPlatform, client.name))">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copy" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                                        <path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z"></path>
+                                                        <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"></path>
+                                                    </svg>
+                                                </button>
+                                                <a class="btn btn-primary btn-sm" :href="getImportUrl(selectedPlatform, client.name)" target="_blank">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-download" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                                        <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"></path>
+                                                        <path d="M7 11l5 5l5 -5"></path>
+                                                        <path d="M12 4l0 12"></path>
+                                                    </svg>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 
