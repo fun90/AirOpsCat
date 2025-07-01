@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>使用说明 - AirOpsCat</title>
+    <!-- CSS files -->
+    <link href="./tabler/css/tabler.min.css" rel="stylesheet"/>
+    <link href="./tabler/css/tabler-themes.min.css" rel="stylesheet"/>
+</head>
+<body class="bg-primary-lt min-vh-100 d-flex align-items-center">
+    <div id="app" v-scope="{ showTooltip: false, isLoading: false }" class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-6 col-md-8">
+                <div class="card border-0 shadow-lg">
+                    <div class="card-body p-5 text-center">
+                        <!-- Logo/Icon -->
+                        <div class="mb-4">
+                            <div class="avatar avatar-xl bg-primary text-white mx-auto">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <rect x="4" y="4" width="16" height="16" rx="1"/>
+                                    <rect x="4" y="4" width="16" height="4" rx="1"/>
+                                    <circle cx="8" cy="6" r="0.5"/>
+                                    <circle cx="6.5" cy="6" r="0.5"/>
+                                    <circle cx="9.5" cy="6" r="0.5"/>
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <!-- Title -->
+                        <h1 class="h2 mb-3 text-dark">使用说明</h1>
+                        <p class="text-muted mb-4">AirOpsCat 安装指引</p>
+                        
+                        <!-- Alert -->
+                        <div class="alert alert-info" role="alert">
+                            <div class="d-flex">
+                                <div>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                        <circle cx="12" cy="12" r="9"/>
+                                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                                        <polyline points="11,12 12,12 12,16 13,16"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h4 class="alert-title">重要提示</h4>
+                                    <div class="text-muted">请在右上角选择"在浏览器打开"</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Main Button -->
+                        <div class="mb-4">
+                            <button class="btn btn-primary btn-lg w-100" 
+                                    :class="{ 'btn-loading': isLoading }"
+                                    @click="openInstructions"
+                                    @mouseenter="showTooltip = true"
+                                    @mouseleave="showTooltip = false">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+                                    <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+                                    <line x1="9" y1="9" x2="10" y2="9"/>
+                                    <line x1="9" y1="13" x2="15" y2="13"/>
+                                    <line x1="9" y1="17" x2="15" y2="17"/>
+                                </svg>
+                                点击查看使用说明
+                            </button>
+                        </div>
+                        
+                        <!-- Platform Grid -->
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <div class="card card-sm border-success-subtle">
+                                    <div class="card-body text-center p-3">
+                                        <div class="h2 mb-1">📱</div>
+                                        <div class="small text-success fw-medium">移动端</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="card card-sm border-info-subtle">
+                                    <div class="card-body text-center p-3">
+                                        <div class="h2 mb-1">💻</div>
+                                        <div class="small text-info fw-medium">桌面端</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="card card-sm border-warning-subtle">
+                                    <div class="card-body text-center p-3">
+                                        <div class="h2 mb-1">🌐</div>
+                                        <div class="small text-warning fw-medium">浏览器</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tooltip -->
+                        <div v-show="showTooltip" class="mt-3">
+                            <div class="alert alert-primary alert-dismissible mb-0" role="alert">
+                                <div class="d-flex">
+                                    <div>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M12 9v4"/>
+                                            <path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z"/>
+                                            <path d="M12 16h.01"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        点击后将打开详细使用说明
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Footer -->
+                <div class="text-center mt-4">
+                    <div class="text-white-50 small">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 1v6m0 6v6"/>
+                            <path d="M21 12h-6m-6 0h-6"/>
+                        </svg>
+                        AirOpsCat © 2025
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/petite-vue@0.4.1/dist/petite-vue.iife.js"></script>
+    <script src="./tabler/js/tabler.min.js"></script>
+    
+    <script>
+        PetiteVue.createApp({
+            showTooltip: false,
+            isLoading: false,
+            openInstructions() {
+                this.isLoading = true;
+                this.showTooltip = false;
+                
+                // 模拟加载时间
+                setTimeout(() => {
+                    window.open('./docs-main.html', '_blank');
+                    this.isLoading = false;
+                }, 300);
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html> 
