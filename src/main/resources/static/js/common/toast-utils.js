@@ -7,7 +7,7 @@
  * Import the Toast class from Tabler UI's bundled version of Bootstrap
  * Note: The actual path may need to be adjusted based on your project structure
  */
-import { Toast } from '/static/tabler/js/tabler.esm.min.js';
+import { Toast } from 'https://cdn.jsdelivr.net/npm/@tabler/core@1.3.2/dist/js/tabler.esm.min.js';
 
 const ToastUtils = {
     /**

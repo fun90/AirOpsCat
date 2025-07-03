@@ -1,5 +1,5 @@
 /*!
- * Tabler v1.2.0 (https://tabler.io)
+ * Tabler v1.3.2 (https://tabler.io)
  * Copyright 2018-2025 The Tabler Authors
  * Copyright 2018-2025 codecalm.net Paweł Kuna
  * Licensed under MIT (https://github.com/tabler/tabler/blob/master/LICENSE)
