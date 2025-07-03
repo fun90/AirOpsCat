@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.fun90</groupId>
     <artifactId>airopscat</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 
     <description>A lightweight, agile, and efficient server management system. Stay nimble, stay in control. 🐱💨</description>
     <scm>
