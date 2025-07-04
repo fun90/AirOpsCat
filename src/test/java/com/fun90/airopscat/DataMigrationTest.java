@@ -247,7 +247,7 @@ public class DataMigrationTest {
             user.setRole(fields[colIndex.get("role")].trim().toUpperCase());
             // status -> disabled
             int status = parseInt(fields, colIndex, "status");
-            user.setDisabled(status);
+            user.setDisabled(status == 1 ? 0 : 1);
             // 新增字段默认值
             user.setRemarkName(null);
             user.setReferrer(null);
@@ -290,7 +290,7 @@ public class DataMigrationTest {
             if (speed != null) account.setSpeed(speed);
             // status -> disabled
             Integer status = parseInt(fields, colIndex, "status");
-            if (status != null) account.setDisabled(status);
+            account.setDisabled((status != null && status == 1) ? 0 : 1);
             // subscription_url -> auth_code
             String subscriptionUrl = fields[colIndex.get("subscription_url")].trim();
             account.setAuthCode(extractAuthCode(subscriptionUrl));
