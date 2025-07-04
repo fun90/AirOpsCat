@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.List;
 
 @Configuration
 public class DataInitializationConfig {
@@ -24,7 +24,7 @@ public class DataInitializationConfig {
     public CommandLineRunner initializeData() {
         return args -> {
             // 检查系统中是否已有管理员用户
-            Optional<User> adminUser = userRepository.findByEmail("admin@example.com");
+            List<User> adminUser = userRepository.findByRole("ADMIN");
             
             if (adminUser.isEmpty()) {
                 // 创建默认管理员用户
