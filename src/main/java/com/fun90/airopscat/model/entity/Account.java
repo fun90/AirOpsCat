@@ -31,7 +31,7 @@ public class Account {
     @Column(nullable = false)
     private String uuid;
 
-    @Column(nullable = true)
+    @Column(nullable = false, unique = true)
     private String accountNo;
     
     @Column(nullable = false)

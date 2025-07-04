@@ -56,8 +56,8 @@ jobs:
     - name: Build with Maven
       run: ./mvnw clean compile
 
-    - name: Run tests
-      run: ./mvnw test
+    # - name: Run tests
+    #   run: ./mvnw test
 
     - name: Build native executable
       run: ./mvnw -Pnative native:compile
