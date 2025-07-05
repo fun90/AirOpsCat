@@ -215,6 +215,10 @@ const accountTable = new DataTable({
             this.newItem.authCode = this.generateRandomString(16);
         },
 
+        generateAccountNo() {
+            this.newItem.accountNo = this.generateRandomString(12);
+        },
+
         regenerateAuthCode() {
             if (!this.editedItem.id) return;
 

@@ -177,6 +177,7 @@ public class AccountController {
         // 创建Account实体
         Account account = new Account();
         account.setUserId(request.getUserId());
+        account.setAccountNo(request.getAccountNo());
         account.setLevel(request.getLevel());
         account.setFromDate(request.getFromDate());
         account.setToDate(request.getToDate());
