@@ -212,6 +212,11 @@ public class AccountService {
             account.setAuthCode(generateAuthCode());
         }
         
+        // Generate account number if not provided
+        if (account.getAccountNo() == null || account.getAccountNo().trim().isEmpty()) {
+            account.setAccountNo(generateAccountNo());
+        }
+        
         // Ensure user exists
         if (account.getUserId() != null && !userRepository.existsById(account.getUserId())) {
             throw new EntityNotFoundException("User with ID " + account.getUserId() + " not found");
@@ -301,6 +306,11 @@ public class AccountService {
     // 生成随机认证码
     private String generateAuthCode() {
         return UUID.randomUUID().toString().replaceAll("-", "").substring(0, 16);
+    }
+    
+    // 生成随机账号
+    private String generateAccountNo() {
+        return UUID.randomUUID().toString().replaceAll("-", "").substring(0, 12);
     }
     
     // 格式化流量大小 (B, KB, MB, GB)

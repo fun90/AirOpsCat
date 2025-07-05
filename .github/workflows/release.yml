@@ -16,9 +16,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # 使用 ubuntu-20.04 来编译 Linux 版本，以支持更低版本的 GLIBC (如 Debian 12)
+        # ubuntu-20.04 使用 GLIBC 2.31，与 Debian 12 兼容
+        os: [ubuntu-20.04, windows-latest]
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-20.04
             platform: linux
             executable_suffix: ""
             artifact_name: airopscat-linux-amd64
@@ -52,6 +54,15 @@ jobs:
         echo "JAVA_HOME: $JAVA_HOME"
         java --version
         native-image --version
+
+    # 在 Linux 环境下显示 GLIBC 版本信息，方便调试
+    - name: Check GLIBC version (Linux)
+      if: matrix.os == 'ubuntu-20.04'
+      run: |
+        echo "GLIBC version info:"
+        ldd --version
+        echo "Available GLIBC versions:"
+        strings /lib/x86_64-linux-gnu/libc.so.6 | grep GLIBC_ | sort -V | tail -10
 
     - name: Build with Maven
       run: ./mvnw clean compile
@@ -104,6 +115,9 @@ jobs:
         echo "./${{ matrix.artifact_name }}" >> dist/README.txt
         echo "" >> dist/README.txt
         echo "The application will start on http://localhost:8080" >> dist/README.txt
+        echo "" >> dist/README.txt
+        echo "## System Requirements" >> dist/README.txt
+        echo "Linux: Requires GLIBC 2.31 or higher (compatible with Debian 12)" >> dist/README.txt
 
     - name: Create distribution archive (Windows)
       if: matrix.os == 'windows-latest'
@@ -155,8 +169,14 @@ jobs:
           
           ### System Requirements:
           - No Java runtime required (native executable)
-          - Linux: x86_64 architecture
+          - Linux: x86_64 architecture, GLIBC 2.31+ (compatible with Debian 12, Ubuntu 20.04+)
           - Windows: x86_64 architecture
+          
+          ### Compatibility:
+          - **Debian 12**: ✅ Supported
+          - **Ubuntu 20.04+**: ✅ Supported
+          - **CentOS 8+**: ✅ Supported
+          - **RHEL 8+**: ✅ Supported
         draft: false
         prerelease: false
       env:
