@@ -48,7 +48,7 @@
             <!-- END PAGE HEADER -->
 
             <!-- BEGIN PAGE BODY -->
-            <th:block th:replace="'fragments' + ${uri} :: content"></th:block>
+            <th:block th:replace="~{'fragments' + ${uri} :: content}"></th:block>
             <!-- END PAGE BODY -->
 
             <!-- 页脚 -->
