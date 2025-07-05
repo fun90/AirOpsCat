@@ -1,29 +1,35 @@
 package com.fun90.airopscat.service;
 
-import com.fun90.airopscat.model.convert.NodeConverter;
-import com.fun90.airopscat.model.dto.NodeDto;
-import com.fun90.airopscat.model.dto.SubscrptionDto;
-import com.fun90.airopscat.model.dto.ApiResponseDto;
-import com.fun90.airopscat.model.entity.Account;
-import com.fun90.airopscat.model.entity.Node;
-import com.fun90.airopscat.repository.AccountRepository;
-import com.fun90.airopscat.utils.ConfigFileReader;
-import com.fun90.airopscat.utils.ThymeleafUtil;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.stream.Collector;
-import java.util.stream.Collectors;
+import com.fun90.airopscat.model.convert.NodeConverter;
+import com.fun90.airopscat.model.dto.ApiResponseDto;
+import com.fun90.airopscat.model.dto.NodeDto;
+import com.fun90.airopscat.model.dto.SubscrptionDto;
+import com.fun90.airopscat.model.entity.Account;
+import com.fun90.airopscat.model.entity.AccountTrafficStats;
+import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.repository.AccountRepository;
+import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
+import com.fun90.airopscat.utils.ConfigFileReader;
+import com.fun90.airopscat.utils.ThymeleafUtil;
 
 @Service
 public class SubscriptionService {
 
     private final AccountRepository accountRepository;
+    private final AccountTrafficStatsRepository accountTrafficRepository;
     private final TagService tagService;
     private final ThymeleafUtil thymeleafUtil;
     private final String subscriptionUrl;
@@ -31,10 +37,12 @@ public class SubscriptionService {
     @Autowired
     public SubscriptionService(
             AccountRepository accountRepository,
+            AccountTrafficStatsRepository accountTrafficRepository,
             TagService tagService,
             ThymeleafUtil thymeleafUtil,
             @Value("${airopscat.subscription.url}") String subscriptionUrl) {
         this.accountRepository = accountRepository;
+        this.accountTrafficRepository = accountTrafficRepository;
         this.tagService = tagService;
         this.thymeleafUtil = thymeleafUtil;
         this.subscriptionUrl = subscriptionUrl;
@@ -177,7 +185,13 @@ public class SubscriptionService {
         
         String expireDate = account.getToDate().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
         String fileName = account.getUser().getNickName() + getSubscriptionFileSuffix(appName);
-        SubscrptionDto subscriptionDto = new SubscrptionDto(fileName, content, expireDate, 0L, 500L);
+        long bandwidth = account.getBandwidth() != null ? account.getBandwidth() : 500L;
+        bandwidth = bandwidth * 1024L * 1024L * 1024L;
+        LocalDateTime currentTime = LocalDateTime.now();
+        List<AccountTrafficStats> trafficStatsList = accountTrafficRepository.findByAccountIdAndCurrentTime(account.getId(), currentTime);
+        AccountTrafficStats accountTrafficStats = trafficStatsList.isEmpty() ? null : trafficStatsList.getFirst();
+        long usedFlow = accountTrafficStats != null ? accountTrafficStats.getUploadBytes() + accountTrafficStats.getDownloadBytes() : 0L;
+        SubscrptionDto subscriptionDto = new SubscrptionDto(fileName, content, expireDate, usedFlow, bandwidth);
         return ApiResponseDto.success(subscriptionDto);
     }
 
