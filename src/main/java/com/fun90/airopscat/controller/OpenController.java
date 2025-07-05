@@ -1,6 +1,7 @@
 package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.ClientRequest;
+import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.service.AccountOnlineIpService;
 import com.fun90.airopscat.repository.AccountRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +46,7 @@ public class OpenController {
     @GetMapping("/docs-info/{authCode}")
     public ResponseEntity<?> getDocsInfo(@PathVariable String authCode) {
         // 查找账户
-        Optional<com.fun90.airopscat.model.entity.Account> accountOpt = accountRepository.findByAuthCode(authCode);
+        Optional<Account> accountOpt = accountRepository.findByAuthCode(authCode);
         if (accountOpt.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "无效的认证码，账户不存在"));
         }
@@ -62,6 +63,7 @@ public class OpenController {
         result.put("subscriptionUrl", subscriptionUrls);
         result.put("appleId", appleId);
         result.put("applePwd", applePwd);
+        result.put("nickName", accountOpt.get().getUser().getNickName());
         return ResponseEntity.ok(result);
     }
 
