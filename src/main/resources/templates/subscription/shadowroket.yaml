@@ -92,7 +92,6 @@ proxy-groups:
     proxies:
       [# th:each="node : ${nodes}"]- [(${node.name != null ? node.name : node.serverHost + '-' + node.protocol + '-' + node.port})]
       [/]
-
   - name: AI自动
     icon: https://static.fun90.com/clash/Round_Robin.png
     type: url-test

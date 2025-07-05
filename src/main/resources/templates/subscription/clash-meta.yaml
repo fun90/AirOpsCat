@@ -84,7 +84,6 @@ proxy-groups:
       - 直连
       [# th:each="node : ${nodes}"]- [(${node.name != null ? node.name : node.serverHost + '-' + node.protocol + '-' + node.port})]
       [/]
-
   - name: 自动
     icon: https://static.fun90.com/clash/Auto.png
     type: url-test
@@ -93,7 +92,6 @@ proxy-groups:
     proxies:
       [# th:each="node : ${nodes}"]- [(${node.name != null ? node.name : node.serverHost + '-' + node.protocol + '-' + node.port})]
       [/]
-
   - name: AI自动
     icon: https://static.fun90.com/clash/Round_Robin.png
     type: url-test
@@ -102,7 +100,6 @@ proxy-groups:
     proxies:
       [# th:each="node : ${nodes}"]- [(${node.name != null ? node.name : node.serverHost + '-' + node.protocol + '-' + node.port})]
       [/]
-
   - name: AI
     icon: https://static.fun90.com/clash/OpenAI.png
     type: select
@@ -111,7 +108,6 @@ proxy-groups:
       - 代理
       [# th:each="node : ${nodes}"]- [(${node.name != null ? node.name : node.serverHost + '-' + node.protocol + '-' + node.port})]
       [/]
-
   - name: Microsoft
     icon: https://static.fun90.com/clash/Microsoft.png
     type: select
@@ -120,7 +116,6 @@ proxy-groups:
       - 直连
       [# th:each="node : ${nodes}"]- [(${node.name != null ? node.name : node.serverHost + '-' + node.protocol + '-' + node.port})]
       [/]
-
   - name: ICLOUD
     icon: https://static.fun90.com/clash/iCloud.png
     type: select
@@ -129,7 +124,6 @@ proxy-groups:
       - 代理
       [# th:each="node : ${nodes}"]- [(${node.name != null ? node.name : node.serverHost + '-' + node.protocol + '-' + node.port})]
       [/]
-
   - name: APPLE
     icon: https://static.fun90.com/clash/Apple_1.png
     type: select
@@ -138,7 +132,6 @@ proxy-groups:
       - 代理
       [# th:each="node : ${nodes}"]- [(${node.name != null ? node.name : node.serverHost + '-' + node.protocol + '-' + node.port})]
       [/]
-
   - name: 直连
     icon: https://static.fun90.com/clash/Direct.png
     type: select

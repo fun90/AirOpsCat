@@ -212,7 +212,7 @@ const accountTable = new DataTable({
         },
 
         generateAuthCode() {
-            this.newItem.authCode = this.generateRandomString(16);
+            this.newItem.authCode = this.uuidv4().replace(/-/g, '');
         },
 
         generateAccountNo() {
