@@ -41,12 +41,12 @@ const nodeTable = new DataTable({
         portCheckMessage: '',
         editPortCheckMessage: '',
         newNodeInbound: {
-            protocol: 'VLESS'
+            protocol: 'vless'
         },
         newNodeInboundJson: '',
         newNodeRuleJson: '',
         editedNodeInbound: {
-            protocol: 'VLESS'
+            protocol: 'vless'
         },
         editedNodeInboundJson: '',
         editedNodeOutbound: '',
@@ -236,8 +236,9 @@ const nodeTable = new DataTable({
 
         // Protocol related methods
         onProtocolChange() {
+            this.newItem.protocol = this.newNodeInbound.protocol;
             // 获取默认配置
-            fetch(`/api/admin/nodes/default-inbound?protocol=${this.newItem.protocol}`)
+            fetch(`/api/admin/nodes/default-inbound?protocol=${this.newNodeInbound.protocol}`)
                 .then(response => response.json())
                 .then(data => {
                     this.newNodeInbound = data;
@@ -249,8 +250,9 @@ const nodeTable = new DataTable({
         },
 
         onEditProtocolChange() {
+            this.editedItem.protocol = this.editedNodeInbound.protocol;
             // 获取默认配置
-            fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedItem.protocol}`)
+            fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedNodeInbound.protocol}`)
                 .then(response => response.json())
                 .then(data => {
                     this.editedNodeInbound = data;
@@ -434,7 +436,7 @@ const nodeTable = new DataTable({
 
             // Reset inbound data
             this.newNodeInbound = {
-                protocol: 'VLESS'
+                protocol: 'vless'
             };
             this.onProtocolChange(); // Get default configuration
 
@@ -459,7 +461,7 @@ const nodeTable = new DataTable({
         prepareEditForm(node) {
             this.fetchLandingNodes();
             // Format inbound and rule data
-            this.editedNodeInbound = node.inbound || { protocol: 'VLESS' };
+            this.editedNodeInbound = node.inbound || { protocol: 'vless' };
             this.editedNodeInboundJson = JSON.stringify(node.inbound || {}, null, 2);
             this.editedNodeRuleJson = JSON.stringify(node.rule || {}, null, 2);
 

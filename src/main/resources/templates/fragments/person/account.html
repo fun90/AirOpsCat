@@ -167,7 +167,11 @@
     <tr v-for="account in records" :key="account.id">
         <td v-text="account.id"></td>
         <td>
-            <a href="#" @click.prevent="viewUserDetails(account.userId)">{{ account.userEmail }}({{ account.nickName }})</a>
+            <div class="d-flex flex-column">
+                <a href="#" @click.prevent="viewUserDetails(account.userId)">{{ account.userEmail }}</a>
+                <span class="text-muted small">{{ account.nickName }}</span>
+            </div>
+            
         </td>
         <td>
             <div class="d-flex align-items-center">

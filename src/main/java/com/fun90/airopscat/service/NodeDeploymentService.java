@@ -121,11 +121,10 @@ public class NodeDeploymentService {
     private List<DeploymentResult> processNodesByServer(List<Node> nodes) {
         List<DeploymentResult> results = new ArrayList<>();
 
-        Map<Long, List<Node>> serverNodeMap = nodes.stream().collect(Collectors.groupingBy(Node::getServerId));
+        Set<Long> serverIds = nodes.stream().map(Node::getServerId).collect(Collectors.toSet());
 
-        for (Map.Entry<Long, List<Node>> entry : serverNodeMap.entrySet()) {
-            Long serverId = entry.getKey();
-            List<Node> serverNodes = entry.getValue();
+        for (Long serverId : serverIds) {
+            List<Node> serverNodes = nodeRepository.findByServerId(serverId);
 
             try {
                 results.addAll(deployNodesForServer(serverId, serverNodes));
