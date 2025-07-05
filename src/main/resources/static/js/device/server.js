@@ -33,6 +33,7 @@ const serverTable = new DataTable({
         newItem: {
             ip: '',
             sshPort: 22,
+            username: 'root',
             authType: 'PASSWORD',
             auth: '',
             host: '',
@@ -156,6 +157,12 @@ const serverTable = new DataTable({
                 isValid = false;
             }
 
+            // Username validation
+            if (!this.newItem.username || !this.newItem.username.trim()) {
+                this.validationErrors.username = '用户名不能为空';
+                isValid = false;
+            }
+
             // Auth type validation
             if (!this.newItem.authType) {
                 this.validationErrors.authType = '请选择认证方式';
@@ -178,6 +185,12 @@ const serverTable = new DataTable({
             // IP validation
             if (!this.editedItem.ip || !this.editedItem.ip.trim()) {
                 this.validationErrors.ip = 'IP地址不能为空';
+                isValid = false;
+            }
+
+            // Username validation
+            if (!this.editedItem.username || !this.editedItem.username.trim()) {
+                this.validationErrors.username = '用户名不能为空';
                 isValid = false;
             }
 
@@ -216,6 +229,7 @@ const serverTable = new DataTable({
             return {
                 ip: this.newItem.ip,
                 sshPort: this.newItem.sshPort || 22,
+                username: this.newItem.username || 'root',
                 authType: this.newItem.authType,
                 auth: this.newItem.auth,
                 host: this.newItem.host || null,
@@ -251,6 +265,7 @@ const serverTable = new DataTable({
             return {
                 ip: this.editedItem.ip,
                 sshPort: this.editedItem.sshPort || 22,
+                username: this.editedItem.username || 'root',
                 authType: this.editedItem.authType,
                 auth: this.editedItem.auth,
                 host: this.editedItem.host || null,
@@ -275,6 +290,7 @@ const serverTable = new DataTable({
             this.newItem = {
                 ip: '',
                 sshPort: 22,
+                username: 'root',
                 authType: this.authTypes.length > 0 ? this.authTypes[0].value : 'PASSWORD',
                 auth: '',
                 host: '',
@@ -311,6 +327,7 @@ const serverTable = new DataTable({
                 id: server.id,
                 ip: server.ip,
                 sshPort: server.sshPort || 22,
+                username: server.username || 'root',
                 authType: server.authType,
                 auth: server.auth,
                 host: server.host || '',

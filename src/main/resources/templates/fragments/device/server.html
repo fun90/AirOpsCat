@@ -164,7 +164,12 @@
         </td>
         <td v-text="server.supplier || '-'"></td>
         <td v-text="server.sshPort || 22"></td>
-        <td v-text="getAuthTypeLabel(server.authType)"></td>
+        <td>
+            <div class="d-flex flex-column">
+                <span>{{ getAuthTypeLabel(server.authType) }}</span>
+                <small v-if="server.username" class="text-muted">{{ server.username }}</small>
+            </div>
+        </td>
         <td v-text="formatDate(server.expireDate) || '永不过期'"></td>
         <td>
             <span v-if="server.price">
@@ -319,6 +324,13 @@
                                         <div class="invalid-feedback" v-if="validationErrors.authType">{{ validationErrors.authType }}</div>
                                     </div>
                                 </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">用户名</label>
+                                        <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.username }" v-model="newItem.username" placeholder="root">
+                                        <div class="invalid-feedback" v-if="validationErrors.username">{{ validationErrors.username }}</div>
+                                    </div>
+                                </div>
                             </div>
                             <div v-if="newItem.authType === 'PASSWORD'">
                                 <div class="mb-3">
@@ -469,6 +481,13 @@
                                         <div class="invalid-feedback" v-if="validationErrors.authType">{{ validationErrors.authType }}</div>
                                     </div>
                                 </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">用户名</label>
+                                        <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.username }" v-model="editedItem.username" placeholder="root">
+                                        <div class="invalid-feedback" v-if="validationErrors.username">{{ validationErrors.username }}</div>
+                                    </div>
+                                </div>
                             </div>
                             <div v-if="editedItem.authType === 'PASSWORD'">
                                 <div class="mb-3">
@@ -546,6 +565,7 @@
                     </div>
                     <div v-else>
                         <p>准备测试连接到服务器：<strong>{{ selectedItem ? selectedItem.ip + (selectedItem.sshPort && selectedItem.sshPort !== 22 ? ':' + selectedItem.sshPort : '') : '' }}</strong></p>
+                        <p>用户名：{{ selectedItem ? (selectedItem.username || 'root') : '' }}</p>
                         <p>认证方式：{{ selectedItem ? getAuthTypeLabel(selectedItem.authType) : '' }}</p>
                     </div>
                 </div>
