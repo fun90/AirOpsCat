@@ -9,6 +9,8 @@ import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.BeanUtils;
@@ -60,17 +62,26 @@ public class AccountService {
         Specification<Account> spec = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // Search in uuid and authCode
+            // Search in accountNo and associated user's email and nickName
             if (StringUtils.hasText(search)) {
-                Predicate uuidPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("uuid")),
+                // Search in accountNo
+                Predicate accountNoPredicate = criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("accountNo")),
                         "%" + search.toLowerCase() + "%"
                 );
-                Predicate authCodePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("authCode")),
+                
+                // Join with User table to search in email and nickName
+                Join<Account, User> userJoin = root.join("user", JoinType.LEFT);
+                Predicate emailPredicate = criteriaBuilder.like(
+                        criteriaBuilder.lower(userJoin.get("email")),
                         "%" + search.toLowerCase() + "%"
                 );
-                predicates.add(criteriaBuilder.or(uuidPredicate, authCodePredicate));
+                Predicate nickNamePredicate = criteriaBuilder.like(
+                        criteriaBuilder.lower(userJoin.get("nickName")),
+                        "%" + search.toLowerCase() + "%"
+                );
+                
+                predicates.add(criteriaBuilder.or(accountNoPredicate, emailPredicate, nickNamePredicate));
             }
 
             // Filter by userId

@@ -17,6 +17,21 @@
         @import url("https://rsms.me/inter/inter.css");
     </style>
     <!-- END CUSTOM FONT -->
+    
+    <!-- Custom styles for autosize in modals -->
+    <style>
+        /* 优化 Modal 中的 autosize textarea */
+        .modal textarea[data-bs-toggle="autosize"] {
+            min-height: 2.5rem;
+            max-height: 60vh;
+            transition: height 0.2s ease;
+        }
+        
+        /* 确保 textarea 在 tab 切换时正确显示 */
+        .tab-pane textarea[data-bs-toggle="autosize"] {
+            min-height: 2.5rem;
+        }
+    </style>
 </head>
 <body>
     <!-- BEGIN GLOBAL THEME SCRIPT -->
@@ -319,6 +334,8 @@
     </div>
     <!-- BEGIN GLOBAL MANDATORY SCRIPTS -->
     <script src="https://cdn.jsdelivr.net/npm/petite-vue@0.4.1/dist/petite-vue.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/autosize@6.0.1/dist/autosize.min.js"></script>
+    <script type="module" th:src="@{/static/js/common/modal-autosize.js}"></script>
     <script type="module" th:src="@{/static/js/common/toast-utils.js}"></script>
     <!-- END GLOBAL MANDATORY SCRIPTS -->
 
@@ -327,6 +344,19 @@
     <script type="module" th:src="'/static/js' + ${uri} + '.js'"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
+            // 初始化页面中的 autosize（非 Modal 中的元素）
+            function initPageAutosize() {
+                if (typeof autosize === 'undefined') return;
+                
+                const textareas = document.querySelectorAll('textarea[data-bs-toggle="autosize"]:not(.modal textarea[data-bs-toggle="autosize"])');
+                if (textareas.length > 0) {
+                    autosize(textareas);
+                }
+            }
+            
+            // 初始化页面中的 autosize
+            initPageAutosize();
+            
             var themeConfig = {
                 theme: "light",
                 "theme-base": "gray",

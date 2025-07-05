@@ -265,14 +265,26 @@ public class NodeController {
             return ResponseEntity.notFound().build();
         }
 
-        // Create a copy of the node
+        // Create a copy of the node manually to avoid shared references
         Node nodeCopy = new Node();
-        // Copy all properties except ID (which will be auto-generated)
-        BeanUtils.copyProperties(existingNode, nodeCopy, "id", "createTime", "updateTime");
+        
+        // Copy basic properties manually
+        nodeCopy.setServerId(existingNode.getServerId());
+        nodeCopy.setProtocol(existingNode.getProtocol());
+        nodeCopy.setType(existingNode.getType());
+        nodeCopy.setInbound(existingNode.getInbound());
+        nodeCopy.setOutId(existingNode.getOutId());
+        nodeCopy.setRule(existingNode.getRule());
+        nodeCopy.setLevel(existingNode.getLevel());
+        nodeCopy.setDisabled(existingNode.getDisabled());
+        nodeCopy.setRemark(existingNode.getRemark());
+        
+        // Set deployed status to 0 (not deployed) for the copy
+        nodeCopy.setDeployed(0);
 
         // Modify the name to indicate it's a copy
-        if (nodeCopy.getName() != null) {
-            nodeCopy.setName(nodeCopy.getName() + " (Copy)");
+        if (existingNode.getName() != null) {
+            nodeCopy.setName(existingNode.getName() + " (Copy)");
         } else {
             nodeCopy.setName("Copy of Node " + id);
         }
@@ -282,6 +294,9 @@ public class NodeController {
             Integer availablePort = nodeService.getAvailablePort(nodeCopy.getServerId());
             nodeCopy.setPort(availablePort);
         }
+
+        // Don't copy tags - let the new node start without any tags
+        // Don't copy server/outNode references - they will be loaded by JPA automatically
 
         // Save the new node
         Node savedNode = nodeService.saveNode(nodeCopy);

@@ -332,7 +332,7 @@ public class NodeService {
                 .map(type -> {
                     Map<String, Object> option = new HashMap<>();
                     option.put("value", type.getValue());
-                    option.put("label", type.getValue());
+                    option.put("label", type.getLabel());
                     option.put("type", type.getType());
                     return option;
                 })
