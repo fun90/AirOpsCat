@@ -1,0 +1,15 @@
+payload:
+  # private
+  - DOMAIN,clash.razord.top
+  - DOMAIN,yacd.haishan.me
+  - DOMAIN,download-cf.jetbrains.com
+  - DOMAIN,download.jetbrains.com
+  - DOMAIN-SUFFIX,fun90.com
+  - DOMAIN-SUFFIX,jetbrains-ls.org
+  - DOMAIN-SUFFIX,duoyu.app
+  - PROCESS-NAME,CorelDRW,DIRECT
+  - DOMAIN-SUFFIX,zozo.jp
+  - DOMAIN-SUFFIX,hsbc.com
+  - DOMAIN-SUFFIX,hsbc.com.cn
+  - DOMAIN-SUFFIX,hsbc.com.hk
+  - DOMAIN,lcs-cops.adobe.io

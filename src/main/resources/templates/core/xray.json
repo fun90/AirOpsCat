@@ -1,0 +1,67 @@
+{
+  "log": {
+    "loglevel": "error",
+    "dnsLog": false,
+    "error": "/var/log/xray/error.log",
+    "access": "/var/log/xray/access.log"
+  },
+  "stats": {},
+  "api": {
+    "services": ["HandlerService", "LoggerService", "StatsService"],
+    "tag": "api"
+  },
+  "policy": {
+    "levels": {
+      "0": {
+        "statsUserUplink": true,
+        "statsUserDownlink": true,
+        "bufferSize": 10240
+      }
+    },
+    "system": {
+      "statsInboundDownlink": true,
+      "statsInboundUplink": true
+    }
+  },
+  "inbounds": [
+    {
+      "tag": "default-api",
+      "listen": "127.0.0.1",
+      "port": 100,
+      "protocol": "dokodemo-door",
+      "settings": {
+        "network": "tcp,udp",
+        "address": "127.0.0.1"
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "default-direct",
+      "protocol": "freedom",
+      "settings": {}
+    },
+    {
+      "tag": "default-blocked",
+      "protocol": "blackhole",
+      "settings": {}
+    }
+  ],
+  "routing": {
+    "domainStrategy": "AsIs",
+    "rules": [
+      {
+        "ruleTag": "default-api",
+        "inboundTag": ["default-api"],
+        "outboundTag": "api",
+        "type": "field"
+      },
+      {
+        "ruleTag": "default-blocked",
+        "type": "field",
+        "ip": ["geoip:private", "geoip:cn"],
+        "outboundTag": "default-blocked"
+      }
+    ]
+  }
+}

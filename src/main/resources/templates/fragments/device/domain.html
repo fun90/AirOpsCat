@@ -1,0 +1,265 @@
+```html
+<div th:fragment="content" class="page-body">
+    <div class="container-xl">
+        <!-- Use the common data table template -->
+        <div th:replace="~{fragments/common/data-table :: data-table(
+            '域名管理',
+            '添加域名',
+            'domains-app',
+            'domains',
+            ~{fragments/device/domain :: filters},
+            ~{fragments/device/domain :: table-content},
+            ~{fragments/device/domain :: stats-cards},
+            ~{fragments/device/domain :: modals},
+            'domain-',
+            true
+        )}"></div>
+    </div>
+</div>
+
+<!-- Filters Fragment -->
+<th:block th:fragment="filters">
+    <!-- Expiry date filters -->
+    <div class="col-auto">
+        <div class="input-group">
+            <span class="input-group-text">到期从</span>
+            <input type="date" class="form-control" v-model="filters.expiryFrom" @change="fetchRecords">
+        </div>
+    </div>
+    <div class="col-auto">
+        <div class="input-group">
+            <span class="input-group-text">到期至</span>
+            <input type="date" class="form-control" v-model="filters.expiryTo" @change="fetchRecords">
+        </div>
+    </div>
+</th:block>
+
+<!-- Stats Cards Fragment -->
+<div th:fragment="stats-cards" class="card-body border-bottom">
+    <div class="row">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-primary text-white avatar">
+                                <i class="ti ti-world"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                域名总数
+                            </div>
+                            <div class="text-muted">
+                                {{ totalItems }} 个域名
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-red text-white avatar">
+                                <i class="ti ti-alert-triangle"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                已过期
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.expiredCount || 0 }} 个域名
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-yellow text-white avatar">
+                                <i class="ti ti-clock"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                即将过期
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.expiringCount || 0 }} (30天内)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-blue text-white avatar">
+                                <i class="ti ti-coin"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                总成本
+                            </div>
+                            <div class="text-muted">
+                                ¥ {{ (stats.totalCost || 0).toFixed(2) }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table Content Fragment -->
+<table th:fragment="table-content" class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>域名</th>
+        <th>到期日</th>
+        <th>状态</th>
+        <th>价格</th>
+        <th>备注</th>
+        <th>操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="domain in records" :key="domain.id">
+        <td v-text="domain.id"></td>
+        <td>
+            <a :href="'http://' + domain.domain" target="_blank" class="text-reset">{{ domain.domain }}</a>
+        </td>
+        <td v-text="formatDate(domain.expireDate)"></td>
+        <td>
+            <span class="badge" :class="getStatusBadgeClass(domain.daysUntilExpiration)">
+                {{ getDomainStatus(domain.daysUntilExpiration) }}
+            </span>
+        </td>
+        <td>¥ {{ domain.price ? domain.price.toFixed(2) : '-' }}</td>
+        <td v-text="domain.remark || '-'"></td>
+        <td>
+            <div class="btn-list flex-nowrap">
+                <button @click="openEditModal(domain)" class="btn btn-sm btn-outline-primary">
+                    <i class="ti ti-edit"></i> 编辑
+                </button>
+                <button @click="confirmDelete(domain)" class="btn btn-sm btn-outline-danger">
+                    <i class="ti ti-trash"></i> 删除
+                </button>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="7" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="7" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table>
+
+<!-- Modals Fragment -->
+<div th:fragment="modals">
+    <!-- Create Domain Modal -->
+    <div class="modal modal-blur fade" id="domain-createModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加域名</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label required">域名</label>
+                        <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.domain }"
+                               placeholder="example.com" v-model="newItem.domain">
+                        <div class="invalid-feedback" v-if="validationErrors.domain">{{ validationErrors.domain }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">到期日期</label>
+                        <input type="date" class="form-control" :class="{ 'is-invalid': validationErrors.expireDate }"
+                               v-model="newItem.expireDate">
+                        <div class="invalid-feedback" v-if="validationErrors.expireDate">{{ validationErrors.expireDate }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">价格</label>
+                        <div class="input-group">
+                            <span class="input-group-text">¥</span>
+                            <input type="number" class="form-control" step="0.01" min="0" v-model="newItem.price">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">备注</label>
+                        <textarea class="form-control" rows="3" v-model="newItem.remark"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="createItem">创建</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Domain Modal -->
+    <div class="modal modal-blur fade" id="domain-editModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑域名</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label required">域名</label>
+                        <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.domain }"
+                               placeholder="example.com" v-model="editedItem.domain">
+                        <div class="invalid-feedback" v-if="validationErrors.domain">{{ validationErrors.domain }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">到期日期</label>
+                        <input type="date" class="form-control" :class="{ 'is-invalid': validationErrors.expireDate }"
+                               v-model="editedItem.expireDate">
+                        <div class="invalid-feedback" v-if="validationErrors.expireDate">{{ validationErrors.expireDate }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">价格</label>
+                        <div class="input-group">
+                            <span class="input-group-text">¥</span>
+                            <input type="number" class="form-control" step="0.01" min="0" v-model="editedItem.price">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">备注</label>
+                        <textarea class="form-control" rows="3" v-model="editedItem.remark"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="updateItem">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script th:fragment="script" th:inline="javascript" type="module">
+
+</script>

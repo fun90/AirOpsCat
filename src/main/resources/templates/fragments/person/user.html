@@ -1,0 +1,194 @@
+<div th:fragment="content" class="page-body">
+    <div class="container-xl">
+        <!-- Use the common data table template -->
+        <div th:replace="~{fragments/common/data-table :: data-table(
+            '用户管理',
+            '添加用户',
+            'users-app',
+            'users',
+            ~{fragments/person/user :: filters},
+            ~{fragments/person/user :: table-content},
+            null,
+            ~{fragments/person/user :: modals},
+            'user-',
+            true
+        )}"></div>
+    </div>
+</div>
+
+<!-- Filters Fragment -->
+<th:block th:fragment="filters">
+    <!-- Role filter -->
+    <div class="col-auto">
+        <select class="form-select" v-model="filters.role" @change="fetchRecords">
+            <option value="">全部角色</option>
+            <option value="ADMIN">ADMIN</option>
+            <option value="PARTNER">PARTNER</option>
+            <option value="VIP">VIP</option>
+        </select>
+    </div>
+    <!-- Status filter -->
+    <div class="col-auto">
+        <select class="form-select" v-model="filters.status" @change="fetchRecords">
+            <option value="">全部状态</option>
+            <option value="active">Active</option>
+            <option value="disabled">Disabled</option>
+        </select>
+    </div>
+</th:block>
+
+<!-- Table Content Fragment -->
+<table th:fragment="table-content" class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Email</th>
+        <th>Nickname</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Actions</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="user in records" :key="user.id">
+        <td v-text="user.id"></td>
+        <td v-text="user.email"></td>
+        <td v-text="user.nickName || '-'"></td>
+        <td>
+            <span class="badge" :class="getRoleBadgeClass(user.role)" v-text="user.role || 'PARTNER'"></span>
+        </td>
+        <td>
+            <span class="badge" :class="getStatusBadgeClass(user.disabled)">
+                {{ user.disabled === 0 ? 'Active' : 'Disabled' }}
+            </span>
+        </td>
+        <td v-text="formatDate(user.createTime)"></td>
+        <td>
+            <div class="btn-list flex-nowrap">
+                <button @click="openEditModal(user)" class="btn btn-sm btn-outline-primary">
+                    <i class="ti ti-edit"></i> 编辑
+                </button>
+                <button @click="toggleItemStatus(user, user.disabled === 0)" class="btn btn-sm"
+                        :class="user.disabled === 0 ? 'btn-outline-danger' : 'btn-outline-success'">
+                    <i class="ti" :class="user.disabled === 0 ? 'ti-ban' : 'ti-check'"></i>
+                    {{ user.disabled === 0 ? '禁用' : '启用' }}
+                </button>
+                <button @click="confirmDelete(user)" class="btn btn-sm btn-outline-danger">
+                    <i class="ti ti-trash"></i> 删除
+                </button>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="7" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="7" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table>
+
+<!-- Modals Fragment -->
+<div th:fragment="modals">
+    <!-- Create User Modal -->
+    <div class="modal modal-blur fade" id="user-createModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加用户</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label required">邮箱</label>
+                        <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }"
+                               placeholder="user@example.com" v-model="newItem.email">
+                        <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label required">密码</label>
+                        <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }"
+                               placeholder="Password" v-model="newItem.password">
+                        <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">昵称</label>
+                        <input type="text" class="form-control" placeholder="Nickname" v-model="newItem.nickName">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">角色</label>
+                        <select class="form-select" v-model="newItem.role">
+                            <option value="PARTNER">PARTNER</option>
+                            <option value="ADMIN">ADMIN</option>
+                            <option value="VIP">VIP</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" v-model="newItem.disabled">
+                            <span class="form-check-label">禁用账户</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="createItem">创建用户</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div class="modal modal-blur fade" id="user-editModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑用户</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label required">邮箱</label>
+                        <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }"
+                               placeholder="user@example.com" v-model="editedItem.email">
+                        <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">密码 <span class="text-muted">(留空表示不修改)</span></label>
+                        <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }"
+                               placeholder="New password" v-model="editedItem.password">
+                        <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">昵称</label>
+                        <input type="text" class="form-control" placeholder="Nickname" v-model="editedItem.nickName">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">角色</label>
+                        <select class="form-select" v-model="editedItem.role">
+                            <option value="PARTNER">PARTNER</option>
+                            <option value="ADMIN">ADMIN</option>
+                            <option value="VIP">VIP</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" :checked="editedItem.disabled === 1"
+                                   @change="editedItem.disabled = $event.target.checked ? 1 : 0">
+                            <span class="form-check-label">禁用账户</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="updateItem">保存修改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

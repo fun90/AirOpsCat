@@ -1,0 +1,718 @@
+<div th:fragment="content" class="page-body">
+    <div class="container-xl">
+        <!-- Use the common data table template -->
+        <div th:replace="~{fragments/common/data-table :: data-table(
+            '账户管理',
+            '添加账户',
+            'accounts-app',
+            'accounts',
+            ~{fragments/person/account :: filters},
+            ~{fragments/person/account :: table-content},
+            ~{fragments/person/account :: stats-cards},
+            ~{fragments/person/account :: modals},
+            'account-',
+            true
+        )}"></div>
+    </div>
+</div>
+
+<!-- Filters Fragment -->
+<th:block th:fragment="filters">
+    <!-- User filter -->
+    <div class="col-auto">
+        <select class="form-select" v-model="filters.userId" @change="fetchRecords">
+            <option value="">全部用户</option>
+            <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
+        </select>
+    </div>
+    <!-- Status filter -->
+    <div class="col-auto">
+        <select class="form-select" v-model="filters.status" @change="fetchRecords">
+            <option value="">全部状态</option>
+            <option value="active">活跃</option>
+            <option value="expired">已过期</option>
+            <option value="expiring">即将过期</option>
+            <option value="disabled">已禁用</option>
+        </select>
+    </div>
+</th:block>
+
+<!-- Stats Cards Fragment -->
+<div th:fragment="stats-cards" class="card-body border-bottom">
+    <div class="row">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm" style="cursor: pointer;" @click="filterByStatus('')">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-primary text-white avatar">
+                                <i class="ti ti-device-desktop"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                总账户数
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.total || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm" style="cursor: pointer;" @click="filterByStatus('active')">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-green text-white avatar">
+                                <i class="ti ti-circle-check"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                活跃账户
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.active || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-blue text-white avatar">
+                                <i class="ti ti-users"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                在线用户
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.onlineUsers || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm" style="cursor: pointer;" @click="filterByStatus('expired')">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-red text-white avatar">
+                                <i class="ti ti-calendar-x"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                已过期
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.expired || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm" style="cursor: pointer;" @click="filterByStatus('expiring')">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-yellow text-white avatar">
+                                <i class="ti ti-clock"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                即将过期
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.expiringSoon || 0 }} (7天内)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table Content Fragment -->
+<table th:fragment="table-content" class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>人员</th>
+        <th>UUID</th>
+        <th>账号</th>
+        <th>状态</th>
+        <th>在线IP</th>
+        <th>流量使用</th>
+        <th>到期时间</th>
+        <th>创建时间</th>
+        <th class="w-1">操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="account in records" :key="account.id">
+        <td v-text="account.id"></td>
+        <td>
+            <div class="d-flex flex-column">
+                <a href="#" @click.prevent="viewUserDetails(account.userId)">{{ account.userEmail }}</a>
+                <span class="text-muted small">{{ account.nickName }}</span>
+            </div>
+            
+        </td>
+        <td>
+            <div class="d-flex align-items-center">
+                <span v-text="account.uuid" class="text-truncate" style="max-width: 150px;"></span>
+                <button @click="copyToClipboard(account.uuid)" class="btn btn-sm btn-ghost-secondary ms-2">
+                    <i class="ti ti-copy"></i>
+                </button>
+            </div>
+        </td>
+        <td>
+            <span v-text="account.accountNo" class="text-truncate" style="max-width: 150px;"></span>
+        </td>
+        <td>
+            <span class="badge" :class="getStatusBadgeClass(account)">
+                {{ getStatusDescription(account) }}
+            </span>
+        </td>
+        <td>
+            <div v-if="account.onlineIps && account.onlineIps.length > 0">
+                <div class="d-flex align-items-center">
+                    <span class="badge text-bg-success me-2">{{ account.onlineIps.length }}</span>
+                    <button @click="viewOnlineIps(account)" class="btn btn-sm btn-ghost-secondary">
+                        <i class="ti ti-eye"></i>
+                    </button>
+                </div>
+            </div>
+            <div v-else>
+                <span class="text-muted">-</span>
+            </div>
+        </td>
+        <td>
+            <div v-if="account.bandwidth">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        {{ formatBytes(account.totalUsedBytes) }} / {{ account.bandwidth }} GB
+                    </div>
+                    <div class="col">
+                        <div class="progress progress-sm">
+                            <div class="progress-bar" :class="getProgressBarClass(account.usagePercentage)" :style="{ width: account.usagePercentage + '%' }"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div v-else>
+                {{ formatBytes(account.totalUsedBytes) }}
+            </div>
+        </td>
+        <td v-text="formatDateTime(account.toDate) || '永不过期'"></td>
+        <td v-text="formatDateTime(account.createTime)"></td>
+        <td>
+            <div class="btn-list flex-nowrap">
+                <div class="dropdown position-static">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click.prevent="openEditModal(account)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openConfigUrlModal(account)">
+                            <i class="ti ti-link"></i> 配置链接
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openRenewAccountModal(account)">
+                            <i class="ti ti-calendar-plus"></i> 续期
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="resetAuthCode(account)">
+                            <i class="ti ti-refresh"></i> 重置认证码
+                        </a>
+                        <a v-if="account.disabled === 0" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(account, true)">
+                            <i class="ti ti-ban"></i> 禁用
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(account, false)">
+                            <i class="ti ti-check"></i> 启用
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(account)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="10" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="10" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table>
+
+<!-- All Modals Fragment -->
+<div th:fragment="modals">
+    <!-- Create Account Modal -->
+    <div class="modal modal-blur fade" id="account-createModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加账户</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label required">人员</label>
+                                <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="newItem.userId">
+                                    <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
+                                </select>
+                                <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label required">账号</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" v-model="newItem.accountNo" placeholder="留空自动生成">
+                                    <button class="btn" type="button" @click="generateAccountNo">生成</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">UUID</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" v-model="newItem.uuid" placeholder="留空自动生成">
+                                    <button class="btn" type="button" @click="generateUuid">生成</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">认证码</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" v-model="newItem.authCode" placeholder="留空自动生成">
+                                    <button class="btn" type="button" @click="generateAuthCode">生成</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">开始时间</label>
+                                <input type="datetime-local" class="form-control" v-model="newItem.fromDate">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">到期时间</label>
+                                <input type="datetime-local" class="form-control" v-model="newItem.toDate">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label required">统计周期类型</label>
+                                <select class="form-select" :class="{ 'is-invalid': validationErrors.periodType }" v-model="newItem.periodType">
+                                    <option v-for="type in periodTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                </select>
+                                <div class="invalid-feedback" v-if="validationErrors.periodType">{{ validationErrors.periodType }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">最大在线IP数</label>
+                                <input type="number" class="form-control" v-model="newItem.maxOnlineIps" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">最大速度 (预留字段)</label>
+                                <input type="number" class="form-control" v-model="newItem.speed" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">流量限制 (GB)</label>
+                                <input type="number" class="form-control" v-model="newItem.bandwidth" min="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">级别</label>
+                                <input type="number" class="form-control" v-model="newItem.level" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">标签</label>
+                        <div class="row">
+                            <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
+                                <label class="form-check">
+                                    <input type="checkbox" class="form-check-input" :value="tag.id" v-model="newItem.tagIds">
+                                    <span class="form-check-label d-flex align-items-center">
+                                        <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
+                                        {{ tag.name }}
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" v-model="newItem.disabled">
+                            <span class="form-check-label">禁用账户</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="createItem">创建</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Account Modal -->
+    <div class="modal modal-blur fade" id="account-editModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑账户</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label required">人员</label>
+                                <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="editedItem.userId">
+                                    <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
+                                </select>
+                                <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label required">账号</label>
+                                <input type="text" class="form-control" v-model="editedItem.accountNo">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">UUID</label>
+                                <input type="text" class="form-control" v-model="editedItem.uuid" readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">认证码</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" v-model="editedItem.authCode" readonly>
+                                    <button class="btn" type="button" @click="regenerateAuthCode">重新生成</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">开始时间</label>
+                                <input type="datetime-local" class="form-control" v-model="editedItem.fromDate">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">到期时间</label>
+                                <input type="datetime-local" class="form-control" v-model="editedItem.toDate">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label required">统计周期类型</label>
+                                <select class="form-select" :class="{ 'is-invalid': validationErrors.periodType }" v-model="editedItem.periodType">
+                                    <option v-for="type in periodTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                </select>
+                                <div class="invalid-feedback" v-if="validationErrors.periodType">{{ validationErrors.periodType }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">最大在线IP数</label>
+                                <input type="number" class="form-control" v-model="editedItem.maxOnlineIps" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">最大速度 (预留字段)</label>
+                                <input type="number" class="form-control" v-model="editedItem.speed" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">流量限制 (GB)</label>
+                                <input type="number" class="form-control" v-model="editedItem.bandwidth" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">级别</label>
+                                <input type="number" class="form-control" v-model="editedItem.level" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">标签</label>
+                        <div class="row">
+                            <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
+                                <label class="form-check">
+                                    <input type="checkbox" class="form-check-input" :value="tag.id" v-model="editedItem.tagIds">
+                                    <span class="form-check-label d-flex align-items-center">
+                                        <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
+                                        {{ tag.name }}
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" :checked="editedItem.disabled === 1" @change="editedItem.disabled = $event.target.checked ? 1 : 0">
+                            <span class="form-check-label">禁用账户</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="updateItem">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Config URL Modal -->
+    <div class="modal modal-blur fade" id="configUrlModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">配置链接</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label required">操作系统</label>
+                                <select class="form-select" v-model="configOptions.osName" @change="onOsNameChange">
+                                    <option value="">请选择操作系统</option>
+                                    <option value="windows">Windows</option>
+                                    <option value="macos">MacOS</option>
+                                    <option value="linux">Linux</option>
+                                    <option value="android">Android</option>
+                                    <option value="harmony">HarmonyOS</option>
+                                    <option value="ios">iOS</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label required">应用</label>
+                                <select class="form-select" v-model="configOptions.appName" @change="updateConfigUrl" :disabled="!configOptions.osName">
+                                    <option value="">请选择应用</option>
+                                    <option v-for="app in availableApps" :key="app.value" :value="app.value">{{ app.label }}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">配置链接</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" v-model="configUrl" readonly>
+                            <button class="btn" type="button" @click="copyToClipboard(configUrl)" :disabled="!configUrl">复制</button>
+                        </div>
+                        <small class="form-hint">用户可以通过此链接获取配置信息</small>
+                    </div>
+                    <div v-if="selectedItem" class="alert" :class="getStatusAlertClass(selectedItem)">
+                        <div class="d-flex">
+                            <div>
+                                <i class="ti ti-info-circle"></i>
+                            </div>
+                            <div class="ms-2">
+                                账户状态：{{ getStatusDescription(selectedItem) }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Renew Account Modal -->
+    <div class="modal modal-blur fade" id="renewAccountModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">续期账户</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div v-if="selectedItem" class="alert" :class="getStatusAlertClass(selectedItem)">
+                        <div class="d-flex">
+                            <div>
+                                <i class="ti ti-info-circle"></i>
+                            </div>
+                            <div class="ms-2">
+                                当前状态：{{ getStatusDescription(selectedItem) }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label required">新到期时间</label>
+                        <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.expiryDate }" v-model="renewData.expiryDate">
+                        <div class="invalid-feedback" v-if="validationErrors.expiryDate">{{ validationErrors.expiryDate }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="btn-list">
+                            <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'months')">+1个月</button>
+                            <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(3, 'months')">+3个月</button>
+                            <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(6, 'months')">+6个月</button>
+                            <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'years')">+1年</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="renewAccount">续期</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Auth Code Confirmation Modal -->
+    <div class="modal modal-blur fade" id="resetAuthCodeModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <div class="modal-title">重置认证码</div>
+                    <div>确定要重置该账户的认证码吗？重置后原配置链接将失效。</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-danger" @click="confirmResetAuthCode">确认重置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Online IPs Modal -->
+    <div class="modal modal-blur fade" id="onlineIpsModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">在线IP详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div v-if="selectedItem" class="alert alert-info">
+                        <div class="d-flex">
+                            <div>
+                                <i class="ti ti-info-circle"></i>
+                            </div>
+                            <div class="ms-2">
+                                <strong>{{ selectedItem.accountNo }}</strong> 的在线IP记录
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div v-if="onlineIpsLoading" class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    
+                    <div v-else-if="onlineIps.length === 0" class="text-center py-3">
+                        <div class="text-muted">暂无在线IP记录</div>
+                    </div>
+                    
+                    <div v-else>
+                        <div class="table-responsive">
+                            <table class="table table-vcenter">
+                                <thead>
+                                    <tr>
+                                        <th>客户端IP</th>
+                                        <th>节点IP</th>
+                                        <th>最后在线时间</th>
+                                        <th>在线时长</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="ip in onlineIps" :key="ip.id">
+                                        <td>
+                                            <span class="badge bg-primary">{{ ip.clientIp }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-muted">{{ ip.nodeIp }}</span>
+                                        </td>
+                                        <td>
+                                            {{ formatDateTime(ip.lastOnlineTime) }}
+                                        </td>
+                                        <td>
+                                            {{ getOnlineDuration(ip.lastOnlineTime) }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-outline-secondary" @click="refreshOnlineIps">
+                        <i class="ti ti-refresh"></i> 刷新
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
