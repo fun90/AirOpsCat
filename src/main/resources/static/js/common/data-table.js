@@ -12,7 +12,7 @@
  * 2. Create a Vue application and extend from DataTable
  * 3. Override necessary methods and properties for your specific entity
  */
-import { Modal } from 'https://cdn.jsdelivr.net/npm/@tabler/core@1.3.2/dist/js/tabler.esm.min.js';
+import { Modal, Tooltip } from 'https://cdn.jsdelivr.net/npm/@tabler/core@1.3.2/dist/js/tabler.esm.min.js';
 
 export class DataTable {
   constructor(options = {}) {
@@ -115,6 +115,24 @@ export class DataTable {
             }
             
             this.loading = false;
+            
+            // Initialize tooltips after data is loaded
+            this.$nextTick(() => {
+              // Dispose of existing tooltips first to avoid duplicates
+              const existingTooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+              existingTooltips.forEach(element => {
+                const tooltipInstance = Tooltip.getInstance(element);
+                if (tooltipInstance) {
+                  tooltipInstance.dispose();
+                }
+              });
+              
+              // Initialize Bootstrap tooltips for new elements
+              const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+              tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new Tooltip(tooltipTriggerEl);
+              });
+            });
             
             // Call after fetch hook if defined
             if (typeof this.afterFetch === 'function') {

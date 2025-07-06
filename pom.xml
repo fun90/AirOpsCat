@@ -292,7 +292,7 @@
                     </archive>
                     <excludes>
                         <exclude>lib/**</exclude>
-                        <exclude>static/**</exclude>
+<!--                        <exclude>static/**</exclude>-->
                     </excludes>
                 </configuration>
             </plugin>

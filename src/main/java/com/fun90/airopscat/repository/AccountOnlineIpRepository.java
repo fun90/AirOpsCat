@@ -57,4 +57,14 @@ public interface AccountOnlineIpRepository extends JpaRepository<AccountOnlineIp
     @Modifying
     @Query("DELETE FROM AccountOnlineIp a WHERE a.lastOnlineTime < :expireTime")
     void deleteExpiredRecords(@Param("expireTime") LocalDateTime expireTime);
+    
+    /**
+     * 使用原生 SQL 的 INSERT ... ON CONFLICT 语句实现 upsert 操作
+     * 如果记录存在则仅更新 last_online_time 和 update_time，否则插入新记录
+     */
+    @Modifying
+    @Query(value = "INSERT INTO account_online_ip (account_no, client_ip, node_ip, last_online_time, create_time, update_time) VALUES (?1, ?2, ?3, ?4, ?5, ?6) " +
+                   "ON CONFLICT(account_no, client_ip, node_ip) DO UPDATE SET " +
+                   "last_online_time = ?4, update_time = ?6", nativeQuery = true)
+    void upsertOnlineStatus(String accountNo, String clientIp, String nodeIp, LocalDateTime lastOnlineTime, LocalDateTime createTime, LocalDateTime updateTime);
 } 

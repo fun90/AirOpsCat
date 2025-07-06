@@ -43,6 +43,7 @@ public class AccountOnlineIpService {
 
     /**
      * 处理客户端在线状态更新
+     * 使用原子的 INSERT ... ON CONFLICT 操作，解决并发锁定问题
      * @param request 客户端请求
      * @param nodeIp 节点IP
      */
@@ -50,57 +51,16 @@ public class AccountOnlineIpService {
     public void updateOnlineStatus(ClientRequest request, String nodeIp) {
         String accountNo = request.getAccountNo();
         String clientIp = request.getClientIp();
-        
-        // 使用重试机制处理数据库锁定问题
-        int maxRetries = 3;
-        int retryCount = 0;
-        
-        while (retryCount < maxRetries) {
-            try {
-                // 使用 merge 操作替代 find + save，减少数据库操作
-                updateOnlineStatusInternal(accountNo, clientIp, nodeIp);
-                return; // 成功则退出
-            } catch (Exception e) {
-                retryCount++;
-                if (e.getMessage() != null && e.getMessage().contains("database is locked")) {
-                    if (retryCount < maxRetries) {
-                        log.warn("Database locked when updating online status for account {}, retrying ({}/{})", 
-                                accountNo, retryCount, maxRetries);
-                        // 等待一段时间后重试
-                        try {
-                            Thread.sleep(100 * retryCount); // 递增等待时间
-                        } catch (InterruptedException ie) {
-                            Thread.currentThread().interrupt();
-                            throw new RuntimeException("Update online status interrupted", ie);
-                        }
-                    } else {
-                        log.error("Failed to update online status for account {} after {} retries", accountNo, maxRetries);
-                        throw new RuntimeException("Failed to update online status after " + maxRetries + " retries", e);
-                    }
-                } else {
-                    // 非数据库锁定错误，直接抛出
-                    log.error("Unexpected error when updating online status for account {}: {}", accountNo, e.getMessage());
-                    throw e;
-                }
-            }
-        }
-    }
-    
-    private void updateOnlineStatusInternal(String accountNo, String clientIp, String nodeIp) {
         LocalDateTime now = LocalDateTime.now();
-        // 使用传统的 find + save 方式，但配合重试机制
-        Optional<AccountOnlineIp> recordOpt = accountOnlineIpRepository.findByAccountNoAndClientIpAndNodeIp(accountNo, clientIp, nodeIp);
-        if (recordOpt.isPresent()) {
-            AccountOnlineIp record = recordOpt.get();
-            record.setLastOnlineTime(now);
-            accountOnlineIpRepository.save(record);
-        } else {
-            AccountOnlineIp newRecord = new AccountOnlineIp();
-            newRecord.setAccountNo(accountNo);
-            newRecord.setClientIp(clientIp);
-            newRecord.setNodeIp(nodeIp);
-            newRecord.setLastOnlineTime(now);
-            accountOnlineIpRepository.save(newRecord);
+        
+        try {
+            // 使用原生 SQL 的 INSERT ... ON CONFLICT 语句，真正的原子操作
+            // 基于 (account_no, client_ip, node_ip) 的唯一约束进行 upsert
+            // 如果记录存在则仅更新时间字段，保留原有的 id 和 create_time
+            accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, nodeIp, now, now, now);
+        } catch (Exception e) {
+            log.error("Failed to update online status for account {}: {}", accountNo, e.getMessage());
+            throw new RuntimeException("Failed to update online status for account " + accountNo, e);
         }
     }
 
