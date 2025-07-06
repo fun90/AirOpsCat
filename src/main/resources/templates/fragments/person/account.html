@@ -2,8 +2,8 @@
     <div class="container-xl">
         <!-- Use the common data table template -->
         <div th:replace="~{fragments/common/data-table :: data-table(
-            '账户管理',
-            '添加账户',
+            '账户',
+            '新增',
             'accounts-app',
             'accounts',
             ~{fragments/person/account :: filters},
@@ -18,20 +18,13 @@
 
 <!-- Filters Fragment -->
 <th:block th:fragment="filters">
-    <!-- User filter -->
-    <div class="col-auto">
-        <select class="form-select" v-model="filters.userId" @change="fetchRecords">
-            <option value="">全部用户</option>
-            <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
-        </select>
-    </div>
     <!-- Status filter -->
     <div class="col-auto">
-        <select class="form-select" v-model="filters.status" @change="fetchRecords">
-            <option value="">全部状态</option>
+        <select class="form-select" v-model="filters.status" @change="fetchRecords" style="width: 100px;">
+            <option value="">全部</option>
             <option value="active">活跃</option>
             <option value="expired">已过期</option>
-            <option value="expiring">即将过期</option>
+            <option value="expiring">将过期</option>
             <option value="disabled">已禁用</option>
         </select>
     </div>
@@ -39,110 +32,30 @@
 
 <!-- Stats Cards Fragment -->
 <div th:fragment="stats-cards" class="card-body border-bottom">
-    <div class="row">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card card-sm" style="cursor: pointer;" @click="filterByStatus('')">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-auto">
-                            <span class="bg-primary text-white avatar">
-                                <i class="ti ti-device-desktop"></i>
-                            </span>
-                        </div>
-                        <div class="col">
-                            <div class="font-weight-medium">
-                                总账户数
-                            </div>
-                            <div class="text-muted">
-                                {{ stats.total || 0 }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    <!-- 统一紧凑统计条 -->
+    <div class="row g-2">
+        <div class="col-3">
+            <div class="text-center" role="button" @click="filterByStatus('')">
+                <div class="text-primary fw-bold h4 mb-0">{{ stats.total || 0 }}</div>
+                <div class="text-muted small">总计</div>
             </div>
         </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card card-sm" style="cursor: pointer;" @click="filterByStatus('active')">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-auto">
-                            <span class="bg-green text-white avatar">
-                                <i class="ti ti-circle-check"></i>
-                            </span>
-                        </div>
-                        <div class="col">
-                            <div class="font-weight-medium">
-                                活跃账户
-                            </div>
-                            <div class="text-muted">
-                                {{ stats.active || 0 }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <div class="col-3">
+            <div class="text-center" role="button" @click="filterByStatus('active')">
+                <div class="text-success fw-bold h4 mb-0">{{ stats.active || 0 }}</div>
+                <div class="text-muted small">活跃</div>
             </div>
         </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card card-sm">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-auto">
-                            <span class="bg-blue text-white avatar">
-                                <i class="ti ti-users"></i>
-                            </span>
-                        </div>
-                        <div class="col">
-                            <div class="font-weight-medium">
-                                在线用户
-                            </div>
-                            <div class="text-muted">
-                                {{ stats.onlineUsers || 0 }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <div class="col-3">
+            <div class="text-center">
+                <div class="text-info fw-bold h4 mb-0">{{ stats.onlineUsers || 0 }}</div>
+                <div class="text-muted small">在线</div>
             </div>
         </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card card-sm" style="cursor: pointer;" @click="filterByStatus('expired')">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-auto">
-                            <span class="bg-red text-white avatar">
-                                <i class="ti ti-calendar-x"></i>
-                            </span>
-                        </div>
-                        <div class="col">
-                            <div class="font-weight-medium">
-                                已过期
-                            </div>
-                            <div class="text-muted">
-                                {{ stats.expired || 0 }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card card-sm" style="cursor: pointer;" @click="filterByStatus('expiring')">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-auto">
-                            <span class="bg-yellow text-white avatar">
-                                <i class="ti ti-clock"></i>
-                            </span>
-                        </div>
-                        <div class="col">
-                            <div class="font-weight-medium">
-                                即将过期
-                            </div>
-                            <div class="text-muted">
-                                {{ stats.expiringSoon || 0 }} (7天内)
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <div class="col-3">
+            <div class="text-center" role="button" @click="filterByStatus('expiring')">
+                <div class="text-warning fw-bold h4 mb-0">{{ stats.expiringSoon || 0 }}</div>
+                <div class="text-muted small">将过期</div>
             </div>
         </div>
     </div>
@@ -154,13 +67,11 @@
     <tr>
         <th>ID</th>
         <th>人员</th>
-        <th>UUID</th>
         <th>账号</th>
         <th>状态</th>
         <th>在线IP</th>
         <th>流量使用</th>
         <th>到期时间</th>
-        <th>创建时间</th>
         <th class="w-1">操作</th>
     </tr>
     </thead>
@@ -175,15 +86,10 @@
             
         </td>
         <td>
-            <div class="d-flex align-items-center">
-                <span v-text="account.uuid" class="text-truncate" style="max-width: 150px;"></span>
-                <button @click="copyToClipboard(account.uuid)" class="btn btn-sm btn-ghost-secondary ms-2">
-                    <i class="ti ti-copy"></i>
-                </button>
-            </div>
-        </td>
-        <td>
             <span v-text="account.accountNo" class="text-truncate" style="max-width: 150px;"></span>
+            <button @click="copyToClipboard(account.accountNo)" class="btn btn-sm btn-ghost-secondary ms-2">
+                <i class="ti ti-copy"></i>
+            </button>
         </td>
         <td>
             <span class="badge" :class="getStatusBadgeClass(account)">
@@ -204,14 +110,23 @@
             </div>
         </td>
         <td>
-            <div v-if="account.bandwidth">
-                <div class="row align-items-center">
-                    <div class="col-auto">
+            <div v-if="account.bandwidth"
+                 :title="`使用率: ${Math.round(account.usagePercentage || 0)}%`"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 style="cursor: pointer; max-width: 125px;">
+                <div class="d-flex flex-column">
+                    <div class="small text-muted mb-1">
                         {{ formatBytes(account.totalUsedBytes) }} / {{ account.bandwidth }} GB
                     </div>
-                    <div class="col">
-                        <div class="progress progress-sm">
-                            <div class="progress-bar" :class="getProgressBarClass(account.usagePercentage)" :style="{ width: account.usagePercentage + '%' }"></div>
+                    <div class="progress progress-sm">
+                        <div class="progress-bar"
+                             :class="getProgressBarClass(account.usagePercentage)"
+                             :style="{ width: (account.usagePercentage || 0) + '%' }"
+                             role="progressbar"
+                             :aria-valuenow="account.usagePercentage || 0"
+                             aria-valuemin="0"
+                             aria-valuemax="100">
                         </div>
                     </div>
                 </div>
@@ -220,8 +135,11 @@
                 {{ formatBytes(account.totalUsedBytes) }}
             </div>
         </td>
-        <td v-text="formatDateTime(account.toDate) || '永不过期'"></td>
-        <td v-text="formatDateTime(account.createTime)"></td>
+        <td :title="`创建时间: ${formatDateTime(account.createTime) || '未知'}`"
+            data-bs-toggle="tooltip"
+            data-bs-placement="top"
+            style="cursor: pointer;"
+            v-text="formatDateTime(account.toDate) || '永不过期'"></td>
         <td>
             <div class="btn-list flex-nowrap">
                 <div class="dropdown position-static">
@@ -257,14 +175,14 @@
         </td>
     </tr>
     <tr v-if="loading">
-        <td colspan="10" class="text-center py-3">
+        <td colspan="9" class="text-center py-3">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </td>
     </tr>
     <tr v-else-if="records.length === 0">
-        <td colspan="10" class="text-center py-3">没有查到数据.</td>
+        <td colspan="9" class="text-center py-3">没有查到数据.</td>
     </tr>
     </tbody>
 </table>
@@ -276,7 +194,7 @@
         <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">添加账户</h5>
+                    <h5 class="modal-title">新增</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -377,12 +295,12 @@
                     <div class="mb-3">
                         <label class="form-label">标签</label>
                         <div class="row">
-                            <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
+                            <div v-for="tag in availableTags" :key="tag.id" class="col-6 col-md-auto mb-2">
                                 <label class="form-check">
                                     <input type="checkbox" class="form-check-input" :value="tag.id" v-model="newItem.tagIds">
-                                    <span class="form-check-label d-flex align-items-center">
+                                    <span class="form-check-label d-flex align-items-center text-nowrap">
                                         <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
-                                        {{ tag.name }}
+                                        <span class="text-truncate">{{ tag.name }}</span>
                                     </span>
                                 </label>
                             </div>
@@ -502,12 +420,12 @@
                     <div class="mb-3">
                         <label class="form-label">标签</label>
                         <div class="row">
-                            <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
+                            <div v-for="tag in availableTags" :key="tag.id" class="col-6 col-md-auto mb-2">
                                 <label class="form-check">
                                     <input type="checkbox" class="form-check-input" :value="tag.id" v-model="editedItem.tagIds">
-                                    <span class="form-check-label d-flex align-items-center">
+                                    <span class="form-check-label d-flex align-items-center text-nowrap">
                                         <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
-                                        {{ tag.name }}
+                                        <span class="text-truncate">{{ tag.name }}</span>
                                     </span>
                                 </label>
                             </div>
@@ -689,7 +607,7 @@
                                 <tbody>
                                     <tr v-for="ip in onlineIps" :key="ip.id">
                                         <td>
-                                            <span class="badge bg-primary">{{ ip.clientIp }}</span>
+                                            <span class="badge text-bg-primary">{{ ip.clientIp }}</span>
                                         </td>
                                         <td>
                                             <span class="text-muted">{{ ip.nodeIp }}</span>

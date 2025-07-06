@@ -28,6 +28,9 @@ public class OpenController {
     @Value("${airopscat.subscription.url}")
     private String subscriptionUrl;
 
+    @Value("${airopscat.api.token}")
+    private String apiToken;
+
     @Autowired
     public OpenController(AccountOnlineIpService accountOnlineIpService, AccountRepository accountRepository) {
         this.accountOnlineIpService = accountOnlineIpService;
@@ -35,9 +38,11 @@ public class OpenController {
     }
 
     @PostMapping("/account/online/{nodeIp}")
-    public ResponseEntity<Void> access(@RequestBody ClientRequest request, @PathVariable String nodeIp, @RequestHeader("Token") String apiToken) {
-        // TODO: 验证apiToken的合法性
-        // 这里可以添加token验证逻辑
+    public ResponseEntity<Void> access(@RequestBody ClientRequest request, @PathVariable String nodeIp, @RequestHeader("Token") String requestToken) {
+        // 验证API Token
+        if (!this.apiToken.equals(requestToken)) {
+            return ResponseEntity.status(401).build();
+        }
 
         accountOnlineIpService.updateOnlineStatus(request, nodeIp);
         return ResponseEntity.ok().build();
