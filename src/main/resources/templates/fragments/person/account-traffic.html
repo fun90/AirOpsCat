@@ -1,0 +1,317 @@
+<div th:fragment="content" class="page-body">
+    <div class="container-xl">
+        <div class="card" id="traffic-stats-app" @vue:mounted="mounted">
+            <div class="card-header">
+                <h3 class="card-title">流量统计</h3>
+                <div class="card-actions">
+                    <div class="row g-2">
+                        <div class="col">
+                            <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
+                        </div>
+                        <div class="col-auto">
+                            <select class="form-select" v-model="filterUserId" @change="fetchStats">
+                                <option value="">全部用户</option>
+                                <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <div class="input-group">
+                                <span class="input-group-text">开始日期</span>
+                                <input type="date" class="form-control" v-model="startDate" @change="fetchStats">
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <div class="input-group">
+                                <span class="input-group-text">结束日期</span>
+                                <input type="date" class="form-control" v-model="endDate" @change="fetchStats">
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-primary" @click="openCreateStatsModal">
+                                <i class="ti ti-plus"></i> 添加记录
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 流量使用概览卡片 -->
+            <div class="card-body border-bottom" v-if="filterUserId">
+                <div class="row">
+                    <div class="col-md-6 col-xl-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-blue text-white avatar">
+                                            <i class="ti ti-arrow-up"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            上传流量
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ totalUploadFormatted }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-xl-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-green text-white avatar">
+                                            <i class="ti ti-arrow-down"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            下载流量
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ totalDownloadFormatted }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-xl-3">
+                        <div class="card card-sm">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-auto">
+                                        <span class="bg-purple text-white avatar">
+                                            <i class="ti ti-exchange"></i>
+                                        </span>
+                                    </div>
+                                    <div class="col">
+                                        <div class="font-weight-medium">
+                                            总流量
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ formatBytes(totalUpload + totalDownload) }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body p-0">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>人员</th>
+                        <th>账户ID</th>
+                        <th>开始时间</th>
+                        <th>结束时间</th>
+                        <th>上传流量</th>
+                        <th>下载流量</th>
+                        <th>总流量</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr v-for="stat in stats" :key="stat.id">
+                        <td v-text="stat.id"></td>
+                        <td>
+                            <span v-if="getUserEmail(stat.userId)">{{ getUserEmail(stat.userId) }}</span>
+                            <span v-else>{{ stat.userId }}</span>
+                        </td>
+                        <td v-text="stat.accountId"></td>
+                        <td v-text="formatDate(stat.periodStart)"></td>
+                        <td v-text="formatDate(stat.periodEnd)"></td>
+                        <td v-text="formatBytes(stat.uploadBytes)"></td>
+                        <td v-text="formatBytes(stat.downloadBytes)"></td>
+                        <td v-text="formatBytes(stat.uploadBytes + stat.downloadBytes)"></td>
+                        <td>
+                            <div class="btn-list flex-nowrap">
+                                <button @click="openEditStatsModal(stat)" class="btn btn-sm btn-outline-primary">
+                                    <i class="ti ti-edit"></i> 编辑
+                                </button>
+                                <button @click="confirmDelete(stat)" class="btn btn-sm btn-outline-danger">
+                                    <i class="ti ti-trash"></i> 删除
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-if="loading">
+                        <td colspan="9" class="text-center py-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr v-else-if="stats.length === 0">
+                        <td colspan="9" class="text-center py-3">没有查到数据.</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <!-- 分页 -->
+            <div class="card-footer d-flex align-items-center">
+                <div class="d-flex">
+                    <div class="text-muted">
+                        每页显示
+                        <div class="mx-2 d-inline-block">
+                            <select class="form-select form-select-sm" v-model="pageSize" @change="changePageSize">
+                                <option value="5">5</option>
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+                        条记录
+                    </div>
+                    <div class="ms-auto text-muted" v-if="totalItems > 0">
+                        显示
+                        <span class="text-body strong">{{ startIndex }}</span> 到
+                        <span class="text-body strong">{{ endIndex }}</span> 条，共
+                        <span class="text-body strong">{{ totalItems }}</span> 条
+                    </div>
+                </div>
+                <ul class="pagination m-0 ms-auto" v-if="totalPages > 0">
+                    <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                        <a class="page-link" href="#" @click.prevent="prevPage">
+                            <i class="ti ti-chevron-left"></i> 上一页
+                        </a>
+                    </li>
+                    <!-- Display page numbers dynamically -->
+                    <li class="page-item" v-for="page in paginationPages" :key="page"
+                        :class="{ active: page === currentPage }">
+                        <a class="page-link" href="#" @click.prevent="goToPage(page)">{{ page }}</a>
+                    </li>
+                    <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                        <a class="page-link" href="#" @click.prevent="nextPage">
+                            下一页 <i class="ti ti-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Delete Confirmation Modal -->
+            <div class="modal modal-blur fade" id="deleteModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-body">
+                            <div class="modal-title">确定删除吗?</div>
+                            <div>若确认删除，数据将无法恢复</div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-danger" @click="deleteStats">确认</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Create Stats Modal -->
+            <div class="modal modal-blur fade" id="createStatsModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">添加流量统计</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label required">人员</label>
+                                <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="newStats.userId">
+                                    <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
+                                </select>
+                                <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label required">账户ID</label>
+                                <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.accountId }" v-model="newStats.accountId">
+                                <div class="invalid-feedback" v-if="validationErrors.accountId">{{ validationErrors.accountId }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label required">开始时间</label>
+                                <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.periodStart }" v-model="newStats.periodStart">
+                                <div class="invalid-feedback" v-if="validationErrors.periodStart">{{ validationErrors.periodStart }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label required">结束时间</label>
+                                <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.periodEnd }" v-model="newStats.periodEnd">
+                                <div class="invalid-feedback" v-if="validationErrors.periodEnd">{{ validationErrors.periodEnd }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">上传流量 (字节)</label>
+                                <input type="number" class="form-control" v-model="newStats.uploadBytes">
+                                <small class="form-hint">{{ formatBytes(newStats.uploadBytes || 0) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">下载流量 (字节)</label>
+                                <input type="number" class="form-control" v-model="newStats.downloadBytes">
+                                <small class="form-hint">{{ formatBytes(newStats.downloadBytes || 0) }}</small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" @click="createStats">创建</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Stats Modal -->
+            <div class="modal modal-blur fade" id="editStatsModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">编辑流量统计</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label required">人员</label>
+                                <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="editedStats.userId">
+                                    <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
+                                </select>
+                                <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label required">账户ID</label>
+                                <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.accountId }" v-model="editedStats.accountId">
+                                <div class="invalid-feedback" v-if="validationErrors.accountId">{{ validationErrors.accountId }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label required">开始时间</label>
+                                <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.periodStart }" v-model="editedStats.periodStart">
+                                <div class="invalid-feedback" v-if="validationErrors.periodStart">{{ validationErrors.periodStart }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label required">结束时间</label>
+                                <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.periodEnd }" v-model="editedStats.periodEnd">
+                                <div class="invalid-feedback" v-if="validationErrors.periodEnd">{{ validationErrors.periodEnd }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">上传流量 (字节)</label>
+                                <input type="number" class="form-control" v-model="editedStats.uploadBytes">
+                                <small class="form-hint">{{ formatBytes(editedStats.uploadBytes || 0) }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">下载流量 (字节)</label>
+                                <input type="number" class="form-control" v-model="editedStats.downloadBytes">
+                                <small class="form-hint">{{ formatBytes(editedStats.downloadBytes || 0) }}</small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" @click="updateStats">保存</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,384 @@
+<div th:fragment="content" class="page-body">
+    <div class="container-xl">
+        <div class="row row-deck row-cards">
+            <th:block th:replace="~{fragments/common/data-table :: data-table(
+                    '配置管理',
+                    '添加配置',
+                    'server-configs-app',
+                    'server-configs',
+                    ~{fragments/vpn/server-config :: filters},
+                    ~{fragments/vpn/server-config :: table-content},
+                    ~{fragments/vpn/server-config :: stats-cards},
+                    ~{fragments/vpn/server-config :: modals},
+                    'server-config-',
+                    false
+                )}"></th:block>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards Fragment -->
+<div th:fragment="stats-cards" class="card-body border-bottom">
+    <div class="row">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-primary text-white avatar">
+                                <i class="ti ti-settings"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                总配置数
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.total || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-blue text-white avatar">
+                                <i class="ti ti-brand-xray"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                Xray配置
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.xray || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-purple text-white avatar">
+                                <i class="ti ti-rocket"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                Hysteria配置
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.hysteria || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-green text-white avatar">
+                                <i class="ti ti-rocket"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                Hysteria2配置
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.hysteria2 || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters Fragment -->
+<th:block th:fragment="filters">
+    <!-- Config type filter -->
+    <div class="col-auto">
+        <select class="form-select" v-model="filters.configType" @change="fetchRecords">
+            <option value="">全部类型</option>
+            <option v-for="type in configTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+        </select>
+    </div>
+</th:block>
+
+<!-- Table Content Fragment -->
+<table th:fragment="table-content" class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>服务器</th>
+            <th>配置类型</th>
+            <th>配置路径</th>
+            <th>配置大小</th>
+            <th>创建时间</th>
+            <th>更新时间</th>
+            <th class="w-1">操作</th>
+        </tr>
+    </thead>
+    <tbody>
+    <tr v-for="config in records" :key="config.id">
+        <td v-text="config.id"></td>
+        <td>
+            <div class="d-flex flex-column">
+                <span v-text="config.serverIp"></span>
+                <span v-if="config.serverHost" class="text-muted small">{{ config.serverHost }}</span>
+                <span v-if="config.serverName" class="text-muted small">{{ config.serverName }}</span>
+            </div>
+        </td>
+        <td>
+            <span class="badge" :class="getConfigTypeBadgeClass(config.configType)">
+                {{ config.configType }}
+            </span>
+        </td>
+        <td>
+            <div class="text-truncate" style="max-width: 200px;" :title="config.path || '-'">
+                {{ config.path || '-' }}
+            </div>
+        </td>
+        <td>
+            <span class="badge bg-blue-lt">{{ getConfigSize(config.config) }}</span>
+        </td>
+        <td v-text="config.createTime"></td>
+        <td v-text="config.updateTime"></td>
+        <td>
+            <div class="btn-list">
+                <div class="dropdown position-static action-dropdown">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click="openEditModal(config)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="viewConfig(config)">
+                            <i class="ti ti-code"></i> 查看配置
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="copyConfig(config)">
+                            <i class="ti ti-copy"></i> 复制配置
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="#" @click.prevent="uploadConfigToServer(config)">
+                            <i class="ti ti-upload"></i> 上传到服务器
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(config)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="8" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="8" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table>
+
+<!-- Modals Fragment -->
+<div th:fragment="modals">
+
+    <!-- Edit Config Modal -->
+    <div class="modal modal-blur fade" id="server-config-editModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑配置</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label required">服务器</label>
+                                <select class="form-select" :class="{ 'is-invalid': validationErrors.serverId }" v-model="editedItem.serverId">
+                                    <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
+                                </select>
+                                <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.serverId }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label required">配置类型</label>
+                                <select class="form-select" :class="{ 'is-invalid': validationErrors.configType }" v-model="editedItem.configType">
+                                    <option v-for="type in configTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                </select>
+                                <div class="invalid-feedback" v-if="validationErrors.configType">{{ validationErrors.configType }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label class="form-label">配置路径</label>
+                                <input type="text" class="form-control" v-model="editedItem.path" placeholder="可选，如：/etc/xray/config.json">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label required">配置内容</label>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" @click="formatJson">
+                                    <i class="ti ti-code"></i> 格式化
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" @click="validateJson">
+                                    <i class="ti ti-check"></i> 验证
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" @click="clearConfig">
+                                    <i class="ti ti-trash"></i> 清空
+                                </button>
+                            </div>
+                        </div>
+                        <div class="position-relative">
+                            <textarea 
+                                class="form-control font-monospace config-textarea" 
+                                :class="{ 'is-invalid': validationErrors.config }" 
+                                v-model="editedItem.config" 
+                                rows="20" 
+                                placeholder="请输入配置内容（JSON格式）"
+                            ></textarea>
+                            <div class="config-size-badge">
+                                <span class="badge bg-blue-lt">{{ getConfigSize(editedItem.config) }}</span>
+                            </div>
+                        </div>
+                        <div class="invalid-feedback" v-if="validationErrors.config">{{ validationErrors.config }}</div>
+                        <div class="form-text">
+                            <i class="ti ti-info-circle"></i> 支持JSON格式，建议使用格式化功能确保格式正确
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="updateItem">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Config Modal -->
+    <div class="modal modal-blur fade" id="viewConfigModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">查看配置</h5>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-secondary" @click="copyConfigContent">
+                            <i class="ti ti-copy"></i> 复制
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" @click="downloadConfig">
+                            <i class="ti ti-download"></i> 下载
+                        </button>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">服务器</label>
+                                <input type="text" class="form-control" :value="getServerName(editedItem.serverId)" readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">配置类型</label>
+                                <input type="text" class="form-control" :value="editedItem.configType" readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">配置大小</label>
+                                <input type="text" class="form-control" :value="getConfigSize(editedItem.config)" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label class="form-label">配置路径</label>
+                                <input type="text" class="form-control" :value="editedItem.path || '-'" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Config Content Section -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label">配置内容</label>
+                            <div class="btn-group btn-group-sm config-view-controls">
+                                <button type="button" class="btn btn-outline-secondary" @click="toggleConfigView">
+                                    <i class="ti" :class="configViewMode === 'formatted' ? 'ti-eye-off' : 'ti-eye'"></i>
+                                    {{ configViewMode === 'formatted' ? '原始' : '格式化' }}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" @click="toggleConfigCollapse">
+                                    <i class="ti" :class="configCollapsed ? 'ti-chevron-down' : 'ti-chevron-up'"></i>
+                                    {{ configCollapsed ? '展开' : '折叠' }}
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div v-if="!configCollapsed" class="border rounded">
+                            <div v-if="configViewMode === 'formatted'" class="config-content">
+                                <pre class="mb-0">{{ formatJsonForDisplay(editedItem.config) }}</pre>
+                            </div>
+                            <div v-else class="config-content raw">
+                                <pre class="mb-0 font-monospace">{{ editedItem.config }}</pre>
+                            </div>
+                        </div>
+                        <div v-else class="text-center py-3 text-muted">
+                            <i class="ti ti-chevron-down"></i> 点击展开查看配置内容
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Progress Modal -->
+    <div class="modal modal-blur fade upload-progress-modal" id="uploadProgressModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <div class="mb-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <h5>正在上传配置到服务器...</h5>
+                    <p class="text-muted">{{ uploadProgressMessage }}</p>
+                    <div v-if="uploadProgress > 0" class="progress">
+                        <div class="progress-bar" :style="{ width: uploadProgress + '%' }"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

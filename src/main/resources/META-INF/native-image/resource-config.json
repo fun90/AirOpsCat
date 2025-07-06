@@ -1,0 +1,24 @@
+{
+  "resources": {
+    "includes": [
+      {
+        "pattern": "com/jcraft/jsch/.*"
+      },
+      {
+        "pattern": "com/jcraft/jsch/jce/.*"
+      },
+      {
+        "pattern": "com/jcraft/jsch/jcraft/.*"
+      },
+      {
+        "pattern": "com/jcraft/jsch/jgss/.*"
+      },
+      {
+        "pattern": "com/jcraft/jsch/jzlib/.*"
+      },
+      {
+        "pattern": ".*\\.properties"
+      }
+    ]
+  }
+}

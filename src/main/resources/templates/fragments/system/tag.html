@@ -1,0 +1,414 @@
+<div th:fragment="content" class="page-body">
+    <div class="container-xl">
+        <!-- Use the common data table template -->
+        <div th:replace="~{fragments/common/data-table :: data-table(
+            '标签管理',
+            '添加标签',
+            'tags-app',
+            'tags',
+            ~{fragments/system/tag :: filters},
+            ~{fragments/system/tag :: table-content},
+            ~{fragments/system/tag :: stats-cards},
+            ~{fragments/system/tag :: modals},
+            'tag-',
+            true
+        )}"></div>
+    </div>
+</div>
+
+<!-- Filters Fragment -->
+<th:block th:fragment="filters">
+    <!-- Status filter -->
+    <div class="col-auto">
+        <select class="form-select" v-model="filters.status" @change="fetchRecords">
+            <option value="">全部状态</option>
+            <option value="0">启用</option>
+            <option value="1">禁用</option>
+        </select>
+    </div>
+</th:block>
+
+<!-- Stats Cards Fragment -->
+<div th:fragment="stats-cards" class="card-body border-bottom">
+    <div class="row">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-primary text-white avatar">
+                                <i class="ti ti-tag"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                总标签数
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.total || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-green text-white avatar">
+                                <i class="ti ti-circle-check"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                启用标签
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.enabled || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-red text-white avatar">
+                                <i class="ti ti-ban"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                禁用标签
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.disabled || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-blue text-white avatar">
+                                <i class="ti ti-link"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                关联关系
+                            </div>
+                            <div class="text-muted">
+                                管理标签关联
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table Content Fragment -->
+<table th:fragment="table-content" class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>标签名称</th>
+        <th>描述</th>
+        <th>颜色</th>
+        <th>状态</th>
+        <th>关联节点</th>
+        <th>关联账户</th>
+        <th>创建时间</th>
+        <th class="w-1">操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="tag in records" :key="tag.id">
+        <td v-text="tag.id"></td>
+        <td>
+            <div class="d-flex align-items-center">
+                <span class="badge" :style="{ backgroundColor: tag.color || '#6c757d' }" style="margin-right: 8px; width: 12px; height: 12px; border-radius: 50%;"></span>
+                <span v-text="tag.name"></span>
+            </div>
+        </td>
+        <td v-text="tag.description || '-'"></td>
+        <td>
+            <div v-if="tag.color" class="d-flex align-items-center">
+                <span :style="{ backgroundColor: tag.color }" class="badge" style="width: 20px; height: 20px; border-radius: 4px; margin-right: 8px;"></span>
+                <span v-text="tag.color"></span>
+            </div>
+            <span v-else>-</span>
+        </td>
+        <td>
+            <span class="badge" :class="getStatusBadgeClass(tag)">
+                {{ getStatusDescription(tag) }}
+            </span>
+        </td>
+        <td>
+            <span class="badge bg-blue" v-text="tag.nodeCount || 0"></span>
+        </td>
+        <td>
+            <span class="badge bg-green" v-text="tag.accountCount || 0"></span>
+        </td>
+        <td v-text="formatDateTime(tag.createTime)"></td>
+        <td>
+            <div class="btn-list flex-nowrap">
+                <div class="dropdown position-static">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click.prevent="openEditModal(tag)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openTagAssociationModal(tag)">
+                            <i class="ti ti-link"></i> 管理关联
+                        </a>
+                        <a v-if="tag.disabled === 0" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(tag, true)">
+                            <i class="ti ti-ban"></i> 禁用
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(tag, false)">
+                            <i class="ti ti-check"></i> 启用
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(tag)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="9" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="9" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table>
+
+<!-- All Modals Fragment -->
+<div th:fragment="modals">
+    <!-- Create Tag Modal -->
+    <div class="modal modal-blur fade" id="tag-createModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加标签</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label required">标签名称</label>
+                        <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.name }" v-model="newItem.name" placeholder="请输入标签名称">
+                        <div class="invalid-feedback" v-if="validationErrors.name">{{ validationErrors.name }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">描述</label>
+                        <textarea class="form-control" v-model="newItem.description" placeholder="请输入标签描述" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">颜色</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" v-model="newItem.color" placeholder="#6c757d">
+                            <input type="color" class="form-control form-control-color" v-model="newItem.color" style="max-width: 60px;">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" v-model="newItem.disabled">
+                            <span class="form-check-label">禁用标签</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="createItem">创建</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Tag Modal -->
+    <div class="modal modal-blur fade" id="tag-editModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑标签</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label required">标签名称</label>
+                        <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.name }" v-model="editedItem.name" placeholder="请输入标签名称">
+                        <div class="invalid-feedback" v-if="validationErrors.name">{{ validationErrors.name }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">描述</label>
+                        <textarea class="form-control" v-model="editedItem.description" placeholder="请输入标签描述" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">颜色</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" v-model="editedItem.color" placeholder="#6c757d">
+                            <input type="color" class="form-control form-control-color" v-model="editedItem.color" style="max-width: 60px;">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" :checked="editedItem.disabled === 1" @change="editedItem.disabled = $event.target.checked ? 1 : 0">
+                            <span class="form-check-label">禁用标签</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="updateItem">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tag Association Modal -->
+    <div class="modal modal-blur fade" id="tagAssociationModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">管理标签关联</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div v-if="selectedItem">
+                        <div class="row mb-4">
+                            <div class="col">
+                                <h6 class="d-flex align-items-center">
+                                    <span class="badge" :style="{ backgroundColor: selectedItem.color || '#6c757d' }" style="margin-right: 8px; width: 16px; height: 16px; border-radius: 50%;"></span>
+                                    {{ selectedItem.name }}
+                                </h6>
+                                <p class="text-muted" v-if="selectedItem.description">{{ selectedItem.description }}</p>
+                            </div>
+                        </div>
+                        
+                        <ul class="nav nav-tabs" data-bs-toggle="tabs">
+                            <li class="nav-item">
+                                <a href="#tab-nodes" class="nav-link active" data-bs-toggle="tab">关联节点 ({{ associationData.nodes.length }})</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="#tab-accounts" class="nav-link" data-bs-toggle="tab">关联账户 ({{ associationData.accounts.length }})</a>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content">
+                            <div class="tab-pane show active" id="tab-nodes">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div v-if="associationData.nodes.length > 0">
+                                            <div class="table-responsive">
+                                                <table class="table table-sm">
+                                                    <thead>
+                                                    <tr>
+                                                        <th>ID</th>
+                                                        <th>名称</th>
+                                                        <th>协议</th>
+                                                        <th>端口</th>
+                                                        <th>服务器</th>
+                                                        <th class="w-1">操作</th>
+                                                    </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                    <tr v-for="node in associationData.nodes" :key="node.id">
+                                                        <td v-text="node.id"></td>
+                                                        <td v-text="node.name || '-'"></td>
+                                                        <td v-text="node.protocol"></td>
+                                                        <td v-text="node.port"></td>
+                                                        <td v-text="node.server ? node.server.name : '-'"></td>
+                                                        <td>
+                                                            <button class="btn btn-sm btn-outline-danger" @click="removeTagFromNode(selectedItem.id, node.id)">
+                                                                <i class="ti ti-trash"></i>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                        <div v-else class="text-center py-4 text-muted">
+                                            <i class="ti ti-inbox" style="font-size: 2rem;"></i>
+                                            <p>暂无关联的节点</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="tab-pane" id="tab-accounts">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div v-if="associationData.accounts.length > 0">
+                                            <div class="table-responsive">
+                                                <table class="table table-sm">
+                                                    <thead>
+                                                    <tr>
+                                                        <th>ID</th>
+                                                        <th>用户</th>
+                                                        <th>UUID</th>
+                                                        <th>状态</th>
+                                                        <th>到期时间</th>
+                                                        <th class="w-1">操作</th>
+                                                    </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                    <tr v-for="account in associationData.accounts" :key="account.id">
+                                                        <td v-text="account.id"></td>
+                                                        <td v-text="account.userEmail || account.userId"></td>
+                                                        <td>
+                                                            <span v-text="account.uuid" class="text-truncate d-inline-block" style="max-width: 120px;"></span>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge" :class="getAccountStatusBadgeClass(account)">
+                                                                {{ getAccountStatusDescription(account) }}
+                                                            </span>
+                                                        </td>
+                                                        <td v-text="formatDateTime(account.toDate) || '永不过期'"></td>
+                                                        <td>
+                                                            <button class="btn btn-sm btn-outline-danger" @click="removeTagFromAccount(selectedItem.id, account.id)">
+                                                                <i class="ti ti-trash"></i>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                        <div v-else class="text-center py-4 text-muted">
+                                            <i class="ti ti-inbox" style="font-size: 2rem;"></i>
+                                            <p>暂无关联的账户</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 

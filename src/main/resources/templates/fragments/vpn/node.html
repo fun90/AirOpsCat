@@ -1,0 +1,769 @@
+<div th:fragment="content"  class="page-body">
+    <div class="container-xl">
+        <div class="row row-deck row-cards">
+            <th:block th:replace="~{fragments/common/data-table :: data-table(
+                    '节点管理',
+                    '添加节点',
+                    'nodes-app',
+                    'nodes',
+                    ~{fragments/vpn/node :: filters},
+                    ~{fragments/vpn/node :: table-content},
+                    ~{fragments/vpn/node :: stats-cards},
+                    ~{fragments/vpn/node :: modals},
+                    'node-',
+                    true
+                )}"></th:block>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards Fragment -->
+<div th:fragment="stats-cards" class="card-body border-bottom">
+    <div class="row">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-primary text-white avatar">
+                                <i class="ti ti-router"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                总节点数
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.total || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-green text-white avatar">
+                                <i class="ti ti-circle-check"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                活跃节点
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.active || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-blue text-white avatar">
+                                <i class="ti ti-arrow-bar-to-up"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                代理节点
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.proxy || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-purple text-white avatar">
+                                <i class="ti ti-arrow-bar-down"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                落地节点
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.landing || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters Fragment -->
+<th:block th:fragment="filters">
+    <!-- Server filter -->
+    <div class="col-auto">
+        <select class="form-select" v-model="filters.serverId" @change="fetchRecords">
+            <option value="">全部服务器</option>
+            <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
+        </select>
+    </div>
+    <!-- Type filter -->
+    <div class="col-auto">
+        <select class="form-select" v-model="filters.type" @change="fetchRecords">
+            <option value="">全部类型</option>
+            <option v-for="type in nodeTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+        </select>
+    </div>
+    <!-- Status filter -->
+    <div class="col-auto">
+        <select class="form-select" v-model="filters.status" @change="fetchRecords">
+            <option value="">全部状态</option>
+            <option value="active">已启用</option>
+            <option value="disabled">已禁用</option>
+        </select>
+    </div>
+
+    <div class="col-auto">
+        <button class="btn btn-secondary" @click="openBatchDeployModal">
+            <i class="ti ti-rocket"></i> 全部部署
+        </button>
+    </div>
+</th:block>
+
+<!-- Table Content Fragment -->
+<table th:fragment="table-content" class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>名称</th>
+            <th>服务器</th>
+            <th>端口</th>
+            <th>类型</th>
+            <th>协议</th>
+            <th>出站</th>
+            <th>级别</th>
+            <th>启用状态</th>
+            <th>部署状态</th>
+            <th class="w-1">操作</th>
+        </tr>
+    </thead>
+    <tbody>
+    <tr v-for="node in records" :key="node.id">
+        <td v-text="node.id"></td>
+        <td>
+            <div class="d-flex flex-column">
+                <span v-text="node.name || '-'"></span>
+                <span v-if="node.remark" class="text-muted small">{{ node.remark }}</span>
+            </div>
+        </td>
+        <td>
+            <div class="d-flex flex-column">
+                <span v-text="node.serverIp"></span>
+                <span v-if="node.serverHost" class="text-muted small">{{ node.serverHost }}</span>
+            </div>
+        </td>
+        <td v-text="node.port"></td>
+        <td>
+                <span class="badge" :class="getTypeBadgeClass(node.type)">
+                    {{ node.typeDescription }}
+                </span>
+        </td>
+        <td>
+                <span class="badge text-bg-info">
+                    {{ node.protocol }}
+                </span>
+        </td>
+        <td v-if="node.type === 1">
+            -
+        </td>
+        <td v-else>
+            <div class="d-flex flex-column">
+                <span>{{ node.outName || '默认' }}</span>
+                <span v-if="node.outServerHost" class="text-muted small">{{ node.outServerHost }}:{{ node.outPort }}</span>
+            </div>
+        </td>
+        <td v-text="node.level || '-'"></td>
+        <td>
+            <span class="badge" :class="getStatusBadgeClass(node.disabled)">
+                {{ node.disabled === 0 ? '已启用' : '已禁用' }}
+            </span>
+        </td>
+        <td>
+            <span class="badge" :class="getDeploymentStatusBadgeClass(node.deployed)">
+                {{ node.deployed === 0 ? '未部署' : '已部署' }}
+            </span>
+        </td>
+        <td>
+            <div class="btn-list">
+                <div class="dropdown position-static action-dropdown">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click="openEditModal(node)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="viewNodeConfig(node)">
+                            <i class="ti ti-code"></i> 查看配置
+                        </a>
+                        <a v-if="node.disabled === 1" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(node, false)">
+                            <i class="ti ti-check"></i> 启用
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(node, true)">
+                            <i class="ti ti-ban"></i> 禁用
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="#" @click.prevent="copyNode(node)">
+                            <i class="ti ti-copy"></i> 复制
+                        </a>
+                        <a v-if="node.deployed === 0" class="dropdown-item" href="#" @click.prevent="deployNode(node)">
+                            <i class="ti ti-rocket"></i> 部署
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="deployNode(node, true)">
+                            <i class="ti ti-rocket"></i> 重新部署
+                        </a>
+                        <div v-if="node.deployed === 1 && node.disabled === 1" class="dropdown-divider"></div>
+                        <a v-if="node.deployed === 1 && node.disabled === 1" class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(node)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="9" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="9" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table>
+
+<!-- Modals Fragment -->
+<div th:fragment="modals">
+    <!-- Create Node Modal -->
+    <div class="modal modal-blur fade" id="node-createModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加节点</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs" data-bs-toggle="tabs">
+                        <li class="nav-item">
+                            <a href="#tabs-basic" class="nav-link active" data-bs-toggle="tab">基本信息</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#tabs-inbound" class="nav-link" data-bs-toggle="tab">入站配置</a>
+                        </li>
+                        <li class="nav-item" v-if="newItem.type === 0">
+                            <a href="#tabs-outbound" class="nav-link" data-bs-toggle="tab">出站配置</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#tabs-rule" class="nav-link" data-bs-toggle="tab">规则配置</a>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane active show" id="tabs-basic">
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">节点名称</label>
+                                        <input type="text" class="form-control" v-model="newItem.name">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">节点类型</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.type }" v-model="newItem.type" @change="onTypeChange">
+                                            <option v-for="type in nodeTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.type">{{ validationErrors.type }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">服务器</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.serverId }" v-model="newItem.serverId" @change="onServerChange">
+                                            <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.serverId }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">端口</label>
+                                        <div class="input-group">
+                                            <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.port }" v-model="newItem.port" min="1" max="65535">
+                                            <button class="btn" type="button" @click="getAvailablePort">自动获取</button>
+                                        </div>
+                                        <div class="invalid-feedback" v-if="validationErrors.port">{{ validationErrors.port }}</div>
+                                        <small class="form-hint" v-if="portCheckMessage">{{ portCheckMessage }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">级别</label>
+                                        <input type="number" class="form-control" v-model="newItem.level" min="0">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">备注</label>
+                                <textarea class="form-control" v-model="newItem.remark" rows="2"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">标签</label>
+                                <div class="row">
+                                    <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
+                                        <label class="form-check">
+                                            <input type="checkbox" class="form-check-input" :value="tag.id" v-model="newItem.tagIds">
+                                            <span class="form-check-label d-flex align-items-center">
+                                                <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
+                                                {{ tag.name }}
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" v-model="newItem.disabled">
+                                    <span class="form-check-label">禁用节点</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="tabs-inbound">
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">协议</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="newNodeInbound.protocol" @change="onProtocolChange">
+                                            <option v-for="protocol in protocolTypes" :key="protocol.value" :value="protocol.value" :disabled="protocol.type !== newItem.type">{{ protocol.label }} {{ protocol.type !== newItem.type ? '(不可选)' : '' }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.protocol">{{ validationErrors.protocol }}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 根据不同的协议类型显示不同的参数表单 -->
+                            <div v-if="newNodeInbound.protocol === 'VLESS'">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">加密方式</label>
+                                            <select class="form-select" v-model="newNodeInbound.encryption">
+                                                <option value="none">none</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">UUID</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" v-model="newNodeInbound.uuid">
+                                                <button class="btn" type="button" @click="generateUuid">生成</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Shadowsocks Protocol Options -->
+                            <div v-else-if="newNodeInbound.protocol === 'Shadowsocks'">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">加密方式</label>
+                                            <select class="form-select" v-model="newNodeInbound.method">
+                                                <option value="aes-256-gcm">aes-256-gcm</option>
+                                                <option value="chacha20-poly1305">chacha20-poly1305</option>
+                                                <option value="2022-blake3-aes-256-gcm">2022-blake3-aes-256-gcm</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">密码</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" v-model="newNodeInbound.password">
+                                                <button class="btn" type="button" @click="generateRandomPassword">生成</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Socks Protocol Options -->
+                            <div v-else-if="newNodeInbound.protocol === 'Socks'">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">用户名</label>
+                                            <input type="text" class="form-control" v-model="newNodeInbound.username">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">密码</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" v-model="newNodeInbound.password">
+                                                <button class="btn" type="button" @click="generateRandomPassword">生成</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Hysteria2 Protocol Options -->
+                            <div v-else-if="newNodeInbound.protocol === 'Hysteria2'">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">密码</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" v-model="newNodeInbound.password">
+                                                <button class="btn" type="button" @click="generateRandomPassword">生成</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">上行带宽 (Mbps)</label>
+                                            <input type="number" class="form-control" v-model="newNodeInbound.up_mbps" min="1">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">下行带宽 (Mbps)</label>
+                                            <input type="number" class="form-control" v-model="newNodeInbound.down_mbps" min="1">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ShadowTLS Protocol Options -->
+                            <div v-else-if="newNodeInbound.protocol === 'ShadowTLS'">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">版本</label>
+                                            <select class="form-select" v-model="newNodeInbound.version">
+                                                <option :value="1">1</option>
+                                                <option :value="2">2</option>
+                                                <option :value="3">3</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">密码</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" v-model="newNodeInbound.password">
+                                                <button class="btn" type="button" @click="generateRandomPassword">生成</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">高级配置 (JSON)</label>
+                                        <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="newNodeInboundJson"  placeholder='{"key": "value"}'></textarea>
+                                        <small class="form-hint">可以添加协议特有的其他配置参数</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="tabs-outbound" v-if="newItem.type === 0">
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">出站配置</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="newItem.outId">
+                                            <option value="null">默认</option>
+                                            <option v-for="node in landingNodes" :key="node.id" :value="node.id">{{ node.name }}({{ node.serverHost }}:{{ node.port }})</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.outId }}</div>
+                                        <small class="form-hint">用于配置节点的出站</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="tabs-rule">
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">规则配置 (JSON)</label>
+                                        <textarea class="form-control font-monospace" v-model="newNodeRuleJson" rows="10" placeholder='{"key": "value"}'></textarea>
+                                        <small class="form-hint">用于配置节点的路由规则</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary btn-3" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary btn-5 ms-auto" @click="createItem">创建</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Node Modal -->
+    <div class="modal modal-blur fade" id="node-editModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑节点</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs" data-bs-toggle="tabs">
+                        <li class="nav-item">
+                            <a href="#edit-tabs-basic" class="nav-link active" data-bs-toggle="tab">基本信息</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#edit-tabs-inbound" class="nav-link" data-bs-toggle="tab">入站配置</a>
+                        </li>
+                        <li class="nav-item" v-if="editedItem.type === 0">
+                            <a href="#edit-tabs-outbound" class="nav-link" data-bs-toggle="tab">出站配置</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#edit-tabs-rule" class="nav-link" data-bs-toggle="tab">规则配置</a>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane active show" id="edit-tabs-basic">
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">节点名称</label>
+                                        <input type="text" class="form-control" v-model="editedItem.name">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">节点类型</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.type }" v-model="editedItem.type">
+                                            <option value=""></option>
+                                            <option v-for="type in nodeTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.type">{{ validationErrors.type }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">服务器</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.serverId }" v-model="editedItem.serverId" @change="onEditServerChange">
+                                            <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.serverId }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">端口</label>
+                                        <div class="input-group">
+                                            <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.port }" v-model="editedItem.port" min="1" max="65535">
+                                            <button class="btn" type="button" @click="getEditAvailablePort">自动获取</button>
+                                        </div>
+                                        <div class="invalid-feedback" v-if="validationErrors.port">{{ validationErrors.port }}</div>
+                                        <small class="form-hint" v-if="editPortCheckMessage">{{ editPortCheckMessage }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">级别</label>
+                                        <input type="number" class="form-control" v-model="editedItem.level" min="0">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">备注</label>
+                                <textarea class="form-control" v-model="editedItem.remark" rows="2"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">标签</label>
+                                <div class="row">
+                                    <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
+                                        <label class="form-check">
+                                            <input type="checkbox" class="form-check-input" :value="tag.id" v-model="editedItem.tagIds">
+                                            <span class="form-check-label d-flex align-items-center">
+                                                <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
+                                                {{ tag.name }}
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" :checked="editedItem.disabled === 1" @change="editedItem.disabled = $event.target.checked ? 1 : 0">
+                                    <span class="form-check-label">禁用节点</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="edit-tabs-inbound">
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">协议</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="editedNodeInbound.protocol" @change="onEditProtocolChange">
+                                            <option v-for="protocol in protocolTypes" :key="protocol.value" :value="protocol.value" :disabled="protocol.type !== editedItem.type">{{ protocol.label }} {{ protocol.type !== editedItem.type ? '(不可选)' : '' }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.protocol">{{ validationErrors.protocol }}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 各种协议的编辑表单与新建类似，根据需要可以重复上面的条件表单 -->
+
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">高级配置 (JSON)</label>
+                                        <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="editedNodeInboundJson" placeholder='{"key": "value"}'></textarea>
+                                        <small class="form-hint">可以添加协议特有的其他配置参数</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="edit-tabs-outbound" v-if="editedItem.type === 0">
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">出站配置</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="editedItem.outId">
+                                            <option :value="0">默认</option>
+                                            <option v-for="node in landingNodes" :key="node.id" :value="node.id">{{ node.name }}({{ node.serverHost }}:{{ node.port }})</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.outId }}</div>
+                                        <small class="form-hint">用于配置节点的出站</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="edit-tabs-rule">
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">规则配置 (JSON)</label>
+                                        <textarea class="form-control font-monospace" v-model="editedNodeRuleJson" rows="10" placeholder='{"key": "value"}'></textarea>
+                                        <small class="form-hint">用于配置节点的路由规则</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="updateItem">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Config Modal -->
+    <div class="modal modal-blur fade" id="viewConfigModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">节点配置</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs" data-bs-toggle="tabs">
+                        <li class="nav-item">
+                            <a href="#view-tabs-inbound" class="nav-link active" data-bs-toggle="tab">入站配置</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#view-tabs-outbound" class="nav-link" data-bs-toggle="tab">出站配置</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#view-tabs-rule" class="nav-link" data-bs-toggle="tab">规则配置</a>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane active show" id="view-tabs-inbound">
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <pre class="p-3 rounded">{{ editedNodeInboundJson }}</pre>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="view-tabs-outbound">
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <pre class="p-3 rounded">{{ editedNodeOutbound }}</pre>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="view-tabs-rule">
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <pre class="p-3 rounded">{{ editedNodeRuleJson }}</pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Batch Deploy Modal -->
+    <div class="modal modal-blur fade" id="batchDeployModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">批量部署节点</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>确定要部署全部节点吗?</p>
+                    <div v-if="batchDeploying" class="progress">
+                        <div class="progress-bar progress-bar-indeterminate bg-primary"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="deploySelectedNodes" :disabled="batchDeploying">部署</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

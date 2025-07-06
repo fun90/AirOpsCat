@@ -1,0 +1,624 @@
+<div th:fragment="content" class="page-body">
+    <div class="container-xl">
+        <!-- Use the common data table template -->
+        <div th:replace="~{fragments/common/data-table :: data-table(
+            '服务器管理',
+            '添加服务器',
+            'servers-app',
+            'servers',
+            ~{fragments/device/server :: filters},
+            ~{fragments/device/server :: table-content},
+            ~{fragments/device/server :: stats-cards},
+            ~{fragments/device/server :: modals},
+            'server-',
+            true
+        )}"></div>
+    </div>
+</div>
+
+<!-- Filters Fragment -->
+<th:block th:fragment="filters">
+    <!-- Supplier filter -->
+    <div class="col-auto">
+        <select class="form-select" v-model="filters.supplier" @change="fetchRecords">
+            <option value="">全部供应商</option>
+            <option v-for="(count, supplier) in supplierStats" :key="supplier" :value="supplier">{{ supplier }} ({{ count }})</option>
+        </select>
+    </div>
+    <!-- Status filter -->
+    <div class="col-auto">
+        <select class="form-select" v-model="filters.status" @change="fetchRecords">
+            <option value="">全部状态</option>
+            <option value="active">活跃</option>
+            <option value="expired">已过期</option>
+            <option value="disabled">已禁用</option>
+        </select>
+    </div>
+</th:block>
+
+<!-- Stats Cards Fragment -->
+<div th:fragment="stats-cards" class="card-body border-bottom">
+    <div class="row">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-primary text-white avatar">
+                                <i class="ti ti-server"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                总服务器数
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.total || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-green text-white avatar">
+                                <i class="ti ti-circle-check"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                活跃服务器
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.active || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-red text-white avatar">
+                                <i class="ti ti-calendar-x"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                已过期
+                            </div>
+                            <div class="text-muted">
+                                {{ stats.expired || 0 }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-yellow text-white avatar">
+                                <i class="ti ti-coin"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">
+                                总成本
+                            </div>
+                            <div class="text-muted">
+                                ¥ {{ parseFloat(totalEffectiveCost).toFixed(2) }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table Content Fragment -->
+<table th:fragment="table-content" class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+    <tr>
+        <th>IP</th>
+        <th>主机名/名称</th>
+        <th>状态</th>
+        <th>供应商</th>
+        <th>SSH</th>
+        <th>认证方式</th>
+        <th>到期时间</th>
+        <th>价格</th>
+        <th class="w-1">操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="server in records" :key="server.id">
+        <td>
+            <div class="d-flex align-items-center">
+                <span v-text="server.ip" class="text-truncate"></span>
+                <button @click="copyToClipboard(server.ip)" class="btn btn-sm btn-ghost-secondary ms-2">
+                    <i class="ti ti-copy"></i>
+                </button>
+            </div>
+        </td>
+        <td>
+            <div class="d-flex flex-column">
+                <span v-if="server.host">{{ server.host }}</span>
+                <span v-if="server.name" class="text-muted">{{ server.name }}</span>
+            </div>
+        </td>
+        <td>
+            <span class="badge" :class="getStatusBadgeClass(server)">
+                {{ getStatusDescription(server) }}
+            </span>
+        </td>
+        <td v-text="server.supplier || '-'"></td>
+        <td v-text="server.sshPort || 22"></td>
+        <td>
+            <div class="d-flex flex-column">
+                <span>{{ getAuthTypeLabel(server.authType) }}</span>
+                <small v-if="server.username" class="text-muted">{{ server.username }}</small>
+            </div>
+        </td>
+        <td v-text="formatDate(server.expireDate) || '永不过期'"></td>
+        <td>
+            <span v-if="server.price">
+                ¥ {{ server.price.toFixed(2) }}
+                <span v-if="server.multiple && server.multiple != 1" class="text-muted">
+                    (×{{ server.multiple }})
+                </span>
+            </span>
+            <span v-else>-</span>
+        </td>
+        <td>
+            <div class="btn-list flex-nowrap">
+                <div class="dropdown position-static">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click.prevent="openEditModal(server)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openTestConnectionModal(server)">
+                            <i class="ti ti-connection"></i> 测试连接
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openRenewServerModal(server)">
+                            <i class="ti ti-calendar-plus"></i> 续期
+                        </a>
+                        <a v-if="server.disabled === 0" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(server, true)">
+                            <i class="ti ti-ban"></i> 禁用
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(server, false)">
+                            <i class="ti ti-check"></i> 启用
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(server)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="9" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="9" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table>
+
+<!-- Modals Fragment -->
+<div th:fragment="modals">
+    <!-- Create Server Modal -->
+    <div class="modal modal-blur fade" id="server-createModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加服务器</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs" data-bs-toggle="tabs">
+                        <li class="nav-item">
+                            <a href="#tabs-basic" class="nav-link active" data-bs-toggle="tab">基本信息</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#tabs-auth" class="nav-link" data-bs-toggle="tab">认证信息</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#tabs-config" class="nav-link" data-bs-toggle="tab">配置信息</a>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane active show" id="tabs-basic">
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">IP地址</label>
+                                        <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.ip }" v-model="newItem.ip">
+                                        <div class="invalid-feedback" v-if="validationErrors.ip">{{ validationErrors.ip }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">SSH端口</label>
+                                        <input type="number" class="form-control" v-model="newItem.sshPort" placeholder="22">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">主机名</label>
+                                        <input type="text" class="form-control" v-model="newItem.host">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">名称</label>
+                                        <input type="text" class="form-control" v-model="newItem.name">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">供应商</label>
+                                        <input type="text" class="form-control" v-model="newItem.supplier">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">到期日期</label>
+                                        <input type="date" class="form-control" v-model="newItem.expireDate">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">价格</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">¥</span>
+                                            <input type="number" step="0.01" min="0" class="form-control" v-model="newItem.price">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">倍率</label>
+                                        <input type="number" step="0.01" min="0" class="form-control" v-model="newItem.multiple" placeholder="1.0">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">备注</label>
+                                <textarea class="form-control" v-model="newItem.remark" rows="3"></textarea>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="tabs-auth">
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">认证方式</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.authType }" v-model="newItem.authType">
+                                            <option v-for="type in authTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.authType">{{ validationErrors.authType }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">用户名</label>
+                                        <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.username }" v-model="newItem.username" placeholder="root">
+                                        <div class="invalid-feedback" v-if="validationErrors.username">{{ validationErrors.username }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-if="newItem.authType === 'PASSWORD'">
+                                <div class="mb-3">
+                                    <label class="form-label required">密码</label>
+                                    <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="newItem.auth">
+                                    <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                </div>
+                            </div>
+                            <div v-else-if="newItem.authType === 'KEY'">
+                                <div class="mb-3">
+                                    <label class="form-label required">密钥</label>
+                                    <textarea class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="newItem.auth" rows="8"></textarea>
+                                    <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="tabs-config">
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">中转配置 (JSON)</label>
+                                        <textarea class="form-control font-monospace" v-model="transitConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
+                                        <small class="form-hint">用于配置中转节点相关参数</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">核心配置 (JSON)</label>
+                                        <textarea class="form-control font-monospace" v-model="coreConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
+                                        <small class="form-hint">用于配置核心节点相关参数</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3 mt-3">
+                        <label class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" v-model="newItem.disabled">
+                            <span class="form-check-label">禁用服务器</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="createItem">创建</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Server Modal -->
+    <div class="modal modal-blur fade" id="server-editModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑服务器</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs" data-bs-toggle="tabs">
+                        <li class="nav-item">
+                            <a href="#edit-tabs-basic" class="nav-link active" data-bs-toggle="tab">基本信息</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#edit-tabs-auth" class="nav-link" data-bs-toggle="tab">认证信息</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#edit-tabs-config" class="nav-link" data-bs-toggle="tab">配置信息</a>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane active show" id="edit-tabs-basic">
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">IP地址</label>
+                                        <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.ip }" v-model="editedItem.ip">
+                                        <div class="invalid-feedback" v-if="validationErrors.ip">{{ validationErrors.ip }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">SSH端口</label>
+                                        <input type="number" class="form-control" v-model="editedItem.sshPort" placeholder="22">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">主机名</label>
+                                        <input type="text" class="form-control" v-model="editedItem.host">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">名称</label>
+                                        <input type="text" class="form-control" v-model="editedItem.name">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">供应商</label>
+                                        <input type="text" class="form-control" v-model="editedItem.supplier">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">到期日期</label>
+                                        <input type="date" class="form-control" v-model="editedItem.expireDate">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">价格</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">¥</span>
+                                            <input type="number" step="0.01" min="0" class="form-control" v-model="editedItem.price">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">倍率</label>
+                                        <input type="number" step="0.01" min="0" class="form-control" v-model="editedItem.multiple" placeholder="1.0">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">备注</label>
+                                <textarea class="form-control" v-model="editedItem.remark" rows="3"></textarea>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="edit-tabs-auth">
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">认证方式</label>
+                                        <select class="form-select" :class="{ 'is-invalid': validationErrors.authType }" v-model="editedItem.authType">
+                                            <option v-for="type in authTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                                        </select>
+                                        <div class="invalid-feedback" v-if="validationErrors.authType">{{ validationErrors.authType }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label required">用户名</label>
+                                        <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.username }" v-model="editedItem.username" placeholder="root">
+                                        <div class="invalid-feedback" v-if="validationErrors.username">{{ validationErrors.username }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-if="editedItem.authType === 'PASSWORD'">
+                                <div class="mb-3">
+                                    <label class="form-label required">密码</label>
+                                    <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="editedItem.auth">
+                                    <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                </div>
+                            </div>
+                            <div v-else-if="editedItem.authType === 'KEY'">
+                                <div class="mb-3">
+                                    <label class="form-label required">密钥</label>
+                                    <textarea class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="editedItem.auth" rows="8"></textarea>
+                                    <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="edit-tabs-config">
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">中转配置 (JSON)</label>
+                                        <textarea class="form-control font-monospace" v-model="editTransitConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
+                                        <small class="form-hint">用于配置中转节点相关参数</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">核心配置 (JSON)</label>
+                                        <textarea class="form-control font-monospace" v-model="editCoreConfigJson" rows="8" placeholder='{"key": "value"}'></textarea>
+                                        <small class="form-hint">用于配置核心节点相关参数</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3 mt-3">
+                        <label class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" :checked="editedItem.disabled === 1" @change="editedItem.disabled = $event.target.checked ? 1 : 0">
+                            <span class="form-check-label">禁用服务器</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="updateItem">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Connection Modal -->
+    <div class="modal modal-blur fade" id="testConnectionModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">测试连接</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div v-if="testingConnection" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2">正在测试连接，请稍候...</p>
+                    </div>
+                    <div v-else-if="connectionTestResult !== null" class="alert" :class="connectionTestResult ? 'alert-success' : 'alert-danger'">
+                        <div class="d-flex">
+                            <div>
+                                <i :class="connectionTestResult ? 'ti ti-check' : 'ti ti-x'"></i>
+                            </div>
+                            <div class="ms-2">
+                                {{ connectionTestResult ? '连接成功' : '连接失败' }}
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else>
+                        <p>准备测试连接到服务器：<strong>{{ selectedItem ? selectedItem.ip + (selectedItem.sshPort && selectedItem.sshPort !== 22 ? ':' + selectedItem.sshPort : '') : '' }}</strong></p>
+                        <p>用户名：{{ selectedItem ? (selectedItem.username || 'root') : '' }}</p>
+                        <p>认证方式：{{ selectedItem ? getAuthTypeLabel(selectedItem.authType) : '' }}</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button v-if="!testingConnection && connectionTestResult === null" type="button" class="btn btn-primary" @click="testConnection">开始测试</button>
+                    <button v-else-if="connectionTestResult !== null" type="button" class="btn btn-primary" @click="resetConnectionTest">重新测试</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Renew Server Modal -->
+    <div class="modal modal-blur fade" id="renewServerModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">续期服务器</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div v-if="selectedItem" class="alert" :class="getStatusAlertClass(selectedItem)">
+                        <div class="d-flex">
+                            <div>
+                                <i class="ti ti-info-circle"></i>
+                            </div>
+                            <div class="ms-2">
+                                当前状态：{{ getStatusDescription(selectedItem) }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label required">新到期日期</label>
+                        <input type="date" class="form-control" :class="{ 'is-invalid': validationErrors.expiryDate }" v-model="renewData.expiryDate">
+                        <div class="invalid-feedback" v-if="validationErrors.expiryDate">{{ validationErrors.expiryDate }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="btn-list">
+                            <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'months')">+1个月</button>
+                            <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(3, 'months')">+3个月</button>
+                            <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(6, 'months')">+6个月</button>
+                            <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'years')">+1年</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="renewServer">续期</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script th:fragment="script" th:inline="javascript" type="module">
+</script>
