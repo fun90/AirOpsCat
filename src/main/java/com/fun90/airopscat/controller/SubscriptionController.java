@@ -4,6 +4,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -38,11 +41,23 @@ public class SubscriptionController {
             @PathVariable String authCode,
             @PathVariable String osName,
             @PathVariable String appName,
+            @RequestParam(required = false) String version,
             @RequestParam(required = false) String view,
-            @RequestParam(required = false) String dns) {
+            @RequestParam(required = false) String dns,
+            @RequestParam(required = false) String dns2) {
         
         try {
-            ApiResponseDto<SubscrptionDto> response = subscriptionService.generateSubscription(authCode, osName, appName);
+            Map<String, String> params = new HashMap<>();
+            if ("1".equals(version)) {
+                if (Objects.nonNull(dns2)) {
+                    params.put("dns", dns2);
+                }
+            } else {
+                if (Objects.nonNull(dns)) {
+                    params.put("dns", dns);
+                }
+            }
+            ApiResponseDto<SubscrptionDto> response = subscriptionService.generateSubscription(authCode, osName, appName, params);
             if (!response.isSuccess()) {
                 // 返回错误信息
                 return ResponseEntity.badRequest()
