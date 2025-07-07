@@ -130,7 +130,7 @@ public class SubscriptionService {
     /**
      * 生成订阅内容
      */
-    public ApiResponseDto<SubscrptionDto> generateSubscription(String authCode, String osName, String appName) {
+    public ApiResponseDto<SubscrptionDto> generateSubscription(String authCode, String osName, String appName, Map<String, String> params) {
         // 验证参数
         if (!StringUtils.hasText(authCode)) {
             return ApiResponseDto.error("认证码不能为空");
@@ -178,7 +178,7 @@ public class SubscriptionService {
         }
 
         // 根据应用类型生成配置
-        String content = generateConfigByApp(account, activeNodes, osName, appName);
+        String content = generateConfigByApp(account, activeNodes, osName, appName, params);
         if (content == null) {
             return ApiResponseDto.error("生成配置文件失败，不支持的应用类型: " + appName);
         }
@@ -198,7 +198,7 @@ public class SubscriptionService {
     /**
      * 根据应用类型生成配置
      */
-    private String generateConfigByApp(Account account, List<NodeDto> nodes, String osName, String appName) {
+    private String generateConfigByApp(Account account, List<NodeDto> nodes, String osName, String appName, Map<String, String> params) {
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("account", account);
         templateData.put("nodes", nodes);
@@ -206,6 +206,7 @@ public class SubscriptionService {
         templateData.put("appName", appName);
         templateData.put("subscriptionUrl", subscriptionUrl);
         templateData.put("timestamp", System.currentTimeMillis());
+        templateData.putAll(params);
 
         String templateName = getTemplateName(osName, appName);
         String templateContent = getTemplateContent(templateName);
@@ -227,6 +228,8 @@ public class SubscriptionService {
     private String getSubscriptionFileSuffix(String appName) {
         if ("loon".equalsIgnoreCase(appName)) {
             return ".conf";
+        } else if ("sing-box".equalsIgnoreCase(appName)) {
+            return ".json";
         }
         return ".yaml";
     }
