@@ -288,9 +288,7 @@ public class NodeDeploymentService {
             addOutboundConfiguration(node, outbounds);
         }
 
-        if (node.getRule() != null) {
-            addRoutingRule(node, routingRules);
-        }
+        addRoutingRule(node, routingRules);
     }
 
     /**
@@ -301,6 +299,11 @@ public class NodeDeploymentService {
         if (outNode == null) {
             return;
         }
+        for (OutboundConfig outbound : outbounds) {
+            if (outbound.getTag().equals(outNode.getTag())) {
+                return;
+            }
+        }
         InboundConfig outInbound = JsonUtil.toObject(outNode.getInbound(), InboundConfig.class);
         Server outServer = serverRepository.findById(outNode.getServerId())
                 .orElseThrow(() -> new IllegalArgumentException("出站服务器不存在: " + outNode.getServerId()));
@@ -309,7 +312,7 @@ public class NodeDeploymentService {
         if (strategy != null) {
             String host = StringUtils.isBlank(outServer.getHost()) ? outServer.getIp() : outServer.getHost();
             OutboundConfig outbound = strategy.convert(outInbound, host, outNode.getPort());
-            outbound.setTag(node.getId().toString());
+            outbound.setTag(outNode.getTag());
             outbounds.add(outbound);
         }
     }
