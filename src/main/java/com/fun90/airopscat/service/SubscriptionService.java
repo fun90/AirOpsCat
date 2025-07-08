@@ -183,7 +183,7 @@ public class SubscriptionService {
             return ApiResponseDto.error("生成配置文件失败，不支持的应用类型: " + appName);
         }
         
-        String expireDate = account.getToDate().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
+
         String fileName = account.getUser().getNickName() + getSubscriptionFileSuffix(appName);
         long bandwidth = account.getBandwidth() != null ? account.getBandwidth() : 500L;
         bandwidth = bandwidth * 1024L * 1024L * 1024L;
@@ -191,7 +191,7 @@ public class SubscriptionService {
         List<AccountTrafficStats> trafficStatsList = accountTrafficRepository.findByAccountIdAndCurrentTime(account.getId(), currentTime);
         AccountTrafficStats accountTrafficStats = trafficStatsList.isEmpty() ? null : trafficStatsList.getFirst();
         long usedFlow = accountTrafficStats != null ? accountTrafficStats.getUploadBytes() + accountTrafficStats.getDownloadBytes() : 0L;
-        SubscrptionDto subscriptionDto = new SubscrptionDto(fileName, content, expireDate, usedFlow, bandwidth);
+        SubscrptionDto subscriptionDto = new SubscrptionDto(fileName, content, account.getToDate(), usedFlow, bandwidth);
         return ApiResponseDto.success(subscriptionDto);
     }
 
