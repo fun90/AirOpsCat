@@ -55,7 +55,294 @@
         <div class="col-3">
             <div class="text-center" role="button" @click="filterByStatus('expiring')">
                 <div class="text-warning fw-bold h4 mb-0">{{ stats.expiringSoon || 0 }}</div>
-                <div class="text-muted small">将过期</div>
+                <div class="text-muted small">将过期                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Details Modal -->
+    <div class="modal modal-blur fade" id="accountDetailsModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="ti ti-user-circle me-2"></i>
+                        账号详情
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div v-if="selectedItem" class="container-fluid">
+                        <!-- 基本信息卡片 -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">
+                                            <i class="ti ti-info-circle me-2"></i>
+                                            基本信息
+                                        </h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label text-muted">账号ID</label>
+                                                    <div class="fw-bold">{{ selectedItem.id }}</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label text-muted">状态</label>
+                                                    <div>
+                                                        <span class="badge" :class="getStatusBadgeClass(selectedItem)">
+                                                            {{ getStatusDescription(selectedItem) }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label text-muted">账号</label>
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="fw-bold me-2">{{ selectedItem.accountNo }}</span>
+                                                        <button @click="copyToClipboard(selectedItem.accountNo)" class="btn btn-sm btn-ghost-secondary">
+                                                            <i class="ti ti-copy"></i>
+                                                        </button>
+                                                    </div>
+                                                    <div class="text-muted small">{{ selectedItem.remark }}</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label text-muted">用户</label>
+                                                    <div>
+                                                        <div class="fw-bold">{{ selectedItem.userEmail }}</div>
+                                                        <div class="text-muted small">{{ selectedItem.nickName }}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label text-muted">UUID</label>
+                                                    <div class="d-flex align-items-center">
+                                                        <code class="me-2 text-truncate" style="max-width: 200px;">{{ selectedItem.uuid }}</code>
+                                                        <button @click="copyToClipboard(selectedItem.uuid)" class="btn btn-sm btn-ghost-secondary">
+                                                            <i class="ti ti-copy"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                             <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label text-muted">认证码</label>
+                                                    <div class="d-flex align-items-center">
+                                                        <code class="me-2 text-truncate" style="max-width: 200px;">{{ selectedItem.authCode }}</code>
+                                                        <button @click="copyToClipboard(selectedItem.authCode)" class="btn btn-sm btn-ghost-secondary">
+                                                            <i class="ti ti-copy"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row" v-if="selectedItem.remark">
+                                            <div class="col-12">
+                                                <div class="mb-3">
+                                                    <label class="form-label text-muted">使用文档</label>
+                                                    <div class="d-flex align-items-center">
+                                                        <code class="me-2 text-truncate">{{ getDocumentUrl(selectedItem.authCode) }}</code>
+                                                        <button @click="copyToClipboard(getDocumentUrl(selectedItem.authCode))" class="btn btn-sm btn-ghost-secondary">
+                                                            <i class="ti ti-copy"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 时间和限制信息 -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">
+                                            <i class="ti ti-clock me-2"></i>
+                                            时间信息
+                                        </h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted">创建时间</label>
+                                            <div class="fw-bold">{{ formatDateTime(selectedItem.createTime) || '未知' }}</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted">开始时间</label>
+                                            <div class="fw-bold">{{ formatDateTime(selectedItem.fromDate) || '未设置' }}</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted">到期时间</label>
+                                            <div class="fw-bold">{{ formatDateTime(selectedItem.toDate) || '永不过期' }}</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted">统计周期</label>
+                                            <div class="fw-bold">{{ selectedItem.periodType || '未设置' }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">
+                                            <i class="ti ti-settings me-2"></i>
+                                            配置信息
+                                        </h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted">级别</label>
+                                            <div class="fw-bold">{{ selectedItem.level || 0 }}</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted">最大在线IP数</label>
+                                            <div class="fw-bold">{{ selectedItem.maxOnlineIps || '无限制' }}</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted">速度限制</label>
+                                            <div class="fw-bold">{{ selectedItem.speed || '无限制' }}</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted">流量限制</label>
+                                            <div class="fw-bold">
+                                                {{ selectedItem.bandwidth ? selectedItem.bandwidth + ' GB' : '无限制' }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 流量使用和在线信息 -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">
+                                            <i class="ti ti-chart-line me-2"></i>
+                                            流量统计
+                                        </h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted">已使用流量</label>
+                                            <div class="fw-bold">{{ formatBytes(selectedItem.totalUsedBytes) }}</div>
+                                        </div>
+                                        <div v-if="selectedItem.bandwidth" class="mb-3">
+                                            <label class="form-label text-muted">使用进度</label>
+                                            <div class="progress progress-sm mb-2">
+                                                <div class="progress-bar" 
+                                                     :class="getProgressBarClass(selectedItem.usagePercentage)"
+                                                     :style="{ width: (selectedItem.usagePercentage || 0) + '%' }"
+                                                     role="progressbar">
+                                                </div>
+                                            </div>
+                                            <div class="text-muted small">
+                                                {{ Math.round(selectedItem.usagePercentage || 0) }}% 
+                                                ({{ formatBytes(selectedItem.totalUsedBytes) }} / {{ selectedItem.bandwidth }} GB)
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted">上传流量</label>
+                                            <div class="fw-bold">{{ formatBytes(selectedItem.uploadBytes) }}</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted">下载流量</label>
+                                            <div class="fw-bold">{{ formatBytes(selectedItem.downloadBytes) }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">
+                                            <i class="ti ti-world me-2"></i>
+                                            在线信息
+                                        </h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted">当前在线IP数</label>
+                                            <div class="d-flex align-items-center">
+                                                <span class="fw-bold me-2">
+                                                    {{ selectedItem.onlineIps ? selectedItem.onlineIps.length : 0 }}
+                                                </span>
+                                                <button v-if="selectedItem.onlineIps && selectedItem.onlineIps.length > 0" 
+                                                        @click="viewOnlineIps(selectedItem)" 
+                                                        class="btn btn-sm btn-outline-primary">
+                                                    <i class="ti ti-eye me-1"></i>查看详情
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div v-if="selectedItem.onlineIps && selectedItem.onlineIps.length > 0">
+                                            <label class="form-label text-muted">在线IP列表</label>
+                                            <div class="list-group list-group-flush">
+                                                <div v-for="ip in selectedItem.onlineIps.slice(0, 3)" :key="ip.id" 
+                                                     class="list-group-item px-0 py-2">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <span class="badge text-bg-primary">{{ ip.clientIp }}</span>
+                                                        <small class="text-muted">{{ formatDateTime(ip.lastOnlineTime) }}</small>
+                                                    </div>
+                                                </div>
+                                                <div v-if="selectedItem.onlineIps.length > 3" class="text-center py-2">
+                                                    <small class="text-muted">还有 {{ selectedItem.onlineIps.length - 3 }} 个IP...</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div v-else>
+                                            <div class="text-muted">当前无在线IP</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 标签信息 -->
+                        <div class="row" v-if="selectedItem.tags && selectedItem.tags.length > 0">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">
+                                            <i class="ti ti-tags me-2"></i>
+                                            标签
+                                        </h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <span v-for="tag in selectedItem.tags" :key="tag.id" 
+                                                  class="badge d-flex align-items-center" 
+                                                  :style="{ backgroundColor: tag.color || '#6c757d' }">
+                                                <span class="me-1">{{ tag.name }}</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @click="openEditModal(selectedItem)">
+                        <i class="ti ti-edit me-1"></i>编辑
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" @click="openConfigUrlModal(selectedItem)">
+                        <i class="ti ti-link me-1"></i>配置链接
+                    </button>
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
             </div>
         </div>
     </div>
@@ -86,10 +373,18 @@
             
         </td>
         <td>
-            <span v-text="account.accountNo" class="text-truncate" style="max-width: 150px;"></span>
-            <button @click="copyToClipboard(account.accountNo)" class="btn btn-sm btn-ghost-secondary ms-2">
-                <i class="ti ti-copy"></i>
-            </button>
+            <div class="d-flex flex-column">
+                <div class="d-flex align-items-center">
+                    <a href="#" @click.prevent="viewAccountDetails(account)" class="text-decoration-none text-truncate" style="max-width: 150px;" 
+                       :title="'点击查看账号详情: ' + account.accountNo">
+                        {{ account.accountNo }}
+                    </a>
+                    <button @click="copyToClipboard(account.accountNo)" class="btn btn-sm btn-ghost-secondary ms-2">
+                        <i class="ti ti-copy"></i>
+                    </button>
+                </div>
+                <span v-if="account.remark" class="text-muted small" :title="account.remark">{{ account.remark }}</span>
+            </div>
         </td>
         <td>
             <span class="badge" :class="getStatusBadgeClass(account)">
@@ -291,6 +586,12 @@
                                 <input type="number" class="form-control" v-model="newItem.level" min="0">
                             </div>
                         </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">备注名</label>
+                                <input type="text" class="form-control" v-model="newItem.remark" placeholder="账户备注名">
+                            </div>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">标签</label>
@@ -414,6 +715,12 @@
                             <div class="mb-3">
                                 <label class="form-label">级别</label>
                                 <input type="number" class="form-control" v-model="editedItem.level" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">备注名</label>
+                                <input type="text" class="form-control" v-model="editedItem.remark" placeholder="账户备注名">
                             </div>
                         </div>
                     </div>

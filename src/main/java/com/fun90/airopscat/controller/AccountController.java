@@ -319,3 +319,19 @@ public class AccountController {
         return ResponseEntity.ok().build();
     }
 }
+
+@RestController
+@RequestMapping("/api/admin/config")
+class ConfigController {
+    
+    @Autowired
+    private org.springframework.core.env.Environment environment;
+    
+    @GetMapping("/docs")
+    public ResponseEntity<Map<String, String>> getDocsConfig() {
+        Map<String, String> config = new HashMap<>();
+        String docsUrl = environment.getProperty("airopscat.docs.url", "https://docs.xxx.com");
+        config.put("url", docsUrl);
+        return ResponseEntity.ok(config);
+    }
+}
