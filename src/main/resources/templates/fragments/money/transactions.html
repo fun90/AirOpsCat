@@ -18,6 +18,90 @@
 
 <!-- Filters Fragment -->
 <th:block th:fragment="filters">
+
+<style>
+    /* Business search dropdown styles */
+    .business-search-dropdown {
+        position: relative;
+    }
+    
+    .business-search-dropdown .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 1050;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        background-color: #fff;
+        min-width: 200px;
+    }
+    
+    .business-search-dropdown .dropdown-item {
+        cursor: pointer;
+        border: none;
+        background: none;
+        width: 100%;
+        text-align: left;
+        padding: 0.5rem 1rem;
+        transition: background-color 0.15s ease-in-out;
+        font-size: 0.875rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: #000;
+    }
+    
+    .business-search-dropdown .dropdown-item:hover,
+    .business-search-dropdown .dropdown-item.active {
+        background-color: #e9ecef;
+        color: #212529;
+    }
+    
+    .business-search-dropdown .dropdown-item-text {
+        padding: 0.5rem 1rem;
+        font-style: italic;
+        color: #6c757d;
+        font-size: 0.8125rem;
+    }
+    
+    /* Loading spinner in dropdown */
+    .business-search-dropdown .spinner-border-sm {
+        width: 1rem;
+        height: 1rem;
+        vertical-align: middle;
+    }
+    
+    /* Input styling for search */
+    .business-search-dropdown .form-control {
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m1 1 6 6-6 6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 0.75rem center;
+        background-size: 16px 12px;
+        padding-right: 2.5rem;
+    }
+    
+    .business-search-dropdown .form-control:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    /* Ensure dropdown appears above modal */
+    .modal .business-search-dropdown .dropdown-menu {
+        z-index: 1060;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .business-search-dropdown .dropdown-menu {
+            min-width: auto;
+            left: -15px;
+            right: -15px;
+        }
+    }
+    </style>
+
     <!-- Transaction type filter -->
     <div class="col-auto">
         <select class="form-select" v-model="filters.type" @change="fetchRecords">
@@ -137,13 +221,13 @@
 <table th:fragment="table-content" class="table table-selectable card-table table-vcenter text-nowrap datatable">
     <thead>
     <tr>
-        <th style="width: 10%">日期</th>
-        <th style="width: 15%">金额</th>
-        <th style="width: 10%">类型</th>
-        <th style="width: 15%">关联业务</th>
-        <th style="width: 20%">描述</th>
-        <th style="width: 15%">支付方式</th>
-        <th style="width: 15%">操作</th>
+        <th>日期</th>
+        <th>金额</th>
+        <th>类型</th>
+        <th>关联业务</th>
+        <th>描述</th>
+        <th>支付方式</th>
+        <th class="w-1">操作</th>
     </tr>
     </thead>
     <tbody>
@@ -175,7 +259,7 @@
         <td v-text="transaction.paymentMethod || '-'"></td>
         <td>
             <div class="btn-list flex-nowrap">
-                <div class="dropdown">
+                <div class="dropdown position-static">
                     <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
                         操作
                     </button>
@@ -208,7 +292,7 @@
 <!-- Modals Fragment -->
 <div th:fragment="modals">
     <!-- Create Transaction Modal -->
-    <div class="modal modal-blur fade" id="createModal" tabindex="-1" role="dialog">
+    <div class="modal modal-blur fade" id="transaction-createModal" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
             <div class="modal-content">
                 <div class="modal-header">
@@ -267,10 +351,43 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">关联业务</label>
-                                <select class="form-select" v-model="newItem.businessId" :disabled="!newItem.businessTable">
-                                    <option value="">请选择</option>
-                                    <option v-for="business in businessItems" :key="business.id" :value="business.id">{{ business.name }}</option>
-                                </select>
+                                <div class="dropdown business-search-dropdown" :class="{ 'show': showBusinessDropdown && filteredBusinessItems.length > 0 }">
+                                    <input type="text" 
+                                           class="form-control dropdown-toggle" 
+                                           :class="{ 'is-invalid': validationErrors.businessId }"
+                                           v-model="businessSearchText"
+                                           @input="onBusinessSearch"
+                                           @focus="onBusinessFocus"
+                                           @blur="onBusinessBlur"
+                                           @keydown="onBusinessKeydown"
+                                           :disabled="!newItem.businessTable"
+                                           :placeholder="newItem.businessTable ? '输入搜索关联业务...' : '请先选择业务类型'"
+                                           autocomplete="off">
+                                    <div class="dropdown-menu" :class="{ 'show': showBusinessDropdown || businessSearchLoading }" style="max-height: 200px; overflow-y: auto;">
+                                        <div v-if="businessSearchLoading" class="dropdown-item-text text-center">
+                                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                                <span class="visually-hidden">搜索中...</span>
+                                            </div>
+                                            <span class="ms-2">搜索中...</span>
+                                        </div>
+                                        <button type="button" 
+                                                v-for="(business, index) in filteredBusinessItems" 
+                                                :key="business.id" 
+                                                class="dropdown-item"
+                                                :class="{ 'active': index === selectedBusinessIndex }"
+                                                @mousedown.prevent="selectBusiness(business)"
+                                                @mouseenter="selectedBusinessIndex = index">
+                                            {{ business.name }}
+                                        </button>
+                                        <div v-if="!businessSearchLoading && filteredBusinessItems.length === 0 && businessSearchText && newItem.businessTable && businessSearchText.length >= 2" class="dropdown-item-text text-muted">
+                                            未找到匹配的业务
+                                        </div>
+                                        <div v-if="!businessSearchLoading && businessSearchText && businessSearchText.length < 2 && newItem.businessTable" class="dropdown-item-text text-muted">
+                                            请输入至少2个字符进行搜索
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="invalid-feedback" v-if="validationErrors.businessId">{{ validationErrors.businessId }}</div>
                             </div>
                         </div>
                     </div>
@@ -352,10 +469,43 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">关联业务</label>
-                                <select class="form-select" v-model="editedItem.businessId" :disabled="!editedItem.businessTable">
-                                    <option value="">请选择</option>
-                                    <option v-for="business in businessItems" :key="business.id" :value="business.id">{{ business.name }}</option>
-                                </select>
+                                <div class="dropdown business-search-dropdown" :class="{ 'show': showEditBusinessDropdown && filteredEditBusinessItems.length > 0 }">
+                                    <input type="text" 
+                                           class="form-control dropdown-toggle" 
+                                           :class="{ 'is-invalid': validationErrors.businessId }"
+                                           v-model="editBusinessSearchText"
+                                           @input="onEditBusinessSearch"
+                                           @focus="onEditBusinessFocus"
+                                           @blur="onEditBusinessBlur"
+                                           @keydown="onEditBusinessKeydown"
+                                           :disabled="!editedItem.businessTable"
+                                           :placeholder="editedItem.businessTable ? '输入搜索关联业务...' : '请先选择业务类型'"
+                                           autocomplete="off">
+                                    <div class="dropdown-menu" :class="{ 'show': showEditBusinessDropdown || editBusinessSearchLoading }" style="max-height: 200px; overflow-y: auto;">
+                                        <div v-if="editBusinessSearchLoading" class="dropdown-item-text text-center">
+                                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                                <span class="visually-hidden">搜索中...</span>
+                                            </div>
+                                            <span class="ms-2">搜索中...</span>
+                                        </div>
+                                        <button type="button" 
+                                                v-for="(business, index) in filteredEditBusinessItems" 
+                                                :key="business.id" 
+                                                class="dropdown-item"
+                                                :class="{ 'active': index === selectedEditBusinessIndex }"
+                                                @mousedown.prevent="selectEditBusiness(business)"
+                                                @mouseenter="selectedEditBusinessIndex = index">
+                                            {{ business.name }}
+                                        </button>
+                                        <div v-if="!editBusinessSearchLoading && filteredEditBusinessItems.length === 0 && editBusinessSearchText && editedItem.businessTable && editBusinessSearchText.length >= 2" class="dropdown-item-text text-muted">
+                                            未找到匹配的业务
+                                        </div>
+                                        <div v-if="!editBusinessSearchLoading && editBusinessSearchText && editBusinessSearchText.length < 2 && editedItem.businessTable" class="dropdown-item-text text-muted">
+                                            请输入至少2个字符进行搜索
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="invalid-feedback" v-if="validationErrors.businessId">{{ validationErrors.businessId }}</div>
                             </div>
                         </div>
                     </div>

@@ -161,7 +161,7 @@ public class TransactionService {
         switch (businessTable.toLowerCase()) {
             case "account":
                 Optional<Account> account = accountRepository.findById(businessId);
-                return account.map(a -> a.getUuid()).orElse("未知账户");
+                return account.map(a -> a.getRemark()).orElse("未知账户");
             case "domain":
                 Optional<Domain> domain = domainRepository.findById(businessId);
                 return domain.map(d -> d.getDomain()).orElse("未知域名");
