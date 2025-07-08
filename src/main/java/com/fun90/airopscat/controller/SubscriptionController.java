@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import org.apache.commons.lang3.time.DateFormatUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -85,7 +86,7 @@ public class SubscriptionController {
                 String fileName = URLEncoder.encode(subscriptionDto.getFileName(), StandardCharsets.UTF_8);
                 headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename*=UTF-8''" + fileName);
             }
-            if ("shadowrocket".equals(appName)) {
+            if ("shadowrocket".equalsIgnoreCase(appName)) {
                 String usedFlow = new BigDecimal(subscriptionDto.getUsedFlow()).divide(new BigDecimal(1024 * 1024 * 1024), 2, RoundingMode.HALF_UP).toPlainString();
                 String expireDate = subscriptionDto.getExpireDate().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
                 headers.set("subscription-userinfo", "tfc: " + usedFlow + "G; exp: " + expireDate);
