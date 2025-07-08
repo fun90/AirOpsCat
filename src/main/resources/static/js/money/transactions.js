@@ -13,6 +13,18 @@ const transactionTable = new DataTable({
         paymentMethods: [],
         businessTables: [],
         businessItems: [],
+        filteredBusinessItems: [],
+        filteredEditBusinessItems: [],
+        businessSearchText: '',
+        editBusinessSearchText: '',
+        showBusinessDropdown: false,
+        showEditBusinessDropdown: false,
+        selectedBusinessIndex: -1,
+        selectedEditBusinessIndex: -1,
+        businessSearchLoading: false,
+        editBusinessSearchLoading: false,
+        searchCache: {},
+        debounceTimers: {},
         trendsChart: null,
         stats: {
             totalIncome: 0,
@@ -44,6 +56,10 @@ const transactionTable = new DataTable({
             // Set default transactionDate for new transaction
             const now = new Date();
             this.newItem.transactionDate = now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+
+            // Initialize debounced search functions
+            this.debouncedBusinessSearch = this.debounce(this.performBusinessSearch, 300, 'businessSearch');
+            this.debouncedEditBusinessSearch = this.debounce(this.performEditBusinessSearch, 300, 'editBusinessSearch');
         },
 
         // After fetch hook
@@ -103,56 +119,7 @@ const transactionTable = new DataTable({
                 });
         },
 
-        // Load related business items based on selected business table
-        fetchBusinessItems(table) {
-            if (!table) {
-                this.businessItems = [];
-                return;
-            }
 
-            let url = '';
-            switch (table) {
-                case 'account':
-                    url = '/api/admin/accounts';
-                    break;
-                case 'domain':
-                    url = '/api/admin/domains';
-                    break;
-                case 'server':
-                    url = '/api/admin/servers';
-                    break;
-                default:
-                    return;
-            }
-
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.records && Array.isArray(data.records)) {
-                        this.businessItems = data.records.map(item => {
-                            let name = '';
-                            if (table === 'account') {
-                                name = item.uuid || item.id;
-                            } else if (table === 'domain') {
-                                name = item.domain || item.id;
-                            } else if (table === 'server') {
-                                name = item.ip + (item.name ? ` (${item.name})` : '');
-                            }
-
-                            return {
-                                id: item.id,
-                                name: name
-                            };
-                        });
-                    } else {
-                        this.businessItems = [];
-                    }
-                })
-                .catch(error => {
-                    console.error(`Error fetching ${table} items:`, error);
-                    this.businessItems = [];
-                });
-        },
 
         // Fetch monthly stats and initialize chart
         fetchMonthlyStats() {
@@ -226,13 +193,328 @@ const transactionTable = new DataTable({
         // Handle business table change event
         onBusinessTableChange() {
             this.newItem.businessId = '';
-            this.fetchBusinessItems(this.newItem.businessTable);
+            this.businessSearchText = '';
+            this.selectedBusinessIndex = -1;
+            this.showBusinessDropdown = false;
+            this.filteredBusinessItems = [];
+            this.businessSearchLoading = false;
+            
+            // Clear related cache
+            this.clearCacheForTable(this.newItem.businessTable);
         },
 
         // Handle edit business table change event
         onEditBusinessTableChange() {
             this.editedItem.businessId = '';
-            this.fetchBusinessItems(this.editedItem.businessTable);
+            this.editBusinessSearchText = '';
+            this.selectedEditBusinessIndex = -1;
+            this.showEditBusinessDropdown = false;
+            this.filteredEditBusinessItems = [];
+            this.editBusinessSearchLoading = false;
+            
+            // Clear related cache
+            this.clearCacheForTable(this.editedItem.businessTable);
+        },
+
+        // Clear cache for specific table
+        clearCacheForTable(table) {
+            Object.keys(this.searchCache).forEach(key => {
+                if (key.startsWith(`${table}-`)) {
+                    delete this.searchCache[key];
+                }
+            });
+        },
+
+        // Debounce function for API calls
+        debounce(func, delay, key) {
+            return (...args) => {
+                if (this.debounceTimers[key]) {
+                    clearTimeout(this.debounceTimers[key]);
+                }
+                this.debounceTimers[key] = setTimeout(() => func.apply(this, args), delay);
+            };
+        },
+
+        // Search business items via API
+        async searchBusinessItems(table, query) {
+            if (!table || !query || query.length < 2) {
+                return [];
+            }
+
+            // Check cache first
+            const cacheKey = `${table}-${query.toLowerCase()}`;
+            if (this.searchCache[cacheKey]) {
+                return this.searchCache[cacheKey];
+            }
+
+            try {
+                let url = '';
+                switch (table) {
+                    case 'account':
+                        url = `/api/admin/accounts?search=${encodeURIComponent(query)}&size=20`;
+                        break;
+                    case 'domain':
+                        url = `/api/admin/domains?search=${encodeURIComponent(query)}&size=20`;
+                        break;
+                    case 'server':
+                        url = `/api/admin/servers?search=${encodeURIComponent(query)}&size=20`;
+                        break;
+                    default:
+                        return [];
+                }
+
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                let searchResults = [];
+
+                if (data.records && Array.isArray(data.records)) {
+                    searchResults = data.records.map(item => {
+                        let name = '';
+                        if (table === 'account') {
+                            name = item.remark;
+                        } else if (table === 'domain') {
+                            name = item.domain || item.id;
+                        } else if (table === 'server') {
+                            name = item.ip + (item.name ? ` (${item.name})` : '');
+                        }
+
+                        return {
+                            id: item.id,
+                            name: name
+                        };
+                    });
+                }
+
+                // Cache the results
+                this.searchCache[cacheKey] = searchResults;
+                return searchResults;
+
+            } catch (error) {
+                console.error(`Error searching ${table} items:`, error);
+                return [];
+            }
+        },
+
+        // Filter business items based on search text (fallback for local filtering)
+        filterBusinessItems(searchText, items) {
+            if (!searchText) {
+                return items;
+            }
+            return items.filter(item => 
+                item.name.toLowerCase().includes(searchText.toLowerCase())
+            );
+        },
+
+        // Handle business search input for create modal
+        onBusinessSearch() {
+            this.selectedBusinessIndex = -1;
+            
+            // Clear selected business if search text doesn't match exactly
+            if (this.businessSearchText) {
+                const exactMatch = this.filteredBusinessItems.find(item => item.name === this.businessSearchText);
+                this.newItem.businessId = exactMatch ? exactMatch.id : '';
+            } else {
+                this.newItem.businessId = '';
+                this.filteredBusinessItems = [];
+                this.showBusinessDropdown = false;
+                return;
+            }
+
+            // Use debounced search for API calls
+            if (this.newItem.businessTable && this.businessSearchText.length >= 2) {
+                this.debouncedBusinessSearch();
+            } else {
+                this.filteredBusinessItems = [];
+                this.showBusinessDropdown = false;
+            }
+        },
+
+        // Handle business search input for edit modal
+        onEditBusinessSearch() {
+            this.selectedEditBusinessIndex = -1;
+            
+            // Clear selected business if search text doesn't match exactly
+            if (this.editBusinessSearchText) {
+                const exactMatch = this.filteredEditBusinessItems.find(item => item.name === this.editBusinessSearchText);
+                this.editedItem.businessId = exactMatch ? exactMatch.id : '';
+            } else {
+                this.editedItem.businessId = '';
+                this.filteredEditBusinessItems = [];
+                this.showEditBusinessDropdown = false;
+                return;
+            }
+
+            // Use debounced search for API calls
+            if (this.editedItem.businessTable && this.editBusinessSearchText.length >= 2) {
+                this.debouncedEditBusinessSearch();
+            } else {
+                this.filteredEditBusinessItems = [];
+                this.showEditBusinessDropdown = false;
+            }
+        },
+
+        // Perform actual business search for create modal
+        async performBusinessSearch() {
+            if (!this.newItem.businessTable || !this.businessSearchText || this.businessSearchText.length < 2) {
+                return;
+            }
+
+            this.businessSearchLoading = true;
+            try {
+                const results = await this.searchBusinessItems(this.newItem.businessTable, this.businessSearchText);
+                this.filteredBusinessItems = results;
+                this.showBusinessDropdown = results.length > 0;
+            } catch (error) {
+                console.error('Business search failed:', error);
+                this.filteredBusinessItems = [];
+                this.showBusinessDropdown = false;
+            } finally {
+                this.businessSearchLoading = false;
+            }
+        },
+
+        // Perform actual business search for edit modal
+        async performEditBusinessSearch() {
+            if (!this.editedItem.businessTable || !this.editBusinessSearchText || this.editBusinessSearchText.length < 2) {
+                return;
+            }
+
+            this.editBusinessSearchLoading = true;
+            try {
+                const results = await this.searchBusinessItems(this.editedItem.businessTable, this.editBusinessSearchText);
+                this.filteredEditBusinessItems = results;
+                this.showEditBusinessDropdown = results.length > 0;
+            } catch (error) {
+                console.error('Edit business search failed:', error);
+                this.filteredEditBusinessItems = [];
+                this.showEditBusinessDropdown = false;
+            } finally {
+                this.editBusinessSearchLoading = false;
+            }
+        },
+
+        // Handle focus events for create modal
+        onBusinessFocus() {
+            if (this.newItem.businessTable) {
+                if (this.businessSearchText && this.businessSearchText.length >= 2) {
+                    // Trigger search if there's already text
+                    this.debouncedBusinessSearch();
+                } else if (this.filteredBusinessItems.length > 0) {
+                    // Show cached results if available
+                    this.showBusinessDropdown = true;
+                }
+            }
+        },
+
+        // Handle blur events for create modal
+        onBusinessBlur() {
+            // Delay hiding to allow for item selection
+            setTimeout(() => {
+                this.showBusinessDropdown = false;
+                this.selectedBusinessIndex = -1;
+            }, 200);
+        },
+
+        // Handle focus events for edit modal
+        onEditBusinessFocus() {
+            if (this.editedItem.businessTable) {
+                if (this.editBusinessSearchText && this.editBusinessSearchText.length >= 2) {
+                    // Trigger search if there's already text
+                    this.debouncedEditBusinessSearch();
+                } else if (this.filteredEditBusinessItems.length > 0) {
+                    // Show cached results if available
+                    this.showEditBusinessDropdown = true;
+                }
+            }
+        },
+
+        // Handle blur events for edit modal
+        onEditBusinessBlur() {
+            // Delay hiding to allow for item selection
+            setTimeout(() => {
+                this.showEditBusinessDropdown = false;
+                this.selectedEditBusinessIndex = -1;
+            }, 200);
+        },
+
+        // Handle keyboard navigation for create modal
+        onBusinessKeydown(event) {
+            if (!this.showBusinessDropdown) return;
+
+            switch (event.key) {
+                case 'ArrowDown':
+                    event.preventDefault();
+                    this.selectedBusinessIndex = Math.min(
+                        this.selectedBusinessIndex + 1, 
+                        this.filteredBusinessItems.length - 1
+                    );
+                    break;
+                case 'ArrowUp':
+                    event.preventDefault();
+                    this.selectedBusinessIndex = Math.max(this.selectedBusinessIndex - 1, 0);
+                    break;
+                case 'Enter':
+                    event.preventDefault();
+                    if (this.selectedBusinessIndex >= 0 && this.selectedBusinessIndex < this.filteredBusinessItems.length) {
+                        this.selectBusiness(this.filteredBusinessItems[this.selectedBusinessIndex]);
+                    }
+                    break;
+                case 'Escape':
+                    event.preventDefault();
+                    this.showBusinessDropdown = false;
+                    this.selectedBusinessIndex = -1;
+                    break;
+            }
+        },
+
+        // Handle keyboard navigation for edit modal
+        onEditBusinessKeydown(event) {
+            if (!this.showEditBusinessDropdown) return;
+
+            switch (event.key) {
+                case 'ArrowDown':
+                    event.preventDefault();
+                    this.selectedEditBusinessIndex = Math.min(
+                        this.selectedEditBusinessIndex + 1, 
+                        this.filteredEditBusinessItems.length - 1
+                    );
+                    break;
+                case 'ArrowUp':
+                    event.preventDefault();
+                    this.selectedEditBusinessIndex = Math.max(this.selectedEditBusinessIndex - 1, 0);
+                    break;
+                case 'Enter':
+                    event.preventDefault();
+                    if (this.selectedEditBusinessIndex >= 0 && this.selectedEditBusinessIndex < this.filteredEditBusinessItems.length) {
+                        this.selectEditBusiness(this.filteredEditBusinessItems[this.selectedEditBusinessIndex]);
+                    }
+                    break;
+                case 'Escape':
+                    event.preventDefault();
+                    this.showEditBusinessDropdown = false;
+                    this.selectedEditBusinessIndex = -1;
+                    break;
+            }
+        },
+
+        // Select business item for create modal
+        selectBusiness(business) {
+            this.businessSearchText = business.name;
+            this.newItem.businessId = business.id;
+            this.showBusinessDropdown = false;
+            this.selectedBusinessIndex = -1;
+        },
+
+        // Select business item for edit modal
+        selectEditBusiness(business) {
+            this.editBusinessSearchText = business.name;
+            this.editedItem.businessId = business.id;
+            this.showEditBusinessDropdown = false;
+            this.selectedEditBusinessIndex = -1;
         },
 
         // Form validation and preparation
@@ -328,7 +610,18 @@ const transactionTable = new DataTable({
                 remark: ''
             };
 
+            // Reset search related fields
             this.businessItems = [];
+            this.filteredBusinessItems = [];
+            this.filteredEditBusinessItems = [];
+            this.businessSearchText = '';
+            this.editBusinessSearchText = '';
+            this.showBusinessDropdown = false;
+            this.showEditBusinessDropdown = false;
+            this.selectedBusinessIndex = -1;
+            this.selectedEditBusinessIndex = -1;
+            this.businessSearchLoading = false;
+            this.editBusinessSearchLoading = false;
         },
 
         prepareEditForm(transaction) {
@@ -352,12 +645,20 @@ const transactionTable = new DataTable({
                 remark: transaction.remark || ''
             };
 
-            // Fetch related business items if needed
-            if (transaction.businessTable) {
-                this.fetchBusinessItems(transaction.businessTable);
+            // Handle business data if available
+            if (transaction.businessTable && transaction.businessId) {
+                // Set the search text to the business name from businessName field
+                this.editBusinessSearchText = transaction.businessName || '';
+                // Clear the filtered list initially
+                this.filteredEditBusinessItems = [];
             } else {
-                this.businessItems = [];
+                this.filteredEditBusinessItems = [];
+                this.editBusinessSearchText = '';
             }
+
+            // Reset edit search related fields
+            this.showEditBusinessDropdown = false;
+            this.selectedEditBusinessIndex = -1;
 
             return editedData;
         },
