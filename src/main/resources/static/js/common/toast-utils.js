@@ -29,17 +29,13 @@ const ToastUtils = {
 
         // 创建新的 toast 元素
         const toastEl = document.createElement('div');
-        toastEl.className = 'toast';
-        toastEl.setAttribute('role', 'alert');
-        toastEl.setAttribute('aria-live', 'assertive');
-        toastEl.setAttribute('aria-atomic', 'true');
+        toastEl.className = `toast align-items-center text-white border-0 bg-${type}`;
         toastEl.innerHTML = `
-            <div class="toast-header bg-${type} text-white">
-                <strong class="me-auto">${title}</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-            <div class="toast-body">
-                ${message}
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="fas fa-check-circle"></i> ${message || '操作成功'}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
             </div>
         `;
 
