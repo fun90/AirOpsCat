@@ -60,7 +60,7 @@ public class OpenController {
         Map<String, String> subscriptionUrls = Map.of(
             "windows", base + "/windows/clash-verge",
             "linux", base + "/linux/clash-verge",
-            "ios", base + "/ios/shadowroket",
+            "ios", base + "/ios/shadowrocket",
             "macos", base + "/macos/clash-verge",
             "android", base + "/android/clash-meta"
         );
