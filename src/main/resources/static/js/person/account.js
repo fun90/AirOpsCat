@@ -54,6 +54,10 @@ const accountTable = new DataTable({
         onlineIpsModal: null,
         onlineIps: [],
         onlineIpsLoading: false,
+        // 账号详情相关数据
+        accountDetailsModal: null,
+        // 文档链接配置
+        docsBaseUrl: '', // 将从后端获取
         newItem: {
             userId: '',
             level: 0,
@@ -67,6 +71,7 @@ const accountTable = new DataTable({
             speed: 0,
             bandwidth: 0,
             disabled: false,
+            remark: '',
             tagIds: []
         }
     },
@@ -76,6 +81,7 @@ const accountTable = new DataTable({
             this.fetchUsers();
             this.fetchPeriodTypes();
             this.fetchAvailableTags();
+            this.fetchDocsConfig();
         },
 
         // Fetch additional data
@@ -115,6 +121,27 @@ const accountTable = new DataTable({
                 .catch(error => {
                     console.error('Error fetching available tags:', error);
                 });
+        },
+
+        fetchDocsConfig() {
+            fetch('/api/admin/config/docs')
+                .then(response => response.json())
+                .then(data => {
+                    this.docsBaseUrl = data.url || 'https://docs.com';
+                })
+                .catch(error => {
+                    console.error('Error fetching docs config:', error);
+                    // 使用默认值
+                    this.docsBaseUrl = 'https://docs.com';
+                });
+        },
+
+        // 生成文档链接
+        getDocumentUrl(authCode) {
+            if (!authCode || !this.docsBaseUrl) {
+                return '';
+            }
+            return `${this.docsBaseUrl}?code=${authCode}`;
         },
 
         getStatusDescription(item) {
@@ -210,6 +237,13 @@ const accountTable = new DataTable({
         viewUserDetails(userId) {
             // Redirect to user details page
             window.location.href = `/admin/users/${userId}`;
+        },
+
+        // 查看账号详情
+        viewAccountDetails(account) {
+            this.selectedItem = account;
+            this.accountDetailsModal = new Modal(document.getElementById('accountDetailsModal'));
+            this.accountDetailsModal.show();
         },
 
         // UUID and Auth code management
@@ -496,6 +530,7 @@ const accountTable = new DataTable({
                 speed: this.newItem.speed || null,
                 bandwidth: this.newItem.bandwidth || null,
                 disabled: this.newItem.disabled ? 1 : 0,
+                remark: this.newItem.remark || null,
                 tagIds: this.newItem.tagIds || []
             };
         },
@@ -512,6 +547,7 @@ const accountTable = new DataTable({
                 speed: this.editedItem.speed,
                 bandwidth: this.editedItem.bandwidth,
                 disabled: this.editedItem.disabled,
+                remark: this.editedItem.remark || null,
                 tagIds: this.editedItem.tagIds || []
             };
         },
@@ -539,6 +575,7 @@ const accountTable = new DataTable({
                 speed: 0,
                 bandwidth: 0,
                 disabled: false,
+                remark: '',
                 tagIds: []
             };
         },
@@ -568,6 +605,7 @@ const accountTable = new DataTable({
                 speed: account.speed,
                 bandwidth: account.bandwidth,
                 disabled: account.disabled,
+                remark: account.remark || '',
                 tagIds: [] // Will be loaded asynchronously
             };
         },

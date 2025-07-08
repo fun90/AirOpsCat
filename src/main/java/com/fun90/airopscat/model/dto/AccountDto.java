@@ -19,6 +19,7 @@ public class AccountDto {
     private Integer speed;
     private Integer bandwidth;
     private Integer disabled;
+    private String remark; // 账户备注
     private Long userId;
     private String userEmail; // 关联用户的邮箱
     private String nickName; // 关联用户的昵称

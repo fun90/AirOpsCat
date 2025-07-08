@@ -20,5 +20,6 @@ public class AccountRequest {
     private Integer speed;
     private Integer bandwidth;
     private Integer disabled;
+    private String remark; // 账户备注
     private List<Long> tagIds; // 标签ID列表
 } 

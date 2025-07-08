@@ -46,6 +46,8 @@ public class Account {
     
     private Integer disabled = 0;
     
+    private String remark; // 账户备注
+    
     @Column(name = "user_id")
     private Long userId;
     
