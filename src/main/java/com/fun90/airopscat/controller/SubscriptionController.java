@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -85,10 +87,12 @@ public class SubscriptionController {
             }
             if ("shadowrocket".equals(appName)) {
                 String usedFlow = new BigDecimal(subscriptionDto.getUsedFlow()).divide(new BigDecimal(1024 * 1024 * 1024), 2, RoundingMode.HALF_UP).toPlainString();
-                headers.set("subscription-userinfo", "tfc: " + usedFlow + "G; exp: " + subscriptionDto.getExpireDate());
+                String expireDate = subscriptionDto.getExpireDate().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
+                headers.set("subscription-userinfo", "tfc: " + usedFlow + "G; exp: " + expireDate);
             } else {
-                headers.set("subscription-userinfo", "download=" + subscriptionDto.getUsedFlow() 
-                + "; total=" + subscriptionDto.getTotalFlow() + "; expire=" + subscriptionDto.getExpireDate());
+                long expire = subscriptionDto.getExpireDate().toEpochSecond(ZoneOffset.of("+8"));
+                headers.set("subscription-userinfo", "download=" + subscriptionDto.getUsedFlow()
+                + "; total=" + subscriptionDto.getTotalFlow() + "; expire=" + expire);
             }
             // String docsIndex ="";
             // headers.set("profile-web-page-url", docsIndex + "?code=" +  subscription.getCode());
