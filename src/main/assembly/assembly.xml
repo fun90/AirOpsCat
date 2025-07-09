@@ -26,10 +26,10 @@
         </fileSet>
 
         <!-- 从源目录拷贝文件去压缩 -->
-<!--        <fileSet>-->
-<!--            <directory>src/main/resources/static</directory>-->
-<!--            <outputDirectory>/static</outputDirectory>-->
-<!--        </fileSet>-->
+        <fileSet>
+            <directory>src/main/resources/static</directory>
+            <outputDirectory>/static</outputDirectory>
+        </fileSet>
         <fileSet>
             <directory>src/main/resources</directory>
             <includes>
