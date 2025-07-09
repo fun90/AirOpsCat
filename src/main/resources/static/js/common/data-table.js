@@ -486,11 +486,16 @@ export class DataTable {
   
   // Create the Vue application
   createApp(selector) {
-    return PetiteVue.createApp({
+    const app = PetiteVue.createApp({
       ...this.data,
       ...this.methods,
       ...this.computed
     }).mount(selector);
+    
+    // Store instance reference for external access
+    this.vueInstance = app;
+    
+    return app;
   }
 }
 

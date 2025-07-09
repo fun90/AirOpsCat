@@ -1,5 +1,7 @@
 
 import { DataTable } from '/static/js/common/data-table.js';
+import { createSearchDropdown, SearchDropdownPresets, ValidationRules } from '/static/js/common/search-dropdown.js';
+import ApexCharts from 'https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.esm.js';
 
 const transactionTable = new DataTable({
     data: {
@@ -12,19 +14,10 @@ const transactionTable = new DataTable({
         transactionTypes: [],
         paymentMethods: [],
         businessTables: [],
-        businessItems: [],
-        filteredBusinessItems: [],
-        filteredEditBusinessItems: [],
-        businessSearchText: '',
-        editBusinessSearchText: '',
-        showBusinessDropdown: false,
-        showEditBusinessDropdown: false,
-        selectedBusinessIndex: -1,
-        selectedEditBusinessIndex: -1,
-        businessSearchLoading: false,
-        editBusinessSearchLoading: false,
-        searchCache: {},
-        debounceTimers: {},
+        
+        // 搜索组件实例
+        businessSearch: null,
+        editBusinessSearch: null,
         trendsChart: null,
         stats: {
             totalIncome: 0,
@@ -57,10 +50,78 @@ const transactionTable = new DataTable({
             const now = new Date();
             this.newItem.transactionDate = now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
 
-            // Initialize debounced search functions
-            this.debouncedBusinessSearch = this.debounce(this.performBusinessSearch, 300, 'businessSearch');
-            this.debouncedEditBusinessSearch = this.debounce(this.performEditBusinessSearch, 300, 'editBusinessSearch');
+            // Initialize search components
+            this.initializeSearchComponents();
         },
+
+        // Initialize search dropdown components
+        initializeSearchComponents() {
+            // 创建业务搜索组件（新建时使用）
+            this.businessSearch = createSearchDropdown({
+                placeholder: '请先选择业务类型',
+                disabled: true,
+                validation: {
+                    enabled: true,
+                    fieldName: 'businessId',
+                    validateOn: ['blur', 'change'],
+                    rules: [
+                        // 当业务类型已选择时，业务必须选择
+                        ValidationRules.custom((value, selectedItem) => {
+                            // 如果选择了业务类型但没选择具体业务项
+                            if (this.newItem.businessTable && !selectedItem) {
+                                return '请选择关联的业务项';
+                            }
+                            return true;
+                        }, '请选择关联的业务项')
+                    ]
+                },
+                onSelect: (item) => {
+                    this.newItem.businessId = item.id;
+                },
+                onChange: (text, item) => {
+                    if (!item) {
+                        this.newItem.businessId = '';
+                    }
+                }
+            });
+
+            // 创建编辑业务搜索组件（编辑时使用）
+            this.editBusinessSearch = createSearchDropdown({
+                placeholder: '请先选择业务类型',
+                disabled: true,
+                validation: {
+                    enabled: true,
+                    fieldName: 'editBusinessId',
+                    validateOn: ['blur', 'change'],
+                    rules: [
+                        // 当业务类型已选择时，业务必须选择
+                        ValidationRules.custom((value, selectedItem) => {
+                            // 如果选择了业务类型但没选择具体业务项
+                            if (this.editedItem.businessTable && !selectedItem) {
+                                return '请选择关联的业务项';
+                            }
+                            return true;
+                        }, '请选择关联的业务项')
+                    ]
+                },
+                onSelect: (item) => {
+                    this.editedItem.businessId = item.id;
+                },
+                onChange: (text, item) => {
+                    if (!item) {
+                        this.editedItem.businessId = '';
+                    }
+                }
+            });
+
+            // 延迟绑定DOM，确保模板已渲染
+            setTimeout(() => {
+                this.businessSearch.bindToDOM('businessSearch', 'businessId', this);
+                this.editBusinessSearch.bindToDOM('editBusinessSearch', 'editBusinessId', this);
+            }, 100);
+        },
+
+
 
         // After fetch hook
         afterFetch(data) {
@@ -147,375 +208,148 @@ const transactionTable = new DataTable({
             const expenseData = this.monthlyStats.map(stat => parseFloat(stat.expense));
             const balanceData = this.monthlyStats.map(stat => parseFloat(stat.balance));
 
-            const ctx = document.getElementById('trends-chart').getContext('2d');
-            this.trendsChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: months,
-                    datasets: [
-                        {
-                            label: '收入',
-                            data: incomeData,
-                            backgroundColor: 'rgba(40, 167, 69, 0.5)',
-                            borderColor: 'rgba(40, 167, 69, 1)',
-                            borderWidth: 1
-                        },
-                        {
-                            label: '支出',
-                            data: expenseData,
-                            backgroundColor: 'rgba(220, 53, 69, 0.5)',
-                            borderColor: 'rgba(220, 53, 69, 1)',
-                            borderWidth: 1
-                        },
-                        {
-                            label: '余额',
-                            data: balanceData,
-                            type: 'line',
-                            backgroundColor: 'rgba(255, 193, 7, 0.5)',
-                            borderColor: 'rgba(255, 193, 7, 1)',
-                            borderWidth: 2,
-                            fill: false
-                        }
-                    ]
+            const options = {
+                chart: {
+                    type: 'line',
+                    height: 350,
+                    toolbar: {
+                        show: false
+                    },
+                    background: 'transparent'
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true
+                series: [
+                    {
+                        name: '收入',
+                        type: 'column',
+                        data: incomeData
+                    },
+                    {
+                        name: '支出',
+                        type: 'column',
+                        data: expenseData
+                    },
+                    {
+                        name: '余额',
+                        type: 'line',
+                        data: balanceData
+                    }
+                ],
+                xaxis: {
+                    categories: months,
+                    labels: {
+                        style: {
+                            colors: '#8e8da4'
+                        }
+                    }
+                },
+                yaxis: {
+                    labels: {
+                        style: {
+                            colors: '#8e8da4'
+                        },
+                        formatter: function(value) {
+                            return '¥' + value.toFixed(2);
+                        }
+                    }
+                },
+                colors: ['#28a745', '#dc3545', '#ffc107'],
+                stroke: {
+                    width: [0, 0, 3],
+                    curve: 'smooth'
+                },
+                fill: {
+                    opacity: [0.8, 0.8, 1],
+                    type: ['solid', 'solid', 'solid']
+                },
+                plotOptions: {
+                    bar: {
+                        columnWidth: '50%'
+                    }
+                },
+                dataLabels: {
+                    enabled: false
+                },
+                legend: {
+                    position: 'top',
+                    horizontalAlign: 'left',
+                    labels: {
+                        colors: '#8e8da4'
+                    }
+                },
+                grid: {
+                    borderColor: '#e0e6ed',
+                    strokeDashArray: 5
+                },
+                tooltip: {
+                    shared: true,
+                    intersect: false,
+                    y: {
+                        formatter: function(value) {
+                            return '¥' + value.toFixed(2);
                         }
                     }
                 }
-            });
+            };
+
+            this.trendsChart = new ApexCharts(document.querySelector('#trends-chart'), options);
+            this.trendsChart.render();
         },
 
         // Handle business table change event
         onBusinessTableChange() {
             this.newItem.businessId = '';
-            this.businessSearchText = '';
-            this.selectedBusinessIndex = -1;
-            this.showBusinessDropdown = false;
-            this.filteredBusinessItems = [];
-            this.businessSearchLoading = false;
             
-            // Clear related cache
-            this.clearCacheForTable(this.newItem.businessTable);
+            if (this.newItem.businessTable) {
+                // 根据业务类型配置搜索组件
+                const preset = this.getBusinessSearchPreset(this.newItem.businessTable);
+                if (preset) {
+                    // 重新配置搜索组件
+                    this.businessSearch.options = { ...this.businessSearch.options, ...preset };
+                    this.businessSearch.setDisabled(false);
+                    this.businessSearch.options.placeholder = preset.placeholder;
+                    this.businessSearch.init();
+                }
+            } else {
+                this.businessSearch.setDisabled(true);
+                this.businessSearch.options.placeholder = '请先选择业务类型';
+            }
         },
 
         // Handle edit business table change event
         onEditBusinessTableChange() {
             this.editedItem.businessId = '';
-            this.editBusinessSearchText = '';
-            this.selectedEditBusinessIndex = -1;
-            this.showEditBusinessDropdown = false;
-            this.filteredEditBusinessItems = [];
-            this.editBusinessSearchLoading = false;
             
-            // Clear related cache
-            this.clearCacheForTable(this.editedItem.businessTable);
-        },
-
-        // Clear cache for specific table
-        clearCacheForTable(table) {
-            Object.keys(this.searchCache).forEach(key => {
-                if (key.startsWith(`${table}-`)) {
-                    delete this.searchCache[key];
-                }
-            });
-        },
-
-        // Debounce function for API calls
-        debounce(func, delay, key) {
-            return (...args) => {
-                if (this.debounceTimers[key]) {
-                    clearTimeout(this.debounceTimers[key]);
-                }
-                this.debounceTimers[key] = setTimeout(() => func.apply(this, args), delay);
-            };
-        },
-
-        // Search business items via API
-        async searchBusinessItems(table, query) {
-            if (!table || !query || query.length < 2) {
-                return [];
-            }
-
-            // Check cache first
-            const cacheKey = `${table}-${query.toLowerCase()}`;
-            if (this.searchCache[cacheKey]) {
-                return this.searchCache[cacheKey];
-            }
-
-            try {
-                let url = '';
-                switch (table) {
-                    case 'account':
-                        url = `/api/admin/accounts?search=${encodeURIComponent(query)}&size=20`;
-                        break;
-                    case 'domain':
-                        url = `/api/admin/domains?search=${encodeURIComponent(query)}&size=20`;
-                        break;
-                    case 'server':
-                        url = `/api/admin/servers?search=${encodeURIComponent(query)}&size=20`;
-                        break;
-                    default:
-                        return [];
-                }
-
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                const data = await response.json();
-                let searchResults = [];
-
-                if (data.records && Array.isArray(data.records)) {
-                    searchResults = data.records.map(item => {
-                        let name = '';
-                        if (table === 'account') {
-                            name = item.remark;
-                        } else if (table === 'domain') {
-                            name = item.domain || item.id;
-                        } else if (table === 'server') {
-                            name = item.ip + (item.name ? ` (${item.name})` : '');
-                        }
-
-                        return {
-                            id: item.id,
-                            name: name
-                        };
-                    });
-                }
-
-                // Cache the results
-                this.searchCache[cacheKey] = searchResults;
-                return searchResults;
-
-            } catch (error) {
-                console.error(`Error searching ${table} items:`, error);
-                return [];
-            }
-        },
-
-        // Filter business items based on search text (fallback for local filtering)
-        filterBusinessItems(searchText, items) {
-            if (!searchText) {
-                return items;
-            }
-            return items.filter(item => 
-                item.name.toLowerCase().includes(searchText.toLowerCase())
-            );
-        },
-
-        // Handle business search input for create modal
-        onBusinessSearch() {
-            this.selectedBusinessIndex = -1;
-            
-            // Clear selected business if search text doesn't match exactly
-            if (this.businessSearchText) {
-                const exactMatch = this.filteredBusinessItems.find(item => item.name === this.businessSearchText);
-                this.newItem.businessId = exactMatch ? exactMatch.id : '';
-            } else {
-                this.newItem.businessId = '';
-                this.filteredBusinessItems = [];
-                this.showBusinessDropdown = false;
-                return;
-            }
-
-            // Use debounced search for API calls
-            if (this.newItem.businessTable && this.businessSearchText.length >= 2) {
-                this.debouncedBusinessSearch();
-            } else {
-                this.filteredBusinessItems = [];
-                this.showBusinessDropdown = false;
-            }
-        },
-
-        // Handle business search input for edit modal
-        onEditBusinessSearch() {
-            this.selectedEditBusinessIndex = -1;
-            
-            // Clear selected business if search text doesn't match exactly
-            if (this.editBusinessSearchText) {
-                const exactMatch = this.filteredEditBusinessItems.find(item => item.name === this.editBusinessSearchText);
-                this.editedItem.businessId = exactMatch ? exactMatch.id : '';
-            } else {
-                this.editedItem.businessId = '';
-                this.filteredEditBusinessItems = [];
-                this.showEditBusinessDropdown = false;
-                return;
-            }
-
-            // Use debounced search for API calls
-            if (this.editedItem.businessTable && this.editBusinessSearchText.length >= 2) {
-                this.debouncedEditBusinessSearch();
-            } else {
-                this.filteredEditBusinessItems = [];
-                this.showEditBusinessDropdown = false;
-            }
-        },
-
-        // Perform actual business search for create modal
-        async performBusinessSearch() {
-            if (!this.newItem.businessTable || !this.businessSearchText || this.businessSearchText.length < 2) {
-                return;
-            }
-
-            this.businessSearchLoading = true;
-            try {
-                const results = await this.searchBusinessItems(this.newItem.businessTable, this.businessSearchText);
-                this.filteredBusinessItems = results;
-                this.showBusinessDropdown = results.length > 0;
-            } catch (error) {
-                console.error('Business search failed:', error);
-                this.filteredBusinessItems = [];
-                this.showBusinessDropdown = false;
-            } finally {
-                this.businessSearchLoading = false;
-            }
-        },
-
-        // Perform actual business search for edit modal
-        async performEditBusinessSearch() {
-            if (!this.editedItem.businessTable || !this.editBusinessSearchText || this.editBusinessSearchText.length < 2) {
-                return;
-            }
-
-            this.editBusinessSearchLoading = true;
-            try {
-                const results = await this.searchBusinessItems(this.editedItem.businessTable, this.editBusinessSearchText);
-                this.filteredEditBusinessItems = results;
-                this.showEditBusinessDropdown = results.length > 0;
-            } catch (error) {
-                console.error('Edit business search failed:', error);
-                this.filteredEditBusinessItems = [];
-                this.showEditBusinessDropdown = false;
-            } finally {
-                this.editBusinessSearchLoading = false;
-            }
-        },
-
-        // Handle focus events for create modal
-        onBusinessFocus() {
-            if (this.newItem.businessTable) {
-                if (this.businessSearchText && this.businessSearchText.length >= 2) {
-                    // Trigger search if there's already text
-                    this.debouncedBusinessSearch();
-                } else if (this.filteredBusinessItems.length > 0) {
-                    // Show cached results if available
-                    this.showBusinessDropdown = true;
-                }
-            }
-        },
-
-        // Handle blur events for create modal
-        onBusinessBlur() {
-            // Delay hiding to allow for item selection
-            setTimeout(() => {
-                this.showBusinessDropdown = false;
-                this.selectedBusinessIndex = -1;
-            }, 200);
-        },
-
-        // Handle focus events for edit modal
-        onEditBusinessFocus() {
             if (this.editedItem.businessTable) {
-                if (this.editBusinessSearchText && this.editBusinessSearchText.length >= 2) {
-                    // Trigger search if there's already text
-                    this.debouncedEditBusinessSearch();
-                } else if (this.filteredEditBusinessItems.length > 0) {
-                    // Show cached results if available
-                    this.showEditBusinessDropdown = true;
+                // 根据业务类型配置搜索组件
+                const preset = this.getBusinessSearchPreset(this.editedItem.businessTable);
+                if (preset) {
+                    // 重新配置搜索组件
+                    this.editBusinessSearch.options = { ...this.editBusinessSearch.options, ...preset };
+                    this.editBusinessSearch.setDisabled(false);
+                    this.editBusinessSearch.options.placeholder = preset.placeholder;
+                    this.editBusinessSearch.init();
                 }
+            } else {
+                this.editBusinessSearch.setDisabled(true);
+                this.editBusinessSearch.options.placeholder = '请先选择业务类型';
             }
         },
 
-        // Handle blur events for edit modal
-        onEditBusinessBlur() {
-            // Delay hiding to allow for item selection
-            setTimeout(() => {
-                this.showEditBusinessDropdown = false;
-                this.selectedEditBusinessIndex = -1;
-            }, 200);
-        },
-
-        // Handle keyboard navigation for create modal
-        onBusinessKeydown(event) {
-            if (!this.showBusinessDropdown) return;
-
-            switch (event.key) {
-                case 'ArrowDown':
-                    event.preventDefault();
-                    this.selectedBusinessIndex = Math.min(
-                        this.selectedBusinessIndex + 1, 
-                        this.filteredBusinessItems.length - 1
-                    );
-                    break;
-                case 'ArrowUp':
-                    event.preventDefault();
-                    this.selectedBusinessIndex = Math.max(this.selectedBusinessIndex - 1, 0);
-                    break;
-                case 'Enter':
-                    event.preventDefault();
-                    if (this.selectedBusinessIndex >= 0 && this.selectedBusinessIndex < this.filteredBusinessItems.length) {
-                        this.selectBusiness(this.filteredBusinessItems[this.selectedBusinessIndex]);
-                    }
-                    break;
-                case 'Escape':
-                    event.preventDefault();
-                    this.showBusinessDropdown = false;
-                    this.selectedBusinessIndex = -1;
-                    break;
+        // Get business search preset configuration
+        getBusinessSearchPreset(businessTable) {
+            switch (businessTable) {
+                case 'account':
+                    return SearchDropdownPresets.account();
+                case 'domain':
+                    return SearchDropdownPresets.domain();
+                case 'server':
+                    return SearchDropdownPresets.server();
+                default:
+                    return null;
             }
         },
 
-        // Handle keyboard navigation for edit modal
-        onEditBusinessKeydown(event) {
-            if (!this.showEditBusinessDropdown) return;
 
-            switch (event.key) {
-                case 'ArrowDown':
-                    event.preventDefault();
-                    this.selectedEditBusinessIndex = Math.min(
-                        this.selectedEditBusinessIndex + 1, 
-                        this.filteredEditBusinessItems.length - 1
-                    );
-                    break;
-                case 'ArrowUp':
-                    event.preventDefault();
-                    this.selectedEditBusinessIndex = Math.max(this.selectedEditBusinessIndex - 1, 0);
-                    break;
-                case 'Enter':
-                    event.preventDefault();
-                    if (this.selectedEditBusinessIndex >= 0 && this.selectedEditBusinessIndex < this.filteredEditBusinessItems.length) {
-                        this.selectEditBusiness(this.filteredEditBusinessItems[this.selectedEditBusinessIndex]);
-                    }
-                    break;
-                case 'Escape':
-                    event.preventDefault();
-                    this.showEditBusinessDropdown = false;
-                    this.selectedEditBusinessIndex = -1;
-                    break;
-            }
-        },
-
-        // Select business item for create modal
-        selectBusiness(business) {
-            this.businessSearchText = business.name;
-            this.newItem.businessId = business.id;
-            this.showBusinessDropdown = false;
-            this.selectedBusinessIndex = -1;
-        },
-
-        // Select business item for edit modal
-        selectEditBusiness(business) {
-            this.editBusinessSearchText = business.name;
-            this.editedItem.businessId = business.id;
-            this.showEditBusinessDropdown = false;
-            this.selectedEditBusinessIndex = -1;
-        },
 
         // Form validation and preparation
         validateCreateForm() {
@@ -538,6 +372,14 @@ const transactionTable = new DataTable({
             if (!this.newItem.description) {
                 this.validationErrors.description = '请输入交易描述';
                 isValid = false;
+            }
+
+            // 校验搜索下拉框组件
+            if (this.businessSearch) {
+                const businessValid = this.businessSearch.validate();
+                if (!businessValid) {
+                    isValid = false;
+                }
             }
 
             return isValid;
@@ -563,6 +405,14 @@ const transactionTable = new DataTable({
             if (!this.editedItem.description) {
                 this.validationErrors.description = '请输入交易描述';
                 isValid = false;
+            }
+
+            // 校验搜索下拉框组件
+            if (this.editBusinessSearch) {
+                const businessValid = this.editBusinessSearch.validate();
+                if (!businessValid) {
+                    isValid = false;
+                }
             }
 
             return isValid;
@@ -610,18 +460,11 @@ const transactionTable = new DataTable({
                 remark: ''
             };
 
-            // Reset search related fields
-            this.businessItems = [];
-            this.filteredBusinessItems = [];
-            this.filteredEditBusinessItems = [];
-            this.businessSearchText = '';
-            this.editBusinessSearchText = '';
-            this.showBusinessDropdown = false;
-            this.showEditBusinessDropdown = false;
-            this.selectedBusinessIndex = -1;
-            this.selectedEditBusinessIndex = -1;
-            this.businessSearchLoading = false;
-            this.editBusinessSearchLoading = false;
+            // Reset search components
+            if (this.businessSearch) {
+                this.businessSearch.clear();
+                this.businessSearch.setDisabled(true);
+            }
         },
 
         prepareEditForm(transaction) {
@@ -645,20 +488,27 @@ const transactionTable = new DataTable({
                 remark: transaction.remark || ''
             };
 
-            // Handle business data if available
-            if (transaction.businessTable && transaction.businessId) {
-                // Set the search text to the business name from businessName field
-                this.editBusinessSearchText = transaction.businessName || '';
-                // Clear the filtered list initially
-                this.filteredEditBusinessItems = [];
-            } else {
-                this.filteredEditBusinessItems = [];
-                this.editBusinessSearchText = '';
+            // Handle business search component for edit
+            if (this.editBusinessSearch) {
+                if (transaction.businessTable && transaction.businessId) {
+                    // 配置编辑搜索组件
+                    const preset = this.getBusinessSearchPreset(transaction.businessTable);
+                    if (preset) {
+                        this.editBusinessSearch.options = { ...this.editBusinessSearch.options, ...preset };
+                        this.editBusinessSearch.setDisabled(false);
+                        this.editBusinessSearch.init();
+                        
+                        // 设置已选中的业务信息
+                        this.editBusinessSearch.setValue(transaction.businessName || '', {
+                            id: transaction.businessId,
+                            name: transaction.businessName || ''
+                        });
+                    }
+                } else {
+                    this.editBusinessSearch.clear();
+                    this.editBusinessSearch.setDisabled(true);
+                }
             }
-
-            // Reset edit search related fields
-            this.showEditBusinessDropdown = false;
-            this.selectedEditBusinessIndex = -1;
 
             return editedData;
         },
@@ -680,4 +530,7 @@ const transactionTable = new DataTable({
 });
 
 // Initialize the Vue app
-transactionTable.createApp('#transactions-app');
+const vueApp = transactionTable.createApp('#transactions-app');
+
+// Make transaction table globally accessible for search dropdowns
+window.transactionTable = transactionTable;

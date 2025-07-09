@@ -1,0 +1,176 @@
+<!-- 
+    通用搜索下拉框组件模板
+    
+    ## 纯净版本（推荐）
+    th:replace="~{fragments/common/search-dropdown :: search-dropdown(componentVar, cssClass)}"
+    参数说明:
+    - componentVar: 组件变量名（必填）
+    - cssClass: 额外CSS类（可选，可传空字符串）
+    
+    使用示例:
+    <div class="mb-3">
+        <label class="form-label required">关联业务</label>
+        <div th:replace="~{fragments/common/search-dropdown :: search-dropdown('businessSearch', '')}"></div>
+    </div>
+    
+    JavaScript校验配置示例:
+    createSearchDropdown({
+        placeholder: '请输入...',
+        validation: {
+            enabled: true,
+            fieldName: 'myField',
+            validateOn: ['blur', 'change'], // 'input', 'blur', 'change'
+            rules: [
+                ValidationRules.required('此字段为必填项'),
+                ValidationRules.minLength(2, '至少输入2个字符'),
+                ValidationRules.requiredSelection('请选择一个选项'),
+                ValidationRules.custom((value, selectedItem) => {
+                    return value.includes('test') || '必须包含test';
+                })
+            ]
+        }
+    });
+    
+    ## 带标签版本（向后兼容）
+    th:replace="~{fragments/common/search-dropdown :: auto-search-dropdown(...)}"
+    包含label标签，适用于简单场景
+-->
+
+<!-- 搜索下拉框组件（纯净版） -->
+<th:block th:fragment="search-dropdown(componentVar, cssClass)">
+    <div class="dropdown search-dropdown" th:class="${cssClass}"
+         th:id="|search-dropdown-${componentVar}|">
+        
+        <input type="text" 
+               class="form-control dropdown-toggle"
+               th:id="|search-input-${componentVar}|"
+               autocomplete="off">
+        
+        <div class="dropdown-menu" th:id="|search-menu-${componentVar}|" style="max-height: 200px; overflow-y: auto;">
+            
+            <!-- 加载状态 -->
+            <div class="dropdown-item-text text-center" th:id="|search-loading-${componentVar}|" style="display: none;">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <span class="ms-2">搜索中...</span>
+            </div>
+            
+            <!-- 搜索结果容器 -->
+            <div th:id="|search-results-${componentVar}|"></div>
+            
+            <!-- 无结果提示 -->
+            <div class="dropdown-item-text text-muted" th:id="|search-no-results-${componentVar}|" style="display: none;">
+                未找到匹配项
+            </div>
+            
+            <!-- 最小长度提示 -->
+            <div class="dropdown-item-text text-muted" th:id="|search-min-length-${componentVar}|" style="display: none;">
+                请输入更多字符进行搜索
+            </div>
+        </div>
+        
+        <!-- 验证错误提示 -->
+        <div class="invalid-feedback" th:id="|search-validation-${componentVar}|" style="display: none;"></div>
+    </div>
+</th:block>
+
+<!-- 自动搜索下拉框（带标签版本 - 向后兼容） -->
+<th:block th:fragment="auto-search-dropdown(componentVar, label, required, validationField, placeholder, disabled, cssClass)">
+    <div class="mb-3">
+        <label class="form-label" th:classappend="${required} ? 'required' : ''" th:text="${label}">标签</label>
+        <div th:replace="~{fragments/common/search-dropdown :: search-dropdown(${componentVar}, ${cssClass})}"></div>
+    </div>
+</th:block>
+
+<!-- 搜索下拉框样式 -->
+<th:block th:fragment="search-dropdown-styles">
+<style>
+    /* 搜索下拉框样式 */
+    .search-dropdown {
+        position: relative;
+    }
+    
+    .search-dropdown .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 1050;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        background-color: #fff;
+        min-width: 200px;
+    }
+    
+    .search-dropdown .dropdown-item {
+        cursor: pointer;
+        border: none;
+        background: none;
+        width: 100%;
+        text-align: left;
+        padding: 0.5rem 1rem;
+        transition: background-color 0.15s ease-in-out;
+        font-size: 0.875rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: #000;
+    }
+    
+    .search-dropdown .dropdown-item:hover,
+    .search-dropdown .dropdown-item.active {
+        background-color: #e9ecef;
+        color: #212529;
+    }
+
+    /* 当有验证错误时，移除下拉箭头，显示Tabler UI的错误图标 */
+    .search-dropdown .form-control.is-invalid {
+        background-image: none;
+        padding-right: 2.5rem; /* 保持padding为错误图标留空间 */
+    }
+    
+    .search-dropdown .dropdown-item-text {
+        padding: 0.5rem 1rem;
+        font-style: italic;
+        color: #6c757d;
+        font-size: 0.8125rem;
+    }
+    
+    /* 加载状态spinner */
+    .search-dropdown .spinner-border-sm {
+        width: 1rem;
+        height: 1rem;
+        vertical-align: middle;
+    }
+    
+    /* 输入框样式 */
+    .search-dropdown .form-control {
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m1 1 6 6-6 6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 0.75rem center;
+        background-size: 16px 12px;
+        padding-right: 2.5rem;
+    }
+    
+    .search-dropdown .form-control:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    /* 确保下拉框在模态框中正确显示 */
+    .modal .search-dropdown .dropdown-menu {
+        z-index: 1060;
+    }
+    
+    /* 响应式调整 */
+    @media (max-width: 768px) {
+        .search-dropdown .dropdown-menu {
+            min-width: auto;
+            left: -15px;
+            right: -15px;
+        }
+    }
+</style>
+</th:block>
