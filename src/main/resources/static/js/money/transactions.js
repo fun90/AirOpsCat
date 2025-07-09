@@ -1,7 +1,7 @@
 
 import { DataTable } from '/static/js/common/data-table.js';
 import { createSearchDropdown, SearchDropdownPresets, ValidationRules } from '/static/js/common/search-dropdown.js';
-import ApexCharts from 'https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.esm.js';
+import ApexCharts from '/static/tabler/libs/apexcharts/dist/apexcharts.esm.js';
 
 const transactionTable = new DataTable({
     data: {
