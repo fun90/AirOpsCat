@@ -1,6 +1,6 @@
 
 import { DataTable } from '/static/js/common/data-table.js';
-import { Modal } from '/static/tabler/js/tabler.esm.min.js';
+import { Modal } from 'https://cdn.jsdelivr.net/npm/@tabler/core@1.3.2/dist/js/tabler.esm.min.js';
 
 const serverTable = new DataTable({
     data: {
