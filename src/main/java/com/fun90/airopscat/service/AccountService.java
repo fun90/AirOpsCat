@@ -103,7 +103,8 @@ public class AccountService {
                         ));
                         break;
                     case "expired":
-                        // Expired accounts: expired
+                        // Expired accounts: expired and not disabled
+                        predicates.add(criteriaBuilder.equal(root.get("disabled"), 0));
                         predicates.add(criteriaBuilder.and(
                                 criteriaBuilder.isNotNull(root.get("toDate")),
                                 criteriaBuilder.lessThan(root.get("toDate"), now)

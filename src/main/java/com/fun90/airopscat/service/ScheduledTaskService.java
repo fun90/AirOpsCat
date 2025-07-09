@@ -53,6 +53,7 @@ public class ScheduledTaskService {
      * 检查未禁用但已过期的账户，并重新部署相关的节点
      */
     @Scheduled(cron = "0 0 5 * * ?")
+    @Transactional
     public void checkExpiredAccountsAndRedeployNodes() {
         log.info("开始执行定时任务：检查过期账户并重新部署节点");
         
