@@ -72,8 +72,8 @@
     <thead>
     <tr>
         <th>ID</th>
-        <th>人员</th>
         <th>账号</th>
+        <th>用户</th>
         <th>状态</th>
         <th>在线IP</th>
         <th>流量使用</th>
@@ -87,13 +87,6 @@
         <td v-text="account.id"></td>
         <td>
             <div class="d-flex flex-column">
-                {{ account.userEmail }}
-                <span class="text-muted small">{{ account.nickName }}</span>
-            </div>
-            
-        </td>
-        <td>
-            <div class="d-flex flex-column">
                 <div class="d-flex align-items-center">
                     <a href="#" @click.prevent="viewAccountDetails(account)" class="text-decoration-none text-truncate" style="max-width: 150px;" 
                        :title="'点击查看账号详情: ' + account.accountNo">
@@ -104,6 +97,11 @@
                     </button>
                 </div>
                 <span v-if="account.remark" class="text-muted small" :title="account.remark">{{ account.remark }}</span>
+            </div>
+        </td>
+        <td>
+            <div class="d-flex flex-column">
+                {{ account.nickName }}
             </div>
         </td>
         <td>
@@ -227,7 +225,7 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label required">人员</label>
+                                <label class="form-label required">用户</label>
                                 <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="newItem.userId">
                                     <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
                                 </select>
@@ -365,7 +363,7 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label required">人员</label>
+                                <label class="form-label required">用户</label>
                                 <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="editedItem.userId">
                                     <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
                                 </select>
