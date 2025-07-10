@@ -1,6 +1,6 @@
 
 import { DataTable } from '/static/js/common/data-table.js';
-import { createSearchDropdown, SearchDropdownPresets, ValidationRules } from '/static/js/common/search-dropdown.js';
+import { createSearchDropdown, SearchDropdownPresets } from '/static/js/common/search-dropdown.js';
 import ApexCharts from 'https://cdn.jsdelivr.net/npm/apexcharts@4.7.0/+esm';
 
 const transactionTable = new DataTable({
@@ -59,22 +59,6 @@ const transactionTable = new DataTable({
             // 创建业务搜索组件（新建时使用）
             this.businessSearch = createSearchDropdown({
                 placeholder: '请先选择业务类型',
-                disabled: true,
-                validation: {
-                    enabled: true,
-                    fieldName: 'businessId',
-                    validateOn: ['blur', 'change'],
-                    rules: [
-                        // 当业务类型已选择时，业务必须选择
-                        ValidationRules.custom((value, selectedItem) => {
-                            // 如果选择了业务类型但没选择具体业务项
-                            if (this.newItem.businessTable && !selectedItem) {
-                                return '请选择关联的业务项';
-                            }
-                            return true;
-                        }, '请选择关联的业务项')
-                    ]
-                },
                 onSelect: (item) => {
                     this.newItem.businessId = item.id;
                 },
@@ -88,22 +72,6 @@ const transactionTable = new DataTable({
             // 创建编辑业务搜索组件（编辑时使用）
             this.editBusinessSearch = createSearchDropdown({
                 placeholder: '请先选择业务类型',
-                disabled: true,
-                validation: {
-                    enabled: true,
-                    fieldName: 'editBusinessId',
-                    validateOn: ['blur', 'change'],
-                    rules: [
-                        // 当业务类型已选择时，业务必须选择
-                        ValidationRules.custom((value, selectedItem) => {
-                            // 如果选择了业务类型但没选择具体业务项
-                            if (this.editedItem.businessTable && !selectedItem) {
-                                return '请选择关联的业务项';
-                            }
-                            return true;
-                        }, '请选择关联的业务项')
-                    ]
-                },
                 onSelect: (item) => {
                     this.editedItem.businessId = item.id;
                 },
@@ -116,8 +84,8 @@ const transactionTable = new DataTable({
 
             // 延迟绑定DOM，确保模板已渲染
             setTimeout(() => {
-                this.businessSearch.bindToDOM('businessSearch', 'businessId', this);
-                this.editBusinessSearch.bindToDOM('editBusinessSearch', 'editBusinessId', this);
+                this.businessSearch.bindToDOM('businessSearch');
+                this.editBusinessSearch.bindToDOM('editBusinessSearch');
             }, 100);
         },
 
@@ -298,40 +266,40 @@ const transactionTable = new DataTable({
         // Handle business table change event
         onBusinessTableChange() {
             this.newItem.businessId = '';
+            this.businessSearch.clear();
             
             if (this.newItem.businessTable) {
                 // 根据业务类型配置搜索组件
                 const preset = this.getBusinessSearchPreset(this.newItem.businessTable);
                 if (preset) {
                     // 重新配置搜索组件
-                    this.businessSearch.options = { ...this.businessSearch.options, ...preset };
-                    this.businessSearch.setDisabled(false);
-                    this.businessSearch.options.placeholder = preset.placeholder;
-                    this.businessSearch.init();
+                    Object.assign(this.businessSearch.options, preset);
+                    this.businessSearch.updateUI();
                 }
             } else {
-                this.businessSearch.setDisabled(true);
                 this.businessSearch.options.placeholder = '请先选择业务类型';
+                this.businessSearch.options.apiUrl = '';
+                this.businessSearch.updateUI();
             }
         },
 
         // Handle edit business table change event
         onEditBusinessTableChange() {
             this.editedItem.businessId = '';
+            this.editBusinessSearch.clear();
             
             if (this.editedItem.businessTable) {
                 // 根据业务类型配置搜索组件
                 const preset = this.getBusinessSearchPreset(this.editedItem.businessTable);
                 if (preset) {
                     // 重新配置搜索组件
-                    this.editBusinessSearch.options = { ...this.editBusinessSearch.options, ...preset };
-                    this.editBusinessSearch.setDisabled(false);
-                    this.editBusinessSearch.options.placeholder = preset.placeholder;
-                    this.editBusinessSearch.init();
+                    Object.assign(this.editBusinessSearch.options, preset);
+                    this.editBusinessSearch.updateUI();
                 }
             } else {
-                this.editBusinessSearch.setDisabled(true);
                 this.editBusinessSearch.options.placeholder = '请先选择业务类型';
+                this.editBusinessSearch.options.apiUrl = '';
+                this.editBusinessSearch.updateUI();
             }
         },
 
@@ -374,12 +342,10 @@ const transactionTable = new DataTable({
                 isValid = false;
             }
 
-            // 校验搜索下拉框组件
-            if (this.businessSearch) {
-                const businessValid = this.businessSearch.validate();
-                if (!businessValid) {
-                    isValid = false;
-                }
+            // 当选择了业务类型但没选择具体业务时进行校验
+            if (this.newItem.businessTable && !this.newItem.businessId) {
+                this.validationErrors.businessId = '请选择关联的业务项';
+                isValid = false;
             }
 
             return isValid;
@@ -407,12 +373,10 @@ const transactionTable = new DataTable({
                 isValid = false;
             }
 
-            // 校验搜索下拉框组件
-            if (this.editBusinessSearch) {
-                const businessValid = this.editBusinessSearch.validate();
-                if (!businessValid) {
-                    isValid = false;
-                }
+            // 当选择了业务类型但没选择具体业务时进行校验
+            if (this.editedItem.businessTable && !this.editedItem.businessId) {
+                this.validationErrors.editBusinessId = '请选择关联的业务项';
+                isValid = false;
             }
 
             return isValid;
@@ -463,7 +427,9 @@ const transactionTable = new DataTable({
             // Reset search components
             if (this.businessSearch) {
                 this.businessSearch.clear();
-                this.businessSearch.setDisabled(true);
+                this.businessSearch.options.placeholder = '请先选择业务类型';
+                this.businessSearch.options.apiUrl = '';
+                this.businessSearch.updateUI();
             }
         },
 
@@ -494,9 +460,7 @@ const transactionTable = new DataTable({
                     // 配置编辑搜索组件
                     const preset = this.getBusinessSearchPreset(transaction.businessTable);
                     if (preset) {
-                        this.editBusinessSearch.options = { ...this.editBusinessSearch.options, ...preset };
-                        this.editBusinessSearch.setDisabled(false);
-                        this.editBusinessSearch.init();
+                        Object.assign(this.editBusinessSearch.options, preset);
                         
                         // 设置已选中的业务信息
                         this.editBusinessSearch.setValue(transaction.businessName || '', {
@@ -506,7 +470,9 @@ const transactionTable = new DataTable({
                     }
                 } else {
                     this.editBusinessSearch.clear();
-                    this.editBusinessSearch.setDisabled(true);
+                    this.editBusinessSearch.options.placeholder = '请先选择业务类型';
+                    this.editBusinessSearch.options.apiUrl = '';
+                    this.editBusinessSearch.updateUI();
                 }
             }
 
