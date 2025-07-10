@@ -166,14 +166,14 @@
         <td v-text="node.id"></td>
         <td>
             <div class="d-flex flex-column">
-                <span v-text="node.name || '-'"></span>
-                <span v-if="node.remark" class="text-muted small">{{ node.remark }}</span>
+                <span v-text="node.name || '-'" class="text-decoration-none text-truncate" style="max-width: 150px;"></span>
+                <span v-if="node.remark" class="text-muted small text-decoration-none text-truncate" style="max-width: 150px;">{{ node.remark }}</span>
             </div>
         </td>
         <td>
             <div class="d-flex flex-column">
-                <span v-text="node.serverIp"></span>
-                <span v-if="node.serverHost" class="text-muted small">{{ node.serverHost }}</span>
+                <span v-text="node.serverIp" class="text-decoration-none text-truncate" style="max-width: 150px;"></span>
+                <span v-if="node.serverHost" class="text-muted small text-decoration-none text-truncate" style="max-width: 150px;">{{ node.serverHost }}</span>
             </div>
         </td>
         <td v-text="node.port"></td>
