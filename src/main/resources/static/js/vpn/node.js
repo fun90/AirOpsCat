@@ -610,4 +610,4 @@ const nodeTable = new DataTable({
 });
 
 // Initialize the Vue app
-nodeTable.createApp('#nodes-app');
+nodeTable.createApp('#app');

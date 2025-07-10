@@ -8,5 +8,6 @@ import lombok.Data;
 public class MenuItem {
     private String moduleTitle;
     private String title;
+    private String secondaryTitle;
     private String uri;
 }

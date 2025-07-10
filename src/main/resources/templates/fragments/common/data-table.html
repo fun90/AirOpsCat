@@ -1,7 +1,6 @@
-<div th:fragment="data-table(title, buttonText, tableId, entityName, filterFragment, tableFragment, statsFragment, modalsFragment, modalIdPrefix, showAddButton)" class="col-12">
-    <div class="card" th:id="${tableId}" @vue:mounted="mounted">
+<div th:fragment="data-table(title, entityName, filterFragment, tableFragment, statsFragment, modalsFragment, modalIdPrefix)" class="col-12">
+    <div class="card">
         <div class="card-header">
-            <h3 class="card-title" th:text="${title}">数据表格</h3>
             <div class="card-actions">
                 <div class="row g-2">
                     <!-- Search input -->
@@ -11,13 +10,6 @@
 
                     <!-- Additional filters - provided by the specific implementation -->
                     <th:block th:replace="${filterFragment} ?: ~{}"></th:block>
-
-                    <!-- Add button -->
-                    <div class="col-auto">
-                        <button th:if="${showAddButton != false}" class="btn btn-primary btn-5" @click="openCreateModal" >
-                            <i class="ti ti-plus"></i> <span th:text="${buttonText ?: '添加'}">添加</span>
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>

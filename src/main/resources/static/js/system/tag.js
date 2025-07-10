@@ -239,4 +239,4 @@ const tagTable = new DataTable({
 });
 
 // Initialize the Vue app
-tagTable.createApp('#tags-app'); 
+tagTable.createApp('#app'); 

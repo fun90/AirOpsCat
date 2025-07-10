@@ -18,7 +18,7 @@
         @import url("https://rsms.me/inter/inter.css");
     </style>
     <!-- END CUSTOM FONT -->
-    
+
     <!-- Custom styles for autosize in modals -->
     <style>
         /* 优化 Modal 中的 autosize textarea */
@@ -35,20 +35,20 @@
         
         /* 移动端响应式logo样式 */
         .logo-responsive {
-            transition: height 0.2s ease;
+            /*transition: height 0.2s ease;*/
         }
         
         /* 移动端调整logo高度 */
         @media (max-width: 575.98px) {
             .logo-responsive {
-                height: 40px !important;
+                height: 32px !important;
             }
         }
         
         /* 小屏幕平板调整logo高度 */
         @media (max-width: 767.98px) {
             .logo-responsive {
-                height: 50px !important;
+                height: 36px !important;
             }
         }
         
@@ -168,14 +168,14 @@
     <!-- BEGIN GLOBAL THEME SCRIPT -->
     <script th:src="@{/static/tabler/js/tabler-theme.min.js}"></script>
     <!-- END GLOBAL THEME SCRIPT -->
-    <div id="app" class="layout-fluid" v-scope>
+    <div id="app" class="layout-fluid" @vue:mounted="mounted">
         <!--  BEGIN SIDEBAR  -->
         <th:block th:replace="~{fragments/common/sidebar :: sidebar}"></th:block>
         <!--  END SIDEBAR  -->
 
         <div class="page-wrapper">
             <!-- BEGIN PAGE HEADER -->
-            <th:block th:replace="~{fragments/common/header :: header}"></th:block>
+            <th:block th:replace="~{'fragments' + ${uri} :: header}"></th:block>
             <!-- END PAGE HEADER -->
 
             <!-- BEGIN PAGE BODY -->

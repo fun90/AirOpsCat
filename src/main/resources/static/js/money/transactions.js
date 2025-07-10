@@ -530,7 +530,7 @@ const transactionTable = new DataTable({
 });
 
 // Initialize the Vue app
-const vueApp = transactionTable.createApp('#transactions-app');
+const vueApp = transactionTable.createApp('#app');
 
 // Make transaction table globally accessible for search dropdowns
 window.transactionTable = transactionTable;

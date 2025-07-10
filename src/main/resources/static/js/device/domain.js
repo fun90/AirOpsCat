@@ -153,4 +153,4 @@ const domainTable = new DataTable({
 });
 
 // Initialize the Vue app
-domainTable.createApp('#domains-app');
+domainTable.createApp('#app');

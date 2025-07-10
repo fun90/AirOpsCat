@@ -1,17 +1,16 @@
+<th:block th:fragment="header" >
+    <th:block th:replace="~{fragments/common/header :: header(
+        ${pageTitle},
+        ${pageSecondaryTitle},
+        false,
+        ~{}
+    )}"></th:block>
+</th:block>
+
 <div th:fragment="content" class="page-body">
     <div class="container-xl">
-        <!-- 页面标题 -->
-        <div class="page-header d-print-none">
-            <div class="row align-items-center">
-                <div class="col">
-                    <h2 class="page-title">用户面板</h2>
-                    <div class="text-secondary mt-1">查看您的账户信息和客户端配置</div>
-                </div>
-            </div>
-        </div>
-
         <!-- 用户面板内容 -->
-        <div id="userPanel" class="mt-3" v-scope>
+        <div id="userPanel" v-scope>
             <!-- 账户选择器 -->
             <div class="card mb-4">
                 <div class="card-header">

@@ -140,4 +140,4 @@ const userTable = new DataTable({
 });
 
 // Initialize the Vue app
-userTable.createApp('#users-app');
+userTable.createApp('#app');
