@@ -243,9 +243,9 @@
                             <resources>
                                 <resource>
                                     <directory>src/main/resources</directory>
-                                    <excludes>
-                                        <exclude>static/**</exclude>
-                                    </excludes>
+<!--                                    <excludes>-->
+<!--                                        <exclude>static/**</exclude>-->
+<!--                                    </excludes>-->
                                 </resource>
                             </resources>
                         </configuration>
@@ -292,7 +292,7 @@
                     </archive>
                     <excludes>
                         <exclude>lib/**</exclude>
-                        <exclude>static/**</exclude>
+<!--                        <exclude>static/**</exclude>-->
                     </excludes>
                 </configuration>
             </plugin>
