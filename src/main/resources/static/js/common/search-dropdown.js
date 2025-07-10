@@ -74,6 +74,10 @@ export class SearchDropdown {
         this.isValid = true;
         this.hasBeenValidated = false;
         
+        // 移动端状态
+        this.isTouching = false;
+        this.preventBlur = false;
+        
         // DOM元素引用
         this.domElements = {
             dropdown: null,
@@ -101,6 +105,8 @@ export class SearchDropdown {
         this.validate = this.validate.bind(this);
         this.clearValidation = this.clearValidation.bind(this);
         this.setValidationError = this.setValidationError.bind(this);
+        this.handleTouchStart = this.handleTouchStart.bind(this);
+        this.handleTouchEnd = this.handleTouchEnd.bind(this);
     }
     
     /**
@@ -178,10 +184,18 @@ export class SearchDropdown {
      * 处理失焦事件
      */
     handleBlur() {
+        // 如果正在触摸或需要阻止失焦，则不隐藏下拉框
+        if (this.isTouching || this.preventBlur) {
+            return;
+        }
+        
         setTimeout(() => {
-            this.showDropdown = false;
-            this.selectedIndex = -1;
-        }, 200);
+            // 再次检查是否需要阻止失焦
+            if (!this.preventBlur && !this.isTouching) {
+                this.showDropdown = false;
+                this.selectedIndex = -1;
+            }
+        }, 300); // 增加延迟时间，给触摸事件更多时间
     }
     
     /**
@@ -241,6 +255,24 @@ export class SearchDropdown {
         }
         
         this.updateUI();
+    }
+    
+    /**
+     * 处理触摸开始事件
+     */
+    handleTouchStart() {
+        this.isTouching = true;
+        this.preventBlur = true;
+    }
+    
+    /**
+     * 处理触摸结束事件
+     */
+    handleTouchEnd() {
+        setTimeout(() => {
+            this.isTouching = false;
+            this.preventBlur = false;
+        }, 100);
     }
     
     /**
@@ -619,15 +651,50 @@ export class SearchDropdown {
                         button.classList.add('active');
                     }
                     button.textContent = item.name;
+                    
+                    // 移动端优化：添加多种事件监听器
+                    // 触摸开始事件
+                    button.addEventListener('touchstart', (e) => {
+                        e.preventDefault();
+                        this.handleTouchStart();
+                    }, { passive: false });
+                    
+                    // 触摸结束事件
+                    button.addEventListener('touchend', (e) => {
+                        e.preventDefault();
+                        this.selectItem(item);
+                        this.updateUI();
+                        this.handleTouchEnd();
+                    }, { passive: false });
+                    
+                    // 鼠标按下事件（PC端）
                     button.addEventListener('mousedown', (e) => {
                         e.preventDefault();
                         this.selectItem(item);
                         this.updateUI();
                     });
-                    button.addEventListener('mouseenter', () => {
-                        this.selectedIndex = index;
+                    
+                    // 点击事件（备用）
+                    button.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.selectItem(item);
                         this.updateUI();
                     });
+                    
+                    // 鼠标悬停事件（仅PC端）
+                    button.addEventListener('mouseenter', () => {
+                        if (!this.isTouching) {
+                            this.selectedIndex = index;
+                            this.updateUI();
+                        }
+                    });
+                    
+                    // 防止滚动时意外触发选择
+                    button.addEventListener('touchmove', (e) => {
+                        this.preventBlur = false;
+                    });
+                    
                     results.appendChild(button);
                 });
             }

@@ -1,5 +1,6 @@
 <!-- 
     通用搜索下拉框组件模板
+    已针对移动端Chrome浏览器进行优化，支持触摸事件
     
     ## 纯净版本（推荐）
     th:replace="~{fragments/common/search-dropdown :: search-dropdown(componentVar, cssClass)}"
@@ -123,6 +124,22 @@
     .search-dropdown .dropdown-item.active {
         background-color: #e9ecef;
         color: #212529;
+    }
+    
+    /* 移动端触摸优化 */
+    .search-dropdown .dropdown-item {
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        touch-action: manipulation;
+    }
+    
+    .search-dropdown .dropdown-item:active {
+        background-color: #d1ecf1;
+        color: #0c5460;
     }
 
     /* 当有验证错误时，移除下拉箭头，显示Tabler UI的错误图标 */
