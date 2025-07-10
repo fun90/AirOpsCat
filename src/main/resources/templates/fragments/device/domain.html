@@ -1,18 +1,23 @@
-```html
+<th:block th:fragment="header" >
+    <th:block th:replace="~{fragments/common/header :: header(
+        ${pageTitle},
+        ${pageSecondaryTitle},
+        true,
+        ~{}
+    )}"></th:block>
+</th:block>
+
 <div th:fragment="content" class="page-body">
     <div class="container-xl">
         <!-- Use the common data table template -->
         <div th:replace="~{fragments/common/data-table :: data-table(
             '域名管理',
-            '添加域名',
-            'domains-app',
             'domains',
             ~{fragments/device/domain :: filters},
             ~{fragments/device/domain :: table-content},
             ~{fragments/device/domain :: stats-cards},
             ~{fragments/device/domain :: modals},
-            'domain-',
-            true
+            'domain-'
         )}"></div>
     </div>
 </div>

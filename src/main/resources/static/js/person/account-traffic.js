@@ -268,4 +268,4 @@ const trafficStatsTable = new DataTable({
 });
 
 // Initialize the Vue app
-trafficStatsTable.createApp('#traffic-stats-app');
+trafficStatsTable.createApp('#app');

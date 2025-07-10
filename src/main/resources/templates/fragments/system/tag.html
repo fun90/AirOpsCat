@@ -1,17 +1,23 @@
+<th:block th:fragment="header" >
+    <th:block th:replace="~{fragments/common/header :: header(
+        ${pageTitle},
+        ${pageSecondaryTitle},
+        true,
+        ~{}
+    )}"></th:block>
+</th:block>
+
 <div th:fragment="content" class="page-body">
     <div class="container-xl">
         <!-- Use the common data table template -->
         <div th:replace="~{fragments/common/data-table :: data-table(
             '标签管理',
-            '添加标签',
-            'tags-app',
             'tags',
             ~{fragments/system/tag :: filters},
             ~{fragments/system/tag :: table-content},
             ~{fragments/system/tag :: stats-cards},
             ~{fragments/system/tag :: modals},
-            'tag-',
-            true
+            'tag-'
         )}"></div>
     </div>
 </div>

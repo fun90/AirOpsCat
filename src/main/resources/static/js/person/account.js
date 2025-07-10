@@ -709,4 +709,4 @@ const accountTable = new DataTable({
 });
 
 // Initialize the Vue app
-accountTable.createApp('#accounts-app');
+accountTable.createApp('#app');

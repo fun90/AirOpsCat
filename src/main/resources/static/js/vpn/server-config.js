@@ -384,4 +384,4 @@ const configTable = new DataTable({
 });
 
 // Initialize the table
-configTable.createApp('#server-configs-app');
+configTable.createApp('#app');

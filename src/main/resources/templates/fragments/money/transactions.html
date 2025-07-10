@@ -1,17 +1,23 @@
+<th:block th:fragment="header" >
+    <th:block th:replace="~{fragments/common/header :: header(
+        ${pageTitle},
+        ${pageSecondaryTitle},
+        true,
+        ~{}
+    )}"></th:block>
+</th:block>
+
 <div th:fragment="content" class="page-body">
     <div class="container-xl">
         <!-- Use the common data table template -->
         <div th:replace="~{fragments/common/data-table :: data-table(
             '交易流水',
-            '添加交易',
-            'transactions-app',
             'transactions',
             ~{fragments/money/transactions :: filters},
             ~{fragments/money/transactions :: table-content},
             ~{fragments/money/transactions :: stats-content},
             ~{fragments/money/transactions :: modals},
-            'transaction-',
-            true
+            'transaction-'
         )}"></div>
     </div>
 </div>

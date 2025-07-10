@@ -1,19 +1,24 @@
+<th:block th:fragment="header" >
+    <th:block th:replace="~{fragments/common/header :: header(
+        ${pageTitle},
+        ${pageSecondaryTitle},
+        true,
+        ~{}
+    )}"></th:block>
+</th:block>
+
 <div th:fragment="content" class="page-body">
     <div class="container-xl">
-        <div class="row row-deck row-cards">
-            <th:block th:replace="~{fragments/common/data-table :: data-table(
-                    '配置管理',
-                    '添加配置',
-                    'server-configs-app',
-                    'server-configs',
-                    ~{fragments/vpn/server-config :: filters},
-                    ~{fragments/vpn/server-config :: table-content},
-                    ~{fragments/vpn/server-config :: stats-cards},
-                    ~{fragments/vpn/server-config :: modals},
-                    'server-config-',
-                    false
-                )}"></th:block>
-        </div>
+        <!-- Use the common data table template -->
+        <div th:replace="~{fragments/common/data-table :: data-table(
+            '配置管理',
+            'server-configs',
+            ~{fragments/vpn/server-config :: filters},
+            ~{fragments/vpn/server-config :: table-content},
+            ~{fragments/vpn/server-config :: stats-cards},
+            ~{fragments/vpn/server-config :: modals},
+            'server-config-'
+        )}"></div>
     </div>
 </div>
 

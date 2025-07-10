@@ -495,4 +495,4 @@ const serverTable = new DataTable({
 });
 
 // Initialize the Vue app
-serverTable.createApp('#servers-app');
+serverTable.createApp('#app');
