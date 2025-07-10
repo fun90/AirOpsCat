@@ -145,7 +145,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="row" v-if="selectedItem.remark">
+                                        <div class="row">
                                             <div class="col-12">
                                                 <div class="mb-3">
                                                     <label class="form-label text-muted">使用文档</label>
@@ -188,7 +188,15 @@
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label text-muted">统计周期</label>
-                                            <div class="fw-bold">{{ selectedItem.periodType || '未设置' }}</div>
+                                            <div v-if="selectedItem.periodType" class="d-flex align-items-center">
+                                                <span class="badge" :class="getPeriodTypeBadgeClass(selectedItem.periodType)">
+                                                    <i class="ti ti-calendar me-1"></i>
+                                                    {{ getPeriodTypeLabel(selectedItem.periodType) }}
+                                                </span>
+                                            </div>
+                                            <div v-else class="text-muted">
+                                                <i class="ti ti-dash me-1"></i>未设置
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -294,6 +302,9 @@
                                                      class="list-group-item px-0 py-2">
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span class="badge text-bg-primary">{{ ip.clientIp }}</span>
+                                                        <button @click="copyToClipboard(ip.clientIp)" class="btn btn-sm btn-ghost-secondary">
+                                                            <i class="ti ti-copy"></i>
+                                                        </button>
                                                         <small class="text-muted">{{ formatDateTime(ip.lastOnlineTime) }}</small>
                                                     </div>
                                                 </div>
@@ -358,6 +369,7 @@
         <th>状态</th>
         <th>在线IP</th>
         <th>流量使用</th>
+        <th>统计周期</th>
         <th>到期时间</th>
         <th class="w-1">操作</th>
     </tr>
@@ -367,7 +379,7 @@
         <td v-text="account.id"></td>
         <td>
             <div class="d-flex flex-column">
-                <a href="#" @click.prevent="viewUserDetails(account.userId)">{{ account.userEmail }}</a>
+                {{ account.userEmail }}
                 <span class="text-muted small">{{ account.nickName }}</span>
             </div>
             
@@ -428,6 +440,17 @@
             </div>
             <div v-else>
                 {{ formatBytes(account.totalUsedBytes) }}
+            </div>
+        </td>
+        <td>
+            <div v-if="account.periodType" class="d-flex align-items-center">
+                <span class="badge" :class="getPeriodTypeBadgeClass(account.periodType)">
+                    <i class="ti ti-calendar me-1"></i>
+                    {{ getPeriodTypeLabel(account.periodType) }}
+                </span>
+            </div>
+            <div v-else class="text-muted">
+                <i class="ti ti-dash me-1"></i>未设置
             </div>
         </td>
         <td :title="`创建时间: ${formatDateTime(account.createTime) || '未知'}`"
@@ -885,7 +908,7 @@
                                 <i class="ti ti-info-circle"></i>
                             </div>
                             <div class="ms-2">
-                                <strong>{{ selectedItem.accountNo }}</strong> 的在线IP记录
+                                <strong>{{ selectedItem.remark }}</strong> 的在线IP记录
                             </div>
                         </div>
                     </div>
@@ -915,6 +938,9 @@
                                     <tr v-for="ip in onlineIps" :key="ip.id">
                                         <td>
                                             <span class="badge text-bg-primary">{{ ip.clientIp }}</span>
+                                            <button @click="copyToClipboard(ip.clientIp)" class="btn btn-sm btn-ghost-secondary">
+                                                <i class="ti ti-copy"></i>
+                                            </button>
                                         </td>
                                         <td>
                                             <span class="text-muted">{{ ip.nodeIp }}</span>

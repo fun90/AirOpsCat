@@ -227,6 +227,22 @@ const accountTable = new DataTable({
             return 'bg-success';
         },
 
+        // 统计周期相关方法
+        getPeriodTypeLabel(periodType) {
+            if (!periodType) return '未设置';
+            const periodTypeObj = this.periodTypes.find(type => type.value === periodType);
+            return periodTypeObj ? periodTypeObj.label : periodType;
+        },
+
+        getPeriodTypeBadgeClass(periodType) {
+            if (!periodType) return 'text-bg-secondary';
+            switch (periodType) {
+                case 'MONTHLY': return 'text-bg-blue';
+                case 'YEARLY': return 'text-bg-green';
+                default: return 'text-bg-secondary';
+            }
+        },
+
         // 通过状态筛选账户
         filterByStatus(status) {
             this.filters.status = status;
