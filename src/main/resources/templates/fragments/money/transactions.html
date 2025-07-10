@@ -277,6 +277,7 @@
                                 <label class="form-label">关联业务</label>
                                 <!-- 使用纯净版搜索下拉框组件 -->
                                 <div th:replace="~{fragments/common/search-dropdown :: search-dropdown('businessSearch', '')}"></div>
+                                <div class="invalid-feedback" v-if="validationErrors.businessId" style="display: block;">{{ validationErrors.businessId }}</div>
                             </div>
                         </div>
                     </div>
@@ -360,6 +361,7 @@
                                 <label class="form-label">关联业务</label>
                                 <!-- 使用纯净版搜索下拉框组件 -->
                                 <div th:replace="~{fragments/common/search-dropdown :: search-dropdown('editBusinessSearch', '')}"></div>
+                                <div class="invalid-feedback" v-if="validationErrors.editBusinessId" style="display: block;">{{ validationErrors.editBusinessId }}</div>
                             </div>
                         </div>
                     </div>
