@@ -1,5 +1,5 @@
 /**
- * Utility functions for working with toasts in Tabler UI 1.2.0
+ * Utility functions for working with toasts in Tabler UI 1.3.2
  * This version uses ES6 modules and Bootstrap 5's native toast API
  */
 
