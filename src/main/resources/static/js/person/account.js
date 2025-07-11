@@ -141,7 +141,7 @@ const accountTable = new DataTable({
             if (!authCode || !this.docsBaseUrl) {
                 return '';
             }
-            return `${this.docsBaseUrl}?code=${authCode}`;
+            return `${this.docsBaseUrl}/?code=${authCode}`;
         },
 
         getStatusDescription(item) {
