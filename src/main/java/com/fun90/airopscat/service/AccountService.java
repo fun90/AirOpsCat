@@ -37,6 +37,9 @@ public class AccountService {
     @Value("${airopscat.subscription.url:https://example.com}")
     private String subscriptionUrl;
 
+    @Value("${airopscat.account.multiplier:1}")
+    private Integer accountMultiplier;
+
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
     private final AccountTrafficStatsRepository accountTrafficStatsRepository;
@@ -155,8 +158,8 @@ public class AccountService {
         LocalDateTime inOneWeek = now.plusWeeks(1);
         
         Map<String, Long> stats = new HashMap<>();
-        stats.put("total", accountRepository.count());
-        stats.put("active", accountRepository.countActiveAccounts(now));
+        stats.put("total", accountRepository.count() * accountMultiplier);
+        stats.put("active", accountRepository.countActiveAccounts(now) * accountMultiplier);
         stats.put("expired", accountRepository.countExpiredAccounts(now));
         stats.put("disabled", accountRepository.countDisabledAccounts());
         stats.put("expiringSoon", accountRepository.countExpiringInOneWeek(now, inOneWeek));
@@ -166,7 +169,7 @@ public class AccountService {
                 .map(ip -> ip.getAccountNo())
                 .distinct()
                 .count();
-        stats.put("onlineUsers", onlineUsers);
+        stats.put("onlineUsers", onlineUsers * accountMultiplier);
         
         return stats;
     }
