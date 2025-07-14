@@ -3,33 +3,24 @@
     <formats>
         <format>zip</format>
     </formats>
-    <!-- 使用assembly拷贝依赖包 -->
-    <!--<dependencySets>-->
-    <!--<dependencySet>-->
-    <!--&lt;!&ndash; 是否包含自己（将项目生成的jar包也输出到lib目录） &ndash;&gt;-->
-    <!--<useProjectArtifact>false</useProjectArtifact>-->
-    <!--<outputDirectory>lib</outputDirectory>-->
-    <!--</dependencySet>-->
-    <!--</dependencySets>-->
+    
     <fileSets>
-        <!-- 从目标目录拷贝文件去压缩 -->
+        <!-- Quarkus uber-jar (包含所有依赖的可执行JAR) -->
         <fileSet>
             <directory>target</directory>
             <includes>
-                <include>*.jar</include>
+                <include>*-runner.jar</include>
             </includes>
             <outputDirectory>/</outputDirectory>
         </fileSet>
+        
+        <!-- Quarkus JVM 模式的 quarkus-app 目录 -->
         <fileSet>
-            <directory>target/lib</directory>
-            <outputDirectory>/lib</outputDirectory>
+            <directory>target/quarkus-app</directory>
+            <outputDirectory>/quarkus-app</outputDirectory>
         </fileSet>
-
-        <!-- 从源目录拷贝文件去压缩 -->
-<!--        <fileSet>-->
-<!--            <directory>src/main/resources/static</directory>-->
-<!--            <outputDirectory>/static</outputDirectory>-->
-<!--        </fileSet>-->
+        
+        <!-- 配置文件 -->
         <fileSet>
             <directory>src/main/resources</directory>
             <includes>
@@ -37,13 +28,22 @@
             </includes>
             <outputDirectory>/</outputDirectory>
         </fileSet>
+        
+        <!-- 脚本文件 -->
         <fileSet>
             <directory>src/main/assembly/bin</directory>
             <outputDirectory>/bin</outputDirectory>
+            <fileMode>0755</fileMode>
         </fileSet>
-<!--        <fileSet>-->
-<!--            <directory>src/main/db</directory>-->
-<!--            <outputDirectory>/db</outputDirectory>-->
-<!--        </fileSet>-->
+        
+        <!-- 文档文件 -->
+        <fileSet>
+            <directory>.</directory>
+            <includes>
+                <include>README.md</include>
+                <include>LICENSE</include>
+            </includes>
+            <outputDirectory>/</outputDirectory>
+        </fileSet>
     </fileSets>
 </assembly>

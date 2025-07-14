@@ -5,11 +5,13 @@ import com.fun90.airopscat.model.entity.Transaction;
 import com.fun90.airopscat.model.enums.PaymentMethod;
 import com.fun90.airopscat.model.enums.TransactionType;
 import com.fun90.airopscat.service.TransactionService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
+import io.quarkus.panache.common.Page;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -18,61 +20,65 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-@RestController
-@RequestMapping("/api/admin/transactions")
+@ApplicationScoped
+@Path("/api/admin/transactions")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class TransactionController {
     
-    private final TransactionService transactionService;
-    
-    @Autowired
-    public TransactionController(TransactionService transactionService) {
-        this.transactionService = transactionService;
-    }
+    @Inject
+    TransactionService transactionService;
 
-    @GetMapping
-    public ResponseEntity<Map<String, Object>> getTransactionPage(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) Integer type,
-            @RequestParam(required = false) String businessTable,
-            @RequestParam(required = false) Long businessId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
+    @GET
+    public Response getTransactionPage(
+            @QueryParam("page") @DefaultValue("1") int page,
+            @QueryParam("size") @DefaultValue("10") int size,
+            @QueryParam("search") String search,
+            @QueryParam("type") Integer type,
+            @QueryParam("businessTable") String businessTable,
+            @QueryParam("businessId") Long businessId,
+            @QueryParam("startDate") String startDateStr,
+            @QueryParam("endDate") String endDateStr
     ) {
-        Page<Transaction> transactionPage = transactionService.getTransactionPage(
-                page, size, search, type, businessTable, businessId, startDate, endDate);
+        LocalDateTime startDate = startDateStr != null ? LocalDateTime.parse(startDateStr) : null;
+        LocalDateTime endDate = endDateStr != null ? LocalDateTime.parse(endDateStr) : null;
+        
+        PanacheQuery<Transaction> transactionQuery = transactionService.getTransactionPage(
+                search, type, businessTable, businessId, startDate, endDate);
+        transactionQuery.page(Page.of(page - 1, size));
         
         // Convert to DTOs
-        List<TransactionDto> transactionDtos = transactionPage.getContent().stream()
+        List<TransactionDto> transactionDtos = transactionQuery.list().stream()
                 .map(transaction -> transactionService.convertToDto(transaction))
                 .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", transactionDtos);
-        response.put("total", transactionPage.getTotalElements());
-        response.put("pages", transactionPage.getTotalPages());
+        response.put("total", transactionQuery.count());
+        response.put("pages", transactionQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
         
         // Add statistics
         response.put("stats", transactionService.getTransactionStats());
 
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<TransactionDto> getTransactionById(@PathVariable Long id) {
+    @GET
+    @Path("/{id}")
+    public Response getTransactionById(@PathParam("id") Long id) {
         Transaction transaction = transactionService.getTransactionById(id);
         if (transaction != null) {
             TransactionDto dto = transactionService.convertToDto(transaction);
-            return ResponseEntity.ok(dto);
+            return Response.ok(dto).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
     
-    @GetMapping("/types")
-    public ResponseEntity<List<Map<String, String>>> getTransactionTypes() {
+    @GET
+    @Path("/types")
+    public Response getTransactionTypes() {
         List<Map<String, String>> types = Stream.of(TransactionType.values())
                 .map(type -> {
                     Map<String, String> map = new HashMap<>();
@@ -82,11 +88,12 @@ public class TransactionController {
                 })
                 .collect(Collectors.toList());
         
-        return ResponseEntity.ok(types);
+        return Response.ok(types).build();
     }
 
-    @GetMapping("/paymentMethods")
-    public ResponseEntity<List<Map<String, String>>> getPaymentMethods() {
+    @GET
+    @Path("/paymentMethods")
+    public Response getPaymentMethods() {
         List<Map<String, String>> types = Stream.of(PaymentMethod.values())
                 .map(type -> {
                     Map<String, String> map = new HashMap<>();
@@ -96,18 +103,19 @@ public class TransactionController {
                 })
                 .collect(Collectors.toList());
 
-        return ResponseEntity.ok(types);
+        return Response.ok(types).build();
     }
     
-    @GetMapping("/business-tables")
-    public ResponseEntity<List<Map<String, String>>> getBusinessTables() {
+    @GET
+    @Path("/business-tables")
+    public Response getBusinessTables() {
         List<Map<String, String>> tables = List.of(
                 createMapEntry("account", "账户"),
                 createMapEntry("domain", "域名"),
                 createMapEntry("server", "服务器")
         );
         
-        return ResponseEntity.ok(tables);
+        return Response.ok(tables).build();
     }
     
     private Map<String, String> createMapEntry(String value, String label) {
@@ -117,57 +125,62 @@ public class TransactionController {
         return map;
     }
     
-    @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getTransactionStats() {
-        return ResponseEntity.ok(transactionService.getTransactionStats());
+    @GET
+    @Path("/stats")
+    public Response getTransactionStats() {
+        return Response.ok(transactionService.getTransactionStats()).build();
     }
     
-    @GetMapping("/monthly-stats")
-    public ResponseEntity<List<Map<String, Object>>> getMonthlyStats(
-            @RequestParam(defaultValue = "6") int months
+    @GET
+    @Path("/monthly-stats")
+    public Response getMonthlyStats(
+            @QueryParam("months") @DefaultValue("6") int months
     ) {
-        return ResponseEntity.ok(transactionService.getMonthlyStats(months));
+        return Response.ok(transactionService.getMonthlyStats(months)).build();
     }
     
-    @GetMapping("/business/{businessTable}/{businessId}")
-    public ResponseEntity<List<TransactionDto>> getTransactionsByBusiness(
-            @PathVariable String businessTable,
-            @PathVariable Long businessId
+    @GET
+    @Path("/business/{businessTable}/{businessId}")
+    public Response getTransactionsByBusiness(
+            @PathParam("businessTable") String businessTable,
+            @PathParam("businessId") Long businessId
     ) {
         List<Transaction> transactions = transactionService.getByBusinessTableAndId(businessTable, businessId);
         List<TransactionDto> dtos = transactions.stream()
                 .map(transaction -> transactionService.convertToDto(transaction))
                 .collect(Collectors.toList());
         
-        return ResponseEntity.ok(dtos);
+        return Response.ok(dtos).build();
     }
 
-    @PostMapping
-    public ResponseEntity<Transaction> createTransaction(@RequestBody Transaction transaction) {
+    @POST
+    public Response createTransaction(Transaction transaction) {
         Transaction savedTransaction = transactionService.saveTransaction(transaction);
-        return ResponseEntity.ok(savedTransaction);
+        return Response.ok(savedTransaction).build();
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<Transaction> updateTransaction(@PathVariable Long id, @RequestBody Transaction transaction) {
+    @PUT
+    @Path("/{id}")
+    public Response updateTransaction(@PathParam("id") Long id, Transaction transaction) {
         Transaction existingTransaction = transactionService.getTransactionById(id);
         if (existingTransaction == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         transaction.setId(id);
         Transaction updatedTransaction = transactionService.updateTransaction(transaction);
-        return ResponseEntity.ok(updatedTransaction);
+        return Response.ok(updatedTransaction).build();
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTransaction(@PathVariable Long id) {
+    @DELETE
+    @Path("/{id}")
+    public Response deleteTransaction(@PathParam("id") Long id) {
         Transaction existingTransaction = transactionService.getTransactionById(id);
         if (existingTransaction == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         transactionService.deleteTransaction(id);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
 }

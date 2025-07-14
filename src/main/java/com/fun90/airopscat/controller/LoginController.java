@@ -1,46 +1,57 @@
 package com.fun90.airopscat.controller;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import io.quarkus.qute.Template;
+import io.quarkus.qute.TemplateInstance;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-@Controller
+@ApplicationScoped
+@Path("/login")
+@Produces(MediaType.TEXT_HTML)
 public class LoginController {
 
-    @Value("${spring.application.name}")
-    private String appName;
+    @ConfigProperty(name = "quarkus.application.name", defaultValue = "AirOpsCat")
+    String appName;
 
-    @GetMapping("/login")
-    public String loginPage(Model model,
-                            @RequestParam(required = false) String error,
-                            HttpServletRequest request)  {
-        model.addAttribute("appName", appName);
+    @Inject
+    Template login;
 
+    @GET
+    @Produces(MediaType.TEXT_HTML)
+    public String loginPage(@QueryParam("error") String error) {
+        TemplateInstance instance = login.data("appName", appName);
+
+        // 总是传递error属性，避免模板解析错误
         if (error != null) {
-            // 检查request中是否有error属性
-            Object errorMsg = request.getAttribute("error");
-            if (errorMsg != null) {
-                model.addAttribute("error", errorMsg.toString());
-            } else {
-                // 从session中获取error属性
-                HttpSession session = request.getSession(false);
-                if (session != null) {
-                    errorMsg = session.getAttribute("error");
-                    if (errorMsg != null) {
-                        model.addAttribute("error", errorMsg.toString());
-                        session.removeAttribute("error"); // 使用后清除
-                    } else {
-                        model.addAttribute("error", "登录失败，请检查您的用户名和密码。");
-                    }
-                } else {
-                    model.addAttribute("error", "登录失败，请检查您的用户名和密码。");
-                }
-            }
+            // 根据错误参数提供相应的错误信息
+            String errorMessage = getErrorMessage(error);
+            instance = instance.data("error", errorMessage);
+        } else {
+            instance = instance.data("error", "");
         }
-        return "login";
+        
+        return instance.render();
+    }
+    
+    private String getErrorMessage(String error) {
+        switch (error) {
+            case "true":
+            case "1":
+                return "登录失败，请检查您的用户名和密码。";
+            case "expired":
+                return "会话已过期，请重新登录。";
+            case "unauthorized":
+                return "访问未授权，请先登录。";
+            case "locked":
+                return "账户已被锁定，请联系管理员。";
+            default:
+                return "登录失败，请重试。";
+        }
     }
 }

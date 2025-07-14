@@ -1,0 +1,7 @@
+<!-- Config type filter -->
+<div class="col-auto">
+    <select class="form-select" v-model="filters.configType" @change="fetchRecords">
+        <option value="">全部类型</option>
+        <option v-for="type in configTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+    </select>
+</div> 

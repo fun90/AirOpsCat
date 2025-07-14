@@ -5,8 +5,8 @@ import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.service.core.strategy.CoreManagementStrategy;
 import com.fun90.airopscat.service.ssh.SshConnection;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -15,7 +15,7 @@ import java.util.Map;
  * Xray内核管理策略
  */
 @Slf4j
-@Component
+@ApplicationScoped
 @SupportedCores(
     value = {"xray", "xray-core"}, 
     priority = 1, 

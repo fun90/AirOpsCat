@@ -1,0 +1,79 @@
+<table class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>服务器</th>
+            <th>配置类型</th>
+            <th>配置路径</th>
+            <th>配置大小</th>
+            <th>创建时间</th>
+            <th>更新时间</th>
+            <th class="w-1">操作</th>
+        </tr>
+    </thead>
+    <tbody>
+    <tr v-for="config in records" :key="config.id">
+        <td v-text="config.id"></td>
+        <td>
+            <div class="d-flex flex-column">
+                <span v-text="config.serverIp"></span>
+                <span v-if="config.serverHost" class="text-muted small">{{ config.serverHost }}</span>
+                <span v-if="config.serverName" class="text-muted small">{{ config.serverName }}</span>
+            </div>
+        </td>
+        <td>
+            <span class="badge" :class="getConfigTypeBadgeClass(config.configType)">
+                {{ config.configType }}
+            </span>
+        </td>
+        <td>
+            <div class="text-truncate" style="max-width: 200px;" :title="config.path || '-'">
+                {{ config.path || '-' }}
+            </div>
+        </td>
+        <td>
+            <span class="badge bg-blue-lt">{{ getConfigSize(config.config) }}</span>
+        </td>
+        <td v-text="config.createTime"></td>
+        <td v-text="config.updateTime"></td>
+        <td>
+            <div class="btn-list">
+                <div class="dropdown position-static action-dropdown">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click="openEditModal(config)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="viewConfig(config)">
+                            <i class="ti ti-code"></i> 查看配置
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="copyConfig(config)">
+                            <i class="ti ti-copy"></i> 复制配置
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="#" @click.prevent="uploadConfigToServer(config)">
+                            <i class="ti ti-upload"></i> 上传到服务器
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(config)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="8" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="8" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table> 

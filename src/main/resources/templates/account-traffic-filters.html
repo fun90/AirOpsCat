@@ -1,0 +1,22 @@
+<!-- User filter -->
+<div class="col-auto">
+    <select class="form-select" v-model="filters.userId" @change="fetchRecords">
+        <option value="">全部用户</option>
+        <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
+    </select>
+</div>
+
+<!-- Date filters -->
+<div class="col-auto">
+    <div class="input-group">
+        <span class="input-group-text">开始日期</span>
+        <input type="date" class="form-control" v-model="filters.startDate" @change="fetchRecords">
+    </div>
+</div>
+
+<div class="col-auto">
+    <div class="input-group">
+        <span class="input-group-text">结束日期</span>
+        <input type="date" class="form-control" v-model="filters.endDate" @change="fetchRecords">
+    </div>
+</div> 

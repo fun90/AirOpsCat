@@ -1,0 +1,29 @@
+<div class="card-body border-bottom">
+    <!-- 统一紧凑统计条 -->
+    <div class="row g-2">
+        <div class="col-3">
+            <div class="text-center" role="button" @click="filterByStatus('')">
+                <div class="text-primary fw-bold h4 mb-0">{{ stats.total || 0 }}</div>
+                <div class="text-muted small">总计</div>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="text-center" role="button" @click="filterByStatus('active')">
+                <div class="text-success fw-bold h4 mb-0">{{ stats.active || 0 }}</div>
+                <div class="text-muted small">活跃</div>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="text-center">
+                <div class="text-info fw-bold h4 mb-0">{{ stats.onlineUsers || 0 }}</div>
+                <div class="text-muted small">在线</div>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="text-center" role="button" @click="filterByStatus('expiring')">
+                <div class="text-warning fw-bold h4 mb-0">{{ stats.expiringSoon || 0 }}</div>
+                <div class="text-muted small">将过期</div>
+            </div>
+        </div>
+    </div>
+</div> 

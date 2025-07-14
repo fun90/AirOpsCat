@@ -37,9 +37,7 @@
       "tag": "🚀 节点选择",
       "interrupt_exist_connections": true,
       "outbounds": [
-        "🎈 自动选择",
-        [# th:each="node, iterStat : ${nodes}"]
-        "[(${node.name})]"[(${!iterStat.last ? ',' : ''})][/]
+        "🎈 自动选择"{#for node in nodes},{node.name}{/for}
       ]
     },
     {
@@ -50,8 +48,7 @@
       "tolerance": 150,
       "interrupt_exist_connections": true,
       "outbounds": [
-        [# th:each="node, iterStat : ${nodes}"]
-        "[(${node.name})]"[(${!iterStat.last ? ',' : ''})][/]
+        {#for node in nodes}"{node.name}"{#if !loop.last},{/if}{/for}
       ]
     },
     {
@@ -60,9 +57,7 @@
       "interrupt_exist_connections": true,
       "outbounds": [
         "🚀 节点选择",
-        "🎈 自动选择",
-        [# th:each="node, iterStat : ${nodes}"]
-        "[(${node.name})]"[(${!iterStat.last ? ',' : ''})][/]
+        "🎈 自动选择"{#for node in nodes},{node.name}{/for}
       ]
     },
     {
@@ -71,10 +66,7 @@
       "interrupt_exist_connections": true,
       "outbounds": [
         "🚀 节点选择",
-        "🎈 自动选择",
-        [# th:each="node, iterStat : ${nodes}"]
-        "[(${node.name})]"[(${!iterStat.last ? ',' : ''})][/],
-        "🎯 全球直连"
+        "🎈 自动选择",{#for node in nodes}"{node.name}",{/for}"🎯 全球直连"
       ]
     },
     {
@@ -83,9 +75,7 @@
       "interrupt_exist_connections": true,
       "outbounds": [
         "🚀 节点选择",
-        "🎈 自动选择",
-        [# th:each="node, iterStat : ${nodes}"]
-        "[(${node.name})]"[(${!iterStat.last ? ',' : ''})][/]
+        "🎈 自动选择"{#for node in nodes},{node.name}{/for}
       ]
     },
     {
@@ -93,9 +83,7 @@
       "type": "selector",
       "interrupt_exist_connections": true,
       "outbounds": [
-        "🎯 全球直连",
-        [# th:each="node, iterStat : ${nodes}"]
-        "[(${node.name})]"[(${!iterStat.last ? ',' : ''})][/]
+        "🎯 全球直连"{#for node in nodes},{node.name}{/for}
       ]
     },
     {
@@ -122,28 +110,29 @@
         "🐟 漏网之鱼"
       ]
     },
-    [# th:each="node, iterStat : ${nodes}"]
+    {#for node in nodes}
     {
-      "tag": "[(${node.name})]",
+      "tag": "{node.name}",
       "type": "vless",
-      "server": "[(${node.serverHost})]",
-      "server_port": [(${node.port})],
-      "uuid": "[(${account.uuid})]",
+      "server": "{node.serverHost}",
+      "server_port": {node.port},
+      "uuid": "{account.uuid}",
       "tls": {
         "enabled": true,
-        "server_name": "[(${node.inbound.streamSettings.realitySettings.serverNames[0]})]",
+        "server_name": "{node.inbound.streamSettings.realitySettings.serverNames[0]}",
         "insecure": false,
         "reality": {
           "enabled": true,
-          "public_key": "[(${node.inbound.streamSettings.realitySettings.publicKey})]",
-          "short_id": "[(${node.inbound.streamSettings.realitySettings.shortIds[0]})]"
+          "public_key": "{node.inbound.streamSettings.realitySettings.publicKey}",
+          "short_id": "{node.inbound.streamSettings.realitySettings.shortIds[0]}"
         },
         "utls": {
           "enabled": true
         }
       },
       "flow": "xtls-rprx-vision"
-    }[(${!iterStat.last ? ',' : ''})][/]
+    }{#if !loop.last},{/if}
+    {/for}
   ],
   "route": {
     "rules": [

@@ -1,6 +1,6 @@
 # AirOpsCat Subscription Config for Stash
-# Generated at: [[${timestamp}]]
-# Account: [[${account.uuid}]]
+# Generated at: {timestamp}
+# Account: {account.uuid}
 
 mode: rule
 ipv6: true
@@ -28,33 +28,54 @@ tun:
     - tcp://any:53
 
 dns:
+  enable: true
+  ipv6: true
+  listen: 0.0.0.0:1053
+  enhanced-mode: redir-host
   default-nameserver:
     - 223.5.5.5
     - 114.114.114.114
   nameserver:
     - https://doh.pub/dns-query
     - https://dns.alidns.com/dns-query
-    
+  nameserver-policy:
+    '+.fun90.com':
+      - https://doh.pub/dns-query
+      - https://dns.alidns.com/dns-query
+    'rule-set:hst':
+      - {dns ?: 'system'}
+    'rule-set:myproxy':
+      - 'https://dns.google/dns-query#代理'
+      - 'https://dns.adguard.com/dns-query#代理'
+    'rule-set:proxy':
+      - 'https://dns.google/dns-query#代理'
+      - 'https://dns.adguard.com/dns-query#代理'
+  proxy-server-nameserver:
+    - 'https://doh.pub/dns-query'
+    - 'https://dns.alidns.com/dns-query'
+
 profile:
   store-selected: true
 
 proxies:
-[# th:each="node : ${nodes}"]
-- name: [(${node.name != null ? node.name : node.serverHost + '-' + node.protocol + '-' + node.port})]
-  type: [(${node.protocol != null ? node.protocol : ''})]
-  server: [(${node.serverHost})]
-  port: [(${node.port})]
-  [# th:if="${node.protocol != null and node.protocol == 'vless'}"]uuid: [(${account.uuid})][/]
-  network: tcp
-  tls: true
-  udp: true
-  flow: xtls-rprx-vision
-  servername: [(${node.inbound.streamSettings.realitySettings.serverNames[0]})]
-  reality-opts:
-    public-key: [(${node.inbound.streamSettings.realitySettings.publicKey})]
-    short-id: [(${node.inbound.streamSettings.realitySettings.shortIds[0]})]
-  client-fingerprint: chrome
-[/]
+{#for node in nodes}
+  - name: {node.name ?: node.serverHost + '-' + node.protocol + '-' + node.port}
+    type: {node.protocol ?: ''}
+    server: {node.serverHost}
+    port: {node.port}
+  {#if node.protocol == 'vless'}
+    uuid: {account.uuid}
+  {/if}
+    network: tcp
+    tls: true
+    udp: true
+    flow: xtls-rprx-vision
+    servername: {node.inbound.streamSettings.realitySettings.serverNames[0]}
+    reality-opts:
+      public-key: {node.inbound.streamSettings.realitySettings.publicKey}
+      short-id: {node.inbound.streamSettings.realitySettings.shortIds[0]}
+    client-fingerprint: chrome
+{/for}
 
 proxy-groups:
   - name: 代理
@@ -63,56 +84,49 @@ proxy-groups:
     proxies:
       - 自动
       - 直连
-      [# th:each="node : ${nodes}"]- [(${node.name})]
-      [/]
+      {#for node in nodes}- {node.name}{/for}
   - name: 自动
     icon: https://static.fun90.com/clash/Auto.png
     type: url-test
     url: http://www.gstatic.com/generate_204
     interval: 300
     proxies:
-      [# th:each="node : ${nodes}"]- [(${node.name})]
-      [/]
+      {#for node in nodes}- {node.name}{/for}
   - name: AI自动
     icon: https://static.fun90.com/clash/Round_Robin.png
     type: url-test
     url: https://www.openai.com
     interval: 300
     proxies:
-      [# th:each="node : ${aiNodes}"]- [(${node.name})]
-      [/]
+      {#for node in aiNodes}- {node.name}{/for}
   - name: AI
     icon: https://static.fun90.com/clash/OpenAI.png
     type: select
     proxies:
       - AI自动
       - 代理
-      [# th:each="node : ${nodes}"]- [(${node.name})]
-      [/]
+      {#for node in nodes}- {node.name}{/for}
   - name: Microsoft
     icon: https://static.fun90.com/clash/Microsoft.png
     type: select
     proxies:
       - 代理
       - 直连
-      [# th:each="node : ${nodes}"]- [(${node.name})]
-      [/]
+      {#for node in nodes}- {node.name}{/for}
   - name: ICLOUD
     icon: https://static.fun90.com/clash/iCloud.png
     type: select
     proxies:
       - 直连
       - 代理
-      [# th:each="node : ${nodes}"]- [(${node.name})]
-      [/]
+      {#for node in nodes}- {node.name}{/for}
   - name: APPLE
     icon: https://static.fun90.com/clash/Apple_1.png
     type: select
     proxies:
       - 直连
       - 代理
-      [# th:each="node : ${nodes}"]- [(${node.name})]
-      [/]
+      {#for node in nodes}- {node.name}{/for}
   - name: 直连
     icon: https://static.fun90.com/clash/Direct.png
     type: select
@@ -123,25 +137,25 @@ rule-providers:
   hst:
     type: http
     behavior: classical
-    url: [(${subscriptionUrl})]/rules/clash/hst.yaml
+    url: {subscriptionUrl}/rules/clash/hst.yaml
     path: ./ruleset/hst.yaml
     interval: 86400
   myreject:
     type: http
     behavior: classical
-    url: "[(${subscriptionUrl})]/rules/clash/myreject.yaml"
+    url: "{subscriptionUrl}/rules/clash/myreject.yaml"
     path: ./ruleset/myreject.yaml
     interval: 86400
   mydirect:
     type: http
     behavior: classical
-    url: "[(${subscriptionUrl})]/rules/clash/mydirect.yaml"
+    url: "{subscriptionUrl}/rules/clash/mydirect.yaml"
     path: ./ruleset/mydirect.yaml
     interval: 86400
   myproxy:
     type: http
     behavior: classical
-    url: "[(${subscriptionUrl})]/rules/clash/myproxy.yaml"
+    url: "{subscriptionUrl}/rules/clash/myproxy.yaml"
     path: ./ruleset/myproxy.yaml
     interval: 86400
   applications:

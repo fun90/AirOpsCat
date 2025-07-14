@@ -2,104 +2,111 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
+import io.quarkus.panache.common.Page;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 import java.util.HashMap;
 import java.util.Map;
 
-@RestController
-@RequestMapping("/api/admin/users")
+@ApplicationScoped
+@Path("/api/admin/users")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class UserController {
     
-    private final UserService userService;
-    
-    @Autowired
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
+    @Inject
+    UserService userService;
 
-    @GetMapping
-    public ResponseEntity<Map<String, Object>> getUserPage(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) String role,
-            @RequestParam(required = false) String status
+    @GET
+    public Response getUserPage(
+            @QueryParam("page") @DefaultValue("1") int page,
+            @QueryParam("size") @DefaultValue("10") int size,
+            @QueryParam("search") String search,
+            @QueryParam("role") String role,
+            @QueryParam("status") String status
     ) {
-        Page<User> userPage = userService.getUserPage(page, size, search, role, status);
+        PanacheQuery<User> userQuery = userService.getUserPage(search, role, status);
+        userQuery.page(Page.of(page - 1, size));
 
         Map<String, Object> response = new HashMap<>();
-        response.put("records", userPage.getContent());
-        response.put("total", userPage.getTotalElements());
-        response.put("pages", userPage.getTotalPages());
+        response.put("records", userQuery.list());
+        response.put("total", userQuery.count());
+        response.put("pages", userQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
 
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+    @GET
+    @Path("/{id}")
+    public Response getUserById(@PathParam("id") Long id) {
         User user = userService.getUserById(id);
         if (user != null) {
-            return ResponseEntity.ok(user);
+            return Response.ok(user).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
 
-    @PostMapping
-    public ResponseEntity<User> createUser(@RequestBody User user) {
+    @POST
+    public Response createUser(User user) {
         User savedUser = userService.saveUser(user);
-        return ResponseEntity.ok(savedUser);
+        return Response.ok(savedUser).build();
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody User user) {
+    @PUT
+    @Path("/{id}")
+    public Response updateUser(@PathParam("id") Long id, User user) {
         User existingUser = userService.getUserById(id);
         if (existingUser == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         user.setId(id);
         User updatedUser = userService.updateUser(user);
-        return ResponseEntity.ok(updatedUser);
+        return Response.ok(updatedUser).build();
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+    @DELETE
+    @Path("/{id}")
+    public Response deleteUser(@PathParam("id") Long id) {
         User existingUser = userService.getUserById(id);
         if (existingUser == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         userService.deleteUser(id);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
 
-    @PatchMapping("/{id}/enable")
-    public ResponseEntity<Map<String, Object>> enableUser(@PathVariable Long id) {
+    @PATCH
+    @Path("/{id}/enable")
+    public Response enableUser(@PathParam("id") Long id) {
         User user = userService.toggleUserStatus(id, false);
         if (user != null) {
             Map<String, Object> response = new HashMap<>();
             response.put("id", id);
             response.put("disabled", 0);
-            return ResponseEntity.ok(response);
+            return Response.ok(response).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
 
-    @PatchMapping("/{id}/disable")
-    public ResponseEntity<Map<String, Object>> disableUser(@PathVariable Long id) {
+    @PATCH
+    @Path("/{id}/disable")
+    public Response disableUser(@PathParam("id") Long id) {
         User user = userService.toggleUserStatus(id, true);
         if (user != null) {
             Map<String, Object> response = new HashMap<>();
             response.put("id", id);
             response.put("disabled", 1);
-            return ResponseEntity.ok(response);
+            return Response.ok(response).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
 }

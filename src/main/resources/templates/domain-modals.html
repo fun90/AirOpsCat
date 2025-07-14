@@ -1,0 +1,81 @@
+<!-- Create Domain Modal -->
+<div class="modal modal-blur fade" id="domain-createModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">添加域名</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label required">域名</label>
+                    <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.domain }"
+                           placeholder="example.com" v-model="newItem.domain">
+                    <div class="invalid-feedback" v-if="validationErrors.domain">{{ validationErrors.domain }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">到期日期</label>
+                    <input type="date" class="form-control" :class="{ 'is-invalid': validationErrors.expireDate }"
+                           v-model="newItem.expireDate">
+                    <div class="invalid-feedback" v-if="validationErrors.expireDate">{{ validationErrors.expireDate }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">价格</label>
+                    <div class="input-group">
+                        <span class="input-group-text">¥</span>
+                        <input type="number" class="form-control" step="0.01" min="0" v-model="newItem.price">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" rows="3" v-model="newItem.remark"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" @click="createItem">创建</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Domain Modal -->
+<div class="modal modal-blur fade" id="domain-editModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑域名</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label required">域名</label>
+                    <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.domain }"
+                           placeholder="example.com" v-model="editedItem.domain">
+                    <div class="invalid-feedback" v-if="validationErrors.domain">{{ validationErrors.domain }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">到期日期</label>
+                    <input type="date" class="form-control" :class="{ 'is-invalid': validationErrors.expireDate }"
+                           v-model="editedItem.expireDate">
+                    <div class="invalid-feedback" v-if="validationErrors.expireDate">{{ validationErrors.expireDate }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">价格</label>
+                    <div class="input-group">
+                        <span class="input-group-text">¥</span>
+                        <input type="number" class="form-control" step="0.01" min="0" v-model="editedItem.price">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" rows="3" v-model="editedItem.remark"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" @click="updateItem">保存</button>
+            </div>
+        </div>
+    </div>
+</div>

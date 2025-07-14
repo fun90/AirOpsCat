@@ -9,233 +9,256 @@ import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.service.AccountService;
 import com.fun90.airopscat.service.TagService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
+import io.quarkus.panache.common.Page;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@RestController
-@RequestMapping("/api/admin/tags")
+@ApplicationScoped
+@Path("/api/admin/tags")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class TagController {
     
-    private final TagService tagService;
-    private final AccountService accountService;
+    @Inject
+    TagService tagService;
     
-    @Autowired
-    public TagController(TagService tagService, AccountService accountService) {
-        this.tagService = tagService;
-        this.accountService = accountService;
-    }
+    @Inject
+    AccountService accountService;
 
-    @GetMapping
-    public ResponseEntity<Map<String, Object>> getTagPage(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) Integer disabled
+    @GET
+    public Response getTagPage(
+            @QueryParam("page") @DefaultValue("1") int page,
+            @QueryParam("size") @DefaultValue("10") int size,
+            @QueryParam("search") String search,
+            @QueryParam("disabled") Integer disabled
     ) {
-        Page<Tag> tagPage = tagService.getTagPage(page, size, search, disabled);
+        PanacheQuery<Tag> tagQuery = tagService.getTagPage(search, disabled);
+        tagQuery.page(Page.of(page - 1, size));
         
         // Convert to DTOs
-        List<TagDto> tagDtos = tagPage.getContent().stream()
+        List<TagDto> tagDtos = tagQuery.list().stream()
                 .map(tag -> tagService.convertToDto(tag))
                 .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", tagDtos);
-        response.put("total", tagPage.getTotalElements());
-        response.put("pages", tagPage.getTotalPages());
+        response.put("total", tagQuery.count());
+        response.put("pages", tagQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
         
         // Add statistics
         response.put("stats", tagService.getTagsStats());
 
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<TagDto> getTagById(@PathVariable Long id) {
+    @GET
+    @Path("/{id}")
+    public Response getTagById(@PathParam("id") Long id) {
         Tag tag = tagService.getTagById(id);
         if (tag != null) {
             TagDto dto = tagService.convertToDto(tag);
-            return ResponseEntity.ok(dto);
+            return Response.ok(dto).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
     
-    @GetMapping("/all")
-    public ResponseEntity<List<TagDto>> getAllTags() {
+    @GET
+    @Path("/all")
+    public Response getAllTags() {
         List<Tag> tags = tagService.getAllTags();
         List<TagDto> tagDtos = tags.stream()
                 .map(tag -> tagService.convertToDto(tag))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(tagDtos);
+        return Response.ok(tagDtos).build();
     }
     
-    @GetMapping("/enabled")
-    public ResponseEntity<List<TagDto>> getEnabledTags() {
+    @GET
+    @Path("/enabled")
+    public Response getEnabledTags() {
         List<Tag> tags = tagService.getEnabledTags();
         List<TagDto> tagDtos = tags.stream()
                 .map(tag -> tagService.convertToDto(tag))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(tagDtos);
+        return Response.ok(tagDtos).build();
     }
     
-    @GetMapping("/stats")
-    public ResponseEntity<Map<String, Long>> getTagsStats() {
-        return ResponseEntity.ok(tagService.getTagsStats());
+    @GET
+    @Path("/stats")
+    public Response getTagsStats() {
+        return Response.ok(tagService.getTagsStats()).build();
     }
 
-    @PostMapping
-    public ResponseEntity<Tag> createTag(@RequestBody Tag tag) {
+    @POST
+    public Response createTag(Tag tag) {
         Tag savedTag = tagService.saveTag(tag);
-        return ResponseEntity.ok(savedTag);
+        return Response.ok(savedTag).build();
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<TagDto> updateTag(@PathVariable Long id, @RequestBody Tag tag) {
+    @PUT
+    @Path("/{id}")
+    public Response updateTag(@PathParam("id") Long id, Tag tag) {
         Tag existingTag = tagService.getTagById(id);
         if (existingTag == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         tag.setId(id);
         Tag updatedTag = tagService.updateTag(tag);
-        return ResponseEntity.ok(tagService.convertToDto(updatedTag));
+        return Response.ok(tagService.convertToDto(updatedTag)).build();
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTag(@PathVariable Long id) {
+    @DELETE
+    @Path("/{id}")
+    public Response deleteTag(@PathParam("id") Long id) {
         Tag existingTag = tagService.getTagById(id);
         if (existingTag == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         tagService.deleteTag(id);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
 
-    @PatchMapping("/{id}/enable")
-    public ResponseEntity<Map<String, Object>> enableTag(@PathVariable Long id) {
+    @PATCH
+    @Path("/{id}/enable")
+    public Response enableTag(@PathParam("id") Long id) {
         Tag tag = tagService.toggleTagStatus(id, false);
         if (tag != null) {
             Map<String, Object> response = new HashMap<>();
             response.put("id", id);
             response.put("disabled", 0);
-            return ResponseEntity.ok(response);
+            return Response.ok(response).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
 
-    @PatchMapping("/{id}/disable")
-    public ResponseEntity<Map<String, Object>> disableTag(@PathVariable Long id) {
+    @PATCH
+    @Path("/{id}/disable")
+    public Response disableTag(@PathParam("id") Long id) {
         Tag tag = tagService.toggleTagStatus(id, true);
         if (tag != null) {
             Map<String, Object> response = new HashMap<>();
             response.put("id", id);
             response.put("disabled", 1);
-            return ResponseEntity.ok(response);
+            return Response.ok(response).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
     
     // 标签关联管理接口
-    @PostMapping("/{tagId}/nodes/{nodeId}")
-    public ResponseEntity<Void> addTagToNode(@PathVariable Long tagId, @PathVariable Long nodeId) {
+    @POST
+    @Path("/{tagId}/nodes/{nodeId}")
+    public Response addTagToNode(@PathParam("tagId") Long tagId, @PathParam("nodeId") Long nodeId) {
         tagService.addTagToNode(nodeId, tagId);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
     
-    @DeleteMapping("/{tagId}/nodes/{nodeId}")
-    public ResponseEntity<Void> removeTagFromNode(@PathVariable Long tagId, @PathVariable Long nodeId) {
+    @DELETE
+    @Path("/{tagId}/nodes/{nodeId}")
+    public Response removeTagFromNode(@PathParam("tagId") Long tagId, @PathParam("nodeId") Long nodeId) {
         tagService.removeTagFromNode(nodeId, tagId);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
     
-    @PostMapping("/{tagId}/accounts/{accountId}")
-    public ResponseEntity<Void> addTagToAccount(@PathVariable Long tagId, @PathVariable Long accountId) {
+    @POST
+    @Path("/{tagId}/accounts/{accountId}")
+    public Response addTagToAccount(@PathParam("tagId") Long tagId, @PathParam("accountId") Long accountId) {
         tagService.addTagToAccount(accountId, tagId);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
     
-    @DeleteMapping("/{tagId}/accounts/{accountId}")
-    public ResponseEntity<Void> removeTagFromAccount(@PathVariable Long tagId, @PathVariable Long accountId) {
+    @DELETE
+    @Path("/{tagId}/accounts/{accountId}")
+    public Response removeTagFromAccount(@PathParam("tagId") Long tagId, @PathParam("accountId") Long accountId) {
         tagService.removeTagFromAccount(accountId, tagId);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
     
     // 批量更新标签关联
-    @PutMapping("/nodes/{nodeId}/tags")
-    public ResponseEntity<Void> updateNodeTags(@PathVariable Long nodeId, @RequestBody List<Long> tagIds) {
+    @PUT
+    @Path("/nodes/{nodeId}/tags")
+    public Response updateNodeTags(@PathParam("nodeId") Long nodeId, List<Long> tagIds) {
         tagService.updateNodeTags(nodeId, tagIds);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
     
-    @PutMapping("/accounts/{accountId}/tags")
-    public ResponseEntity<Void> updateAccountTags(@PathVariable Long accountId, @RequestBody List<Long> tagIds) {
+    @PUT
+    @Path("/accounts/{accountId}/tags")
+    public Response updateAccountTags(@PathParam("accountId") Long accountId, List<Long> tagIds) {
         tagService.updateAccountTags(accountId, tagIds);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
     
     // 查询关联关系
-    @GetMapping("/{tagId}/nodes")
-    public ResponseEntity<List<NodeDto>> getNodesByTag(@PathVariable Long tagId) {
+    @GET
+    @Path("/{tagId}/nodes")
+    public Response getNodesByTag(@PathParam("tagId") Long tagId) {
         List<Node> nodes = tagService.getNodesByTag(tagId);
         List<NodeDto> nodeDtos = nodes.stream()
                 .map(NodeConverter::toDto)
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(nodeDtos);
+        return Response.ok(nodeDtos).build();
     }
     
-    @GetMapping("/{tagId}/accounts")
-    public ResponseEntity<List<AccountDto>> getAccountsByTag(@PathVariable Long tagId) {
+    @GET
+    @Path("/{tagId}/accounts")
+    public Response getAccountsByTag(@PathParam("tagId") Long tagId) {
         List<Account> accounts = tagService.getAccountsByTag(tagId);
         List<AccountDto> accountDtos = accounts.stream()
                 .map(account -> accountService.convertToDto(account))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(accountDtos);
+        return Response.ok(accountDtos).build();
     }
     
-    @GetMapping("/nodes/{nodeId}")
-    public ResponseEntity<List<TagDto>> getTagsByNode(@PathVariable Long nodeId) {
+    @GET
+    @Path("/nodes/{nodeId}")
+    public Response getTagsByNode(@PathParam("nodeId") Long nodeId) {
         List<Tag> tags = tagService.getTagsByNode(nodeId);
         List<TagDto> tagDtos = tags.stream()
                 .map(tag -> tagService.convertToDto(tag))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(tagDtos);
+        return Response.ok(tagDtos).build();
     }
     
-    @GetMapping("/accounts/{accountId}")
-    public ResponseEntity<List<TagDto>> getTagsByAccount(@PathVariable Long accountId) {
+    @GET
+    @Path("/accounts/{accountId}")
+    public Response getTagsByAccount(@PathParam("accountId") Long accountId) {
         List<Tag> tags = tagService.getTagsByAccount(accountId);
         List<TagDto> tagDtos = tags.stream()
                 .map(tag -> tagService.convertToDto(tag))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(tagDtos);
+        return Response.ok(tagDtos).build();
     }
     
     // 根据标签获取匹配关系
-    @GetMapping("/accounts/{accountId}/available-nodes")
-    public ResponseEntity<List<NodeDto>> getAvailableNodesByAccount(@PathVariable Long accountId) {
+    @GET
+    @Path("/accounts/{accountId}/available-nodes")
+    public Response getAvailableNodesByAccount(@PathParam("accountId") Long accountId) {
         List<Node> nodes = tagService.getAvailableNodesByAccount(accountId);
         List<NodeDto> nodeDtos = nodes.stream()
                 .map(NodeConverter::toDto)
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(nodeDtos);
+        return Response.ok(nodeDtos).build();
     }
     
-    @GetMapping("/nodes/{nodeId}/authorized-accounts")
-    public ResponseEntity<List<AccountDto>> getAuthorizedAccountsByNode(@PathVariable Long nodeId) {
+    @GET
+    @Path("/nodes/{nodeId}/authorized-accounts")
+    public Response getAuthorizedAccountsByNode(@PathParam("nodeId") Long nodeId) {
         List<Account> accounts = tagService.getAuthorizedAccountsByNode(nodeId);
         List<AccountDto> accountDtos = accounts.stream()
                 .map(account -> accountService.convertToDto(account))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(accountDtos);
+        return Response.ok(accountDtos).build();
     }
 } 

@@ -1,0 +1,36 @@
+<div class="page-body">
+    <div class="container-xl">
+        <!-- Use the common data table template -->
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-actions">
+                        <div class="row g-2">
+                            <!-- Search input -->
+                            <div class="col">
+                                <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
+                            </div>
+
+                            <!-- Filters -->
+                            {#include node-filters /}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats content -->
+                {#include node-stats /}
+
+                <div class="table-responsive">
+                    <!-- Table content -->
+                    {#include node-table /}
+                </div>
+
+                <!-- Pagination controls -->
+                {#include pagination-controls /}
+            </div>
+        </div>
+
+        <!-- Modals -->
+        {#include node-modals /}
+    </div>
+</div> 

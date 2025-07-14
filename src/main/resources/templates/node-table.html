@@ -1,0 +1,112 @@
+<table class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>名称</th>
+            <th>服务器</th>
+            <th>端口</th>
+            <th>类型</th>
+            <th>协议</th>
+            <th>出站</th>
+            <th>级别</th>
+            <th>启用状态</th>
+            <th>部署状态</th>
+            <th class="w-1">操作</th>
+        </tr>
+    </thead>
+    <tbody>
+    <tr v-for="node in records" :key="node.id">
+        <td v-text="node.id"></td>
+        <td>
+            <div class="d-flex flex-column">
+                <span v-text="node.name || '-'" class="text-decoration-none text-truncate" style="max-width: 150px;"></span>
+                <span v-if="node.remark" class="text-muted small text-decoration-none text-truncate" style="max-width: 150px;">{{ node.remark }}</span>
+            </div>
+        </td>
+        <td>
+            <div class="d-flex flex-column">
+                <span v-text="node.serverIp" class="text-decoration-none text-truncate" style="max-width: 150px;"></span>
+                <span v-if="node.serverHost" class="text-muted small text-decoration-none text-truncate" style="max-width: 150px;">{{ node.serverHost }}</span>
+            </div>
+        </td>
+        <td v-text="node.port"></td>
+        <td>
+                <span class="badge" :class="getTypeBadgeClass(node.type)">
+                    {{ node.typeDescription }}
+                </span>
+        </td>
+        <td>
+                <span class="badge text-bg-info">
+                    {{ node.protocol }}
+                </span>
+        </td>
+        <td v-if="node.type === 1">
+            -
+        </td>
+        <td v-else>
+            <div class="d-flex flex-column">
+                <span>{{ node.outName || '默认' }}</span>
+                <span v-if="node.outServerHost" class="text-muted small">{{ node.outServerHost }}:{{ node.outPort }}</span>
+            </div>
+        </td>
+        <td v-text="node.level || '-'"></td>
+        <td>
+            <span class="badge" :class="getStatusBadgeClass(node.disabled)">
+                {{ node.disabled === 0 ? '已启用' : '已禁用' }}
+            </span>
+        </td>
+        <td>
+            <span class="badge" :class="getDeploymentStatusBadgeClass(node.deployed)">
+                {{ node.deployed === 0 ? '未部署' : '已部署' }}
+            </span>
+        </td>
+        <td>
+            <div class="btn-list">
+                <div class="dropdown position-static action-dropdown">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click="openEditModal(node)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="viewNodeConfig(node)">
+                            <i class="ti ti-code"></i> 查看配置
+                        </a>
+                        <a v-if="node.disabled === 1" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(node, false)">
+                            <i class="ti ti-check"></i> 启用
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(node, true)">
+                            <i class="ti ti-ban"></i> 禁用
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="#" @click.prevent="copyNode(node)">
+                            <i class="ti ti-copy"></i> 复制
+                        </a>
+                        <a v-if="node.deployed === 0" class="dropdown-item" href="#" @click.prevent="deployNode(node)">
+                            <i class="ti ti-rocket"></i> 部署
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="deployNode(node, true)">
+                            <i class="ti ti-rocket"></i> 重新部署
+                        </a>
+                        <div v-if="node.deployed === 1 && node.disabled === 1" class="dropdown-divider"></div>
+                        <a v-if="node.deployed === 1 && node.disabled === 1" class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(node)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="11" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="11" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table> 

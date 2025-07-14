@@ -1,0 +1,13 @@
+<!-- Expiry date filters -->
+<div class="col-auto">
+    <div class="input-group">
+        <span class="input-group-text">到期从</span>
+        <input type="date" class="form-control" v-model="filters.expiryFrom" @change="fetchRecords">
+    </div>
+</div>
+<div class="col-auto">
+    <div class="input-group">
+        <span class="input-group-text">到期至</span>
+        <input type="date" class="form-control" v-model="filters.expiryTo" @change="fetchRecords">
+    </div>
+</div>

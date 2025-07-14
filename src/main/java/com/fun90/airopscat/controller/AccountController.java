@@ -1,29 +1,5 @@
 package com.fun90.airopscat.controller;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
 import com.fun90.airopscat.model.dto.AccountDto;
 import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
 import com.fun90.airopscat.model.dto.AccountRequest;
@@ -34,9 +10,27 @@ import com.fun90.airopscat.service.AccountOnlineIpService;
 import com.fun90.airopscat.service.AccountService;
 import com.fun90.airopscat.service.TagService;
 import com.fun90.airopscat.service.UserService;
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
+import io.quarkus.panache.common.Page;
+import io.quarkus.security.identity.SecurityIdentity;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-@RestController
-@RequestMapping("/api/admin/accounts")
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+@ApplicationScoped
+@Path("/api/admin/accounts")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class AccountController {
     
     private final AccountService accountService;
@@ -44,7 +38,10 @@ public class AccountController {
     private final TagService tagService;
     private final AccountOnlineIpService accountOnlineIpService;
     
-    @Autowired
+    @Inject
+    SecurityIdentity securityIdentity;
+    
+    @Inject
     public AccountController(AccountService accountService, UserService userService, TagService tagService, AccountOnlineIpService accountOnlineIpService) {
         this.accountService = accountService;
         this.userService = userService;
@@ -52,71 +49,78 @@ public class AccountController {
         this.accountOnlineIpService = accountOnlineIpService;
     }
 
-    @GetMapping
-    public ResponseEntity<Map<String, Object>> getAccountPage(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) Long userId,
-            @RequestParam(required = false) String status
+    @GET
+    public Response getAccountPage(
+            @QueryParam("page") @DefaultValue("1") int page,
+            @QueryParam("size") @DefaultValue("10") int size,
+            @QueryParam("search") String search,
+            @QueryParam("userId") Long userId,
+            @QueryParam("status") String status
     ) {
-        Page<Account> accountPage = accountService.getAccountPage(page, size, search, userId, status);
+        PanacheQuery<Account> accountQuery = accountService.getAccountPage(search, userId, status);
+        accountQuery.page(Page.of(page - 1, size));
         
         // Convert to DTOs
-        List<AccountDto> accountDtos = accountPage.getContent().stream()
+        List<Account> accounts = accountQuery.list();
+        List<AccountDto> accountDtos = accounts.stream()
                 .map(account -> accountService.convertToDto(account))
                 .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", accountDtos);
-        response.put("total", accountPage.getTotalElements());
-        response.put("pages", accountPage.getTotalPages());
+        response.put("total", accountQuery.count());
+        response.put("pages", accountQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
         
         // Add statistics
         response.put("stats", accountService.getAccountsStats());
 
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<AccountDto> getAccountById(@PathVariable Long id) {
+    @GET
+    @Path("/{id}")
+    public Response getAccountById(@PathParam("id") Long id) {
         Account account = accountService.getAccountById(id);
         if (account != null) {
             AccountDto dto = accountService.convertToDto(account);
-            return ResponseEntity.ok(dto);
+            return Response.ok(dto).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
     
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<Map<String, Object>> getAccountsByUser(
-            @PathVariable Long userId,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String search
+    @GET
+    @Path("/user/{userId}")
+    public Response getAccountsByUser(
+            @PathParam("userId") Long userId,
+            @QueryParam("page") @DefaultValue("1") int page,
+            @QueryParam("size") @DefaultValue("10") int size,
+            @QueryParam("search") String search
     ) {
-        Page<Account> accountPage = accountService.getAccountPage(page, size, search, userId, null);
+        PanacheQuery<Account> accountQuery = accountService.getAccountPage(search, userId, null);
+        accountQuery.page(Page.of(page - 1, size));
         
         // Convert to DTOs
-        List<AccountDto> accountDtos = accountPage.getContent().stream()
+        List<Account> accounts = accountQuery.list();
+        List<AccountDto> accountDtos = accounts.stream()
                 .map(account -> accountService.convertToDto(account))
                 .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", accountDtos);
-        response.put("total", accountPage.getTotalElements());
-        response.put("pages", accountPage.getTotalPages());
+        response.put("total", accountQuery.count());
+        response.put("pages", accountQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
         response.put("user", userService.getUserById(userId));
 
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
     
-    @GetMapping("/period-types")
-    public ResponseEntity<List<Map<String, String>>> getPeriodTypes() {
+    @GET
+    @Path("/period-types")
+    public Response getPeriodTypes() {
         List<Map<String, String>> periodTypes = Stream.of(PeriodType.values())
                 .map(type -> {
                     Map<String, String> map = new HashMap<>();
@@ -126,53 +130,56 @@ public class AccountController {
                 })
                 .collect(Collectors.toList());
         
-        return ResponseEntity.ok(periodTypes);
+        return Response.ok(periodTypes).build();
     }
     
-    @GetMapping("/stats")
-    public ResponseEntity<Map<String, Long>> getAccountsStats() {
-        return ResponseEntity.ok(accountService.getAccountsStats());
+    @GET
+    @Path("/stats")
+    public Response getAccountsStats() {
+        return Response.ok(accountService.getAccountsStats()).build();
     }
     
-    @GetMapping("/my-accounts")
-    public ResponseEntity<Map<String, Object>> getMyAccounts(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String search
+    @GET
+    @Path("/my-accounts")
+    public Response getMyAccounts(
+            @QueryParam("page") @DefaultValue("1") int page,
+            @QueryParam("size") @DefaultValue("10") int size,
+            @QueryParam("search") String search
     ) {
         // 获取当前登录用户
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return ResponseEntity.status(401).build();
+        if (securityIdentity.isAnonymous()) {
+            return Response.status(Response.Status.UNAUTHORIZED).build();
         }
         
-        String email = authentication.getName();
-        User currentUser = userService.getByEmail(email).orElse(null);
+        String email = securityIdentity.getPrincipal().getName();
+        User currentUser = userService.getByEmail(email);
         if (currentUser == null) {
-            return ResponseEntity.status(401).build();
+            return Response.status(Response.Status.UNAUTHORIZED).build();
         }
         
         // 获取当前用户的账户
-        Page<Account> accountPage = accountService.getAccountPage(page, size, search, currentUser.getId(), null);
+        PanacheQuery<Account> accountQuery = accountService.getAccountPage(search, currentUser.getId(), null);
+        accountQuery.page(Page.of(page - 1, size));
         
         // Convert to DTOs
-        List<AccountDto> accountDtos = accountPage.getContent().stream()
+        List<Account> accounts = accountQuery.list();
+        List<AccountDto> accountDtos = accounts.stream()
                 .map(account -> accountService.convertToDto(account))
                 .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", accountDtos);
-        response.put("total", accountPage.getTotalElements());
-        response.put("pages", accountPage.getTotalPages());
+        response.put("total", accountQuery.count());
+        response.put("pages", accountQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
         response.put("user", currentUser);
 
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
-    @PostMapping
-    public ResponseEntity<Account> createAccount(@RequestBody AccountRequest request) {
+    @POST
+    public Response createAccount(AccountRequest request) {
         // 创建Account实体
         Account account = new Account();
         account.setUserId(request.getUserId());
@@ -197,14 +204,15 @@ public class AccountController {
             tagService.updateAccountTags(savedAccount.getId(), request.getTagIds());
         }
         
-        return ResponseEntity.ok(savedAccount);
+        return Response.ok(savedAccount).build();
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<AccountDto> updateAccount(@PathVariable Long id, @RequestBody AccountRequest request) {
+    @PUT
+    @Path("/{id}")
+    public Response updateAccount(@PathParam("id") Long id, AccountRequest request) {
         Account existingAccount = accountService.getAccountById(id);
         if (existingAccount == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         // 更新Account实体
@@ -231,109 +239,123 @@ public class AccountController {
             tagService.updateAccountTags(updatedAccount.getId(), request.getTagIds());
         }
         
-        return ResponseEntity.ok(accountService.convertToDto(updatedAccount));
+        return Response.ok(accountService.convertToDto(updatedAccount)).build();
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteAccount(@PathVariable Long id) {
+    @DELETE
+    @Path("/{id}")
+    public Response deleteAccount(@PathParam("id") Long id) {
         Account existingAccount = accountService.getAccountById(id);
         if (existingAccount == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         accountService.deleteAccount(id);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
 
-    @PatchMapping("/{id}/enable")
-    public ResponseEntity<Map<String, Object>> enableAccount(@PathVariable Long id) {
+    @PATCH
+    @Path("/{id}/enable")
+    public Response enableAccount(@PathParam("id") Long id) {
         Account account = accountService.toggleAccountStatus(id, false);
         if (account != null) {
             Map<String, Object> response = new HashMap<>();
             response.put("id", id);
             response.put("disabled", 0);
-            return ResponseEntity.ok(response);
+            return Response.ok(response).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
 
-    @PatchMapping("/{id}/disable")
-    public ResponseEntity<Map<String, Object>> disableAccount(@PathVariable Long id) {
+    @PATCH
+    @Path("/{id}/disable")
+    public Response disableAccount(@PathParam("id") Long id) {
         Account account = accountService.toggleAccountStatus(id, true);
         if (account != null) {
             Map<String, Object> response = new HashMap<>();
             response.put("id", id);
             response.put("disabled", 1);
-            return ResponseEntity.ok(response);
+            return Response.ok(response).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
     
-    @PatchMapping("/{id}/renew")
-    public ResponseEntity<AccountDto> renewAccount(
-            @PathVariable Long id, 
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime expiryDate
+    @PATCH
+    @Path("/{id}/renew")
+    public Response renewAccount(
+            @PathParam("id") Long id, 
+            @QueryParam("expiryDate") String expiryDate
     ) {
-        Account account = accountService.renewAccount(id, expiryDate);
+        LocalDateTime parsedDate = LocalDateTime.parse(expiryDate);
+        Account account = accountService.renewAccount(id, parsedDate);
         AccountDto dto = accountService.convertToDto(account);
-        return ResponseEntity.ok(dto);
+        return Response.ok(dto).build();
     }
     
-    @PatchMapping("/{id}/reset-auth")
-    public ResponseEntity<AccountDto> resetAuthCode(@PathVariable Long id) {
+    @PATCH
+    @Path("/{id}/reset-auth")
+    public Response resetAuthCode(@PathParam("id") Long id) {
         Account account = accountService.resetAuthCode(id);
         AccountDto dto = accountService.convertToDto(account);
-        return ResponseEntity.ok(dto);
+        return Response.ok(dto).build();
     }
     
-    @GetMapping("/{id}/config-url")
-    public ResponseEntity<Map<String, String>> getConfigUrl(@PathVariable Long id, @RequestParam String osName, @RequestParam String appName) {
+    @GET
+    @Path("/{id}/config-url")
+    public Response getConfigUrl(@PathParam("id") Long id, @QueryParam("osName") String osName, @QueryParam("appName") String appName) {
         Account account = accountService.getAccountById(id);
         if (account != null) {
             Map<String, String> response = new HashMap<>();
             response.put("configUrl", accountService.getConfigUrl(account, osName, appName));
-            return ResponseEntity.ok(response);
+            return Response.ok(response).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
     
-    @GetMapping("/online/accountNo/{accountNo}")
-    public ResponseEntity<List<AccountOnlineIpDto>> getOnlineRecordsByAccountNo(@PathVariable String accountNo) {
+    @GET
+    @Path("/online/accountNo/{accountNo}")
+    public Response getOnlineRecordsByAccountNo(@PathParam("accountNo") String accountNo) {
         List<AccountOnlineIpDto> records = accountOnlineIpService.getOnlineRecordsByAccountNo(accountNo);
-        return ResponseEntity.ok(records);
+        return Response.ok(records).build();
     }
     
-    @GetMapping("/online/node/{nodeIp}")
-    public ResponseEntity<List<AccountOnlineIpDto>> getOnlineRecordsByNodeIp(@PathVariable String nodeIp) {
+    @GET
+    @Path("/online/node/{nodeIp}")
+    public Response getOnlineRecordsByNodeIp(@PathParam("nodeIp") String nodeIp) {
         List<AccountOnlineIpDto> records = accountOnlineIpService.getOnlineRecordsByNodeIp(nodeIp);
-        return ResponseEntity.ok(records);
+        return Response.ok(records).build();
     }
     
-    @GetMapping("/online/all")
-    public ResponseEntity<List<AccountOnlineIpDto>> getAllOnlineRecords() {
+    @GET
+    @Path("/online/all")
+    public Response getAllOnlineRecords() {
         List<AccountOnlineIpDto> records = accountOnlineIpService.getAllOnlineRecords();
-        return ResponseEntity.ok(records);
+        return Response.ok(records).build();
     }
     
-    @DeleteMapping("/online/cleanup")
-    public ResponseEntity<Void> cleanupExpiredRecords() {
+    @DELETE
+    @Path("/online/cleanup")
+    public Response cleanupExpiredRecords() {
         accountOnlineIpService.cleanupExpiredRecords();
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
 }
 
-@RestController
-@RequestMapping("/api/admin/config")
+@ApplicationScoped
+@Path("/api/admin/config")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 class ConfigController {
     
-    @Autowired
-    private org.springframework.core.env.Environment environment;
+    @Inject
+    @ConfigProperty(name = "airopscat.docs.url", defaultValue = "https://docs.xxx.com")
+    String docsUrl;
     
-    @GetMapping("/docs")
-    public ResponseEntity<Map<String, String>> getDocsConfig() {
+    @GET
+    @Path("/docs")
+    public Response getDocsConfig() {
         Map<String, String> config = new HashMap<>();
-        String docsUrl = environment.getProperty("airopscat.docs.url", "https://docs.xxx.com");
         config.put("url", docsUrl);
-        return ResponseEntity.ok(config);
+        return Response.ok(config).build();
     }
 }

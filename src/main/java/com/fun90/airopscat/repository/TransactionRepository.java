@@ -1,40 +1,50 @@
 package com.fun90.airopscat.repository;
 
 import com.fun90.airopscat.model.entity.Transaction;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
+import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Repository
-public interface TransactionRepository extends JpaRepository<Transaction, Long>, JpaSpecificationExecutor<Transaction> {
+@ApplicationScoped
+public class TransactionRepository implements PanacheRepository<Transaction> {
 
-    List<Transaction> findByType(Integer type);
+    public List<Transaction> findByType(Integer type) {
+        return find("type", type).list();
+    }
     
-    List<Transaction> findByBusinessTableAndBusinessId(String businessTable, Long businessId);
+    public List<Transaction> findByBusinessTableAndBusinessId(String businessTable, Long businessId) {
+        return find("businessTable = ?1 and businessId = ?2", businessTable, businessId).list();
+    }
     
-    @Query("SELECT t FROM Transaction t WHERE t.transactionDate BETWEEN :startDate AND :endDate")
-    List<Transaction> findByDateRange(
-            @Param("startDate") LocalDateTime startDate, 
-            @Param("endDate") LocalDateTime endDate);
+    public List<Transaction> findByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
+        return find("transactionDate between ?1 and ?2", startDate, endDate).list();
+    }
     
-    @Query("SELECT SUM(t.amount) FROM Transaction t WHERE t.type = 0")
-    BigDecimal getTotalIncome();
+    public BigDecimal getTotalIncome() {
+        return find("select sum(amount) from Transaction where type = 0")
+                .project(BigDecimal.class)
+                .firstResult();
+    }
     
-    @Query("SELECT SUM(t.amount) FROM Transaction t WHERE t.type = 1")
-    BigDecimal getTotalExpense();
+    public BigDecimal getTotalExpense() {
+        return find("select sum(amount) from Transaction where type = 1")
+                .project(BigDecimal.class)
+                .firstResult();
+    }
     
-    @Query("SELECT SUM(CASE WHEN t.type = 0 THEN t.amount ELSE -t.amount END) FROM Transaction t")
-    BigDecimal getNetBalance();
+    public BigDecimal getNetBalance() {
+        return find("select sum(case when type = 0 then amount else -amount end) from Transaction")
+                .project(BigDecimal.class)
+                .firstResult();
+    }
     
-    @Query("SELECT SUM(t.amount) FROM Transaction t WHERE t.type = :type AND t.transactionDate BETWEEN :startDate AND :endDate")
-    BigDecimal getSumByTypeAndDateRange(
-            @Param("type") Integer type,
-            @Param("startDate") LocalDateTime startDate, 
-            @Param("endDate") LocalDateTime endDate);
+    public BigDecimal getSumByTypeAndDateRange(Integer type, LocalDateTime startDate, LocalDateTime endDate) {
+        return find("select sum(amount) from Transaction where type = ?1 and transactionDate between ?2 and ?3", 
+                   type, startDate, endDate)
+                .project(BigDecimal.class)
+                .firstResult();
+    }
 }

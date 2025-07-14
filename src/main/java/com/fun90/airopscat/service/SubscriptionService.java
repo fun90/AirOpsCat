@@ -1,18 +1,5 @@
 package com.fun90.airopscat.service;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-
 import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.ApiResponseDto;
 import com.fun90.airopscat.model.dto.NodeDto;
@@ -24,8 +11,18 @@ import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.utils.ConfigFileReader;
 import com.fun90.airopscat.utils.ThymeleafUtil;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-@Service
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@ApplicationScoped
 public class SubscriptionService {
 
     private final AccountRepository accountRepository;
@@ -34,13 +31,13 @@ public class SubscriptionService {
     private final ThymeleafUtil thymeleafUtil;
     private final String subscriptionUrl;
 
-    @Autowired
+    @Inject
     public SubscriptionService(
             AccountRepository accountRepository,
             AccountTrafficStatsRepository accountTrafficRepository,
             TagService tagService,
             ThymeleafUtil thymeleafUtil,
-            @Value("${airopscat.subscription.url}") String subscriptionUrl) {
+            @ConfigProperty(name = "airopscat.subscription.url") String subscriptionUrl) {
         this.accountRepository = accountRepository;
         this.accountTrafficRepository = accountTrafficRepository;
         this.tagService = tagService;
@@ -52,10 +49,10 @@ public class SubscriptionService {
      * 获取规则内容
      */
     public String getRule(String appType, String ruleName) {
-        if (!StringUtils.hasText(appType)) {
+        if (appType == null || appType.trim().isEmpty()) {
             return "错误: 应用类型不能为空";
         }
-        if (!StringUtils.hasText(ruleName)) {
+        if (ruleName == null || ruleName.trim().isEmpty()) {
             return "错误: 规则名称不能为空";
         }
         
@@ -129,13 +126,13 @@ public class SubscriptionService {
      */
     public ApiResponseDto<SubscrptionDto> generateSubscription(String authCode, String osName, String appName, Map<String, String> params) {
         // 验证参数
-        if (!StringUtils.hasText(authCode)) {
+        if (authCode == null || authCode.trim().isEmpty()) {
             return ApiResponseDto.error("认证码不能为空");
         }
-        if (!StringUtils.hasText(osName)) {
+        if (osName == null || osName.trim().isEmpty()) {
             return ApiResponseDto.error("操作系统名称不能为空");
         }
-        if (!StringUtils.hasText(appName)) {
+        if (appName == null || appName.trim().isEmpty()) {
             return ApiResponseDto.error("应用名称不能为空");
         }
 

@@ -3,78 +3,121 @@ package com.fun90.airopscat.repository;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Tag;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
+import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-@Repository
-public interface TagRepository extends JpaRepository<Tag, Long>, JpaSpecificationExecutor<Tag> {
+@ApplicationScoped
+public class TagRepository implements PanacheRepository<Tag> {
 
-    Optional<Tag> findByName(String name);
+    public Optional<Tag> findByName(String name) {
+        return find("name", name).firstResultOptional();
+    }
 
-    List<Tag> findByDisabled(Integer disabled);
+    public List<Tag> findByDisabled(Integer disabled) {
+        return find("disabled", disabled).list();
+    }
 
-    @Query("SELECT t FROM Tag t WHERE t.name LIKE %:keyword% OR t.description LIKE %:keyword%")
-    List<Tag> searchByKeyword(@Param("keyword") String keyword);
+    public List<Tag> searchByKeyword(String keyword) {
+        return find("name like ?1 or description like ?1", "%" + keyword + "%").list();
+    }
 
-    @Query("SELECT t FROM Tag t JOIN t.nodes n WHERE n.id = :nodeId")
-    List<Tag> findByNodeId(@Param("nodeId") Long nodeId);
+    public List<Tag> findByNodeId(Long nodeId) {
+        return find("select t from Tag t join t.nodes n where n.id = ?1", nodeId).list();
+    }
 
-    @Query("SELECT t FROM Tag t JOIN t.accounts a WHERE a.id = :accountId")
-    List<Tag> findByAccountId(@Param("accountId") Long accountId);
+    public List<Tag> findByAccountId(Long accountId) {
+        return find("select t from Tag t join t.accounts a where a.id = ?1", accountId).list();
+    }
     
-    @Query("SELECT COUNT(n) FROM Node n JOIN n.tags t WHERE t.id = :tagId")
-    int countNodesByTagId(@Param("tagId") Long tagId);
+    public int countNodesByTagId(Long tagId) {
+        return Math.toIntExact(count("select count(n) from Node n join n.tags t where t.id = ?1", tagId));
+    }
     
-    @Query("SELECT COUNT(a) FROM Account a JOIN a.tags t WHERE t.id = :tagId")
-    int countAccountsByTagId(@Param("tagId") Long tagId);
+    public int countAccountsByTagId(Long tagId) {
+        return Math.toIntExact(count("select count(a) from Account a join a.tags t where t.id = ?1", tagId));
+    }
     
-    @Query("SELECT n FROM Node n JOIN n.tags t WHERE t.id = :tagId")
-    List<Node> findNodesByTagId(@Param("tagId") Long tagId);
+    public List<Node> findNodesByTagId(Long tagId) {
+        return find("select n from Node n join n.tags t where t.id = ?1", tagId)
+                .project(Node.class)
+                .list();
+    }
     
-    @Query("SELECT a FROM Account a JOIN a.tags t WHERE t.id = :tagId")
-    List<Account> findAccountsByTagId(@Param("tagId") Long tagId);
+    public List<Account> findAccountsByTagId(Long tagId) {
+        return find("select a from Account a join a.tags t where t.id = ?1", tagId)
+                .project(Account.class)
+                .list();
+    }
     
-    @Query("SELECT a FROM Account a JOIN a.tags t WHERE t.id IN :tagIds")
-    List<Account> findAccountsByTagIds(@Param("tagIds") List<Long> tagIds);
+    public List<Account> findAccountsByTagIds(List<Long> tagIds) {
+        return find("select a from Account a join a.tags t where t.id in ?1", tagIds)
+                .project(Account.class)
+                .list();
+    }
 
-    @Query("SELECT a FROM Account a JOIN a.tags t WHERE t.id IN :tagIds AND a.disabled = 0 AND (a.toDate IS NULL OR a.toDate > :currentTime)")
-    List<Account> findActiveAccountsByTagIds(@Param("tagIds") List<Long> tagIds, @Param("currentTime") LocalDateTime currentTime);
+    public List<Account> findActiveAccountsByTagIds(List<Long> tagIds, LocalDateTime currentTime) {
+        return find("select a from Account a join a.tags t where t.id in ?1 and a.disabled = 0 and (a.toDate is null or a.toDate > ?2)", 
+                   tagIds, currentTime)
+                .project(Account.class)
+                .list();
+    }
 
-    @Query("SELECT DISTINCT t FROM Tag t JOIN t.nodes n WHERE n.id IN :nodeIds")
-    List<Tag> findByNodeIdIn(@Param("nodeIds") List<Long> nodeIds);
+    public List<Tag> findByNodeIdIn(List<Long> nodeIds) {
+        return find("select distinct t from Tag t join t.nodes n where n.id in ?1", nodeIds).list();
+    }
 
-    @Query("SELECT DISTINCT t FROM Tag t JOIN t.accounts a WHERE a.id IN :accountIds")
-    List<Tag> findByAccountIdIn(@Param("accountIds") List<Long> accountIds);
+    public List<Tag> findByAccountIdIn(List<Long> accountIds) {
+        return find("select distinct t from Tag t join t.accounts a where a.id in ?1", accountIds).list();
+    }
     
-    @Modifying
-    @Query(value = "DELETE FROM node_tag WHERE node_id = :nodeId", nativeQuery = true)
-    void deleteAllNodeTagsByNodeId(@Param("nodeId") Long nodeId);
+    @Transactional
+    public void deleteAllNodeTagsByNodeId(Long nodeId) {
+        getEntityManager().createNativeQuery("DELETE FROM node_tag WHERE node_id = ?1")
+                .setParameter(1, nodeId)
+                .executeUpdate();
+    }
     
-    @Modifying
-    @Query(value = "DELETE FROM account_tag WHERE account_id = :accountId", nativeQuery = true)
-    void deleteAllAccountTagsByAccountId(@Param("accountId") Long accountId);
+    @Transactional
+    public void deleteAllAccountTagsByAccountId(Long accountId) {
+        getEntityManager().createNativeQuery("DELETE FROM account_tag WHERE account_id = ?1")
+                .setParameter(1, accountId)
+                .executeUpdate();
+    }
     
-    @Modifying
-    @Query(value = "INSERT INTO node_tag (node_id, tag_id) VALUES (:nodeId, :tagId)", nativeQuery = true)
-    void insertNodeTag(@Param("nodeId") Long nodeId, @Param("tagId") Long tagId);
+    @Transactional
+    public void insertNodeTag(Long nodeId, Long tagId) {
+        getEntityManager().createNativeQuery("INSERT INTO node_tag (node_id, tag_id) VALUES (?1, ?2)")
+                .setParameter(1, nodeId)
+                .setParameter(2, tagId)
+                .executeUpdate();
+    }
     
-    @Modifying
-    @Query(value = "INSERT INTO account_tag (account_id, tag_id) VALUES (:accountId, :tagId)", nativeQuery = true)
-    void insertAccountTag(@Param("accountId") Long accountId, @Param("tagId") Long tagId);
+    @Transactional
+    public void insertAccountTag(Long accountId, Long tagId) {
+        getEntityManager().createNativeQuery("INSERT INTO account_tag (account_id, tag_id) VALUES (?1, ?2)")
+                .setParameter(1, accountId)
+                .setParameter(2, tagId)
+                .executeUpdate();
+    }
     
-    @Modifying
-    @Query(value = "DELETE FROM node_tag WHERE node_id = :nodeId AND tag_id = :tagId", nativeQuery = true)
-    void deleteNodeTag(@Param("nodeId") Long nodeId, @Param("tagId") Long tagId);
+    @Transactional
+    public void deleteNodeTag(Long nodeId, Long tagId) {
+        getEntityManager().createNativeQuery("DELETE FROM node_tag WHERE node_id = ?1 AND tag_id = ?2")
+                .setParameter(1, nodeId)
+                .setParameter(2, tagId)
+                .executeUpdate();
+    }
     
-    @Modifying
-    @Query(value = "DELETE FROM account_tag WHERE account_id = :accountId AND tag_id = :tagId", nativeQuery = true)
-    void deleteAccountTag(@Param("accountId") Long accountId, @Param("tagId") Long tagId);
-} 
+    @Transactional
+    public void deleteAccountTag(Long accountId, Long tagId) {
+        getEntityManager().createNativeQuery("DELETE FROM account_tag WHERE account_id = ?1 AND tag_id = ?2")
+                .setParameter(1, accountId)
+                .setParameter(2, tagId)
+                .executeUpdate();
+    }
+}

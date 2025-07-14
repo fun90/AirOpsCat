@@ -5,9 +5,11 @@ import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.jcraft.jsch.*;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.StringUtils;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
@@ -186,16 +188,16 @@ public class JschConnection implements SshConnection {
     private void connect() throws IOException {
         try {
             // 设置密钥认证
-            if (StringUtils.hasText(config.getPrivateKeyContent())) {
+            if (config.getPrivateKeyContent() != null && !config.getPrivateKeyContent().trim().isEmpty()) {
                 // 从字符串内容加载私钥
                 jsch.addIdentity("key", 
                         config.getPrivateKeyContent().getBytes(StandardCharsets.UTF_8),
                         null,
                         config.getPassphrase() != null ? 
                                 config.getPassphrase().getBytes(StandardCharsets.UTF_8) : null);
-            } else if (StringUtils.hasText(config.getPrivateKeyPath())) {
+            } else if (config.getPrivateKeyPath() != null && !config.getPrivateKeyPath().trim().isEmpty()) {
                 // 从文件加载私钥
-                if (StringUtils.hasText(config.getPassphrase())) {
+                if (config.getPassphrase() != null && !config.getPassphrase().trim().isEmpty()) {
                     jsch.addIdentity(config.getPrivateKeyPath(), config.getPassphrase());
                 } else {
                     jsch.addIdentity(config.getPrivateKeyPath());
@@ -206,7 +208,7 @@ public class JschConnection implements SshConnection {
             session = jsch.getSession(config.getUsername(), config.getHost(), config.getPort());
             
             // 设置密码认证
-            if (StringUtils.hasText(config.getPassword())) {
+            if (config.getPassword() != null && !config.getPassword().trim().isEmpty()) {
                 session.setPassword(config.getPassword());
             }
             

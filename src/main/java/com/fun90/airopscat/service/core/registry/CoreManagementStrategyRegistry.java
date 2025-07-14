@@ -2,9 +2,11 @@ package com.fun90.airopscat.service.core.registry;
 
 import com.fun90.airopscat.annotation.SupportedCores;
 import com.fun90.airopscat.service.core.strategy.CoreManagementStrategy;
+import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,14 +16,20 @@ import java.util.stream.Collectors;
  * 内核管理策略注册表
  */
 @Slf4j
-@Component
+@ApplicationScoped
 public class CoreManagementStrategyRegistry {
     
     private final Map<String, CoreManagementStrategy> strategies = new ConcurrentHashMap<>();
     private final Map<String, SupportedCores> strategyMetadata = new ConcurrentHashMap<>();
     
-    @Autowired
-    public CoreManagementStrategyRegistry(List<CoreManagementStrategy> strategyList) {
+    @Inject
+    Instance<CoreManagementStrategy> strategyInstances;
+    
+    @PostConstruct
+    public void init() {
+        List<CoreManagementStrategy> strategyList = new ArrayList<>();
+        strategyInstances.forEach(strategyList::add);
+        
         log.info("初始化内核管理策略注册表，发现 {} 个策略", strategyList.size());
         
         // 按优先级排序策略

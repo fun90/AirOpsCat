@@ -3,11 +3,13 @@ package com.fun90.airopscat.controller;
 import com.fun90.airopscat.model.dto.DomainDto;
 import com.fun90.airopscat.model.entity.Domain;
 import com.fun90.airopscat.service.DomainService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
+import io.quarkus.panache.common.Page;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -15,36 +17,38 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@RestController
-@RequestMapping("/api/admin/domains")
+@ApplicationScoped
+@Path("/api/admin/domains")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class DomainController {
     
-    private final DomainService domainService;
-    
-    @Autowired
-    public DomainController(DomainService domainService) {
-        this.domainService = domainService;
-    }
+    @Inject
+    DomainService domainService;
 
-    @GetMapping
-    public ResponseEntity<Map<String, Object>> getDomainPage(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expiryFrom,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expiryTo
+    @GET
+    public Response getDomainPage(
+            @QueryParam("page") @DefaultValue("1") int page,
+            @QueryParam("size") @DefaultValue("10") int size,
+            @QueryParam("search") String search,
+            @QueryParam("expiryFrom") String expiryFromStr,
+            @QueryParam("expiryTo") String expiryToStr
     ) {
-        Page<Domain> domainPage = domainService.getDomainPage(page, size, search, expiryFrom, expiryTo);
+        LocalDate expiryFrom = expiryFromStr != null ? LocalDate.parse(expiryFromStr) : null;
+        LocalDate expiryTo = expiryToStr != null ? LocalDate.parse(expiryToStr) : null;
+        
+        PanacheQuery<Domain> domainQuery = domainService.getDomainPage(search, expiryFrom, expiryTo);
+        domainQuery.page(Page.of(page - 1, size));
         
         // Convert to DTOs and add expiration info
-        List<DomainDto> domainDtos = domainPage.getContent().stream()
+        List<DomainDto> domainDtos = domainQuery.list().stream()
                 .map(domain -> domainService.convertToDto(domain))
                 .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", domainDtos);
-        response.put("total", domainPage.getTotalElements());
-        response.put("pages", domainPage.getTotalPages());
+        response.put("total", domainQuery.count());
+        response.put("pages", domainQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
         
@@ -53,65 +57,70 @@ public class DomainController {
         response.put("expiringCount", domainService.countExpiringInOneMonth());
         response.put("totalCost", domainService.getTotalDomainCost());
 
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Domain> getDomainById(@PathVariable Long id) {
+    @GET
+    @Path("/{id}")
+    public Response getDomainById(@PathParam("id") Long id) {
         Domain domain = domainService.getDomainById(id);
         if (domain != null) {
-            return ResponseEntity.ok(domain);
+            return Response.ok(domain).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
     
-    @GetMapping("/expiring")
-    public ResponseEntity<List<DomainDto>> getExpiringDomains(
-            @RequestParam(defaultValue = "30") int days
+    @GET
+    @Path("/expiring")
+    public Response getExpiringDomains(
+            @QueryParam("days") @DefaultValue("30") int days
     ) {
         List<Domain> domains = domainService.getExpiringDomains(days);
         List<DomainDto> domainDtos = domains.stream()
                 .map(domain -> domainService.convertToDto(domain))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(domainDtos);
+        return Response.ok(domainDtos).build();
     }
     
-    @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getDomainStats() {
+    @GET
+    @Path("/stats")
+    public Response getDomainStats() {
         Map<String, Object> stats = new HashMap<>();
-        stats.put("totalCount", domainService.getDomainPage(1, 1, null, null, null).getTotalElements());
+        stats.put("totalCount", domainService.getDomainPage(null, null, null).count());
         stats.put("expiredCount", domainService.countExpiredDomains());
         stats.put("expiringCount", domainService.countExpiringInOneMonth());
         stats.put("totalCost", domainService.getTotalDomainCost());
-        return ResponseEntity.ok(stats);
+        return Response.ok(stats).build();
     }
 
-    @PostMapping
-    public ResponseEntity<Domain> createDomain(@RequestBody Domain domain) {
+    @POST
+    public Response createDomain(Domain domain) {
         Domain savedDomain = domainService.saveDomain(domain);
-        return ResponseEntity.ok(savedDomain);
+        return Response.ok(savedDomain).build();
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<DomainDto> updateDomain(@PathVariable Long id, @RequestBody Domain domain) {
+    @PUT
+    @Path("/{id}")
+    public Response updateDomain(@PathParam("id") Long id, Domain domain) {
         Domain existingDomain = domainService.getDomainById(id);
         if (existingDomain == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         domain.setId(id);
         Domain updatedDomain = domainService.updateDomain(domain);
-        return ResponseEntity.ok(domainService.convertToDto(updatedDomain));
+        return Response.ok(domainService.convertToDto(updatedDomain)).build();
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteDomain(@PathVariable Long id) {
+    @DELETE
+    @Path("/{id}")
+    public Response deleteDomain(@PathParam("id") Long id) {
         Domain existingDomain = domainService.getDomainById(id);
         if (existingDomain == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         domainService.deleteDomain(id);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
 }

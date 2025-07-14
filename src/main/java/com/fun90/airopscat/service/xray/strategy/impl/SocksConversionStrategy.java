@@ -6,14 +6,14 @@ import com.fun90.airopscat.model.dto.xray.OutboundConfig;
 import com.fun90.airopscat.model.dto.xray.setting.inbound.SocksInboundSetting;
 import com.fun90.airopscat.model.dto.xray.setting.outbound.SocksOutboundSetting;
 import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
-@Component
+@ApplicationScoped
 @SupportedProtocols(value = {"socks", "socks5"}, priority = 1, description = "Socks协议转换器")
 public class SocksConversionStrategy implements ConversionStrategy {
     

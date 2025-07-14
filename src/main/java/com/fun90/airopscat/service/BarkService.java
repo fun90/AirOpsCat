@@ -1,23 +1,20 @@
 package com.fun90.airopscat.service;
 
-import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.dto.BarkNotificationDto;
-
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.ClientBuilder;
+import jakarta.ws.rs.client.Entity;
+import jakarta.ws.rs.client.WebTarget;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import java.net.URI;
 
 /**
  * Bark通知服务
@@ -26,22 +23,19 @@ import lombok.extern.slf4j.Slf4j;
  * 参考Bark官方文档: https://github.com/Finb/Bark
  */
 @Slf4j
-@Service
+@ApplicationScoped
 public class BarkService {
 
-    @Value("${airopscat.bark.url:}")
-    private String barkUrl;
+    @ConfigProperty(name = "airopscat.bark.url", defaultValue = "")
+    String barkUrl;
 
-    @Value("${airopscat.bark.device-key:}")
-    private String deviceKey;
+    @ConfigProperty(name = "airopscat.bark.device-key", defaultValue = "")
+    String deviceKey;
 
-    private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
+    @Inject
+    ObjectMapper objectMapper;
 
-    public BarkService() {
-        this.restTemplate = new RestTemplate();
-        this.objectMapper = new ObjectMapper();
-    }
+    private final Client client = ClientBuilder.newClient();
 
     /**
      * 发送简单通知
@@ -78,31 +72,26 @@ public class BarkService {
             // 使用POST请求方式，符合Bark官方API规范
             URI requestUri = URI.create(barkUrl + "/" + notification.getDeviceKey());
             
-            // 设置请求头
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            
             // 创建请求实体，发送JSON数据
             String jsonBody = objectMapper.writeValueAsString(notification);
-            HttpEntity<String> requestEntity = new HttpEntity<>(jsonBody, headers);
             
             log.info("Bark POST请求URL: {}, 请求体: {}", requestUri, jsonBody);
             
             // 发送POST请求
-            ResponseEntity<String> response = restTemplate.exchange(
-                    requestUri, 
-                    HttpMethod.POST, 
-                    requestEntity, 
-                    String.class
-            );
+            WebTarget target = client.target(requestUri);
+            Response response = target.request(MediaType.APPLICATION_JSON)
+                    .post(Entity.json(jsonBody));
             
-            log.info("Bark响应: {}", response.getBody());
+            String responseBody = response.readEntity(String.class);
+            log.info("Bark响应: {}", responseBody);
             
-            if (response.getStatusCode().is2xxSuccessful()) {
+            if (response.getStatus() >= 200 && response.getStatus() < 300) {
                 log.info("Bark通知发送成功: {}", notification.getTitle());
+                response.close();
                 return true;
             } else {
-                log.error("Bark通知发送失败，状态码: {}", response.getStatusCode());
+                log.error("Bark通知发送失败，状态码: {}", response.getStatus());
+                response.close();
                 return false;
             }
             
@@ -212,29 +201,23 @@ public class BarkService {
             // 构建GET请求URI
             URI requestUri = buildRequestUri(notification);
             
-            // 设置请求头
-            HttpHeaders headers = new HttpHeaders();
-            
-            // 创建请求实体
-            HttpEntity<String> requestEntity = new HttpEntity<>(headers);
-            
             log.info("Bark GET请求URL: {}", requestUri);
             
             // 发送GET请求
-            ResponseEntity<String> response = restTemplate.exchange(
-                    requestUri, 
-                    HttpMethod.GET, 
-                    requestEntity, 
-                    String.class
-            );
+            WebTarget target = client.target(requestUri);
+            Response response = target.request(MediaType.APPLICATION_JSON)
+                    .get();
             
-            log.info("Bark响应: {}", response.getBody());
+            String responseBody = response.readEntity(String.class);
+            log.info("Bark响应: {}", responseBody);
             
-            if (response.getStatusCode().is2xxSuccessful()) {
+            if (response.getStatus() >= 200 && response.getStatus() < 300) {
                 log.info("Bark通知发送成功: {}", notification.getTitle());
+                response.close();
                 return true;
             } else {
-                log.error("Bark通知发送失败，状态码: {}", response.getStatusCode());
+                log.error("Bark通知发送失败，状态码: {}", response.getStatus());
+                response.close();
                 return false;
             }
             
@@ -256,15 +239,15 @@ public class BarkService {
         String title = notification.getTitle();
         String body = notification.getBody();
         
-        // 使用UriComponentsBuilder避免双重编码
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(barkUrl)
-                .path("/" + key);
+        // 使用UriBuilder避免双重编码
+        UriBuilder builder = UriBuilder.fromUri(barkUrl)
+                .path(key);
         
         // 根据Bark官方URL结构构建路径
         if (title != null && !title.trim().isEmpty()) {
-            builder.path("/" + title);
+            builder.path(title);
         }
-        builder.path("/" + body);
+        builder.path(body);
 
         // 添加可选参数作为查询参数
         if (notification.getIcon() != null) {
@@ -295,6 +278,6 @@ public class BarkService {
             builder.queryParam("isArchive", "1");
         }
 
-        return builder.build().toUri();
+        return builder.build();
     }
-} 
+}

@@ -8,9 +8,9 @@ import com.fun90.airopscat.service.core.registry.CoreManagementStrategyRegistry;
 import com.fun90.airopscat.service.core.strategy.CoreManagementStrategy;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,19 +22,16 @@ import java.util.concurrent.Executors;
  * 内核管理服务
  */
 @Slf4j
-@Service
+@ApplicationScoped
 public class CoreManagementService {
 
-    private final CoreManagementStrategyRegistry strategyRegistry;
-    private final SshConnectionService sshConnectionService;
+    @Inject
+    CoreManagementStrategyRegistry strategyRegistry;
+    
+    @Inject
+    SshConnectionService sshConnectionService;
+    
     private final ExecutorService executorService = Executors.newCachedThreadPool();
-
-    @Autowired
-    public CoreManagementService(CoreManagementStrategyRegistry strategyRegistry, 
-                                SshConnectionService sshConnectionService) {
-        this.strategyRegistry = strategyRegistry;
-        this.sshConnectionService = sshConnectionService;
-    }
 
     /**
      * 执行内核管理操作

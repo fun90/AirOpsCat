@@ -1,29 +1,28 @@
 package com.fun90.airopscat.service;
 
+import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.DeploymentResult;
+import com.fun90.airopscat.model.dto.SshConfig;
+import com.fun90.airopscat.model.dto.xray.InboundConfig;
+import com.fun90.airopscat.model.dto.xray.XrayConfig;
+import com.fun90.airopscat.model.dto.xray.setting.inbound.ShadowsocksInboundSetting;
+import com.fun90.airopscat.model.dto.xray.setting.inbound.SocksInboundSetting;
+import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting;
 import com.fun90.airopscat.model.entity.Account;
-import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
-import com.fun90.airopscat.model.dto.xray.XrayConfig;
-import com.fun90.airopscat.model.dto.xray.InboundConfig;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.ShadowsocksInboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.SocksInboundSetting;
-import com.fun90.airopscat.model.dto.SshConfig;
-import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
 import com.fun90.airopscat.utils.JsonUtil;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
+import io.quarkus.scheduler.Scheduled;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -34,19 +33,35 @@ import java.util.stream.Collectors;
  * 负责执行各种定时任务，如检查过期账户、重新部署节点等
  */
 @Slf4j
-@Service
-@RequiredArgsConstructor
+@ApplicationScoped
 public class ScheduledTaskService {
 
-    private final AccountRepository accountRepository;
-    private final TagService tagService;
-    private final NodeDeploymentService nodeDeploymentService;
-    private final BarkService barkService;
-    private final ServerConfigRepository serverConfigRepository;
-    private final ServerRepository serverRepository;
-    private final SshConnectionService sshConnectionService;
-    private final AccountTrafficStatsService accountTrafficStatsService;
-    private final AccountOnlineIpService accountOnlineIpService;
+    @Inject
+    AccountRepository accountRepository;
+    
+    @Inject
+    TagService tagService;
+    
+    @Inject
+    NodeDeploymentService nodeDeploymentService;
+    
+    @Inject
+    BarkService barkService;
+    
+    @Inject
+    ServerConfigRepository serverConfigRepository;
+    
+    @Inject
+    ServerRepository serverRepository;
+    
+    @Inject
+    SshConnectionService sshConnectionService;
+    
+    @Inject
+    AccountTrafficStatsService accountTrafficStatsService;
+    
+    @Inject
+    AccountOnlineIpService accountOnlineIpService;
 
     /**
      * 每天凌晨5点执行的任务
@@ -131,7 +146,7 @@ public class ScheduledTaskService {
      * 每隔15分钟执行的任务
      * 统计用户使用的流量，通过xray api命令获取数据并保存到AccountTrafficStats
      */
-    @Scheduled(fixedRate = 15 * 60 * 1000) // 15分钟 = 15 * 60 * 1000毫秒
+    @Scheduled(every = "15m")
     public void collectUserTrafficStats() {
         log.info("开始执行定时任务：收集用户流量统计");
         

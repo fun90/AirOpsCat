@@ -6,98 +6,77 @@ import com.fun90.airopscat.model.dto.ServerDto;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.enums.ServerAuthType;
 import com.fun90.airopscat.repository.ServerRepository;
+import io.quarkus.panache.common.Sort;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.BeanUtils;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
-import java.beans.PropertyDescriptor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Service
+@ApplicationScoped
 public class ServerService {
 
     private final ServerRepository serverRepository;
     private final ObjectMapper objectMapper;
 
-    @Autowired
+    @Inject
     public ServerService(ServerRepository serverRepository, ObjectMapper objectMapper) {
         this.serverRepository = serverRepository;
         this.objectMapper = objectMapper;
     }
 
-    public Page<Server> getServerPage(int page, int size, String search, String supplier, Boolean expired, Boolean disabled) {
-        // Create pageable with sorting (newest first)
-        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("createTime").descending());
-
-        // Create specification for dynamic filtering
-        Specification<Server> spec = (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            // Search in multiple fields
-            if (StringUtils.hasText(search)) {
-                Predicate ipPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("ip")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate hostPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("host")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate namePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("name")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate supplierPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("supplier")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                predicates.add(criteriaBuilder.or(ipPredicate, hostPredicate, namePredicate, supplierPredicate));
-            }
-
-            // Filter by supplier
-            if (StringUtils.hasText(supplier)) {
-                predicates.add(criteriaBuilder.equal(root.get("supplier"), supplier));
-            }
-
-            // Filter by expired status
+    public io.quarkus.hibernate.orm.panache.PanacheQuery<Server> getServerPage(String search, String supplier, Boolean expired, Boolean disabled) {
+        // Create sort by createTime descending
+        Sort sort = Sort.by("createTime").descending();
+        
+        // Build query string
+        StringBuilder queryBuilder = new StringBuilder();
+        Map<String, Object> params = new HashMap<>();
+        
+        List<String> conditions = new ArrayList<>();
+        
+        // Search condition
+        if (StringUtils.isNotBlank(search)) {
+            conditions.add("(lower(ip) like :search or lower(host) like :search or lower(name) like :search or lower(supplier) like :search)");
+            params.put("search", "%" + search.toLowerCase() + "%");
+        }
+        
+        // Supplier filter
+        if (StringUtils.isNotBlank(supplier)) {
+            conditions.add("supplier = :supplier");
+            params.put("supplier", supplier);
+        }
+        
+        // Expired filter
+        if (expired != null) {
             LocalDate now = LocalDate.now();
-            if (expired != null) {
-                if (expired) {
-                    predicates.add(criteriaBuilder.and(
-                            criteriaBuilder.isNotNull(root.get("expireDate")),
-                            criteriaBuilder.lessThan(root.get("expireDate"), now)
-                    ));
-                } else {
-                    predicates.add(criteriaBuilder.or(
-                            criteriaBuilder.isNull(root.get("expireDate")),
-                            criteriaBuilder.greaterThanOrEqualTo(root.get("expireDate"), now)
-                    ));
-                }
+            if (expired) {
+                conditions.add("expireDate is not null and expireDate < :now");
+                params.put("now", now);
+            } else {
+                conditions.add("(expireDate is null or expireDate >= :now)");
+                params.put("now", now);
             }
-
-            // Filter by disabled status
-            if (disabled != null) {
-                predicates.add(criteriaBuilder.equal(root.get("disabled"), disabled ? 1 : 0));
-            }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-
-        return serverRepository.findAll(spec, pageable);
+        }
+        
+        // Disabled filter
+        if (disabled != null) {
+            conditions.add("disabled = :disabled");
+            params.put("disabled", disabled ? 1 : 0);
+        }
+        
+        String query = conditions.isEmpty() ? "" : String.join(" and ", conditions);
+        
+        if (query.isEmpty()) {
+            return serverRepository.findAll(sort);
+        } else {
+            return serverRepository.find(query, sort, params);
+        }
     }
 
     public List<Server> getAllActiveServers() {
@@ -105,7 +84,7 @@ public class ServerService {
     }
 
     public Server getServerById(Long id) {
-        return serverRepository.findById(id).orElse(null);
+        return serverRepository.findById(id);
     }
 
     public Optional<Server> getByIp(String ip) {
@@ -154,7 +133,7 @@ public class ServerService {
     
     public BigDecimal getTotalEffectiveServerCost() {
         // 计算考虑倍率的总成本
-        List<Server> allServers = serverRepository.findAll();
+        List<Server> allServers = serverRepository.listAll();
         return allServers.stream()
                 .map(server -> {
                     BigDecimal price = server.getPrice() != null ? server.getPrice() : BigDecimal.ZERO;
@@ -166,17 +145,31 @@ public class ServerService {
 
     public ServerDto convertToDto(Server server) {
         ServerDto dto = new ServerDto();
-        BeanUtils.copyProperties(server, dto);
         
-        // 注意：auth 字段现在通过 JPA 转换器自动解密，无需手动处理
+        // Copy properties manually
+        dto.setId(server.getId());
+        dto.setIp(server.getIp());
+        dto.setHost(server.getHost());
+        dto.setName(server.getName());
+        dto.setSupplier(server.getSupplier());
+        dto.setAuthType(server.getAuthType());
+        dto.setAuth(server.getAuth());
+        dto.setSshPort(server.getSshPort());
+        dto.setPrice(server.getPrice());
+        dto.setMultiple(server.getMultiple());
+        dto.setExpireDate(server.getExpireDate());
+        dto.setDisabled(server.getDisabled());
+        dto.setCreateTime(server.getCreateTime());
+        dto.setUpdateTime(server.getUpdateTime());
+        dto.setRemark(server.getRemark());
         
         // Convert JSON strings to Map objects
         try {
-            if (StringUtils.hasText(server.getTransitConfig())) {
+            if (StringUtils.isNotBlank(server.getTransitConfig())) {
                 dto.setTransitConfig(objectMapper.readValue(server.getTransitConfig(), Map.class));
             }
             
-            if (StringUtils.hasText(server.getCoreConfig())) {
+            if (StringUtils.isNotBlank(server.getCoreConfig())) {
                 dto.setCoreConfig(objectMapper.readValue(server.getCoreConfig(), Map.class));
             }
         } catch (JsonProcessingException e) {
@@ -217,13 +210,16 @@ public class ServerService {
             throw new RuntimeException("Error converting config to JSON: " + e.getMessage(), e);
         }
         
-        return serverRepository.save(server);
+        serverRepository.persist(server);
+        return server;
     }
 
     @Transactional
     public Server updateServer(Server server) {
-        Server existingServer = serverRepository.findById(server.getId())
-                .orElseThrow(() -> new EntityNotFoundException("Server not found"));
+        Server existingServer = serverRepository.findById(server.getId());
+        if (existingServer == null) {
+            throw new EntityNotFoundException("Server not found");
+        }
         
         // 注意：auth 字段现在通过 JPA 转换器自动加密，无需手动处理
         
@@ -244,30 +240,29 @@ public class ServerService {
             throw new RuntimeException("Error converting config to JSON: " + e.getMessage(), e);
         }
 
-        // 使用工具方法复制非null属性
+        // Copy non-null properties manually
         copyNonNullProperties(server, existingServer);
 
-        return serverRepository.save(existingServer);
+        // No need to call save/persist for updates in Panache
+        return existingServer;
     }
 
     // 工具方法：复制非null属性
-    private void copyNonNullProperties(Object src, Object target) {
-        BeanUtils.copyProperties(src, target, getNullPropertyNames(src));
-    }
-
-    // 获取对象中所有为null的属性名
-    private String[] getNullPropertyNames(Object source) {
-        final BeanWrapper src = new BeanWrapperImpl(source);
-        PropertyDescriptor[] pds = src.getPropertyDescriptors();
-
-        Set<String> nullNames = new HashSet<>();
-        for (PropertyDescriptor pd : pds) {
-            Object srcValue = src.getPropertyValue(pd.getName());
-            if (srcValue == null) {
-                nullNames.add(pd.getName());
-            }
-        }
-        return nullNames.toArray(new String[0]);
+    private void copyNonNullProperties(Server src, Server target) {
+        if (src.getIp() != null) target.setIp(src.getIp());
+        if (src.getHost() != null) target.setHost(src.getHost());
+        if (src.getName() != null) target.setName(src.getName());
+        if (src.getSupplier() != null) target.setSupplier(src.getSupplier());
+        if (src.getAuthType() != null) target.setAuthType(src.getAuthType());
+        if (src.getAuth() != null) target.setAuth(src.getAuth());
+        if (src.getSshPort() != null) target.setSshPort(src.getSshPort());
+        if (src.getPrice() != null) target.setPrice(src.getPrice());
+        if (src.getMultiple() != null) target.setMultiple(src.getMultiple());
+        if (src.getExpireDate() != null) target.setExpireDate(src.getExpireDate());
+        if (src.getDisabled() != null) target.setDisabled(src.getDisabled());
+        if (src.getRemark() != null) target.setRemark(src.getRemark());
+        if (src.getTransitConfig() != null) target.setTransitConfig(src.getTransitConfig());
+        if (src.getCoreConfig() != null) target.setCoreConfig(src.getCoreConfig());
     }
 
     @Transactional
@@ -277,26 +272,29 @@ public class ServerService {
 
     @Transactional
     public Server toggleServerStatus(Long id, boolean disabled) {
-        Optional<Server> optionalServer = serverRepository.findById(id);
-        if (optionalServer.isPresent()) {
-            Server server = optionalServer.get();
+        Server server = serverRepository.findById(id);
+        if (server != null) {
             server.setDisabled(disabled ? 1 : 0);
-            return serverRepository.save(server);
+            // No need to call save/persist for updates in Panache
+            return server;
         }
         return null;
     }
     
     @Transactional
     public Server renewServer(Long id, LocalDate newExpiryDate) {
-        Server server = serverRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Server not found"));
+        Server server = serverRepository.findById(id);
+        if (server == null) {
+            throw new EntityNotFoundException("Server not found");
+        }
         
         server.setExpireDate(newExpiryDate);
         if (server.getDisabled() == 1) {
             server.setDisabled(0); // Reactivate server if disabled
         }
         
-        return serverRepository.save(server);
+        // No need to call save/persist for updates in Panache
+        return server;
     }
     
     public List<Map<String, String>> getAuthTypeOptions() {
@@ -316,8 +314,10 @@ public class ServerService {
      * @return 认证信息
      */
     public String getAuth(Long serverId) {
-        Server server = serverRepository.findById(serverId)
-                .orElseThrow(() -> new EntityNotFoundException("Server not found"));
+        Server server = serverRepository.findById(serverId);
+        if (server == null) {
+            throw new EntityNotFoundException("Server not found");
+        }
         
         return server.getAuth();
     }
@@ -329,13 +329,15 @@ public class ServerService {
      * @return 是否匹配
      */
     public boolean verifyAuth(Long serverId, String inputAuth) {
-        Server server = serverRepository.findById(serverId)
-                .orElseThrow(() -> new EntityNotFoundException("Server not found"));
+        Server server = serverRepository.findById(serverId);
+        if (server == null) {
+            throw new EntityNotFoundException("Server not found");
+        }
         
         String serverAuth = server.getAuth();
         
-        if (!StringUtils.hasText(serverAuth)) {
-            return !StringUtils.hasText(inputAuth);
+        if (StringUtils.isBlank(serverAuth)) {
+            return StringUtils.isBlank(inputAuth);
         }
         
         return serverAuth.equals(inputAuth);

@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
     <title>后台管理系统</title>
-    <link rel="icon" th:href="@{/static/img/favicon.png}"/>
+    <link rel="icon" href="/static/img/favicon.png"/>
     <!-- BEGIN GLOBAL MANDATORY STYLES -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.3.2/dist/css/tabler.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.34.0/tabler-icons.min.css" />
     <!-- END GLOBAL MANDATORY STYLES -->
     <!-- BEGIN PLUGINS STYLES -->
-    <link rel="stylesheet" th:href="@{/static/tabler/css/tabler-themes.min.css}" />
+    <link rel="stylesheet" href="/static/tabler/css/tabler-themes.min.css" />
     <!-- END PLUGINS STYLES -->
     <!-- BEGIN CUSTOM FONT -->
     <style>
@@ -166,24 +166,24 @@
 </head>
 <body>
     <!-- BEGIN GLOBAL THEME SCRIPT -->
-    <script th:src="@{/static/tabler/js/tabler-theme.min.js}"></script>
+    <script src="/static/tabler/js/tabler-theme.min.js"></script>
     <!-- END GLOBAL THEME SCRIPT -->
     <div id="app" class="layout-fluid" @vue:mounted="mounted">
         <!--  BEGIN SIDEBAR  -->
-        <th:block th:replace="~{fragments/common/sidebar :: sidebar}"></th:block>
+        {#include fragments/common/sidebar /}
         <!--  END SIDEBAR  -->
 
         <div class="page-wrapper">
             <!-- BEGIN PAGE HEADER -->
-            <th:block th:replace="~{'fragments' + ${uri} :: header}"></th:block>
+            {#include page-header /}
             <!-- END PAGE HEADER -->
 
             <!-- BEGIN PAGE BODY -->
-            <th:block th:replace="~{'fragments' + ${uri} :: content}"></th:block>
+            {#include page-content /}
             <!-- END PAGE BODY -->
 
             <!-- 页脚 -->
-            <th:block th:replace="~{fragments/common/footer :: footer}"></th:block>
+            {#include fragments/common/footer /}
         </div>
     </div>
 
@@ -465,29 +465,29 @@
     </div>
     <!-- BEGIN GLOBAL MANDATORY SCRIPTS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/petite-vue/0.4.1/petite-vue.umd.js"></script>
-    <script type="module" th:src="@{/static/js/common/autosize.min.js}"></script>
-    <script type="module" th:src="@{/static/js/common/modal-autosize.js}"></script>
-    <script type="module" th:src="@{/static/js/common/toast-utils.js}"></script>
+    <script type="module" src="/static/js/common/autosize.min.js"></script>
+    <script type="module" src="/static/js/common/modal-autosize.js"></script>
+    <script type="module" src="/static/js/common/toast-utils.js"></script>
     <!-- END GLOBAL MANDATORY SCRIPTS -->
 
     <!-- BEGIN PAGE SCRIPTS -->
 
-    <script type="module" th:src="'/static/js' + ${uri} + '.js'"></script>
+    <script type="module" src="/static/js{uri}.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             // 初始化页面中的 autosize（非 Modal 中的元素）
             function initPageAutosize() {
                 if (typeof autosize === 'undefined') return;
-                
+
                 const textareas = document.querySelectorAll('textarea[data-bs-toggle="autosize"]:not(.modal textarea[data-bs-toggle="autosize"])');
                 if (textareas.length > 0) {
                     autosize(textareas);
                 }
             }
-            
+
             // 初始化页面中的 autosize
             initPageAutosize();
-            
+
             // 切换logo的函数
             function updateLogo(theme) {
                 const logo = document.getElementById('logo');
@@ -499,7 +499,7 @@
                     }
                 }
             }
-            
+
             var themeConfig = {
                 theme: "light",
                 "theme-base": "gray",
@@ -514,7 +514,7 @@
                 for (var key in themeConfig) {
                     var value = window.localStorage["tabler-" + key] || themeConfig[key];
                     if (!!value) {
-                        var radios = form.querySelectorAll(`[name="${key}"]`);
+                        var radios = form.querySelectorAll(`[name="$\{key\}"]`);
                         if (!!radios) {
                             radios.forEach((radio) => {
                                 radio.checked = radio.value === value;
@@ -535,7 +535,7 @@
                         document.documentElement.setAttribute("data-bs-" + key, value);
                         window.localStorage.setItem("tabler-" + key, value);
                         url.searchParams.set(key, value);
-                        
+
                         // 如果切换的是主题，更新logo
                         if (key === 'theme') {
                             updateLogo(value);

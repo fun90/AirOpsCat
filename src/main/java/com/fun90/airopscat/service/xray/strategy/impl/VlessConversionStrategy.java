@@ -6,14 +6,14 @@ import com.fun90.airopscat.model.dto.xray.OutboundConfig;
 import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting;
 import com.fun90.airopscat.model.dto.xray.setting.outbound.VlessOutboundSetting;
 import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
-@Component
+@ApplicationScoped
 @SupportedProtocols(value = {"vless"}, priority = 1, description = "VLESS协议转换器")
 public class VlessConversionStrategy implements ConversionStrategy {
     

@@ -1,0 +1,17 @@
+<!-- Role filter -->
+<div class="col-auto">
+    <select class="form-select" v-model="filters.role" @change="fetchRecords">
+        <option value="">全部角色</option>
+        <option value="ADMIN">ADMIN</option>
+        <option value="PARTNER">PARTNER</option>
+        <option value="VIP">VIP</option>
+    </select>
+</div>
+<!-- Status filter -->
+<div class="col-auto">
+    <select class="form-select" v-model="filters.status" @change="fetchRecords">
+        <option value="">全部状态</option>
+        <option value="active">Active</option>
+        <option value="disabled">Disabled</option>
+    </select>
+</div> 

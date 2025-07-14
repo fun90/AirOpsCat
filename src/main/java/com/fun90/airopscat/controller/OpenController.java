@@ -2,58 +2,62 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.ClientRequest;
 import com.fun90.airopscat.model.entity.Account;
-import com.fun90.airopscat.service.AccountOnlineIpService;
 import com.fun90.airopscat.repository.AccountRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.beans.factory.annotation.Value;
-import java.util.Map;
+import com.fun90.airopscat.service.AccountOnlineIpService;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
-@RestController
-@RequestMapping("/api/open")
+@ApplicationScoped
+@Path("/api/open")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class OpenController {
 
-    private final AccountOnlineIpService accountOnlineIpService;
-    private final AccountRepository accountRepository;
+    @Inject
+    AccountOnlineIpService accountOnlineIpService;
 
-    @Value("${airopscat.apple.id}")
-    private String appleId;
+    @Inject
+    AccountRepository accountRepository;
 
-    @Value("${airopscat.apple.pwd}")
-    private String applePwd;
+    @ConfigProperty(name = "airopscat.apple.id")
+    String appleId;
 
-    @Value("${airopscat.subscription.url}")
-    private String subscriptionUrl;
+    @ConfigProperty(name = "airopscat.apple.pwd")
+    String applePwd;
 
-    @Value("${airopscat.api.token}")
-    private String apiToken;
+    @ConfigProperty(name = "airopscat.subscription.url")
+    String subscriptionUrl;
 
-    @Autowired
-    public OpenController(AccountOnlineIpService accountOnlineIpService, AccountRepository accountRepository) {
-        this.accountOnlineIpService = accountOnlineIpService;
-        this.accountRepository = accountRepository;
-    }
+    @ConfigProperty(name = "airopscat.api.token")
+    String apiToken;
 
-    @PostMapping("/account/online/{nodeIp}")
-    public ResponseEntity<Void> access(@RequestBody ClientRequest request, @PathVariable String nodeIp, @RequestHeader("Token") String requestToken) {
+    @POST
+    @Path("/account/online/{nodeIp}")
+    public Response access(ClientRequest request, @PathParam("nodeIp") String nodeIp, @HeaderParam("Token") String requestToken) {
         // 验证API Token
         if (!this.apiToken.equals(requestToken)) {
-            return ResponseEntity.status(401).build();
+            return Response.status(Response.Status.UNAUTHORIZED).build();
         }
 
         accountOnlineIpService.updateOnlineStatus(request, nodeIp);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
 
-    @GetMapping("/docs-info/{authCode}")
-    public ResponseEntity<?> getDocsInfo(@PathVariable String authCode) {
+    @GET
+    @Path("/docs-info/{authCode}")
+    public Response getDocsInfo(@PathParam("authCode") String authCode) {
         // 查找账户
         Optional<Account> accountOpt = accountRepository.findByAuthCode(authCode);
         if (accountOpt.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "无效的认证码，账户不存在"));
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "无效的认证码，账户不存在")).build();
         }
         // 组装subscriptionUrl
         String base = subscriptionUrl + "/config/" + authCode;
@@ -69,7 +73,7 @@ public class OpenController {
         result.put("appleId", appleId);
         result.put("applePwd", applePwd);
         result.put("nickName", accountOpt.get().getUser().getNickName());
-        return ResponseEntity.ok(result);
+        return Response.ok(result).build();
     }
 
 }

@@ -1,0 +1,8 @@
+<!-- Status filter -->
+<div class="col-auto">
+    <select class="form-select" v-model="filters.status" @change="fetchRecords">
+        <option value="">全部状态</option>
+        <option value="0">启用</option>
+        <option value="1">禁用</option>
+    </select>
+</div> 

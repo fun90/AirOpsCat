@@ -1,0 +1,17 @@
+{#include fragments/common/search_dropdown_styles /}
+
+<!-- Transaction type filter -->
+<div class="col-auto">
+    <select class="form-select" v-model="filters.type" @change="fetchRecords">
+        <option value="">全部类型</option>
+        <option v-for="type in transactionTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+    </select>
+</div>
+
+<!-- Business table filter -->
+<div class="col-auto">
+    <select class="form-select" v-model="filters.businessTable" @change="fetchRecords">
+        <option value="">全部业务</option>
+        <option v-for="table in businessTables" :key="table.value" :value="table.value">{{ table.label }}</option>
+    </select>
+</div> 

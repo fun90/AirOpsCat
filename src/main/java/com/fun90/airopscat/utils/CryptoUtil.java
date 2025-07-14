@@ -1,7 +1,8 @@
 package com.fun90.airopscat.utils;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import jakarta.enterprise.context.ApplicationScoped;
+import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -12,18 +13,19 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * 加密工具类
+ * 加密工具类 - Quarkus版本
  * 用于处理敏感信息（如服务器认证信息）的加密和解密
  */
-@Component
+@Slf4j
+@ApplicationScoped
 public class CryptoUtil {
     
     private static final String ALGORITHM = "AES";
     private static final String TRANSFORMATION = "AES/ECB/PKCS5Padding";
     
-    // 默认密钥，在生产环境中应该从配置文件或环境变量中读取
-    @Value("${airopscat.crypto.secret-key:AirOpsCatDefaultSecretKey2024}")
-    private String secretKey;
+    // 使用Quarkus配置注入，从配置文件或环境变量中读取密钥
+    @ConfigProperty(name = "airopscat.crypto.secret-key", defaultValue = "AirOpsCatDefaultSecretKey2024")
+    String secretKey;
     
     /**
      * 生成AES密钥
@@ -94,6 +96,7 @@ public class CryptoUtil {
             byte[] decryptedBytes = cipher.doFinal(decodedBytes);
             return new String(decryptedBytes);
         } catch (Exception e) {
+            log.error("解密失败: {}", e.getMessage(), e);
             // 如果解密失败，可能是未加密的明文，直接返回原文
             // 这样可以兼容已存在的明文数据
             return encryptedText;
@@ -140,4 +143,4 @@ public class CryptoUtil {
             return false;
         }
     }
-} 
+}

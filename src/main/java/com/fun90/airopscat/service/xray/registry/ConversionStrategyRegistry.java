@@ -2,9 +2,11 @@ package com.fun90.airopscat.service.xray.registry;
 
 import com.fun90.airopscat.annotation.SupportedProtocols;
 import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
+import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,14 +16,20 @@ import java.util.stream.Collectors;
  * 转换策略注册表
  */
 @Slf4j
-@Component
+@ApplicationScoped
 public class ConversionStrategyRegistry {
     
     private final Map<String, ConversionStrategy> strategies = new ConcurrentHashMap<>();
     private final Map<String, SupportedProtocols> strategyMetadata = new ConcurrentHashMap<>();
     
-    @Autowired
-    public ConversionStrategyRegistry(List<ConversionStrategy> strategyList) {
+    @Inject
+    Instance<ConversionStrategy> strategyInstances;
+    
+    @PostConstruct
+    public void init() {
+        List<ConversionStrategy> strategyList = new ArrayList<>();
+        strategyInstances.forEach(strategyList::add);
+        
         log.info("Initializing ConversionStrategyRegistry with {} strategies", strategyList.size());
         
         // 按优先级排序策略

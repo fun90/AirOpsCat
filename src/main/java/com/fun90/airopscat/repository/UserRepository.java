@@ -1,32 +1,55 @@
 package com.fun90.airopscat.repository;
 
 import com.fun90.airopscat.model.entity.User;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
+import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
 
 import java.util.List;
 import java.util.Optional;
 
-@Repository
-public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
+@ApplicationScoped
+public class UserRepository implements PanacheRepository<User> {
 
-    Optional<User> findByEmail(String email);
+    public Optional<User> findByEmail(String email) {
+        return find("email", email).firstResultOptional();
+    }
 
-    List<User> findByDisabled(Short disabled);
+    public List<User> findByDisabled(Short disabled) {
+        return find("disabled", disabled).list();
+    }
 
-    List<User> findByRole(String role);
+    public List<User> findByRole(String role) {
+        return find("role", role).list();
+    }
 
-    List<User> findByReferrer(Integer referrer);
+    public List<User> findByReferrer(Integer referrer) {
+        return find("referrer", referrer).list();
+    }
 
-    @Query("SELECT u FROM User u WHERE u.nickName LIKE %:keyword% OR u.email LIKE %:keyword% OR u.role = :keyword")
-    List<User> searchByKeyword(@Param("keyword") String keyword);
+    public List<User> searchByKeyword(String keyword) {
+        return find("nickName like ?1 or email like ?1 or role = ?2", 
+                   "%" + keyword + "%", keyword).list();
+    }
 
-    @Modifying
-    @Query("UPDATE User u SET u.failedAttempts = :failedAttempts WHERE u.email = :email")
-    void updateFailedAttempts(@Param("failedAttempts") int failedAttempts, @Param("email") String email);
+    @Transactional
+    public void updateFailedAttempts(int failedAttempts, String email) {
+        update("failedAttempts = ?1 where email = ?2", failedAttempts, email);
+    }
 
+    public List<User> findActiveUsers() {
+        return find("disabled = 0 or disabled is null").list();
+    }
+
+    public long countActiveUsers() {
+        return count("disabled = 0 or disabled is null");
+    }
+
+    public List<User> findUsersByRoleAndStatus(String role, boolean active) {
+        if (active) {
+            return find("role = ?1 and (disabled = 0 or disabled is null)", role).list();
+        } else {
+            return find("role = ?1 and disabled = 1", role).list();
+        }
+    }
 }

@@ -26,6 +26,10 @@ public class ServerConfig {
 
     private String path;
     
+    private String description;
+    
+    private Integer enabled;
+    
     private LocalDateTime createTime;
     
     private LocalDateTime updateTime;

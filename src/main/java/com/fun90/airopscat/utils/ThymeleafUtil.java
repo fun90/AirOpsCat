@@ -1,55 +1,56 @@
 package com.fun90.airopscat.utils;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-import org.thymeleaf.TemplateEngine;
-import org.thymeleaf.context.Context;
-import org.thymeleaf.templatemode.TemplateMode;
-import org.thymeleaf.templateresolver.StringTemplateResolver;
+import io.quarkus.qute.Engine;
+import io.quarkus.qute.TemplateInstance;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 
 import java.util.Map;
 
-@Component
+@ApplicationScoped
 public class ThymeleafUtil {
     
-    private final TemplateEngine templateEngine;
-    
-    @Autowired
-    public ThymeleafUtil(TemplateEngine templateEngine) {
-        this.templateEngine = templateEngine;
-    }
+    @Inject
+    Engine engine;
     
     /**
-     * 使用Thymeleaf处理字符串模板
+     * 使用Qute处理字符串模板
+     * Note: Quarkus uses Qute instead of Thymeleaf for templating
      */
     public String processStringTemplate(String templateContent, Map<String, Object> variables) {
-        // 创建字符串模板解析器
-        StringTemplateResolver templateResolver = new StringTemplateResolver();
-        templateResolver.setTemplateMode(TemplateMode.TEXT);
-        templateResolver.setCacheable(false);
-        
-        // 创建临时模板引擎
-        TemplateEngine stringTemplateEngine = new TemplateEngine();
-        stringTemplateEngine.setTemplateResolver(templateResolver);
-        
-        // 创建上下文并添加变量
-        Context context = new Context();
-        if (variables != null) {
-            variables.forEach(context::setVariable);
+        try {
+            // 创建模板实例
+            TemplateInstance instance = engine.parse(templateContent).instance();
+            
+            // 添加变量
+            if (variables != null) {
+                variables.forEach(instance::data);
+            }
+            
+            // 渲染模板
+            return instance.render();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to process string template", e);
         }
-        
-        // 处理模板
-        return stringTemplateEngine.process(templateContent, context);
     }
     
     /**
-     * 使用Thymeleaf处理模板文件
+     * 使用Qute处理模板文件
+     * Note: In Quarkus, templates are typically loaded from src/main/resources/templates
      */
     public String processTemplate(String templateName, Map<String, Object> variables) {
-        Context context = new Context();
-        if (variables != null) {
-            variables.forEach(context::setVariable);
+        try {
+            // 获取模板
+            TemplateInstance instance = engine.getTemplate(templateName).instance();
+            
+            // 添加变量
+            if (variables != null) {
+                variables.forEach(instance::data);
+            }
+            
+            return instance.render();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to process template: " + templateName, e);
         }
-        return templateEngine.process(templateName, context);
     }
-} 
+}

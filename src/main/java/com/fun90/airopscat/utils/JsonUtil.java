@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.springframework.boot.json.JsonParseException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -40,7 +39,7 @@ public class JsonUtil {
         try {
             return obj instanceof String ? (String) obj : objectMapper.writeValueAsString(obj);
         } catch (Exception e) {
-            throw new JsonParseException(e);
+            throw new RuntimeException("JSON serialization failed", e);
         }
     }
 
@@ -63,7 +62,7 @@ public class JsonUtil {
         try {
             return obj instanceof String ? (String) obj : objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(obj);
         } catch (Exception e) {
-            throw new JsonParseException(e);
+            throw new RuntimeException("JSON pretty serialization failed", e);
         }
     }
 
@@ -79,7 +78,7 @@ public class JsonUtil {
         try {
             return (clazz == String.class) ? (T) str : objectMapper.readValue(str, clazz);
         } catch (IOException e) {
-            throw new JsonParseException(e);
+            throw new RuntimeException("JSON deserialization failed", e);
         }
     }
 
@@ -98,7 +97,7 @@ public class JsonUtil {
         try {
             return objectMapper.readValue(str, typeReference);
         } catch (IOException e) {
-            throw new JsonParseException(e);
+            throw new RuntimeException("JSON deserialization failed", e);
         }
     }
 
@@ -116,7 +115,7 @@ public class JsonUtil {
         try {
             return objectMapper.readValue(str, javaType);
         } catch (IOException e) {
-            throw new JsonParseException(e);
+            throw new RuntimeException("JSON deserialization failed", e);
         }
     }
 
@@ -124,7 +123,7 @@ public class JsonUtil {
         try {
             return objectMapper.readTree(str);
         } catch (IOException e) {
-            throw new JsonParseException(e);
+            throw new RuntimeException("JSON parsing failed", e);
         }
     }
 
@@ -132,7 +131,7 @@ public class JsonUtil {
         try {
             return objectMapper.treeToValue(node, clazz);
         } catch (IOException e) {
-            throw new JsonParseException(e);
+            throw new RuntimeException("JSON node deserialization failed", e);
         }
     }
 }

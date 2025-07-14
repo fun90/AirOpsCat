@@ -7,87 +7,94 @@ import com.fun90.airopscat.model.dto.ServerConfigRequest;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.service.ServerConfigService;
 import com.fun90.airopscat.service.ServerService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
+import io.quarkus.panache.common.Page;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@RestController
-@RequestMapping("/api/admin/server-configs")
+@ApplicationScoped
+@Path("/api/admin/server-configs")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class ServerConfigController {
 
-    private final ServerConfigService serverConfigService;
-    private final ServerService serverService;
+    @Inject
+    ServerConfigService serverConfigService;
     
-    @Autowired
-    public ServerConfigController(ServerConfigService serverConfigService, ServerService serverService) {
-        this.serverConfigService = serverConfigService;
-        this.serverService = serverService;
-    }
+    @Inject
+    ServerService serverService;
 
-    @GetMapping
-    public ResponseEntity<Map<String, Object>> getServerConfigPage(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) String configType
+    @GET
+    public Response getServerConfigPage(
+            @QueryParam("page") @DefaultValue("1") int page,
+            @QueryParam("size") @DefaultValue("10") int size,
+            @QueryParam("search") String search,
+            @QueryParam("configType") String configType
     ) {
-        Page<ServerConfig> configPage = serverConfigService.getServerConfigPage(page, size, search, configType);
+        PanacheQuery<ServerConfig> configQuery = serverConfigService.getServerConfigPage(search, configType);
+        configQuery.page(Page.of(page - 1, size));
         
         // Convert to DTOs
-        List<ServerConfigDto> configDtos = configPage.getContent().stream()
+        List<ServerConfigDto> configDtos = configQuery.list().stream()
                 .map(ServerConfigConverter::toDto)
                 .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", configDtos);
-        response.put("total", configPage.getTotalElements());
-        response.put("pages", configPage.getTotalPages());
+        response.put("total", configQuery.count());
+        response.put("pages", configQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
         
         // Add statistics
         response.put("stats", serverConfigService.getServerConfigStats());
 
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<ServerConfigDto> getServerConfigById(@PathVariable Long id) {
+    @GET
+    @Path("/{id}")
+    public Response getServerConfigById(@PathParam("id") Long id) {
         ServerConfig serverConfig = serverConfigService.getServerConfigById(id);
         if (serverConfig != null) {
             ServerConfigDto dto = ServerConfigConverter.toDto(serverConfig);
-            return ResponseEntity.ok(dto);
+            return Response.ok(dto).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
     
-    @GetMapping("/server/{serverId}")
-    public ResponseEntity<List<ServerConfigDto>> getServerConfigsByServer(@PathVariable Long serverId) {
+    @GET
+    @Path("/server/{serverId}")
+    public Response getServerConfigsByServer(@PathParam("serverId") Long serverId) {
         List<ServerConfig> configs = serverConfigService.getServerConfigsByServerId(serverId);
         List<ServerConfigDto> configDtos = configs.stream()
                 .map(ServerConfigConverter::toDto)
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(configDtos);
+        return Response.ok(configDtos).build();
     }
     
-    @GetMapping("/types")
-    public ResponseEntity<List<Map<String, String>>> getConfigTypes() {
-        return ResponseEntity.ok(serverConfigService.getConfigTypeOptions());
+    @GET
+    @Path("/types")
+    public Response getConfigTypes() {
+        return Response.ok(serverConfigService.getConfigTypeOptions()).build();
     }
     
-    @GetMapping("/stats")
-    public ResponseEntity<Map<String, Long>> getServerConfigStats() {
-        return ResponseEntity.ok(serverConfigService.getServerConfigStats());
+    @GET
+    @Path("/stats")
+    public Response getServerConfigStats() {
+        return Response.ok(serverConfigService.getServerConfigStats()).build();
     }
 
-    @PostMapping
-    public ResponseEntity<?> createServerConfig(@RequestBody ServerConfigRequest request) {
+    @POST
+    public Response createServerConfig(ServerConfigRequest request) {
         try {
             // 创建ServerConfig实体
             ServerConfig serverConfig = new ServerConfig();
@@ -98,16 +105,17 @@ public class ServerConfigController {
 
             ServerConfig savedConfig = serverConfigService.saveServerConfig(serverConfig);
             
-            return ResponseEntity.ok(ServerConfigConverter.toDto(savedConfig));
+            return Response.ok(ServerConfigConverter.toDto(savedConfig)).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(error);
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
         }
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<?> updateServerConfig(@PathVariable Long id, @RequestBody ServerConfigRequest request) {
+    @PUT
+    @Path("/{id}")
+    public Response updateServerConfig(@PathParam("id") Long id, ServerConfigRequest request) {
         try {
             // 创建ServerConfig实体
             ServerConfig serverConfig = new ServerConfig();
@@ -119,40 +127,43 @@ public class ServerConfigController {
             
             ServerConfig updatedConfig = serverConfigService.updateServerConfig(serverConfig);
             
-            return ResponseEntity.ok(ServerConfigConverter.toDto(updatedConfig));
+            return Response.ok(ServerConfigConverter.toDto(updatedConfig)).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(error);
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
         }
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteServerConfig(@PathVariable Long id) {
+    @DELETE
+    @Path("/{id}")
+    public Response deleteServerConfig(@PathParam("id") Long id) {
         ServerConfig existingConfig = serverConfigService.getServerConfigById(id);
         if (existingConfig == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         serverConfigService.deleteServerConfig(id);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
     
-    @PostMapping("/{id}/upload")
-    public ResponseEntity<CoreManagementResult> uploadConfigToServer(@PathVariable Long id) {
+    @POST
+    @Path("/{id}/upload")
+    public Response uploadConfigToServer(@PathParam("id") Long id) {
         try {
             CoreManagementResult result = serverConfigService.uploadConfigToServer(id);
-            return ResponseEntity.ok(result);
+            return Response.ok(result).build();
         } catch (Exception e) {
             CoreManagementResult errorResult = new CoreManagementResult();
             errorResult.setSuccess(false);
             errorResult.setMessage("上传失败: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResult);
+            return Response.status(Response.Status.BAD_REQUEST).entity(errorResult).build();
         }
     }
     
-    @GetMapping("/servers")
-    public ResponseEntity<List<Map<String, Object>>> getServers() {
+    @GET
+    @Path("/servers")
+    public Response getServers() {
         List<Map<String, Object>> serverOptions = serverService.getAllActiveServers().stream()
                 .map(server -> {
                     Map<String, Object> option = new HashMap<>();
@@ -164,6 +175,6 @@ public class ServerConfigController {
                     return option;
                 })
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(serverOptions);
+        return Response.ok(serverOptions).build();
     }
 }

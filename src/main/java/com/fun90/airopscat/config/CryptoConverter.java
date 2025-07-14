@@ -1,29 +1,30 @@
 package com.fun90.airopscat.config;
 
 import com.fun90.airopscat.utils.CryptoUtil;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
 
 /**
- * 加密字段转换器
+ * 加密字段转换器 - Quarkus版本
  * 自动处理敏感字段的加密解密，在保存时加密，查询时解密
  */
+@Slf4j
 @Converter(autoApply = false)
-@Component
+@ApplicationScoped
 public class CryptoConverter implements AttributeConverter<String, String> {
 
-    @Autowired
-    private CryptoUtil cryptoUtil;
+    @Inject
+    CryptoUtil cryptoUtil;
 
     /**
      * 将实体属性转换为数据库列（保存时加密）
      */
     @Override
     public String convertToDatabaseColumn(String attribute) {
-        if (!StringUtils.hasText(attribute)) {
+        if (attribute == null || attribute.trim().isEmpty()) {
             return attribute;
         }
         
@@ -45,18 +46,9 @@ public class CryptoConverter implements AttributeConverter<String, String> {
      */
     @Override
     public String convertToEntityAttribute(String dbData) {
-        if (!StringUtils.hasText(dbData)) {
+        if (dbData == null || dbData.trim().isEmpty()) {
             return dbData;
         }
-        
-        try {
-            if (cryptoUtil != null) {
-                return cryptoUtil.decrypt(dbData);
-            }
-            return dbData;
-        } catch (Exception e) {
-            // 如果解密失败，可能是明文数据，直接返回
-            return dbData;
-        }
+        return cryptoUtil.decrypt(dbData);
     }
-} 
+}

@@ -1,18 +1,29 @@
 package com.fun90.airopscat;
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.scheduling.annotation.EnableScheduling;
+import io.quarkus.runtime.Quarkus;
+import io.quarkus.runtime.QuarkusApplication;
+import io.quarkus.runtime.annotations.QuarkusMain;
+import io.quarkus.scheduler.Scheduler;
+import jakarta.inject.Inject;
 
 import java.util.TimeZone;
 
-@SpringBootApplication
-@EnableScheduling
-public class AirOpsCatApplication {
+@QuarkusMain
+public class AirOpsCatApplication implements QuarkusApplication {
 
-    public static void main(String[] args) {
+    @Inject
+    Scheduler scheduler; // 注入调度器用于替代@EnableScheduling
+
+    @Override
+    public int run(String... args) throws Exception {
+        // 设置时区
         TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"));
-        SpringApplication.run(AirOpsCatApplication.class, args);
+        
+        Quarkus.waitForExit();
+        return 0;
     }
 
+    public static void main(String[] args) {
+        Quarkus.run(AirOpsCatApplication.class, args);
+    }
 }

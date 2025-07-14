@@ -1,8 +1,6 @@
 package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.CoreManagementResult;
-import com.fun90.airopscat.model.dto.ServerConfigDto;
-import com.fun90.airopscat.model.dto.ServerConfigRequest;
 import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
@@ -10,94 +8,65 @@ import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
+import io.quarkus.panache.common.Sort;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.criteria.Join;
-import jakarta.persistence.criteria.JoinType;
-import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Service
+@ApplicationScoped
 public class ServerConfigService {
 
-    private final ServerConfigRepository serverConfigRepository;
-    private final ServerRepository serverRepository;
-    private final CoreManagementService coreManagementService;
-
-    @Autowired
-    public ServerConfigService(ServerConfigRepository serverConfigRepository, 
-                              ServerRepository serverRepository,
-                              CoreManagementService coreManagementService) {
-        this.serverConfigRepository = serverConfigRepository;
-        this.serverRepository = serverRepository;
-        this.coreManagementService = coreManagementService;
-    }
+    @Inject
+    ServerConfigRepository serverConfigRepository;
+    
+    @Inject
+    ServerRepository serverRepository;
+    
+    @Inject
+    CoreManagementService coreManagementService;
 
     /**
      * 分页查询服务器配置
      */
-    public Page<ServerConfig> getServerConfigPage(int page, int size, String search, String configType) {
-        // 创建分页对象，按创建时间倒序
-        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("createTime").descending());
-
-        // 创建动态查询条件
-        Specification<ServerConfig> spec = (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            // 确保查询包含服务器信息
-            if (query.getResultType().equals(ServerConfig.class)) {
-                root.fetch("server", JoinType.LEFT);
-            }
-
-            // 搜索条件：在服务器IP、主机名、配置类型中搜索
-            if (StringUtils.hasText(search)) {
-                Join<ServerConfig, Server> serverJoin = root.join("server", JoinType.LEFT);
-                Predicate ipPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(serverJoin.get("ip")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate hostPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(serverJoin.get("host")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate namePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(serverJoin.get("name")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate configTypePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("configType")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                predicates.add(criteriaBuilder.or(ipPredicate, hostPredicate, namePredicate, configTypePredicate));
-            }
-
-            // 按配置类型筛选
-            if (StringUtils.hasText(configType)) {
-                predicates.add(criteriaBuilder.equal(root.get("configType"), configType));
-            }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-
-        return serverConfigRepository.findAll(spec, pageable);
+    public io.quarkus.hibernate.orm.panache.PanacheQuery<ServerConfig> getServerConfigPage(String search, String configType) {
+        // Build query string
+        StringBuilder queryBuilder = new StringBuilder();
+        Map<String, Object> params = new HashMap<>();
+        
+        List<String> conditions = new ArrayList<>();
+        
+        // Search condition - search in configType or related server properties
+        if (StringUtils.isNotBlank(search)) {
+            conditions.add("(lower(configType) like :search or serverId in (select id from Server where lower(ip) like :search or lower(host) like :search or lower(name) like :search))");
+            params.put("search", "%" + search.toLowerCase() + "%");
+        }
+        
+        // Config type filter
+        if (StringUtils.isNotBlank(configType)) {
+            conditions.add("configType = :configType");
+            params.put("configType", configType);
+        }
+        
+        String query = conditions.isEmpty() ? "" : String.join(" and ", conditions);
+        Sort sort = Sort.by("createTime").descending();
+        
+        if (query.isEmpty()) {
+            return serverConfigRepository.findAll(sort);
+        } else {
+            return serverConfigRepository.find(query, sort, params);
+        }
     }
 
     /**
      * 根据ID获取服务器配置
      */
     public ServerConfig getServerConfigById(Long id) {
-        return serverConfigRepository.findById(id).orElse(null);
+        return serverConfigRepository.findById(id);
     }
 
     /**
@@ -120,11 +89,12 @@ public class ServerConfigService {
     @Transactional
     public ServerConfig saveServerConfig(ServerConfig serverConfig) {
         // 确保服务器存在
-        if (serverConfig.getServerId() != null && !serverRepository.existsById(serverConfig.getServerId())) {
+        if (serverConfig.getServerId() != null && serverRepository.findById(serverConfig.getServerId()) == null) {
             throw new EntityNotFoundException("Server with ID " + serverConfig.getServerId() + " not found");
         }
 
-        return serverConfigRepository.save(serverConfig);
+        serverConfigRepository.persist(serverConfig);
+        return serverConfig;
     }
 
     /**
@@ -132,13 +102,16 @@ public class ServerConfigService {
      */
     @Transactional
     public ServerConfig updateServerConfig(ServerConfig serverConfig) {
-        ServerConfig existingConfig = serverConfigRepository.findById(serverConfig.getId())
-                .orElseThrow(() -> new EntityNotFoundException("ServerConfig not found"));
+        ServerConfig existingConfig = serverConfigRepository.findById(serverConfig.getId());
+        if (existingConfig == null) {
+            throw new EntityNotFoundException("ServerConfig not found");
+        }
 
         // 复制非null属性
-        BeanUtils.copyProperties(serverConfig, existingConfig, getNullPropertyNames(serverConfig));
+        copyNonNullProperties(serverConfig, existingConfig);
 
-        return serverConfigRepository.save(existingConfig);
+        // No need to call save/persist for updates in Panache
+        return existingConfig;
     }
 
     /**
@@ -158,8 +131,10 @@ public class ServerConfigService {
             throw new EntityNotFoundException("ServerConfig not found");
         }
 
-        Server server = serverRepository.findById(serverConfig.getServerId())
-                .orElseThrow(() -> new EntityNotFoundException("Server not found"));
+        Server server = serverRepository.findById(serverConfig.getServerId());
+        if (server == null) {
+            throw new EntityNotFoundException("Server not found");
+        }
 
         // 创建SSH配置
         SshConfig sshConfig = createSshConfig(server);
@@ -242,19 +217,14 @@ public class ServerConfigService {
     }
 
     /**
-     * 获取对象中所有为null的属性名
+     * 复制非null属性
      */
-    private String[] getNullPropertyNames(Object source) {
-        final org.springframework.beans.BeanWrapper src = new org.springframework.beans.BeanWrapperImpl(source);
-        java.beans.PropertyDescriptor[] pds = src.getPropertyDescriptors();
-
-        Set<String> nullNames = new HashSet<>();
-        for (java.beans.PropertyDescriptor pd : pds) {
-            Object srcValue = src.getPropertyValue(pd.getName());
-            if (srcValue == null) {
-                nullNames.add(pd.getName());
-            }
-        }
-        return nullNames.toArray(new String[0]);
+    private void copyNonNullProperties(ServerConfig source, ServerConfig target) {
+        if (source.getServerId() != null) target.setServerId(source.getServerId());
+        if (source.getConfigType() != null) target.setConfigType(source.getConfigType());
+        if (source.getConfig() != null) target.setConfig(source.getConfig());
+        if (source.getDescription() != null) target.setDescription(source.getDescription());
+        if (source.getEnabled() != null) target.setEnabled(source.getEnabled());
+        if (source.getUpdateTime() != null) target.setUpdateTime(source.getUpdateTime());
     }
 } 

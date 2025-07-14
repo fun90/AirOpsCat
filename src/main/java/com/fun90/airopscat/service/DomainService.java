@@ -3,75 +3,66 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.DomainDto;
 import com.fun90.airopscat.model.entity.Domain;
 import com.fun90.airopscat.repository.DomainRepository;
+import io.quarkus.panache.common.Sort;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.BeanUtils;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
-import java.beans.PropertyDescriptor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-@Service
+@ApplicationScoped
 public class DomainService {
 
     private final DomainRepository domainRepository;
 
-    @Autowired
+    @Inject
     public DomainService(DomainRepository domainRepository) {
         this.domainRepository = domainRepository;
     }
 
-    public Page<Domain> getDomainPage(int page, int size, String search, LocalDate expiryFrom, LocalDate expiryTo) {
-        // Create pageable with sorting (expiry date first)
-        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("expireDate").ascending());
-
-        // Create specification for dynamic filtering
-        Specification<Domain> spec = (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            // Search in domain and remark
-            if (StringUtils.hasText(search)) {
-                Predicate domainPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("domain")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate remarkPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("remark")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                predicates.add(criteriaBuilder.or(domainPredicate, remarkPredicate));
-            }
-
-            // Filter by expiry range
-            if (expiryFrom != null) {
-                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("expireDate"), expiryFrom));
-            }
-            
-            if (expiryTo != null) {
-                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("expireDate"), expiryTo));
-            }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-
-        return domainRepository.findAll(spec, pageable);
+    public io.quarkus.hibernate.orm.panache.PanacheQuery<Domain> getDomainPage(String search, LocalDate expiryFrom, LocalDate expiryTo) {
+        // Create sort by expireDate ascending
+        Sort sort = Sort.by("expireDate").ascending();
+        
+        // Build query string
+        StringBuilder queryBuilder = new StringBuilder();
+        Map<String, Object> params = new HashMap<>();
+        
+        List<String> conditions = new ArrayList<>();
+        
+        // Search condition
+        if (StringUtils.isNotBlank(search)) {
+            conditions.add("(lower(domain) like :search or lower(remark) like :search)");
+            params.put("search", "%" + search.toLowerCase() + "%");
+        }
+        
+        // Expiry date range filters
+        if (expiryFrom != null) {
+            conditions.add("expireDate >= :expiryFrom");
+            params.put("expiryFrom", expiryFrom);
+        }
+        
+        if (expiryTo != null) {
+            conditions.add("expireDate <= :expiryTo");
+            params.put("expiryTo", expiryTo);
+        }
+        
+        String query = conditions.isEmpty() ? "" : String.join(" and ", conditions);
+        
+        if (query.isEmpty()) {
+            return domainRepository.findAll(sort);
+        } else {
+            return domainRepository.find(query, sort, params);
+        }
     }
 
     public Domain getDomainById(Long id) {
-        return domainRepository.findById(id).orElse(null);
+        return domainRepository.findById(id);
     }
 
     public Optional<Domain> getByDomainName(String domain) {
@@ -104,7 +95,16 @@ public class DomainService {
 
     public DomainDto convertToDto(Domain domain) {
         DomainDto dto = new DomainDto();
-        BeanUtils.copyProperties(domain, dto);
+        
+        // Copy properties manually
+        dto.setId(domain.getId());
+        dto.setDomain(domain.getDomain());
+        dto.setPrice(domain.getPrice());
+        dto.setExpireDate(domain.getExpireDate());
+        dto.setSupplier(domain.getSupplier());
+        dto.setCreateTime(domain.getCreateTime());
+        dto.setUpdateTime(domain.getUpdateTime());
+        dto.setRemark(domain.getRemark());
         
         // Calculate days until expiration
         if (domain.getExpireDate() != null) {
@@ -117,38 +117,31 @@ public class DomainService {
 
     @Transactional
     public Domain saveDomain(Domain domain) {
-        return domainRepository.save(domain);
+        domainRepository.persist(domain);
+        return domain;
     }
 
     @Transactional
     public Domain updateDomain(Domain domain) {
-        Domain existingDomain = domainRepository.findById(domain.getId())
-                .orElseThrow(() -> new EntityNotFoundException("Domain not found"));
+        Domain existingDomain = domainRepository.findById(domain.getId());
+        if (existingDomain == null) {
+            throw new EntityNotFoundException("Domain not found");
+        }
 
-        // 使用工具方法复制非null属性
+        // Copy non-null properties manually
         copyNonNullProperties(domain, existingDomain);
 
-        return domainRepository.save(existingDomain);
+        // No need to call save/persist for updates in Panache
+        return existingDomain;
     }
 
     // 工具方法：复制非null属性
-    private void copyNonNullProperties(Object src, Object target) {
-        BeanUtils.copyProperties(src, target, getNullPropertyNames(src));
-    }
-
-    // 获取对象中所有为null的属性名
-    private String[] getNullPropertyNames(Object source) {
-        final BeanWrapper src = new BeanWrapperImpl(source);
-        PropertyDescriptor[] pds = src.getPropertyDescriptors();
-
-        Set<String> nullNames = new HashSet<>();
-        for (PropertyDescriptor pd : pds) {
-            Object srcValue = src.getPropertyValue(pd.getName());
-            if (srcValue == null) {
-                nullNames.add(pd.getName());
-            }
-        }
-        return nullNames.toArray(new String[0]);
+    private void copyNonNullProperties(Domain src, Domain target) {
+        if (src.getDomain() != null) target.setDomain(src.getDomain());
+        if (src.getPrice() != null) target.setPrice(src.getPrice());
+        if (src.getExpireDate() != null) target.setExpireDate(src.getExpireDate());
+        if (src.getSupplier() != null) target.setSupplier(src.getSupplier());
+        if (src.getRemark() != null) target.setRemark(src.getRemark());
     }
 
     @Transactional

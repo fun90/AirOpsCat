@@ -3,79 +3,74 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.UserDto;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.repository.UserRepository;
+import io.quarkus.panache.common.Sort;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.BeanUtils;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
-import java.beans.PropertyDescriptor;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-@Service
+@ApplicationScoped
 public class UserService {
 
     private final UserRepository userRepository;
 
-    @Autowired
+    @Inject
     public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
 
-    public Page<User> getUserPage(int page, int size, String search, String role, String status) {
-        // Create pageable with sorting (newest first)
-        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("createTime").descending());
-
-        // Create specification for dynamic filtering
-        Specification<User> spec = (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            // Search in email and nickName
-            if (StringUtils.hasText(search)) {
-                Predicate emailPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("email")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate nickNamePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("nickName")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                predicates.add(criteriaBuilder.or(emailPredicate, nickNamePredicate));
-            }
-
-            // Filter by role
-            if (StringUtils.hasText(role)) {
-                predicates.add(criteriaBuilder.equal(root.get("role"), role));
-            }
-
-            // Filter by status
+    public io.quarkus.hibernate.orm.panache.PanacheQuery<User> getUserPage(String search, String role, String status) {
+        // Create sort by createTime descending
+        Sort sort = Sort.by("createTime").descending();
+        
+        // Build query string
+        StringBuilder queryBuilder = new StringBuilder();
+        Map<String, Object> params = new HashMap<>();
+        
+        List<String> conditions = new ArrayList<>();
+        
+        // Search condition
+        if (StringUtils.isNotBlank(search)) {
+            conditions.add("(lower(email) like :search or lower(nickName) like :search)");
+            params.put("search", "%" + search.toLowerCase() + "%");
+        }
+        
+        // Role filter
+        if (StringUtils.isNotBlank(role)) {
+            conditions.add("role = :role");
+            params.put("role", role);
+        }
+        
+        // Status filter
+        if (StringUtils.isNotBlank(status)) {
             if ("active".equals(status)) {
-                predicates.add(criteriaBuilder.equal(root.get("disabled"), 0));
+                conditions.add("disabled = 0");
             } else if ("disabled".equals(status)) {
-                predicates.add(criteriaBuilder.equal(root.get("disabled"), 1));
+                conditions.add("disabled = 1");
             }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-
-        return userRepository.findAll(spec, pageable);
+        }
+        
+        String query = conditions.isEmpty() ? "" : String.join(" and ", conditions);
+        
+        if (query.isEmpty()) {
+            return userRepository.findAll(sort);
+        } else {
+            return userRepository.find(query, sort, params);
+        }
     }
 
     public User getUserById(Long id) {
-        return userRepository.findById(id).orElse(null);
+        return userRepository.findById(id);
     }
 
-    public Optional<User> getByEmail(String email) {
-        return userRepository.findByEmail(email);
+    public User getByEmail(String email) {
+        return userRepository.findByEmail(email).orElse(null);
     }
 
     public UserDto convertToDto(User user) {
@@ -93,38 +88,32 @@ public class UserService {
         if (user.getDisabled() == null) {
             user.setDisabled(0);
         }
-        return userRepository.save(user);
+        userRepository.persist(user);
+        return user;
     }
 
     @Transactional
     public User updateUser(User user) {
-        User existingUser = userRepository.findById(user.getId())
-                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+        User existingUser = userRepository.findById(user.getId());
+        if (existingUser == null) {
+            throw new EntityNotFoundException("User not found");
+        }
 
         // 使用工具方法复制非null属性
         copyNonNullProperties(user, existingUser);
 
-        return userRepository.save(existingUser);
+        // No need to call save/persist for updates in Panache
+        return existingUser;
     }
 
     // 工具方法：复制非null属性
-    private void copyNonNullProperties(Object src, Object target) {
-        BeanUtils.copyProperties(src, target, getNullPropertyNames(src));
-    }
-
-    // 获取对象中所有为null的属性名
-    private String[] getNullPropertyNames(Object source) {
-        final BeanWrapper src = new BeanWrapperImpl(source);
-        PropertyDescriptor[] pds = src.getPropertyDescriptors();
-
-        Set<String> nullNames = new HashSet<>();
-        for (PropertyDescriptor pd : pds) {
-            Object srcValue = src.getPropertyValue(pd.getName());
-            if (srcValue == null) {
-                nullNames.add(pd.getName());
-            }
-        }
-        return nullNames.toArray(new String[0]);
+    private void copyNonNullProperties(User src, User target) {
+        if (src.getEmail() != null) target.setEmail(src.getEmail());
+        if (src.getNickName() != null) target.setNickName(src.getNickName());
+        if (src.getRemarkName() != null) target.setRemarkName(src.getRemarkName());
+        if (src.getRole() != null) target.setRole(src.getRole());
+        if (src.getDisabled() != null) target.setDisabled(src.getDisabled());
+        if (src.getPassword() != null) target.setPassword(src.getPassword());
     }
 
     @Transactional
@@ -134,11 +123,11 @@ public class UserService {
 
     @Transactional
     public User toggleUserStatus(Long id, boolean disabled) {
-        Optional<User> optionalUser = userRepository.findById(id);
-        if (optionalUser.isPresent()) {
-            User user = optionalUser.get();
+        User user = userRepository.findById(id);
+        if (user != null) {
             user.setDisabled(disabled ? 1 : 0);
-            return userRepository.save(user);
+            // No need to call save/persist for updates in Panache
+            return user;
         }
         return null;
     }

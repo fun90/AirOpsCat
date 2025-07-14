@@ -1,10 +1,6 @@
 package com.fun90.airopscat.utils;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
-import org.springframework.core.io.support.ResourcePatternResolver;
-import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,8 +19,6 @@ public final class ConfigFileReader {
         throw new IllegalStateException("Utility class");
     }
     
-    private static final ResourcePatternResolver RESOURCE_RESOLVER = new PathMatchingResourcePatternResolver();
-    
     // 缓存已读取的配置文件内容，避免重复读取
     private static final Map<String, String> FILE_CONTENT_CACHE = new HashMap<>();
     
@@ -36,7 +30,7 @@ public final class ConfigFileReader {
      * @throws RuntimeException 如果文件读取失败
      */
     public static String readFileContent(String path) {
-        if (!StringUtils.hasText(path)) {
+        if (path == null || path.trim().isEmpty()) {
             throw new IllegalArgumentException("File path cannot be null or empty");
         }
         
@@ -47,17 +41,19 @@ public final class ConfigFileReader {
         }
         
         try {
-            // 确保路径以 classpath: 开头
-            String resourcePath = path.startsWith("classpath:") ? path : "classpath:" + path;
-            Resource resource = RESOURCE_RESOLVER.getResource(resourcePath);
+            // 确保路径不以 classpath: 开头（因为我们直接使用 getResourceAsStream）
+            String resourcePath = path.startsWith("classpath:") ? path.substring(10) : path;
             
-            if (!resource.exists()) {
+            // 使用 ClassLoader 读取资源
+            InputStream inputStream = ConfigFileReader.class.getClassLoader().getResourceAsStream(resourcePath);
+            
+            if (inputStream == null) {
                 throw new IllegalArgumentException("Configuration file not found: " + path);
             }
             
             String content;
-            try (InputStream inputStream = resource.getInputStream()) {
-                content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+            try (InputStream is = inputStream) {
+                content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
             }
             
             // 缓存文件内容
@@ -79,14 +75,19 @@ public final class ConfigFileReader {
      * @return true 如果文件存在，false 否则
      */
     public static boolean exists(String path) {
-        if (!StringUtils.hasText(path)) {
+        if (path == null || path.trim().isEmpty()) {
             return false;
         }
         
         try {
-            String resourcePath = path.startsWith("classpath:") ? path : "classpath:" + path;
-            Resource resource = RESOURCE_RESOLVER.getResource(resourcePath);
-            return resource.exists();
+            String resourcePath = path.startsWith("classpath:") ? path.substring(10) : path;
+            InputStream inputStream = ConfigFileReader.class.getClassLoader().getResourceAsStream(resourcePath);
+            
+            if (inputStream != null) {
+                inputStream.close();
+                return true;
+            }
+            return false;
         } catch (Exception e) {
             log.debug("Error checking file existence: {}", path, e);
             return false;
@@ -108,7 +109,7 @@ public final class ConfigFileReader {
      * @param path 文件路径
      */
     public static void clearCache(String path) {
-        if (StringUtils.hasText(path)) {
+        if (path != null && !path.trim().isEmpty()) {
             FILE_CONTENT_CACHE.remove(path);
             log.debug("Cleared cache for configuration file: {}", path);
         }

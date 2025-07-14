@@ -2,20 +2,18 @@ package com.fun90.airopscat.service.ssh;
 
 import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.service.ssh.provider.SshConnectionProvider;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 
 @Slf4j
-@Service
+@ApplicationScoped
 public class SshConnectionService {
     
-    private final SshConnectionProvider connectionProvider;
-    
-    public SshConnectionService(SshConnectionProvider connectionProvider) {
-        this.connectionProvider = connectionProvider;
-    }
+    @Inject
+    SshConnectionProvider connectionProvider;
     
     /**
      * 创建SSH连接 - API保持简单

@@ -2,30 +2,42 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.vo.MenuItem;
 import com.fun90.airopscat.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
+import io.quarkus.qute.Template;
+import io.quarkus.qute.TemplateInstance;
+import io.quarkus.security.Authenticated;
+import jakarta.annotation.security.RolesAllowed;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.HashMap;
 import java.util.Map;
 
-@Controller
+@ApplicationScoped
+@Path("/")
 public class HomeController {
 
-    @Value("${spring.application.name}")
-    private String appName;
+    @ConfigProperty(name = "quarkus.application.name", defaultValue = "AirOpsCat")
+    String appName;
 
-    private final UserService userService;
+    @Inject
+    UserService userService;
+
+    @Inject
+    Template layout;
+
+    @Inject
+    Template notFound;
 
     private final Map<String, MenuItem> menu = new HashMap<>();
 
-    @Autowired
+    @Inject
     public HomeController(UserService userService) {
         this.userService = userService;
         menu.put("/person/user", new MenuItem("人员", "用户管理", "添加用户，编辑用户，查看用户", "/person/user"));
@@ -40,49 +52,106 @@ public class HomeController {
         menu.put("/system/tag", new MenuItem("系统", "标签管理", "添加标签，编辑标签，查看标签", "/system/tag"));
     }
 
-    @RequestMapping( "/dashboard")
-    public String dashboard(Model model) {
-        model.addAttribute("appName", appName);
-        model.addAttribute("moduleTitle", "人员");
-        model.addAttribute("pageTitle", "用户面板");
-        model.addAttribute("pageSecondaryTitle", "查看您的账户信息和客户端配置");
-        model.addAttribute("uri", "/person/user-panel");
-        return "layout";
+    @GET
+    @Path("/dashboard")
+    @Produces(MediaType.TEXT_HTML)
+    @Authenticated
+    public String dashboard() {
+        return layout.data("appName", appName)
+                .data("moduleTitle", "人员")
+                .data("pageTitle", "用户面板")
+                .data("pageSecondaryTitle", "查看您的账户信息和客户端配置")
+                .data("uri", "/person/user-panel")
+                .data("showAddButton", false)
+                .data("buttonText", "")
+                .data("modalIdPrefix", "")
+                .render();
     }
 
-    @RequestMapping("/console/{module}/{page}")
-    public String console(Model model, @PathVariable String module, @PathVariable String page) {
+    @GET
+    @Path("/console/{module}/{page}")
+    @Produces(MediaType.TEXT_HTML)
+    @Authenticated
+    public String console(@PathParam("module") String module, @PathParam("page") String page) {
         String uri = "/" + module + "/" + page;
         if (menu.containsKey(uri)) {
             MenuItem breadcrumb = menu.get(uri);
-            model.addAttribute("appName", appName);
-            model.addAttribute("moduleTitle", breadcrumb.getModuleTitle());
-            model.addAttribute("pageTitle", breadcrumb.getTitle());
-            model.addAttribute("pageSecondaryTitle", breadcrumb.getSecondaryTitle());
-            model.addAttribute("uri", breadcrumb.getUri());
-            return "layout";
+            return layout.data("appName", appName)
+                    .data("moduleTitle", breadcrumb.getModuleTitle())
+                    .data("pageTitle", breadcrumb.getTitle())
+                    .data("pageSecondaryTitle", breadcrumb.getSecondaryTitle())
+                    .data("uri", breadcrumb.getUri())
+                    .data("showAddButton", true)
+                    .data("buttonText", getButtonTextForPage(uri))
+                    .data("modalIdPrefix", getModalPrefixForPage(uri))
+                    .render();
         }
-        return "404";
+        return notFound.instance().render();
     }
 
-    @GetMapping("/api/admin/data")
-    @PreAuthorize("hasRole('ADMIN')")
-    @ResponseBody
-    public String getAdminData() {
-        return "This is admin data, only accessible to admins";
+    @GET
+    @Path("/api/admin/data")
+    @RolesAllowed("ADMIN")
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response getAdminData() {
+        return Response.ok("This is admin data, only accessible to admins").build();
     }
     
-    @GetMapping("/api/partner/data")
-    @PreAuthorize("hasAnyRole('ADMIN', 'PARTNER')")
-    @ResponseBody
-    public String getPartnerData() {
-        return "This is partner data, accessible to partners and admins";
+    @GET
+    @Path("/api/partner/data")
+    @RolesAllowed({"ADMIN", "PARTNER"})
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response getPartnerData() {
+        return Response.ok("This is partner data, accessible to partners and admins").build();
     }
     
-    @GetMapping("/api/vip/data")
-    @PreAuthorize("hasAnyRole('ADMIN', 'PARTNER', 'VIP')")
-    @ResponseBody
-    public String getVipData() {
-        return "This is VIP data, accessible to VIPs, partners, and admins";
+    @GET
+    @Path("/api/vip/data")
+    @RolesAllowed({"ADMIN", "PARTNER", "VIP"})
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response getVipData() {
+        return Response.ok("This is VIP data, accessible to VIPs, partners, and admins").build();
+    }
+    
+    private String getButtonTextForPage(String uri) {
+        switch (uri) {
+            case "/person/user":
+                return "添加用户";
+            case "/person/account":
+                return "添加账户";
+            case "/device/domain":
+                return "添加域名";
+            case "/device/server":
+                return "添加服务器";
+            case "/vpn/node":
+                return "添加节点";
+            case "/vpn/server-config":
+                return "添加配置";
+            case "/system/tag":
+                return "添加标签";
+            default:
+                return "添加";
+        }
+    }
+    
+    private String getModalPrefixForPage(String uri) {
+        switch (uri) {
+            case "/person/user":
+                return "user-";
+            case "/person/account":
+                return "account-";
+            case "/device/domain":
+                return "domain-";
+            case "/device/server":
+                return "server-";
+            case "/vpn/node":
+                return "node-";
+            case "/vpn/server-config":
+                return "serverConfig-";
+            case "/system/tag":
+                return "tag-";
+            default:
+                return "item-";
+        }
     }
 }

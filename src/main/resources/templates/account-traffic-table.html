@@ -1,0 +1,52 @@
+<div class="card-body p-0">
+    <table class="table table-vcenter card-table">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>人员</th>
+            <th>账户ID</th>
+            <th>开始时间</th>
+            <th>结束时间</th>
+            <th>上传流量</th>
+            <th>下载流量</th>
+            <th>总流量</th>
+            <th>操作</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr v-for="record in records" :key="record.id">
+            <td v-text="record.id"></td>
+            <td>
+                <span v-if="getUserEmail(record.userId)">{{ getUserEmail(record.userId) }}</span>
+                <span v-else>{{ record.userId }}</span>
+            </td>
+            <td v-text="record.accountId"></td>
+            <td v-text="formatDate(record.periodStart)"></td>
+            <td v-text="formatDate(record.periodEnd)"></td>
+            <td v-text="formatBytes(record.uploadBytes)"></td>
+            <td v-text="formatBytes(record.downloadBytes)"></td>
+            <td v-text="formatBytes(record.uploadBytes + record.downloadBytes)"></td>
+            <td>
+                <div class="btn-list flex-nowrap">
+                    <button @click="openEditModal(record)" class="btn btn-sm btn-outline-primary">
+                        <i class="ti ti-edit"></i> 编辑
+                    </button>
+                    <button @click="confirmDelete(record)" class="btn btn-sm btn-outline-danger">
+                        <i class="ti ti-trash"></i> 删除
+                    </button>
+                </div>
+            </td>
+        </tr>
+        <tr v-if="loading">
+            <td colspan="9" class="text-center py-3">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </td>
+        </tr>
+        <tr v-else-if="records.length === 0">
+            <td colspan="9" class="text-center py-3">没有查到数据.</td>
+        </tr>
+        </tbody>
+    </table>
+</div> 

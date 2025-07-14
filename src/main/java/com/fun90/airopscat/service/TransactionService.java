@@ -10,28 +10,19 @@ import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.DomainRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TransactionRepository;
+import io.quarkus.panache.common.Sort;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.BeanUtils;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
-import java.beans.PropertyDescriptor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.*;
 
-@Service
+@ApplicationScoped
 public class TransactionService {
 
     private final TransactionRepository transactionRepository;
@@ -39,7 +30,7 @@ public class TransactionService {
     private final DomainRepository domainRepository;
     private final ServerRepository serverRepository;
 
-    @Autowired
+    @Inject
     public TransactionService(
             TransactionRepository transactionRepository,
             AccountRepository accountRepository,
@@ -51,64 +42,62 @@ public class TransactionService {
         this.serverRepository = serverRepository;
     }
 
-    public Page<Transaction> getTransactionPage(int page, int size, String search, Integer type, 
+    public io.quarkus.hibernate.orm.panache.PanacheQuery<Transaction> getTransactionPage(String search, Integer type, 
                                          String businessTable, Long businessId,
                                          LocalDateTime startDate, LocalDateTime endDate) {
-        // Create pageable with sorting (newest first)
-        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("transactionDate").descending());
-
-        // Create specification for dynamic filtering
-        Specification<Transaction> spec = (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            // Search in description or remark
-            if (StringUtils.hasText(search)) {
-                Predicate descriptionPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("description")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate remarkPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("remark")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate paymentMethodPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("paymentMethod")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                predicates.add(criteriaBuilder.or(descriptionPredicate, remarkPredicate, paymentMethodPredicate));
-            }
-
-            // Filter by type
-            if (type != null) {
-                predicates.add(criteriaBuilder.equal(root.get("type"), type));
-            }
-
-            // Filter by business table and ID
-            if (StringUtils.hasText(businessTable)) {
-                predicates.add(criteriaBuilder.equal(root.get("businessTable"), businessTable));
-            }
-            
-            if (businessId != null) {
-                predicates.add(criteriaBuilder.equal(root.get("businessId"), businessId));
-            }
-
-            // Filter by date range
-            if (startDate != null) {
-                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("transactionDate"), startDate));
-            }
-            
-            if (endDate != null) {
-                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("transactionDate"), endDate));
-            }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-
-        return transactionRepository.findAll(spec, pageable);
+        // Build query string
+        StringBuilder queryBuilder = new StringBuilder();
+        Map<String, Object> params = new HashMap<>();
+        
+        List<String> conditions = new ArrayList<>();
+        
+        // Search condition
+        if (StringUtils.isNotBlank(search)) {
+            conditions.add("(lower(description) like :search or lower(remark) like :search or lower(paymentMethod) like :search)");
+            params.put("search", "%" + search.toLowerCase() + "%");
+        }
+        
+        // Type filter
+        if (type != null) {
+            conditions.add("type = :type");
+            params.put("type", type);
+        }
+        
+        // Business table filter
+        if (StringUtils.isNotBlank(businessTable)) {
+            conditions.add("businessTable = :businessTable");
+            params.put("businessTable", businessTable);
+        }
+        
+        // Business ID filter
+        if (businessId != null) {
+            conditions.add("businessId = :businessId");
+            params.put("businessId", businessId);
+        }
+        
+        // Date range filters
+        if (startDate != null) {
+            conditions.add("transactionDate >= :startDate");
+            params.put("startDate", startDate);
+        }
+        
+        if (endDate != null) {
+            conditions.add("transactionDate <= :endDate");
+            params.put("endDate", endDate);
+        }
+        
+        String query = conditions.isEmpty() ? "" : String.join(" and ", conditions);
+        Sort sort = Sort.by("transactionDate").descending();
+        
+        if (query.isEmpty()) {
+            return transactionRepository.findAll(sort);
+        } else {
+            return transactionRepository.find(query, sort, params);
+        }
     }
 
     public Transaction getTransactionById(Long id) {
-        return transactionRepository.findById(id).orElse(null);
+        return transactionRepository.findById(id);
     }
 
     public List<Transaction> getByBusinessTableAndId(String businessTable, Long businessId) {
@@ -141,7 +130,16 @@ public class TransactionService {
 
     public TransactionDto convertToDto(Transaction transaction) {
         TransactionDto dto = new TransactionDto();
-        BeanUtils.copyProperties(transaction, dto);
+        // Manual property copying
+        dto.setId(transaction.getId());
+        dto.setType(transaction.getType());
+        dto.setAmount(transaction.getAmount());
+        dto.setDescription(transaction.getDescription());
+        dto.setRemark(transaction.getRemark());
+        dto.setPaymentMethod(transaction.getPaymentMethod());
+        dto.setBusinessTable(transaction.getBusinessTable());
+        dto.setBusinessId(transaction.getBusinessId());
+        dto.setTransactionDate(transaction.getTransactionDate());
         
         // Set transaction type description
         TransactionType transactionType = TransactionType.fromValue(transaction.getType());
@@ -160,14 +158,14 @@ public class TransactionService {
     private String getBusinessName(String businessTable, Long businessId) {
         switch (businessTable.toLowerCase()) {
             case "account":
-                Optional<Account> account = accountRepository.findById(businessId);
-                return account.map(a -> a.getRemark()).orElse("未知账户");
+                Account account = accountRepository.findById(businessId);
+                return account != null ? account.getRemark() : "未知账户";
             case "domain":
-                Optional<Domain> domain = domainRepository.findById(businessId);
-                return domain.map(d -> d.getDomain()).orElse("未知域名");
+                Domain domain = domainRepository.findById(businessId);
+                return domain != null ? domain.getDomain() : "未知域名";
             case "server":
-                Optional<Server> server = serverRepository.findById(businessId);
-                return server.map(s -> s.getIp() + (s.getName() != null ? " (" + s.getName() + ")" : "")).orElse("未知服务器");
+                Server server = serverRepository.findById(businessId);
+                return server != null ? server.getIp() + (server.getName() != null ? " (" + server.getName() + ")" : "") : "未知服务器";
             default:
                 return "未知关联业务";
         }
@@ -180,38 +178,34 @@ public class TransactionService {
             transaction.setTransactionDate(LocalDateTime.now());
         }
         
-        return transactionRepository.save(transaction);
+        transactionRepository.persist(transaction);
+        return transaction;
     }
 
     @Transactional
     public Transaction updateTransaction(Transaction transaction) {
-        Transaction existingTransaction = transactionRepository.findById(transaction.getId())
-                .orElseThrow(() -> new EntityNotFoundException("Transaction not found"));
+        Transaction existingTransaction = transactionRepository.findById(transaction.getId());
+        if (existingTransaction == null) {
+            throw new EntityNotFoundException("Transaction not found");
+        }
 
         // 使用工具方法复制非null属性
         copyNonNullProperties(transaction, existingTransaction);
 
-        return transactionRepository.save(existingTransaction);
+        // No need to call save/persist for updates in Panache
+        return existingTransaction;
     }
 
     // 工具方法：复制非null属性
-    private void copyNonNullProperties(Object src, Object target) {
-        BeanUtils.copyProperties(src, target, getNullPropertyNames(src));
-    }
-
-    // 获取对象中所有为null的属性名
-    private String[] getNullPropertyNames(Object source) {
-        final BeanWrapper src = new BeanWrapperImpl(source);
-        PropertyDescriptor[] pds = src.getPropertyDescriptors();
-
-        Set<String> nullNames = new HashSet<>();
-        for (PropertyDescriptor pd : pds) {
-            Object srcValue = src.getPropertyValue(pd.getName());
-            if (srcValue == null) {
-                nullNames.add(pd.getName());
-            }
-        }
-        return nullNames.toArray(new String[0]);
+    private void copyNonNullProperties(Transaction source, Transaction target) {
+        if (source.getType() != null) target.setType(source.getType());
+        if (source.getAmount() != null) target.setAmount(source.getAmount());
+        if (source.getDescription() != null) target.setDescription(source.getDescription());
+        if (source.getRemark() != null) target.setRemark(source.getRemark());
+        if (source.getPaymentMethod() != null) target.setPaymentMethod(source.getPaymentMethod());
+        if (source.getBusinessTable() != null) target.setBusinessTable(source.getBusinessTable());
+        if (source.getBusinessId() != null) target.setBusinessId(source.getBusinessId());
+        if (source.getTransactionDate() != null) target.setTransactionDate(source.getTransactionDate());
     }
 
     @Transactional

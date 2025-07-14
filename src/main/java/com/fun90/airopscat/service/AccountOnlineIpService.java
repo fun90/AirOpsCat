@@ -8,20 +8,18 @@ import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.repository.AccountOnlineIpRepository;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.UserRepository;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
-import lombok.extern.slf4j.Slf4j;
-
-@Service
+@ApplicationScoped
 @Slf4j
 public class AccountOnlineIpService {
 
@@ -29,10 +27,10 @@ public class AccountOnlineIpService {
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
     
-    @Value("${airopscat.online.check-minutes:5}")
-    private int checkMinutes;
+    @ConfigProperty(name = "airopscat.online.check-minutes", defaultValue = "5")
+    int checkMinutes;
 
-    @Autowired
+    @Inject
     public AccountOnlineIpService(AccountOnlineIpRepository accountOnlineIpRepository, 
                                  AccountRepository accountRepository,
                                  UserRepository userRepository) {
@@ -208,7 +206,7 @@ public class AccountOnlineIpService {
             return Map.of();
         }
         
-        return accountRepository.findByAccountNoIn(accountNos).stream()
+        return accountRepository.list("accountNo in ?1", accountNos).stream()
                 .collect(Collectors.toMap(Account::getAccountNo, account -> account));
     }
     
@@ -226,7 +224,7 @@ public class AccountOnlineIpService {
             return Map.of();
         }
         
-        return userRepository.findAllById(userIds).stream()
+        return userRepository.list("id in ?1", userIds).stream()
                 .collect(Collectors.toMap(User::getId, user -> user));
     }
 } 

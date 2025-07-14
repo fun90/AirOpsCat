@@ -1,0 +1,142 @@
+<table class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>账号</th>
+        <th>用户</th>
+        <th>状态</th>
+        <th>在线IP</th>
+        <th>流量使用</th>
+        <th>统计周期</th>
+        <th>到期时间</th>
+        <th class="w-1">操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="account in records" :key="account.id">
+        <td v-text="account.id"></td>
+        <td>
+            <div class="d-flex flex-column">
+                <div class="d-flex align-items-center">
+                    <a href="#" @click.prevent="viewAccountDetails(account)" class="text-decoration-none text-truncate" style="max-width: 150px;" 
+                       :title="'点击查看账号详情: ' + account.accountNo">
+                        {{ account.accountNo }}
+                    </a>
+                    <button @click="copyToClipboard(account.accountNo)" class="btn btn-sm btn-ghost-secondary ms-2">
+                        <i class="ti ti-copy"></i>
+                    </button>
+                </div>
+                <span v-if="account.remark" class="text-muted small" :title="account.remark">{{ account.remark }}</span>
+            </div>
+        </td>
+        <td>
+            <div class="d-flex flex-column">
+                <span class="text-decoration-none text-truncate" style="max-width: 150px;">{{ account.nickName }}</span>
+            </div>
+        </td>
+        <td>
+            <span class="badge" :class="getStatusBadgeClass(account)">
+                {{ getStatusDescription(account) }}
+            </span>
+        </td>
+        <td>
+            <div v-if="account.onlineIps && account.onlineIps.length > 0">
+                <div class="d-flex align-items-center">
+                    <span class="badge text-bg-success me-2">{{ account.onlineIps.length }}</span>
+                    <button @click="viewOnlineIps(account)" class="btn btn-sm btn-ghost-secondary">
+                        <i class="ti ti-eye"></i>
+                    </button>
+                </div>
+            </div>
+            <div v-else>
+                <span class="text-muted">-</span>
+            </div>
+        </td>
+        <td>
+            <div v-if="account.bandwidth"
+                 :title="`使用率: $\{Math.round(account.usagePercentage || 0)\}%`"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 style="cursor: pointer; max-width: 125px;">
+                <div class="d-flex flex-column">
+                    <div class="small text-muted mb-1">
+                        {{ formatBytes(account.totalUsedBytes) }} / {{ account.bandwidth }} GB
+                    </div>
+                    <div class="progress progress-sm">
+                        <div class="progress-bar"
+                             :class="getProgressBarClass(account.usagePercentage)"
+                             :style="{ width: (account.usagePercentage || 0) + '%' }"
+                             role="progressbar"
+                             :aria-valuenow="account.usagePercentage || 0"
+                             aria-valuemin="0"
+                             aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div v-else>
+                {{ formatBytes(account.totalUsedBytes) }}
+            </div>
+        </td>
+        <td>
+            <div v-if="account.periodType" class="d-flex align-items-center">
+                <span class="badge" :class="getPeriodTypeBadgeClass(account.periodType)">
+                    <i class="ti ti-calendar me-1"></i>
+                    {{ getPeriodTypeLabel(account.periodType) }}
+                </span>
+            </div>
+            <div v-else class="text-muted">
+                <i class="ti ti-dash me-1"></i>未设置
+            </div>
+        </td>
+        <td :title="`创建时间: ${formatDateTime(account.createTime) || '未知'}`"
+            data-bs-toggle="tooltip"
+            data-bs-placement="top"
+            style="cursor: pointer;"
+            v-text="formatDateTime(account.toDate) || '永不过期'"></td>
+        <td>
+            <div class="btn-list flex-nowrap">
+                <div class="dropdown position-static">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click.prevent="openEditModal(account)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openConfigUrlModal(account)">
+                            <i class="ti ti-link"></i> 配置链接
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openRenewAccountModal(account)">
+                            <i class="ti ti-calendar-plus"></i> 续期
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="resetAuthCode(account)">
+                            <i class="ti ti-refresh"></i> 重置认证码
+                        </a>
+                        <a v-if="account.disabled === 0" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(account, true)">
+                            <i class="ti ti-ban"></i> 禁用
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(account, false)">
+                            <i class="ti ti-check"></i> 启用
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(account)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="9" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="9" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table> 

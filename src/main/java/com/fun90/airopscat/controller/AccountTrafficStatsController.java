@@ -2,72 +2,79 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import com.fun90.airopscat.service.AccountTrafficStatsService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
+import io.quarkus.panache.common.Page;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-@RestController
-@RequestMapping("/api/admin/traffic-stats")
+@ApplicationScoped
+@Path("/api/admin/traffic-stats")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class AccountTrafficStatsController {
     
-    private final AccountTrafficStatsService trafficStatsService;
-    
-    @Autowired
-    public AccountTrafficStatsController(AccountTrafficStatsService trafficStatsService) {
-        this.trafficStatsService = trafficStatsService;
-    }
+    @Inject
+    AccountTrafficStatsService trafficStatsService;
 
-    @GetMapping
-    public ResponseEntity<Map<String, Object>> getStatsPage(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) Long userId,
-            @RequestParam(required = false) Long accountId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
+    @GET
+    public Response getStatsPage(
+            @QueryParam("page") @DefaultValue("1") int page,
+            @QueryParam("size") @DefaultValue("10") int size,
+            @QueryParam("search") String search,
+            @QueryParam("userId") Long userId,
+            @QueryParam("accountId") Long accountId,
+            @QueryParam("startDate") String startDateStr,
+            @QueryParam("endDate") String endDateStr
     ) {
-        Page<AccountTrafficStats> statsPage = trafficStatsService.getStatsPage(
-                page, size, search, userId, accountId, startDate, endDate);
+        LocalDateTime startDate = startDateStr != null ? LocalDateTime.parse(startDateStr) : null;
+        LocalDateTime endDate = endDateStr != null ? LocalDateTime.parse(endDateStr) : null;
+        
+        PanacheQuery<AccountTrafficStats> statsQuery = trafficStatsService.getStatsPage(
+                search, userId, accountId, startDate, endDate);
+        statsQuery.page(Page.of(page - 1, size));
 
         Map<String, Object> response = new HashMap<>();
-        response.put("records", statsPage.getContent());
-        response.put("total", statsPage.getTotalElements());
-        response.put("pages", statsPage.getTotalPages());
+        response.put("records", statsQuery.list());
+        response.put("total", statsQuery.count());
+        response.put("pages", statsQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
 
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<AccountTrafficStats> getStatsById(@PathVariable Long id) {
+    @GET
+    @Path("/{id}")
+    public Response getStatsById(@PathParam("id") Long id) {
         AccountTrafficStats stats = trafficStatsService.getStatsById(id);
         if (stats != null) {
-            return ResponseEntity.ok(stats);
+            return Response.ok(stats).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
     
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<Map<String, Object>> getStatsByUser(
-            @PathVariable Long userId,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size
+    @GET
+    @Path("/user/{userId}")
+    public Response getStatsByUser(
+            @PathParam("userId") Long userId,
+            @QueryParam("page") @DefaultValue("1") int page,
+            @QueryParam("size") @DefaultValue("10") int size
     ) {
-        Page<AccountTrafficStats> statsPage = trafficStatsService.getStatsPage(
-                page, size, null, userId, null, null, null);
+        PanacheQuery<AccountTrafficStats> statsQuery = trafficStatsService.getStatsPage(
+                null, userId, null, null, null);
+        statsQuery.page(Page.of(page - 1, size));
         
         Map<String, Object> response = new HashMap<>();
-        response.put("records", statsPage.getContent());
-        response.put("total", statsPage.getTotalElements());
-        response.put("pages", statsPage.getTotalPages());
+        response.put("records", statsQuery.list());
+        response.put("total", statsQuery.count());
+        response.put("pages", statsQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
         
@@ -77,22 +84,24 @@ public class AccountTrafficStatsController {
         response.put("totalUploadFormatted", trafficStatsService.formatBytes(trafficStatsService.getTotalUploadByUser(userId)));
         response.put("totalDownloadFormatted", trafficStatsService.formatBytes(trafficStatsService.getTotalDownloadByUser(userId)));
 
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
     
-    @GetMapping("/account/{accountId}")
-    public ResponseEntity<Map<String, Object>> getStatsByAccount(
-            @PathVariable Long accountId,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size
+    @GET
+    @Path("/account/{accountId}")
+    public Response getStatsByAccount(
+            @PathParam("accountId") Long accountId,
+            @QueryParam("page") @DefaultValue("1") int page,
+            @QueryParam("size") @DefaultValue("10") int size
     ) {
-        Page<AccountTrafficStats> statsPage = trafficStatsService.getStatsPage(
-                page, size, null, null, accountId, null, null);
+        PanacheQuery<AccountTrafficStats> statsQuery = trafficStatsService.getStatsPage(
+                null, null, accountId, null, null);
+        statsQuery.page(Page.of(page - 1, size));
         
         Map<String, Object> response = new HashMap<>();
-        response.put("records", statsPage.getContent());
-        response.put("total", statsPage.getTotalElements());
-        response.put("pages", statsPage.getTotalPages());
+        response.put("records", statsQuery.list());
+        response.put("total", statsQuery.count());
+        response.put("pages", statsQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
         
@@ -102,35 +111,37 @@ public class AccountTrafficStatsController {
         response.put("totalUploadFormatted", trafficStatsService.formatBytes(trafficStatsService.getTotalUploadByAccount(accountId)));
         response.put("totalDownloadFormatted", trafficStatsService.formatBytes(trafficStatsService.getTotalDownloadByAccount(accountId)));
 
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
-    @PostMapping
-    public ResponseEntity<AccountTrafficStats> createStats(@RequestBody AccountTrafficStats stats) {
+    @POST
+    public Response createStats(AccountTrafficStats stats) {
         AccountTrafficStats savedStats = trafficStatsService.saveStats(stats);
-        return ResponseEntity.ok(savedStats);
+        return Response.ok(savedStats).build();
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<AccountTrafficStats> updateStats(@PathVariable Long id, @RequestBody AccountTrafficStats stats) {
+    @PUT
+    @Path("/{id}")
+    public Response updateStats(@PathParam("id") Long id, AccountTrafficStats stats) {
         AccountTrafficStats existingStats = trafficStatsService.getStatsById(id);
         if (existingStats == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         stats.setId(id);
         AccountTrafficStats updatedStats = trafficStatsService.updateStats(stats);
-        return ResponseEntity.ok(updatedStats);
+        return Response.ok(updatedStats).build();
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteStats(@PathVariable Long id) {
+    @DELETE
+    @Path("/{id}")
+    public Response deleteStats(@PathParam("id") Long id) {
         AccountTrafficStats existingStats = trafficStatsService.getStatsById(id);
         if (existingStats == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         trafficStatsService.deleteStats(id);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
 }

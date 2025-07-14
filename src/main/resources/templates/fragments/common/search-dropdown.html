@@ -2,7 +2,7 @@
     简化搜索下拉框组件模板
     
     使用方式:
-    <div th:replace="~{fragments/common/search-dropdown :: search-dropdown('componentVar', 'cssClass')}"></div>
+    {#include fragments/common/search_dropdown_component componentVar='componentVar' cssClass='cssClass' /}
     
     JavaScript配置示例:
     const dropdown = createSearchDropdown({
@@ -14,19 +14,19 @@
 -->
 
 <!-- 搜索下拉框组件（纯净版） -->
-<th:block th:fragment="search-dropdown(componentVar, cssClass)">
-    <div class="dropdown search-dropdown" th:class="${cssClass}"
-         th:id="|search-dropdown-${componentVar}|">
+{#fragment id="search_dropdown_component"}
+    <div class="dropdown search-dropdown {cssClass}"
+         id="search-dropdown-{componentVar}">
         
         <input type="text" 
                class="form-control dropdown-toggle"
-               th:id="|search-input-${componentVar}|"
+               id="search-input-{componentVar}"
                autocomplete="off">
         
-        <div class="dropdown-menu" th:id="|search-menu-${componentVar}|">
+        <div class="dropdown-menu" id="search-menu-{componentVar}">
             
             <!-- 加载状态 -->
-            <div class="dropdown-item-text text-center" th:id="|search-loading-${componentVar}|" style="display: none;">
+            <div class="dropdown-item-text text-center" id="search-loading-{componentVar}" style="display: none;">
                 <div class="spinner-border spinner-border-sm text-primary" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
@@ -34,26 +34,26 @@
             </div>
             
             <!-- 搜索结果容器 -->
-            <div th:id="|search-results-${componentVar}|"></div>
+            <div id="search-results-{componentVar}"></div>
             
             <!-- 无结果提示 -->
-            <div class="dropdown-item-text text-muted" th:id="|search-no-results-${componentVar}|" style="display: none;">
+            <div class="dropdown-item-text text-muted" id="search-no-results-{componentVar}" style="display: none;">
                 未找到匹配项
             </div>
         </div>
     </div>
-</th:block>
+{/fragment}
 
 <!-- 自动搜索下拉框（带标签版本 - 向后兼容） -->
-<th:block th:fragment="auto-search-dropdown(componentVar, label, required, validationField, placeholder, disabled, cssClass)">
+{#fragment id="auto_search_dropdown"}
     <div class="mb-3">
-        <label class="form-label" th:classappend="${required} ? 'required' : ''" th:text="${label}">标签</label>
-        <div th:replace="~{fragments/common/search-dropdown :: search-dropdown(${componentVar}, ${cssClass})}"></div>
+        <label class="form-label {#if required}required{/if}">{label}</label>
+        {#include fragments/common/search_dropdown_component componentVar=componentVar cssClass=cssClass /}
     </div>
-</th:block>
+{/fragment}
 
 <!-- 搜索下拉框样式 -->
-<th:block th:fragment="search-dropdown-styles">
+{#fragment id="search_dropdown_styles"}
 <style>
     .search-dropdown {
         position: relative;
@@ -115,4 +115,4 @@
         z-index: 1060;
     }
 </style>
-</th:block>
+{/fragment}

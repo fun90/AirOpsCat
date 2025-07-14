@@ -1,26 +1,33 @@
 package com.fun90.airopscat.config.ssh;
 
-import lombok.Data;
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import io.smallrye.config.ConfigMapping;
+import io.smallrye.config.WithDefault;
 
-@ConfigurationProperties(prefix = "airopscat.ssh")
-@Data
-public class SshProperties {
+@ConfigMapping(prefix = "airopscat.ssh")
+public interface SshProperties {
+    
     /**
      * SSH提供者类型: apache-sshd, jsch, trilead
      */
-    private String provider = "apache-sshd";
+    @WithDefault("apache-sshd")
+    String provider();
     
     /**
      * 连接池配置
      */
-    private PoolConfig pool = new PoolConfig();
+    PoolConfig pool();
     
-    @Data
-    public static class PoolConfig {
-        private boolean enabled = false;
-        private int maxActive = 10;
-        private int maxIdle = 5;
-        private long maxWait = 30000;
+    interface PoolConfig {
+        @WithDefault("false")
+        boolean enabled();
+        
+        @WithDefault("10")
+        int maxActive();
+        
+        @WithDefault("5")
+        int maxIdle();
+        
+        @WithDefault("30000")
+        long maxWait();
     }
 }

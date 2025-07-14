@@ -61,4 +61,4 @@ public class VersionUtil {
         String cleanPart = part.replaceAll("[^0-9]", "");
         return StringUtils.isBlank(cleanPart) ? 0 : Integer.parseInt(cleanPart);
     }
-} 
+}

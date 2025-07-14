@@ -8,136 +8,97 @@ import com.fun90.airopscat.model.enums.PeriodType;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.UserRepository;
+import io.quarkus.panache.common.Sort;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.criteria.Join;
-import jakarta.persistence.criteria.JoinType;
-import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.BeanUtils;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import java.beans.PropertyDescriptor;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-@Service
+@ApplicationScoped
 public class AccountService {
 
-    @Value("${airopscat.subscription.url:https://example.com}")
-    private String subscriptionUrl;
+    @ConfigProperty(name = "airopscat.subscription.url", defaultValue = "https://example.com")
+    String subscriptionUrl;
 
-    @Value("${airopscat.account.multiplier:1}")
-    private Integer accountMultiplier;
+    @ConfigProperty(name = "airopscat.account.multiplier", defaultValue = "1")
+    Integer accountMultiplier;
 
-    private final AccountRepository accountRepository;
-    private final UserRepository userRepository;
-    private final AccountTrafficStatsRepository accountTrafficStatsRepository;
-    private final AccountOnlineIpService accountOnlineIpService;
 
-    @Autowired
-    public AccountService(
-            AccountRepository accountRepository, 
-            UserRepository userRepository,
-            AccountTrafficStatsRepository accountTrafficStatsRepository,
-            AccountOnlineIpService accountOnlineIpService) {
-        this.accountRepository = accountRepository;
-        this.userRepository = userRepository;
-        this.accountTrafficStatsRepository = accountTrafficStatsRepository;
-        this.accountOnlineIpService = accountOnlineIpService;
-    }
+    @Inject
+    AccountRepository accountRepository;
+    
+    @Inject
+    UserRepository userRepository;
+    
+    @Inject
+    AccountTrafficStatsRepository accountTrafficStatsRepository;
+    
+    @Inject
+    AccountOnlineIpService accountOnlineIpService;
 
-    public Page<Account> getAccountPage(int page, int size, String search, Long userId, String status) {
-        // Create pageable with sorting (newest first)
-        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("createTime").descending());
-
-        // Create specification for dynamic filtering
-        Specification<Account> spec = (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            // Search in accountNo and associated user's email and nickName
-            if (StringUtils.hasText(search)) {
-                // Search in accountNo
-                Predicate accountNoPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("accountNo")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                
-                // Join with User table to search in email and nickName
-                Join<Account, User> userJoin = root.join("user", JoinType.LEFT);
-                Predicate emailPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(userJoin.get("email")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate nickNamePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(userJoin.get("nickName")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                
-                predicates.add(criteriaBuilder.or(accountNoPredicate, emailPredicate, nickNamePredicate));
+    public io.quarkus.hibernate.orm.panache.PanacheQuery<Account> getAccountPage(String search, Long userId, String status) {
+        // Create sort by createTime descending
+        Sort sort = Sort.by("createTime").descending();
+        
+        // Build query string
+        StringBuilder queryBuilder = new StringBuilder();
+        Map<String, Object> params = new HashMap<>();
+        
+        List<String> conditions = new ArrayList<>();
+        
+        // Search condition
+        if (StringUtils.isNotBlank(search)) {
+            conditions.add("(lower(accountNo) like :search or lower(user.email) like :search or lower(user.nickName) like :search)");
+            params.put("search", "%" + search.toLowerCase() + "%");
+        }
+        
+        // UserId filter
+        if (userId != null) {
+            conditions.add("userId = :userId");
+            params.put("userId", userId);
+        }
+        
+        // Status filter
+        if (StringUtils.isNotBlank(status)) {
+            LocalDateTime now = LocalDateTime.now();
+            switch (status.toLowerCase()) {
+                case "active":
+                    conditions.add("disabled = 0 and (toDate is null or toDate >= :now)");
+                    params.put("now", now);
+                    break;
+                case "expired":
+                    conditions.add("disabled = 0 and toDate is not null and toDate < :now");
+                    params.put("now", now);
+                    break;
+                case "disabled":
+                    conditions.add("disabled = 1");
+                    break;
+                case "expiring":
+                    LocalDateTime sevenDaysLater = now.plusDays(7);
+                    conditions.add("disabled = 0 and toDate is not null and toDate > :now and toDate <= :sevenDaysLater");
+                    params.put("now", now);
+                    params.put("sevenDaysLater", sevenDaysLater);
+                    break;
             }
-
-            // Filter by userId
-            if (userId != null) {
-                predicates.add(criteriaBuilder.equal(root.get("userId"), userId));
-            }
-
-            // Filter by status
-            if (StringUtils.hasText(status)) {
-                LocalDateTime now = LocalDateTime.now();
-                
-                switch (status.toLowerCase()) {
-                    case "active":
-                        // Active accounts: not disabled and not expired
-                        predicates.add(criteriaBuilder.equal(root.get("disabled"), 0));
-                        predicates.add(criteriaBuilder.or(
-                                criteriaBuilder.isNull(root.get("toDate")),
-                                criteriaBuilder.greaterThanOrEqualTo(root.get("toDate"), now)
-                        ));
-                        break;
-                    case "expired":
-                        // Expired accounts: expired and not disabled
-                        predicates.add(criteriaBuilder.equal(root.get("disabled"), 0));
-                        predicates.add(criteriaBuilder.and(
-                                criteriaBuilder.isNotNull(root.get("toDate")),
-                                criteriaBuilder.lessThan(root.get("toDate"), now)
-                        ));
-                        break;
-                    case "disabled":
-                        // Disabled accounts
-                        predicates.add(criteriaBuilder.equal(root.get("disabled"), 1));
-                        break;
-                    case "expiring":
-                        // Expiring soon accounts: not disabled, not expired, but expiring within 7 days
-                        LocalDateTime sevenDaysLater = now.plusDays(7);
-                        predicates.add(criteriaBuilder.equal(root.get("disabled"), 0));
-                        predicates.add(criteriaBuilder.and(
-                                criteriaBuilder.isNotNull(root.get("toDate")),
-                                criteriaBuilder.greaterThan(root.get("toDate"), now),
-                                criteriaBuilder.lessThanOrEqualTo(root.get("toDate"), sevenDaysLater)
-                        ));
-                        break;
-                }
-            }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-
-        return accountRepository.findAll(spec, pageable);
+        }
+        
+        String query = conditions.isEmpty() ? "" : String.join(" and ", conditions);
+        
+        if (query.isEmpty()) {
+            return accountRepository.findAll(sort);
+        } else {
+            return accountRepository.find(query, sort, params);
+        }
     }
 
     public Account getAccountById(Long id) {
-        return accountRepository.findById(id).orElse(null);
+        return accountRepository.findById(id);
     }
 
     public Optional<Account> getByUuid(String uuid) {
@@ -176,15 +137,28 @@ public class AccountService {
 
     public AccountDto convertToDto(Account account) {
         AccountDto dto = new AccountDto();
-        BeanUtils.copyProperties(account, dto);
+        // Copy properties manually since BeanUtils is not available
+        dto.setId(account.getId());
+        dto.setUserId(account.getUserId());
+        dto.setAccountNo(account.getAccountNo());
+        dto.setUuid(account.getUuid());
+        dto.setAuthCode(account.getAuthCode());
+        dto.setFromDate(account.getFromDate());
+        dto.setToDate(account.getToDate());
+        dto.setBandwidth(account.getBandwidth());
+        dto.setCreateTime(account.getCreateTime());
+        // dto.setUpdateTime(account.getUpdateTime()); // Remove if DTO doesn't have this property
+        dto.setDisabled(account.getDisabled());
+        dto.setPeriodType(account.getPeriodType());
+        dto.setRemark(account.getRemark());
         
         // Enrich with user email if available
         if (account.getUserId() != null) {
-            Optional<User> userOpt = userRepository.findById(account.getUserId());
-            userOpt.ifPresent(user -> {
+            User user = userRepository.findById(account.getUserId());
+            if (user != null) {
                 dto.setUserEmail(user.getEmail());
                 dto.setNickName(user.getNickName());
-            });
+            }
         }
         
         // Add traffic usage data
@@ -238,7 +212,7 @@ public class AccountService {
         }
         
         // Ensure user exists
-        if (account.getUserId() != null && !userRepository.existsById(account.getUserId())) {
+        if (account.getUserId() != null && userRepository.findById(account.getUserId()) == null) {
             throw new EntityNotFoundException("User with ID " + account.getUserId() + " not found");
         }
         
@@ -251,39 +225,33 @@ public class AccountService {
             account.setPeriodType(PeriodType.MONTHLY.name());
         }
         
-        return accountRepository.save(account);
+        accountRepository.persist(account);
+        return account;
     }
 
     @Transactional
     public Account updateAccount(Account account) {
-        Account existingAccount = accountRepository.findById(account.getId())
-                .orElseThrow(() -> new EntityNotFoundException("Account not found"));
+        Account existingAccount = accountRepository.findById(account.getId());
+        if (existingAccount == null) {
+            throw new EntityNotFoundException("Account not found");
+        }
 
         // 使用工具方法复制非null属性
-        copyNonNullProperties(account, existingAccount);
+        // Copy non-null properties manually
+        if (account.getAccountNo() != null) existingAccount.setAccountNo(account.getAccountNo());
+        if (account.getUuid() != null) existingAccount.setUuid(account.getUuid());
+        if (account.getAuthCode() != null) existingAccount.setAuthCode(account.getAuthCode());
+        if (account.getFromDate() != null) existingAccount.setFromDate(account.getFromDate());
+        if (account.getToDate() != null) existingAccount.setToDate(account.getToDate());
+        if (account.getBandwidth() != null) existingAccount.setBandwidth(account.getBandwidth());
+        if (account.getDisabled() != null) existingAccount.setDisabled(account.getDisabled());
+        if (account.getPeriodType() != null) existingAccount.setPeriodType(account.getPeriodType());
+        if (account.getRemark() != null) existingAccount.setRemark(account.getRemark());
 
-        return accountRepository.save(existingAccount);
+        // No need to call save/persist for updates in Panache
+        return existingAccount;
     }
 
-    // 工具方法：复制非null属性
-    private void copyNonNullProperties(Object src, Object target) {
-        BeanUtils.copyProperties(src, target, getNullPropertyNames(src));
-    }
-
-    // 获取对象中所有为null的属性名
-    private String[] getNullPropertyNames(Object source) {
-        final BeanWrapper src = new BeanWrapperImpl(source);
-        PropertyDescriptor[] pds = src.getPropertyDescriptors();
-
-        Set<String> nullNames = new HashSet<>();
-        for (PropertyDescriptor pd : pds) {
-            Object srcValue = src.getPropertyValue(pd.getName());
-            if (srcValue == null) {
-                nullNames.add(pd.getName());
-            }
-        }
-        return nullNames.toArray(new String[0]);
-    }
 
     @Transactional
     public void deleteAccount(Long id) {
@@ -292,35 +260,41 @@ public class AccountService {
 
     @Transactional
     public Account toggleAccountStatus(Long id, boolean disabled) {
-        Optional<Account> optionalAccount = accountRepository.findById(id);
-        if (optionalAccount.isPresent()) {
-            Account account = optionalAccount.get();
+        Account account = accountRepository.findById(id);
+        if (account != null) {
             account.setDisabled(disabled ? 1 : 0);
-            return accountRepository.save(account);
+            // No need to call save/persist for updates in Panache
+            return account;
         }
         return null;
     }
     
     @Transactional
     public Account renewAccount(Long id, LocalDateTime newExpiryDate) {
-        Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Account not found"));
+        Account account = accountRepository.findById(id);
+        if (account == null) {
+            throw new EntityNotFoundException("Account not found");
+        }
         
         account.setToDate(newExpiryDate);
         if (account.getDisabled() == 1) {
             account.setDisabled(0); // Reactivate account if disabled
         }
         
-        return accountRepository.save(account);
+        // No need to call save/persist for updates in Panache
+        return account;
     }
     
     @Transactional
     public Account resetAuthCode(Long id) {
-        Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Account not found"));
+        Account account = accountRepository.findById(id);
+        if (account == null) {
+            throw new EntityNotFoundException("Account not found");
+        }
         
         account.setAuthCode(generateAuthCode());
-        return accountRepository.save(account);
+        // No need to call save/persist for updates in Panache
+        return account;
     }
     
     // 生成随机认证码

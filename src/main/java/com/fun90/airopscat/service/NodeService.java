@@ -8,104 +8,65 @@ import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.ProtocolType;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
+import io.quarkus.panache.common.Sort;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.criteria.Join;
-import jakarta.persistence.criteria.JoinType;
-import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.BeanUtils;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
-import java.beans.PropertyDescriptor;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Service
+@ApplicationScoped
 public class NodeService {
 
     private static final Logger log = LoggerFactory.getLogger(NodeService.class);
-    private final NodeRepository nodeRepository;
-    private final ServerRepository serverRepository;
-    private final ObjectMapper objectMapper;
+    @Inject
+    NodeRepository nodeRepository;
+    
+    @Inject
+    ServerRepository serverRepository;
+    
+    @Inject
+    ObjectMapper objectMapper;
 
-    @Autowired
-    public NodeService(NodeRepository nodeRepository, 
-                      ServerRepository serverRepository, 
-                      ObjectMapper objectMapper) {
-        this.nodeRepository = nodeRepository;
-        this.serverRepository = serverRepository;
-        this.objectMapper = objectMapper;
-    }
+    public io.quarkus.hibernate.orm.panache.PanacheQuery<Node> getNodePage(String search, Long serverId, Integer type, Boolean disabled) {
+        // Build query string
+        StringBuilder query = new StringBuilder("1=1");
+        Map<String, Object> params = new HashMap<>();
+        
+        // Search in name, remark, or server properties
+        if (search != null && !search.trim().isEmpty()) {
+            query.append(" and (lower(name) like :search or lower(remark) like :search")
+                 .append(" or serverId in (select id from Server where lower(ip) like :search or lower(host) like :search))");
+            params.put("search", "%" + search.toLowerCase() + "%");
+        }
 
-    public Page<Node> getNodePage(int page, int size, String search, Long serverId, Integer type, Boolean disabled) {
-        // Create pageable with sorting (newest first)
-        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("createTime").descending());
+        // Filter by serverId
+        if (serverId != null) {
+            query.append(" and serverId = :serverId");
+            params.put("serverId", serverId);
+        }
 
-        // Create specification for dynamic filtering
-        Specification<Node> spec = (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            
-            // Join with Server
-            Join<Node, Server> serverJoin = root.join("server", JoinType.LEFT);
+        // Filter by type
+        if (type != null) {
+            query.append(" and type = :type");
+            params.put("type", type);
+        }
 
-            // Search in name, remark, or server properties
-            if (StringUtils.hasText(search)) {
-                Predicate namePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("name")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate remarkPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("remark")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate serverIpPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(serverJoin.get("ip")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate serverHostPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(serverJoin.get("host")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                
-                predicates.add(criteriaBuilder.or(
-                        namePredicate, remarkPredicate, serverIpPredicate, serverHostPredicate
-                ));
-            }
+        // Filter by disabled status
+        if (disabled != null) {
+            query.append(" and disabled = :disabled");
+            params.put("disabled", disabled ? 1 : 0);
+        }
 
-            // Filter by serverId
-            if (serverId != null) {
-                predicates.add(criteriaBuilder.equal(root.get("serverId"), serverId));
-            }
-
-            // Filter by type
-            if (type != null) {
-                predicates.add(criteriaBuilder.equal(root.get("type"), type));
-            }
-
-            // Filter by disabled status
-            if (disabled != null) {
-                predicates.add(criteriaBuilder.equal(root.get("disabled"), disabled ? 1 : 0));
-            }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-
-        return nodeRepository.findAll(spec, pageable);
+        return nodeRepository.find(query.toString(), Sort.by("createTime").descending(), params);
     }
 
     public Node getNodeById(Long id) {
-        return nodeRepository.findById(id).orElse(null);
+        return nodeRepository.findById(id);
     }
 
     public List<Node> getNodeByType(NodeType nodeType) {
@@ -148,7 +109,7 @@ public class NodeService {
         }
         
         // 确保服务器存在
-        if (node.getServerId() != null && !serverRepository.existsById(node.getServerId())) {
+        if (node.getServerId() != null && serverRepository.findById(node.getServerId()) == null) {
             throw new EntityNotFoundException("Server with ID " + node.getServerId() + " not found");
         }
         
@@ -175,13 +136,16 @@ public class NodeService {
             throw new RuntimeException("Error converting config to JSON: " + e.getMessage(), e);
         }
         
-        return nodeRepository.save(node);
+        nodeRepository.persist(node);
+        return node;
     }
 
     @Transactional
     public Node updateNode(Node node) {
-        Node existingNode = nodeRepository.findById(node.getId())
-                .orElseThrow(() -> new EntityNotFoundException("Node not found"));
+        Node existingNode = nodeRepository.findById(node.getId());
+        if (existingNode == null) {
+            throw new EntityNotFoundException("Node not found");
+        }
 
         // 检查端口是否已被使用
         if (node.getServerId() != null && node.getPort() != null &&
@@ -220,10 +184,10 @@ public class NodeService {
             existingNode.setDeployed(0); // 设置为"未部署"
         }
 
-        Node updatedNode = nodeRepository.save(existingNode);
-        Server server = serverRepository.findById(updatedNode.getServerId()).orElse(null);
-        updatedNode.setServer(server);
-        return updatedNode;
+        // No need to call save/persist for updates in Panache
+        Server server = serverRepository.findById(existingNode.getServerId());
+        existingNode.setServer(server);
+        return existingNode;
     }
 
     /**
@@ -277,24 +241,21 @@ public class NodeService {
         return false;
     }
 
-    // 工具方法：复制非null属性
-    private void copyNonNullProperties(Object src, Object target) {
-        BeanUtils.copyProperties(src, target, getNullPropertyNames(src));
-    }
-
-    // 获取对象中所有为null的属性名
-    private String[] getNullPropertyNames(Object source) {
-        final BeanWrapper src = new BeanWrapperImpl(source);
-        PropertyDescriptor[] pds = src.getPropertyDescriptors();
-
-        Set<String> nullNames = new HashSet<>();
-        for (PropertyDescriptor pd : pds) {
-            Object srcValue = src.getPropertyValue(pd.getName());
-            if (srcValue == null) {
-                nullNames.add(pd.getName());
-            }
-        }
-        return nullNames.toArray(new String[0]);
+    // 工具方法：手动复制非null属性（替代Spring BeanUtils）
+    private void copyNonNullProperties(Node src, Node target) {
+        if (src.getName() != null) target.setName(src.getName());
+        if (src.getRemark() != null) target.setRemark(src.getRemark());
+        if (src.getServerId() != null) target.setServerId(src.getServerId());
+        if (src.getType() != null) target.setType(src.getType());
+        if (src.getPort() != null) target.setPort(src.getPort());
+        if (src.getInbound() != null) target.setInbound(src.getInbound());
+        if (src.getRule() != null) target.setRule(src.getRule());
+        if (src.getLevel() != null) target.setLevel(src.getLevel());
+        if (src.getTags() != null) target.setTags(src.getTags());
+        if (src.getDisabled() != null) target.setDisabled(src.getDisabled());
+        if (src.getDeployed() != null) target.setDeployed(src.getDeployed());
+        // 特殊处理：outId 可能为 null，需要显式设置
+        target.setOutId(src.getOutId());
     }
 
     @Transactional
@@ -304,12 +265,12 @@ public class NodeService {
 
     @Transactional
     public Node toggleNodeStatus(Long id, boolean disabled) {
-        Optional<Node> optionalNode = nodeRepository.findById(id);
-        if (optionalNode.isPresent()) {
-            Node node = optionalNode.get();
+        Node node = nodeRepository.findById(id);
+        if (node != null) {
             node.setDisabled(disabled ? 1 : 0);
             node.setDeployed(0);
-            return nodeRepository.save(node);
+            // No need to call save/persist for updates in Panache
+            return node;
         }
         return null;
     }

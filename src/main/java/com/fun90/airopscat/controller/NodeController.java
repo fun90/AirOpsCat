@@ -11,11 +11,13 @@ import com.fun90.airopscat.service.NodeDeploymentService;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.TagService;
-import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
+import io.quarkus.panache.common.Page;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,120 +25,131 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@RestController
-@RequestMapping("/api/admin/nodes")
+@ApplicationScoped
+@Path("/api/admin/nodes")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class NodeController {
     
-    private final NodeService nodeService;
-    private final ServerService serverService;
-    private final NodeDeploymentService nodeDeploymentService;
-    private final TagService tagService;
+    @Inject
+    NodeService nodeService;
     
-    @Autowired
-    public NodeController(NodeService nodeService, ServerService serverService, NodeDeploymentService nodeDeploymentService, TagService tagService) {
-        this.nodeService = nodeService;
-        this.serverService = serverService;
-        this.nodeDeploymentService = nodeDeploymentService;
-        this.tagService = tagService;
-    }
+    @Inject
+    ServerService serverService;
+    
+    @Inject
+    NodeDeploymentService nodeDeploymentService;
+    
+    @Inject
+    TagService tagService;
 
-    @GetMapping
-    public ResponseEntity<Map<String, Object>> getNodePage(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) Long serverId,
-            @RequestParam(required = false) Integer type,
-            @RequestParam(required = false) Boolean disabled
+    @GET
+    public Response getNodePage(
+            @QueryParam("page") @DefaultValue("1") int page,
+            @QueryParam("size") @DefaultValue("10") int size,
+            @QueryParam("search") String search,
+            @QueryParam("serverId") Long serverId,
+            @QueryParam("type") Integer type,
+            @QueryParam("disabled") Boolean disabled
     ) {
-        Page<Node> nodePage = nodeService.getNodePage(page, size, search, serverId, type, disabled);
+        PanacheQuery<Node> nodeQuery = nodeService.getNodePage(search, serverId, type, disabled);
+        nodeQuery.page(Page.of(page - 1, size));
         
         // Convert to DTOs
-        List<NodeDto> nodeDtos = nodePage.getContent().stream()
+        List<NodeDto> nodeDtos = nodeQuery.list().stream()
                 .map(NodeConverter::toDto)
                 .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", nodeDtos);
-        response.put("total", nodePage.getTotalElements());
-        response.put("pages", nodePage.getTotalPages());
+        response.put("total", nodeQuery.count());
+        response.put("pages", nodeQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
         
         // Add statistics
         response.put("stats", nodeService.getNodesStats());
 
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<NodeDto> getNodeById(@PathVariable Long id) {
+    @GET
+    @Path("/{id}")
+    public Response getNodeById(@PathParam("id") Long id) {
         Node node = nodeService.getNodeById(id);
         if (node != null) {
             NodeDto dto = NodeConverter.toDto(node);
-            return ResponseEntity.ok(dto);
+            return Response.ok(dto).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
     
-    @GetMapping("/server/{serverId}")
-    public ResponseEntity<List<NodeDto>> getNodesByServer(@PathVariable Long serverId) {
+    @GET
+    @Path("/server/{serverId}")
+    public Response getNodesByServer(@PathParam("serverId") Long serverId) {
         List<Node> nodes = nodeService.getNodesByServer(serverId);
         List<NodeDto> nodeDtos = nodes.stream()
                 .map(NodeConverter::toDto)
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(nodeDtos);
+        return Response.ok(nodeDtos).build();
     }
 
-    @GetMapping("/landing")
-    public ResponseEntity<List<NodeDto>> getLandingNodes() {
+    @GET
+    @Path("/landing")
+    public Response getLandingNodes() {
         List<Node> nodes = nodeService.getNodeByType(NodeType.LANDING);
         List<NodeDto> nodeDtos = nodes.stream()
                 .map(NodeConverter::toDto)
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(nodeDtos);
+        return Response.ok(nodeDtos).build();
     }
     
-    @GetMapping("/types")
-    public ResponseEntity<List<Map<String, Object>>> getNodeTypes() {
-        return ResponseEntity.ok(nodeService.getNodeTypeOptions());
+    @GET
+    @Path("/types")
+    public Response getNodeTypes() {
+        return Response.ok(nodeService.getNodeTypeOptions()).build();
     }
     
-    @GetMapping("/protocols")
-    public ResponseEntity<List<Map<String, Object>>> getProtocolTypes() {
-        return ResponseEntity.ok(nodeService.getProtocolTypeOptions());
+    @GET
+    @Path("/protocols")
+    public Response getProtocolTypes() {
+        return Response.ok(nodeService.getProtocolTypeOptions()).build();
     }
     
-    @GetMapping("/stats")
-    public ResponseEntity<Map<String, Long>> getNodesStats() {
-        return ResponseEntity.ok(nodeService.getNodesStats());
+    @GET
+    @Path("/stats")
+    public Response getNodesStats() {
+        return Response.ok(nodeService.getNodesStats()).build();
     }
     
-    @GetMapping("/available-port")
-    public ResponseEntity<Map<String, Integer>> getAvailablePort(@RequestParam Long serverId) {
+    @GET
+    @Path("/available-port")
+    public Response getAvailablePort(@QueryParam("serverId") Long serverId) {
         Map<String, Integer> response = new HashMap<>();
         response.put("port", nodeService.getAvailablePort(serverId));
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
     
-    @GetMapping("/default-inbound")
-    public ResponseEntity<Map<String, Object>> getDefaultInbound(@RequestParam String protocol) {
-        return ResponseEntity.ok(nodeService.generateDefaultInbound(protocol));
+    @GET
+    @Path("/default-inbound")
+    public Response getDefaultInbound(@QueryParam("protocol") String protocol) {
+        return Response.ok(nodeService.generateDefaultInbound(protocol)).build();
     }
     
-    @GetMapping("/check-port")
-    public ResponseEntity<Map<String, Boolean>> checkPortAvailability(
-            @RequestParam Long serverId,
-            @RequestParam Integer port,
-            @RequestParam(required = false) Long nodeId
+    @GET
+    @Path("/check-port")
+    public Response checkPortAvailability(
+            @QueryParam("serverId") Long serverId,
+            @QueryParam("port") Integer port,
+            @QueryParam("nodeId") Long nodeId
     ) {
         Map<String, Boolean> response = new HashMap<>();
         response.put("available", nodeService.isPortAvailable(serverId, port, nodeId));
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
-    @PostMapping
-    public ResponseEntity<?> createNode(@RequestBody NodeRequest request) {
+    @POST
+    public Response createNode(NodeRequest request) {
         try {
             // 创建Node实体
             Node node = new Node();
@@ -161,16 +174,17 @@ public class NodeController {
                 tagService.updateNodeTags(savedNode.getId(), request.getTagIds());
             }
             
-            return ResponseEntity.ok(savedNode);
+            return Response.ok(savedNode).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(error);
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
         }
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<?> updateNode(@PathVariable Long id, @RequestBody NodeRequest request) {
+    @PUT
+    @Path("/{id}")
+    public Response updateNode(@PathParam("id") Long id, NodeRequest request) {
         try {
             // 创建Node实体
             Node node = new Node();
@@ -196,53 +210,57 @@ public class NodeController {
                 tagService.updateNodeTags(updatedNode.getId(), request.getTagIds());
             }
             
-            return ResponseEntity.ok(NodeConverter.toDto(updatedNode));
+            return Response.ok(NodeConverter.toDto(updatedNode)).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(error);
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
         }
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteNode(@PathVariable Long id) {
+    @DELETE
+    @Path("/{id}")
+    public Response deleteNode(@PathParam("id") Long id) {
         Node existingNode = nodeService.getNodeById(id);
         if (existingNode == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         nodeService.deleteNode(id);
-        return ResponseEntity.ok().build();
+        return Response.ok().build();
     }
 
-    @PatchMapping("/{id}/enable")
-    public ResponseEntity<Map<String, Object>> enableNode(@PathVariable Long id) {
+    @PATCH
+    @Path("/{id}/enable")
+    public Response enableNode(@PathParam("id") Long id) {
         Node node = nodeService.toggleNodeStatus(id, false);
         if (node != null) {
             Map<String, Object> response = new HashMap<>();
             response.put("id", id);
             response.put("disabled", 0);
             response.put("deployed", 0);
-            return ResponseEntity.ok(response);
+            return Response.ok(response).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
 
-    @PatchMapping("/{id}/disable")
-    public ResponseEntity<Map<String, Object>> disableNode(@PathVariable Long id) {
+    @PATCH
+    @Path("/{id}/disable")
+    public Response disableNode(@PathParam("id") Long id) {
         Node node = nodeService.toggleNodeStatus(id, true);
         if (node != null) {
             Map<String, Object> response = new HashMap<>();
             response.put("id", id);
             response.put("disabled", 1);
             response.put("deployed", 0);
-            return ResponseEntity.ok(response);
+            return Response.ok(response).build();
         }
-        return ResponseEntity.notFound().build();
+        return Response.status(Response.Status.NOT_FOUND).build();
     }
     
-    @GetMapping("/servers")
-    public ResponseEntity<List<Map<String, Object>>> getServers() {
+    @GET
+    @Path("/servers")
+    public Response getServers() {
         List<Server> servers = serverService.getAllActiveServers();
         List<Map<String, Object>> serverOptions = servers.stream()
                 .map(server -> {
@@ -255,14 +273,15 @@ public class NodeController {
                     return option;
                 })
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(serverOptions);
+        return Response.ok(serverOptions).build();
     }
 
-    @PostMapping("/{id}/copy")
-    public ResponseEntity<Node> copyNode(@PathVariable Long id) {
+    @POST
+    @Path("/{id}/copy")
+    public Response copyNode(@PathParam("id") Long id) {
         Node existingNode = nodeService.getNodeById(id);
         if (existingNode == null) {
-            return ResponseEntity.notFound().build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         // Create a copy of the node manually to avoid shared references
@@ -300,28 +319,31 @@ public class NodeController {
 
         // Save the new node
         Node savedNode = nodeService.saveNode(nodeCopy);
-        return ResponseEntity.ok(savedNode);
+        return Response.ok(savedNode).build();
     }
 
-    @PostMapping("/{id}/deploy")
-    public ResponseEntity<DeploymentResult> deployNode(@PathVariable Long id) {
+    @POST
+    @Path("/{id}/deploy")
+    public Response deployNode(@PathParam("id") Long id) {
         List<DeploymentResult> results = nodeDeploymentService.deployNodes(Collections.singletonList(id));
-        return ResponseEntity.ok(results.isEmpty() ? new DeploymentResult(id, null, false, "无需重复部署") : results.getFirst());
+        return Response.ok(results.isEmpty() ? new DeploymentResult(id, null, false, "无需重复部署") : results.getFirst()).build();
     }
 
-    @PostMapping("/{id}/deployForcibly")
-    public ResponseEntity<DeploymentResult> deployNodeForcibly(@PathVariable Long id) {
+    @POST
+    @Path("/{id}/deployForcibly")
+    public Response deployNodeForcibly(@PathParam("id") Long id) {
         Node node = nodeService.getNodeById(id);
         if (node == null) {
-            return ResponseEntity.ok(new DeploymentResult(id, null, false, "节点不存在"));
+            return Response.ok(new DeploymentResult(id, null, false, "节点不存在")).build();
         }
         List<DeploymentResult> results = nodeDeploymentService.deployNodesForcibly(Collections.singletonList(node));
-        return ResponseEntity.ok(results.isEmpty() ? new DeploymentResult(id, null, false, "无需部署") : results.getFirst());
+        return Response.ok(results.isEmpty() ? new DeploymentResult(id, null, false, "无需部署") : results.getFirst()).build();
     }
 
-    @PostMapping("/deploy-batch")
-    public ResponseEntity<List<DeploymentResult>> deployNodes(@RequestBody List<Long> nodeIds) {
+    @POST
+    @Path("/deploy-batch")
+    public Response deployNodes(List<Long> nodeIds) {
         List<DeploymentResult> results = nodeDeploymentService.deployNodes(nodeIds);
-        return ResponseEntity.ok(results);
+        return Response.ok(results).build();
     }
 }

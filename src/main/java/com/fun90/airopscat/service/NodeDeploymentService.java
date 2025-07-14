@@ -1,19 +1,5 @@
 package com.fun90.airopscat.service;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.stereotype.Service;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.DeploymentResult;
@@ -25,33 +11,30 @@ import com.fun90.airopscat.model.dto.xray.routing.RoutingRule;
 import com.fun90.airopscat.model.dto.xray.setting.InboundSetting;
 import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting;
 import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting.VlessClient;
-import com.fun90.airopscat.model.entity.Account;
-import com.fun90.airopscat.model.entity.Node;
-import com.fun90.airopscat.model.entity.Server;
-import com.fun90.airopscat.model.entity.ServerConfig;
-import com.fun90.airopscat.model.entity.ServerNode;
-import com.fun90.airopscat.model.entity.Tag;
+import com.fun90.airopscat.model.entity.*;
 import com.fun90.airopscat.model.enums.CoreOperation;
-import com.fun90.airopscat.repository.NodeRepository;
-import com.fun90.airopscat.repository.ServerConfigRepository;
-import com.fun90.airopscat.repository.ServerNodeRepository;
-import com.fun90.airopscat.repository.ServerRepository;
-import com.fun90.airopscat.repository.TagRepository;
+import com.fun90.airopscat.repository.*;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.xray.registry.ConversionStrategyRegistry;
 import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
 import com.fun90.airopscat.utils.ConfigFileReader;
 import com.fun90.airopscat.utils.JsonUtil;
-
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 节点部署服务 - 负责节点的部署和配置管理
  */
 @Slf4j
-@Service
+@ApplicationScoped
 @RequiredArgsConstructor
 public class NodeDeploymentService {
 
@@ -305,8 +288,10 @@ public class NodeDeploymentService {
             }
         }
         InboundConfig outInbound = JsonUtil.toObject(outNode.getInbound(), InboundConfig.class);
-        Server outServer = serverRepository.findById(outNode.getServerId())
-                .orElseThrow(() -> new IllegalArgumentException("出站服务器不存在: " + outNode.getServerId()));
+        Server outServer = serverRepository.findById(outNode.getServerId());
+        if (outServer == null) {
+            throw new IllegalArgumentException("出站服务器不存在: " + outNode.getServerId());
+        }
 
         ConversionStrategy strategy = strategyRegistry.getStrategy(outInbound.getProtocol());
         if (strategy != null) {
@@ -357,7 +342,8 @@ public class NodeDeploymentService {
         } else {
             serverConfig.setConfig(config.toString());
         }
-        return serverConfigRepository.save(serverConfig);
+        serverConfigRepository.persist(serverConfig);
+        return serverConfig;
     }
 
     /**
@@ -375,8 +361,10 @@ public class NodeDeploymentService {
      * 部署配置到服务器
      */
     private void deployConfigToServer(Long serverId, String coreType, String config) {
-        Server server = serverRepository.findById(serverId)
-                .orElseThrow(() -> new IllegalArgumentException("服务器不存在: " + serverId));
+        Server server = serverRepository.findById(serverId);
+        if (server == null) {
+            throw new IllegalArgumentException("服务器不存在: " + serverId);
+        }
 
         SshConfig sshConfig = createSshConfig(server);
 
@@ -453,11 +441,11 @@ public class NodeDeploymentService {
                 updateServerNodeFromNode(serverNode, node);
             }
 
-            serverNodeRepository.save(serverNode);
+            serverNodeRepository.persist(serverNode);
 
             // 更新节点部署状态
             node.setDeployed(1);
-            nodeRepository.save(node);
+            nodeRepository.persist(node);
 
             return createSuccessResult(node, "节点部署成功");
         } catch (Exception e) {

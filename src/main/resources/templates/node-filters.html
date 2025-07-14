@@ -1,0 +1,30 @@
+<!-- Server filter -->
+<div class="col-auto">
+    <select class="form-select" v-model="filters.serverId" @change="fetchRecords">
+        <option value="">全部服务器</option>
+        <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
+    </select>
+</div>
+
+<!-- Type filter -->
+<div class="col-auto">
+    <select class="form-select" v-model="filters.type" @change="fetchRecords">
+        <option value="">全部类型</option>
+        <option v-for="type in nodeTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+    </select>
+</div>
+
+<!-- Status filter -->
+<div class="col-auto">
+    <select class="form-select" v-model="filters.status" @change="fetchRecords">
+        <option value="">全部状态</option>
+        <option value="active">已启用</option>
+        <option value="disabled">已禁用</option>
+    </select>
+</div>
+
+<div class="col-auto">
+    <button class="btn btn-secondary" @click="openBatchDeployModal">
+        <i class="ti ti-rocket"></i> 全部部署
+    </button>
+</div> 

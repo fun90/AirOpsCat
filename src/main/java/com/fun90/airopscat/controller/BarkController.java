@@ -2,9 +2,11 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.BarkNotificationDto;
 import com.fun90.airopscat.service.BarkService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -15,16 +17,14 @@ import java.util.Map;
  * 支持GET和POST两种请求方式
  * 参考Bark官方文档: https://github.com/Finb/Bark
  */
-@RestController
-@RequestMapping("/api/admin/bark")
+@ApplicationScoped
+@Path("/api/admin/bark")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class BarkController {
 
-    private final BarkService barkService;
-
-    @Autowired
-    public BarkController(BarkService barkService) {
-        this.barkService = barkService;
-    }
+    @Inject
+    BarkService barkService;
 
     /**
      * 发送简单通知（POST方式）
@@ -33,10 +33,11 @@ public class BarkController {
      * @param body  通知内容
      * @return 发送结果
      */
-    @PostMapping("/notify")
-    public ResponseEntity<Map<String, Object>> sendNotification(
-            @RequestParam String title,
-            @RequestParam String body) {
+    @POST
+    @Path("/notify")
+    public Response sendNotification(
+            @QueryParam("title") String title,
+            @QueryParam("body") String body) {
         
         boolean success = barkService.sendNotification(title, body);
         
@@ -45,7 +46,7 @@ public class BarkController {
         response.put("message", success ? "通知发送成功" : "通知发送失败");
         response.put("method", "POST");
         
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
     /**
@@ -54,9 +55,9 @@ public class BarkController {
      * @param notification 通知对象
      * @return 发送结果
      */
-    @PostMapping("/notify/custom")
-    public ResponseEntity<Map<String, Object>> sendCustomNotification(
-            @RequestBody BarkNotificationDto notification) {
+    @POST
+    @Path("/notify/custom")
+    public Response sendCustomNotification(BarkNotificationDto notification) {
         
         boolean success = barkService.sendNotification(notification);
         
@@ -65,7 +66,7 @@ public class BarkController {
         response.put("message", success ? "通知发送成功" : "通知发送失败");
         response.put("method", "POST");
         
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
     /**
@@ -74,9 +75,9 @@ public class BarkController {
      * @param notification 通知对象
      * @return 发送结果
      */
-    @PostMapping("/notify/get")
-    public ResponseEntity<Map<String, Object>> sendNotificationGet(
-            @RequestBody BarkNotificationDto notification) {
+    @POST
+    @Path("/notify/get")
+    public Response sendNotificationGet(BarkNotificationDto notification) {
         
         boolean success = barkService.sendNotificationGet(notification);
         
@@ -85,7 +86,7 @@ public class BarkController {
         response.put("message", success ? "GET通知发送成功" : "GET通知发送失败");
         response.put("method", "GET");
         
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
     /**
@@ -95,10 +96,11 @@ public class BarkController {
      * @param body  通知内容
      * @return 发送结果
      */
-    @PostMapping("/notify/warning")
-    public ResponseEntity<Map<String, Object>> sendWarningNotification(
-            @RequestParam String title,
-            @RequestParam String body) {
+    @POST
+    @Path("/notify/warning")
+    public Response sendWarningNotification(
+            @QueryParam("title") String title,
+            @QueryParam("body") String body) {
         
         boolean success = barkService.sendWarningNotification(title, body);
         
@@ -107,7 +109,7 @@ public class BarkController {
         response.put("message", success ? "警告通知发送成功" : "警告通知发送失败");
         response.put("method", "POST");
         
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
     /**
@@ -117,10 +119,11 @@ public class BarkController {
      * @param body  通知内容
      * @return 发送结果
      */
-    @PostMapping("/notify/error")
-    public ResponseEntity<Map<String, Object>> sendErrorNotification(
-            @RequestParam String title,
-            @RequestParam String body) {
+    @POST
+    @Path("/notify/error")
+    public Response sendErrorNotification(
+            @QueryParam("title") String title,
+            @QueryParam("body") String body) {
         
         boolean success = barkService.sendErrorNotification(title, body);
         
@@ -129,7 +132,7 @@ public class BarkController {
         response.put("message", success ? "错误通知发送成功" : "错误通知发送失败");
         response.put("method", "POST");
         
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
     /**
@@ -139,10 +142,11 @@ public class BarkController {
      * @param body  通知内容
      * @return 发送结果
      */
-    @PostMapping("/notify/info")
-    public ResponseEntity<Map<String, Object>> sendInfoNotification(
-            @RequestParam String title,
-            @RequestParam String body) {
+    @POST
+    @Path("/notify/info")
+    public Response sendInfoNotification(
+            @QueryParam("title") String title,
+            @QueryParam("body") String body) {
         
         boolean success = barkService.sendInfoNotification(title, body);
         
@@ -151,7 +155,7 @@ public class BarkController {
         response.put("message", success ? "信息通知发送成功" : "信息通知发送失败");
         response.put("method", "POST");
         
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
     /**
@@ -159,8 +163,9 @@ public class BarkController {
      *
      * @return 配置状态
      */
-    @GetMapping("/status")
-    public ResponseEntity<Map<String, Object>> getStatus() {
+    @GET
+    @Path("/status")
+    public Response getStatus() {
         boolean configured = barkService.isBarkConfigured();
         String barkUrl = barkService.getBarkUrl();
         String deviceKey = barkService.getDeviceKey();
@@ -172,7 +177,7 @@ public class BarkController {
         response.put("message", configured ? "Bark已配置" : "Bark未配置");
         response.put("supportedMethods", new String[]{"GET", "POST"});
         
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
     /**
@@ -180,8 +185,9 @@ public class BarkController {
      *
      * @return 测试结果
      */
-    @PostMapping("/test")
-    public ResponseEntity<Map<String, Object>> testConnection() {
+    @POST
+    @Path("/test")
+    public Response testConnection() {
         boolean success = barkService.sendNotification("AirOpsCat测试", "这是一条测试通知");
         
         Map<String, Object> response = new HashMap<>();
@@ -189,7 +195,7 @@ public class BarkController {
         response.put("message", success ? "Bark连接测试成功" : "Bark连接测试失败");
         response.put("method", "GET");
         
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
     /**
@@ -197,8 +203,9 @@ public class BarkController {
      *
      * @return 测试结果
      */
-    @PostMapping("/test/post")
-    public ResponseEntity<Map<String, Object>> testConnectionPost() {
+    @POST
+    @Path("/test/post")
+    public Response testConnectionPost() {
         BarkNotificationDto notification = BarkNotificationDto.builder()
                 .title("AirOpsCat测试")
                 .body("这是一条POST测试通知")
@@ -211,7 +218,7 @@ public class BarkController {
         response.put("message", success ? "Bark POST连接测试成功" : "Bark POST连接测试失败");
         response.put("method", "POST");
         
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 
     /**
@@ -219,8 +226,9 @@ public class BarkController {
      *
      * @return 测试结果
      */
-    @PostMapping("/test/get")
-    public ResponseEntity<Map<String, Object>> testConnectionGet() {
+    @POST
+    @Path("/test/get")
+    public Response testConnectionGet() {
         BarkNotificationDto notification = BarkNotificationDto.builder()
                 .title("AirOpsCat测试")
                 .body("这是一条GET测试通知")
@@ -233,6 +241,6 @@ public class BarkController {
         response.put("message", success ? "Bark GET连接测试成功" : "Bark GET连接测试失败");
         response.put("method", "GET");
         
-        return ResponseEntity.ok(response);
+        return Response.ok(response).build();
     }
 } 

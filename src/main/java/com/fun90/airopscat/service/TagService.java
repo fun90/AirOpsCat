@@ -7,72 +7,66 @@ import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.TagRepository;
+import io.quarkus.panache.common.Sort;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
-@Service
+@ApplicationScoped
 public class TagService {
 
     private final TagRepository tagRepository;
     private final NodeRepository nodeRepository;
     private final AccountRepository accountRepository;
 
-    @Autowired
+    @Inject
     public TagService(TagRepository tagRepository, NodeRepository nodeRepository, AccountRepository accountRepository) {
         this.tagRepository = tagRepository;
         this.nodeRepository = nodeRepository;
         this.accountRepository = accountRepository;
     }
 
-    public Page<Tag> getTagPage(int page, int size, String search, Integer disabled) {
-        Pageable pageable = PageRequest.of(page - 1, size, Sort.by("createTime").descending());
-
-        Specification<Tag> spec = (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            // Search in name and description
-            if (StringUtils.hasText(search)) {
-                Predicate namePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("name")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                Predicate descPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("description")),
-                        "%" + search.toLowerCase() + "%"
-                );
-                predicates.add(criteriaBuilder.or(namePredicate, descPredicate));
-            }
-
-            // Filter by disabled status
-            if (disabled != null) {
-                predicates.add(criteriaBuilder.equal(root.get("disabled"), disabled));
-            }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-
-        return tagRepository.findAll(spec, pageable);
+    public io.quarkus.hibernate.orm.panache.PanacheQuery<Tag> getTagPage(String search, Integer disabled) {
+        // Create sort by createTime descending
+        Sort sort = Sort.by("createTime").descending();
+        
+        // Build query string
+        StringBuilder queryBuilder = new StringBuilder();
+        Map<String, Object> params = new HashMap<>();
+        
+        List<String> conditions = new ArrayList<>();
+        
+        // Search condition
+        if (StringUtils.isNotBlank(search)) {
+            conditions.add("(lower(name) like :search or lower(description) like :search)");
+            params.put("search", "%" + search.toLowerCase() + "%");
+        }
+        
+        // Disabled filter
+        if (disabled != null) {
+            conditions.add("disabled = :disabled");
+            params.put("disabled", disabled);
+        }
+        
+        String query = conditions.isEmpty() ? "" : String.join(" and ", conditions);
+        
+        if (query.isEmpty()) {
+            return tagRepository.findAll(sort);
+        } else {
+            return tagRepository.find(query, sort, params);
+        }
     }
 
     public Tag getTagById(Long id) {
-        return tagRepository.findById(id).orElse(null);
+        return tagRepository.findById(id);
     }
 
     public List<Tag> getAllTags() {
-        return tagRepository.findAll(Sort.by("name"));
+        return tagRepository.findAll(Sort.by("name")).list();
     }
 
     public List<Tag> getEnabledTags() {
@@ -103,13 +97,16 @@ public class TagService {
         if (tag.getDisabled() == null) {
             tag.setDisabled(0);
         }
-        return tagRepository.save(tag);
+        tagRepository.persist(tag);
+        return tag;
     }
 
     @Transactional
     public Tag updateTag(Tag tag) {
-        Tag existingTag = tagRepository.findById(tag.getId())
-                .orElseThrow(() -> new EntityNotFoundException("Tag not found"));
+        Tag existingTag = tagRepository.findById(tag.getId());
+        if (existingTag == null) {
+            throw new EntityNotFoundException("Tag not found");
+        }
 
         // Update basic properties
         existingTag.setName(tag.getName());
@@ -117,13 +114,16 @@ public class TagService {
         existingTag.setColor(tag.getColor());
         existingTag.setDisabled(tag.getDisabled());
 
-        return tagRepository.save(existingTag);
+        // No need to call save/persist for updates in Panache
+        return existingTag;
     }
 
     @Transactional
     public void deleteTag(Long id) {
-        Tag tag = tagRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Tag not found"));
+        Tag tag = tagRepository.findById(id);
+        if (tag == null) {
+            throw new EntityNotFoundException("Tag not found");
+        }
         
         // Remove associations using direct repository operations to avoid lazy loading
         // The associations will be automatically removed by cascade operations
@@ -132,11 +132,11 @@ public class TagService {
 
     @Transactional
     public Tag toggleTagStatus(Long id, boolean disabled) {
-        Optional<Tag> optionalTag = tagRepository.findById(id);
-        if (optionalTag.isPresent()) {
-            Tag tag = optionalTag.get();
+        Tag tag = tagRepository.findById(id);
+        if (tag != null) {
             tag.setDisabled(disabled ? 1 : 0);
-            return tagRepository.save(tag);
+            // No need to call save/persist for updates in Panache
+            return tag;
         }
         return null;
     }
@@ -145,10 +145,10 @@ public class TagService {
     @Transactional
     public void addTagToNode(Long nodeId, Long tagId) {
         // 验证节点和标签是否存在
-        if (!nodeRepository.existsById(nodeId)) {
+        if (nodeRepository.findById(nodeId) == null) {
             throw new EntityNotFoundException("Node not found");
         }
-        if (!tagRepository.existsById(tagId)) {
+        if (tagRepository.findById(tagId) == null) {
             throw new EntityNotFoundException("Tag not found");
         }
 
@@ -164,10 +164,10 @@ public class TagService {
     @Transactional
     public void removeTagFromNode(Long nodeId, Long tagId) {
         // 验证节点和标签是否存在
-        if (!nodeRepository.existsById(nodeId)) {
+        if (nodeRepository.findById(nodeId) == null) {
             throw new EntityNotFoundException("Node not found");
         }
-        if (!tagRepository.existsById(tagId)) {
+        if (tagRepository.findById(tagId) == null) {
             throw new EntityNotFoundException("Tag not found");
         }
 
@@ -178,10 +178,10 @@ public class TagService {
     @Transactional
     public void addTagToAccount(Long accountId, Long tagId) {
         // 验证账户和标签是否存在
-        if (!accountRepository.existsById(accountId)) {
+        if (accountRepository.findById(accountId) == null) {
             throw new EntityNotFoundException("Account not found");
         }
-        if (!tagRepository.existsById(tagId)) {
+        if (tagRepository.findById(tagId) == null) {
             throw new EntityNotFoundException("Tag not found");
         }
 
@@ -197,10 +197,10 @@ public class TagService {
     @Transactional
     public void removeTagFromAccount(Long accountId, Long tagId) {
         // 验证账户和标签是否存在
-        if (!accountRepository.existsById(accountId)) {
+        if (accountRepository.findById(accountId) == null) {
             throw new EntityNotFoundException("Account not found");
         }
-        if (!tagRepository.existsById(tagId)) {
+        if (tagRepository.findById(tagId) == null) {
             throw new EntityNotFoundException("Tag not found");
         }
 
@@ -211,7 +211,7 @@ public class TagService {
     @Transactional
     public void updateNodeTags(Long nodeId, List<Long> tagIds) {
         // 验证节点是否存在
-        if (!nodeRepository.existsById(nodeId)) {
+        if (nodeRepository.findById(nodeId) == null) {
             throw new EntityNotFoundException("Node not found");
         }
 
@@ -221,7 +221,7 @@ public class TagService {
         // 添加新的标签关联
         if (tagIds != null && !tagIds.isEmpty()) {
             // 验证所有标签都存在
-            List<Tag> existingTags = tagRepository.findAllById(tagIds);
+            List<Tag> existingTags = tagRepository.list("id in ?1", tagIds);
             if (existingTags.size() != tagIds.size()) {
                 throw new EntityNotFoundException("Some tags not found");
             }
@@ -236,7 +236,7 @@ public class TagService {
     @Transactional
     public void updateAccountTags(Long accountId, List<Long> tagIds) {
         // 验证账户是否存在
-        if (!accountRepository.existsById(accountId)) {
+        if (accountRepository.findById(accountId) == null) {
             throw new EntityNotFoundException("Account not found");
         }
 
@@ -246,7 +246,7 @@ public class TagService {
         // 添加新的标签关联
         if (tagIds != null && !tagIds.isEmpty()) {
             // 验证所有标签都存在
-            List<Tag> existingTags = tagRepository.findAllById(tagIds);
+            List<Tag> existingTags = tagRepository.list("id in ?1", tagIds);
             if (existingTags.size() != tagIds.size()) {
                 throw new EntityNotFoundException("Some tags not found");
             }

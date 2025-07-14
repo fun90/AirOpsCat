@@ -1,0 +1,38 @@
+<div class="card-footer">
+    <div class="row g-2 justify-content-center justify-content-sm-between">
+        <div class="col-auto d-flex align-items-center">
+            每页显示
+            <div class="mx-2 d-inline-block">
+                <select class="form-select form-select-sm" v-model="pageSize" @change="changePageSize">
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                </select>
+            </div>
+            条记录
+        </div>
+        <div class="col-auto">
+            <ul class="pagination m-0 ms-auto" v-if="totalPages > 0">
+                <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                    <a class="page-link" href="#" @click.prevent="prevPage">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-1">
+                            <path d="M15 6l-6 6l6 6" />
+                        </svg>
+                    </a>
+                </li>
+                <!-- Display page numbers dynamically -->
+                <li class="page-item" v-for="page in paginationPages()" :key="page" :class="{ active: page === currentPage }">
+                    <a class="page-link" href="#" @click.prevent="goToPage(page)">{{ page }}</a>
+                </li>
+                <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                    <a class="page-link" href="#" @click.prevent="nextPage">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-1">
+                            <path d="M9 6l6 6l-6 6" />
+                        </svg>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>

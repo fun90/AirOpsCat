@@ -1,4 +1,4 @@
-<div th:fragment="data-table(title, entityName, filterFragment, tableFragment, statsFragment, modalsFragment, modalIdPrefix)" class="col-12">
+<div class="col-12">
     <div class="card">
         <div class="card-header">
             <div class="card-actions">
@@ -9,17 +9,23 @@
                     </div>
 
                     <!-- Additional filters - provided by the specific implementation -->
-                    <th:block th:replace="${filterFragment} ?: ~{}"></th:block>
+                    {#if filters}
+                        {filters raw}
+                    {/if}
                 </div>
             </div>
         </div>
 
         <!-- Stats cards - provided by the specific implementation -->
-        <th:block th:replace="${statsFragment} ?: ~{}"></th:block>
+        {#if stats}
+            {stats raw}
+        {/if}
 
         <div class="table-responsive">
             <!-- Table content - provided by the specific implementation -->
-            <th:block th:replace="${tableFragment}"></th:block>
+            {#if tableContent}
+                {tableContent raw}
+            {/if}
         </div>
 
         <div class="card-footer">
@@ -62,7 +68,7 @@
         </div>
 
         <!-- Delete Confirmation Modal -->
-        <div class="modal modal-blur fade" th:id="${modalIdPrefix} + 'deleteModal'" tabindex="-1" role="dialog">
+        <div class="modal modal-blur fade" id="{modalIdPrefix}deleteModal" tabindex="-1" role="dialog">
             <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
                 <div class="modal-content">
                     <div class="modal-body">
@@ -78,6 +84,8 @@
         </div>
 
         <!-- Additional modals - provided by the specific implementation -->
-        <th:block th:replace="${modalsFragment} ?: ~{}"></th:block>
+        {#if modals}
+            {modals raw}
+        {/if}
     </div>
 </div>

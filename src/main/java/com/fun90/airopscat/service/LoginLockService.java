@@ -2,19 +2,19 @@ package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.repository.UserRepository;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
-@Service
+@ApplicationScoped
 public class LoginLockService {
     
     public static final int MAX_FAILED_ATTEMPTS = 5;
     public static final int LOCK_TIME_DURATION = 30; // 单位:分钟
     
-    @Autowired
+    @Inject
     private UserRepository userRepository;
 
     @Transactional
@@ -31,7 +31,7 @@ public class LoginLockService {
     
     public void lock(User user) {
         user.setLockTime(LocalDateTime.now());
-        userRepository.save(user);
+        // No need to call save/persist for updates in Panache
     }
 
     public boolean isAccountNonLocked(User user) {

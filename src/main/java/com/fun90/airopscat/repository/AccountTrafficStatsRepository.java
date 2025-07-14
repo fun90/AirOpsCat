@@ -1,47 +1,59 @@
 package com.fun90.airopscat.repository;
 
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
+import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import io.quarkus.panache.common.Page;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Repository
-public interface AccountTrafficStatsRepository extends JpaRepository<AccountTrafficStats, Long>, JpaSpecificationExecutor<AccountTrafficStats> {
+@ApplicationScoped
+public class AccountTrafficStatsRepository implements PanacheRepository<AccountTrafficStats> {
 
-    List<AccountTrafficStats> findByUserId(Long userId);
+    public List<AccountTrafficStats> findByUserId(Long userId) {
+        return find("userId", userId).list();
+    }
     
-    List<AccountTrafficStats> findByAccountId(Long accountId);
+    public List<AccountTrafficStats> findByAccountId(Long accountId) {
+        return find("accountId", accountId).list();
+    }
     
-    Page<AccountTrafficStats> findByUserId(Long userId, Pageable pageable);
+    public List<AccountTrafficStats> findByUserId(Long userId, Page page) {
+        return find("userId", userId).page(page).list();
+    }
     
-    @Query("SELECT ats FROM AccountTrafficStats ats WHERE ats.userId = :userId AND ats.periodStart >= :startDate AND ats.periodEnd <= :endDate")
-    List<AccountTrafficStats> findByUserIdAndPeriod(@Param("userId") Long userId, 
-                                                  @Param("startDate") LocalDateTime startDate, 
-                                                  @Param("endDate") LocalDateTime endDate);
+    public List<AccountTrafficStats> findByUserIdAndPeriod(Long userId, LocalDateTime startDate, LocalDateTime endDate) {
+        return find("userId = ?1 and periodStart >= ?2 and periodEnd <= ?3", userId, startDate, endDate).list();
+    }
     
-    @Query("SELECT ats FROM AccountTrafficStats ats WHERE ats.accountId = :accountId AND ats.periodStart >= :startDate AND ats.periodEnd <= :endDate")
-    List<AccountTrafficStats> findByAccountIdAndPeriod(@Param("accountId") Long accountId, 
-                                                     @Param("startDate") LocalDateTime startDate, 
-                                                     @Param("endDate") LocalDateTime endDate);
+    public List<AccountTrafficStats> findByAccountIdAndPeriod(Long accountId, LocalDateTime startDate, LocalDateTime endDate) {
+        return find("accountId = ?1 and periodStart >= ?2 and periodEnd <= ?3", accountId, startDate, endDate).list();
+    }
     
-    @Query("SELECT SUM(ats.uploadBytes) FROM AccountTrafficStats ats WHERE ats.userId = :userId")
-    Long sumUploadBytesByUserId(@Param("userId") Long userId);
+    public Long sumUploadBytesByUserId(Long userId) {
+        return find("select sum(uploadBytes) from AccountTrafficStats where userId = ?1", userId)
+                .project(Long.class)
+                .firstResult();
+    }
     
-    @Query("SELECT SUM(ats.downloadBytes) FROM AccountTrafficStats ats WHERE ats.userId = :userId")
-    Long sumDownloadBytesByUserId(@Param("userId") Long userId);
+    public Long sumDownloadBytesByUserId(Long userId) {
+        return find("select sum(downloadBytes) from AccountTrafficStats where userId = ?1", userId)
+                .project(Long.class)
+                .firstResult();
+    }
     
-    @Query("SELECT SUM(ats.uploadBytes) FROM AccountTrafficStats ats WHERE ats.accountId = :accountId")
-    Long sumUploadBytesByAccountId(@Param("accountId") Long accountId);
+    public Long sumUploadBytesByAccountId(Long accountId) {
+        return find("select sum(uploadBytes) from AccountTrafficStats where accountId = ?1", accountId)
+                .project(Long.class)
+                .firstResult();
+    }
     
-    @Query("SELECT SUM(ats.downloadBytes) FROM AccountTrafficStats ats WHERE ats.accountId = :accountId")
-    Long sumDownloadBytesByAccountId(@Param("accountId") Long accountId);
+    public Long sumDownloadBytesByAccountId(Long accountId) {
+        return find("select sum(downloadBytes) from AccountTrafficStats where accountId = ?1", accountId)
+                .project(Long.class)
+                .firstResult();
+    }
     
     /**
      * 查找指定账户在指定时间范围内的流量统计记录（当前时间在时间范围内）
@@ -49,7 +61,7 @@ public interface AccountTrafficStatsRepository extends JpaRepository<AccountTraf
      * @param currentTime 当前时间
      * @return 匹配的流量统计记录列表
      */
-    @Query("SELECT ats FROM AccountTrafficStats ats WHERE ats.accountId = :accountId AND :currentTime BETWEEN ats.periodStart AND ats.periodEnd")
-    List<AccountTrafficStats> findByAccountIdAndCurrentTime(@Param("accountId") Long accountId, 
-                                                           @Param("currentTime") LocalDateTime currentTime);
+    public List<AccountTrafficStats> findByAccountIdAndCurrentTime(Long accountId, LocalDateTime currentTime) {
+        return find("accountId = ?1 and ?2 between periodStart and periodEnd", accountId, currentTime).list();
+    }
 }

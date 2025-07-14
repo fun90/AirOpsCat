@@ -3,23 +3,23 @@
 一个轻量、灵活、高效的服务器管理系统，保持敏捷，掌控一切。
 
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.java.net/projects/jdk/21/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.4-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![Quarkus](https://img.shields.io/badge/Quarkus-3.24.3-brightgreen.svg)](https://quarkus.io/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/Build-Passing-success.svg)](https://github.com/fun90/AirOpsCat)
 
 ## 📖 项目简介
 
-AirOpsCat 是一个基于 Spring Boot 3.x 构建的现代化服务器管理系统，专为代理服务提供商设计。系统提供了完整的用户管理、服务器管理、节点配置、流量统计和订阅服务等功能，支持多种代理协议和客户端平台。
+AirOpsCat 是一个基于 Quarkus 3.24.3 构建的现代化服务器管理系统，专为代理服务提供商设计。系统提供了完整的用户管理、服务器管理、节点配置、流量统计和订阅服务等功能，支持多种代理协议和客户端平台。通过 GraalVM Native Image 技术实现超快启动时间和低内存占用。
 
 预览
 ![PC端](./docs/pc-preview-1.png)
-![移动端](./docs/mobile-preview-1.png)
 
 ### 🎯 设计理念
 - **简单小巧**: 轻量级架构，快速部署
 - **扩展性强**: 模块化设计，易于定制
-- **高效稳定**: 基于 Spring Boot 3.x 和 Java 21
+- **高效稳定**: 基于 Quarkus 3.24.3 和 Java 21
 - **用户友好**: 现代化 Web 界面，响应式设计
+- **云原生**: 支持 Native Image，超快启动时间（< 0.2秒）
 
 ## ✨ 核心特性
 
@@ -68,11 +68,11 @@ AirOpsCat 是一个基于 Spring Boot 3.x 构建的现代化服务器管理系�
 ## 🛠️ 技术栈
 
 ### 后端技术
-- **框架**: Spring Boot 3.4.4
+- **框架**: Quarkus 3.24.3
 - **语言**: Java 21
 - **数据库**: SQLite + JPA/Hibernate
-- **安全**: Spring Security 6.x
-- **模板引擎**: Thymeleaf
+- **安全**: Quarkus Security + JPA Security
+- **模板引擎**: Qute
 - **构建工具**: Maven + GraalVM Native Image
 
 ### 前端技术
@@ -91,74 +91,109 @@ AirOpsCat 是一个基于 Spring Boot 3.x 构建的现代化服务器管理系�
 ## 🚀 快速开始
 
 ### 环境要求
-- Java 21 或更高版本
-- Maven 3.6+ 或使用项目内置的 Maven Wrapper
-- 现代浏览器（Chrome、Firefox、Safari、Edge）
+- **运行环境**: 
+  - 方式一：Java 21 或更高版本 + Maven 3.6+（JAR 运行）
+  - 方式二：无需 Java 环境（Native Image 运行）
+- **构建环境**（仅开发/构建时需要）:
+  - GraalVM 21.0.6+ （Native Image 构建）
+  - Maven 3.6+ 或使用项目内置的 Maven Wrapper
+- **运行环境**: 现代浏览器（Chrome、Firefox、Safari、Edge）
 
-### 方式一：下载预构建版本（jsch兼容问未解决）
+### 方式一：下载预构建版本
 
 从 [GitHub Releases](https://github.com/fun90/AirOpsCat/releases) 下载对应平台的 native 可执行文件：
 
-- **Linux**: `airopscat-linux-amd64.tar.gz`
-- **macOS**: `airopscat-macos-amd64.tar.gz`
-- **Windows**: `airopscat-windows-amd64.exe.zip`
+- **Linux**: `airopscat-1.0.2-runner` (128MB，< 0.2s 启动)
+- **macOS**: `airopscat-macos-amd64` (待构建)
+- **Windows**: `airopscat-windows-amd64.exe` (待构建)
 
 解压后直接运行，无需安装 Java 环境：
 
 ```bash
-# Linux/macOS
-./airopscat
+# Linux/macOS - 使用内置配置
+./airopscat-1.0.2-runner
+
+# Linux/macOS - 使用外部配置文件（优先级更高）
+./airopscat-1.0.2-runner -Dquarkus.config.locations=./application.properties
 
 # Windows
 airopscat.exe
 ```
 
-### 方式二：标准 JAR 构建
+### 方式二：开发模式运行
 
 ```bash
 # 克隆项目
 git clone https://github.com/fun90/AirOpsCat.git
 cd AirOpsCat
 
+# 开发模式运行（支持热重载）
+./mvnw quarkus:dev
+
+# 访问开发控制台
+# http://localhost:8080/q/dev
+```
+
+### 方式三：标准 JAR 构建
+
+```bash
 # 构建项目
 ./mvnw clean package
 
 # 运行应用
-java -jar target/airopscat-1.0.2.jar
+java -jar target/quarkus-app/quarkus-run.jar
+
+# 使用外部配置文件运行
+java -Dquarkus.config.locations=./application.properties -jar target/quarkus-app/quarkus-run.jar
 ```
 
-### 方式三：Native 可执行文件构建
+### 方式四：Native Image 构建
 
 需要安装 [GraalVM 21](https://www.graalvm.org/downloads/) 和 Native Image：
 
 ```bash
-# 构建 native 可执行文件
-./mvnw -Pnative native:compile
+# 安装 GraalVM Native Image 组件
+gu install native-image
 
-# 运行
-./target/airopscat
+# 构建 native 可执行文件（需要 8GB+ 内存，约 4 分钟）
+./mvnw package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
+
+# 运行（< 0.2s 启动时间）
+./target/airopscat-1.0.2-runner
+
+# 使用外部配置文件运行
+./target/airopscat-1.0.2-runner -Dquarkus.config.locations=./application.properties
 ```
 
-详细的 native 构建说明请参考 [Native Build Guide](docs/native-build-guide.md)。
+#### Native Image 优势
+- **极快启动**: < 0.2 秒启动时间
+- **低内存占用**: 相比 JVM 减少 70%+ 内存使用
+- **无需 Java 环境**: 可独立运行
+- **文件大小**: 约 128MB 单文件可执行程序
 
 ## ⚙️ 配置说明
 
 ### 基础配置
 
-创建 `application.properties` 文件或使用环境变量：
+#### 内置配置文件
+应用内置了默认配置文件 `src/main/resources/application.properties`，包含了基本的运行配置。
+
+#### 外部配置文件（推荐）
+创建同目录下的 `application.properties` 文件来覆盖默认配置，该文件优先级更高：
 
 ```properties
 # 应用基础配置
-spring.application.name=AirOpsCat
-server.port=8080
+quarkus.application.name=AirOpsCat
+quarkus.http.port=8080
 
 # 数据库配置
-spring.datasource.url=jdbc:sqlite:admin.db
-spring.datasource.driver-class-name=org.sqlite.JDBC
+quarkus.datasource.db-kind=sqlite
+quarkus.datasource.jdbc.url=jdbc:sqlite:admin.db
+quarkus.datasource.jdbc.driver=org.sqlite.JDBC
 
 # JPA配置
-spring.jpa.database-platform=org.hibernate.community.dialect.SQLiteDialect
-spring.jpa.hibernate.ddl-auto=update
+quarkus.hibernate-orm.database.generation=update
+quarkus.hibernate-orm.dialect=org.hibernate.community.dialect.SQLiteDialect
 
 # 安全配置
 airopscat.crypto.secret-key=your-secret-key-here
@@ -173,16 +208,38 @@ airopscat.ssh.provider=jsch
 airopscat.online.check-minutes=5
 
 # Bark通知配置
-airopscat.bark.url=https://api.day.app/YOUR_DEVICE_KEY
+airopscat.bark.url=https://api.day.app
 airopscat.bark.device-key=your-device-key
+
+# 日志配置
+quarkus.log.level=INFO
+quarkus.log.file.enable=true
+quarkus.log.file.path=./logs/airopscat.log
+```
+
+#### 配置文件优先级
+1. 外部 `application.properties` 文件（通过 `-Dquarkus.config.locations` 指定）
+2. 内置 `application.properties` 文件（jar包内）
+3. 环境变量
+4. 命令行参数
+
+**注意**：使用 `-Dquarkus.config.locations` 参数时，必须放在 `-jar` 参数之前：
+```bash
+# 正确方式
+java -Dquarkus.config.locations=./application.properties -jar target/quarkus-app/quarkus-run.jar
+
+# 错误方式 - 参数会被忽略
+java -jar target/quarkus-app/quarkus-run.jar -Dquarkus.config.locations=./application.properties
 ```
 
 ### 环境变量支持
 
 ```bash
+export QUARKUS_HTTP_PORT=8080
 export AIROPSCAT_CRYPTO_SECRET_KEY="your-secret-key"
 export AIROPSCAT_SUBSCRIPTION_URL="http://your-domain.com/subscribe"
-export AIROPSCAT_BARK_URL="https://api.day.app/YOUR_DEVICE_KEY"
+export AIROPSCAT_BARK_URL="https://api.day.app"
+export AIROPSCAT_BARK_DEVICE_KEY="your-device-key"
 ```
 
 ## 📁 项目结构
@@ -278,13 +335,15 @@ AirOpsCat/
 
 ## 🔒 安全特性
 
-- Spring Security 集成
+- Quarkus Security 集成
 - 基于角色的访问控制 (RBAC)
 - 密码加密存储 (BCrypt)
 - 登录失败锁定机制
 - CSRF 防护
 - 会话管理
 - 敏感数据加密
+- Form-based 认证
+- JPA Security 集成
 
 ## 📊 监控与日志
 
@@ -302,16 +361,88 @@ AirOpsCat/
 
 ## 🚀 部署指南
 
-### Docker 部署（未测试）
+### Native Image 部署（推荐）
 
+使用 Native Image 版本可以获得最佳性能：
+
+```bash
+# 下载并部署 Native Image
+wget https://github.com/fun90/AirOpsCat/releases/download/v1.0.2/airopscat-1.0.2-runner
+chmod +x airopscat-1.0.2-runner
+
+# 创建外部配置文件
+cat > application.properties << EOF
+quarkus.http.port=8080
+airopscat.crypto.secret-key=your-production-secret-key
+airopscat.subscription.url=https://your-domain.com/subscribe
+airopscat.bark.url=https://api.day.app
+airopscat.bark.device-key=your-device-key
+EOF
+
+# 启动应用
+./airopscat-1.0.2-runner -Dquarkus.config.locations=./application.properties
+```
+
+### Docker 部署
+
+#### Native Image Docker (推荐)
+```dockerfile
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.10
+WORKDIR /work/
+COPY target/airopscat-1.0.2-runner /work/application
+COPY application.properties /work/
+EXPOSE 8080
+USER 1001
+ENTRYPOINT ["./application", "-Dquarkus.config.locations=./application.properties"]
+```
+
+#### 传统 JVM Docker
 ```dockerfile
 FROM openjdk:21-jre-slim
 COPY target/airopscat-1.0.2.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app.jar"]
+ENTRYPOINT ["java", "-Dquarkus.config.locations=./application.properties", "-jar", "/app.jar"]
 ```
 
 ### 系统服务部署
+
+#### Native Image Systemd 服务（推荐）
+
+```bash
+# 创建应用目录
+sudo mkdir -p /opt/airopscat
+sudo cp airopscat-1.0.2-runner /opt/airopscat/
+sudo cp application.properties /opt/airopscat/
+sudo chmod +x /opt/airopscat/airopscat-1.0.2-runner
+
+# 创建 systemd 服务文件
+sudo tee /etc/systemd/system/airopscat.service > /dev/null << EOF
+[Unit]
+Description=AirOpsCat Server Management System
+After=network.target
+
+[Service]
+Type=exec
+User=airopscat
+Group=airopscat
+WorkingDirectory=/opt/airopscat
+ExecStart=/opt/airopscat/airopscat-1.0.2-runner -Dquarkus.config.locations=/opt/airopscat/application.properties
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 创建用户和启动服务
+sudo useradd -r -s /bin/false airopscat
+sudo chown -R airopscat:airopscat /opt/airopscat
+sudo systemctl daemon-reload
+sudo systemctl enable airopscat
+sudo systemctl start airopscat
+```
+
+#### 传统 JAR Systemd 服务
 
 使用项目提供的 systemd 服务文件：
 
@@ -376,12 +507,18 @@ chore: 构建过程或辅助工具的变动
 
 ## 📝 更新日志
 
-### v1.0.2 (最新)
+### v1.0.2 (最新) - Quarkus 版本
+- **重大更新**: 从 Spring Boot 迁移到 Quarkus 3.24.3
+- **Native Image 支持**: 超快启动时间（< 0.2秒）和低内存占用
+- **开发体验提升**: 支持热重载开发模式 (`./mvnw quarkus:dev`)
+- **外部配置支持**: 支持外部 application.properties 文件覆盖默认配置
+- **JSON 反序列化优化**: 修复 Native Image 中的 JSON 处理问题
+- **安全增强**: 使用 Quarkus Security + JPA Security
+- **模板引擎升级**: 从 Thymeleaf 迁移到 Qute
 - 新增用户面板功能
 - 优化在线IP统计
 - 增强Bark通知服务
 - 改进订阅模板系统
-- 修复已知问题
 
 ### v1.0.1
 - 添加多协议支持
@@ -398,10 +535,13 @@ chore: 构建过程或辅助工具的变动
 
 ## 🙏 致谢
 
-- [Spring Boot](https://spring.io/projects/spring-boot) - 优秀的Java框架
+- [Quarkus](https://quarkus.io/) - 云原生 Java 框架
+- [GraalVM](https://www.graalvm.org/) - Native Image 支持
 - [Tabler UI](https://tabler.io/) - 现代化的UI组件库
 - [petite-vue](https://github.com/vuejs/petite-vue) - 轻量级Vue.js
-- [GraalVM](https://www.graalvm.org/) - Native Image支持
+- [Qute](https://quarkus.io/guides/qute) - 现代化模板引擎
+- [Hibernate ORM](https://hibernate.org/orm/) - 对象关系映射框架
+- [Spring Boot](https://spring.io/projects/spring-boot) - 项目的起源框架
 
 ## 📞 联系我们
 

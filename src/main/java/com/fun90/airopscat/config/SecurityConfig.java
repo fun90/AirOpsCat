@@ -1,141 +1,98 @@
 package com.fun90.airopscat.config;
 
-import com.fun90.airopscat.model.entity.User;
-import com.fun90.airopscat.service.LoginLockService;
-import com.fun90.airopscat.service.UserService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.LockedException;
-import org.springframework.security.authentication.ProviderManager;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.AuthenticationFailureHandler;
-import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import io.quarkus.elytron.security.common.BcryptUtil;
+import io.quarkus.security.identity.SecurityIdentity;
+import io.quarkus.security.identity.request.AuthenticationRequest;
+import io.smallrye.mutiny.Uni;
+import io.vertx.ext.web.RoutingContext;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
 
-import java.util.Optional;
-
-@Configuration
-@EnableWebSecurity
-@EnableMethodSecurity
-@RequiredArgsConstructor
+/**
+ * Quarkus Security配置
+ * 使用JPA安全扩展进行用户认证，提供BCrypt密码编码
+ */
+@ApplicationScoped
 public class SecurityConfig {
 
-    private final UserDetailsService userDetailsService;
+    private static final Logger LOG = Logger.getLogger(SecurityConfig.class);
 
-    private final UserService userService;
+    @ConfigProperty(name = "quarkus.security.users.embedded.enabled", defaultValue = "false")
+    boolean embeddedUsersEnabled;
 
-    private final LoginLockService lockService;
+    @Inject
+    Event<SecurityIdentity> authenticationSuccessEvent;
 
-    private final LoginAttemptFilter loginAttemptFilter;
+    @Inject
+    Event<AuthenticationRequest> authenticationFailureEvent;
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+    /**
+     * BCrypt密码编码器
+     */
+    @Named("passwordEncoder")
+    @ApplicationScoped
+    public BcryptPasswordEncoder passwordEncoder() {
+        return new BcryptPasswordEncoder();
     }
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                   AuthenticationSuccessHandler authSuccessHandler,
-                                                   AuthenticationFailureHandler authFailureHandler) throws Exception {
-        http
-            .csrf(AbstractHttpConfigurer::disable)
-            .addFilterBefore(loginAttemptFilter, UsernamePasswordAuthenticationFilter.class)
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/static/**", "/login",  "/register", "/subscribe/**", "/api/open/**").permitAll()
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .requestMatchers("/api/partner/**").hasAnyRole("ADMIN", "PARTNER")
-                .requestMatchers("/api/vip/**").hasAnyRole("ADMIN", "PARTNER", "VIP")
-                .anyRequest().authenticated()
-            )
-            .formLogin(form -> form
-                .loginPage("/login")
-                .loginProcessingUrl("/api/login/auth")
-//                .defaultSuccessUrl("/index", true)
-                .failureUrl("/login?error=true")
-                .usernameParameter("email") // 登录表单中的用户名参数
-                .passwordParameter("password") // 登录表单中的密码参数
-                .successHandler(authSuccessHandler)
-                .failureHandler(authFailureHandler)
-                .permitAll()
-            )
-            .logout(logout -> logout
-                .logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
-                .logoutSuccessUrl("/login?logout=true")
-                .permitAll()
-            )
-            .sessionManagement(session -> session
-                .invalidSessionUrl("/login")  // 会话无效时跳转到登录页面
-                .maximumSessions(1)  // 每个用户最多只能有一个会话
-                .expiredUrl("/login?expired=true")  // 会话过期时跳转到登录页面;
-            );
+    /**
+     * BCrypt密码编码器实现
+     */
+    public static class BcryptPasswordEncoder {
+        public String encode(String rawPassword) {
+            return BcryptUtil.bcryptHash(rawPassword);
+        }
 
-        return http.build();
+        public boolean matches(String rawPassword, String encodedPassword) {
+            return BcryptUtil.matches(rawPassword, encodedPassword);
+        }
     }
 
-    @Bean
-    public AuthenticationSuccessHandler authSuccessHandler() {
-        return (request, response, authentication) -> {
-            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-            String username = userDetails.getUsername();
-
-            // 重置失败尝试计数
-            lockService.resetFailedAttempts(username);
-
-            // 重定向到主页或其他页面
-            response.sendRedirect("/dashboard"); // 登录成功后的处理
-        };
-    }
-
-    @Bean
-    public AuthenticationFailureHandler authFailureHandler() {
-        return (request, response, exception) -> {
-            String errorMessage = null;
-            // 账户锁定逻辑
-            String email = request.getParameter("email");
-            Optional<User> userOpt = userService.getByEmail(email);
-            if (userOpt.isPresent()) {
-                User user = userOpt.get();
-                if (lockService.isAccountNonLocked(user)) {
-                    lockService.increaseFailedAttempts(user);
-
-                    if (lockService.isAttemptLimitReached(user)) {
-                        lockService.lock(user);
-                        exception = new LockedException("您的账户因多次登录失败已被锁定。请" + LoginLockService.LOCK_TIME_DURATION + "分钟后再试。");
-                        errorMessage = exception.getMessage();
-                    } else {
-                        // 获取剩余尝试次数
-                        int remainingAttempts = lockService.getRemainingAttempts(user);
-                        errorMessage = exception.getMessage() + ", " + String.format(" 您还有%d次尝试机会。", remainingAttempts);
-                    }
+    /**
+     * 自定义认证成功处理
+     */
+    public Uni<Void> handleAuthenticationSuccess(SecurityIdentity identity, RoutingContext context) {
+        return Uni.createFrom().item(() -> {
+            if (identity != null && !identity.isAnonymous()) {
+                String username = identity.getPrincipal().getName();
+                LOG.infof("User %s authenticated successfully", username);
+                
+                // 触发认证成功事件
+                authenticationSuccessEvent.fire(identity);
+                
+                // 重定向到仪表板
+                if (context != null && context.response() != null) {
+                    context.response().setStatusCode(302);
+                    context.response().putHeader("Location", "/dashboard");
+                    context.response().end();
                 }
             }
-
-            // 设置错误消息并重定向到登录页
-            request.getSession().setAttribute("error", errorMessage);
-            response.sendRedirect("/login?error");
-        };
+            return null;
+        });
     }
 
-    @Bean
-    public AuthenticationManager authenticationManager(PasswordEncoder passwordEncoder) {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        //将编写的UserDetailsService注入进来
-        provider.setUserDetailsService(userDetailsService);
-        //将使用的密码编译器加入进来
-        provider.setPasswordEncoder(passwordEncoder);
-        //将provider放置到AuthenticationManager 中
-        return new ProviderManager(provider);
+    /**
+     * 自定义认证失败处理
+     */
+    public Uni<Void> handleAuthenticationFailure(AuthenticationRequest request, RoutingContext context) {
+        return Uni.createFrom().item(() -> {
+            LOG.warn("Authentication failed");
+            
+            // 触发认证失败事件
+            authenticationFailureEvent.fire(request);
+            
+            // 重定向到登录页面
+            if (context != null && context.response() != null) {
+                context.response().setStatusCode(302);
+                context.response().putHeader("Location", "/login?error");
+                context.response().end();
+            }
+            return null;
+        });
     }
 }
+

@@ -1,51 +1,69 @@
 package com.fun90.airopscat.repository;
 
 import com.fun90.airopscat.model.entity.Node;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
+import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import io.quarkus.panache.common.Page;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
 
-@Repository
-public interface NodeRepository extends JpaRepository<Node, Long>, JpaSpecificationExecutor<Node> {
+@ApplicationScoped
+public class NodeRepository implements PanacheRepository<Node> {
 
-    List<Node> findByServerId(Long serverId);
+    public List<Node> findByServerId(Long serverId) {
+        return find("serverId", serverId).list();
+    }
     
-    List<Node> findByType(Integer type);
+    public List<Node> findByType(Integer type) {
+        return find("type", type).list();
+    }
     
-    List<Node> findByDisabled(Integer disabled);
+    public List<Node> findByDisabled(Integer disabled) {
+        return find("disabled", disabled).list();
+    }
 
-    List<Node> findByDeployed(Integer deployed);
+    public List<Node> findByDeployed(Integer deployed) {
+        return find("deployed", deployed).list();
+    }
 
-    List<Node> findByDeployedAndIdIn(Integer deployed, List<Long> nodeIds);
+    public List<Node> findByDeployedAndIdIn(Integer deployed, List<Long> nodeIds) {
+        return find("deployed = ?1 and id in ?2", deployed, nodeIds).list();
+    }
 
-    List<Node> findByLevel(Integer level);
+    public List<Node> findByLevel(Integer level) {
+        return find("level", level).list();
+    }
     
-    @Query("SELECT n FROM Node n WHERE n.name LIKE %:keyword% OR n.remark LIKE %:keyword%")
-    Page<Node> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+    public List<Node> searchByKeyword(String keyword, Page page) {
+        return find("name like ?1 or remark like ?1", "%" + keyword + "%").page(page).list();
+    }
     
-    @Query("SELECT n FROM Node n WHERE n.serverId = :serverId AND n.disabled = 0")
-    List<Node> findActiveNodesByServerId(@Param("serverId") Long serverId);
+    public List<Node> findActiveNodesByServerId(Long serverId) {
+        return find("serverId = ?1 and disabled = 0", serverId).list();
+    }
     
-    @Query("SELECT COUNT(n) FROM Node n WHERE n.type = 0")
-    Long countProxyNodes();
+    public long countProxyNodes() {
+        return count("type = 0");
+    }
     
-    @Query("SELECT COUNT(n) FROM Node n WHERE n.type = 1")
-    Long countLandingNodes();
+    public long countLandingNodes() {
+        return count("type = 1");
+    }
     
-    @Query("SELECT COUNT(n) FROM Node n WHERE n.disabled = 0")
-    Long countActiveNodes();
+    public long countActiveNodes() {
+        return count("disabled = 0");
+    }
     
-    @Query("SELECT COUNT(n) FROM Node n WHERE n.disabled = 1")
-    Long countDisabledNodes();
+    public long countDisabledNodes() {
+        return count("disabled = 1");
+    }
     
     // 检查端口是否已被使用
-    boolean existsByServerIdAndPortAndIdNot(Long serverId, Integer port, Long id);
+    public boolean existsByServerIdAndPortAndIdNot(Long serverId, Integer port, Long id) {
+        return count("serverId = ?1 and port = ?2 and id != ?3", serverId, port, id) > 0;
+    }
     
-    boolean existsByServerIdAndPort(Long serverId, Integer port);
+    public boolean existsByServerIdAndPort(Long serverId, Integer port) {
+        return count("serverId = ?1 and port = ?2", serverId, port) > 0;
+    }
 }

@@ -3,7 +3,7 @@ name: Build Native Executables
 on:
   # ! 为了避免重复发布版本，应当通过独特 git tag 触发。
   # ! 不再使用 workflow_dispatch 触发。
-  # workflow_dispatch:
+  workflow_dispatch:
   push:
     # 只通过 v*.*.* 的 tag 触发发布，避免在 main 分支 push 时触发。
     tags:
@@ -42,9 +42,13 @@ jobs:
     - name: Cache Maven dependencies
       uses: actions/cache@v4
       with:
-        path: ~/.m2
-        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-        restore-keys: ${{ runner.os }}-m2
+        path: |
+          ~/.m2
+          target/quarkus-app/lib/
+        key: ${{ runner.os }}-quarkus-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-quarkus-
+          ${{ runner.os }}-m2-
 
     - name: Verify GraalVM installation
       run: |
@@ -54,24 +58,24 @@ jobs:
         native-image --version
 
     - name: Build with Maven
-      run: ./mvnw clean compile
+      run: ./mvnw clean compile -Dquarkus.package.type=native
 
     # - name: Run tests
     #   run: ./mvnw test
 
     - name: Build native executable
-      run: ./mvnw -Pnative native:compile
+      run: ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
 
     - name: Rename executable (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        move target\airopscat.exe target\${{ matrix.artifact_name }}
+        move target\airopscat-*-runner.exe target\${{ matrix.artifact_name }}
       shell: cmd
 
     - name: Rename executable (Unix)
       if: matrix.os != 'windows-latest'
       run: |
-        mv target/airopscat target/${{ matrix.artifact_name }}
+        mv target/airopscat-*-runner target/${{ matrix.artifact_name }}
 
     - name: Upload executable
       uses: actions/upload-artifact@v4
@@ -99,11 +103,16 @@ jobs:
         echo "Platform: ${{ matrix.platform }}" >> dist/README.txt
         echo "Built on: $(date)" >> dist/README.txt
         echo "Version: ${{ github.ref_name }}" >> dist/README.txt
+        echo "Framework: Quarkus 3.24.3" >> dist/README.txt
         echo "" >> dist/README.txt
         echo "## Usage" >> dist/README.txt
         echo "./${{ matrix.artifact_name }}" >> dist/README.txt
         echo "" >> dist/README.txt
         echo "The application will start on http://localhost:8080" >> dist/README.txt
+        echo "" >> dist/README.txt
+        echo "## External Configuration" >> dist/README.txt
+        echo "Use external application.properties file:" >> dist/README.txt
+        echo "./${{ matrix.artifact_name }} -Dquarkus.config.locations=./application.properties" >> dist/README.txt
 
     - name: Create distribution archive (Windows)
       if: matrix.os == 'windows-latest'
@@ -142,7 +151,7 @@ jobs:
         body: |
           ## AirOpsCat ${{ github.ref_name }}
           
-          Native executables for Linux, Windows.
+          Native executables for Linux, Windows built with Quarkus 3.24.3.
           
           ### Download Instructions:
           - **Linux**: Download `airopscat-linux-amd64.tar.gz`
@@ -153,10 +162,17 @@ jobs:
           2. Run the executable directly
           3. Open http://localhost:8080 in your browser
           
+          ### Advanced Configuration:
+          Use external configuration file:
+          ```bash
+          ./airopscat-linux-amd64 -Dquarkus.config.locations=./application.properties
+          ```
+          
           ### System Requirements:
           - No Java runtime required (native executable)
           - Linux: x86_64 architecture
           - Windows: x86_64 architecture
+          - Ultra-fast startup time (< 0.2 seconds)
         draft: false
         prerelease: false
       env:

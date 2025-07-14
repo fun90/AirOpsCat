@@ -1,0 +1,183 @@
+<!-- Create Transaction Modal -->
+<div class="modal modal-blur fade" id="transaction-createModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">添加交易</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">交易日期</label>
+                            <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.transactionDate }" v-model="newItem.transactionDate">
+                            <div class="invalid-feedback" v-if="validationErrors.transactionDate">{{ validationErrors.transactionDate }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">交易类型</label>
+                            <select class="form-select" :class="{ 'is-invalid': validationErrors.type }" v-model="newItem.type">
+                                <option v-for="type in transactionTypes" :key="type.value" :value="parseInt(type.value)">{{ type.label }}</option>
+                            </select>
+                            <div class="invalid-feedback" v-if="validationErrors.type">{{ validationErrors.type }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">金额</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" step="0.01" min="0" class="form-control" :class="{ 'is-invalid': validationErrors.amount }" v-model="newItem.amount">
+                            </div>
+                            <div class="invalid-feedback" v-if="validationErrors.amount">{{ validationErrors.amount }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">支付方式</label>
+                            <select class="form-select" :class="{ 'is-invalid': validationErrors.paymentMethod }" v-model="newItem.paymentMethod">
+                                <option v-for="type in paymentMethods" :key="type.value" :value="type.value">{{ type.label }}</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">关联业务类型</label>
+                            <select class="form-select" v-model="newItem.businessTable" @change="onBusinessTableChange">
+                                <option value="">无关联业务</option>
+                                <option v-for="table in businessTables" :key="table.value" :value="table.value">{{ table.label }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">关联业务</label>
+                            <!-- 使用新的搜索下拉框组件 -->
+                            {#include fragments/common/search_dropdown_component componentVar='businessSearch' cssClass='' /}
+                            <div class="invalid-feedback" v-if="validationErrors.businessId" style="display: block;">{{ validationErrors.businessId }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">描述</label>
+                    <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.description }" v-model="newItem.description">
+                    <div class="invalid-feedback" v-if="validationErrors.description">{{ validationErrors.description }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" v-model="newItem.remark" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" @click="createItem">创建</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Transaction Modal -->
+<div class="modal modal-blur fade" id="transaction-editModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑交易</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">交易日期</label>
+                            <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.transactionDate }" v-model="editedItem.transactionDate">
+                            <div class="invalid-feedback" v-if="validationErrors.transactionDate">{{ validationErrors.transactionDate }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">交易类型</label>
+                            <select class="form-select" :class="{ 'is-invalid': validationErrors.type }" v-model="editedItem.type">
+                                <option v-for="type in transactionTypes" :key="type.value" :value="parseInt(type.value)">{{ type.label }}</option>
+                            </select>
+                            <div class="invalid-feedback" v-if="validationErrors.type">{{ validationErrors.type }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">金额</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" step="0.01" min="0" class="form-control" :class="{ 'is-invalid': validationErrors.amount }" v-model="editedItem.amount">
+                            </div>
+                            <div class="invalid-feedback" v-if="validationErrors.amount">{{ validationErrors.amount }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">支付方式</label>
+                            <select class="form-select" :class="{ 'is-invalid': validationErrors.paymentMethod }" v-model="editedItem.paymentMethod">
+                                <option v-for="type in paymentMethods" :key="type.value" :value="type.value">{{ type.label }}</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">关联业务类型</label>
+                            <select class="form-select" v-model="editedItem.businessTable" @change="onEditBusinessTableChange">
+                                <option value="">无关联业务</option>
+                                <option v-for="table in businessTables" :key="table.value" :value="table.value">{{ table.label }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">关联业务</label>
+                            <!-- 使用新的搜索下拉框组件 -->
+                            {#include fragments/common/search_dropdown_component componentVar='editBusinessSearch' cssClass='' /}
+                            <div class="invalid-feedback" v-if="validationErrors.editBusinessId" style="display: block;">{{ validationErrors.editBusinessId }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">描述</label>
+                    <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.description }" v-model="editedItem.description">
+                    <div class="invalid-feedback" v-if="validationErrors.description">{{ validationErrors.description }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" v-model="editedItem.remark" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" @click="updateItem">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal modal-blur fade" id="transaction-deleteModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="modal-title">确定删除吗?</div>
+                <div>若确认删除，数据将无法恢复</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" @click="deleteItem">确认</button>
+            </div>
+        </div>
+    </div>
+</div> 

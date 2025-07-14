@@ -1,39 +1,46 @@
 package com.fun90.airopscat.repository;
 
 import com.fun90.airopscat.model.entity.Domain;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
+import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import io.quarkus.panache.common.Page;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-@Repository
-public interface DomainRepository extends JpaRepository<Domain, Long>, JpaSpecificationExecutor<Domain> {
+@ApplicationScoped
+public class DomainRepository implements PanacheRepository<Domain> {
 
-    Optional<Domain> findByDomain(String domain);
+    public Optional<Domain> findByDomain(String domain) {
+        return find("domain", domain).firstResultOptional();
+    }
     
-    @Query("SELECT d FROM Domain d WHERE d.expireDate <= :date")
-    List<Domain> findExpiringDomains(@Param("date") LocalDate date);
+    public List<Domain> findExpiringDomains(LocalDate date) {
+        return find("expireDate <= ?1", date).list();
+    }
     
-    @Query("SELECT d FROM Domain d WHERE d.expireDate BETWEEN :startDate AND :endDate")
-    List<Domain> findDomainsExpiringBetween(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+    public List<Domain> findDomainsExpiringBetween(LocalDate startDate, LocalDate endDate) {
+        return find("expireDate between ?1 and ?2", startDate, endDate).list();
+    }
     
-    @Query("SELECT d FROM Domain d WHERE LOWER(d.domain) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(d.remark) LIKE LOWER(CONCAT('%', :keyword, '%'))")
-    Page<Domain> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+    public List<Domain> searchByKeyword(String keyword, Page page) {
+        return find("lower(domain) like lower(?1) or lower(remark) like lower(?1)", 
+                   "%" + keyword + "%").page(page).list();
+    }
     
-    @Query("SELECT COUNT(d) FROM Domain d WHERE d.expireDate < :today")
-    Long countExpiredDomains(@Param("today") LocalDate today);
+    public long countExpiredDomains(LocalDate today) {
+        return count("expireDate < ?1", today);
+    }
     
-    @Query("SELECT COUNT(d) FROM Domain d WHERE d.expireDate BETWEEN :today AND :inOneMonth")
-    Long countExpiringInOneMonth(@Param("today") LocalDate today, @Param("inOneMonth") LocalDate inOneMonth);
+    public long countExpiringInOneMonth(LocalDate today, LocalDate inOneMonth) {
+        return count("expireDate between ?1 and ?2", today, inOneMonth);
+    }
     
-    @Query("SELECT SUM(d.price) FROM Domain d")
-    BigDecimal getTotalDomainCost();
+    public BigDecimal getTotalDomainCost() {
+        return find("select sum(price) from Domain")
+                .project(BigDecimal.class)
+                .firstResult();
+    }
 }

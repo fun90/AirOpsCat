@@ -24,6 +24,8 @@ public class Domain {
     
     private BigDecimal price;
     
+    private String supplier;
+    
     private String remark;
     
     private LocalDateTime createTime;

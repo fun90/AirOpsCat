@@ -1,9 +1,9 @@
 package com.fun90.airopscat.model.dto;
 
+import lombok.Data;
+
 import java.time.LocalDateTime;
 import java.util.List;
-
-import lombok.Data;
 
 @Data
 public class AccountDto {

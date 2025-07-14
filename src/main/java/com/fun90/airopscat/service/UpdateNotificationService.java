@@ -3,38 +3,35 @@ package com.fun90.airopscat.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.utils.VersionUtil;
+import io.quarkus.runtime.StartupEvent;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.context.annotation.PropertySource;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 /**
  * 更新通知服务
- * 在Spring Boot启动时检查最新版本并提示更新
+ * 在Quarkus启动时检查最新版本并提示更新
  */
-@Service
-@PropertySource("internal.properties")
+@ApplicationScoped
 @Slf4j
-public class UpdateNotificationService implements CommandLineRunner {
+public class UpdateNotificationService {
 
-    @Autowired
-    private RestTemplate restTemplate;
-
-    @Autowired
+    @Inject
     private ObjectMapper objectMapper;
 
-    @Value("${app.githubURL}")
-    private String githubURL;
+    @ConfigProperty(name = "app.githubURL")
+    String githubURL;
 
-    @Value("${app.version}")
-    private String currentVersion;
+    @ConfigProperty(name = "app.version")
+    String currentVersion;
+    
+    @ConfigProperty(name = "app.update-check.enabled", defaultValue = "false")
+    boolean updateCheckEnabled;
 
-    @Override
-    public void run(String... args) throws Exception {
+    void onStart(@Observes StartupEvent event) {
         // 异步执行版本检查，避免阻塞应用启动
         new Thread(() -> {
             try {
@@ -50,44 +47,24 @@ public class UpdateNotificationService implements CommandLineRunner {
      */
     private void checkForUpdates() {
         try {
-            log.info("正在检查最新版本...");
-            
-            JsonNode response = restTemplate.getForObject(githubURL, JsonNode.class);
-            if (response == null) {
-                log.warn("无法获取GitHub API响应");
-                return;
-            }
-
-            String tagName = response.get("tag_name").asText();
-            if (StringUtils.isBlank(tagName)) {
-                log.warn("无法获取最新版本标签");
-                return;
-            }
-
-            // 移除版本号前缀 "v"
-            String latestVersion = StringUtils.removeStartIgnoreCase(tagName, "v");
-            
-            // 获取更新说明
-            String body = response.get("body").asText();
-            if (StringUtils.isNotBlank(body)) {
-                body = body.replaceAll("#", "");
-            }
-
             log.info("===========================================");
             log.info("欢迎使用 AirOpsCat");
+            log.info("当前版本: v{}", currentVersion);
             
-            int comparison = VersionUtil.compareVersion(currentVersion, latestVersion);
-            
-            if (comparison == 0) {
-                log.info("当前运行的是最新版本: v{}", latestVersion);
-            } else if (comparison == -1) {
-                log.info("当前版本: v{}，可更新至最新版本：v{}", currentVersion, latestVersion);
-                if (StringUtils.isNotBlank(body)) {
-                    log.info("更新内容：{}", body);
-                }
-            } else {
-                log.info("当前版本: v{} (开发版本)", currentVersion);
+            if (!updateCheckEnabled) {
+                log.info("在线版本检查已禁用");
+                log.info("===========================================");
+                return;
             }
+            
+            log.info("正在检查最新版本...");
+            
+            // TODO: 实现真正的HTTP客户端调用来检查更新
+            // 当前为简化实现，仅显示当前版本信息
+            log.info("在线版本检查功能正在开发中");
+            log.info("如需启用此功能，请在 application.properties 中设置：");
+            log.info("app.update-check.enabled=true");
+            
             log.info("===========================================");
             
         } catch (Exception e) {

@@ -1,60 +1,72 @@
 package com.fun90.airopscat.repository;
 
 import com.fun90.airopscat.model.entity.Server;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
+import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import io.quarkus.panache.common.Page;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-@Repository
-public interface ServerRepository extends JpaRepository<Server, Long>, JpaSpecificationExecutor<Server> {
+@ApplicationScoped
+public class ServerRepository implements PanacheRepository<Server> {
 
-    Optional<Server> findByIp(String ip);
+    public Optional<Server> findByIp(String ip) {
+        return find("ip", ip).firstResultOptional();
+    }
     
-    List<Server> findByDisabled(Integer disabled);
+    public List<Server> findByDisabled(Integer disabled) {
+        return find("disabled", disabled).list();
+    }
     
-    List<Server> findBySupplier(String supplier);
+    public List<Server> findBySupplier(String supplier) {
+        return find("supplier", supplier).list();
+    }
     
-    @Query("SELECT s FROM Server s WHERE s.expireDate IS NOT NULL AND s.expireDate <= :date")
-    List<Server> findExpiringServers(@Param("date") LocalDate date);
+    public List<Server> findExpiringServers(LocalDate date) {
+        return find("expireDate is not null and expireDate <= ?1", date).list();
+    }
 
-    @Query("SELECT s FROM Server s WHERE s.id = :id AND s.disabled = 0 AND (s.expireDate IS NULL OR s.expireDate > :now)")
-    Optional<Server> findAvailableServer(@Param("id") Long id, @Param("now") LocalDate now);
+    public Optional<Server> findAvailableServer(Long id, LocalDate now) {
+        return find("id = ?1 and disabled = 0 and (expireDate is null or expireDate > ?2)", id, now).firstResultOptional();
+    }
     
-    @Query("SELECT s FROM Server s WHERE s.expireDate IS NOT NULL AND s.expireDate BETWEEN :startDate AND :endDate")
-    List<Server> findServersExpiringBetween(
-            @Param("startDate") LocalDate startDate, 
-            @Param("endDate") LocalDate endDate);
+    public List<Server> findServersExpiringBetween(LocalDate startDate, LocalDate endDate) {
+        return find("expireDate is not null and expireDate between ?1 and ?2", startDate, endDate).list();
+    }
     
-    @Query("SELECT s FROM Server s WHERE LOWER(s.ip) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(s.host) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(s.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(s.supplier) LIKE LOWER(CONCAT('%', :keyword, '%'))")
-    Page<Server> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+    public List<Server> searchByKeyword(String keyword, Page page) {
+        return find("lower(ip) like lower(?1) or lower(host) like lower(?1) or lower(name) like lower(?1) or lower(supplier) like lower(?1)", 
+                   "%" + keyword + "%").page(page).list();
+    }
     
-    @Query("SELECT COUNT(s) FROM Server s WHERE s.disabled = 0 AND (s.expireDate IS NULL OR s.expireDate > :now)")
-    Long countActiveServers(@Param("now") LocalDate now);
+    public long countActiveServers(LocalDate now) {
+        return count("disabled = 0 and (expireDate is null or expireDate > ?1)", now);
+    }
     
-    @Query("SELECT COUNT(s) FROM Server s WHERE s.expireDate IS NOT NULL AND s.expireDate < :now")
-    Long countExpiredServers(@Param("now") LocalDate now);
+    public long countExpiredServers(LocalDate now) {
+        return count("expireDate is not null and expireDate < ?1", now);
+    }
     
-    @Query("SELECT COUNT(s) FROM Server s WHERE s.disabled = 1")
-    Long countDisabledServers();
+    public long countDisabledServers() {
+        return count("disabled = 1");
+    }
     
-    @Query("SELECT COUNT(s) FROM Server s WHERE s.expireDate IS NOT NULL AND s.expireDate BETWEEN :now AND :inOneMonth")
-    Long countExpiringInOneMonth(
-            @Param("now") LocalDate now, 
-            @Param("inOneMonth") LocalDate inOneMonth);
+    public long countExpiringInOneMonth(LocalDate now, LocalDate inOneMonth) {
+        return count("expireDate is not null and expireDate between ?1 and ?2", now, inOneMonth);
+    }
     
-    @Query("SELECT SUM(s.price) FROM Server s")
-    BigDecimal getTotalServerCost();
+    public BigDecimal getTotalServerCost() {
+        return find("select sum(price) from Server")
+                .project(BigDecimal.class)
+                .firstResult();
+    }
     
-    @Query("SELECT s.supplier, COUNT(s) FROM Server s GROUP BY s.supplier")
-    List<Object[]> countBySupplier();
+    public List<Object[]> countBySupplier() {
+        return getEntityManager()
+                .createQuery("select s.supplier, count(s) from Server s group by s.supplier", Object[].class)
+                .getResultList();
+    }
 }

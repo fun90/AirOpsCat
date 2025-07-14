@@ -1,0 +1,83 @@
+<table class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>标签名称</th>
+        <th>描述</th>
+        <th>颜色</th>
+        <th>状态</th>
+        <th>关联节点</th>
+        <th>关联账户</th>
+        <th>创建时间</th>
+        <th class="w-1">操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="tag in records" :key="tag.id">
+        <td v-text="tag.id"></td>
+        <td>
+            <div class="d-flex align-items-center">
+                <span class="badge" :style="{ backgroundColor: tag.color || '#6c757d' }" style="margin-right: 8px; width: 12px; height: 12px; border-radius: 50%;"></span>
+                <span v-text="tag.name"></span>
+            </div>
+        </td>
+        <td v-text="tag.description || '-'"></td>
+        <td>
+            <div v-if="tag.color" class="d-flex align-items-center">
+                <span :style="{ backgroundColor: tag.color }" class="badge" style="width: 20px; height: 20px; border-radius: 4px; margin-right: 8px;"></span>
+                <span v-text="tag.color"></span>
+            </div>
+            <span v-else>-</span>
+        </td>
+        <td>
+            <span class="badge" :class="getStatusBadgeClass(tag)">
+                {{ getStatusDescription(tag) }}
+            </span>
+        </td>
+        <td>
+            <span class="badge bg-blue" v-text="tag.nodeCount || 0"></span>
+        </td>
+        <td>
+            <span class="badge bg-green" v-text="tag.accountCount || 0"></span>
+        </td>
+        <td v-text="formatDateTime(tag.createTime)"></td>
+        <td>
+            <div class="btn-list flex-nowrap">
+                <div class="dropdown position-static">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click.prevent="openEditModal(tag)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openTagAssociationModal(tag)">
+                            <i class="ti ti-link"></i> 管理关联
+                        </a>
+                        <a v-if="tag.disabled === 0" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(tag, true)">
+                            <i class="ti ti-ban"></i> 禁用
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(tag, false)">
+                            <i class="ti ti-check"></i> 启用
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(tag)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="9" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="9" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table> 

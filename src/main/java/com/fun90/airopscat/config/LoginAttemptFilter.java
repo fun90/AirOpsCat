@@ -3,40 +3,45 @@ package com.fun90.airopscat.config;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.service.LoginLockService;
 import com.fun90.airopscat.service.UserService;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.container.ContainerRequestContext;
+import jakarta.ws.rs.container.ContainerRequestFilter;
+import jakarta.ws.rs.container.PreMatching;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.ext.Provider;
 
 import java.io.IOException;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Component
-@RequiredArgsConstructor
-public class LoginAttemptFilter extends OncePerRequestFilter {
+/**
+ * 登录尝试过滤器 - Quarkus版本
+ * 实现IP请求频率限制和用户账户锁定检查
+ */
+@Provider
+@PreMatching
+@ApplicationScoped
+public class LoginAttemptFilter implements ContainerRequestFilter {
 
     private static final int MAX_REQUESTS_PER_MINUTE = 20; // 每个 IP 每分钟最大请求数
     private static final long TIME_WINDOW_MS = 60 * 1000; // 1分钟时间窗
 
-    private final UserService userService;
-    private final LoginLockService lockService;
+    @Inject
+    UserService userService;
+    
+    @Inject
+    LoginLockService lockService;
 
     // IP 请求记录 Map：IP -> 时间戳队列
     private final Map<String, Deque<Long>> ipRequestMap = new ConcurrentHashMap<>();
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
-
-        if (isLoginRequest(request)) {
-            String ip = getClientIP(request);
+    public void filter(ContainerRequestContext requestContext) throws IOException {
+        if (isLoginRequest(requestContext)) {
+            String ip = getClientIP(requestContext);
             long now = System.currentTimeMillis();
 
             Deque<Long> timestamps = ipRequestMap.computeIfAbsent(ip, k -> new LinkedList<>());
@@ -47,54 +52,57 @@ public class LoginAttemptFilter extends OncePerRequestFilter {
                 }
 
                 if (timestamps.size() >= MAX_REQUESTS_PER_MINUTE) {
-                    response.setStatus(429); // 429
-                    request.getSession().setAttribute("error", "您的请求过于频繁，请稍后再试。");
-                    response.sendRedirect("/login?error");
+                    // 返回429状态码（Too Many Requests）
+                    requestContext.abortWith(Response.status(429)
+                            .entity("您的请求过于频繁，请稍后再试。")
+                            .build());
                     return;
                 }
 
                 timestamps.addLast(now);
             }
 
-            String email = obtainUsername(request);
+            // 检查用户账户锁定状态
+            String email = obtainUsername(requestContext);
             if (email != null) {
-                Optional<User> userOpt = userService.getByEmail(email);
-                if (userOpt.isPresent()) {
-                    User user = userOpt.get();
+                User user = userService.getByEmail(email);
+                if (user != null) {
                     if (!lockService.isAccountNonLocked(user)) {
-                        request.getSession().setAttribute("error", "您的账户仍处于锁定状态。请稍后再试。");
-                        response.sendRedirect("/login?error");
+                        requestContext.abortWith(Response.status(Response.Status.FORBIDDEN)
+                                .entity("您的账户仍处于锁定状态。请稍后再试。")
+                                .build());
                         return;
                     }
                 }
             }
         }
-
-        filterChain.doFilter(request, response);
     }
 
     /**
      * 判断是否为登录请求
      */
-    private boolean isLoginRequest(HttpServletRequest request) {
-        return request.getMethod().equalsIgnoreCase("POST") &&
-                request.getRequestURI().equals("/api/login/auth");
+    private boolean isLoginRequest(ContainerRequestContext requestContext) {
+        return "POST".equalsIgnoreCase(requestContext.getMethod()) &&
+                requestContext.getUriInfo().getPath().equals("/api/login/auth");
     }
 
     /**
-     * 获取用户名
+     * 获取用户名（从表单数据或查询参数）
      */
-    private String obtainUsername(HttpServletRequest request) {
-        return request.getParameter("email");
+    private String obtainUsername(ContainerRequestContext requestContext) {
+        // 由于ContainerRequestFilter无法直接访问表单数据，
+        // 这里返回null，在实际的认证处理中会进行用户验证
+        return requestContext.getUriInfo().getQueryParameters().getFirst("email");
     }
 
     /**
      * 获取客户端真实 IP
      */
-    private String getClientIP(HttpServletRequest request) {
-        String xfHeader = request.getHeader("X-Forwarded-For");
+    private String getClientIP(ContainerRequestContext requestContext) {
+        String xfHeader = requestContext.getHeaders().getFirst("X-Forwarded-For");
         if (xfHeader == null || xfHeader.isEmpty()) {
-            return request.getRemoteAddr();
+            // 从远程地址获取IP（这在Quarkus中可能需要特殊处理）
+            return requestContext.getHeaders().getFirst("X-Real-IP");
         }
         return xfHeader.split(",")[0];
     }

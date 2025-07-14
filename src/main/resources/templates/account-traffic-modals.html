@@ -1,0 +1,99 @@
+<!-- Create Stats Modal -->
+<div class="modal modal-blur fade" id="traffic-stats-createModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">添加流量统计</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label required">人员</label>
+                    <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="newItem.userId">
+                        <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
+                    </select>
+                    <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">账户ID</label>
+                    <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.accountId }" v-model="newItem.accountId">
+                    <div class="invalid-feedback" v-if="validationErrors.accountId">{{ validationErrors.accountId }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">开始时间</label>
+                    <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.periodStart }" v-model="newItem.periodStart">
+                    <div class="invalid-feedback" v-if="validationErrors.periodStart">{{ validationErrors.periodStart }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">结束时间</label>
+                    <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.periodEnd }" v-model="newItem.periodEnd">
+                    <div class="invalid-feedback" v-if="validationErrors.periodEnd">{{ validationErrors.periodEnd }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">上传流量 (字节)</label>
+                    <input type="number" class="form-control" v-model="newItem.uploadBytes">
+                    <small class="form-hint">{{ formatBytes(newItem.uploadBytes || 0) }}</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">下载流量 (字节)</label>
+                    <input type="number" class="form-control" v-model="newItem.downloadBytes">
+                    <small class="form-hint">{{ formatBytes(newItem.downloadBytes || 0) }}</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" @click="createItem">创建</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Stats Modal -->
+<div class="modal modal-blur fade" id="traffic-stats-editModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑流量统计</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label required">人员</label>
+                    <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="editedItem.userId">
+                        <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
+                    </select>
+                    <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">账户ID</label>
+                    <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.accountId }" v-model="editedItem.accountId">
+                    <div class="invalid-feedback" v-if="validationErrors.accountId">{{ validationErrors.accountId }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">开始时间</label>
+                    <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.periodStart }" v-model="editedItem.periodStart">
+                    <div class="invalid-feedback" v-if="validationErrors.periodStart">{{ validationErrors.periodStart }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">结束时间</label>
+                    <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.periodEnd }" v-model="editedItem.periodEnd">
+                    <div class="invalid-feedback" v-if="validationErrors.periodEnd">{{ validationErrors.periodEnd }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">上传流量 (字节)</label>
+                    <input type="number" class="form-control" v-model="editedItem.uploadBytes">
+                    <small class="form-hint">{{ formatBytes(editedItem.uploadBytes || 0) }}</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">下载流量 (字节)</label>
+                    <input type="number" class="form-control" v-model="editedItem.downloadBytes">
+                    <small class="form-hint">{{ formatBytes(editedItem.downloadBytes || 0) }}</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" @click="updateItem">保存</button>
+            </div>
+        </div>
+    </div>
+</div> 

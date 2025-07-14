@@ -1,0 +1,10 @@
+<!-- Status filter -->
+<div class="col-auto">
+    <select class="form-select" v-model="filters.status" @change="fetchRecords" style="width: 100px;">
+        <option value="">全部</option>
+        <option value="active">活跃</option>
+        <option value="expired">已过期</option>
+        <option value="expiring">将过期</option>
+        <option value="disabled">已禁用</option>
+    </select>
+</div> 

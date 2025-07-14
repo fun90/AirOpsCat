@@ -6,14 +6,14 @@ import com.fun90.airopscat.model.dto.xray.OutboundConfig;
 import com.fun90.airopscat.model.dto.xray.setting.inbound.ShadowsocksInboundSetting;
 import com.fun90.airopscat.model.dto.xray.setting.outbound.ShadowsocksOutboundSetting;
 import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
+import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
-@Component
+@ApplicationScoped
 @SupportedProtocols(value = {"shadowsocks", "ss"}, priority = 1, description = "Shadowsocks协议转换器")
 public class ShadowsocksConversionStrategy implements ConversionStrategy {
     
