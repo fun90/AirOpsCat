@@ -187,6 +187,7 @@ public class AccountController {
         account.setSpeed(request.getSpeed());
         account.setBandwidth(request.getBandwidth());
         account.setDisabled(request.getDisabled());
+        account.setRemark(request.getRemark());
         
         // 保存账户
         Account savedAccount = accountService.saveAccount(account);
@@ -221,6 +222,7 @@ public class AccountController {
         account.setSpeed(request.getSpeed());
         account.setBandwidth(request.getBandwidth());
         account.setDisabled(request.getDisabled());
+        account.setRemark(request.getRemark());
         
         Account updatedAccount = accountService.updateAccount(account);
         
