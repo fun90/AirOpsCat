@@ -572,7 +572,7 @@
                                                 <div class="mb-3">
                                                     <label class="form-label text-muted">使用文档</label>
                                                     <div class="d-flex align-items-center">
-                                                        <code class="me-2 text-truncate">{{ getDocumentUrl(selectedItem.authCode) }}</code>
+                                                        <code class="me-2 text-truncate" @click="copyToClipboard(getDocumentUrl(selectedItem.authCode))">{{ getDocumentUrl(selectedItem.authCode) }}</code>
                                                         <button @click="copyToClipboard(getDocumentUrl(selectedItem.authCode))" class="btn btn-sm btn-ghost-secondary">
                                                             <i class="ti ti-copy"></i>
                                                         </button>
