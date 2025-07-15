@@ -1,11 +1,14 @@
 package com.fun90.airopscat.model.dto;
 
+import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.NodeType;
 import lombok.Data;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 @Data
 public class NodeDto {
@@ -30,6 +33,7 @@ public class NodeDto {
     private String remark;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+    private Set<Tag> tags = new HashSet<>();
 
 
     // 辅助方法：获取tag
