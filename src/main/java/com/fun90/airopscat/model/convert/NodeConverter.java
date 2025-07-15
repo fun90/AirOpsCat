@@ -39,6 +39,10 @@ public class NodeConverter {
             dto.setRule(JsonUtil.toObject(node.getRule(), Map.class));
         }
 
+        if (node.getTags() != null) {
+            dto.setTags(node.getTags());
+        }
+
         return dto;
     }
 }

@@ -106,9 +106,6 @@ public class SubscriptionService {
             return "错误: 当前没有可用的活跃节点，请稍后重试";
         }
 
-        List<NodeDto> activeNodes2 = activeNodes.stream().collect(Collectors.toList());
-        activeNodes.addAll(activeNodes2);
-
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("account", account);
         templateData.put("nodes", activeNodes);
@@ -201,6 +198,10 @@ public class SubscriptionService {
     private String generateConfigByApp(Account account, List<NodeDto> nodes, String osName, String appName, Map<String, String> params) {
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("account", account);
+        List<NodeDto> aiNodes = nodes.stream()
+                .filter(node -> node.getTags().stream().anyMatch(tag -> "AI".equals(tag.getName())))
+                .collect(Collectors.toList());
+        templateData.put("aiNodes", aiNodes.isEmpty() ? nodes : aiNodes);
         templateData.put("nodes", nodes);
         templateData.put("osName", osName);
         templateData.put("appName", appName);
