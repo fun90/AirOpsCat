@@ -57,14 +57,22 @@ jobs:
         java --version
         native-image --version
 
-    - name: Build with Maven
-      run: ./mvnw clean compile -Dquarkus.package.type=native
-
     # - name: Run tests
     #   run: ./mvnw test
 
-    - name: Build native executable
-      run: ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
+    - name: Prepare for native build
+      run: ./mvnw clean compile -DskipTests
+
+    - name: Build native executable (Windows)
+      if: matrix.os == 'windows-latest'
+      run: ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g,--initialize-at-build-time=org.slf4j.LoggerFactory,--no-fallback
+      shell: cmd
+      timeout-minutes: 30
+
+    - name: Build native executable (Unix)
+      if: matrix.os != 'windows-latest'
+      run: ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g,--initialize-at-build-time=org.slf4j.LoggerFactory,--no-fallback
+      timeout-minutes: 30
 
     - name: Rename executable (Windows)
       if: matrix.os == 'windows-latest'
