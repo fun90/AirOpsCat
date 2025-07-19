@@ -24,10 +24,10 @@ public interface TagRepository extends JpaRepository<Tag, Long>, JpaSpecificatio
     @Query("SELECT t FROM Tag t WHERE t.name LIKE %:keyword% OR t.description LIKE %:keyword%")
     List<Tag> searchByKeyword(@Param("keyword") String keyword);
 
-    @Query("SELECT t FROM Tag t JOIN t.nodes n WHERE n.id = :nodeId")
+    @Query(value = "SELECT t.* FROM tag t JOIN node_tag nt ON t.id = nt.tag_id WHERE nt.node_id = :nodeId", nativeQuery = true)
     List<Tag> findByNodeId(@Param("nodeId") Long nodeId);
 
-    @Query("SELECT t FROM Tag t JOIN t.accounts a WHERE a.id = :accountId")
+    @Query(value = "SELECT t.* FROM tag t JOIN account_tag at ON t.id = at.tag_id WHERE at.account_id = :accountId", nativeQuery = true)
     List<Tag> findByAccountId(@Param("accountId") Long accountId);
     
     @Query("SELECT COUNT(n) FROM Node n JOIN n.tags t WHERE t.id = :tagId")
@@ -47,12 +47,6 @@ public interface TagRepository extends JpaRepository<Tag, Long>, JpaSpecificatio
 
     @Query("SELECT a FROM Account a JOIN a.tags t WHERE t.id IN :tagIds AND a.disabled = 0 AND (a.toDate IS NULL OR a.toDate > :currentTime)")
     List<Account> findActiveAccountsByTagIds(@Param("tagIds") List<Long> tagIds, @Param("currentTime") LocalDateTime currentTime);
-
-    @Query("SELECT DISTINCT t FROM Tag t JOIN t.nodes n WHERE n.id IN :nodeIds")
-    List<Tag> findByNodeIdIn(@Param("nodeIds") List<Long> nodeIds);
-
-    @Query("SELECT DISTINCT t FROM Tag t JOIN t.accounts a WHERE a.id IN :accountIds")
-    List<Tag> findByAccountIdIn(@Param("accountIds") List<Long> accountIds);
     
     @Modifying
     @Query(value = "DELETE FROM node_tag WHERE node_id = :nodeId", nativeQuery = true)

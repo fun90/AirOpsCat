@@ -28,11 +28,11 @@ public class Tag {
     
     private Integer disabled = 0; // 0:启用，1:禁用
     
-    @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
-    private Set<Node> nodes = new HashSet<>();
+//    @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
+//    private Set<Node> nodes = new HashSet<>();
     
-    @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
-    private Set<Account> accounts = new HashSet<>();
+//    @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
+//    private Set<Account> accounts = new HashSet<>();
     
     private LocalDateTime createTime;
     
@@ -66,23 +66,13 @@ public class Tag {
     // 辅助方法：获取关联的节点数量
     @Transient
     public int getNodeCount() {
-        try {
-            return nodes != null ? nodes.size() : 0;
-        } catch (Exception e) {
-            // 如果懒加载失败，返回0
-            return 0;
-        }
+        return 0;
     }
     
     // 辅助方法：获取关联的账户数量
     @Transient
     public int getAccountCount() {
-        try {
-            return accounts != null ? accounts.size() : 0;
-        } catch (Exception e) {
-            // 如果懒加载失败，返回0
-            return 0;
-        }
+        return 0;
     }
     
     // 辅助方法：判断标签是否启用

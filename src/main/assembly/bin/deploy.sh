@@ -4,11 +4,11 @@
 # 上传jar文件并重启服务
 
 # 配置
-REMOTE_HOST="your_host" # 根据实际情况修改远程服务器地址
-REMOTE_USER="root"
-LOCAL_DIR="your_project_path/target" # 根据实际情况修改本地jar文件路径
-REMOTE_DIR="your_remote_dir" # 根据实际情况修改远程部署目录
-SSH_KEY_PATH="your_key"  # 根据实际情况修改密钥路径
+REMOTE_HOST="jp.fun90.com"
+REMOTE_USER="root"  # 根据实际情况修改用户名
+LOCAL_DIR="/Users/omg/Documents/Code/AirOpsCat/target"
+REMOTE_DIR="/data/airopscat"
+SSH_KEY_PATH="/Users/omg/Library/CloudStorage/OneDrive-个人/keys/vps"  # 根据实际情况修改密钥路径
 
 # 检查参数
 if [ $# -eq 0 ]; then

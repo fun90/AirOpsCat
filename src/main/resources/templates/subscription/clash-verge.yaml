@@ -14,12 +14,6 @@ geox-url:
   mmdb: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb
   asn: https://github.com/xishang0128/geoip/releases/download/latest/GeoLite2-ASN.mmdb
 
-external-controller: 127.0.0.1:9097
-external-ui: ./ui
-# external-ui-name: xd
-secret: 'tyoVJjyFRSeSEbCz7RcDI'
-external-ui-url: https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip
-
 mixed-port: 7890
 
 tun:
