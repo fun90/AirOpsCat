@@ -259,16 +259,16 @@ public class ScheduledTaskService {
                                 );
                                 successCount++;
                                 
-                                log.debug("处理用户 {} 流量统计: 上传 {} 字节, 下载 {} 字节", 
-                                    userEmail, trafficStats.getUploadBytes(), trafficStats.getDownloadBytes());
+                                log.debug("处理服务器：{} 上的用户 {} 流量统计: 上传 {} 字节, 下载 {} 字节",
+                                        server.getName(), userEmail, trafficStats.getUploadBytes(), trafficStats.getDownloadBytes());
                             } else {
-                                log.warn("未找到用户邮箱 {} 对应的账户", userEmail);
+                                log.warn("服务器：{} 上未找到用户邮箱 {} 对应的账户", server.getName(), userEmail);
                             }
                         } catch (Exception e) {
                             log.error("处理用户 {} 流量统计失败: {}", userEmail, e.getMessage());
                         }
                     } else {
-                        log.debug("用户 {} 没有流量数据", userEmail);
+                        log.debug("服务器：{} 上的用户 {} 没有流量数据", server.getName(), userEmail);
                     }
                 }
                 

@@ -134,23 +134,8 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.entity.Domain.class,
     com.fun90.airopscat.model.entity.Tag.class,
     com.fun90.airopscat.model.entity.Transaction.class,
-    
-    // Java Standard Classes for JSON
-    java.util.Map.class,
-    java.util.HashMap.class,
-    java.util.LinkedHashMap.class,
-    java.util.List.class,
-    java.util.ArrayList.class,
-    java.util.LinkedList.class,
-    java.lang.Object.class,
-    java.lang.String.class,
-    java.lang.Integer.class,
-    java.lang.Long.class,
-    java.lang.Boolean.class,
-    java.lang.Double.class,
-    java.lang.Number.class,
-    
-    // Time-related classes
+
+    // Time-related classes (Java standard classes are automatically registered)
     java.time.LocalDateTime.class,
     java.time.LocalDate.class,
     java.time.LocalTime.class

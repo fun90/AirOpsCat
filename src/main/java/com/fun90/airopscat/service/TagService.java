@@ -12,7 +12,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 
@@ -41,7 +40,7 @@ public class TagService {
         List<String> conditions = new ArrayList<>();
         
         // Search condition
-        if (StringUtils.isNotBlank(search)) {
+        if (search != null && !search.trim().isEmpty()) {
             conditions.add("(lower(name) like :search or lower(description) like :search)");
             params.put("search", "%" + search.toLowerCase() + "%");
         }

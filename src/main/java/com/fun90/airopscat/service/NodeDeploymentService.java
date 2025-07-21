@@ -23,8 +23,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
+
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -91,7 +90,7 @@ public class NodeDeploymentService {
      * 获取未部署的节点列表
      */
     private List<Node> getUndeployedNodes(List<Long> nodeIds) {
-        if (CollectionUtils.isNotEmpty(nodeIds)) {
+        if (nodeIds != null && !nodeIds.isEmpty()) {
             return nodeRepository.findByDeployedAndIdIn(0, nodeIds);
         } else {
             return nodeRepository.findByDeployed(0);
@@ -217,9 +216,9 @@ public class NodeDeploymentService {
         String configTemplate = ConfigFileReader.readFileContent("templates/core/xray.json");
         XrayConfig xrayConfig = JsonUtil.toObject(configTemplate, XrayConfig.class);
 
-        List<InboundConfig> inbounds = xrayConfig.getInbounds().stream().filter(o ->  StringUtils.startsWith(o.getTag(), "default-")).collect(Collectors.toList());
-        List<OutboundConfig> outbounds = xrayConfig.getOutbounds().stream().filter(o ->  StringUtils.startsWith(o.getTag(), "default-")).collect(Collectors.toList());
-        List<RoutingRule> routingRules = xrayConfig.getRouting().getRules().stream().filter(o -> StringUtils.startsWith(o.getRuleTag(), "default-")).collect(Collectors.toList());
+        List<InboundConfig> inbounds = xrayConfig.getInbounds().stream().filter(o -> o.getTag() != null && o.getTag().startsWith("default-")).collect(Collectors.toList());
+        List<OutboundConfig> outbounds = xrayConfig.getOutbounds().stream().filter(o -> o.getTag() != null && o.getTag().startsWith("default-")).collect(Collectors.toList());
+        List<RoutingRule> routingRules = xrayConfig.getRouting().getRules().stream().filter(o -> o.getRuleTag() != null && o.getRuleTag().startsWith("default-")).collect(Collectors.toList());
 
         for (Node node : nodes) {
             processNodeConfiguration(node, inbounds, outbounds, routingRules);
@@ -295,7 +294,7 @@ public class NodeDeploymentService {
 
         ConversionStrategy strategy = strategyRegistry.getStrategy(outInbound.getProtocol());
         if (strategy != null) {
-            String host = StringUtils.isBlank(outServer.getHost()) ? outServer.getIp() : outServer.getHost();
+            String host = (outServer.getHost() == null || outServer.getHost().trim().isEmpty()) ? outServer.getIp() : outServer.getHost();
             OutboundConfig outbound = strategy.convert(outInbound, host, outNode.getPort());
             outbound.setTag(outNode.getTag());
             outbounds.add(outbound);

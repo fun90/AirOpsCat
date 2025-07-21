@@ -15,7 +15,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
-import org.apache.commons.lang3.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -52,7 +51,7 @@ public class TransactionService {
         List<String> conditions = new ArrayList<>();
         
         // Search condition
-        if (StringUtils.isNotBlank(search)) {
+        if (search != null && !search.trim().isEmpty()) {
             conditions.add("(lower(description) like :search or lower(remark) like :search or lower(paymentMethod) like :search)");
             params.put("search", "%" + search.toLowerCase() + "%");
         }
@@ -64,7 +63,7 @@ public class TransactionService {
         }
         
         // Business table filter
-        if (StringUtils.isNotBlank(businessTable)) {
+        if (businessTable != null && !businessTable.trim().isEmpty()) {
             conditions.add("businessTable = :businessTable");
             params.put("businessTable", businessTable);
         }

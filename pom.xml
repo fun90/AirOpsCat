@@ -4,18 +4,9 @@
 
     <groupId>com.fun90</groupId>
     <artifactId>airopscat</artifactId>
-    <version>1.0.2</version>
+    <version>2.0.0</version>
 
-    <description>A lightweight, agile, and efficient server management system. Stay nimble, stay in control. &#x1f431;&#x1f4a8;</description>
-    <scm>
-        <url>https://github.com/fun90/AirOpsCat</url>
-        <tag>${project.version}</tag>
-    </scm>
-    <developers>
-        <developer>
-            <name>fun90</name>
-        </developer>
-    </developers>
+    <description>A lightweight, agile, and efficient server management system. Stay nimble, stay in control. 🐱💨</description>
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
@@ -28,9 +19,7 @@
         <quarkus.platform.version>3.24.3</quarkus.platform.version>
 
         <!-- 工具库版本 -->
-        <mapstruct.version>1.5.5.Final</mapstruct.version>
         <lombok.version>1.18.34</lombok.version>
-        <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
 
         <!-- 编译器插件版本 -->
         <compiler-plugin.version>3.14.0</compiler-plugin.version>
@@ -113,14 +102,10 @@
             <artifactId>quarkus-scheduler</artifactId>
         </dependency>
 
-        <!-- Quarkus HTTP 客户端 -->
+        <!-- Quarkus HTTP 客户端扩展 -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest-client</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-rest-client-jackson</artifactId>
         </dependency>
 
         <!-- SQLite JDBC 驱动 -->
@@ -136,12 +121,6 @@
             <artifactId>hibernate-community-dialects</artifactId>
         </dependency>
 
-        <!-- Jackson 时间模块 -->
-        <dependency>
-            <groupId>com.fasterxml.jackson.datatype</groupId>
-            <artifactId>jackson-datatype-jsr310</artifactId>
-        </dependency>
-
         <!-- 代码简化 -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -149,31 +128,6 @@
             <version>${lombok.version}</version>
             <optional>true</optional>
             <scope>compile</scope>
-        </dependency>
-
-        <!-- MapStruct -->
-        <dependency>
-            <groupId>org.mapstruct</groupId>
-            <artifactId>mapstruct</artifactId>
-            <version>${mapstruct.version}</version>
-            <scope>compile</scope>
-        </dependency>
-
-        <!-- 其他工具 -->
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <version>3.13.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-collections4</artifactId>
-            <version>4.4</version>
-        </dependency>
-        <dependency>
-            <groupId>commons-codec</groupId>
-            <artifactId>commons-codec</artifactId>
-            <version>1.16.0</version>
         </dependency>
 
         <!-- SSH 客户端 - JSch -->
@@ -210,36 +164,9 @@
                             <goal>build</goal>
                             <goal>generate-code</goal>
                             <goal>generate-code-tests</goal>
-                            <goal>native-image-agent</goal>
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-
-            <!-- Maven Compiler Plugin -->
-            <plugin>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>${compiler-plugin.version}</version>
-                <configuration>
-                    <parameters>true</parameters>
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                            <version>${lombok.version}</version>
-                        </path>
-                        <path>
-                            <groupId>org.mapstruct</groupId>
-                            <artifactId>mapstruct-processor</artifactId>
-                            <version>${mapstruct.version}</version>
-                        </path>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok-mapstruct-binding</artifactId>
-                            <version>${lombok-mapstruct-binding.version}</version>
-                        </path>
-                    </annotationProcessorPaths>
-                </configuration>
             </plugin>
 
             <!-- Maven Surefire Plugin -->
@@ -252,73 +179,6 @@
                         <maven.home>${maven.home}</maven.home>
                     </systemPropertyVariables>
                 </configuration>
-            </plugin>
-
-            <!-- Maven Failsafe Plugin -->
-            <plugin>
-                <artifactId>maven-failsafe-plugin</artifactId>
-                <version>${surefire-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>integration-test</goal>
-                            <goal>verify</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <systemPropertyVariables>
-                        <native.image.path>${project.build.directory}/${project.build.finalName}-runner</native.image.path>
-                        <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
-                        <maven.home>${maven.home}</maven.home>
-                    </systemPropertyVariables>
-                </configuration>
-            </plugin>
-
-            <!-- Maven Resources Plugin -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <version>3.2.0</version>
-                <executions>
-                    <execution>
-                        <id>default-resources</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>resources</goal>
-                        </goals>
-                        <configuration>
-                            <resources>
-                                <resource>
-                                    <directory>src/main/resources</directory>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <!-- Maven Assembly Plugin -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-assembly-plugin</artifactId>
-                <version>3.6.0</version>
-                <configuration>
-                    <descriptors>
-                        <descriptor>src/main/assembly/assembly.xml</descriptor>
-                    </descriptors>
-                    <appendAssemblyId>true</appendAssemblyId>
-                    <attach>true</attach>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>make-assembly</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>
@@ -335,6 +195,20 @@
             <properties>
                 <skipITs>false</skipITs>
                 <quarkus.native.enabled>true</quarkus.native.enabled>
+                <!-- 优化native image大小 -->
+                <quarkus.native.compression.level>10</quarkus.native.compression.level>
+                <quarkus.native.debug.enabled>false</quarkus.native.debug.enabled>
+                <quarkus.native.enable-all-security-services>false</quarkus.native.enable-all-security-services>
+                <quarkus.native.enable-url-protocols>http,https</quarkus.native.enable-url-protocols>
+                <quarkus.native.resources.excludes>**.md,**/LICENSE*,**/NOTICE*</quarkus.native.resources.excludes>
+                <!-- 禁用不必要的功能 -->
+                <quarkus.native.enable-jni>false</quarkus.native.enable-jni>
+                <quarkus.native.enable-server>true</quarkus.native.enable-server>
+                <quarkus.native.enable-vm-inspection>false</quarkus.native.enable-vm-inspection>
+                <!-- 内存优化 -->
+                <quarkus.native.additional-build-args>-H:+RemoveUnusedSymbols,-H:+ReportExceptionStackTraces,-H:-UseServiceLoaderFeature,-H:+StaticExecutableWithDynamicLibC</quarkus.native.additional-build-args>
+                <!-- 启用UPX压缩进一步减少文件大小 -->
+                <quarkus.native.enable-upx-compression>true</quarkus.native.enable-upx-compression>
             </properties>
         </profile>
     </profiles>

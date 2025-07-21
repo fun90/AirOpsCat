@@ -9,12 +9,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
-import org.apache.commons.lang3.StringUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @ApplicationScoped
 public class UserService {
@@ -26,6 +22,9 @@ public class UserService {
         this.userRepository = userRepository;
     }
 
+    /**
+     * 分页查询用户
+     */
     public io.quarkus.hibernate.orm.panache.PanacheQuery<User> getUserPage(String search, String role, String status) {
         // Create sort by createTime descending
         Sort sort = Sort.by("createTime").descending();
@@ -37,19 +36,19 @@ public class UserService {
         List<String> conditions = new ArrayList<>();
         
         // Search condition
-        if (StringUtils.isNotBlank(search)) {
+        if (search != null && !search.trim().isEmpty()) {
             conditions.add("(lower(email) like :search or lower(nickName) like :search)");
             params.put("search", "%" + search.toLowerCase() + "%");
         }
         
         // Role filter
-        if (StringUtils.isNotBlank(role)) {
+        if (role != null && !role.trim().isEmpty()) {
             conditions.add("role = :role");
             params.put("role", role);
         }
         
         // Status filter
-        if (StringUtils.isNotBlank(status)) {
+        if (status != null && !status.trim().isEmpty()) {
             if ("active".equals(status)) {
                 conditions.add("disabled = 0");
             } else if ("disabled".equals(status)) {

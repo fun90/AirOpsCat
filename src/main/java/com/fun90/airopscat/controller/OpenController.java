@@ -4,17 +4,21 @@ import com.fun90.airopscat.model.dto.ClientRequest;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.service.AccountOnlineIpService;
+import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import lombok.extern.slf4j.Slf4j;
+
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+@Slf4j
 @ApplicationScoped
 @Path("/api/open")
 @Produces(MediaType.APPLICATION_JSON)
@@ -74,6 +78,35 @@ public class OpenController {
         result.put("applePwd", applePwd);
         result.put("nickName", accountOpt.get().getUser().getNickName());
         return Response.ok(result).build();
+    }
+
+    @GET
+    @Path("/bark-test/{secretKey}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public String barkTestGet(@PathParam("secretKey") String secretKey) {
+        return createBarkTestResponse();
+    }
+    
+    @POST
+    @Path("/bark-test/{secretKey}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public String barkTestPost(@PathParam("secretKey") String secretKey) {
+        return createBarkTestResponse();
+    }
+    
+    private String createBarkTestResponse() {
+        log.info("收到Bark测试请求");
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 200);
+        result.put("message", "success");
+        result.put("timestamp", System.currentTimeMillis());
+        
+        try {
+            return JsonUtil.toJsonString(result);
+        } catch (Exception e) {
+            log.error("序列化响应失败", e);
+            return "{\"code\":500,\"message\":\"Internal Server Error\"}";
+        }
     }
 
 }

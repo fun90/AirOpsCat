@@ -1,7 +1,5 @@
 package com.fun90.airopscat.util;
 
-import org.apache.commons.lang3.StringUtils;
-
 /**
  * 版本比较工具类
  */
@@ -18,13 +16,13 @@ public class VersionUtil {
      * @return 0表示相等，-1表示version1小于version2，1表示version1大于version2
      */
     public static int compareVersion(String version1, String version2) {
-        if (StringUtils.isBlank(version1) && StringUtils.isBlank(version2)) {
+        if (isBlank(version1) && isBlank(version2)) {
             return 0;
         }
-        if (StringUtils.isBlank(version1)) {
+        if (isBlank(version1)) {
             return -1;
         }
-        if (StringUtils.isBlank(version2)) {
+        if (isBlank(version2)) {
             return 1;
         }
         
@@ -53,12 +51,19 @@ public class VersionUtil {
      * @return 数字值
      */
     private static int parseVersionPart(String part) {
-        if (StringUtils.isBlank(part)) {
+        if (isBlank(part)) {
             return 0;
         }
         
         // 移除非数字字符
         String cleanPart = part.replaceAll("[^0-9]", "");
-        return StringUtils.isBlank(cleanPart) ? 0 : Integer.parseInt(cleanPart);
+        return isBlank(cleanPart) ? 0 : Integer.parseInt(cleanPart);
+    }
+    
+    /**
+     * 检查字符串是否为空或只包含空白字符
+     */
+    private static boolean isBlank(String str) {
+        return str == null || str.trim().isEmpty();
     }
 }

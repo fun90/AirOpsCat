@@ -94,7 +94,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=$REMOTE_DIR
-ExecStart=$JAVA_HOME/bin/java -server -Xmx512m -Xms256m -Dquarkus.config.locations=$REMOTE_DIR/quarkus-app/application.properties -jar $REMOTE_DIR/quarkus-app/quarkus-run.jar
+ExecStart=$JAVA_HOME/bin/java -server -Xmx256m -Xms256m -Dquarkus.config.locations=$REMOTE_DIR/quarkus-app/application.properties -jar $REMOTE_DIR/quarkus-app/quarkus-run.jar
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -131,8 +131,8 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=$REMOTE_DIR/quarkus-app
-ExecStart=$REMOTE_DIR/quarkus-app/airopscat -Dquarkus.config.locations=$REMOTE_DIR/quarkus-app/application.properties
+WorkingDirectory=$REMOTE_DIR
+ExecStart=$REMOTE_DIR/airopscat -Dquarkus.config.locations=$REMOTE_DIR/application.properties -Duser.timezone=Asia/Shanghai
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -182,15 +182,15 @@ if [ ! -f "$SSH_KEY_PATH" ]; then
 fi
 
 # 测试 SSH 连接
-echo "[INFO] 测试 SSH 连接..."
-if ! ssh -i "$SSH_KEY_PATH" -o ConnectTimeout=10 "$REMOTE_USER@$REMOTE_HOST" "echo 'SSH 连接成功'" 2>/dev/null; then
-    echo "[ERROR] SSH 连接失败，请检查:"
-    echo "  - 主机地址: $REMOTE_HOST"
-    echo "  - 用户名: $REMOTE_USER"
-    echo "  - SSH 密钥: $SSH_KEY_PATH"
-    echo "  - 网络连接"
-    exit 1
-fi
+#echo "[INFO] 测试 SSH 连接..."
+#if ! ssh -i "$SSH_KEY_PATH" -o ConnectTimeout=10 "$REMOTE_USER@$REMOTE_HOST" "echo 'SSH 连接成功'" 2>/dev/null; then
+#    echo "[ERROR] SSH 连接失败，请检查:"
+#    echo "  - 主机地址: $REMOTE_HOST"
+#    echo "  - 用户名: $REMOTE_USER"
+#    echo "  - SSH 密钥: $SSH_KEY_PATH"
+#    echo "  - 网络连接"
+#    exit 1
+#fi
 
 # 执行远程命令
 echo "[INFO] 开始设置 systemd 服务..."

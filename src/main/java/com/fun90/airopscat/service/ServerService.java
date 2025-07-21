@@ -11,7 +11,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
-import org.apache.commons.lang3.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -41,13 +40,13 @@ public class ServerService {
         List<String> conditions = new ArrayList<>();
         
         // Search condition
-        if (StringUtils.isNotBlank(search)) {
+        if (search != null && !search.trim().isEmpty()) {
             conditions.add("(lower(ip) like :search or lower(host) like :search or lower(name) like :search or lower(supplier) like :search)");
             params.put("search", "%" + search.toLowerCase() + "%");
         }
         
         // Supplier filter
-        if (StringUtils.isNotBlank(supplier)) {
+        if (supplier != null && !supplier.trim().isEmpty()) {
             conditions.add("supplier = :supplier");
             params.put("supplier", supplier);
         }
@@ -165,11 +164,11 @@ public class ServerService {
         
         // Convert JSON strings to Map objects
         try {
-            if (StringUtils.isNotBlank(server.getTransitConfig())) {
+            if (server.getTransitConfig() != null && !server.getTransitConfig().trim().isEmpty()) {
                 dto.setTransitConfig(objectMapper.readValue(server.getTransitConfig(), Map.class));
             }
             
-            if (StringUtils.isNotBlank(server.getCoreConfig())) {
+            if (server.getCoreConfig() != null && !server.getCoreConfig().trim().isEmpty()) {
                 dto.setCoreConfig(objectMapper.readValue(server.getCoreConfig(), Map.class));
             }
         } catch (JsonProcessingException e) {
@@ -336,8 +335,8 @@ public class ServerService {
         
         String serverAuth = server.getAuth();
         
-        if (StringUtils.isBlank(serverAuth)) {
-            return StringUtils.isBlank(inputAuth);
+        if (serverAuth == null || serverAuth.trim().isEmpty()) {
+            return inputAuth == null || inputAuth.trim().isEmpty();
         }
         
         return serverAuth.equals(inputAuth);

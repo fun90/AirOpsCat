@@ -10,15 +10,17 @@ import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.UserRepository;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
+import io.quarkus.panache.common.Sort;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
-import org.apache.commons.lang3.StringUtils;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class AccountService {
@@ -53,7 +55,7 @@ public class AccountService {
         List<String> conditions = new ArrayList<>();
         
         // Search condition
-        if (StringUtils.isNotBlank(search)) {
+        if (search != null && !search.trim().isEmpty()) {
             conditions.add("(lower(accountNo) like :search or lower(user.email) like :search or lower(user.nickName) like :search)");
             params.put("search", "%" + search.toLowerCase() + "%");
         }
@@ -65,7 +67,7 @@ public class AccountService {
         }
         
         // Status filter
-        if (StringUtils.isNotBlank(status)) {
+        if (status != null && !status.trim().isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
             switch (status.toLowerCase()) {
                 case "active":

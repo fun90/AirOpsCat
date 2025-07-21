@@ -13,7 +13,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -41,13 +40,13 @@ public class ServerConfigService {
         List<String> conditions = new ArrayList<>();
         
         // Search condition - search in configType or related server properties
-        if (StringUtils.isNotBlank(search)) {
+        if (search != null && !search.trim().isEmpty()) {
             conditions.add("(lower(configType) like :search or serverId in (select id from Server where lower(ip) like :search or lower(host) like :search or lower(name) like :search))");
             params.put("search", "%" + search.toLowerCase() + "%");
         }
         
         // Config type filter
-        if (StringUtils.isNotBlank(configType)) {
+        if (configType != null && !configType.trim().isEmpty()) {
             conditions.add("configType = :configType");
             params.put("configType", configType);
         }
