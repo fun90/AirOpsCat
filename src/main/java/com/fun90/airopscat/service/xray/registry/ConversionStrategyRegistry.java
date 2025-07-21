@@ -1,157 +1,63 @@
 package com.fun90.airopscat.service.xray.registry;
 
 import com.fun90.airopscat.annotation.SupportedProtocols;
+import com.fun90.airopscat.registry.AbstractStrategyRegistry;
 import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
-import jakarta.annotation.PostConstruct;
+import io.quarkus.runtime.Startup;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
-import lombok.extern.slf4j.Slf4j;
-
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
  * 转换策略注册表
  */
-@Slf4j
+@Startup
 @ApplicationScoped
-public class ConversionStrategyRegistry {
-    
-    private final Map<String, ConversionStrategy> strategies = new ConcurrentHashMap<>();
-    private final Map<String, SupportedProtocols> strategyMetadata = new ConcurrentHashMap<>();
+public class ConversionStrategyRegistry extends AbstractStrategyRegistry<ConversionStrategy, SupportedProtocols> {
     
     @Inject
     Instance<ConversionStrategy> strategyInstances;
     
-    @PostConstruct
-    public void init() {
-        List<ConversionStrategy> strategyList = new ArrayList<>();
-        strategyInstances.forEach(strategyList::add);
-        
-        log.info("Initializing ConversionStrategyRegistry with {} strategies", strategyList.size());
-        
-        // 按优先级排序策略
-        List<ConversionStrategy> sortedStrategies = strategyList.stream()
-                .sorted(this::compareStrategyPriority)
-                .collect(Collectors.toList());
-        
-        for (ConversionStrategy strategy : sortedStrategies) {
-            registerStrategy(strategy);
-        }
-        
-        log.info("Registered {} conversion strategies for {} protocols", 
-                strategies.size(), getRegisteredProtocols().size());
+    @Override
+    protected Instance<ConversionStrategy> getStrategyInstances() {
+        return strategyInstances;
     }
     
-    /**
-     * 注册策略
-     */
-    public void registerStrategy(ConversionStrategy strategy) {
-        SupportedProtocols annotation = strategy.getClass().getAnnotation(SupportedProtocols.class);
-        if (annotation == null) {
-            log.warn("Strategy {} has no @SupportedProtocols annotation, skipping registration", 
-                    strategy.getClass().getSimpleName());
-            return;
-        }
-        
-        for (String protocol : annotation.value()) {
-            String normalizedProtocol = protocol.toLowerCase().trim();
-            
-            // 检查是否已存在更高优先级的策略
-            if (strategies.containsKey(normalizedProtocol)) {
-                SupportedProtocols existingAnnotation = strategyMetadata.get(normalizedProtocol);
-                if (existingAnnotation.priority() <= annotation.priority()) {
-                    log.debug("Skipping registration of {} for protocol {} due to lower priority", 
-                            strategy.getStrategyName(), normalizedProtocol);
-                    continue;
-                }
-            }
-            
-            strategies.put(normalizedProtocol, strategy);
-            strategyMetadata.put(normalizedProtocol, annotation);
-            
-            log.debug("Registered strategy {} for protocol {} with priority {}", 
-                    strategy.getStrategyName(), normalizedProtocol, annotation.priority());
-        }
+    @Override
+    protected Class<SupportedProtocols> getAnnotationClass() {
+        return SupportedProtocols.class;
     }
     
-    /**
-     * 获取指定协议的转换策略
-     */
-    public ConversionStrategy getStrategy(String protocol) {
-        if (protocol == null || protocol.trim().isEmpty()) {
-            throw new IllegalArgumentException("Protocol cannot be null or empty");
-        }
-        
-        ConversionStrategy strategy = strategies.get(protocol.toLowerCase().trim());
-        if (strategy == null) {
-            throw new UnsupportedOperationException(
-                String.format("No conversion strategy found for protocol: %s. Supported protocols: %s", 
-                        protocol, getRegisteredProtocols()));
-        }
-        
-        return strategy;
+    @Override
+    protected String getRegistryName() {
+        return "转换策略注册表";
     }
     
-    /**
-     * 检查是否支持指定协议
-     */
-    public boolean isSupported(String protocol) {
-        if (protocol == null || protocol.trim().isEmpty()) {
-            return false;
-        }
-        return strategies.containsKey(protocol.toLowerCase().trim());
+    @Override
+    protected String getStrategyName(ConversionStrategy strategy) {
+        return strategy.getStrategyName();
     }
     
-    /**
-     * 获取所有已注册的协议
-     */
-    public Set<String> getRegisteredProtocols() {
-        return new HashSet<>(strategies.keySet());
+    @Override
+    protected String[] getSupportedTypes(SupportedProtocols annotation) {
+        return annotation.value();
     }
     
-    /**
-     * 获取策略信息
-     */
-    public Map<String, String> getStrategyInfo() {
-        Map<String, String> info = new HashMap<>();
-        for (Map.Entry<String, ConversionStrategy> entry : strategies.entrySet()) {
-            String protocol = entry.getKey();
-            ConversionStrategy strategy = entry.getValue();
-            SupportedProtocols annotation = strategyMetadata.get(protocol);
-            
-            String description = String.format("%s (Priority: %d, Description: %s)", 
-                    strategy.getStrategyName(), 
-                    annotation.priority(), 
-                    annotation.description());
-            info.put(protocol, description);
-        }
-        return info;
+    @Override
+    protected int getPriority(SupportedProtocols annotation) {
+        return annotation.priority();
     }
     
-    /**
-     * 获取指定协议的策略元数据
-     */
-    public Optional<SupportedProtocols> getStrategyMetadata(String protocol) {
-        if (protocol == null || protocol.trim().isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.ofNullable(strategyMetadata.get(protocol.toLowerCase().trim()));
+    @Override
+    protected String getTypeErrorMessage() {
+        return "Protocol cannot be null or empty";
     }
     
-    /**
-     * 比较策略优先级
-     */
-    private int compareStrategyPriority(ConversionStrategy s1, ConversionStrategy s2) {
-        SupportedProtocols a1 = s1.getClass().getAnnotation(SupportedProtocols.class);
-        SupportedProtocols a2 = s2.getClass().getAnnotation(SupportedProtocols.class);
-        
-        if (a1 == null && a2 == null) return 0;
-        if (a1 == null) return 1;
-        if (a2 == null) return -1;
-        
-        return Integer.compare(a1.priority(), a2.priority());
+    @Override
+    protected String formatStrategyDescription(ConversionStrategy strategy, SupportedProtocols annotation) {
+        return String.format("%s (Priority: %d, Description: %s)", 
+                strategy.getStrategyName(), 
+                annotation.priority(), 
+                annotation.description());
     }
 }

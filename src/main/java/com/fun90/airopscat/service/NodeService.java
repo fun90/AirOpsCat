@@ -185,8 +185,18 @@ public class NodeService {
         }
 
         // No need to call save/persist for updates in Panache
-        Server server = serverRepository.findById(existingNode.getServerId());
-        existingNode.setServer(server);
+        // 手动加载关联的Server对象，避免lazy loading问题
+        if (existingNode.getServerId() != null) {
+            Server server = serverRepository.findById(existingNode.getServerId());
+            existingNode.setServer(server);
+        }
+        
+        // 手动加载关联的OutNode对象，避免lazy loading问题
+        if (existingNode.getOutId() != null) {
+            Node outNode = nodeRepository.findById(existingNode.getOutId());
+            existingNode.setOutNode(outNode);
+        }
+        
         return existingNode;
     }
 

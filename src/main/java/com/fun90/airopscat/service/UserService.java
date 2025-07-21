@@ -3,6 +3,7 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.UserDto;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.repository.UserRepository;
+import io.quarkus.elytron.security.common.BcryptUtil;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -113,7 +114,10 @@ public class UserService {
         if (src.getRemarkName() != null) target.setRemarkName(src.getRemarkName());
         if (src.getRole() != null) target.setRole(src.getRole());
         if (src.getDisabled() != null) target.setDisabled(src.getDisabled());
-        if (src.getPassword() != null) target.setPassword(src.getPassword());
+        if (src.getPassword() != null) {
+            // 加密密码后再设置
+            target.setPassword(BcryptUtil.bcryptHash(src.getPassword()));
+        }
     }
 
     @Transactional

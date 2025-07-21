@@ -1,4 +1,4 @@
-package com.fun90.airopscat.utils;
+package com.fun90.airopscat.util;
 
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;

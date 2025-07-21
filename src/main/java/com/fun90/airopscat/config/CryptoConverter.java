@@ -1,6 +1,6 @@
 package com.fun90.airopscat.config;
 
-import com.fun90.airopscat.utils.CryptoUtil;
+import com.fun90.airopscat.util.CryptoUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.AttributeConverter;

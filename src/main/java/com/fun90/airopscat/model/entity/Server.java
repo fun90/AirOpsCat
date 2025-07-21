@@ -2,7 +2,7 @@ package com.fun90.airopscat.model.entity;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fun90.airopscat.config.CryptoConverter;
-import com.fun90.airopscat.utils.RawJsonDeserializer;
+import com.fun90.airopscat.util.RawJsonDeserializer;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.DynamicUpdate;

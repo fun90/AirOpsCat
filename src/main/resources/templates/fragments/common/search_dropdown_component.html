@@ -1,0 +1,43 @@
+<!-- 
+    搜索下拉框组件模板 (Qute版本)
+    
+    使用方式:
+    {!{#include fragments/common/search_dropdown_component componentVar='componentVar' cssClass='cssClass' /}!}
+    
+    JavaScript配置示例:
+    const dropdown = createSearchDropdown({
+        apiUrl: '/api/search',
+        placeholder: '请输入搜索内容...',
+        onSelect: (item) => console.log(item)
+    });
+    dropdown.bindToDOM('componentVar');
+-->
+
+<!-- 搜索下拉框组件（纯净版） -->
+<div class="dropdown search-dropdown {cssClass ?: ''}" 
+     id="search-dropdown-{componentVar}">
+    
+    <input type="text" 
+           class="form-control dropdown-toggle"
+           id="search-input-{componentVar}"
+           autocomplete="off">
+    
+    <div class="dropdown-menu" id="search-menu-{componentVar}">
+        
+        <!-- 加载状态 -->
+        <div class="dropdown-item-text text-center" id="search-loading-{componentVar}" style="display: none;">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <span class="ms-2">搜索中...</span>
+        </div>
+        
+        <!-- 搜索结果容器 -->
+        <div id="search-results-{componentVar}"></div>
+        
+        <!-- 无结果提示 -->
+        <div class="dropdown-item-text text-muted" id="search-no-results-{componentVar}" style="display: none;">
+            未找到匹配项
+        </div>
+    </div>
+</div>

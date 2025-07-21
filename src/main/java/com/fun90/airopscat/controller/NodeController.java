@@ -11,6 +11,7 @@ import com.fun90.airopscat.service.NodeDeploymentService;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.TagService;
+import com.fun90.airopscat.util.JsonUtil;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -158,10 +159,10 @@ public class NodeController {
             node.setProtocol(request.getProtocol());
             node.setType(request.getType());
             node.setInbound(request.getInbound() != null ? 
-                com.fun90.airopscat.utils.JsonUtil.toJsonString(request.getInbound()) : null);
+                JsonUtil.toJsonString(request.getInbound()) : null);
             node.setOutId(request.getOutId());
             node.setRule(request.getRule() != null ? 
-                com.fun90.airopscat.utils.JsonUtil.toJsonString(request.getRule()) : null);
+                JsonUtil.toJsonString(request.getRule()) : null);
             node.setLevel(request.getLevel());
             node.setDisabled(request.getDisabled());
             node.setName(request.getName());
@@ -194,10 +195,10 @@ public class NodeController {
             node.setProtocol(request.getProtocol());
             node.setType(request.getType());
             node.setInbound(request.getInbound() != null ? 
-                com.fun90.airopscat.utils.JsonUtil.toJsonString(request.getInbound()) : null);
+                JsonUtil.toJsonString(request.getInbound()) : null);
             node.setOutId(request.getOutId());
             node.setRule(request.getRule() != null ? 
-                com.fun90.airopscat.utils.JsonUtil.toJsonString(request.getRule()) : null);
+                JsonUtil.toJsonString(request.getRule()) : null);
             node.setLevel(request.getLevel());
             node.setDisabled(request.getDisabled());
             node.setName(request.getName());

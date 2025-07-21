@@ -1,4 +1,4 @@
-package com.fun90.airopscat.utils;
+package com.fun90.airopscat.util;
 
 import java.security.SecureRandom;
 

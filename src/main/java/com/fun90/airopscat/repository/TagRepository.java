@@ -8,6 +8,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,11 +28,21 @@ public class TagRepository implements PanacheRepository<Tag> {
     }
 
     public List<Tag> findByNodeId(Long nodeId) {
-        return find("select t from Tag t join t.nodes n where n.id = ?1", nodeId).list();
+        // Use native query to join with the junction table since nodes relationship was removed
+        return getEntityManager().createNativeQuery(
+            "SELECT t.* FROM tag t INNER JOIN node_tag nt ON t.id = nt.tag_id WHERE nt.node_id = ?", 
+            Tag.class)
+            .setParameter(1, nodeId)
+            .getResultList();
     }
 
     public List<Tag> findByAccountId(Long accountId) {
-        return find("select t from Tag t join t.accounts a where a.id = ?1", accountId).list();
+        // Use native query to join with the junction table since accounts relationship was removed
+        return getEntityManager().createNativeQuery(
+            "SELECT t.* FROM tag t INNER JOIN account_tag at ON t.id = at.tag_id WHERE at.account_id = ?", 
+            Tag.class)
+            .setParameter(1, accountId)
+            .getResultList();
     }
     
     public int countNodesByTagId(Long tagId) {
@@ -68,11 +79,27 @@ public class TagRepository implements PanacheRepository<Tag> {
     }
 
     public List<Tag> findByNodeIdIn(List<Long> nodeIds) {
-        return find("select distinct t from Tag t join t.nodes n where n.id in ?1", nodeIds).list();
+        // Use native query to join with the junction table since nodes relationship was removed
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return new ArrayList<Tag>();
+        }
+        String inClause = nodeIds.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
+        return getEntityManager().createNativeQuery(
+            "SELECT DISTINCT t.* FROM tag t INNER JOIN node_tag nt ON t.id = nt.tag_id WHERE nt.node_id IN (" + inClause + ")", 
+            Tag.class)
+            .getResultList();
     }
 
     public List<Tag> findByAccountIdIn(List<Long> accountIds) {
-        return find("select distinct t from Tag t join t.accounts a where a.id in ?1", accountIds).list();
+        // Use native query to join with the junction table since accounts relationship was removed
+        if (accountIds == null || accountIds.isEmpty()) {
+            return new ArrayList<Tag>();
+        }
+        String inClause = accountIds.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
+        return getEntityManager().createNativeQuery(
+            "SELECT DISTINCT t.* FROM tag t INNER JOIN account_tag at ON t.id = at.tag_id WHERE at.account_id IN (" + inClause + ")", 
+            Tag.class)
+            .getResultList();
     }
     
     @Transactional
