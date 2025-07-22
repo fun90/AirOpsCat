@@ -195,20 +195,11 @@
             <properties>
                 <skipITs>false</skipITs>
                 <quarkus.native.enabled>true</quarkus.native.enabled>
-                <!-- 优化native image大小 -->
-                <quarkus.native.compression.level>10</quarkus.native.compression.level>
-                <quarkus.native.debug.enabled>false</quarkus.native.debug.enabled>
-                <quarkus.native.enable-all-security-services>false</quarkus.native.enable-all-security-services>
-                <quarkus.native.enable-url-protocols>http,https</quarkus.native.enable-url-protocols>
+                <!-- 优化native image大小和兼容性 -->
+                <quarkus.native.march>compatibility</quarkus.native.march>
                 <quarkus.native.resources.excludes>**.md,**/LICENSE*,**/NOTICE*</quarkus.native.resources.excludes>
-                <!-- 禁用不必要的功能 -->
-                <quarkus.native.enable-jni>false</quarkus.native.enable-jni>
-                <quarkus.native.enable-server>true</quarkus.native.enable-server>
-                <quarkus.native.enable-vm-inspection>false</quarkus.native.enable-vm-inspection>
-                <!-- 内存优化 -->
+                <!-- 内存和性能优化 -->
                 <quarkus.native.additional-build-args>-H:+RemoveUnusedSymbols,-H:+ReportExceptionStackTraces,-H:-UseServiceLoaderFeature,-H:+StaticExecutableWithDynamicLibC</quarkus.native.additional-build-args>
-                <!-- 启用UPX压缩进一步减少文件大小 -->
-                <quarkus.native.enable-upx-compression>true</quarkus.native.enable-upx-compression>
             </properties>
         </profile>
     </profiles>

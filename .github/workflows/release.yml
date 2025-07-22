@@ -60,19 +60,19 @@ jobs:
     - name: Install UPX (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |
-        wget https://github.com/upx/upx/releases/download/v4.0.2/upx-4.0.2-amd64_linux.tar.xz
-        tar -xf upx-4.0.2-amd64_linux.tar.xz
-        sudo mv upx-4.0.2-amd64_linux/upx /usr/local/bin/
+        wget https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-amd64_linux.tar.xz
+        tar -xf upx-5.0.2-amd64_linux.tar.xz
+        sudo mv upx-5.0.2-amd64_linux/upx /usr/local/bin/
         upx --version
 
-    - name: Install UPX (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v4.0.2/upx-4.0.2-win64.zip" -OutFile "upx.zip"
-        Expand-Archive upx.zip -DestinationPath .
-        Move-Item upx-4.0.2-win64\upx.exe C:\Windows\System32\
-        upx --version
-      shell: powershell
+#    - name: Install UPX (Windows)
+#      if: matrix.os == 'windows-latest'
+#      run: |
+#        Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-win64.zip" -OutFile "upx.zip"
+#        Expand-Archive upx.zip -DestinationPath .
+#        Move-Item upx-5.0.2-win64\upx.exe C:\Windows\System32\
+#        upx --version
+#      shell: powershell
 
     # - name: Run tests
     #   run: ./mvnw test
@@ -86,9 +86,9 @@ jobs:
       shell: cmd
       timeout-minutes: 40
 
-    - name: Build native executable (Unix)
-      if: matrix.os != 'windows-latest'
-      run: ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
+    - name: Build native executable (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g -Dquarkus.native.compression.level=10
       timeout-minutes: 40
 
     - name: Rename executable (Windows)
@@ -121,7 +121,8 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: cp target/${{ matrix.artifact_name }} dist/
 
-    - name: Create README for distribution
+    - name: Create README for distribution (Linux)
+      if: matrix.os == 'ubuntu-latest'
       run: |
         echo "# AirOpsCat Native Executable" > dist/README.txt
         echo "" >> dist/README.txt
@@ -139,6 +140,27 @@ jobs:
         echo "## External Configuration" >> dist/README.txt
         echo "Use external application.properties file:" >> dist/README.txt
         echo "./${{ matrix.artifact_name }} -Dquarkus.config.locations=./application.properties" >> dist/README.txt
+
+    - name: Create README for distribution (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        echo "# AirOpsCat Native Executable" > dist/README.txt
+        echo "" >> dist/README.txt
+        echo "Platform: ${{ matrix.platform }}" >> dist/README.txt
+        echo "Built on: %date%" >> dist/README.txt
+        echo "Version: ${{ github.ref_name }}" >> dist/README.txt
+        echo "Framework: Quarkus 3.24.3" >> dist/README.txt
+        echo "Compression: None (UPX disabled for Windows compatibility)" >> dist/README.txt
+        echo "" >> dist/README.txt
+        echo "## Usage" >> dist/README.txt
+        echo "${{ matrix.artifact_name }}" >> dist/README.txt
+        echo "" >> dist/README.txt
+        echo "The application will start on http://localhost:8080" >> dist/README.txt
+        echo "" >> dist/README.txt
+        echo "## External Configuration" >> dist/README.txt
+        echo "Use external application.properties file:" >> dist/README.txt
+        echo "${{ matrix.artifact_name }} -Dquarkus.config.locations=./application.properties" >> dist/README.txt
+      shell: cmd
 
     - name: Create distribution archive (Windows)
       if: matrix.os == 'windows-latest'
@@ -177,17 +199,17 @@ jobs:
         body: |
           ## AirOpsCat ${{ github.ref_name }}
           
-          Ultra-compressed native executables for Linux, Windows built with Quarkus 3.24.3 + UPX compression.
+          Native executables for Linux and Windows built with Quarkus 3.24.3.
           
           ### 🚀 Key Features:
           - **Ultra-fast startup**: < 0.2 seconds
-          - **Ultra-small size**: ~70% smaller with UPX LZMA compression
+          - **Smart compression**: Linux version uses UPX LZMA (~70% smaller), Windows version uncompressed for compatibility
           - **Zero dependencies**: No Java runtime required
           - **Production ready**: Optimized native compilation
           
           ### 📦 Download Instructions:
-          - **Linux**: Download `airopscat-linux-amd64.tar.gz` (~33MB)
-          - **Windows**: Download `airopscat-windows-amd64.exe.zip` (~35MB)
+          - **Linux**: Download `airopscat-linux-amd64.tar.gz` (~33MB, UPX compressed)
+          - **Windows**: Download `airopscat-windows-amd64.exe.zip` (~90MB, uncompressed for compatibility)
           
           ### 🛠 Usage:
           1. Extract the archive (if applicable)
