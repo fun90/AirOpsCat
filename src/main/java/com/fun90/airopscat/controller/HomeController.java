@@ -16,6 +16,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -66,6 +67,12 @@ public class HomeController {
                 .data("buttonText", "")
                 .data("modalIdPrefix", "")
                 .render();
+    }
+
+    @GET
+    @Path("/")
+    public Response rootRedirect() {
+        return Response.status(302).location(URI.create("/dashboard")).build();
     }
 
     @GET

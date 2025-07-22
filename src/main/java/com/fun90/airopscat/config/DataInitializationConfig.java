@@ -41,7 +41,7 @@ public class DataInitializationConfig {
             
             // 创建默认管理员用户
             User admin = new User();
-            admin.setEmail("admin@example.com");
+            admin.setEmail("admin@airopscat.com");
             admin.setNickName("管理员");
             admin.setPassword(encodePassword("admin123"));
             admin.setRole("ADMIN");
@@ -52,7 +52,7 @@ public class DataInitializationConfig {
             
             // 创建合作伙伴账户示例
             User partner = new User();
-            partner.setEmail("partner@example.com");
+            partner.setEmail("partner@airopscat.com");
             partner.setNickName("合作伙伴");
             partner.setPassword(encodePassword("partner123"));
             partner.setRole("PARTNER");
@@ -63,7 +63,7 @@ public class DataInitializationConfig {
             
             // 创建VIP账户示例
             User vip = new User();
-            vip.setEmail("vip@example.com");
+            vip.setEmail("vip@airopscat.com");
             vip.setNickName("VIP用户");
             vip.setPassword(encodePassword("vip123"));
             vip.setRole("VIP");
