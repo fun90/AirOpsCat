@@ -1,16 +1,18 @@
 package com.fun90.airopscat.util;
 
-import java.security.SecureRandom;
-
+/**
+ * 随机十六进制字符串生成器
+ * 兼容GraalVM Native Image
+ * 
+ * @deprecated 推荐使用 NativeRandomUtils.generateRandomHexFast() 替代
+ */
 public class RandomHexGenerator {
-    private static final String HEX_CHARS = "0123456789abcdef";
-    private static final SecureRandom random = new SecureRandom();
-
-    public static String generateRandomHex() {
-        StringBuilder sb = new StringBuilder(16);
-        for (int i = 0; i < 16; i++) {
-            sb.append(HEX_CHARS.charAt(random.nextInt(16)));
-        }
-        return sb.toString();
+    
+    /**
+     * 生成随机十六进制字符串
+     * 使用ThreadLocalRandom确保GraalVM Native Image兼容性
+     */
+    public static String generateRandomHex(int length) {
+        return NativeRandomUtils.generateRandomHexFast(length);
     }
 }

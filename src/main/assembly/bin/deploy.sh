@@ -59,6 +59,8 @@ echo ""
 
 # 检查文件是否存在
 if [ "$NATIVE_MODE" = "native" ]; then
+    echo "编译native文件..."
+    ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
     if [ ! -f "$LOCAL_DIR/$NATIVE_FILE" ]; then
         echo "错误: Native 可执行文件 $LOCAL_DIR/$NATIVE_FILE 不存在"
         echo "当前目录文件列表："
@@ -66,6 +68,8 @@ if [ "$NATIVE_MODE" = "native" ]; then
         exit 1
     fi
 else
+    echo "打包应用..."
+    ./mvnw clean package
     if [ ! -f "$LOCAL_DIR/quarkus-app/app/$APP_JAR" ]; then
         echo "错误: 应用 JAR 文件 $LOCAL_DIR/quarkus-app/app/$APP_JAR 不存在"
         exit 1

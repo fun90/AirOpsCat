@@ -59,7 +59,7 @@ profile:
 
 proxies:
 {#for node in nodes}
-  - name: {node.name ?: node.serverHost + '-' + node.protocol + '-' + node.port}
+  - name: {node.name}
     type: {node.protocol ?: ''}
     server: {node.serverHost}
     port: {node.port}
@@ -84,49 +84,63 @@ proxy-groups:
     proxies:
       - 自动
       - 直连
-      {#for node in nodes}- {node.name}{/for}
+      {#for node in nodes}
+      - {node.name}
+      {/for}
   - name: 自动
     icon: https://static.fun90.com/clash/Auto.png
     type: url-test
     url: http://www.gstatic.com/generate_204
     interval: 300
     proxies:
-      {#for node in nodes}- {node.name}{/for}
+      {#for node in nodes}
+      - {node.name}
+      {/for}
   - name: AI自动
     icon: https://static.fun90.com/clash/Round_Robin.png
     type: url-test
     url: https://www.openai.com
     interval: 300
     proxies:
-      {#for node in aiNodes}- {node.name}{/for}
+      {#for node in aiNodes}
+      - {node.name}
+      {/for}
   - name: AI
     icon: https://static.fun90.com/clash/OpenAI.png
     type: select
     proxies:
       - AI自动
       - 代理
-      {#for node in nodes}- {node.name}{/for}
+      {#for node in nodes}
+      - {node.name}
+      {/for}
   - name: Microsoft
     icon: https://static.fun90.com/clash/Microsoft.png
     type: select
     proxies:
       - 代理
       - 直连
-      {#for node in nodes}- {node.name}{/for}
+      {#for node in nodes}
+      - {node.name}
+      {/for}
   - name: ICLOUD
     icon: https://static.fun90.com/clash/iCloud.png
     type: select
     proxies:
       - 直连
       - 代理
-      {#for node in nodes}- {node.name}{/for}
+      {#for node in nodes}
+      - {node.name}
+      {/for}
   - name: APPLE
     icon: https://static.fun90.com/clash/Apple_1.png
     type: select
     proxies:
       - 直连
       - 代理
-      {#for node in nodes}- {node.name}{/for}
+      {#for node in nodes}
+      - {node.name}
+      {/for}
   - name: 直连
     icon: https://static.fun90.com/clash/Direct.png
     type: select

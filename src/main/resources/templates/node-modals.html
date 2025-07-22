@@ -106,126 +106,13 @@
                                     <div class="invalid-feedback" v-if="validationErrors.protocol">{{ validationErrors.protocol }}</div>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- 根据不同的协议类型显示不同的参数表单 -->
-                        <div v-if="newNodeInbound.protocol === 'VLESS'">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label">加密方式</label>
-                                        <select class="form-select" v-model="newNodeInbound.encryption">
-                                            <option value="none">none</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label">UUID</label>
-                                        <div class="input-group">
-                                            <input type="text" class="form-control" v-model="newNodeInbound.uuid">
-                                            <button class="btn" type="button" @click="generateUuid">生成</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Shadowsocks Protocol Options -->
-                        <div v-else-if="newNodeInbound.protocol === 'Shadowsocks'">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label">加密方式</label>
-                                        <select class="form-select" v-model="newNodeInbound.method">
-                                            <option value="aes-256-gcm">aes-256-gcm</option>
-                                            <option value="chacha20-poly1305">chacha20-poly1305</option>
-                                            <option value="2022-blake3-aes-256-gcm">2022-blake3-aes-256-gcm</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label">密码</label>
-                                        <div class="input-group">
-                                            <input type="text" class="form-control" v-model="newNodeInbound.password">
-                                            <button class="btn" type="button" @click="generateRandomPassword">生成</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Socks Protocol Options -->
-                        <div v-else-if="newNodeInbound.protocol === 'Socks'">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label">用户名</label>
-                                        <input type="text" class="form-control" v-model="newNodeInbound.username">
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label">密码</label>
-                                        <div class="input-group">
-                                            <input type="text" class="form-control" v-model="newNodeInbound.password">
-                                            <button class="btn" type="button" @click="generateRandomPassword">生成</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Hysteria2 Protocol Options -->
-                        <div v-else-if="newNodeInbound.protocol === 'Hysteria2'">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label">密码</label>
-                                        <div class="input-group">
-                                            <input type="text" class="form-control" v-model="newNodeInbound.password">
-                                            <button class="btn" type="button" @click="generateRandomPassword">生成</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label">上行带宽 (Mbps)</label>
-                                        <input type="number" class="form-control" v-model="newNodeInbound.up_mbps" min="1">
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label">下行带宽 (Mbps)</label>
-                                        <input type="number" class="form-control" v-model="newNodeInbound.down_mbps" min="1">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- ShadowTLS Protocol Options -->
-                        <div v-else-if="newNodeInbound.protocol === 'ShadowTLS'">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label">版本</label>
-                                        <select class="form-select" v-model="newNodeInbound.version">
-                                            <option :value="1">1</option>
-                                            <option :value="2">2</option>
-                                            <option :value="3">3</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label">密码</label>
-                                        <div class="input-group">
-                                            <input type="text" class="form-control" v-model="newNodeInbound.password">
-                                            <button class="btn" type="button" @click="generateRandomPassword">生成</button>
-                                        </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">&nbsp;</label>
+                                    <div>
+                                        <button type="button" class="btn btn-outline-primary" @click="onProtocolChange">
+                                            <i class="ti ti-refresh me-1"></i>重新生成配置
+                                        </button>
                                     </div>
                                 </div>
                             </div>

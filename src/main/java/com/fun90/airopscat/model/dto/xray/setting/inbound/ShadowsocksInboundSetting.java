@@ -12,7 +12,9 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ShadowsocksInboundSetting extends InboundSetting {
     private String method;
+    private String email;
     private String password;
+    private Integer level;
     private List<ShadowsocksClient> clients;
     private String network;
     
