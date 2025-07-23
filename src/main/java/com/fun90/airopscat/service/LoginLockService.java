@@ -29,9 +29,10 @@ public class LoginLockService {
         userRepository.updateFailedAttempts(0, username);
     }
     
+    @Transactional
     public void lock(User user) {
         user.setLockTime(LocalDateTime.now());
-        // No need to call save/persist for updates in Panache
+        userRepository.updateLockTime(user.getLockTime(), user.getEmail());
     }
 
     public boolean isAccountNonLocked(User user) {
@@ -48,5 +49,23 @@ public class LoginLockService {
 
     public int getRemainingAttempts(User user) {
         return MAX_FAILED_ATTEMPTS - user.getFailedAttempts();
+    }
+
+    /**
+     * 获取剩余锁定时间（分钟）
+     */
+    public long getRemainingLockTime(User user) {
+        if (user.getLockTime() == null) {
+            return 0;
+        }
+        LocalDateTime unlockTime = user.getLockTime().plusMinutes(LOCK_TIME_DURATION);
+        LocalDateTime now = LocalDateTime.now();
+        
+        if (now.isAfter(unlockTime)) {
+            return 0;
+        }
+        
+        // 计算剩余分钟数
+        return java.time.Duration.between(now, unlockTime).toMinutes() + 1;
     }
 }

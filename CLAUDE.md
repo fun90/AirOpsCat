@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AirOpsCat is a Quarkus 3.24.3 application built with Java 21, providing a server management system for proxy service providers. It uses SQLite as the database, Qute for templating, and supports both standard JAR and GraalVM native compilation.
+AirOpsCat is a Quarkus 3.24.3 application built with Java 21, providing a lightweight server management system for proxy service providers. It uses SQLite as the database, Qute for templating, and supports both standard JAR and GraalVM native compilation.
 
 ## Common Development Commands
 
@@ -13,20 +13,35 @@ AirOpsCat is a Quarkus 3.24.3 application built with Java 21, providing a server
 # Build the project
 ./mvnw clean package
 
-# Run the application
-java -jar target/airopscat-1.0.2.jar
+# Run the application  
+java -jar target/quarkus-app/quarkus-run.jar
 
 # Build native executable (requires GraalVM)
 ./mvnw package -Pnative -DskipTests
 
-# Run tests
+# Run tests (note: project currently has minimal test setup)
 ./mvnw test
+
+# Run single test file (pattern-based)
+./mvnw test -Dtest=*ServiceTest
+
+# Run tests with debug output
+./mvnw test -X
 ```
 
 ### Development Mode
 ```bash
 # Run in development mode with hot reload
 ./mvnw quarkus:dev
+
+# Access development console at http://localhost:8080/q/dev
+# Includes database browser, config editor, and API testing tools
+
+# Run development mode with custom port
+./mvnw quarkus:dev -Dquarkus.http.port=8888
+
+# Run with debug mode enabled
+./mvnw quarkus:dev -Ddebug=5005
 ```
 
 ### Native Image Building
@@ -35,10 +50,10 @@ java -jar target/airopscat-1.0.2.jar
 ./mvnw package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
 
 # Run native executable
-./target/airopscat-1.0.2-runner
+./target/airopscat-2.0.2-runner
 
 # Run with external configuration
-./target/airopscat-1.0.2-runner -Dquarkus.config.locations=./application.properties
+./target/airopscat-2.0.2-runner -Dquarkus.config.locations=./application.properties
 ```
 
 ## Architecture Overview
@@ -53,16 +68,20 @@ java -jar target/airopscat-1.0.2.jar
 - **Controllers** (`controller/`): REST API endpoints and web controllers
 - **Services** (`service/`): Business logic layer with 18+ services
 - **Repositories** (`repository/`): Data access layer using Hibernate ORM with Panache
-- **Models** (`model/`): Entities, DTOs, VOs, and enums
-- **Configuration** (`config/`): Quarkus configuration classes
+- **Models** (`model/`): Entities, DTOs, VOs, and enums organized by type
+- **Configuration** (`config/`): Quarkus configuration classes including Jackson and SSH setup
+- **Security** (`security/`): Authentication and authorization configuration
+- **Utilities** (`util/`): Helper classes and common functionality
 
 ### Important Services
-- `AccountService`: Account management and lifecycle
-- `NodeService`: Proxy node management (VLESS, Shadowsocks, SOCKS, Hysteria2)
-- `ServerService`: Server operations and SSH connectivity
-- `SubscriptionService`: Multi-platform client subscription generation
-- `SshConnectionService`: SSH operations using JSch
-- `BarkService`: Push notification service
+- `AccountService`: Account management and lifecycle operations
+- `NodeService`: Proxy node management supporting VLESS, Shadowsocks, SOCKS protocols
+- `ServerService`: Server operations and SSH connectivity management
+- `SubscriptionService`: Multi-platform client subscription generation and management
+- `NodeDeploymentService`: Automated deployment of proxy configurations to servers
+- `ScheduledTaskService`: Background task management for traffic stats and cleanup
+- `BarkService`: Push notification service integration
+- `SshConnectionService`: SSH operations using JSch library
 
 ### Database Configuration
 - Uses SQLite with custom Hibernate dialect: `org.hibernate.community.dialect.SQLiteDialect`
@@ -105,11 +124,12 @@ java -jar target/airopscat-1.0.2.jar
 - Separate systemd service setup script available
 
 ### Key Dependencies
-- MapStruct for object mapping
-- Lombok for code generation
-- Apache Commons (Lang3, Collections4, Codec)
-- JSch for SSH connectivity
-- Jackson for JSON processing
+- Quarkus JSch extension for SSH connectivity
+- Lombok for code generation and boilerplate reduction
+- Jackson for JSON processing with custom deserializers for Xray configurations
+- Hibernate ORM with Panache for simplified data access
+- SQLite JDBC driver with Hibernate Community Dialects
+- Quarkus Security JPA for authentication and authorization
 
 ## Code Patterns
 
@@ -120,10 +140,12 @@ java -jar target/airopscat-1.0.2.jar
 - Enums in `model/enums/`
 
 ### Service Layer
-- Business logic encapsulation
-- Transaction management with Quarkus
-- SSH operations abstracted through service layer
+- Business logic encapsulation with clear separation of concerns
+- Transaction management using Quarkus CDI and JTA
+- SSH operations abstracted through dedicated service classes
 - Strategy pattern for core management and protocol conversion
+- Core management strategies in `service/core/strategy/`
+- Xray configuration conversion strategies in `service/xray/strategy/`
 
 ### Security Integration
 - Role-based access control with Quarkus Security
@@ -134,7 +156,15 @@ java -jar target/airopscat-1.0.2.jar
 ### API Structure
 - RESTful endpoints under `/api/` prefix
 - Admin operations under `/api/admin/`
-- Subscription endpoints for client configuration
-- Bark notification endpoints
+- Subscription endpoints for client configuration generation
+- Bark notification endpoints for push notifications
+- Form-based authentication with session management
+- CORS configuration for cross-origin requests
 
-This project follows Quarkus conventions and uses SQLite for simplicity while maintaining enterprise-grade security and functionality.
+### Xray Configuration Management
+- Complex Xray configuration DTOs in `model/dto/xray/`
+- Custom Jackson deserializers for inbound/outbound configurations
+- Strategy pattern for protocol-specific conversion logic
+- Support for VLESS, Shadowsocks, SOCKS protocols with various transport layers
+
+This project follows Quarkus conventions and uses SQLite for simplicity while maintaining enterprise-grade security and functionality. The architecture emphasizes modularity through strategy patterns and clear separation between configuration management, service logic, and data persistence.
