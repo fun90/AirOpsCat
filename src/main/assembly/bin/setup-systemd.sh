@@ -4,11 +4,11 @@
 # 支持 JVM 和 Native 两种运行模式
 
 # 默认配置
-REMOTE_HOST="your_host" # 根据实际情况修改远程服务器地址
-REMOTE_USER="root"
-REMOTE_DIR="/opt/airopscat" # 根据实际情况修改远程部署目录
-SSH_KEY_PATH="your_key"  # 根据实际情况修改密钥路径
-JAVA_HOME="/usr/lib/jvm/java-21-openjdk" # 根据实际情况修改Java安装路径
+REMOTE_HOST="${AIROPSCAT_REMOTE_HOST:-your_host}" # 从环境变量读取或使用默认值
+REMOTE_USER="${AIROPSCAT_REMOTE_USER:-root}"
+REMOTE_DIR="${AIROPSCAT_REMOTE_DIR:-/opt/airopscat}" # 从环境变量读取或使用默认值
+SSH_KEY_PATH="${AIROPSCAT_SSH_KEY_PATH:-your_key}"  # 从环境变量读取或使用默认值
+JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk}" # 从环境变量读取或使用默认值
 
 # 检查参数
 if [ $# -eq 0 ]; then

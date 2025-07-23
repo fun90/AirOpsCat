@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -66,11 +68,11 @@ public class OpenController {
         // 组装subscriptionUrl
         String base = subscriptionUrl + "/config/" + authCode;
         Map<String, String> subscriptionUrls = Map.of(
-            "windows", base + "/windows/clash-verge",
-            "linux", base + "/linux/clash-verge",
-            "ios", base + "/ios/shadowrocket",
-            "macos", base + "/macos/clash-verge",
-            "android", base + "/android/clash-meta"
+            "windows", base + "/windows/clash-verge/",
+            "linux", base + "/linux/clash-verge/",
+            "ios", base + "/ios/shadowrocket/" + URLEncoder.encode(accountOpt.get().getRemark(), StandardCharsets.UTF_8) + "/",
+            "macos", base + "/macos/clash-verge/",
+            "android", base + "/android/clash-meta/"
         );
         Map<String, Object> result = new HashMap<>();
         result.put("subscriptionUrl", subscriptionUrls);

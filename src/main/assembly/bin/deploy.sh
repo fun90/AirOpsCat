@@ -4,11 +4,11 @@
 # 上传 Quarkus 应用并重启服务
 
 # 配置
-REMOTE_HOST="your_host" # 根据实际情况修改远程服务器地址
-REMOTE_USER="root"
-LOCAL_DIR="target"
-REMOTE_DIR="/opt/airopscat" # 根据实际情况修改远程部署目录
-SSH_KEY_PATH="your_key"  # 根据实际情况修改密钥路径
+REMOTE_HOST="${AIROPSCAT_REMOTE_HOST:-your_host}" # 从环境变量读取或使用默认值
+REMOTE_USER="${AIROPSCAT_REMOTE_USER:-root}"
+LOCAL_DIR="${AIROPSCAT_LOCAL_DIR:-target}"
+REMOTE_DIR="${AIROPSCAT_REMOTE_DIR:-/opt/airopscat}" # 从环境变量读取或使用默认值
+SSH_KEY_PATH="${AIROPSCAT_SSH_KEY_PATH:-your_key}"  # 从环境变量读取或使用默认值
 
 # 临时文件配置
 TEMP_DIR="/tmp/airopscat-deploy-$$"
@@ -60,7 +60,7 @@ echo ""
 # 检查文件是否存在
 if [ "$NATIVE_MODE" = "native" ]; then
     echo "编译native文件..."
-    ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
+    ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g -Dquarkus.native.compression.level=10
     if [ ! -f "$LOCAL_DIR/$NATIVE_FILE" ]; then
         echo "错误: Native 可执行文件 $LOCAL_DIR/$NATIVE_FILE 不存在"
         echo "当前目录文件列表："

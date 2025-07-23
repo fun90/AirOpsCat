@@ -29,6 +29,7 @@ public class SubscriptionController {
     @Inject
     SubscriptionService subscriptionService;
 
+    @Deprecated
     @GET
     @Path("/config/{authCode}/{osName}/{appName}")
     @Produces(MediaType.TEXT_PLAIN)
@@ -36,6 +37,21 @@ public class SubscriptionController {
             @PathParam("authCode") String authCode,
             @PathParam("osName") String osName,
             @PathParam("appName") String appName,
+            @QueryParam("version") String version,
+            @QueryParam("view") String view,
+            @QueryParam("dns") String dns,
+            @QueryParam("dns2") String dns2) {
+        return getSubscription(authCode, osName, appName, "default", version, view, dns, dns2);
+    }
+
+    @GET
+    @Path("/config/{authCode}/{osName}/{appName}/{remarkName}")
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response getSubscription(
+            @PathParam("authCode") String authCode,
+            @PathParam("osName") String osName,
+            @PathParam("appName") String appName,
+            @PathParam("remarkName") String remarkName,
             @QueryParam("version") String version,
             @QueryParam("view") String view,
             @QueryParam("dns") String dns,
@@ -78,7 +94,7 @@ public class SubscriptionController {
             
             if (!"1".equals(view)) {
                 String fileName = URLEncoder.encode(subscriptionDto.getFileName(), StandardCharsets.UTF_8);
-                responseBuilder.header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename*=UTF-8''" + fileName);
+                responseBuilder.header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=\"" + fileName + "\"");
             }
             
             if ("shadowrocket".equalsIgnoreCase(appName)) {
