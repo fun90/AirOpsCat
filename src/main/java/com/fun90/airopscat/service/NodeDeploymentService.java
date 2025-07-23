@@ -12,7 +12,10 @@ import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting;
 import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting.VlessClient;
 import com.fun90.airopscat.model.entity.*;
 import com.fun90.airopscat.model.enums.CoreOperation;
-import com.fun90.airopscat.repository.*;
+import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.ServerConfigRepository;
+import com.fun90.airopscat.repository.ServerRepository;
+import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.xray.registry.ConversionStrategyRegistry;
 import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
@@ -37,7 +40,6 @@ public class NodeDeploymentService {
 
     private final NodeRepository nodeRepository;
     private final ServerRepository serverRepository;
-    private final ServerNodeRepository serverNodeRepository;
     private final ServerConfigRepository serverConfigRepository;
     private final ConversionStrategyRegistry strategyRegistry;
     private final CoreManagementService coreManagementService;
@@ -424,17 +426,7 @@ public class NodeDeploymentService {
      */
     private DeploymentResult updateSingleNodeDeploymentStatus(Node node) {
         try {
-            // 创建或更新ServerNode
-            ServerNode serverNode = serverNodeRepository.findByServerId(node.getServerId()).stream()
-                    .filter(sn -> sn.getId().equals(node.getId())).findFirst().orElse(null);
 
-            if (serverNode == null) {
-                serverNode = createServerNodeFromNode(node);
-            } else {
-                updateServerNodeFromNode(serverNode, node);
-            }
-
-            serverNodeRepository.persist(serverNode);
 
             // 更新节点部署状态
             node.setDeployed(1);
@@ -444,46 +436,6 @@ public class NodeDeploymentService {
         } catch (Exception e) {
             log.error("更新节点 {} 部署状态失败", node.getId(), e);
             return createFailureResult(node, "状态更新失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 从Node创建ServerNode
-     */
-    private ServerNode createServerNodeFromNode(Node node) {
-        ServerNode serverNode = new ServerNode();
-        copyNodeToServerNode(serverNode, node);
-        return serverNode;
-    }
-
-    /**
-     * 从Node更新ServerNode
-     */
-    private void updateServerNodeFromNode(ServerNode serverNode, Node node) {
-        copyNodeToServerNode(serverNode, node);
-    }
-
-    /**
-     * 复制Node属性到ServerNode
-     */
-    private void copyNodeToServerNode(ServerNode serverNode, Node node) {
-        serverNode.setServerId(node.getServerId());
-        serverNode.setId(node.getId());
-        serverNode.setPort(node.getPort());
-        serverNode.setType(node.getType());
-        serverNode.setInbound(node.getInbound());
-        serverNode.setOutId(node.getOutId());
-        serverNode.setRule(node.getRule());
-        serverNode.setLevel(node.getLevel());
-        serverNode.setDisabled(0);
-        serverNode.setName(node.getName());
-        serverNode.setRemark(node.getRemark());
-        serverNode.setUpdateTime(LocalDateTime.now());
-
-        // 提取协议信息
-        if (node.getInbound() != null) {
-            Map<String, Object> inbound = JsonUtil.toObject(node.getInbound(), Map.class);
-            serverNode.setProtocol((String) inbound.get("protocol"));
         }
     }
 

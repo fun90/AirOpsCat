@@ -137,7 +137,6 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.entity.Server.class,
     com.fun90.airopscat.model.entity.ServerConfig.class,
     com.fun90.airopscat.model.entity.Node.class,
-    com.fun90.airopscat.model.entity.ServerNode.class,
     com.fun90.airopscat.model.entity.Domain.class,
     com.fun90.airopscat.model.entity.Tag.class,
     com.fun90.airopscat.model.entity.Transaction.class,
