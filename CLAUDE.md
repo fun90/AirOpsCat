@@ -50,10 +50,10 @@ java -jar target/quarkus-app/quarkus-run.jar
 ./mvnw package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
 
 # Run native executable
-./target/airopscat-2.0.2-runner
+./target/airopscat-2.0.4-runner
 
 # Run with external configuration
-./target/airopscat-2.0.2-runner -Dquarkus.config.locations=./application.properties
+./target/airopscat-2.0.4-runner -Dquarkus.config.locations=./application.properties
 ```
 
 ## Architecture Overview
