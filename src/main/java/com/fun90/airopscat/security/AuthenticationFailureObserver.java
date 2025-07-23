@@ -2,7 +2,6 @@ package com.fun90.airopscat.security;
 
 import io.quarkus.runtime.StartupEvent;
 import io.quarkus.security.AuthenticationFailedException;
-import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -11,6 +10,11 @@ import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Deque;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * 认证失败观察者
  * 监听表单认证失败并处理账户锁定逻辑
@@ -18,20 +22,26 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @ApplicationScoped
 public class AuthenticationFailureObserver {
+    private static final int MAX_REQUESTS_PER_MINUTE = 15; // 每个 IP 每分钟最大请求数
+    private static final long TIME_WINDOW_MS = 60 * 1000; // 1分钟时间窗
+
+    // IP 请求记录 Map：IP -> 时间戳队列
+    private final Map<String, Deque<Long>> ipRequestMap = new ConcurrentHashMap<>();
 
     @Inject
-    LoginFailureHandler loginFailureHandler;
+    AuthenticationHandler authenticationHandler;
 
     /**
      * 在应用启动时注册失败处理器
      */
-    void onStart(@Observes StartupEvent event, Router router, Vertx vertx) {
+    void onStart(@Observes StartupEvent event, Router router) {
         log.info("Registering authentication failure observer");
 
         // 添加失败处理器，在认证失败后执行
         router.route(HttpMethod.POST, "/j_security_check")
-                .order(10000) // 在默认认证处理器之后执行
-              .failureHandler(this::handleAuthenticationFailure);
+                .order(1)
+                .failureHandler(this::handleLoginAttempt)
+                .failureHandler(this::handleAuthenticationFailure);
     }
 
     /**
@@ -62,7 +72,7 @@ public class AuthenticationFailureObserver {
                 // 在工作线程中处理数据库操作
                 context.vertx().executeBlocking(promise -> {
                     try {
-                        loginFailureHandler.handleAuthenticationFailure(finalEmail, errorMessage, context);
+                        authenticationHandler.handleAuthenticationFailure(finalEmail, errorMessage, context);
                         promise.complete();
                     } catch (Exception e) {
                         promise.fail(e);
@@ -101,5 +111,56 @@ public class AuthenticationFailureObserver {
                        .end();
             }
         }
+    }
+
+    /**
+     * 处理登录尝试过滤
+     */
+    private void handleLoginAttempt(RoutingContext context) {
+        try {
+            String ip = getClientIP(context);
+            if (ip == null) {
+                log.error("获取IP地址失败");
+                context.next();
+                return;
+            }
+
+            long now = System.currentTimeMillis();
+            Deque<Long> timestamps = ipRequestMap.computeIfAbsent(ip, k -> new LinkedList<>());
+            synchronized (timestamps) {
+                // 移除过期记录
+                while (!timestamps.isEmpty() && (now - timestamps.peekFirst()) > TIME_WINDOW_MS) {
+                    timestamps.pollFirst();
+                }
+
+                if (timestamps.size() >= MAX_REQUESTS_PER_MINUTE) {
+                    // 返回429状态码（Too Many Requests）
+                    context.response()
+                            .setStatusCode(429)
+                            .end("请求过于频繁，请稍后再试。");
+                    return;
+                }
+
+                timestamps.addLast(now);
+            }
+        } catch (Exception e) {
+            log.error("Error in login attempt filter", e);
+        }
+        context.next();
+    }
+
+    /**
+     * 获取客户端真实 IP
+     */
+    private String getClientIP(RoutingContext context) {
+        String xfHeader = context.request().getHeader("X-Forwarded-For");
+        if (xfHeader == null || xfHeader.isEmpty()) {
+            String realIp = context.request().getHeader("X-Real-IP");
+            if (realIp == null || realIp.isEmpty()) {
+                return context.request().remoteAddress().host();
+            }
+            return realIp;
+        }
+        return xfHeader.split(",")[0].trim();
     }
 }

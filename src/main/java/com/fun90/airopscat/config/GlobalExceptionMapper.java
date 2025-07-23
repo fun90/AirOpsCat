@@ -10,13 +10,12 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.jboss.logging.Logger;
 
+@Slf4j
 @Provider
 public class GlobalExceptionMapper implements ExceptionMapper<Exception> {
-
-    private static final Logger LOG = Logger.getLogger(GlobalExceptionMapper.class);
 
     @Inject
     @Location("error/404")
@@ -34,7 +33,7 @@ public class GlobalExceptionMapper implements ExceptionMapper<Exception> {
         
         // 处理404错误
         if (exception instanceof NotFoundException) {
-            LOG.debugf("404 Not Found: %s", exception.getMessage());
+            log.debug("404 Not Found: {}", exception.getMessage());
             TemplateInstance template = error404.data("appName", appName);
             return Response.status(Response.Status.NOT_FOUND)
                     .entity(template.render())
@@ -47,7 +46,7 @@ public class GlobalExceptionMapper implements ExceptionMapper<Exception> {
             int status = webEx.getResponse().getStatus();
             
             if (status == 500) {
-                LOG.error("Internal Server Error", exception);
+                log.error("Internal Server Error", exception);
                 TemplateInstance template = error500.data("appName", appName);
                 return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                         .entity(template.render())
@@ -60,7 +59,7 @@ public class GlobalExceptionMapper implements ExceptionMapper<Exception> {
         }
         
         // 处理未预期的服务器错误
-        LOG.error("Unexpected server error", exception);
+        log.error("Unexpected server error", exception);
         TemplateInstance template = error500.data("appName", appName);
         return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                 .entity(template.render())

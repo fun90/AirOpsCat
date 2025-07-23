@@ -6,22 +6,21 @@ import io.quarkus.security.identity.SecurityIdentityAugmentor;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.jboss.logging.Logger;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 用户状态检查增强器
  * 在认证成功后检查用户是否被禁用并处理登录成功事件
  */
+@Slf4j
 @ApplicationScoped
 public class UserStatusAugmentor implements SecurityIdentityAugmentor {
-
-    private static final Logger log = Logger.getLogger(UserStatusAugmentor.class);
 
     @Inject
     UserStatusService userStatusService;
 
     @Inject
-    LoginFailureHandler loginFailureHandler;
+    AuthenticationHandler authenticationHandler;
 
     @Override
     public Uni<SecurityIdentity> augment(SecurityIdentity identity, AuthenticationRequestContext context) {
@@ -38,14 +37,13 @@ public class UserStatusAugmentor implements SecurityIdentityAugmentor {
                 // 如果用户状态正常，触发登录成功处理
                 if (!checkedIdentity.isAnonymous()) {
                     String username = checkedIdentity.getPrincipal().getName();
-                    loginFailureHandler.handleAuthenticationSuccess(username);
-                    log.debugf("Authentication success handled for user: %s", username);
+                    authenticationHandler.handleAuthenticationSuccess(username);
+                    log.debug("Authentication success handled for user: {}", username);
                 }
                 
                 return checkedIdentity;
             } catch (Exception e) {
-                log.errorf(e, "Error in user status augmentor for user: %s", 
-                          identity.getPrincipal().getName());
+                log.error("Error in user status augmentor for user: {}",  identity.getPrincipal().getName(), e);
                 throw e;
             }
         });

@@ -8,16 +8,15 @@ import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import org.jboss.logging.Logger;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 登录失败处理器
  * 监听表单认证失败事件并处理账户锁定逻辑
  */
+@Slf4j
 @ApplicationScoped
-public class LoginFailureHandler {
-
-    private static final Logger log = Logger.getLogger(LoginFailureHandler.class);
+public class AuthenticationHandler {
 
     @Inject
     UserService userService;
@@ -31,7 +30,7 @@ public class LoginFailureHandler {
      */
     @Transactional
     public void handleAuthenticationFailure(String username, String errorMessage, RoutingContext context) {
-        log.infof("Authentication failed for user: %s, reason: %s", username, errorMessage);
+        log.info("Authentication failed for user: {}, reason: {}", username, errorMessage);
         
         if (username != null && !username.trim().isEmpty()) {
             User user = userService.getByEmail(username.trim());
@@ -47,7 +46,7 @@ public class LoginFailureHandler {
                     // 检查是否达到锁定限制
                     if (lockService.isAttemptLimitReached(user)) {
                         lockService.lock(user);
-                        log.warnf("Account locked for user: %s due to %d failed attempts", 
+                        log.warn("Account locked for user: {} due to {} failed attempts",
                                 username, LoginLockService.MAX_FAILED_ATTEMPTS);
                         
                         // 设置锁定错误消息
@@ -57,11 +56,11 @@ public class LoginFailureHandler {
                         setErrorMessage(context, lockMessage);
                     } else {
                         int remainingAttempts = lockService.getRemainingAttempts(user);
-                        log.infof("User %s has %d remaining login attempts", username, remainingAttempts);
+                        log.info("User {} has %d remaining login attempts", username, remainingAttempts);
                         
                         // 设置剩余尝试次数消息
                         String attemptMessage = String.format(
-                            "%s 您还有%d次尝试机会。", 
+                            "%s 您还有%d次尝试机会。",
                             errorMessage != null ? errorMessage : "登录失败", 
                             remainingAttempts);
                         setErrorMessage(context, attemptMessage);
@@ -69,7 +68,7 @@ public class LoginFailureHandler {
                 } else {
                     // 账户已锁定
                     long remainingLockTime = lockService.getRemainingLockTime(user);
-                    log.warnf("Login attempt on locked account: %s, remaining lock time: %d minutes", 
+                    log.warn("Login attempt on locked account: {}, remaining lock time: {} minutes",
                             username, remainingLockTime);
                     
                     String lockMessage = String.format(
@@ -89,46 +88,13 @@ public class LoginFailureHandler {
      * 在用户成功登录时调用
      */
     public void handleAuthenticationSuccess(String username) {
-        log.infof("Authentication successful for user: %s", username);
+        log.info("Authentication successful for user: {}", username);
         
         if (username != null && !username.trim().isEmpty()) {
             // 重置失败尝试次数
             lockService.resetFailedAttempts(username.trim());
-            log.debugf("Reset failed attempts for user: %s", username);
+            log.debug("Reset failed attempts for user: {}", username);
         }
-    }
-
-    /**
-     * 检查用户是否被锁定
-     */
-    public boolean isAccountLocked(String username) {
-        if (username == null || username.trim().isEmpty()) {
-            return false;
-        }
-        
-        User user = userService.getByEmail(username.trim());
-        if (user == null) {
-            return false;
-        }
-        
-        return !lockService.isAccountNonLocked(user);
-    }
-
-    /**
-     * 获取账户锁定状态信息
-     */
-    public String getAccountLockMessage(String username) {
-        if (username == null || username.trim().isEmpty()) {
-            return null;
-        }
-        
-        User user = userService.getByEmail(username.trim());
-        if (user != null && !lockService.isAccountNonLocked(user)) {
-            long remainingLockTime = lockService.getRemainingLockTime(user);
-            return String.format("您的账户仍处于锁定状态。请%d分钟后再试。", remainingLockTime);
-        }
-        
-        return null;
     }
 
     /**
