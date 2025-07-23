@@ -4,6 +4,7 @@ import com.fun90.airopscat.model.dto.ClientRequest;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.service.AccountOnlineIpService;
+import com.fun90.airopscat.service.SubscriptionService;
 import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -13,8 +14,6 @@ import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -32,14 +31,14 @@ public class OpenController {
     @Inject
     AccountRepository accountRepository;
 
+    @Inject
+    SubscriptionService subscriptionService;
+
     @ConfigProperty(name = "airopscat.apple.id")
     String appleId;
 
     @ConfigProperty(name = "airopscat.apple.pwd")
     String applePwd;
-
-    @ConfigProperty(name = "airopscat.subscription.url")
-    String subscriptionUrl;
 
     @ConfigProperty(name = "airopscat.api.token")
     String apiToken;
@@ -64,14 +63,14 @@ public class OpenController {
         if (accountOpt.isEmpty()) {
             return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "无效的认证码，账户不存在")).build();
         }
+        Account account = accountOpt.get();
         // 组装subscriptionUrl
-        String base = subscriptionUrl + "/config/" + authCode;
         Map<String, String> subscriptionUrls = Map.of(
-            "windows", base + "/windows/clash-verge/",
-            "linux", base + "/linux/clash-verge/",
-            "ios", base + "/ios/shadowrocket/" + URLEncoder.encode(accountOpt.get().getRemark(), StandardCharsets.UTF_8) + "/",
-            "macos", base + "/macos/clash-verge/",
-            "android", base + "/android/clash-meta/"
+            "windows", subscriptionService.getConfigUrl(account, "windows", "clash-verge"),
+            "linux", subscriptionService.getConfigUrl(account, "linux", "clash-verge"),
+            "ios", subscriptionService.getConfigUrl(account, "ios", "shadowrocket"),
+            "macos", subscriptionService.getConfigUrl(account, "macos", "clash-verge"),
+            "android", subscriptionService.getConfigUrl(account, "android", "clash-meta")
         );
         Map<String, Object> result = new HashMap<>();
         result.put("subscriptionUrl", subscriptionUrls);

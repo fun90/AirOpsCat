@@ -29,7 +29,6 @@ public class SubscriptionController {
     @Inject
     SubscriptionService subscriptionService;
 
-    @Deprecated
     @GET
     @Path("/config/{authCode}/{osName}/{appName}")
     @Produces(MediaType.TEXT_PLAIN)

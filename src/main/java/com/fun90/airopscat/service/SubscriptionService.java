@@ -15,6 +15,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -214,6 +216,18 @@ public class SubscriptionService {
         }
 
         return thymeleafUtil.processStringTemplate(templateContent, templateData);
+    }
+
+    // 获取配置URL
+    public String getConfigUrl(Account account, String osName, String appName) {
+        if (account == null || account.getUuid() == null) {
+            return null;
+        }
+        String url = subscriptionUrl + "/config/" + account.getAuthCode() + "/" + osName + "/" + appName + "/";
+        if ("shadowrocket".equalsIgnoreCase(appName)) {
+            url += URLEncoder.encode(account.getRemark(), StandardCharsets.UTF_8) + "/";
+        }
+        return url;
     }
 
     /**

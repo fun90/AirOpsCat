@@ -6,10 +6,7 @@ import com.fun90.airopscat.model.dto.AccountRequest;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.model.enums.PeriodType;
-import com.fun90.airopscat.service.AccountOnlineIpService;
-import com.fun90.airopscat.service.AccountService;
-import com.fun90.airopscat.service.TagService;
-import com.fun90.airopscat.service.UserService;
+import com.fun90.airopscat.service.*;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
 import io.quarkus.security.identity.SecurityIdentity;
@@ -40,7 +37,9 @@ public class AccountController {
     
     @Inject
     SecurityIdentity securityIdentity;
-    
+    @Inject
+    SubscriptionService subscriptionService;
+
     @Inject
     public AccountController(AccountService accountService, UserService userService, TagService tagService, AccountOnlineIpService accountOnlineIpService) {
         this.accountService = accountService;
@@ -306,7 +305,7 @@ public class AccountController {
         Account account = accountService.getAccountById(id);
         if (account != null) {
             Map<String, String> response = new HashMap<>();
-            response.put("configUrl", accountService.getConfigUrl(account, osName, appName));
+            response.put("configUrl", subscriptionService.getConfigUrl(account, osName, appName));
             return Response.ok(response).build();
         }
         return Response.status(Response.Status.NOT_FOUND).build();

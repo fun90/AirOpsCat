@@ -22,12 +22,8 @@ import java.util.*;
 @ApplicationScoped
 public class AccountService {
 
-    @ConfigProperty(name = "airopscat.subscription.url", defaultValue = "https://example.com")
-    String subscriptionUrl;
-
     @ConfigProperty(name = "airopscat.account.multiplier", defaultValue = "1")
     Integer accountMultiplier;
-
 
     @Inject
     AccountRepository accountRepository;
@@ -290,14 +286,6 @@ public class AccountService {
     // 生成随机账号
     private String generateAccountNo() {
         return UUID.randomUUID().toString().replaceAll("-", "").substring(0, 12);
-    }
-
-    // 获取配置URL
-    public String getConfigUrl(Account account, String osName, String appName) {
-        if (account == null || account.getUuid() == null) {
-            return null;
-        }
-        return subscriptionUrl + "/config/" + account.getAuthCode() + "/" + osName + "/" + appName;
     }
 
 }
