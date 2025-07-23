@@ -1,6 +1,5 @@
 package com.fun90.airopscat.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.SshConfig;
@@ -23,7 +22,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -169,7 +167,6 @@ public class NodeDeploymentService {
      * 部署Xray节点
      */
     private List<DeploymentResult> deployXrayNodes(Long serverId, List<Node> nodes) {
-        List<DeploymentResult> results = new ArrayList<>();
 
         // 1. 生成Xray配置
         XrayConfig xrayConfig = generateXrayConfig(nodes);
@@ -181,9 +178,7 @@ public class NodeDeploymentService {
         deployConfigToServer(serverId, CORE_TYPE_XRAY, serverConfig.getConfig());
 
         // 4. 更新节点状态
-        results.addAll(updateNodeDeploymentStatus(nodes));
-
-        return results;
+        return new ArrayList<>(updateNodeDeploymentStatus(nodes));
     }
 
     /**
@@ -245,8 +240,7 @@ public class NodeDeploymentService {
         InboundConfig inbound = JsonUtil.toObject(node.getInbound(), InboundConfig.class);
         InboundSetting inboundSetting = inbound.getSettings();
         // 如果inboundSetting是VlessInboundSetting，则设置clients
-        if (inboundSetting instanceof VlessInboundSetting) {
-            VlessInboundSetting vlessInboundSetting = (VlessInboundSetting) inboundSetting;
+        if (inboundSetting instanceof VlessInboundSetting vlessInboundSetting) {
             Set<Tag> tags = node.getTags();
             // 直接在数据库层面查询有效的账户，避免在应用层过滤
             List<Account> accounts = tagRepository.findActiveAccountsByTagIds(
@@ -456,7 +450,7 @@ public class NodeDeploymentService {
     /**
      * 从Node创建ServerNode
      */
-    private ServerNode createServerNodeFromNode(Node node) throws JsonProcessingException {
+    private ServerNode createServerNodeFromNode(Node node) {
         ServerNode serverNode = new ServerNode();
         copyNodeToServerNode(serverNode, node);
         return serverNode;
@@ -465,14 +459,14 @@ public class NodeDeploymentService {
     /**
      * 从Node更新ServerNode
      */
-    private void updateServerNodeFromNode(ServerNode serverNode, Node node) throws JsonProcessingException {
+    private void updateServerNodeFromNode(ServerNode serverNode, Node node) {
         copyNodeToServerNode(serverNode, node);
     }
 
     /**
      * 复制Node属性到ServerNode
      */
-    private void copyNodeToServerNode(ServerNode serverNode, Node node) throws JsonProcessingException {
+    private void copyNodeToServerNode(ServerNode serverNode, Node node) {
         serverNode.setServerId(node.getServerId());
         serverNode.setId(node.getId());
         serverNode.setPort(node.getPort());

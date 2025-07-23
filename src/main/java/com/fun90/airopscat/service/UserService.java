@@ -10,7 +10,10 @@ import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class UserService {
@@ -30,7 +33,6 @@ public class UserService {
         Sort sort = Sort.by("createTime").descending();
         
         // Build query string
-        StringBuilder queryBuilder = new StringBuilder();
         Map<String, Object> params = new HashMap<>();
         
         List<String> conditions = new ArrayList<>();

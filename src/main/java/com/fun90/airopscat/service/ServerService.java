@@ -34,7 +34,6 @@ public class ServerService {
         Sort sort = Sort.by("createTime").descending();
         
         // Build query string
-        StringBuilder queryBuilder = new StringBuilder();
         Map<String, Object> params = new HashMap<>();
         
         List<String> conditions = new ArrayList<>();
@@ -84,15 +83,6 @@ public class ServerService {
 
     public Server getServerById(Long id) {
         return serverRepository.findById(id);
-    }
-
-    public Optional<Server> getByIp(String ip) {
-        return serverRepository.findByIp(ip);
-    }
-
-    public List<Server> getExpiringServers(int days) {
-        LocalDate expiryDate = LocalDate.now().plusDays(days);
-        return serverRepository.findExpiringServers(expiryDate);
     }
 
     public Map<String, Long> getServersStats() {
@@ -190,25 +180,6 @@ public class ServerService {
             server.setSshPort(22); // 默认SSH端口
         }
         
-        // 注意：auth 字段现在通过 JPA 转换器自动加密，无需手动处理
-        
-        // 如果有提供配置JSON对象，转换为JSON字符串
-        try {
-            if (server.getTransitConfig() == null) {
-                server.setTransitConfig(null);
-            } else if (!(server.getTransitConfig() instanceof String)) {
-                server.setTransitConfig(objectMapper.writeValueAsString(server.getTransitConfig()));
-            }
-            
-            if (server.getCoreConfig() == null) {
-                server.setCoreConfig(null);
-            } else if (!(server.getCoreConfig() instanceof String)) {
-                server.setCoreConfig(objectMapper.writeValueAsString(server.getCoreConfig()));
-            }
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Error converting config to JSON: " + e.getMessage(), e);
-        }
-        
         serverRepository.persist(server);
         return server;
     }
@@ -218,25 +189,6 @@ public class ServerService {
         Server existingServer = serverRepository.findById(server.getId());
         if (existingServer == null) {
             throw new EntityNotFoundException("Server not found");
-        }
-        
-        // 注意：auth 字段现在通过 JPA 转换器自动加密，无需手动处理
-        
-        // 处理配置JSON
-        try {
-            if (server.getTransitConfig() == null) {
-                server.setTransitConfig(null);
-            } else if (!(server.getTransitConfig() instanceof String)) {
-                server.setTransitConfig(objectMapper.writeValueAsString(server.getTransitConfig()));
-            }
-            
-            if (server.getCoreConfig() == null) {
-                server.setCoreConfig(null);
-            } else if (!(server.getCoreConfig() instanceof String)) {
-                server.setCoreConfig(objectMapper.writeValueAsString(server.getCoreConfig()));
-            }
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Error converting config to JSON: " + e.getMessage(), e);
         }
 
         // Copy non-null properties manually
@@ -306,42 +258,7 @@ public class ServerService {
                 })
                 .collect(Collectors.toList());
     }
-    
-    /**
-     * 获取认证信息（现在直接返回明文，因为 JPA 转换器自动处理解密）
-     * @param serverId 服务器ID
-     * @return 认证信息
-     */
-    public String getAuth(Long serverId) {
-        Server server = serverRepository.findById(serverId);
-        if (server == null) {
-            throw new EntityNotFoundException("Server not found");
-        }
-        
-        return server.getAuth();
-    }
-    
-    /**
-     * 验证认证信息
-     * @param serverId 服务器ID
-     * @param inputAuth 输入的认证信息
-     * @return 是否匹配
-     */
-    public boolean verifyAuth(Long serverId, String inputAuth) {
-        Server server = serverRepository.findById(serverId);
-        if (server == null) {
-            throw new EntityNotFoundException("Server not found");
-        }
-        
-        String serverAuth = server.getAuth();
-        
-        if (serverAuth == null || serverAuth.trim().isEmpty()) {
-            return inputAuth == null || inputAuth.trim().isEmpty();
-        }
-        
-        return serverAuth.equals(inputAuth);
-    }
-    
+
     // 测试服务器连接
     public boolean testConnection(ServerDto server) {
         // 在实际应用中，这里会有一段代码来测试SSH连接

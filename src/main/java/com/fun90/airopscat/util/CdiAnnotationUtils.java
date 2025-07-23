@@ -68,18 +68,14 @@ public final class CdiAnnotationUtils {
                 if (superClass != null && !superClass.equals(Object.class)) {
                     return superClass;
                 }
-                
-                // 尝试查找接口的实现类
-                Class<?>[] interfaces = proxyClass.getInterfaces();
-                for (Class<?> iface : interfaces) {
-                    // 通过类名推断实际实现类
-                    String implClassName = inferImplementationClassName(className);
-                    if (implClassName != null) {
-                        try {
-                            return Class.forName(implClassName);
-                        } catch (ClassNotFoundException e) {
-                            log.debug("无法加载推断的实现类: {}", implClassName);
-                        }
+
+                // 通过类名推断实际实现类
+                String implClassName = inferImplementationClassName(className);
+                if (implClassName != null) {
+                    try {
+                        return Class.forName(implClassName);
+                    } catch (ClassNotFoundException e) {
+                        log.debug("无法加载推断的实现类: {}", implClassName);
                     }
                 }
             } catch (Exception e) {

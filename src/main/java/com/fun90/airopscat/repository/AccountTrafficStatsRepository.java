@@ -2,7 +2,6 @@ package com.fun90.airopscat.repository;
 
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
-import io.quarkus.panache.common.Page;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.LocalDateTime;
@@ -11,26 +10,7 @@ import java.util.List;
 @ApplicationScoped
 public class AccountTrafficStatsRepository implements PanacheRepository<AccountTrafficStats> {
 
-    public List<AccountTrafficStats> findByUserId(Long userId) {
-        return find("userId", userId).list();
-    }
-    
-    public List<AccountTrafficStats> findByAccountId(Long accountId) {
-        return find("accountId", accountId).list();
-    }
-    
-    public List<AccountTrafficStats> findByUserId(Long userId, Page page) {
-        return find("userId", userId).page(page).list();
-    }
-    
-    public List<AccountTrafficStats> findByUserIdAndPeriod(Long userId, LocalDateTime startDate, LocalDateTime endDate) {
-        return find("userId = ?1 and periodStart >= ?2 and periodEnd <= ?3", userId, startDate, endDate).list();
-    }
-    
-    public List<AccountTrafficStats> findByAccountIdAndPeriod(Long accountId, LocalDateTime startDate, LocalDateTime endDate) {
-        return find("accountId = ?1 and periodStart >= ?2 and periodEnd <= ?3", accountId, startDate, endDate).list();
-    }
-    
+
     public Long sumUploadBytesByUserId(Long userId) {
         return find("select sum(uploadBytes) from AccountTrafficStats where userId = ?1", userId)
                 .project(Long.class)

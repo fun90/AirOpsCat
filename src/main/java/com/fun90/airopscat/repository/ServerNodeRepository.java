@@ -12,8 +12,4 @@ public class ServerNodeRepository implements PanacheRepository<ServerNode> {
     public List<ServerNode> findByServerId(Long serverId) {
         return find("serverId", serverId).list();
     }
-    
-    public List<ServerNode> findByNodeId(Long nodeId) {
-        return find("id", nodeId).list();
-    }
 }

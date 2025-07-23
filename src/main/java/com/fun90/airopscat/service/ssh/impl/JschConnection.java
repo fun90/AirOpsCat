@@ -21,7 +21,7 @@ import java.util.Properties;
 public class JschConnection implements SshConnection {
     
     private final SshConfig config;
-    private JSch jsch;
+    private final JSch jsch;
     private Session session;
     private ChannelSftp sftpChannel;
     
@@ -109,33 +109,7 @@ public class JschConnection implements SshConnection {
             outputStream.flush();
         }
     }
-    
-    @Override
-    public void uploadFile(String localPath, String remotePath) throws IOException {
-        if (!isConnected()) {
-            connect();
-        }
-        
-        try {
-            sftpChannel.put(localPath, remotePath);
-        } catch (SftpException e) {
-            throw new IOException("上传文件失败: " + localPath + " -> " + remotePath, e);
-        }
-    }
-    
-    @Override
-    public void downloadFile(String remotePath, String localPath) throws IOException {
-        if (!isConnected()) {
-            connect();
-        }
-        
-        try {
-            sftpChannel.get(remotePath, localPath);
-        } catch (SftpException e) {
-            throw new IOException("下载文件失败: " + remotePath + " -> " + localPath, e);
-        }
-    }
-    
+
     @Override
     public InputStream createInputStream(String remotePath) throws IOException {
         if (!isConnected()) {
@@ -174,7 +148,7 @@ public class JschConnection implements SshConnection {
     }
     
     @Override
-    public void close() throws Exception {
+    public void close() {
         if (sftpChannel != null) {
             sftpChannel.disconnect();
             sftpChannel = null;

@@ -59,9 +59,6 @@ public class ScheduledTaskService {
     
     @Inject
     AccountTrafficStatsService accountTrafficStatsService;
-    
-    @Inject
-    AccountOnlineIpService accountOnlineIpService;
 
     /**
      * 每天凌晨5点执行的任务
@@ -90,7 +87,7 @@ public class ScheduledTaskService {
                             return tagService.getAvailableNodesByAccount(account.getId()).stream();
                         } catch (Exception e) {
                             log.error("获取账户 {} 关联节点时发生错误: {}", account.getId(), e.getMessage());
-                            return java.util.stream.Stream.<Node>empty();
+                            return java.util.stream.Stream.empty();
                         }
                     })
                     .collect(Collectors.toSet());
@@ -254,13 +251,13 @@ public class ScheduledTaskService {
                                     account.getId(),
                                     account.getUserId(),
                                     account.getPeriodType(),
-                                    trafficStats.getUploadBytes(),
-                                    trafficStats.getDownloadBytes()
+                                    trafficStats.uploadBytes(),
+                                    trafficStats.downloadBytes()
                                 );
                                 successCount++;
                                 
                                 log.debug("处理服务器：{} 上的用户 {} 流量统计: 上传 {} 字节, 下载 {} 字节",
-                                        server.getName(), userEmail, trafficStats.getUploadBytes(), trafficStats.getDownloadBytes());
+                                        server.getName(), userEmail, trafficStats.uploadBytes(), trafficStats.downloadBytes());
                             } else {
                                 log.warn("服务器：{} 上未找到用户邮箱 {} 对应的账户", server.getName(), userEmail);
                             }
@@ -287,8 +284,7 @@ public class ScheduledTaskService {
     private List<String> extractUserEmailsFromInbound(InboundConfig inbound) {
         List<String> userEmails = new ArrayList<>();
         
-        if (inbound.getSettings() instanceof VlessInboundSetting) {
-            VlessInboundSetting vlessSettings = (VlessInboundSetting) inbound.getSettings();
+        if (inbound.getSettings() instanceof VlessInboundSetting vlessSettings) {
             if (vlessSettings.getClients() != null) {
                 for (VlessInboundSetting.VlessClient client : vlessSettings.getClients()) {
                     if (client.getEmail() != null && !client.getEmail().trim().isEmpty()) {
@@ -296,8 +292,7 @@ public class ScheduledTaskService {
                     }
                 }
             }
-        } else if (inbound.getSettings() instanceof ShadowsocksInboundSetting) {
-            ShadowsocksInboundSetting ssSettings = (ShadowsocksInboundSetting) inbound.getSettings();
+        } else if (inbound.getSettings() instanceof ShadowsocksInboundSetting ssSettings) {
             if (ssSettings.getClients() != null) {
                 for (ShadowsocksInboundSetting.ShadowsocksClient client : ssSettings.getClients()) {
                     if (client.getEmail() != null && !client.getEmail().trim().isEmpty()) {
@@ -305,8 +300,7 @@ public class ScheduledTaskService {
                     }
                 }
             }
-        } else if (inbound.getSettings() instanceof SocksInboundSetting) {
-            SocksInboundSetting socksSettings = (SocksInboundSetting) inbound.getSettings();
+        } else if (inbound.getSettings() instanceof SocksInboundSetting socksSettings) {
             if (socksSettings.getAccounts() != null) {
                 for (SocksInboundSetting.SocksAccount account : socksSettings.getAccounts()) {
                     if (account.getUser() != null && !account.getUser().trim().isEmpty()) {
@@ -463,46 +457,11 @@ public class ScheduledTaskService {
 
         return sshConfig;
     }
-    
+
     /**
-     * 流量统计数据类
-     */
-    private static class TrafficStats {
-        private final long uploadBytes;
-        private final long downloadBytes;
-        
-        public TrafficStats(long uploadBytes, long downloadBytes) {
-            this.uploadBytes = uploadBytes;
-            this.downloadBytes = downloadBytes;
-        }
-        
-        public long getUploadBytes() {
-            return uploadBytes;
-        }
-        
-        public long getDownloadBytes() {
-            return downloadBytes;
-        }
+         * 流量统计数据类
+         */
+        private record TrafficStats(long uploadBytes, long downloadBytes) {
     }
 
-//    /**
-//     * 每小时执行一次的任务
-//     * 清理过期的在线IP记录
-//     */
-//    @Scheduled(cron = "0 0 * * * ?") // 每小时执行一次
-//    @Transactional
-//    public void cleanupExpiredOnlineRecords() {
-//        log.info("开始执行定时任务：清理过期的在线IP记录");
-//
-//        try {
-//            accountOnlineIpService.cleanupExpiredRecords();
-//            log.info("过期在线IP记录清理完成");
-//
-//        } catch (Exception e) {
-//            log.error("清理过期在线IP记录时发生错误", e);
-//            barkService.sendErrorNotification("AirOpsCat 在线记录清理失败", "清理过期在线IP记录时发生错误: " + e.getMessage());
-//        }
-//
-//        log.info("在线IP记录清理任务执行完成");
-//    }
 } 

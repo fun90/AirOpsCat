@@ -3,16 +3,11 @@ package com.fun90.airopscat;
 import io.quarkus.runtime.Quarkus;
 import io.quarkus.runtime.QuarkusApplication;
 import io.quarkus.runtime.annotations.QuarkusMain;
-import io.quarkus.scheduler.Scheduler;
-import jakarta.inject.Inject;
 
 import java.util.TimeZone;
 
 @QuarkusMain
 public class AirOpsCatApplication implements QuarkusApplication {
-
-    @Inject
-    Scheduler scheduler; // 注入调度器用于替代@EnableScheduling
 
     @Override
     public int run(String... args) throws Exception {

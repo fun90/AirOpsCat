@@ -5,5 +5,5 @@ public enum CoreType {
 
     HYSTERIA2,
 
-    SING_BOX;
+    SING_BOX
 }

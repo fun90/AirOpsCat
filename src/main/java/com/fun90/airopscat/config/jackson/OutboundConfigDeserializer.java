@@ -27,7 +27,7 @@ public class OutboundConfigDeserializer extends JsonDeserializer<OutboundConfig>
 
     @Override
     public OutboundConfig deserialize(JsonParser p, DeserializationContext ctxt)
-            throws IOException, JsonProcessingException {
+            throws IOException {
         
         ObjectMapper mapper = (ObjectMapper) p.getCodec();
         JsonNode rootNode = mapper.readTree(p);

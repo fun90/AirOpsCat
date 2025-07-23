@@ -8,8 +8,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 
-import java.util.Arrays;
-
 /**
  * 内核管理策略注册表
  */
@@ -53,14 +51,5 @@ public class CoreManagementStrategyRegistry extends AbstractStrategyRegistry<Cor
     @Override
     protected String getTypeErrorMessage() {
         return "内核类型不能为空";
-    }
-    
-    @Override
-    protected String formatStrategyDescription(CoreManagementStrategy strategy, SupportedCores annotation) {
-        return String.format("%s (优先级: %d, 描述: %s, 支持系统: %s)", 
-                strategy.getStrategyName(), 
-                annotation.priority(), 
-                annotation.description(),
-                Arrays.toString(annotation.supportedOS()));
     }
 }

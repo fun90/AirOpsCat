@@ -11,17 +11,10 @@ import java.util.List;
 @ApplicationScoped
 public class TransactionRepository implements PanacheRepository<Transaction> {
 
-    public List<Transaction> findByType(Integer type) {
-        return find("type", type).list();
-    }
-    
     public List<Transaction> findByBusinessTableAndBusinessId(String businessTable, Long businessId) {
         return find("businessTable = ?1 and businessId = ?2", businessTable, businessId).list();
     }
     
-    public List<Transaction> findByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
-        return find("transactionDate between ?1 and ?2", startDate, endDate).list();
-    }
     
     public BigDecimal getTotalIncome() {
         return find("select sum(amount) from Transaction where type = 0")

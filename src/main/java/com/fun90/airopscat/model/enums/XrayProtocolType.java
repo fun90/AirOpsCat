@@ -15,7 +15,7 @@ public enum XrayProtocolType {
 
     private final String value;
 
-    private XrayProtocolType(String value) {
+    XrayProtocolType(String value) {
         this.value = value;
     }
 

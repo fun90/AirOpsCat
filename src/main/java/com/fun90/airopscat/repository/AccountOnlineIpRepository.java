@@ -7,7 +7,6 @@ import jakarta.transaction.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * 在线IP记录仓库
@@ -15,20 +14,6 @@ import java.util.Optional;
 @ApplicationScoped
 public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlineIp> {
 
-    /**
-     * 根据accountNo、clientIp和nodeIp查找在线记录
-     */
-    public Optional<AccountOnlineIp> findByAccountNoAndClientIpAndNodeIp(String accountNo, String clientIp, String nodeIp) {
-        return find("accountNo = ?1 and clientIp = ?2 and nodeIp = ?3", accountNo, clientIp, nodeIp).firstResultOptional();
-    }
-    
-    /**
-     * 根据accountNo查找在线记录
-     */
-    public List<AccountOnlineIp> findByAccountNo(String accountNo) {
-        return find("accountNo", accountNo).list();
-    }
-    
     /**
      * 根据accountNo查找在指定时间之后的在线记录
      */
@@ -49,15 +34,7 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
     public List<AccountOnlineIp> findByNodeIp(String nodeIp) {
         return find("nodeIp", nodeIp).list();
     }
-    
-    /**
-     * 删除指定accountNo的所有在线记录
-     */
-    @Transactional
-    public void deleteByAccountNo(String accountNo) {
-        delete("accountNo", accountNo);
-    }
-    
+
     /**
      * 删除过期的在线记录
      */

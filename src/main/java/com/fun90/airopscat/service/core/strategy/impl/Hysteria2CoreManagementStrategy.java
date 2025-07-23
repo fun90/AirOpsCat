@@ -188,10 +188,6 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
             // 停止服务
             stop(connection);
             
-            // 备份当前版本
-            CommandResult backupResult = connection.executeCommand(
-                "sudo cp /usr/local/bin/hysteria /usr/local/bin/hysteria.backup");
-            
             // 下载最新版本
             String updateScript = """
                 #!/bin/bash

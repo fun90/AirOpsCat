@@ -34,23 +34,7 @@ public interface SshConnection extends AutoCloseable {
      * @throws IOException 写入异常
      */
     void writeRemoteFile(String remotePath, String content) throws IOException;
-    
-    /**
-     * 上传文件
-     * @param localPath 本地文件路径
-     * @param remotePath 远程文件路径
-     * @throws IOException 上传异常
-     */
-    void uploadFile(String localPath, String remotePath) throws IOException;
-    
-    /**
-     * 下载文件
-     * @param remotePath 远程文件路径
-     * @param localPath 本地文件路径
-     * @throws IOException 下载异常
-     */
-    void downloadFile(String remotePath, String localPath) throws IOException;
-    
+
     /**
      * 创建SFTP输入流
      * @param remotePath 远程文件路径

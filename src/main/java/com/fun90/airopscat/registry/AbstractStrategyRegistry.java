@@ -33,7 +33,7 @@ public abstract class AbstractStrategyRegistry<S, A extends Annotation> {
         // 按优先级排序策略
         List<S> sortedStrategies = strategyList.stream()
                 .sorted(this::compareStrategyPriority)
-                .collect(Collectors.toList());
+                .toList();
         
         for (S strategy : sortedStrategies) {
             registerStrategy(strategy);
@@ -92,50 +92,14 @@ public abstract class AbstractStrategyRegistry<S, A extends Annotation> {
         
         return strategy;
     }
-    
-    /**
-     * 检查是否支持指定类型
-     */
-    public boolean isSupported(String type) {
-        if (type == null || type.trim().isEmpty()) {
-            return false;
-        }
-        return strategies.containsKey(type.toLowerCase().trim());
-    }
-    
+
     /**
      * 获取所有已注册的类型
      */
     public Set<String> getRegisteredTypes() {
         return new HashSet<>(strategies.keySet());
     }
-    
-    /**
-     * 获取策略信息
-     */
-    public Map<String, String> getStrategyInfo() {
-        Map<String, String> info = new HashMap<>();
-        for (Map.Entry<String, S> entry : strategies.entrySet()) {
-            String type = entry.getKey();
-            S strategy = entry.getValue();
-            A annotation = strategyMetadata.get(type);
-            
-            String description = formatStrategyDescription(strategy, annotation);
-            info.put(type, description);
-        }
-        return info;
-    }
-    
-    /**
-     * 获取指定类型的策略元数据
-     */
-    public Optional<A> getStrategyMetadata(String type) {
-        if (type == null || type.trim().isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.ofNullable(strategyMetadata.get(type.toLowerCase().trim()));
-    }
-    
+
     /**
      * 比较策略优先级
      */
@@ -193,9 +157,5 @@ public abstract class AbstractStrategyRegistry<S, A extends Annotation> {
      * 获取类型错误消息
      */
     protected abstract String getTypeErrorMessage();
-    
-    /**
-     * 格式化策略描述
-     */
-    protected abstract String formatStrategyDescription(S strategy, A annotation);
+
 }

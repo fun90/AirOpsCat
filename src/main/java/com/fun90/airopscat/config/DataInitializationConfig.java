@@ -20,9 +20,6 @@ public class DataInitializationConfig {
     @Inject
     UserRepository userRepository;
 
-    @Inject
-    io.quarkus.security.runtime.SecurityIdentityAssociation identityAssociation;
-    
     /**
      * 使用BCrypt编码密码，与Quarkus Security兼容
      */

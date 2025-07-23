@@ -1,9 +1,7 @@
 package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.vo.MenuItem;
-import com.fun90.airopscat.service.UserService;
 import io.quarkus.qute.Template;
-import io.quarkus.qute.TemplateInstance;
 import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -28,9 +26,6 @@ public class HomeController {
     String appName;
 
     @Inject
-    UserService userService;
-
-    @Inject
     Template layout;
 
     @Inject
@@ -39,8 +34,7 @@ public class HomeController {
     private final Map<String, MenuItem> menu = new HashMap<>();
 
     @Inject
-    public HomeController(UserService userService) {
-        this.userService = userService;
+    public HomeController() {
         menu.put("/person/user", new MenuItem("人员", "用户管理", "添加用户，编辑用户，查看用户", "/person/user"));
         menu.put("/person/account", new MenuItem("人员", "账户管理", "添加账户，编辑账户，查看账户详情/列表", "/person/account"));
         menu.put("/person/account-traffic", new MenuItem("人员", "账户流量", "查看流程统计", "/person/account-traffic"));

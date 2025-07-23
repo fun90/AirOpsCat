@@ -1,6 +1,5 @@
 package com.fun90.airopscat.service.core;
 
-import com.fun90.airopscat.model.dto.BatchCoreManagementResult;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.enums.CoreOperation;
@@ -13,10 +12,6 @@ import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * 内核管理服务
@@ -30,8 +25,6 @@ public class CoreManagementService {
     
     @Inject
     SshConnectionService sshConnectionService;
-    
-    private final ExecutorService executorService = Executors.newCachedThreadPool();
 
     /**
      * 执行内核管理操作
@@ -61,37 +54,7 @@ public class CoreManagementService {
         }
     }
 
-    /**
-     * 批量执行内核管理操作
-     */
-    public BatchCoreManagementResult executeBatchOperation(String coreType, CoreOperation operation,
-                                                           List<SshConfig> sshConfigs, Object... params) {
-        List<CompletableFuture<CoreManagementResult>> futures = sshConfigs.stream()
-            .map(config -> CompletableFuture.supplyAsync(() -> 
-                executeOperation(coreType, operation, config, params), executorService))
-            .toList();
-
-        // 等待所有操作完成
-        List<CoreManagementResult> results = futures.stream()
-            .map(CompletableFuture::join)
-            .toList();
-
-        // 构建批量结果
-        BatchCoreManagementResult batchResult = new BatchCoreManagementResult();
-        batchResult.addResults(results);
-        batchResult.setOperationTime(LocalDateTime.now());
-        batchResult.setOperation(operation.name());
-        
-        // 统计成功和失败数量
-        long successCount = results.stream().mapToLong(r -> r.isSuccess() ? 1 : 0).sum();
-        batchResult.setSuccessCount((int) successCount);
-        batchResult.setFailureCount(results.size() - (int) successCount);
-        batchResult.setTotalCount(results.size());
-
-        return batchResult;
-    }
-
-    private CoreManagementResult executeOperationInternal(CoreManagementStrategy strategy, 
+    private CoreManagementResult executeOperationInternal(CoreManagementStrategy strategy,
                                                          CoreOperation operation,
                                                          SshConnection connection, 
                                                          Object... params) {

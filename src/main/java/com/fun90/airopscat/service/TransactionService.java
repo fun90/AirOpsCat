@@ -45,7 +45,6 @@ public class TransactionService {
                                          String businessTable, Long businessId,
                                          LocalDateTime startDate, LocalDateTime endDate) {
         // Build query string
-        StringBuilder queryBuilder = new StringBuilder();
         Map<String, Object> params = new HashMap<>();
         
         List<String> conditions = new ArrayList<>();
@@ -155,19 +154,21 @@ public class TransactionService {
     }
     
     private String getBusinessName(String businessTable, Long businessId) {
-        switch (businessTable.toLowerCase()) {
-            case "account":
+        return switch (businessTable.toLowerCase()) {
+            case "account" -> {
                 Account account = accountRepository.findById(businessId);
-                return account != null ? account.getRemark() : "未知账户";
-            case "domain":
+                yield account != null ? account.getRemark() : "未知账户";
+            }
+            case "domain" -> {
                 Domain domain = domainRepository.findById(businessId);
-                return domain != null ? domain.getDomain() : "未知域名";
-            case "server":
+                yield domain != null ? domain.getDomain() : "未知域名";
+            }
+            case "server" -> {
                 Server server = serverRepository.findById(businessId);
-                return server != null ? server.getIp() + (server.getName() != null ? " (" + server.getName() + ")" : "") : "未知服务器";
-            default:
-                return "未知关联业务";
-        }
+                yield server != null ? server.getIp() + (server.getName() != null ? " (" + server.getName() + ")" : "") : "未知服务器";
+            }
+            default -> "未知关联业务";
+        };
     }
 
     @Transactional
@@ -219,8 +220,6 @@ public class TransactionService {
      */
     public List<Map<String, Object>> getMonthlyStats(int months) {
         List<Map<String, Object>> monthlyStats = new ArrayList<>();
-        
-        LocalDateTime now = LocalDateTime.now();
         
         for (int i = 0; i < months; i++) {
             YearMonth yearMonth = YearMonth.now().minusMonths(i);

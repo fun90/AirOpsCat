@@ -17,6 +17,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -108,13 +109,13 @@ public class AccountOnlineIpService {
      */
     @Transactional
     public void cleanupExpiredRecords() {
-        LocalDateTime expireTime = LocalDateTime.now().minusMinutes(checkMinutes * 2); // 清理超过2倍检查时间的记录
+        LocalDateTime expireTime = LocalDateTime.now().minusMinutes(checkMinutes * 2L); // 清理超过2倍检查时间的记录
         
         // 使用重试机制处理数据库锁定问题
         int maxRetries = 3;
         int retryCount = 0;
         
-        while (retryCount < maxRetries) {
+        while (true) {
             try {
                 accountOnlineIpRepository.deleteExpiredRecords(expireTime);
                 log.info("Successfully cleaned up expired online records before {}", expireTime);
@@ -127,7 +128,7 @@ public class AccountOnlineIpService {
                                 retryCount, maxRetries);
                         // 等待一段时间后重试
                         try {
-                            Thread.sleep(200 * retryCount); // 递增等待时间
+                            Thread.sleep(200L * retryCount); // 递增等待时间
                         } catch (InterruptedException ie) {
                             Thread.currentThread().interrupt();
                             throw new RuntimeException("Cleanup expired records interrupted", ie);
@@ -143,13 +144,6 @@ public class AccountOnlineIpService {
                 }
             }
         }
-    }
-
-    /**
-     * 获取检查时间配置
-     */
-    public int getCheckMinutes() {
-        return checkMinutes;
     }
     
     /**
@@ -216,7 +210,7 @@ public class AccountOnlineIpService {
     private Map<Long, User> getUserMap(java.util.Collection<Account> accounts) {
         List<Long> userIds = accounts.stream()
                 .map(Account::getUserId)
-                .filter(id -> id != null)
+                .filter(Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList());
         

@@ -1,7 +1,7 @@
 package com.fun90.airopscat.util;
 
-import java.util.concurrent.ThreadLocalRandom;
 import java.security.SecureRandom;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * GraalVM Native Image友好的随机工具类

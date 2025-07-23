@@ -29,7 +29,6 @@ public class DomainService {
         Sort sort = Sort.by("expireDate").ascending();
         
         // Build query string
-        StringBuilder queryBuilder = new StringBuilder();
         Map<String, Object> params = new HashMap<>();
         
         List<String> conditions = new ArrayList<>();
@@ -64,17 +63,9 @@ public class DomainService {
         return domainRepository.findById(id);
     }
 
-    public Optional<Domain> getByDomainName(String domain) {
-        return domainRepository.findByDomain(domain);
-    }
-
     public List<Domain> getExpiringDomains(int days) {
         LocalDate expiryDate = LocalDate.now().plusDays(days);
         return domainRepository.findExpiringDomains(expiryDate);
-    }
-
-    public List<Domain> getDomainsExpiringBetween(LocalDate startDate, LocalDate endDate) {
-        return domainRepository.findDomainsExpiringBetween(startDate, endDate);
     }
 
     public Long countExpiredDomains() {
@@ -147,42 +138,5 @@ public class DomainService {
     public void deleteDomain(Long id) {
         domainRepository.deleteById(id);
     }
-    
-    // 获取域名状态描述
-    public String getDomainStatusDescription(LocalDate expireDate) {
-        if (expireDate == null) {
-            return "未设置到期日";
-        }
-        
-        LocalDate today = LocalDate.now();
-        long daysUntilExpiration = ChronoUnit.DAYS.between(today, expireDate);
-        
-        if (daysUntilExpiration < 0) {
-            return "已过期 " + Math.abs(daysUntilExpiration) + " 天";
-        } else if (daysUntilExpiration == 0) {
-            return "今天到期";
-        } else if (daysUntilExpiration <= 30) {
-            return "即将到期 " + daysUntilExpiration + " 天";
-        } else {
-            return "正常 (还有 " + daysUntilExpiration + " 天)";
-        }
-    }
-    
-    // 获取域名状态类型（用于前端展示不同颜色）
-    public String getDomainStatusType(LocalDate expireDate) {
-        if (expireDate == null) {
-            return "warning";
-        }
-        
-        LocalDate today = LocalDate.now();
-        long daysUntilExpiration = ChronoUnit.DAYS.between(today, expireDate);
-        
-        if (daysUntilExpiration < 0) {
-            return "danger";
-        } else if (daysUntilExpiration <= 30) {
-            return "warning";
-        } else {
-            return "success";
-        }
-    }
+
 }

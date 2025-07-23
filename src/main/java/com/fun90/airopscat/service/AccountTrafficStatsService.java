@@ -1,8 +1,6 @@
 package com.fun90.airopscat.service;
 
-import com.fun90.airopscat.model.dto.AccountTrafficStatsDto;
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
-import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.UserRepository;
 import io.quarkus.panache.common.Sort;
@@ -29,7 +27,7 @@ public class AccountTrafficStatsService {
         this.userRepository = userRepository;
     }
 
-    public io.quarkus.hibernate.orm.panache.PanacheQuery<AccountTrafficStats> getStatsPage(String search, Long userId, Long accountId, 
+    public io.quarkus.hibernate.orm.panache.PanacheQuery<AccountTrafficStats> getStatsPage(String search, Long userId, Long accountId,
                                                 LocalDateTime startDate, LocalDateTime endDate) {
         StringBuilder query = new StringBuilder("1=1");
         Map<String, Object> params = new HashMap<>();
@@ -61,22 +59,6 @@ public class AccountTrafficStatsService {
         return accountTrafficStatsRepository.findById(id);
     }
 
-    public List<AccountTrafficStats> getStatsByUser(Long userId) {
-        return accountTrafficStatsRepository.findByUserId(userId);
-    }
-
-    public List<AccountTrafficStats> getStatsByAccount(Long accountId) {
-        return accountTrafficStatsRepository.findByAccountId(accountId);
-    }
-
-    public List<AccountTrafficStats> getStatsByUserAndPeriod(Long userId, LocalDateTime startDate, LocalDateTime endDate) {
-        return accountTrafficStatsRepository.findByUserIdAndPeriod(userId, startDate, endDate);
-    }
-
-    public List<AccountTrafficStats> getStatsByAccountAndPeriod(Long accountId, LocalDateTime startDate, LocalDateTime endDate) {
-        return accountTrafficStatsRepository.findByAccountIdAndPeriod(accountId, startDate, endDate);
-    }
-
     public List<AccountTrafficStats> getStatsByAccountAndCurrentTime(Long accountId, LocalDateTime currentTime) {
         return accountTrafficStatsRepository.findByAccountIdAndCurrentTime(accountId, currentTime);
     }
@@ -99,22 +81,6 @@ public class AccountTrafficStatsService {
     public Long getTotalDownloadByAccount(Long accountId) {
         Long sum = accountTrafficStatsRepository.sumDownloadBytesByAccountId(accountId);
         return sum != null ? sum : 0L;
-    }
-
-    public AccountTrafficStatsDto convertToDto(AccountTrafficStats stats) {
-        AccountTrafficStatsDto dto = new AccountTrafficStatsDto();
-        copyProperties(stats, dto);
-        dto.setTotalBytes(stats.getUploadBytes() + stats.getDownloadBytes());
-        
-        // Enrich with user email if available
-        if (stats.getUserId() != null) {
-            User user = userRepository.findById(stats.getUserId());
-            if (user != null) {
-                dto.setUserEmail(user.getEmail());
-            }
-        }
-        
-        return dto;
     }
 
     @Transactional
@@ -140,17 +106,6 @@ public class AccountTrafficStatsService {
 
         // No need to call save/persist for updates in Panache
         return existingStats;
-    }
-
-    // Manual property copying to replace BeanUtils
-    private void copyProperties(AccountTrafficStats src, AccountTrafficStatsDto target) {
-        target.setId(src.getId());
-        target.setUserId(src.getUserId());
-        target.setAccountId(src.getAccountId());
-        target.setPeriodStart(src.getPeriodStart());
-        target.setPeriodEnd(src.getPeriodEnd());
-        target.setUploadBytes(src.getUploadBytes());
-        target.setDownloadBytes(src.getDownloadBytes());
     }
 
     // Copy non-null properties manually
@@ -182,7 +137,7 @@ public class AccountTrafficStatsService {
         
         if (!existingStats.isEmpty()) {
             // 如果找到记录，累加流量数据
-            AccountTrafficStats stats = existingStats.get(0);
+            AccountTrafficStats stats = existingStats.getFirst();
             stats.setUploadBytes(stats.getUploadBytes() + uploadBytes);
             stats.setDownloadBytes(stats.getDownloadBytes() + downloadBytes);
             // No need to call save/persist for updates in Panache
@@ -205,17 +160,17 @@ public class AccountTrafficStatsService {
      * 根据统计周期类型计算周期结束时间
      */
     private LocalDateTime calculatePeriodEnd(LocalDateTime periodStart, String periodType) {
-        switch (periodType.toUpperCase()) {
-            case "MONTHLY":
+        return switch (periodType.toUpperCase()) {
+            case "MONTHLY" ->
                 // 月周期：从当前时间开始，1个月后
-                return periodStart.plusMonths(1).minusNanos(1);
-            case "YEARLY":
+                    periodStart.plusMonths(1).minusNanos(1);
+            case "YEARLY" ->
                 // 年周期：从当前时间开始，1年后
-                return periodStart.plusYears(1).minusNanos(1);
-            default:
+                    periodStart.plusYears(1).minusNanos(1);
+            default ->
                 // 默认使用月周期
-                return periodStart.plusMonths(1).minusNanos(1);
-        }
+                    periodStart.plusMonths(1).minusNanos(1);
+        };
     }
 
     // 格式化流量大小 (B, KB, MB, GB)

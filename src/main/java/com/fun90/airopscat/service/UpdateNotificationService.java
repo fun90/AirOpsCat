@@ -1,10 +1,8 @@
 package com.fun90.airopscat.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
-import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
@@ -15,12 +13,6 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 @ApplicationScoped
 @Slf4j
 public class UpdateNotificationService {
-
-    @Inject
-    private ObjectMapper objectMapper;
-
-    @ConfigProperty(name = "app.githubURL")
-    String githubURL;
 
     @ConfigProperty(name = "app.version")
     String currentVersion;

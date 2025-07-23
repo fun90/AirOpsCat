@@ -11,6 +11,7 @@ import jakarta.ws.rs.client.WebTarget;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
@@ -19,16 +20,30 @@ import java.net.URI;
 /**
  * Bark通知服务
  * 用于通过HTTP请求发送通知到Bark服务器
- * 支持GET和POST两种请求方式
- * 参考Bark官方文档: https://github.com/Finb/Bark
+ * 支持GET和POST两种请求方式<br>
+ * <a href="https://github.com/Finb/Bark">参考Bark官方文档</a>
  */
 @Slf4j
 @ApplicationScoped
 public class BarkService {
 
+    /**
+     * -- GETTER --
+     *  获取Bark URL
+     *
+     * @return Bark URL
+     */
+    @Getter
     @ConfigProperty(name = "airopscat.bark.url", defaultValue = "")
     String barkUrl;
 
+    /**
+     * -- GETTER --
+     *  获取设备密钥
+     *
+     * @return 设备密钥
+     */
+    @Getter
     @ConfigProperty(name = "airopscat.bark.device-key", defaultValue = "")
     String deviceKey;
 
@@ -160,24 +175,6 @@ public class BarkService {
     public boolean isBarkConfigured() {
         return barkUrl != null && !barkUrl.trim().isEmpty() && 
                deviceKey != null && !deviceKey.trim().isEmpty();
-    }
-
-    /**
-     * 获取Bark URL
-     *
-     * @return Bark URL
-     */
-    public String getBarkUrl() {
-        return barkUrl;
-    }
-
-    /**
-     * 获取设备密钥
-     *
-     * @return 设备密钥
-     */
-    public String getDeviceKey() {
-        return deviceKey;
     }
 
     /**

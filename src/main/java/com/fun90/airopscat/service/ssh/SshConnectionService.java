@@ -18,7 +18,7 @@ public class SshConnectionService {
     /**
      * 创建SSH连接 - API保持简单
      */
-    public SshConnection createConnection(SshConfig config) throws IOException {
+    public SshConnection createConnection(SshConfig config) {
         log.debug("创建SSH连接: {}:{}", config.getHost(), config.getPort());
         return connectionProvider.createConnection(config);
     }

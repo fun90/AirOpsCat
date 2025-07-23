@@ -52,12 +52,4 @@ public class ConversionStrategyRegistry extends AbstractStrategyRegistry<Convers
     protected String getTypeErrorMessage() {
         return "Protocol cannot be null or empty";
     }
-    
-    @Override
-    protected String formatStrategyDescription(ConversionStrategy strategy, SupportedProtocols annotation) {
-        return String.format("%s (Priority: %d, Description: %s)", 
-                strategy.getStrategyName(), 
-                annotation.priority(), 
-                annotation.description());
-    }
 }

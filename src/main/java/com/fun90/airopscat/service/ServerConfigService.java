@@ -34,7 +34,6 @@ public class ServerConfigService {
      */
     public io.quarkus.hibernate.orm.panache.PanacheQuery<ServerConfig> getServerConfigPage(String search, String configType) {
         // Build query string
-        StringBuilder queryBuilder = new StringBuilder();
         Map<String, Object> params = new HashMap<>();
         
         List<String> conditions = new ArrayList<>();
@@ -66,13 +65,6 @@ public class ServerConfigService {
      */
     public ServerConfig getServerConfigById(Long id) {
         return serverConfigRepository.findById(id);
-    }
-
-    /**
-     * 根据服务器ID和配置类型获取配置
-     */
-    public ServerConfig getServerConfigByServerIdAndType(Long serverId, String configType) {
-        return serverConfigRepository.findByServerIdAndConfigType(serverId, configType).orElse(null);
     }
 
     /**

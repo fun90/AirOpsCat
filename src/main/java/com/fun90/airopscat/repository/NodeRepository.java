@@ -2,7 +2,6 @@ package com.fun90.airopscat.repository;
 
 import com.fun90.airopscat.model.entity.Node;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
-import io.quarkus.panache.common.Page;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
@@ -17,10 +16,6 @@ public class NodeRepository implements PanacheRepository<Node> {
     public List<Node> findByType(Integer type) {
         return find("type", type).list();
     }
-    
-    public List<Node> findByDisabled(Integer disabled) {
-        return find("disabled", disabled).list();
-    }
 
     public List<Node> findByDeployed(Integer deployed) {
         return find("deployed", deployed).list();
@@ -30,18 +25,7 @@ public class NodeRepository implements PanacheRepository<Node> {
         return find("deployed = ?1 and id in ?2", deployed, nodeIds).list();
     }
 
-    public List<Node> findByLevel(Integer level) {
-        return find("level", level).list();
-    }
-    
-    public List<Node> searchByKeyword(String keyword, Page page) {
-        return find("name like ?1 or remark like ?1", "%" + keyword + "%").page(page).list();
-    }
-    
-    public List<Node> findActiveNodesByServerId(Long serverId) {
-        return find("serverId = ?1 and disabled = 0", serverId).list();
-    }
-    
+
     public long countProxyNodes() {
         return count("type = 0");
     }

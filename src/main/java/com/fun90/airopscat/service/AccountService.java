@@ -10,17 +10,14 @@ import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.UserRepository;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
-import io.quarkus.panache.common.Sort;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class AccountService {
@@ -49,7 +46,6 @@ public class AccountService {
         Sort sort = Sort.by("createTime").descending();
         
         // Build query string
-        StringBuilder queryBuilder = new StringBuilder();
         Map<String, Object> params = new HashMap<>();
         
         List<String> conditions = new ArrayList<>();
@@ -103,19 +99,6 @@ public class AccountService {
         return accountRepository.findById(id);
     }
 
-    public Optional<Account> getByUuid(String uuid) {
-        return accountRepository.findByUuid(uuid);
-    }
-
-    public List<Account> getAccountsByUser(Long userId) {
-        return accountRepository.findByUserId(userId);
-    }
-
-    public List<Account> getExpiringAccounts(int days) {
-        LocalDateTime expiryDate = LocalDateTime.now().plusDays(days);
-        return accountRepository.findExpiringAccounts(expiryDate);
-    }
-
     public Map<String, Long> getAccountsStats() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime inOneWeek = now.plusWeeks(1);
@@ -129,7 +112,7 @@ public class AccountService {
         
         // 添加在线用户统计（按accountNo去重）
         long onlineUsers = accountOnlineIpService.getAllOnlineRecords().stream()
-                .map(ip -> ip.getAccountNo())
+                .map(AccountOnlineIpDto::getAccountNo)
                 .distinct()
                 .count();
         stats.put("onlineUsers", onlineUsers * accountMultiplier);
@@ -308,20 +291,7 @@ public class AccountService {
     private String generateAccountNo() {
         return UUID.randomUUID().toString().replaceAll("-", "").substring(0, 12);
     }
-    
-    // 格式化流量大小 (B, KB, MB, GB)
-    public String formatBytes(long bytes) {
-        if (bytes < 1024) {
-            return bytes + " B";
-        } else if (bytes < 1024 * 1024) {
-            return String.format("%.2f KB", bytes / 1024.0);
-        } else if (bytes < 1024 * 1024 * 1024) {
-            return String.format("%.2f MB", bytes / (1024.0 * 1024));
-        } else {
-            return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
-        }
-    }
-    
+
     // 获取配置URL
     public String getConfigUrl(Account account, String osName, String appName) {
         if (account == null || account.getUuid() == null) {
@@ -329,9 +299,5 @@ public class AccountService {
         }
         return subscriptionUrl + "/config/" + account.getAuthCode() + "/" + osName + "/" + appName;
     }
-    
-    // 获取指定用户的账户数量
-    public Long countAccountsByUser(Long userId) {
-        return accountRepository.countByUserId(userId);
-    }
+
 }

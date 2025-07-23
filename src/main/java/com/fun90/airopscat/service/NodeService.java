@@ -14,7 +14,6 @@ import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.ProtocolType;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
-import com.fun90.airopscat.util.RandomHexGenerator;
 import com.fun90.airopscat.util.NativeRandomUtils;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -28,7 +27,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -83,7 +81,7 @@ public class NodeService {
         } catch (IOException | InterruptedException e) {
             log.error("Failed to generate X25519 keys", e);
             // Fallback to hardcoded keys if xray command fails
-            return new String[]{"oCimWp0T_57KU3fPrBeL9Wl7G84Iy7gDyytAqJHOKlM", "dTW1Gg2HvMsmio2jYt5vDyEITDYQxp-8LUsAkRVnpDE"};
+            return new String[]{"ABR3X0eLYM_6CRHTFepn7GrpSHEFCYqzGFaZ6Uj1L0E", "_bhnIqIPO2m2ov5JY3BTroTVPpZk40Xbf6WLlRCxASw"};
         }
     }
 
@@ -132,10 +130,6 @@ public class NodeService {
         return nodeRepository.findByServerId(serverId);
     }
 
-    public List<Node> getActiveNodesByServer(Long serverId) {
-        return nodeRepository.findActiveNodesByServerId(serverId);
-    }
-
     public Map<String, Long> getNodesStats() {
         Map<String, Long> stats = new HashMap<>();
         stats.put("total", nodeRepository.count());
@@ -174,23 +168,6 @@ public class NodeService {
             throw new IllegalArgumentException("Port " + node.getPort() + " is already in use on this server");
         }
         
-        // 处理JSON配置
-        try {
-            if (node.getInbound() == null) {
-                node.setInbound(null);
-            } else if (!(node.getInbound() instanceof String)) {
-                node.setInbound(objectMapper.writeValueAsString(node.getInbound()));
-            }
-            
-            if (node.getRule() == null) {
-                node.setRule(null);
-            } else if (!(node.getRule() instanceof String)) {
-                node.setRule(objectMapper.writeValueAsString(node.getRule()));
-            }
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Error converting config to JSON: " + e.getMessage(), e);
-        }
-        
         nodeRepository.persist(node);
         return node;
     }
@@ -206,23 +183,6 @@ public class NodeService {
         if (node.getServerId() != null && node.getPort() != null &&
                 !isPortAvailable(node.getServerId(), node.getPort(), node.getId())) {
             throw new IllegalArgumentException("Port " + node.getPort() + " is already in use on this server");
-        }
-
-        // 处理JSON配置
-        try {
-            if (node.getInbound() == null) {
-                node.setInbound(null);
-            } else if (!(node.getInbound() instanceof String)) {
-                node.setInbound(objectMapper.writeValueAsString(node.getInbound()));
-            }
-
-            if (node.getRule() == null) {
-                node.setRule(null);
-            } else if (!(node.getRule() instanceof String)) {
-                node.setRule(objectMapper.writeValueAsString(node.getRule()));
-            }
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Error converting config to JSON: " + e.getMessage(), e);
         }
 
         // 检查节点是否有实质性变更
@@ -299,11 +259,7 @@ public class NodeService {
         }
 
         // 其他可能影响部署的字段...
-        if (newNode.getDisabled() != null && !newNode.getDisabled().equals(oldNode.getDisabled())) {
-            return true;
-        }
-
-        return false;
+        return newNode.getDisabled() != null && !newNode.getDisabled().equals(oldNode.getDisabled());
     }
 
     // 工具方法：手动复制非null属性（替代Spring BeanUtils）
@@ -404,7 +360,7 @@ public class NodeService {
                 // Randomly select destination and server name
                 String selectedDest = NativeRandomUtils.randomChoice(DESTINATIONS);
                 realitySettings.setDest(selectedDest + ":443");
-                realitySettings.setServerNames(Arrays.asList(selectedDest));
+                realitySettings.setServerNames(Collections.singletonList(selectedDest));
                 
                 // Generate X25519 keys
                 String[] keys = generateX25519Keys();
@@ -412,8 +368,8 @@ public class NodeService {
                 realitySettings.setPublicKey(keys[1]);
                 
                 // Generate random short IDs
-                String shortId = RandomHexGenerator.generateRandomHex(16);
-                realitySettings.setShortIds(Arrays.asList(shortId));
+                String shortId = NativeRandomUtils.generateRandomHexFast(16);
+                realitySettings.setShortIds(List.of(shortId));
                 streamSetting.setRealitySettings(realitySettings);
                 inbound.setStreamSettings(streamSetting);
                 break;
@@ -432,10 +388,10 @@ public class NodeService {
                 
                 // Create SOCKS account with random user and password
                 SocksInboundSetting.SocksAccount account = new SocksInboundSetting.SocksAccount();
-                account.setUser(RandomHexGenerator.generateRandomHex(12));
+                account.setUser(NativeRandomUtils.generateRandomHexFast(12));
                 account.setPass(generateRandomPassword(20));
                 
-                socksInboundSetting.setAccounts(Arrays.asList(account));
+                socksInboundSetting.setAccounts(List.of(account));
                 socksInboundSetting.setUdp(true);
                 socksInboundSetting.setIp("127.0.0.1");
                 

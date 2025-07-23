@@ -34,7 +34,6 @@ public class TagService {
         Sort sort = Sort.by("createTime").descending();
         
         // Build query string
-        StringBuilder queryBuilder = new StringBuilder();
         Map<String, Object> params = new HashMap<>();
         
         List<String> conditions = new ArrayList<>();

@@ -33,24 +33,5 @@ public class ThymeleafUtil {
             throw new RuntimeException("Failed to process string template", e);
         }
     }
-    
-    /**
-     * 使用Qute处理模板文件
-     * Note: In Quarkus, templates are typically loaded from src/main/resources/templates
-     */
-    public String processTemplate(String templateName, Map<String, Object> variables) {
-        try {
-            // 获取模板
-            TemplateInstance instance = engine.getTemplate(templateName).instance();
-            
-            // 添加变量
-            if (variables != null) {
-                variables.forEach(instance::data);
-            }
-            
-            return instance.render();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to process template: " + templateName, e);
-        }
-    }
+
 }

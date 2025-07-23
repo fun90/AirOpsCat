@@ -5,8 +5,6 @@ import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.impl.JschConnection;
 import jakarta.enterprise.context.ApplicationScoped;
 
-import java.io.IOException;
-
 /**
  * JSch SSH连接提供者
  * 完全兼容 GraalVM Native Image
@@ -15,7 +13,7 @@ import java.io.IOException;
 public class JschConnectionProvider implements SshConnectionProvider {
     
     @Override
-    public SshConnection createConnection(SshConfig config) throws IOException {
+    public SshConnection createConnection(SshConfig config) {
         return new JschConnection(config);
     }
 } 
