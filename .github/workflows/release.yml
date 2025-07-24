@@ -16,12 +16,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
         include:
           - os: ubuntu-latest
             platform: linux
             executable_suffix: ""
-            artifact_name: airopscat-linux-amd64
           - os: windows-latest
             platform: windows
             executable_suffix: ".exe"
@@ -37,7 +35,6 @@ jobs:
         java-version: '21'
         distribution: 'graalvm-community'
         github-token: ${{ secrets.GITHUB_TOKEN }}
-        native-image-job-reports: 'true'
 
     - name: Cache Maven dependencies
       uses: actions/cache@v4
@@ -88,7 +85,7 @@ jobs:
 
     - name: Build native executable (Linux)
       if: matrix.os == 'ubuntu-latest'
-      run: ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g -Dquarkus.native.compression.level=10
+      run: ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
       timeout-minutes: 40
 
     - name: Rename executable (Windows)
@@ -97,70 +94,37 @@ jobs:
         move target\airopscat-*-runner.exe target\${{ matrix.artifact_name }}
       shell: cmd
 
-    - name: Rename executable (Unix)
-      if: matrix.os != 'windows-latest'
+    - name: Create both Linux versions (regular and UPX)
+      if: matrix.os == 'ubuntu-latest'
       run: |
-        mv target/airopscat-*-runner target/${{ matrix.artifact_name }}
+        # Create regular version
+        cp target/airopscat-*-runner target/airopscat-linux-amd64
+        
+        # Create UPX compressed version
+        cp target/airopscat-*-runner target/airopscat-linux-amd64-upx
+        upx --best target/airopscat-linux-amd64-upx
 
-    - name: Upload executable
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.artifact_name }}
-        path: target/${{ matrix.artifact_name }}
-        retention-days: 30
 
-    - name: Create distribution directory
-      run: mkdir -p dist
+    - name: Create distribution directories (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: mkdir -p dist-regular dist-upx
+
+    - name: Create distribution directories (Windows)
+      if: matrix.os == 'windows-latest'
+      run: mkdir dist
+      shell: cmd
 
     - name: Copy executable to dist (Windows)
       if: matrix.os == 'windows-latest'
       run: copy target\${{ matrix.artifact_name }} dist\
       shell: cmd
 
-    - name: Copy executable to dist (Unix)
-      if: matrix.os != 'windows-latest'
-      run: cp target/${{ matrix.artifact_name }} dist/
-
-    - name: Create README for distribution (Linux)
+    - name: Copy executables to dist (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |
-        echo "# AirOpsCat Native Executable" > dist/README.txt
-        echo "" >> dist/README.txt
-        echo "Platform: ${{ matrix.platform }}" >> dist/README.txt
-        echo "Built on: $(date)" >> dist/README.txt
-        echo "Version: ${{ github.ref_name }}" >> dist/README.txt
-        echo "Framework: Quarkus 3.24.3" >> dist/README.txt
-        echo "Compression: UPX LZMA (~70% size reduction)" >> dist/README.txt
-        echo "" >> dist/README.txt
-        echo "## Usage" >> dist/README.txt
-        echo "./${{ matrix.artifact_name }}" >> dist/README.txt
-        echo "" >> dist/README.txt
-        echo "The application will start on http://localhost:8080" >> dist/README.txt
-        echo "" >> dist/README.txt
-        echo "## External Configuration" >> dist/README.txt
-        echo "Use external application.properties file:" >> dist/README.txt
-        echo "./${{ matrix.artifact_name }} -Dquarkus.config.locations=./application.properties" >> dist/README.txt
+        cp target/airopscat-linux-amd64 dist-regular/
+        cp target/airopscat-linux-amd64-upx dist-upx/
 
-    - name: Create README for distribution (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        echo "# AirOpsCat Native Executable" > dist/README.txt
-        echo "" >> dist/README.txt
-        echo "Platform: ${{ matrix.platform }}" >> dist/README.txt
-        echo "Built on: %date%" >> dist/README.txt
-        echo "Version: ${{ github.ref_name }}" >> dist/README.txt
-        echo "Framework: Quarkus 3.24.3" >> dist/README.txt
-        echo "Compression: None (UPX disabled for Windows compatibility)" >> dist/README.txt
-        echo "" >> dist/README.txt
-        echo "## Usage" >> dist/README.txt
-        echo "${{ matrix.artifact_name }}" >> dist/README.txt
-        echo "" >> dist/README.txt
-        echo "The application will start on http://localhost:8080" >> dist/README.txt
-        echo "" >> dist/README.txt
-        echo "## External Configuration" >> dist/README.txt
-        echo "Use external application.properties file:" >> dist/README.txt
-        echo "${{ matrix.artifact_name }} -Dquarkus.config.locations=./application.properties" >> dist/README.txt
-      shell: cmd
 
     - name: Create distribution archive (Windows)
       if: matrix.os == 'windows-latest'
@@ -168,18 +132,34 @@ jobs:
         7z a -tzip ${{ matrix.artifact_name }}.zip dist\*
       shell: cmd
 
-    - name: Create distribution archive (Unix)
-      if: matrix.os != 'windows-latest'
+    - name: Create distribution archives (Linux)
+      if: matrix.os == 'ubuntu-latest'
       run: |
-        cd dist && tar -czf ../${{ matrix.artifact_name }}.tar.gz *
+        tar -czf airopscat-linux-amd64.tar.gz -C dist-regular airopscat-linux-amd64
+        tar -czf airopscat-linux-amd64-upx.tar.gz -C dist-upx airopscat-linux-amd64-upx
 
-    - name: Upload distribution archive
+    - name: Upload Linux regular distribution
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: airopscat-linux-amd64-distribution
+        path: airopscat-linux-amd64.tar.gz
+        retention-days: 30
+
+    - name: Upload Linux UPX distribution
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: airopscat-linux-amd64-upx-distribution
+        path: airopscat-linux-amd64-upx.tar.gz
+        retention-days: 30
+
+    - name: Upload distribution archive (Windows)
+      if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact_name }}-distribution
-        path: |
-          ${{ matrix.artifact_name }}.zip
-          ${{ matrix.artifact_name }}.tar.gz
+        path: ${{ matrix.artifact_name }}.zip
         retention-days: 30
 
   release:
@@ -203,23 +183,27 @@ jobs:
           
           ### 🚀 Key Features:
           - **Ultra-fast startup**: < 0.2 seconds
-          - **Smart compression**: Linux version uses UPX LZMA (~70% smaller), Windows version uncompressed for compatibility
+          - **Multiple Linux variants**: Regular and UPX-compressed versions
           - **Zero dependencies**: No Java runtime required
           - **Production ready**: Optimized native compilation
           
           ### 📦 Download Instructions:
-          - **Linux**: Download `airopscat-linux-amd64.tar.gz` (~33MB, UPX compressed)
+          - **Linux (Regular)**: Download `airopscat-linux-amd64.tar.gz` (~90MB, uncompressed)
+          - **Linux (UPX)**: Download `airopscat-linux-amd64-upx.tar.gz` (~30MB, UPX --best compressed)
           - **Windows**: Download `airopscat-windows-amd64.exe.zip` (~90MB, uncompressed for compatibility)
           
           ### 🛠 Usage:
-          1. Extract the archive (if applicable)
+          1. Extract the tar.gz archive (Linux) or zip file (Windows)
           2. Run the executable directly
           3. Open http://localhost:8080 in your browser
           
           ### ⚙️ Advanced Configuration:
           Use external configuration file:
           ```bash
+          # Linux
           ./airopscat-linux-amd64 -Dquarkus.config.locations=./application.properties
+          # or UPX version
+          ./airopscat-linux-amd64-upx -Dquarkus.config.locations=./application.properties
           ```
           
           ### 📋 System Requirements:
