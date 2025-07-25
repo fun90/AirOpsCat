@@ -60,7 +60,7 @@ public class OpenController {
     public Response getDocsInfo(@PathParam("authCode") String authCode) {
         // 查找账户
         Optional<Account> accountOpt = accountRepository.findByAuthCode(authCode);
-        if (accountOpt.isEmpty()) {
+        if (accountOpt.isEmpty() || !accountOpt.get().isActive()) {
             return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "无效的认证码，账户不存在")).build();
         }
         Account account = accountOpt.get();

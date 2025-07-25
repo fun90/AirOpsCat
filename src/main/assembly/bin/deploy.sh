@@ -60,7 +60,7 @@ echo ""
 # 检查文件是否存在
 if [ "$NATIVE_MODE" = "native" ]; then
     echo "编译native文件..."
-    ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g -Dquarkus.native.compression.level=10
+    ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
     if [ ! -f "$LOCAL_DIR/$NATIVE_FILE" ]; then
         echo "错误: Native 可执行文件 $LOCAL_DIR/$NATIVE_FILE 不存在"
         echo "当前目录文件列表："

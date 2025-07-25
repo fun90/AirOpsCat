@@ -180,7 +180,7 @@ public class SubscriptionService {
         }
         
 
-        String fileName = account.getRemark() + getSubscriptionFileSuffix(appName);
+        String fileName = account.getRemark();
         long bandwidth = account.getBandwidth() != null ? account.getBandwidth() : 500L;
         bandwidth = bandwidth * 1024L * 1024L * 1024L;
         LocalDateTime currentTime = LocalDateTime.now();

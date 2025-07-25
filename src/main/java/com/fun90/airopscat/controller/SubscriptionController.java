@@ -93,7 +93,7 @@ public class SubscriptionController {
             
             if (!"1".equals(view)) {
                 String fileName = URLEncoder.encode(subscriptionDto.getFileName(), StandardCharsets.UTF_8);
-                responseBuilder.header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=\"" + fileName + "\"");
+                responseBuilder.header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename*=UTF-8''" + fileName);
             }
             
             if ("shadowrocket".equalsIgnoreCase(appName)) {
