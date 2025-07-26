@@ -50,6 +50,18 @@ public class NodeDeploymentService {
     private static final String PROTOCOL_HYSTERIA2 = "hysteria2";
     private static final String DEFAULT_USERNAME = "root";
 
+    @Transactional
+    public List<DeploymentResult> deployByAccountIds(List<Long> accountIdList) {
+        List<Node> nodes = tagRepository.findNodesByAccountIds(accountIdList);
+        if (nodes.isEmpty()) {
+            log.info("账户没有关联的节点");
+            return Collections.emptyList();
+        }
+        log.info("将账户发布到节点，节点数量: {}", nodes.size());
+
+       return deployNodesForcibly(nodes);
+    }
+
     /**
      * 批量部署节点
      *

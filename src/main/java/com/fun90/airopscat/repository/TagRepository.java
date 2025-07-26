@@ -63,6 +63,19 @@ public class TagRepository implements PanacheRepository<Tag> {
                 .list();
     }
 
+    public List<Node> findNodesByAccountIds(List<Long> accountIds) {
+        return getEntityManager().createQuery(
+            "SELECT DISTINCT n FROM Node n " +
+            "JOIN n.tags nt " +
+            "WHERE nt.id IN (" +
+            "  SELECT t.id FROM Account a " +
+            "  JOIN a.tags t " +
+            "  WHERE a.id IN :accountIds" +
+            ")", Node.class)
+            .setParameter("accountIds", accountIds)
+            .getResultList();
+    }
+
     
     @Transactional
     public void deleteAllNodeTagsByNodeId(Long nodeId) {

@@ -3,7 +3,9 @@ package com.fun90.airopscat.controller;
 import com.fun90.airopscat.model.dto.AccountDto;
 import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
 import com.fun90.airopscat.model.dto.AccountRequest;
+import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.entity.Account;
+import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.model.enums.PeriodType;
 import com.fun90.airopscat.service.*;
@@ -18,9 +20,7 @@ import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -39,6 +39,8 @@ public class AccountController {
     SecurityIdentity securityIdentity;
     @Inject
     SubscriptionService subscriptionService;
+    @Inject
+    NodeDeploymentService nodeDeploymentService;
 
     @Inject
     public AccountController(AccountService accountService, UserService userService, TagService tagService, AccountOnlineIpService accountOnlineIpService) {
@@ -298,7 +300,14 @@ public class AccountController {
         AccountDto dto = accountService.convertToDto(account);
         return Response.ok(dto).build();
     }
-    
+
+    @PATCH
+    @Path("{id}/deploy")
+    public Response deploy(@PathParam("id") Long id) {
+        List<DeploymentResult> results = nodeDeploymentService.deployByAccountIds(Collections.singletonList(id));
+        return Response.ok(results).build();
+    }
+
     @GET
     @Path("/{id}/config-url")
     public Response getConfigUrl(@PathParam("id") Long id, @QueryParam("osName") String osName, @QueryParam("appName") String appName) {

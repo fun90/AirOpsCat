@@ -707,6 +707,57 @@ const accountTable = new DataTable({
             }
         },
 
+        // 部署到节点
+        deployToNodes(account) {
+            if (!account.id) return;
+
+            // 显示确认提示
+            if (!confirm(`确定要将账户 "${account.accountNo}" 部署到相关节点吗？`)) {
+                return;
+            }
+
+            // 显示加载状态
+            const loadingToast = ToastUtils.showLoading('正在部署到节点...');
+
+            fetch(`/api/admin/accounts/${account.id}/deploy`, {
+                method: 'PATCH'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('部署失败');
+                    }
+                    return response.json();
+                })
+                .then(results => {
+                    // 隐藏加载提示
+                    ToastUtils.hideLoading(loadingToast);
+
+                    // 统计部署结果
+                    const successCount = results.filter(r => r.success).length;
+                    const failCount = results.filter(r => !r.success).length;
+                    const totalCount = results.length;
+
+                    if (failCount === 0) {
+                        ToastUtils.show('Success', `部署成功！成功部署到 ${successCount} 个节点`, 'success');
+                    } else if (successCount === 0) {
+                        ToastUtils.show('Error', `部署失败！${failCount} 个节点部署失败`, 'danger');
+                    } else {
+                        ToastUtils.show('Warning', `部分成功！${successCount} 个节点成功，${failCount} 个节点失败`, 'warning');
+                    }
+
+                    // 如果有失败的，显示详细错误信息
+                    if (failCount > 0) {
+                        console.log('部署失败详情:', results.filter(r => !r.success));
+                    }
+                })
+                .catch(error => {
+                    // 隐藏加载提示
+                    ToastUtils.hideLoading(loadingToast);
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', '部署到节点失败', 'danger');
+                });
+        },
+
     }
 });
 

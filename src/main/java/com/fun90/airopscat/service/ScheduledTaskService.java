@@ -15,6 +15,7 @@ import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerRepository;
+import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
 import com.fun90.airopscat.util.JsonUtil;
@@ -40,7 +41,7 @@ public class ScheduledTaskService {
     AccountRepository accountRepository;
     
     @Inject
-    TagService tagService;
+    TagRepository tagRepository;
     
     @Inject
     NodeDeploymentService nodeDeploymentService;
@@ -81,16 +82,7 @@ public class ScheduledTaskService {
             log.info("找到 {} 个未禁用但已过期的账户", expiredAccounts.size());
             
             // 2. 获取这些账户关联的所有节点ID
-            Set<Node> nodes = expiredAccounts.stream()
-                    .flatMap(account -> {
-                        try {
-                            return tagService.getAvailableNodesByAccount(account.getId()).stream();
-                        } catch (Exception e) {
-                            log.error("获取账户 {} 关联节点时发生错误: {}", account.getId(), e.getMessage());
-                            return java.util.stream.Stream.empty();
-                        }
-                    })
-                    .collect(Collectors.toSet());
+            List<Node> nodes = tagRepository.findNodesByAccountIds(expiredAccounts.stream().map(Account::getId).distinct().toList());
             
             if (nodes.isEmpty()) {
                 log.info("过期账户没有关联的节点，任务结束");
