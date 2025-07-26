@@ -7,7 +7,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * SSH连接抽象接口，隐藏底层SSH实现细节
+ * SSH连接抽象接口，简化的SSH操作API
+ * 隐藏连接管理复杂性，提供易用的操作接口
  */
 public interface SshConnection extends AutoCloseable {
     
@@ -36,26 +37,20 @@ public interface SshConnection extends AutoCloseable {
     void writeRemoteFile(String remotePath, String content) throws IOException;
 
     /**
-     * 创建SFTP输入流
+     * 获取远程文件输入流（用于大文件读取）
      * @param remotePath 远程文件路径
-     * @return 输入流
+     * @return 输入流，使用完毕后需要关闭
      * @throws IOException 创建异常
      */
-    InputStream createInputStream(String remotePath) throws IOException;
+    InputStream getRemoteFileInputStream(String remotePath) throws IOException;
     
     /**
-     * 创建SFTP输出流
+     * 获取远程文件输出流（用于大文件写入）
      * @param remotePath 远程文件路径
-     * @return 输出流
+     * @return 输出流，使用完毕后需要关闭
      * @throws IOException 创建异常
      */
-    OutputStream createOutputStream(String remotePath) throws IOException;
-    
-    /**
-     * 检查连接是否有效
-     * @return 连接状态
-     */
-    boolean isConnected();
+    OutputStream getRemoteFileOutputStream(String remotePath) throws IOException;
     
     /**
      * 获取连接信息（用于日志和调试）

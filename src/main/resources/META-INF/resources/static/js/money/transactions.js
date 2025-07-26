@@ -1,6 +1,7 @@
 
 import { DataTable } from '/static/js/common/data-table.js';
 import { createSearchDropdown, SearchDropdownPresets } from '/static/js/common/search-dropdown.js';
+import { formatDateTimeForLocal } from '/static/js/common/common.js';
 import ApexCharts from 'https://cdn.jsdelivr.net/npm/apexcharts@4.7.0/+esm';
 
 const transactionTable = new DataTable({
@@ -48,7 +49,7 @@ const transactionTable = new DataTable({
 
             // Set default transactionDate for new transaction
             const now = new Date();
-            this.newItem.transactionDate = now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+            this.newItem.transactionDate = formatDateTimeForLocal(now);
 
             // Initialize search components
             this.initializeSearchComponents();
@@ -411,7 +412,7 @@ const transactionTable = new DataTable({
         resetCreateForm() {
             // Get current time for default date
             const now = new Date();
-            const localDateTimeFormat = now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+            const localDateTimeFormat = formatDateTimeForLocal(now);
 
             this.newItem = {
                 transactionDate: localDateTimeFormat,
@@ -438,7 +439,7 @@ const transactionTable = new DataTable({
             const formatDateForInput = (dateString) => {
                 if (!dateString) return '';
                 const date = new Date(dateString);
-                return date.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+                return formatDateTimeForLocal(date);
             };
 
             // Clone transaction data
@@ -491,7 +492,8 @@ const transactionTable = new DataTable({
         // URLs for API calls
         getApiUrl() {
             return '/api/admin/transactions';
-        }
+        },
+
     }
 });
 

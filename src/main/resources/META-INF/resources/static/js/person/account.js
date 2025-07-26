@@ -1,4 +1,5 @@
 import { DataTable } from '/static/js/common/data-table.js';
+import { formatDateTimeForLocal, formatRelativeTime } from '/static/js/common/common.js';
 import { Modal } from 'https://cdn.jsdelivr.net/npm/@tabler/core@1.3.2/dist/js/tabler.esm.min.js';
 
 const accountTable = new DataTable({
@@ -406,7 +407,7 @@ const accountTable = new DataTable({
             // Add one month
             baseDate.setMonth(baseDate.getMonth() + 1);
             this.renewData = {
-                expiryDate: baseDate.toISOString().slice(0, 16) // Format: YYYY-MM-DDTHH:MM
+                expiryDate: formatDateTimeForLocal(baseDate)
             };
 
             this.validationErrors = {};
@@ -432,7 +433,7 @@ const accountTable = new DataTable({
                 baseDate.setFullYear(baseDate.getFullYear() + value);
             }
 
-            this.renewData.expiryDate = baseDate.toISOString().slice(0, 16);
+            this.renewData.expiryDate = formatDateTimeForLocal(baseDate);
         },
 
         validateRenewForm() {
@@ -526,12 +527,12 @@ const accountTable = new DataTable({
         prepareCreateData() {
             // Get current time
             const now = new Date();
-            const localDateTimeFormat = now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+            const localDateTimeFormat = formatDateTimeForLocal(now);
 
             // Get one month later for default expiration
             const oneMonthLater = new Date();
             oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
-            const oneMonthLaterFormat = oneMonthLater.toISOString().slice(0, 16);
+            const oneMonthLaterFormat = formatDateTimeForLocal(oneMonthLater);
 
             return {
                 userId: this.newItem.userId,
@@ -571,12 +572,12 @@ const accountTable = new DataTable({
         resetCreateForm() {
             // Get current time
             const now = new Date();
-            const localDateTimeFormat = now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+            const localDateTimeFormat = formatDateTimeForLocal(now);
 
             // Get one month later for default expiration
             const oneMonthLater = new Date();
             oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
-            const oneMonthLaterFormat = oneMonthLater.toISOString().slice(0, 16);
+            const oneMonthLaterFormat = formatDateTimeForLocal(oneMonthLater);
 
             this.newItem = {
                 userId: this.users.length > 0 ? this.users[0].id : '',
@@ -601,7 +602,7 @@ const accountTable = new DataTable({
             const formatDateForInput = (dateString) => {
                 if (!dateString) return '';
                 const date = new Date(dateString);
-                return date.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+                return formatDateTimeForLocal(date);
             };
 
             // Load current account tags
@@ -704,7 +705,8 @@ const accountTable = new DataTable({
             } else {
                 return '刚刚';
             }
-        }
+        },
+
     }
 });
 

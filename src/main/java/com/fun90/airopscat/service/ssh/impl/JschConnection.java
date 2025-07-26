@@ -14,8 +14,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 /**
- * JSch SSH连接实现
+ * JSch SSH连接实现 - 简化版
  * 完全兼容 GraalVM Native Image
+ * 
+ * 简化原则：
+ * 1. 懒加载连接 - 只在需要时建立连接
+ * 2. 统一资源管理 - 简化Session和SFTP通道管理
+ * 3. 减少状态检查 - 移除不必要的连接状态检查
+ * 4. 集中异常处理 - 统一异常转换逻辑
  */
 @Slf4j
 public class JschConnection implements SshConnection {
@@ -32,9 +38,7 @@ public class JschConnection implements SshConnection {
     
     @Override
     public CommandResult executeCommand(String command) throws IOException {
-        if (!isConnected()) {
-            connect();
-        }
+        ensureConnected();
         
         ChannelExec channel = null;
         try {
@@ -46,7 +50,6 @@ public class JschConnection implements SshConnection {
             
             channel.setOutputStream(outputStream);
             channel.setErrStream(errorStream);
-            
             channel.connect(config.getTimeout());
             
             // 等待命令执行完成
@@ -55,40 +58,29 @@ public class JschConnection implements SshConnection {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    break;
+                    throw new IOException("命令执行被中断: " + command, e);
                 }
             }
             
-            int exitCode = channel.getExitStatus();
-            String output = outputStream.toString(StandardCharsets.UTF_8);
-            String error = errorStream.toString(StandardCharsets.UTF_8);
-            
             CommandResult result = new CommandResult();
-            result.setExitStatus(exitCode);
-            result.setStdout(output);
-            result.setStderr(error);
-            
+            result.setExitStatus(channel.getExitStatus());
+            result.setStdout(outputStream.toString(StandardCharsets.UTF_8));
+            result.setStderr(errorStream.toString(StandardCharsets.UTF_8));
             return result;
                     
         } catch (JSchException e) {
             throw new IOException("执行命令失败: " + command, e);
         } finally {
-            if (channel != null) {
-                channel.disconnect();
-            }
+            closeQuietly(channel);
         }
     }
     
     @Override
     public String readRemoteFile(String remotePath) throws IOException {
-        if (!isConnected()) {
-            connect();
-        }
-        
-        try (InputStream inputStream = createInputStream(remotePath);
+        try (InputStream inputStream = getRemoteFileInputStream(remotePath);
              ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[8192]; // 增大缓冲区提高性能
             int bytesRead;
             while ((bytesRead = inputStream.read(buffer)) != -1) {
                 outputStream.write(buffer, 0, bytesRead);
@@ -100,45 +92,32 @@ public class JschConnection implements SshConnection {
     
     @Override
     public void writeRemoteFile(String remotePath, String content) throws IOException {
-        if (!isConnected()) {
-            connect();
-        }
-        
-        try (OutputStream outputStream = createOutputStream(remotePath)) {
+        try (OutputStream outputStream = getRemoteFileOutputStream(remotePath)) {
             outputStream.write(content.getBytes(StandardCharsets.UTF_8));
             outputStream.flush();
         }
     }
 
     @Override
-    public InputStream createInputStream(String remotePath) throws IOException {
-        if (!isConnected()) {
-            connect();
-        }
+    public InputStream getRemoteFileInputStream(String remotePath) throws IOException {
+        ensureSftpChannelConnected();
         
         try {
             return sftpChannel.get(remotePath);
         } catch (SftpException e) {
-            throw new IOException("创建输入流失败: " + remotePath, e);
+            throw new IOException("获取远程文件输入流失败: " + remotePath, e);
         }
     }
     
     @Override
-    public OutputStream createOutputStream(String remotePath) throws IOException {
-        if (!isConnected()) {
-            connect();
-        }
+    public OutputStream getRemoteFileOutputStream(String remotePath) throws IOException {
+        ensureSftpChannelConnected();
         
         try {
             return sftpChannel.put(remotePath);
         } catch (SftpException e) {
-            throw new IOException("创建输出流失败: " + remotePath, e);
+            throw new IOException("获取远程文件输出流失败: " + remotePath, e);
         }
-    }
-    
-    @Override
-    public boolean isConnected() {
-        return session != null && session.isConnected();
     }
     
     @Override
@@ -149,63 +128,108 @@ public class JschConnection implements SshConnection {
     
     @Override
     public void close() {
-        if (sftpChannel != null) {
-            sftpChannel.disconnect();
-            sftpChannel = null;
-        }
-        if (session != null) {
-            session.disconnect();
-            session = null;
+        closeQuietly(sftpChannel);
+        closeQuietly(session);
+        sftpChannel = null;
+        session = null;
+    }
+    
+    /**
+     * 确保Session连接已建立
+     */
+    private void ensureConnected() throws IOException {
+        if (session == null || !session.isConnected()) {
+            connectSession();
         }
     }
     
-    private void connect() throws IOException {
+    /**
+     * 确保SFTP通道已连接
+     */
+    private void ensureSftpChannelConnected() throws IOException {
+        ensureConnected();
+        
+        if (sftpChannel == null || !sftpChannel.isConnected()) {
+            connectSftpChannel();
+        }
+    }
+    
+    /**
+     * 建立Session连接
+     */
+    private void connectSession() throws IOException {
         try {
-            // 设置密钥认证
-            if (config.getPrivateKeyContent() != null && !config.getPrivateKeyContent().trim().isEmpty()) {
-                // 从字符串内容加载私钥
-                jsch.addIdentity("key", 
-                        config.getPrivateKeyContent().getBytes(StandardCharsets.UTF_8),
-                        null,
-                        config.getPassphrase() != null ? 
-                                config.getPassphrase().getBytes(StandardCharsets.UTF_8) : null);
-            } else if (config.getPrivateKeyPath() != null && !config.getPrivateKeyPath().trim().isEmpty()) {
-                // 从文件加载私钥
-                if (config.getPassphrase() != null && !config.getPassphrase().trim().isEmpty()) {
-                    jsch.addIdentity(config.getPrivateKeyPath(), config.getPassphrase());
-                } else {
-                    jsch.addIdentity(config.getPrivateKeyPath());
-                }
-            }
+            configureAuthentication();
             
-            // 创建会话
             session = jsch.getSession(config.getUsername(), config.getHost(), config.getPort());
             
-            // 设置密码认证
             if (config.getPassword() != null && !config.getPassword().trim().isEmpty()) {
                 session.setPassword(config.getPassword());
             }
             
-            // 配置会话
+            // 配置会话属性
             Properties properties = new Properties();
             properties.put("StrictHostKeyChecking", "no");
             properties.put("PreferredAuthentications", "publickey,password");
             session.setConfig(properties);
-            
-            // 设置超时
             session.setTimeout(config.getTimeout());
             
-            // 连接
             session.connect();
-            
-            // 创建SFTP通道
-            sftpChannel = (ChannelSftp) session.openChannel("sftp");
-            sftpChannel.connect();
-            
-            log.info("SSH连接成功: {}", getConnectionInfo());
+            log.debug("SSH会话连接成功: {}", getConnectionInfo());
             
         } catch (JSchException e) {
             throw new IOException("SSH连接失败: " + getConnectionInfo(), e);
+        }
+    }
+    
+    /**
+     * 建立SFTP通道连接
+     */
+    private void connectSftpChannel() throws IOException {
+        try {
+            sftpChannel = (ChannelSftp) session.openChannel("sftp");
+            sftpChannel.connect();
+            log.debug("SFTP通道连接成功: {}", getConnectionInfo());
+        } catch (JSchException e) {
+            throw new IOException("SFTP通道连接失败: " + getConnectionInfo(), e);
+        }
+    }
+    
+    /**
+     * 配置认证方式
+     */
+    private void configureAuthentication() throws JSchException {
+        if (config.getPrivateKeyContent() != null && !config.getPrivateKeyContent().trim().isEmpty()) {
+            // 从字符串内容加载私钥
+            byte[] passphraseBytes = config.getPassphrase() != null ? 
+                    config.getPassphrase().getBytes(StandardCharsets.UTF_8) : null;
+            jsch.addIdentity("key", 
+                    config.getPrivateKeyContent().getBytes(StandardCharsets.UTF_8),
+                    null, passphraseBytes);
+        } else if (config.getPrivateKeyPath() != null && !config.getPrivateKeyPath().trim().isEmpty()) {
+            // 从文件加载私钥
+            if (config.getPassphrase() != null && !config.getPassphrase().trim().isEmpty()) {
+                jsch.addIdentity(config.getPrivateKeyPath(), config.getPassphrase());
+            } else {
+                jsch.addIdentity(config.getPrivateKeyPath());
+            }
+        }
+    }
+    
+    /**
+     * 安静地关闭资源
+     */
+    private void closeQuietly(Object resource) {
+        if (resource == null) return;
+        
+        try {
+            if (resource instanceof Channel) {
+                ((Channel) resource).disconnect();
+            } else if (resource instanceof Session) {
+                ((Session) resource).disconnect();
+            }
+        } catch (Exception e) {
+            log.debug("关闭SSH资源时发生异常: {}", e.getMessage());
         }
     }
 } 
