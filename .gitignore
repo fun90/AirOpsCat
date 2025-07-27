@@ -44,4 +44,6 @@ nb-configuration.xml
 # TLS Certificates
 .certs/
 admin.db
+admin.db-wal
+admin.db-shm
 logs/

@@ -1,10 +1,19 @@
 package com.fun90.airopscat.service;
 
+import com.fun90.airopscat.client.GitHubApiClient;
+import com.fun90.airopscat.config.AppConstants;
+import com.fun90.airopscat.model.dto.GitHubReleaseDto;
+import com.fun90.airopscat.util.VersionUtil;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 更新通知服务
@@ -14,21 +23,17 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 @Slf4j
 public class UpdateNotificationService {
 
-    @ConfigProperty(name = "app.version")
-    String currentVersion;
-    
-    @ConfigProperty(name = "app.update-check.enabled", defaultValue = "false")
-    boolean updateCheckEnabled;
+    @Inject
+    @RestClient
+    GitHubApiClient gitHubApiClient;
 
     void onStart(@Observes StartupEvent event) {
         // 异步执行版本检查，避免阻塞应用启动
-        new Thread(() -> {
-            try {
-                checkForUpdates();
-            } catch (Exception e) {
-                log.warn("版本检查失败: {}", e.getMessage());
-            }
-        }).start();
+        CompletableFuture.runAsync(this::checkForUpdates)
+                .exceptionally(throwable -> {
+                    log.warn("版本检查失败: {}", throwable.getMessage());
+                    return null;
+                });
     }
 
     /**
@@ -36,28 +41,128 @@ public class UpdateNotificationService {
      */
     private void checkForUpdates() {
         try {
-            log.info("===========================================");
-            log.info("欢迎使用 AirOpsCat");
-            log.info("当前版本: v{}", currentVersion);
-            
-            if (!updateCheckEnabled) {
+            printWelcomeMessage();
+
+            if (!AppConstants.UPDATE_CHECK_ENABLED) {
                 log.info("在线版本检查已禁用");
-                log.info("===========================================");
+                printSeparator();
                 return;
             }
-            
+
             log.info("正在检查最新版本...");
-            
-            // TODO: 实现真正的HTTP客户端调用来检查更新
-            // 当前为简化实现，仅显示当前版本信息
-            log.info("在线版本检查功能正在开发中");
-            log.info("如需启用此功能，请在 application.properties 中设置：");
-            log.info("app.update-check.enabled=true");
-            
-            log.info("===========================================");
-            
+
+            // 调用 GitHub API 检查最新版本
+            GitHubReleaseDto latestRelease = gitHubApiClient.getLatestRelease()
+                    .toCompletableFuture()
+                    .orTimeout(AppConstants.UPDATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .join();
+
+            handleVersionCheck(latestRelease);
+
         } catch (Exception e) {
-            log.error("检查更新时发生错误: {}", e.getMessage(), e);
+            handleVersionCheckError(e);
         }
     }
-} 
+
+    /**
+     * 打印欢迎信息
+     */
+    private void printWelcomeMessage() {
+        log.info("===========================================");
+        log.info("🐱 欢迎使用 AirOpsCat");
+        log.info("当前版本: {}", VersionUtil.formatVersion(AppConstants.APP_VERSION));
+    }
+
+    /**
+     * 打印分隔线
+     */
+    private void printSeparator() {
+        log.info("===========================================");
+    }
+
+    /**
+     * 处理版本检查结果
+     */
+    private void handleVersionCheck(GitHubReleaseDto latestRelease) {
+        if (latestRelease == null || latestRelease.getVersion() == null) {
+            log.warn("无法获取最新版本信息");
+            printSeparator();
+            return;
+        }
+
+        String latestVersion = latestRelease.getVersion();
+        log.info("最新版本: {}", VersionUtil.formatVersion(latestVersion));
+
+        if (VersionUtil.isNewerVersion(AppConstants.APP_VERSION, latestVersion)) {
+            printUpdateAvailable(latestRelease);
+        } else {
+            log.info("✅ 您使用的是最新版本");
+        }
+
+        printSeparator();
+    }
+
+    /**
+     * 打印更新可用信息
+     */
+    private void printUpdateAvailable(GitHubReleaseDto latestRelease) {
+        log.info("🚀 发现新版本可用!");
+        log.info("新版本: {}", VersionUtil.formatVersion(latestRelease.getVersion()));
+
+        if (latestRelease.getName() != null && !latestRelease.getName().trim().isEmpty()) {
+            log.info("版本名称: {}", latestRelease.getName());
+        }
+
+        if (latestRelease.getPublishedAt() != null) {
+            log.info("发布时间: {}", latestRelease.getPublishedAt());
+        }
+
+        if (latestRelease.getHtmlUrl() != null) {
+            log.info("下载地址: {}", latestRelease.getHtmlUrl());
+        }
+
+        // 显示发布说明 (限制长度避免日志过长)
+        if (latestRelease.getBody() != null && !latestRelease.getBody().trim().isEmpty()) {
+            String releaseNotes = latestRelease.getBody().trim();
+            if (releaseNotes.length() > 200) {
+                releaseNotes = releaseNotes.substring(0, 200) + "...";
+            }
+            log.info("发布说明: {}", releaseNotes);
+        }
+    }
+
+    /**
+     * 处理版本检查错误
+     */
+    private void handleVersionCheckError(Exception e) {
+        if (e instanceof java.util.concurrent.TimeoutException) {
+            log.warn("版本检查超时，请检查网络连接");
+        } else if (e instanceof java.net.ConnectException) {
+            log.warn("无法连接到 GitHub API，请检查网络连接");
+        } else {
+            log.warn("版本检查失败: {}", e.getMessage());
+            log.debug("版本检查详细错误信息", e);
+        }
+
+        log.info("您可以手动访问以下地址检查更新:");
+        log.info("https://github.com/fun90/AirOpsCat/releases");
+        printSeparator();
+    }
+
+    /**
+     * 手动检查更新 (可供其他服务调用)
+     */
+    public CompletableFuture<GitHubReleaseDto> checkForUpdatesAsync() {
+        if (!AppConstants.UPDATE_CHECK_ENABLED) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        return gitHubApiClient.getLatestRelease()
+                .toCompletableFuture()
+                .orTimeout(AppConstants.UPDATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .exceptionally(throwable -> {
+                    log.debug("手动版本检查失败", throwable);
+                    return null;
+                });
+    }
+}
