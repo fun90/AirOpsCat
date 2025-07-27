@@ -22,6 +22,9 @@ public class Node {
     @Column(name = "server_id")
     private Long serverId;
     
+    @Column(name = "backup_server_id")
+    private Long backupServerId;
+    
     private Integer port;
 
     // 代理协议：VLESS、Hysteria2、Socks、Shadowsocks、ShadowTLS
@@ -55,6 +58,10 @@ public class Node {
     @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REFRESH})
     @JoinColumn(name = "server_id", insertable = false, updatable = false)
     private Server server;
+
+    @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REFRESH})
+    @JoinColumn(name = "backup_server_id", insertable = false, updatable = false)
+    private Server backupServer;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "out_id", insertable = false, updatable = false)

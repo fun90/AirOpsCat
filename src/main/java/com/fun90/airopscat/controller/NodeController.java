@@ -11,7 +11,6 @@ import com.fun90.airopscat.service.NodeDeploymentService;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.TagService;
-import com.fun90.airopscat.util.JsonUtil;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -141,33 +140,43 @@ public class NodeController {
     @Path("/check-port")
     public Response checkPortAvailability(
             @QueryParam("serverId") Long serverId,
+            @QueryParam("backupServerId") Long backupServerId,
             @QueryParam("port") Integer port,
             @QueryParam("nodeId") Long nodeId
     ) {
-        Map<String, Boolean> response = new HashMap<>();
-        response.put("available", nodeService.isPortAvailable(serverId, port, nodeId));
+        Map<String, Object> response = new HashMap<>();
+        
+        // 检查主服务器端口
+        boolean mainServerAvailable = nodeService.isPortAvailable(serverId, port, nodeId);
+        response.put("mainServerAvailable", mainServerAvailable);
+        
+        // 检查备用服务器端口
+        boolean backupServerAvailable = nodeService.isBackupPortAvailable(backupServerId, port, nodeId);
+        response.put("backupServerAvailable", backupServerAvailable);
+        
+        // 综合检查结果
+        boolean available = nodeService.isNodePortsAvailable(serverId, backupServerId, port, nodeId);
+        response.put("available", available);
+        
+        // 如果不可用，提供详细信息
+        if (!available) {
+            if (backupServerId != null && serverId.equals(backupServerId)) {
+                response.put("message", "主服务器和备用服务器不能相同");
+            } else if (!mainServerAvailable) {
+                response.put("message", "端口在主服务器上已被占用");
+            } else if (!backupServerAvailable) {
+                response.put("message", "端口在备用服务器上已被占用");
+            }
+        }
+        
         return Response.ok(response).build();
     }
 
     @POST
     public Response createNode(NodeRequest request) {
         try {
-            // 创建Node实体
-            Node node = new Node();
-            node.setServerId(request.getServerId());
-            node.setPort(request.getPort());
-            node.setProtocol(request.getProtocol());
-            node.setType(request.getType());
-            node.setInbound(request.getInbound() != null ? 
-                JsonUtil.toJsonString(request.getInbound()) : null);
-            node.setOutId(request.getOutId());
-            node.setRule(request.getRule() != null ? 
-                JsonUtil.toJsonString(request.getRule()) : null);
-            node.setLevel(request.getLevel());
-            node.setDisabled(request.getDisabled());
-            node.setName(request.getName());
-            node.setRemark(request.getRemark());
-
+            // 使用 NodeConverter 转换请求为实体
+            Node node = NodeConverter.fromRequest(request);
             Node savedNode = nodeService.saveNode(node);
             
             // 处理标签关联
@@ -175,7 +184,7 @@ public class NodeController {
                 tagService.updateNodeTags(savedNode.getId(), request.getTagIds());
             }
             
-            return Response.ok(savedNode).build();
+            return Response.ok(NodeConverter.toDto(savedNode)).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
@@ -187,23 +196,8 @@ public class NodeController {
     @Path("/{id}")
     public Response updateNode(@PathParam("id") Long id, NodeRequest request) {
         try {
-            // 创建Node实体
-            Node node = new Node();
-            node.setId(id);
-            node.setServerId(request.getServerId());
-            node.setPort(request.getPort());
-            node.setProtocol(request.getProtocol());
-            node.setType(request.getType());
-            node.setInbound(request.getInbound() != null ? 
-                JsonUtil.toJsonString(request.getInbound()) : null);
-            node.setOutId(request.getOutId());
-            node.setRule(request.getRule() != null ? 
-                JsonUtil.toJsonString(request.getRule()) : null);
-            node.setLevel(request.getLevel());
-            node.setDisabled(request.getDisabled());
-            node.setName(request.getName());
-            node.setRemark(request.getRemark());
-            
+            // 使用 NodeConverter 转换请求为实体，并设置 ID
+            Node node = NodeConverter.fromRequest(request, id);
             Node updatedNode = nodeService.updateNode(node);
             
             // 处理标签关联

@@ -1,6 +1,7 @@
 package com.fun90.airopscat.model.convert;
 
 import com.fun90.airopscat.model.dto.NodeDto;
+import com.fun90.airopscat.model.dto.NodeRequest;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.util.JsonUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ public class NodeConverter {
         dto.setPort(node.getPort());
         dto.setProtocol(node.getProtocol());
         dto.setServerId(node.getServerId());
+        dto.setBackupServerId(node.getBackupServerId());
         dto.setOutId(node.getOutId());
         dto.setLevel(node.getLevel());
         dto.setDeployed(node.getDeployed());
@@ -36,6 +38,10 @@ public class NodeConverter {
             if (node.getServer() != null) {
                 dto.setServerIp(node.getServer().getIp());
                 dto.setServerHost(node.getServer().getHost());
+            }
+            if (node.getBackupServer() != null) {
+                dto.setBackupServerIp(node.getBackupServer().getIp());
+                dto.setBackupServerHost(node.getBackupServer().getHost());
             }
         } catch (org.hibernate.LazyInitializationException e) {
             // 当Hibernate session关闭时，优雅地处理懒加载异常
@@ -81,5 +87,46 @@ public class NodeConverter {
         }
 
         return dto;
+    }
+
+    /**
+     * 将 NodeRequest 转换为 Node 实体
+     * @param request NodeRequest 对象
+     * @return Node 实体
+     */
+    public static Node fromRequest(NodeRequest request) {
+        Node node = new Node();
+        
+        if (request.getId() != null) {
+            node.setId(request.getId());
+        }
+        node.setServerId(request.getServerId());
+        node.setBackupServerId(request.getBackupServerId());
+        node.setPort(request.getPort());
+        node.setProtocol(request.getProtocol());
+        node.setType(request.getType());
+        node.setInbound(request.getInbound() != null ? 
+            JsonUtil.toJsonString(request.getInbound()) : null);
+        node.setOutId(request.getOutId());
+        node.setRule(request.getRule() != null ? 
+            JsonUtil.toJsonString(request.getRule()) : null);
+        node.setLevel(request.getLevel());
+        node.setDisabled(request.getDisabled());
+        node.setName(request.getName());
+        node.setRemark(request.getRemark());
+        
+        return node;
+    }
+
+    /**
+     * 将 NodeRequest 转换为 Node 实体，并设置指定的 ID
+     * @param request NodeRequest 对象
+     * @param id 要设置的 ID
+     * @return Node 实体
+     */
+    public static Node fromRequest(NodeRequest request, Long id) {
+        Node node = fromRequest(request);
+        node.setId(id);
+        return node;
     }
 }

@@ -115,16 +115,21 @@ public class NodeDeploymentService {
     private List<DeploymentResult> processNodesByServer(List<Node> nodes) {
         List<DeploymentResult> results = new ArrayList<>();
 
-        Set<Long> serverIds = nodes.stream().map(Node::getServerId).collect(Collectors.toSet());
+        // 收集所有需要部署的服务器ID（包括主服务器和备用服务器）
+        Set<Long> serverIds = new HashSet<>();
+        nodes.forEach(node -> {
+            serverIds.add(node.getServerId());
+            if (node.getBackupServerId() != null) {
+                serverIds.add(node.getBackupServerId());
+            }
+        });
 
         for (Long serverId : serverIds) {
-            List<Node> serverNodes = nodeRepository.findByServerId(serverId);
+            // 一次性查询该服务器的所有相关节点（作为主服务器或备用服务器）
+            List<Node> allServerNodes = nodeRepository.findByServerIdOrBackupServerId(serverId);
 
-            try {
-                results.addAll(deployNodesForServer(serverId, serverNodes));
-            } catch (Exception e) {
-                log.error("服务器 {} 的节点部署失败", serverId, e);
-                results.addAll(createFailureResults(serverNodes, e.getMessage()));
+            if (!allServerNodes.isEmpty()) {
+                results.addAll(deployNodesForServer(serverId, allServerNodes));
             }
         }
 
@@ -145,13 +150,7 @@ public class NodeDeploymentService {
         for (Map.Entry<String, List<Node>> coreEntry : coreTypeNodeMap.entrySet()) {
             String coreType = coreEntry.getKey();
             List<Node> coreNodes = coreEntry.getValue();
-
-            try {
-                results.addAll(deployNodesForCore(serverId, coreType, coreNodes));
-            } catch (Exception e) {
-                log.error("服务器 {} 的 {} 核心节点部署失败", serverId, coreType, e);
-                results.addAll(createFailureResults(coreNodes, e.getMessage()));
-            }
+            results.addAll(deployNodesForCore(serverId, coreType, coreNodes));
         }
 
         return results;
@@ -181,6 +180,7 @@ public class NodeDeploymentService {
      * 部署Xray节点
      */
     private List<DeploymentResult> deployXrayNodes(Long serverId, List<Node> nodes) {
+        log.info("为服务器 {} 部署 {} 个 Xray 节点", serverId, nodes.size());
 
         // 1. 生成Xray配置
         XrayConfig xrayConfig = generateXrayConfig(nodes);
@@ -191,14 +191,16 @@ public class NodeDeploymentService {
         // 3. 远程部署配置
         deployConfigToServer(serverId, CORE_TYPE_XRAY, serverConfig.getConfig());
 
-        // 4. 更新节点状态
-        return new ArrayList<>(updateNodeDeploymentStatus(nodes));
+        // 4. 更新节点状态（只更新以该服务器为主服务器的节点状态）
+        return new ArrayList<>(updateNodeDeploymentStatus(nodes, serverId));
     }
 
     /**
      * 部署Hysteria节点
      */
     private List<DeploymentResult> deployHysteriaNodes(Long serverId, List<Node> nodes) {
+        log.info("为服务器 {} 部署 {} 个 Hysteria 节点", serverId, nodes.size());
+        
         List<DeploymentResult> results = new ArrayList<>();
 
         for (Node node : nodes) {
@@ -208,9 +210,9 @@ public class NodeDeploymentService {
                 ServerConfig serverConfig = saveServerConfig(serverId, CORE_TYPE_HYSTERIA, hysteriaConfig);
                 deployConfigToServer(serverId, CORE_TYPE_HYSTERIA, serverConfig.getConfig());
 
-                results.add(updateSingleNodeDeploymentStatus(node));
+                results.add(updateSingleNodeDeploymentStatus(node, serverId));
             } catch (Exception e) {
-                log.error("Hysteria节点 {} 部署失败", node.getId(), e);
+                log.error("服务器 {} 的 Hysteria节点 {} 部署失败", serverId, node.getId(), e);
                 results.add(createFailureResult(node, e.getMessage()));
             }
         }
@@ -418,12 +420,12 @@ public class NodeDeploymentService {
     /**
      * 更新节点部署状态
      */
-    private List<DeploymentResult> updateNodeDeploymentStatus(List<Node> nodes) {
+    private List<DeploymentResult> updateNodeDeploymentStatus(List<Node> nodes, Long serverId) {
         List<DeploymentResult> results = new ArrayList<>();
 
         for (Node node : nodes) {
             try {
-                results.add(updateSingleNodeDeploymentStatus(node));
+                results.add(updateSingleNodeDeploymentStatus(node, serverId));
             } catch (Exception e) {
                 log.error("更新节点 {} 状态失败", node.getId(), e);
                 results.add(createFailureResult(node, "状态更新失败: " + e.getMessage()));
@@ -436,13 +438,13 @@ public class NodeDeploymentService {
     /**
      * 更新单个节点的部署状态
      */
-    private DeploymentResult updateSingleNodeDeploymentStatus(Node node) {
+    private DeploymentResult updateSingleNodeDeploymentStatus(Node node, Long serverId) {
         try {
-
-
-            // 更新节点部署状态
-            node.setDeployed(1);
-            nodeRepository.persist(node);
+            // 只有当部署的服务器是节点的主服务器时才更新部署状态
+            if (serverId.equals(node.getServerId())) {
+                node.setDeployed(1);
+                nodeRepository.persist(node);
+            }
 
             return createSuccessResult(node, "节点部署成功");
         } catch (Exception e) {

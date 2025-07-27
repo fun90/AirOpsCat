@@ -220,30 +220,30 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
         result.setOperation("config");
         result.setCoreType("xray");
         result.setOperationTime(LocalDateTime.now());
-        
+
         try {
             if (params.length > 0) {
                 // 更新配置
                 String configContent = params[0].toString();
-                String configPath = params.length > 1 && params[1] instanceof String ? 
+                String configPath = params.length > 1 && params[1] instanceof String ?
                     (String) params[1] : CONFIG_PATH;
-                
+
                 // 1. 备份现有配置
                 String backupPath = configPath + ".backup." + System.currentTimeMillis();
                 CommandResult backupResult = connection.executeCommand(
                     String.format("cp %s %s", configPath, backupPath));
-                
+
                 if (!backupResult.isSuccess()) {
                     log.warn("无法备份配置文件: {}", backupResult.getStderr());
                 }
-                
+
                 // 2. 写入新配置
                 connection.writeRemoteFile(configPath, configContent);
-                
+
                 // 3. 验证配置
                 CommandResult validateResult = connection.executeCommand(
                     String.format("%s run -test -config %s", BINARY_PATH, configPath));
-                
+
                 if (validateResult.isSuccess()) {
                     result.setSuccess(true);
                     result.setMessage("配置文件更新成功");
@@ -266,12 +266,10 @@ public class XrayCoreManagementStrategy implements CoreManagementStrategy {
                 result.setMessage("获取配置文件成功");
                 result.setOutput(currentConfig);
             }
-            
+
         } catch (Exception e) {
             log.error("配置Xray失败", e);
-            result.setSuccess(false);
-            result.setMessage("配置异常: " + e.getMessage());
-            result.setError(e.getMessage());
+            throw new RuntimeException("配置Xray失败: " + e.getMessage());
         }
         
         return result;

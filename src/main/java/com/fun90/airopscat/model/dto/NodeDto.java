@@ -16,6 +16,9 @@ public class NodeDto {
     private Long serverId;
     private String serverIp;
     private String serverHost;
+    private Long backupServerId;
+    private String backupServerIp;
+    private String backupServerHost;
     private Integer port;
     private String protocol;
     private Integer type;

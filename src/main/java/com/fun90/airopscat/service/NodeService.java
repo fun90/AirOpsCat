@@ -149,6 +149,58 @@ public class NodeService {
         }
     }
 
+    // 检查备用服务器端口是否可用
+    public boolean isBackupPortAvailable(Long backupServerId, Integer port, Long nodeId) {
+        if (backupServerId == null) {
+            return true; // 如果没有备用服务器，则认为可用
+        }
+        
+        if (nodeId == null) {
+            // 检查是否有其他节点在该备用服务器上使用了相同端口
+            return !nodeRepository.existsByBackupServerIdAndPort(backupServerId, port);
+        } else {
+            // 检查是否有其他节点（除了当前节点）在该备用服务器上使用了相同端口
+            return !nodeRepository.existsByBackupServerIdAndPortAndIdNot(backupServerId, port, nodeId);
+        }
+    }
+
+    // 综合检查节点端口可用性（包括主服务器和备用服务器）- 使用单一SQL查询
+    public boolean isNodePortsAvailable(Long serverId, Long backupServerId, Integer port, Long nodeId) {
+        // 如果主服务器和备用服务器是同一个，直接返回false
+        if (backupServerId != null && serverId.equals(backupServerId)) {
+            return false;
+        }
+        
+        // 使用单一SQL查询检查端口冲突
+        return !nodeRepository.existsPortConflict(serverId, backupServerId, port, nodeId);
+    }
+
+    // 验证节点的服务器和端口
+    private void validateNodeServersAndPorts(Node node) {
+        // 确保主服务器存在
+        if (node.getServerId() != null && serverRepository.findById(node.getServerId()) == null) {
+            throw new EntityNotFoundException("Server with ID " + node.getServerId() + " not found");
+        }
+        
+        // 确保备用服务器存在
+        if (node.getBackupServerId() != null && serverRepository.findById(node.getBackupServerId()) == null) {
+            throw new EntityNotFoundException("Backup server with ID " + node.getBackupServerId() + " not found");
+        }
+        
+        // 检查端口是否已被使用（包括主服务器和备用服务器）
+        if (node.getServerId() != null && node.getPort() != null) {
+            if (!isNodePortsAvailable(node.getServerId(), node.getBackupServerId(), node.getPort(), node.getId())) {
+                if (node.getBackupServerId() != null && node.getServerId().equals(node.getBackupServerId())) {
+                    throw new IllegalArgumentException("Main server and backup server cannot be the same");
+                } else if (!isPortAvailable(node.getServerId(), node.getPort(), node.getId())) {
+                    throw new IllegalArgumentException("Port " + node.getPort() + " is already in use on the main server");
+                } else if (!isBackupPortAvailable(node.getBackupServerId(), node.getPort(), node.getId())) {
+                    throw new IllegalArgumentException("Port " + node.getPort() + " is already in use on the backup server");
+                }
+            }
+        }
+    }
+
     @Transactional
     public Node saveNode(Node node) {
         // 设置默认值（如果未提供）
@@ -156,16 +208,8 @@ public class NodeService {
             node.setDeployed(0);
         }
         
-        // 确保服务器存在
-        if (node.getServerId() != null && serverRepository.findById(node.getServerId()) == null) {
-            throw new EntityNotFoundException("Server with ID " + node.getServerId() + " not found");
-        }
-        
-        // 检查端口是否已被使用
-        if (node.getServerId() != null && node.getPort() != null && 
-                !isPortAvailable(node.getServerId(), node.getPort(), node.getId())) {
-            throw new IllegalArgumentException("Port " + node.getPort() + " is already in use on this server");
-        }
+        // 验证服务器和端口
+        validateNodeServersAndPorts(node);
         
         nodeRepository.persist(node);
         return node;
@@ -178,11 +222,8 @@ public class NodeService {
             throw new EntityNotFoundException("Node not found");
         }
 
-        // 检查端口是否已被使用
-        if (node.getServerId() != null && node.getPort() != null &&
-                !isPortAvailable(node.getServerId(), node.getPort(), node.getId())) {
-            throw new IllegalArgumentException("Port " + node.getPort() + " is already in use on this server");
-        }
+        // 验证服务器和端口
+        validateNodeServersAndPorts(node);
 
         // 检查节点是否有实质性变更
         boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node);
@@ -203,6 +244,12 @@ public class NodeService {
         if (existingNode.getServerId() != null) {
             Server server = serverRepository.findById(existingNode.getServerId());
             existingNode.setServer(server);
+        }
+        
+        // 手动加载关联的BackupServer对象，避免lazy loading问题
+        if (existingNode.getBackupServerId() != null) {
+            Server backupServer = serverRepository.findById(existingNode.getBackupServerId());
+            existingNode.setBackupServer(backupServer);
         }
         
         // 手动加载关联的OutNode对象，避免lazy loading问题
@@ -230,6 +277,14 @@ public class NodeService {
 
         // 检查服务器变更
         if (newNode.getServerId() != null && !newNode.getServerId().equals(oldNode.getServerId())) {
+            return true;
+        }
+        
+        // 检查备用服务器变更
+        if (newNode.getBackupServerId() == null && oldNode.getBackupServerId() != null) {
+            return true;
+        }
+        if (newNode.getBackupServerId() != null && !newNode.getBackupServerId().equals(oldNode.getBackupServerId())) {
             return true;
         }
 
@@ -276,6 +331,8 @@ public class NodeService {
         if (src.getDeployed() != null) target.setDeployed(src.getDeployed());
         // 特殊处理：outId 可能为 null，需要显式设置
         target.setOutId(src.getOutId());
+        // 特殊处理：backupServerId 可能为 null，需要显式设置
+        target.setBackupServerId(src.getBackupServerId());
     }
 
     @Transactional

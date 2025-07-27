@@ -25,6 +25,7 @@ const nodeTable = new DataTable({
         // Form data
         newItem: {
             serverId: '',
+            backupServerId: '',
             port: null,
             protocol: null,
             type: 0, // 默认为代理节点
@@ -363,6 +364,7 @@ const nodeTable = new DataTable({
                 // Prepare data for API
                 return {
                     serverId: this.newItem.serverId,
+                    backupServerId: this.newItem.backupServerId || null,
                     port: this.newItem.port,
                     protocol: this.newItem.protocol,
                     type: this.newItem.type,
@@ -398,6 +400,7 @@ const nodeTable = new DataTable({
                 return {
                     id: this.editedItem.id,
                     serverId: this.editedItem.serverId,
+                    backupServerId: this.editedItem.backupServerId === 0 ? null : this.editedItem.backupServerId,
                     port: this.editedItem.port,
                     protocol: this.editedItem.protocol,
                     type: this.editedItem.type,
@@ -421,6 +424,7 @@ const nodeTable = new DataTable({
             this.fetchLandingNodes();
             this.newItem = {
                 serverId: this.servers.length > 0 ? this.servers[0].id : '',
+                backupServerId: '',
                 port: null,
                 protocol: null,
                 type: 0,
@@ -474,6 +478,7 @@ const nodeTable = new DataTable({
             return {
                 id: node.id,
                 serverId: node.serverId,
+                backupServerId: !node.backupServerId ? 0 : node.backupServerId,
                 port: node.port,
                 protocol: node.protocol,
                 type: node.type,
