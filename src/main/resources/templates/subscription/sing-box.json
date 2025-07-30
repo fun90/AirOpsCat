@@ -37,7 +37,10 @@
       "tag": "🚀 节点选择",
       "interrupt_exist_connections": true,
       "outbounds": [
-        "🎈 自动选择"{#for node in nodes},{node.name}{/for}
+        "🎈 自动选择",
+        {#for node in nodes}
+        "{node.name}"{#if node_hasNext},{/if}
+        {/for}
       ]
     },
     {
@@ -48,7 +51,9 @@
       "tolerance": 150,
       "interrupt_exist_connections": true,
       "outbounds": [
-        {#for node in nodes}"{node.name}"{#if !loop.last},{/if}{/for}
+        {#for node in nodes}
+        "{node.name}"{#if node_hasNext},{/if}
+        {/for}
       ]
     },
     {
@@ -57,7 +62,10 @@
       "interrupt_exist_connections": true,
       "outbounds": [
         "🚀 节点选择",
-        "🎈 自动选择"{#for node in nodes},{node.name}{/for}
+        "🎈 自动选择",
+        {#for node in nodes}
+        "{node.name}"{#if node_hasNext},{/if}
+        {/for}
       ]
     },
     {
@@ -66,7 +74,9 @@
       "interrupt_exist_connections": true,
       "outbounds": [
         "🚀 节点选择",
-        "🎈 自动选择",{#for node in nodes}"{node.name}",{/for}"🎯 全球直连"
+        "🎈 自动选择",
+        {#for node in nodes}"{node.name}",{/for}
+        "🎯 全球直连"
       ]
     },
     {
@@ -75,7 +85,10 @@
       "interrupt_exist_connections": true,
       "outbounds": [
         "🚀 节点选择",
-        "🎈 自动选择"{#for node in nodes},{node.name}{/for}
+        "🎈 自动选择",
+        {#for node in nodes}
+        "{node.name}"{#if node_hasNext},{/if}
+        {/for}
       ]
     },
     {
@@ -83,7 +96,10 @@
       "type": "selector",
       "interrupt_exist_connections": true,
       "outbounds": [
-        "🎯 全球直连"{#for node in nodes},{node.name}{/for}
+        "🎯 全球直连",
+        {#for node in nodes}
+        "{node.name}"{#if node_hasNext},{/if}
+        {/for}
       ]
     },
     {
@@ -131,7 +147,7 @@
         }
       },
       "flow": "xtls-rprx-vision"
-    }{#if !loop.last},{/if}
+    }{#if node_hasNext},{/if}
     {/for}
   ],
   "route": {
@@ -285,8 +301,7 @@
         "format": "binary",
         "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo-lite/geoip/apple.srs",
         "download_detour": "🎯 全球直连"
-      },
-        
+      }
     ],
     "auto_detect_interface": true,
     "final": "🐟 漏网之鱼"
@@ -295,7 +310,7 @@
     "servers": [
       {
         "tag": "proxyDns",
-        "address": "https://dns.google/dns-query",
+        "address": "https://cloudflare-dns.com/dns-query",
         "address_resolver": "defaultDns",
         "address_strategy": "ipv4_only",
         "detour": "🚀 节点选择"

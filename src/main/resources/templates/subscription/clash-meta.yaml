@@ -44,11 +44,11 @@ dns:
     'rule-set:hst':
       - {dns ?: 'system'}
     'rule-set:myproxy':
+      - 'https://cloudflare-dns.com/dns-query#代理'
       - 'https://dns.google/dns-query#代理'
-      - 'https://dns.adguard.com/dns-query#代理'
     'rule-set:proxy':
+      - 'https://cloudflare-dns.com/dns-query#代理'
       - 'https://dns.google/dns-query#代理'
-      - 'https://dns.adguard.com/dns-query#代理'
   proxy-server-nameserver:
     - 'https://doh.pub/dns-query'
     - 'https://dns.alidns.com/dns-query'

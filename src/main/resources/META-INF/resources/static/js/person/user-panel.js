@@ -13,7 +13,8 @@ const userPanelData = {
             title: 'Android 客户端配置',
             defaultClient: 'clash-meta',
             clients: [
-                { name: 'clash-meta', title: 'Clash Meta for Android' }
+                { name: 'clash-meta', title: 'Clash Meta for Android' },
+                { name: 'sing-box', title: 'sing-box' }
             ],
             steps: [
                 '下载并安装 Clash Meta for Android',
@@ -28,7 +29,8 @@ const userPanelData = {
             title: 'HarmonyOS 客户端配置',
             defaultClient: 'clash-meta',
             clients: [
-                { name: 'clash-meta', title: 'Clash Meta for HarmonyOS' }
+                { name: 'clash-meta', title: 'Clash Meta for HarmonyOS' },
+                { name: 'sing-box', title: 'sing-box' }
             ],
             steps: [
                 '在华为应用市场下载 Clash Meta',
@@ -45,7 +47,8 @@ const userPanelData = {
             clients: [
                 { name: 'shadowrocket', title: 'Shadowrocket' },
                 { name: 'stash', title: 'Stash' },
-                { name: 'loon', title: 'Loon' }
+                { name: 'loon', title: 'Loon' },
+                { name: 'sing-box', title: 'sing-box' }
             ],
             steps: [
                 '在 App Store 下载 Shadowrocket',
@@ -59,7 +62,8 @@ const userPanelData = {
             title: 'Windows 客户端配置',
             defaultClient: 'clash-verge',
             clients: [
-                { name: 'clash-verge', title: 'Clash Verge' }
+                { name: 'clash-verge', title: 'Clash Verge' },
+                { name: 'sing-box', title: 'sing-box' }
             ],
             steps: [
                 '下载并安装 Clash Verge for Windows',
@@ -74,7 +78,8 @@ const userPanelData = {
             title: 'macOS 客户端配置',
             defaultClient: 'clash-verge',
             clients: [
-                { name: 'clash-verge', title: 'Clash Verge' }
+                { name: 'clash-verge', title: 'Clash Verge' },
+                { name: 'sing-box', title: 'sing-box' }
             ],
             steps: [
                 '下载并安装 Clash Verge for macOS',
@@ -89,7 +94,8 @@ const userPanelData = {
             title: 'Linux 客户端配置',
             defaultClient: 'clash-verge',
             clients: [
-                { name: 'clash-verge', title: 'Clash Verge' }
+                { name: 'clash-verge', title: 'Clash Verge' },
+                { name: 'sing-box', title: 'sing-box' }
             ],
             steps: [
                 '下载并安装 Clash Verge for Linux',

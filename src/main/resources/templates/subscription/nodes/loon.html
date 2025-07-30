@@ -1,8 +1,8 @@
-{#each nodes}
-{#if protocol == 'hysteria2'}
-{name}=Hysteria2,{serverHost},{port},{account.uuid},skip-cert-verify=true,tls-name={inbound.streamSettings.realitySettings.serverNames[0]}
+{#for node in nodes}
+{#if node.protocol == 'hysteria2'}
+{node.name}=Hysteria2,{node.serverHost},{node.port},{account.uuid},skip-cert-verify=true,tls-name={node.inbound.streamSettings.realitySettings.serverNames[0]}
 {/if}
-{#if protocol == 'vless'}
-{name}=VLESS,{serverHost},{port},{account.uuid},transport=tcp,flow=xtls-rprx-vision,public-key={inbound.streamSettings.realitySettings.publicKey},short-id={inbound.streamSettings.realitySettings.shortIds[0]},over-tls=true,sni={inbound.streamSettings.realitySettings.serverNames[0]},skip-cert-verify=true
+{#if node.protocol == 'vless'}
+{node.name}=VLESS,{node.serverHost},{node.port},{account.uuid},transport=tcp,flow=xtls-rprx-vision,public-key={node.inbound.streamSettings.realitySettings.publicKey},short-id={node.inbound.streamSettings.realitySettings.shortIds[0]},over-tls=true,sni={node.inbound.streamSettings.realitySettings.serverNames[0]},skip-cert-verify=true
 {/if}
-{/each}
+{/for}

@@ -28,32 +28,13 @@ tun:
     - tcp://any:53
 
 dns:
-  enable: true
-  ipv6: true
-  listen: 0.0.0.0:1053
-  enhanced-mode: redir-host
   default-nameserver:
     - 223.5.5.5
     - 114.114.114.114
   nameserver:
     - https://doh.pub/dns-query
     - https://dns.alidns.com/dns-query
-  nameserver-policy:
-    '+.fun90.com':
-      - https://doh.pub/dns-query
-      - https://dns.alidns.com/dns-query
-    'rule-set:hst':
-      - {dns ?: 'system'}
-    'rule-set:myproxy':
-      - 'https://dns.google/dns-query#代理'
-      - 'https://dns.adguard.com/dns-query#代理'
-    'rule-set:proxy':
-      - 'https://dns.google/dns-query#代理'
-      - 'https://dns.adguard.com/dns-query#代理'
-  proxy-server-nameserver:
-    - 'https://doh.pub/dns-query'
-    - 'https://dns.alidns.com/dns-query'
-
+    
 profile:
   store-selected: true
 

@@ -29,18 +29,19 @@ const accountTable = new DataTable({
         },
         // 操作系统和应用的关联关系
         osAppMapping: {
-            'windows': ['clash-verge'],
-            'macos': ['clash-verge'],
-            'linux': ['clash-verge'],
-            'android': ['clash-meta'],
-            'harmony': ['clash-meta'],
-            'ios': ['shadowrocket', 'loon', 'stash']
+            'windows': ['clash-verge', 'sing-box'],
+            'macos': ['clash-verge', 'sing-box'],
+            'linux': ['clash-verge', 'sing-box'],
+            'android': ['clash-meta', 'sing-box'],
+            'harmony': ['clash-meta', 'sing-box'],
+            'ios': ['shadowrocket', 'loon', 'stash', 'sing-box']
         },
         // 所有可用的应用列表
         allApps: [
             { value: 'clash-verge', label: 'Clash Verge' },
             { value: 'clash-meta', label: 'Clash Meta' },
             { value: 'stash', label: 'Stash' },
+            { value: 'sing-box', label: 'sing-box' },
             { value: 'shadowrocket', label: 'Shadowrocket' },
             { value: 'loon', label: 'Loon' },
             { value: 'v2rayng', label: 'V2rayNG' }
