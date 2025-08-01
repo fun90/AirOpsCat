@@ -363,6 +363,7 @@ public class NodeDeploymentService {
         serverConfig.setServerId(serverId);
         serverConfig.setConfigType(coreType);
         serverConfig.setCreateTime(LocalDateTime.now());
+        serverConfig.setPath("xray".equalsIgnoreCase(coreType) ? "/etc/xray/config.json" : "/etc/hysteria/config.json");
         return serverConfig;
     }
 

@@ -451,6 +451,146 @@ public class ScheduledTaskService {
     }
 
     /**
+     * 每天早上8点执行的任务
+     * 清理Xray配置路径下5天前的备份文件（config.json.backup.{时间戳}）
+     */
+    @Scheduled(cron = "0 0 8 * * ?")
+    public void cleanupOldXrayBackupFiles() {
+        log.info("开始执行定时任务：清理Xray旧备份文件");
+        
+        try {
+            // 1. 获取所有Xray类型的服务器配置
+            List<ServerConfig> xrayConfigs = serverConfigRepository.findByConfigType("xray");
+            
+            if (xrayConfigs.isEmpty()) {
+                log.info("没有找到Xray配置，任务结束");
+                return;
+            }
+            
+            log.info("找到 {} 个Xray配置", xrayConfigs.size());
+            
+            int totalCleaned = 0;
+            int successCount = 0;
+            int failureCount = 0;
+            
+            // 2. 遍历每个Xray配置
+            for (ServerConfig serverConfig : xrayConfigs) {
+                try {
+                    // 获取服务器信息
+                    Server server = serverRepository.findById(serverConfig.getServerId());
+                    if (server == null) {
+                        log.warn("服务器 {} 不存在，跳过", serverConfig.getServerId());
+                        continue;
+                    }
+                    
+                    // 获取配置文件路径的目录
+                    String configPath = serverConfig.getPath();
+                    if (configPath == null || configPath.trim().isEmpty()) {
+                        log.warn("服务器 {} 的Xray配置路径为空，跳过", server.getId());
+                        continue;
+                    }
+                    
+                    // 提取目录路径
+                    String configDir = configPath.substring(0, configPath.lastIndexOf('/'));
+                    
+                    // 清理该服务器上的旧备份文件
+                    int cleanedCount = cleanupServerBackupFiles(server, configDir);
+                    totalCleaned += cleanedCount;
+                    successCount++;
+                    
+                    log.info("服务器 {} 清理了 {} 个旧备份文件", server.getName(), cleanedCount);
+                    
+                } catch (Exception e) {
+                    log.error("处理服务器配置 {} 时发生错误: {}", serverConfig.getId(), e.getMessage());
+                    failureCount++;
+                }
+            }
+            
+            log.info("备份文件清理完成 - 总共清理: {} 个文件, 成功处理: {} 个配置, 失败: {} 个配置", 
+                     totalCleaned, successCount, failureCount);
+            
+            // 发送通知
+            if (totalCleaned > 0 || failureCount > 0) {
+                String message = String.format("清理了 %d 个旧备份文件，成功处理: %d 个配置, 失败: %d 个配置", 
+                                              totalCleaned, successCount, failureCount);
+                if (failureCount > 0) {
+                    barkService.sendWarningNotification("AirOpsCat 备份清理", message);
+                } else {
+                    barkService.sendInfoNotification("AirOpsCat 备份清理", message);
+                }
+            }
+            
+        } catch (Exception e) {
+            log.error("执行备份文件清理任务时发生错误", e);
+            barkService.sendErrorNotification("AirOpsCat 备份清理失败", "执行备份文件清理任务时发生错误: " + e.getMessage());
+        }
+        
+        log.info("备份文件清理任务执行完成");
+    }
+    
+    /**
+     * 清理单个服务器的旧备份文件
+     */
+    private int cleanupServerBackupFiles(Server server, String configDir) {
+        int cleanedCount = 0;
+        
+        try {
+            // 创建SSH连接
+            SshConfig sshConfig = createSshConfig(server);
+            
+            try (SshConnection connection = sshConnectionService.createConnection(sshConfig)) {
+                
+                // 构建清理命令：查找5天前的备份文件并删除
+                // 查找 config.json.backup.* 格式的文件，修改时间超过5天的
+                String findCommand = String.format(
+                    "find %s -name 'config.json.backup.*' -type f -mtime +5 2>/dev/null || true",
+                    configDir
+                );
+                
+                CommandResult findResult = connection.executeCommand(findCommand);
+                
+                if (!findResult.isSuccess()) {
+                    log.warn("查找服务器 {} 备份文件失败: {}", server.getId(), findResult.getStderr());
+                    return 0;
+                }
+                
+                String output = findResult.getStdout();
+                if (output == null || output.trim().isEmpty()) {
+                    log.debug("服务器 {} 没有找到需要清理的旧备份文件", server.getId());
+                    return 0;
+                }
+                
+                // 分析找到的文件
+                String[] backupFiles = output.trim().split("\n");
+                log.info("服务器 {} 找到 {} 个旧备份文件需要清理", server.getName(), backupFiles.length);
+                
+                // 删除这些文件
+                for (String backupFile : backupFiles) {
+                    if (backupFile.trim().isEmpty()) {
+                        continue;
+                    }
+                    
+                    String deleteCommand = String.format("rm -f '%s'", backupFile.trim());
+                    CommandResult deleteResult = connection.executeCommand(deleteCommand);
+                    
+                    if (deleteResult.isSuccess()) {
+                        cleanedCount++;
+                        log.debug("删除旧备份文件: {}", backupFile.trim());
+                    } else {
+                        log.warn("删除备份文件 {} 失败: {}", backupFile.trim(), deleteResult.getStderr());
+                    }
+                }
+                
+            }
+            
+        } catch (Exception e) {
+            log.error("清理服务器 {} 备份文件失败: {}", server.getId(), e.getMessage());
+        }
+        
+        return cleanedCount;
+    }
+
+    /**
          * 流量统计数据类
          */
         private record TrafficStats(long uploadBytes, long downloadBytes) {
