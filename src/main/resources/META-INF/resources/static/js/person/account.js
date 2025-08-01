@@ -75,7 +75,9 @@ const accountTable = new DataTable({
             disabled: false,
             remark: '',
             tagIds: []
-        }
+        },
+        currentItem: {},
+        deployModal: null,
     },
     methods: {
         // Initialize any additional data
@@ -709,18 +711,18 @@ const accountTable = new DataTable({
         },
 
         // 部署到节点
-        deployToNodes(account) {
-            if (!account.id) return;
-
-            // 显示确认提示
-            if (!confirm(`确定要将账户 "${account.accountNo}" 部署到相关节点吗？`)) {
-                return;
-            }
+        confirmDeploy(account) {
+            this.currentItem = account;
+            this.deployModal = new Modal(document.getElementById('account-deployModal'));
+            this.deployModal.show();
+        },
+        deployToNodes() {
+            if (!this.currentItem.id) return;
 
             // 显示加载状态
-            const loadingToast = ToastUtils.showLoading('正在部署到节点...');
+            ToastUtils.show('Success', '正在部署到节点...', 'info');
 
-            fetch(`/api/admin/accounts/${account.id}/deploy`, {
+            fetch(`/api/admin/accounts/${this.currentItem.id}/deploy`, {
                 method: 'PATCH'
             })
                 .then(response => {
@@ -730,16 +732,15 @@ const accountTable = new DataTable({
                     return response.json();
                 })
                 .then(results => {
-                    // 隐藏加载提示
-                    ToastUtils.hideLoading(loadingToast);
 
                     // 统计部署结果
                     const successCount = results.filter(r => r.success).length;
                     const failCount = results.filter(r => !r.success).length;
-                    const totalCount = results.length;
 
                     if (failCount === 0) {
                         ToastUtils.show('Success', `部署成功！成功部署到 ${successCount} 个节点`, 'success');
+                        // Hide modal
+                        this.deployModal.hide();
                     } else if (successCount === 0) {
                         ToastUtils.show('Error', `部署失败！${failCount} 个节点部署失败`, 'danger');
                     } else {
@@ -752,8 +753,6 @@ const accountTable = new DataTable({
                     }
                 })
                 .catch(error => {
-                    // 隐藏加载提示
-                    ToastUtils.hideLoading(loadingToast);
                     console.error('Error:', error);
                     ToastUtils.show('Error', '部署到节点失败', 'danger');
                 });

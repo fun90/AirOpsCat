@@ -769,4 +769,20 @@
             </div>
         </div>
     </div>
-</div> 
+</div>
+
+<!-- Deploy Confirmation Modal -->
+<div class="modal modal-blur fade" id="account-deployModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="modal-title">确定要将账户部署到相关节点吗？</div>
+                <div>若确认部署，账户（{{currentItem.remark}}）关联的节点将会重启</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" @click="deployToNodes">确认</button>
+            </div>
+        </div>
+    </div>
+</div>

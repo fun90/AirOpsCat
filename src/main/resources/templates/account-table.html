@@ -113,7 +113,7 @@
                         <a class="dropdown-item" href="#" @click.prevent="resetAuthCode(account)">
                             <i class="ti ti-refresh"></i> 重置认证码
                         </a>
-                        <a class="dropdown-item" href="#" @click.prevent="deployToNodes(account)">
+                        <a v-if="account.disabled === 0" class="dropdown-item" href="#" @click.prevent="confirmDeploy(account)">
                             <i class="ti ti-cloud-upload"></i> 部署到节点
                         </a>
                         <a v-if="account.disabled === 0" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(account, true)">
