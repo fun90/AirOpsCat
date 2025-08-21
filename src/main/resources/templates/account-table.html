@@ -2,8 +2,8 @@
     <thead>
     <tr>
         <th>ID</th>
-        <th>账号</th>
         <th>用户</th>
+        <th>账号</th>
         <th>状态</th>
         <th>在线IP</th>
         <th>流量使用</th>
@@ -17,8 +17,13 @@
         <td v-text="account.id"></td>
         <td>
             <div class="d-flex flex-column">
+                <span class="text-decoration-none text-truncate" style="max-width: 150px;">{{ account.nickName }}</span>
+            </div>
+        </td>
+        <td>
+            <div class="d-flex flex-column">
                 <div class="d-flex align-items-center">
-                    <a href="#" @click.prevent="viewAccountDetails(account)" class="text-decoration-none text-truncate" style="max-width: 150px;" 
+                    <a href="#" @click.prevent="viewAccountDetails(account)" class="text-decoration-none text-truncate" style="max-width: 150px;"
                        :title="'点击查看账号详情: ' + account.accountNo">
                         {{ account.accountNo }}
                     </a>
@@ -27,11 +32,6 @@
                     </button>
                 </div>
                 <span v-if="account.remark" class="text-muted small" :title="account.remark">{{ account.remark }}</span>
-            </div>
-        </td>
-        <td>
-            <div class="d-flex flex-column">
-                <span class="text-decoration-none text-truncate" style="max-width: 150px;">{{ account.nickName }}</span>
             </div>
         </td>
         <td>

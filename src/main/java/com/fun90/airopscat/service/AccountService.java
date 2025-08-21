@@ -15,6 +15,7 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -218,16 +219,9 @@ public class AccountService {
         }
 
         // 使用工具方法复制非null属性
-        // Copy non-null properties manually
-        if (account.getAccountNo() != null) existingAccount.setAccountNo(account.getAccountNo());
-        if (account.getUuid() != null) existingAccount.setUuid(account.getUuid());
-        if (account.getAuthCode() != null) existingAccount.setAuthCode(account.getAuthCode());
-        if (account.getFromDate() != null) existingAccount.setFromDate(account.getFromDate());
-        if (account.getToDate() != null) existingAccount.setToDate(account.getToDate());
-        if (account.getBandwidth() != null) existingAccount.setBandwidth(account.getBandwidth());
-        if (account.getDisabled() != null) existingAccount.setDisabled(account.getDisabled());
-        if (account.getPeriodType() != null) existingAccount.setPeriodType(account.getPeriodType());
-        if (account.getRemark() != null) existingAccount.setRemark(account.getRemark());
+        copyNonNullProperties(account, existingAccount);
+
+        accountRepository.persist(existingAccount);
 
         // No need to call save/persist for updates in Panache
         return existingAccount;
@@ -286,6 +280,31 @@ public class AccountService {
     // 生成随机账号
     private String generateAccountNo() {
         return UUID.randomUUID().toString().replaceAll("-", "").substring(0, 12);
+    }
+
+    /**
+     * 复制源对象的非null属性到目标对象
+     * Copy non-null properties from source to target object using reflection
+     */
+    private void copyNonNullProperties(Account source, Account target) {
+        Field[] fields = Account.class.getDeclaredFields();
+        for (Field field : fields) {
+            try {
+                field.setAccessible(true);
+                Object value = field.get(source);
+                if (value != null) {
+                    // 特殊处理 user 属性，设置 userId 而不是整个 user 对象
+                    if ("user".equals(field.getName()) && source.getUser() != null) {
+                        target.setUserId(source.getUserId());
+                    } else if (!"user".equals(field.getName()) && !"id".equals(field.getName())) {
+                        // 跳过 id 和 user 字段，id 不应被更新，user 已特殊处理
+                        field.set(target, value);
+                    }
+                }
+            } catch (IllegalAccessException e) {
+                // 忽略无法访问的字段
+            }
+        }
     }
 
 }

@@ -1,4 +1,5 @@
 import { DataTable } from '/static/js/common/data-table.js';
+import { createSearchDropdown, SearchDropdownPresets } from '/static/js/common/search-dropdown.js';
 import { formatDateTimeForLocal, formatRelativeTime } from '/static/js/common/common.js';
 import { Modal } from 'https://cdn.jsdelivr.net/npm/@tabler/core@1.3.2/dist/js/tabler.esm.min.js';
 
@@ -10,9 +11,12 @@ const accountTable = new DataTable({
             userId: '',
             status: ''
         },
-        users: [],
         periodTypes: [],
         availableTags: [],
+        
+        // 搜索组件实例
+        userSearch: null,
+        editUserSearch: null,
         stats: {
             total: 0,
             active: 0,
@@ -82,27 +86,59 @@ const accountTable = new DataTable({
     methods: {
         // Initialize any additional data
         initialize() {
-            this.fetchUsers();
             this.fetchPeriodTypes();
             this.fetchAvailableTags();
             this.fetchDocsConfig();
+            this.initializeSearchComponents();
         },
 
-        // Fetch additional data
-        fetchUsers() {
-            fetch('/api/admin/users')
-                .then(response => response.json())
-                .then(data => {
-                    this.users = data.records;
-
-                    // If it's the first load and no user selected, select the first one
-                    if (this.users.length > 0 && !this.newItem.userId) {
-                        this.newItem.userId = this.users[0].id;
+        // Initialize search dropdown components
+        initializeSearchComponents() {
+            // 创建用户搜索组件（新建时使用）
+            this.userSearch = createSearchDropdown({
+                placeholder: '请搜索用户...',
+                apiUrl: '/api/admin/users',
+                formatItem: (item) => ({
+                    id: item.id,
+                    name: item.nickName,
+                    data: item
+                }),
+                displayField: (user) => user.nickName,
+                onSelect: (item) => {
+                    this.newItem.userId = item.id;
+                },
+                onChange: (text, item) => {
+                    if (!item) {
+                        this.newItem.userId = '';
                     }
-                })
-                .catch(error => {
-                    console.error('Error fetching users:', error);
-                });
+                }
+            });
+
+            // 创建编辑用户搜索组件（编辑时使用）
+            this.editUserSearch = createSearchDropdown({
+                placeholder: '请搜索用户...',
+                apiUrl: '/api/admin/users',
+                formatItem: (item) => ({
+                    id: item.id,
+                    name: item.nickName,
+                    data: item
+                }),
+                displayField: (user) => user.nickName,
+                onSelect: (item) => {
+                    this.editedItem.userId = item.id;
+                },
+                onChange: (text, item) => {
+                    if (!item) {
+                        this.editedItem.userId = '';
+                    }
+                }
+            });
+
+            // 延迟绑定DOM，确保模板已渲染
+            setTimeout(() => {
+                this.userSearch.bindToDOM('userSearch');
+                this.editUserSearch.bindToDOM('editUserSearch');
+            }, 100);
         },
 
         fetchPeriodTypes() {
@@ -251,12 +287,6 @@ const accountTable = new DataTable({
         filterByStatus(status) {
             this.filters.status = status;
             this.fetchRecords();
-        },
-
-        // Navigation and UI actions
-        viewUserDetails(userId) {
-            // Redirect to user details page
-            window.location.href = `/admin/users/${userId}`;
         },
 
         // 查看账号详情
@@ -583,7 +613,7 @@ const accountTable = new DataTable({
             const oneMonthLaterFormat = formatDateTimeForLocal(oneMonthLater);
 
             this.newItem = {
-                userId: this.users.length > 0 ? this.users[0].id : '',
+                userId: '',
                 accountNo: '',
                 level: 0,
                 fromDate: localDateTimeFormat,
@@ -598,6 +628,11 @@ const accountTable = new DataTable({
                 remark: '',
                 tagIds: []
             };
+
+            // Reset search components
+            if (this.userSearch) {
+                this.userSearch.clear();
+            }
         },
 
         prepareEditForm(account) {
@@ -610,6 +645,12 @@ const accountTable = new DataTable({
 
             // Load current account tags
             this.loadAccountTags(account.id);
+
+            // Handle user search component for edit
+            if (this.editUserSearch && account.userId) {
+                // 查找用户信息
+                this.editUserSearch.setValue(account.nickName, {id: account.userId, name: account.nickName});
+            }
 
             return {
                 id: account.id,

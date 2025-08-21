@@ -11,9 +11,8 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label required">用户</label>
-                            <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="newItem.userId">
-                                <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
-                            </select>
+                            <!-- 使用新的搜索下拉框组件 -->
+                            {#include fragments/common/search_dropdown_component componentVar='userSearch' cssClass='' /}
                             <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
                         </div>
                     </div>
@@ -148,9 +147,8 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label required">用户</label>
-                            <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="editedItem.userId">
-                                <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
-                            </select>
+                            <!-- 使用新的搜索下拉框组件 -->
+                            {#include fragments/common/search_dropdown_component componentVar='editUserSearch' cssClass='' /}
                             <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
                         </div>
                     </div>

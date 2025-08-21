@@ -38,20 +38,17 @@ dns:
     - https://doh.pub/dns-query
     - https://dns.alidns.com/dns-query
   nameserver-policy:
-    '+.fun90.com':
+    "+.fun90.com":
       - https://doh.pub/dns-query
       - https://dns.alidns.com/dns-query
-    'rule-set:hst':
-      - {dns ?: 'system'}
-    'rule-set:myproxy':
-      - 'https://cloudflare-dns.com/dns-query#代理'
-      - 'https://dns.google/dns-query#代理'
-    'rule-set:proxy':
-      - 'https://cloudflare-dns.com/dns-query#代理'
-      - 'https://dns.google/dns-query#代理'
+    "rule-set:hst":
+      - {dns ?: "system"}
+    geosite:geolocation-!cn:
+      - "https://cloudflare-dns.com/dns-query#代理"
+      - "https://dns.google/dns-query#代理"
   proxy-server-nameserver:
-    - 'https://doh.pub/dns-query'
-    - 'https://dns.alidns.com/dns-query'
+    - "https://doh.pub/dns-query"
+    - "https://dns.alidns.com/dns-query"
 
 profile:
   store-selected: true
