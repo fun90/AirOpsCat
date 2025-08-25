@@ -248,8 +248,9 @@ public class SubscriptionService {
 
     /**
      * 获取模板内容
+     * 优先从外部目录读取，如果不存在则从 classpath 读取
      */
     private String getTemplateContent(String templateName) {
-        return ConfigFileReader.readFileContent("templates/subscription/" + templateName);
+        return ConfigFileReader.readFileContent("config/subscription/" + templateName);
     }
 } 
