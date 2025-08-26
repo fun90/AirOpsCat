@@ -44,6 +44,7 @@ public class NodeDeploymentService {
     private final ConversionStrategyRegistry strategyRegistry;
     private final CoreManagementService coreManagementService;
     private final TagRepository tagRepository;
+    private final ConfigFileReader configFileReader;
 
     private static final String CORE_TYPE_HYSTERIA = "hysteria";
     private static final String CORE_TYPE_XRAY = "xray";
@@ -224,7 +225,7 @@ public class NodeDeploymentService {
      * 生成Xray配置
      */
     private XrayConfig generateXrayConfig(List<Node> nodes) {
-        String configTemplate = ConfigFileReader.readFileContent("templates/core/xray.json");
+        String configTemplate = configFileReader.readFileContent("templates/core/xray.json");
         XrayConfig xrayConfig = JsonUtil.toObject(configTemplate, XrayConfig.class);
 
         List<InboundConfig> inbounds = xrayConfig.getInbounds().stream().filter(o -> o.getTag() != null && o.getTag().startsWith("default-")).collect(Collectors.toList());

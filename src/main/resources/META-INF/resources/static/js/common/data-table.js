@@ -12,7 +12,7 @@
  * 2. Create a Vue application and extend from DataTable
  * 3. Override necessary methods and properties for your specific entity
  */
-import { Modal, Tooltip } from 'https://cdn.jsdelivr.net/npm/@tabler/core@1.3.2/dist/js/tabler.esm.min.js';
+import { Modal, Tooltip } from '/static/tabler/js/tabler.esm.min.js';
 
 export class DataTable {
   constructor(options = {}) {

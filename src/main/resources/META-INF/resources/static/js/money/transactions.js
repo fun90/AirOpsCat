@@ -2,7 +2,7 @@
 import { DataTable } from '/static/js/common/data-table.js';
 import { createSearchDropdown, SearchDropdownPresets } from '/static/js/common/search-dropdown.js';
 import { formatDateTimeForLocal } from '/static/js/common/common.js';
-import ApexCharts from 'https://cdn.jsdelivr.net/npm/apexcharts@4.7.0/+esm';
+import ApexCharts from '/static/js/apexcharts.js';
 
 const transactionTable = new DataTable({
     data: {

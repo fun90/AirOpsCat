@@ -1,30 +1,32 @@
 package com.fun90.airopscat.util;
 
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.microprofile.config.ConfigProvider;
+import org.eclipse.microprofile.config.Config;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 配置文件读取工具类
  * 支持从 classpath 读取配置文件并转换为对象或JSON字符串
  */
 @Slf4j
-public final class ConfigFileReader {
+@ApplicationScoped
+public class ConfigFileReader {
     
-    private ConfigFileReader() {
-        throw new IllegalStateException("Utility class");
-    }
+    @Inject
+    Config config;
     
-    // 缓存已读取的配置文件内容，避免重复读取
-    private static final Map<String, String> FILE_CONTENT_CACHE = new HashMap<>();
+    // 缓存已读取的配置文件内容，避免重复读取，使用线程安全的ConcurrentHashMap
+    private final Map<String, String> fileContentCache = new ConcurrentHashMap<>();
     
     /**
      * 从 classpath 或外部目录读取配置文件内容
@@ -34,15 +36,15 @@ public final class ConfigFileReader {
      * @return 文件内容字符串
      * @throws RuntimeException 如果文件读取失败
      */
-    public static String readFileContent(String path) {
+    public String readFileContent(String path) {
         if (path == null || path.trim().isEmpty()) {
             throw new IllegalArgumentException("File path cannot be null or empty");
         }
         
         // 检查缓存
-        if (FILE_CONTENT_CACHE.containsKey(path)) {
+        if (fileContentCache.containsKey(path)) {
             log.debug("Reading file content from cache: {}", path);
-            return FILE_CONTENT_CACHE.get(path);
+            return fileContentCache.get(path);
         }
         
         String content = null;
@@ -60,7 +62,7 @@ public final class ConfigFileReader {
         }
         
         // 缓存文件内容
-        FILE_CONTENT_CACHE.put(path, content);
+        fileContentCache.put(path, content);
         log.debug("Successfully read configuration file: {}", path);
         
         return content;
@@ -72,10 +74,10 @@ public final class ConfigFileReader {
      * @param path 文件路径
      * @return 文件内容，如果文件不存在返回 null
      */
-    private static String readFromExternalDirectory(String path) {
+    private String readFromExternalDirectory(String path) {
         try {
             // 获取外部模板目录配置
-            String templatesDir = ConfigProvider.getConfig()
+            String templatesDir = config
                 .getOptionalValue("airopscat.config.templates.dir", String.class)
                 .orElse("./config");
             
@@ -106,7 +108,7 @@ public final class ConfigFileReader {
      * @param path 文件路径
      * @return 文件内容，如果文件不存在返回 null
      */
-    private static String readFromClasspath(String path) {
+    private String readFromClasspath(String path) {
         try {
             // 确保路径不以 classpath: 开头（因为我们直接使用 getResourceAsStream）
             String resourcePath = path.startsWith("classpath:") ? path.substring(10) : path;
@@ -134,7 +136,7 @@ public final class ConfigFileReader {
      * @param path 文件路径
      * @return true 如果文件存在，false 否则
      */
-    public static boolean exists(String path) {
+    public boolean exists(String path) {
         if (path == null || path.trim().isEmpty()) {
             return false;
         }
@@ -154,9 +156,9 @@ public final class ConfigFileReader {
      * @param path 文件路径
      * @return true 如果文件存在，false 否则
      */
-    private static boolean existsInExternalDirectory(String path) {
+    private boolean existsInExternalDirectory(String path) {
         try {
-            String templatesDir = ConfigProvider.getConfig()
+            String templatesDir = config
                 .getOptionalValue("airopscat.config.templates.dir", String.class)
                 .orElse("./config");
             
@@ -181,7 +183,7 @@ public final class ConfigFileReader {
      * @param path 文件路径
      * @return true 如果文件存在，false 否则
      */
-    private static boolean existsInClasspath(String path) {
+    private boolean existsInClasspath(String path) {
         try {
             String resourcePath = path.startsWith("classpath:") ? path.substring(10) : path;
             InputStream inputStream = ConfigFileReader.class.getClassLoader().getResourceAsStream(resourcePath);
@@ -201,8 +203,8 @@ public final class ConfigFileReader {
      * 清空文件内容缓存
      * 在开发环境或需要重新加载配置时可以调用此方法
      */
-    public static void clearCache() {
-        FILE_CONTENT_CACHE.clear();
+    public void clearCache() {
+        fileContentCache.clear();
         log.debug("Configuration file cache cleared");
     }
     
@@ -211,9 +213,9 @@ public final class ConfigFileReader {
      * 
      * @param path 文件路径
      */
-    public static void clearCache(String path) {
+    public void clearCache(String path) {
         if (path != null && !path.trim().isEmpty()) {
-            FILE_CONTENT_CACHE.remove(path);
+            fileContentCache.remove(path);
             log.debug("Cleared cache for configuration file: {}", path);
         }
     }
@@ -223,7 +225,7 @@ public final class ConfigFileReader {
      * 
      * @return 缓存文件数量
      */
-    public static int getCacheSize() {
-        return FILE_CONTENT_CACHE.size();
+    public int getCacheSize() {
+        return fileContentCache.size();
     }
 }

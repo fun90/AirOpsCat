@@ -1,7 +1,7 @@
 import { DataTable } from '/static/js/common/data-table.js';
 import { createSearchDropdown, SearchDropdownPresets } from '/static/js/common/search-dropdown.js';
 import { formatDateTimeForLocal, formatRelativeTime } from '/static/js/common/common.js';
-import { Modal } from 'https://cdn.jsdelivr.net/npm/@tabler/core@1.3.2/dist/js/tabler.esm.min.js';
+import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 
 const accountTable = new DataTable({
     data: {

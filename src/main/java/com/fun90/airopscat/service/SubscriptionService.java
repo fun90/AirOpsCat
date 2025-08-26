@@ -31,6 +31,7 @@ public class SubscriptionService {
     private final AccountTrafficStatsRepository accountTrafficRepository;
     private final TagService tagService;
     private final ThymeleafUtil thymeleafUtil;
+    private final ConfigFileReader configFileReader;
     private final String subscriptionUrl;
 
     @Inject
@@ -39,11 +40,13 @@ public class SubscriptionService {
             AccountTrafficStatsRepository accountTrafficRepository,
             TagService tagService,
             ThymeleafUtil thymeleafUtil,
+            ConfigFileReader configFileReader,
             @ConfigProperty(name = "airopscat.subscription.url") String subscriptionUrl) {
         this.accountRepository = accountRepository;
         this.accountTrafficRepository = accountTrafficRepository;
         this.tagService = tagService;
         this.thymeleafUtil = thymeleafUtil;
+        this.configFileReader = configFileReader;
         this.subscriptionUrl = subscriptionUrl;
     }
 
@@ -251,6 +254,6 @@ public class SubscriptionService {
      * 优先从外部目录读取，如果不存在则从 classpath 读取
      */
     private String getTemplateContent(String templateName) {
-        return ConfigFileReader.readFileContent("config/subscription/" + templateName);
+        return configFileReader.readFileContent("config/subscription/" + templateName);
     }
 } 
