@@ -317,6 +317,13 @@ const accountTable = new DataTable({
             this.resetAuthCodeModal.show();
         },
 
+        regenerateUuid() {
+            if (!this.editedItem.id) return;
+            
+            // 直接重新生成UUID
+            this.editedItem.uuid = this.uuidv4();
+        },
+
         resetAuthCode(account) {
             if (!account.id) return;
 
@@ -598,7 +605,8 @@ const accountTable = new DataTable({
                 bandwidth: this.editedItem.bandwidth,
                 disabled: this.editedItem.disabled,
                 remark: this.editedItem.remark || null,
-                tagIds: this.editedItem.tagIds || []
+                tagIds: this.editedItem.tagIds || [],
+                uuid: this.editedItem.uuid
             };
         },
 

@@ -274,7 +274,7 @@ public class AccountService {
     
     // 生成随机认证码
     private String generateAuthCode() {
-        return UUID.randomUUID().toString().replaceAll("-", "").substring(0, 16);
+        return UUID.randomUUID().toString().replaceAll("-", "").substring(0, 32);
     }
     
     // 生成随机账号
