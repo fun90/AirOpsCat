@@ -25,6 +25,7 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -226,6 +227,9 @@ public class ScheduledTaskService {
                         userEmails.addAll(extractUserEmailsFromInbound(inbound));
                     }
                 }
+
+                // 流量倍率
+                BigDecimal multiple = server.getMultiple() == null ? BigDecimal.ONE : server.getMultiple();
                 
                 // 处理每个用户的流量统计
                 for (String userEmail : userEmails) {
@@ -243,8 +247,8 @@ public class ScheduledTaskService {
                                     account.getId(),
                                     account.getUserId(),
                                     account.getPeriodType(),
-                                    trafficStats.uploadBytes(),
-                                    trafficStats.downloadBytes()
+                                    multiple.multiply(new BigDecimal(trafficStats.uploadBytes())).longValue(),
+                                    multiple.multiply(new BigDecimal(trafficStats.downloadBytes())).longValue()
                                 );
                                 successCount++;
                                 

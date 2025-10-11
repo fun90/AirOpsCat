@@ -12,10 +12,7 @@ import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting;
 import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting.VlessClient;
 import com.fun90.airopscat.model.entity.*;
 import com.fun90.airopscat.model.enums.CoreOperation;
-import com.fun90.airopscat.repository.NodeRepository;
-import com.fun90.airopscat.repository.ServerConfigRepository;
-import com.fun90.airopscat.repository.ServerRepository;
-import com.fun90.airopscat.repository.TagRepository;
+import com.fun90.airopscat.repository.*;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.xray.registry.ConversionStrategyRegistry;
 import com.fun90.airopscat.service.xray.strategy.ConversionStrategy;
@@ -45,6 +42,7 @@ public class NodeDeploymentService {
     private final CoreManagementService coreManagementService;
     private final TagRepository tagRepository;
     private final ConfigFileReader configFileReader;
+    private final AccountTrafficStatsRepository accountTrafficRepository;
 
     private static final String CORE_TYPE_HYSTERIA = "hysteria";
     private static final String CORE_TYPE_XRAY = "xray";
@@ -264,6 +262,15 @@ public class NodeDeploymentService {
                 tags.stream().map(Tag::getId).collect(Collectors.toList()), 
                 LocalDateTime.now()
             );
+            // 过滤掉超过流量限制的用户
+            accounts = accounts.stream().filter(account -> {
+                Long usedBytes = accountTrafficRepository.sumBytesByAccountId(account.getId());
+                if (usedBytes != null) {
+                    return usedBytes <= account.getBandwidth() * 1024 * 1024 * 1024;
+                }
+                return true;
+            }).collect(Collectors.toList());
+
             List<VlessClient> clients = accounts.stream().map(a -> {
                 VlessClient client = new VlessClient();
                 client.setId(a.getUuid());
