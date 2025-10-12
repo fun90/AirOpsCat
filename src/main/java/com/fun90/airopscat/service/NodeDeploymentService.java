@@ -266,7 +266,8 @@ public class NodeDeploymentService {
             accounts = accounts.stream().filter(account -> {
                 Long usedBytes = accountTrafficRepository.sumBytesByAccountId(account.getId());
                 if (usedBytes != null) {
-                    return usedBytes <= account.getBandwidth() * 1024 * 1024 * 1024;
+                    long bandwidth = account.getBandwidth() * 1024L * 1024L * 1024L;
+                    return usedBytes < bandwidth;
                 }
                 return true;
             }).collect(Collectors.toList());
