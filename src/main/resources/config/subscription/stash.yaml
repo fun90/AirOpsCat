@@ -4,7 +4,7 @@
 
 mode: rule
 ipv6: true
-log-level: info
+log-level: error
 allow-lan: false
 unified-delay: true
 global-client-fingerprint: chrome
