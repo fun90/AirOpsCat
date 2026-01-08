@@ -128,7 +128,11 @@ public class NodeDeploymentService {
             List<Node> allServerNodes = nodeRepository.findByServerIdOrBackupServerId(serverId);
 
             if (!allServerNodes.isEmpty()) {
-                results.addAll(deployNodesForServer(serverId, allServerNodes));
+                Server server = serverRepository.findById(serverId);
+                if (server == null) {
+                    throw new IllegalArgumentException("服务器不存在，serverId: " + serverId);
+                }
+                results.addAll(deployNodesForServer(server, allServerNodes));
             }
         }
 
@@ -138,8 +142,8 @@ public class NodeDeploymentService {
     /**
      * 为特定服务器部署节点
      */
-    private List<DeploymentResult> deployNodesForServer(Long serverId, List<Node> nodes) {
-        log.info("开始为服务器(ID: {}) 部署 {} 个节点", serverId, nodes.size());
+    private List<DeploymentResult> deployNodesForServer(Server server, List<Node> nodes) {
+        log.info("开始为服务器[{}](ID: {}) 部署 {} 个节点", server.getName(), server.getId(), nodes.size());
 
         Map<String, List<Node>> coreTypeNodeMap = nodes.stream()
                 .collect(Collectors.groupingBy(node -> determineCoreType(node.getProtocol())));
@@ -149,7 +153,7 @@ public class NodeDeploymentService {
         for (Map.Entry<String, List<Node>> coreEntry : coreTypeNodeMap.entrySet()) {
             String coreType = coreEntry.getKey();
             List<Node> coreNodes = coreEntry.getValue();
-            results.addAll(deployNodesForCore(serverId, coreType, coreNodes));
+            results.addAll(deployNodesForCore(server, coreType, coreNodes));
         }
 
         return results;
@@ -158,15 +162,15 @@ public class NodeDeploymentService {
     /**
      * 为特定核心类型部署节点
      */
-    private List<DeploymentResult> deployNodesForCore(Long serverId, String coreType, List<Node> nodes) {
-        log.info("为服务器 {} 的 {} 核心部署 {} 个节点", serverId, coreType, nodes.size());
+    private List<DeploymentResult> deployNodesForCore(Server server, String coreType, List<Node> nodes) {
+        log.info("为服务器 {} 的 {} 核心部署 {} 个节点", server.getName(), coreType, nodes.size());
 
         List<DeploymentResult> results = new ArrayList<>();
 
         if (CORE_TYPE_XRAY.equals(coreType)) {
-            results.addAll(deployXrayNodes(serverId, nodes));
+            results.addAll(deployXrayNodes(server, nodes));
         } else if (CORE_TYPE_HYSTERIA.equals(coreType)) {
-            results.addAll(deployHysteriaNodes(serverId, nodes));
+            results.addAll(deployHysteriaNodes(server, nodes));
         } else {
             log.warn("不支持的核心类型: {}", coreType);
             results.addAll(createFailureResults(nodes, "不支持的核心类型: " + coreType));
@@ -178,27 +182,27 @@ public class NodeDeploymentService {
     /**
      * 部署Xray节点
      */
-    private List<DeploymentResult> deployXrayNodes(Long serverId, List<Node> nodes) {
-        log.info("为服务器 {} 部署 {} 个 Xray 节点", serverId, nodes.size());
+    private List<DeploymentResult> deployXrayNodes(Server server, List<Node> nodes) {
+        log.info("为服务器 {} 部署 {} 个 Xray 节点", server.getName(), nodes.size());
 
         // 1. 生成Xray配置
-        XrayConfig xrayConfig = generateXrayConfig(nodes);
+        XrayConfig xrayConfig = generateXrayConfig(server, nodes);
 
         // 2. 保存服务器配置
-        ServerConfig serverConfig = saveServerConfig(serverId, CORE_TYPE_XRAY, xrayConfig);
+        ServerConfig serverConfig = saveServerConfig(server, CORE_TYPE_XRAY, xrayConfig);
 
         // 3. 远程部署配置
-        deployConfigToServer(serverId, CORE_TYPE_XRAY, serverConfig.getConfig());
+        deployConfigToServer(server, CORE_TYPE_XRAY, serverConfig.getConfig());
 
         // 4. 更新节点状态（只更新以该服务器为主服务器的节点状态）
-        return new ArrayList<>(updateNodeDeploymentStatus(nodes, serverId));
+        return new ArrayList<>(updateNodeDeploymentStatus(nodes, server.getId()));
     }
 
     /**
      * 部署Hysteria节点
      */
-    private List<DeploymentResult> deployHysteriaNodes(Long serverId, List<Node> nodes) {
-        log.info("为服务器 {} 部署 {} 个 Hysteria 节点", serverId, nodes.size());
+    private List<DeploymentResult> deployHysteriaNodes(Server server, List<Node> nodes) {
+        log.info("为服务器 {} 部署 {} 个 Hysteria 节点", server.getName(), nodes.size());
         
         List<DeploymentResult> results = new ArrayList<>();
 
@@ -206,12 +210,12 @@ public class NodeDeploymentService {
             try {
                 // Hysteria节点单独部署
                 String hysteriaConfig = generateHysteriaConfig(node);
-                ServerConfig serverConfig = saveServerConfig(serverId, CORE_TYPE_HYSTERIA, hysteriaConfig);
-                deployConfigToServer(serverId, CORE_TYPE_HYSTERIA, serverConfig.getConfig());
+                ServerConfig serverConfig = saveServerConfig(server, CORE_TYPE_HYSTERIA, hysteriaConfig);
+                deployConfigToServer(server, CORE_TYPE_HYSTERIA, serverConfig.getConfig());
 
-                results.add(updateSingleNodeDeploymentStatus(node, serverId));
+                results.add(updateSingleNodeDeploymentStatus(node, server.getId()));
             } catch (Exception e) {
-                log.error("服务器 {} 的 Hysteria节点 {} 部署失败", serverId, node.getId(), e);
+                log.error("服务器 {} 的 Hysteria节点 {} 部署失败", server.getName(), node.getId(), e);
                 results.add(createFailureResult(node, e.getMessage()));
             }
         }
@@ -222,13 +226,20 @@ public class NodeDeploymentService {
     /**
      * 生成Xray配置
      */
-    private XrayConfig generateXrayConfig(List<Node> nodes) {
+    private XrayConfig generateXrayConfig(Server server, List<Node> nodes) {
         String configTemplate = configFileReader.readFileContent("templates/core/xray.json");
         XrayConfig xrayConfig = JsonUtil.toObject(configTemplate, XrayConfig.class);
 
         List<InboundConfig> inbounds = xrayConfig.getInbounds().stream().filter(o -> o.getTag() != null && o.getTag().startsWith("default-")).collect(Collectors.toList());
         List<OutboundConfig> outbounds = xrayConfig.getOutbounds().stream().filter(o -> o.getTag() != null && o.getTag().startsWith("default-")).collect(Collectors.toList());
         List<RoutingRule> routingRules = xrayConfig.getRouting().getRules().stream().filter(o -> o.getRuleTag() != null && o.getRuleTag().startsWith("default-")).collect(Collectors.toList());
+
+        if (server.getTransitConfig() != null && !server.getTransitConfig().equals("{}")) {
+            RoutingRule nodeRoutingRule = JsonUtil.toObject(server.getTransitConfig(), RoutingRule.class);
+            if (nodeRoutingRule != null && nodeRoutingRule.getType() != null) {
+                routingRules.add(nodeRoutingRule);
+            }
+        }
 
         for (Node node : nodes) {
             processNodeConfiguration(node, inbounds, outbounds, routingRules);
@@ -351,7 +362,8 @@ public class NodeDeploymentService {
     /**
      * 保存服务器配置
      */
-    private ServerConfig saveServerConfig(Long serverId, String coreType, Object config) {
+    private ServerConfig saveServerConfig(Server server, String coreType, Object config) {
+        Long serverId = server.getId();
         ServerConfig serverConfig = serverConfigRepository.findByServerIdAndConfigType(serverId, coreType)
                 .orElse(createNewServerConfig(serverId, coreType));
 
@@ -379,12 +391,7 @@ public class NodeDeploymentService {
     /**
      * 部署配置到服务器
      */
-    private void deployConfigToServer(Long serverId, String coreType, String config) {
-        Server server = serverRepository.findById(serverId);
-        if (server == null) {
-            throw new IllegalArgumentException("服务器不存在: " + serverId);
-        }
-
+    private void deployConfigToServer(Server server, String coreType, String config) {
         SshConfig sshConfig = createSshConfig(server);
 
         // 上传配置
@@ -403,7 +410,7 @@ public class NodeDeploymentService {
             throw new RuntimeException("服务重启失败: " + (restartResult != null ? restartResult.getMessage() : "未知错误"));
         }
 
-        log.info("服务器 {} 的 {} 配置部署成功", serverId, coreType);
+        log.info("服务器 {} 的 {} 配置部署成功", server.getName(), coreType);
     }
 
     /**

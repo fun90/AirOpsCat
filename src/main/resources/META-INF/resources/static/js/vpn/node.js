@@ -357,7 +357,7 @@ const nodeTable = new DataTable({
                 // Process rule configs
                 let ruleConfig = null;
 
-                if (this.newNodeRuleJson && this.newNodeRuleJson.trim() !== '{}') {
+                if (this.newNodeRuleJson) {
                     ruleConfig = JSON.parse(this.newNodeRuleJson);
                 }
 
@@ -393,7 +393,7 @@ const nodeTable = new DataTable({
 
                 let ruleConfig = null;
 
-                if (this.editedNodeRuleJson && this.editedNodeRuleJson.trim() !== '{}') {
+                if (this.editedNodeRuleJson) {
                     ruleConfig = JSON.parse(this.editedNodeRuleJson);
                 }
 
