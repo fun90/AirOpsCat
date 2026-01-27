@@ -110,33 +110,6 @@ proxy-groups:
       {#for node in nodes}
       - {node.name}
       {/for}
-  - name: Microsoft
-    icon: https://static.fun90.com/clash/Microsoft.png
-    type: select
-    proxies:
-      - 代理
-      - 直连
-      {#for node in nodes}
-      - {node.name}
-      {/for}
-  - name: ICLOUD
-    icon: https://static.fun90.com/clash/iCloud.png
-    type: select
-    proxies:
-      - 直连
-      - 代理
-      {#for node in nodes}
-      - {node.name}
-      {/for}
-  - name: APPLE
-    icon: https://static.fun90.com/clash/Apple_1.png
-    type: select
-    proxies:
-      - 直连
-      - 代理
-      {#for node in nodes}
-      - {node.name}
-      {/for}
   - name: 直连
     icon: https://static.fun90.com/clash/Direct.png
     type: select
@@ -168,59 +141,35 @@ rule-providers:
     url: "{subscriptionUrl}/rules/clash/myproxy-domain.yaml"
     path: ./ruleset/myproxy-domain.yaml
     interval: 86400
+  OpenAI:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/OpenAI/OpenAI.yaml"
+    path: ./ruleset/OpenAI.yaml
+    interval: 86400
+  Gemini:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Gemini/Gemini.yaml"
+    path: ./ruleset/Gemini.yaml
+    interval: 86400
+  Claude:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Claude/Claude.yaml"
+    path: ./ruleset/Claude.yaml
+    interval: 86400
+  Copilot:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Copilot/Copilot.yaml"
+    path: ./ruleset/Claude.yaml
+    interval: 86400
   private:
     type: http
     behavior: domain
     url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/private.txt"
     path: ./ruleset/private.yaml
-    interval: 86400
-  openai:
-    type: http
-    behavior: domain
-    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/openai.yaml"
-    path: ./ruleset/openai.yaml
-    interval: 86400
-  anthropic:
-    type: http
-    behavior: domain
-    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/anthropic.yaml"
-    path: ./ruleset/anthropic.yaml
-    interval: 86400
-  google-gemini:
-    type: http
-    behavior: domain
-    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/google-gemini.yaml"
-    path: ./ruleset/google-gemini.yaml
-    interval: 86400
-  microsoft:
-    type: http
-    behavior: domain
-    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/microsoft.yaml"
-    path: ./ruleset/microsoft.yaml
-    interval: 86400
-  icloud:
-    type: http
-    behavior: domain
-    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/icloud.txt"
-    path: ./ruleset/icloud.yaml
-    interval: 86400
-  apple:
-    type: http
-    behavior: domain
-    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/apple.txt"
-    path: ./ruleset/apple.yaml
-    interval: 86400
-  proxy:
-    type: http
-    behavior: domain
-    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/proxy.txt"
-    path: ./ruleset/proxy.yaml
-    interval: 86400
-  direct:
-    type: http
-    behavior: domain
-    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/direct.txt"
-    path: ./ruleset/direct.yaml
     interval: 86400
   lancidr:
     type: http
@@ -228,39 +177,33 @@ rule-providers:
     url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/lancidr.txt"
     path: ./ruleset/lancidr.yaml
     interval: 86400
-  cncidr:
+  ChinaIPs_IP:
     type: http
     behavior: ipcidr
-    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/cncidr.txt"
-    path: ./ruleset/cncidr.yaml
+    url: "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/ChinaIPs/ChinaIPs_IP.yaml"
+    path: ./ruleset/China_Domain.yaml
     interval: 86400
-  telegramcidr:
+  China_Domain:
     type: http
-    behavior: ipcidr
-    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/telegramcidr.txt"
-    path: ./ruleset/telegramcidr.yaml
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/China/China_Domain.txt"
+    path: ./ruleset/China_Domain.yaml
     interval: 86400
 
 rules:
   - DOMAIN-SUFFIX,fun90.com,DIRECT
-  - DOMAIN-SUFFIX,perplexity.ai,AI
-  - DOMAIN-SUFFIX,pplx.ai,AI
   - RULE-SET,hst,DIRECT
   - RULE-SET,myreject,REJECT
   - RULE-SET,mydirect,DIRECT
   - RULE-SET,myproxy,代理
   - RULE-SET,private,DIRECT
-  - RULE-SET,openai,AI
-  - RULE-SET,anthropic,AI
-  - RULE-SET,google-gemini,AI
-  - RULE-SET,microsoft,Microsoft
-  - RULE-SET,icloud,ICLOUD
-  - RULE-SET,apple,APPLE
-  - RULE-SET,proxy,代理
-  - RULE-SET,direct,DIRECT
+  - RULE-SET,OpenAI,AI
+  - RULE-SET,Gemini,AI
+  - RULE-SET,Claude,AI
+  - RULE-SET,Copilot,AI
   - RULE-SET,lancidr,DIRECT
-  - RULE-SET,cncidr,DIRECT
-  - RULE-SET,telegramcidr,代理
+  - RULE-SET,ChinaIPs_IP,DIRECT
+  - RULE-SET,China_Domain,DIRECT
   - GEOIP,LAN,DIRECT
   - GEOIP,CN,DIRECT
   - MATCH,代理
