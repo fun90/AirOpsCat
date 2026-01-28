@@ -28,9 +28,35 @@ tun:
 
 dns:
   enable: true
-  ipv6: true
+  ipv6: false
   listen: 0.0.0.0:1053
-  enhanced-mode: redir-host
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    # 过滤局域网和特殊用途IP
+    - '+.lan'
+    - '+.local'
+    - 'localhost.ptlogin2.qq.com'
+    # 过滤NTP服务
+    - '+.pool.ntp.org'
+    - 'ntp.*.com'
+    - 'time.*.com'
+    - 'time.*.gov'
+    - 'time.*.edu.cn'
+    # 过滤音乐服务（需要真实IP）
+    - 'music.163.com'
+    - '*.music.163.com'
+    - '*.126.net'
+    # 过滤游戏服务器（可能需要真实IP）
+    - 'xbox.*.microsoft.com'
+    - '*.*.xboxlive.com'
+    - '+.battlenet.com.cn'
+    - '+.wotgame.cn'
+    # 过滤Stun服务
+    - 'stun.*.*'
+    - 'stun.*.*.*'
+    - 'stun.*.*.*.*'
+    - 'stun.*.*.*.*.*'
   default-nameserver:
     - 223.5.5.5
     - 114.114.114.114
