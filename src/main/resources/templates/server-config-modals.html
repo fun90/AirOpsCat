@@ -1,3 +1,81 @@
+<!-- Create Config Modal -->
+<div class="modal modal-blur fade" id="server-config-createModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">添加配置</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">服务器</label>
+                            <select class="form-select" :class="{ 'is-invalid': validationErrors.serverId }" v-model="newItem.serverId">
+                                <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
+                            </select>
+                            <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.serverId }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">配置类型</label>
+                            <select class="form-select" :class="{ 'is-invalid': validationErrors.configType }" v-model="newItem.configType">
+                                <option v-for="type in configTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                            </select>
+                            <div class="invalid-feedback" v-if="validationErrors.configType">{{ validationErrors.configType }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="mb-3">
+                            <label class="form-label">配置路径</label>
+                            <input type="text" class="form-control" v-model="newItem.path" placeholder="可选，如：/usr/local/etc/xray/config.json">
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label required">配置内容</label>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary" @click="formatJson">
+                                <i class="ti ti-code"></i> 格式化
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" @click="validateJson">
+                                <i class="ti ti-check"></i> 验证
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" @click="clearConfig">
+                                <i class="ti ti-trash"></i> 清空
+                            </button>
+                        </div>
+                    </div>
+                    <div class="position-relative">
+                        <textarea
+                                class="form-control font-monospace config-textarea"
+                                :class="{ 'is-invalid': validationErrors.config }"
+                                v-model="newItem.config"
+                                rows="20"
+                                placeholder="请输入配置内容（JSON格式）"
+                        ></textarea>
+                        <div class="config-size-badge">
+                            <span class="badge bg-blue-lt">{{ getConfigSize(newItem.config) }}</span>
+                        </div>
+                    </div>
+                    <div class="invalid-feedback" v-if="validationErrors.config">{{ validationErrors.config }}</div>
+                    <div class="form-text">
+                        <i class="ti ti-info-circle"></i> 支持JSON格式，建议使用格式化功能确保格式正确
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" @click="createItem">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Edit Config Modal -->
 <div class="modal modal-blur fade" id="server-config-editModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
@@ -31,7 +109,7 @@
                     <div class="col-md-12">
                         <div class="mb-3">
                             <label class="form-label">配置路径</label>
-                            <input type="text" class="form-control" v-model="editedItem.path" placeholder="可选，如：/etc/xray/config.json">
+                            <input type="text" class="form-control" v-model="editedItem.path" placeholder="可选，如：/usr/local/etc/xray/config.json">
                         </div>
                     </div>
                 </div>

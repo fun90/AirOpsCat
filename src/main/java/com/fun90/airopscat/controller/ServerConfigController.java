@@ -5,6 +5,8 @@ import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.ServerConfigDto;
 import com.fun90.airopscat.model.dto.ServerConfigRequest;
 import com.fun90.airopscat.model.entity.ServerConfig;
+import com.fun90.airopscat.model.enums.CoreType;
+import com.fun90.airopscat.model.enums.TransactionType;
 import com.fun90.airopscat.service.ServerConfigService;
 import com.fun90.airopscat.service.ServerService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
@@ -19,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @ApplicationScoped
 @Path("/api/admin/server-configs")
@@ -84,7 +87,16 @@ public class ServerConfigController {
     @GET
     @Path("/types")
     public Response getConfigTypes() {
-        return Response.ok(serverConfigService.getConfigTypeOptions()).build();
+        List<Map<String, String>> types = Stream.of(CoreType.values())
+                .map(type -> {
+                    Map<String, String> map = new HashMap<>();
+                    map.put("value", type.getValue());
+                    map.put("label", type.getName());
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+        return Response.ok(types).build();
     }
     
     @GET
@@ -124,10 +136,10 @@ public class ServerConfigController {
             serverConfig.setConfig(request.getConfig());
             serverConfig.setConfigType(request.getConfigType());
             serverConfig.setPath(request.getPath());
-            
-            ServerConfig updatedConfig = serverConfigService.updateServerConfig(serverConfig);
-            
-            return Response.ok(ServerConfigConverter.toDto(updatedConfig)).build();
+
+            ServerConfigDto updatedConfig = serverConfigService.updateServerConfig(serverConfig);
+
+            return Response.ok(updatedConfig).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());

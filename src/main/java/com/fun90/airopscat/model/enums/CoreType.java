@@ -1,9 +1,26 @@
 package com.fun90.airopscat.model.enums;
 
 public enum CoreType {
-    XRAY,
+    XRAY("xray", "xray"),
 
-    HYSTERIA2,
+    HYSTERIA2("hysteria2", "hysteria2"),
 
-    SING_BOX
+    SING_BOX("sing-box", "sing-box");
+
+
+    private final String value;
+    private final String name;
+
+    CoreType(String value, String name) {
+        this.value = value;
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getValue() {
+        return value;
+    }
 }

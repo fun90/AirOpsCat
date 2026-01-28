@@ -12,7 +12,7 @@ public final class AppConstants {
     /**
      * 应用版本号
      */
-    public static final String APP_VERSION = "2.0.7";
+    public static final String APP_VERSION = "2.0.8";
     
     /**
      * GitHub API 基础 URL

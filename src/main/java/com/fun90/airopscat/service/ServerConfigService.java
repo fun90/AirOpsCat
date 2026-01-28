@@ -1,6 +1,8 @@
 package com.fun90.airopscat.service;
 
+import com.fun90.airopscat.model.convert.ServerConfigConverter;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
+import com.fun90.airopscat.model.dto.ServerConfigDto;
 import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
@@ -92,7 +94,7 @@ public class ServerConfigService {
      * 更新服务器配置
      */
     @Transactional
-    public ServerConfig updateServerConfig(ServerConfig serverConfig) {
+    public ServerConfigDto updateServerConfig(ServerConfig serverConfig) {
         ServerConfig existingConfig = serverConfigRepository.findById(serverConfig.getId());
         if (existingConfig == null) {
             throw new EntityNotFoundException("ServerConfig not found");
@@ -101,8 +103,7 @@ public class ServerConfigService {
         // 复制非null属性
         copyNonNullProperties(serverConfig, existingConfig);
 
-        // No need to call save/persist for updates in Panache
-        return existingConfig;
+        return ServerConfigConverter.toDto(existingConfig);
     }
 
     /**
@@ -217,5 +218,6 @@ public class ServerConfigService {
         if (source.getDescription() != null) target.setDescription(source.getDescription());
         if (source.getEnabled() != null) target.setEnabled(source.getEnabled());
         if (source.getUpdateTime() != null) target.setUpdateTime(source.getUpdateTime());
+        if (source.getPath() != null) target.setPath(source.getPath());
     }
 } 
