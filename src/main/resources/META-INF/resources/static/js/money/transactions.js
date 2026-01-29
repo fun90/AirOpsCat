@@ -4,6 +4,33 @@ import { createSearchDropdown, SearchDropdownPresets } from '/static/js/common/s
 import { formatDateTimeForLocal } from '/static/js/common/common.js';
 import ApexCharts from '/static/js/apexcharts.js';
 
+function getCurrentThemeMode() {
+    return (
+        document.documentElement.getAttribute('data-bs-theme') ||
+        window.localStorage.getItem('tabler-theme') ||
+        'light'
+    );
+}
+
+function getApexThemeOptions(mode) {
+    const isDark = mode === 'dark';
+    const axisLabelColor = isDark ? '#d0d4db' : '#7e7e8d';
+    const gridColor = isDark ? '#d0d4db' : '#a8afaf';
+
+    return {
+        theme: { mode },
+        tooltip: { theme: mode },
+        xaxis: { labels: { style: { colors: axisLabelColor } } },
+        yaxis: { labels: { style: { colors: axisLabelColor } } },
+        legend: { labels: { colors: axisLabelColor } },
+        grid: { borderColor: gridColor }
+    };
+}
+
+function formatYAxisCurrency(value) {
+    return '¥' + value.toFixed(2);
+}
+
 const transactionTable = new DataTable({
     data: {
         entityName: 'transactions',
@@ -46,6 +73,7 @@ const transactionTable = new DataTable({
             this.fetchPaymentMethods();
             this.fetchBusinessTables();
             this.fetchMonthlyStats();
+            this.initThemeObserver();
 
             // Set default transactionDate for new transaction
             const now = new Date();
@@ -177,6 +205,7 @@ const transactionTable = new DataTable({
             const expenseData = this.monthlyStats.map(stat => parseFloat(stat.expense));
             const balanceData = this.monthlyStats.map(stat => parseFloat(stat.balance));
 
+            const themeOptions = getApexThemeOptions(getCurrentThemeMode());
             const options = {
                 chart: {
                     type: 'line',
@@ -186,6 +215,7 @@ const transactionTable = new DataTable({
                     },
                     background: 'transparent'
                 },
+                theme: themeOptions.theme,
                 series: [
                     {
                         name: '收入',
@@ -207,18 +237,16 @@ const transactionTable = new DataTable({
                     categories: months,
                     labels: {
                         style: {
-                            colors: '#8e8da4'
+                            colors: themeOptions.xaxis.labels.style.colors
                         }
                     }
                 },
                 yaxis: {
                     labels: {
                         style: {
-                            colors: '#8e8da4'
+                            colors: themeOptions.yaxis.labels.style.colors
                         },
-                        formatter: function(value) {
-                            return '¥' + value.toFixed(2);
-                        }
+                        formatter: formatYAxisCurrency
                     }
                 },
                 colors: ['#28a745', '#dc3545', '#ffc107'],
@@ -242,26 +270,69 @@ const transactionTable = new DataTable({
                     position: 'top',
                     horizontalAlign: 'left',
                     labels: {
-                        colors: '#8e8da4'
+                        colors: themeOptions.legend.labels.colors
                     }
                 },
                 grid: {
-                    borderColor: '#e0e6ed',
+                    borderColor: themeOptions.grid.borderColor,
                     strokeDashArray: 5
                 },
                 tooltip: {
+                    theme: themeOptions.tooltip.theme,
                     shared: true,
                     intersect: false,
                     y: {
-                        formatter: function(value) {
-                            return '¥' + value.toFixed(2);
-                        }
+                        formatter: formatYAxisCurrency
                     }
                 }
             };
 
             this.trendsChart = new ApexCharts(document.querySelector('#trends-chart'), options);
             this.trendsChart.render();
+        },
+
+        initThemeObserver() {
+            const applyTheme = () => {
+                if (!this.trendsChart) return;
+                const themeOptions = getApexThemeOptions(getCurrentThemeMode());
+                const chartConfig = this.trendsChart.w && this.trendsChart.w.config;
+                const yaxisConfig = Array.isArray(chartConfig.yaxis) ? chartConfig.yaxis[0] : chartConfig.yaxis;
+                const xaxisLabels = chartConfig.xaxis && chartConfig.xaxis.labels ? chartConfig.xaxis.labels : {};
+                const yaxisLabels = yaxisConfig && yaxisConfig.labels ? yaxisConfig.labels : {};
+
+                this.trendsChart.updateOptions(
+                    {
+                        theme: themeOptions.theme,
+                        tooltip: themeOptions.tooltip,
+                        xaxis: {
+                            labels: {
+                                ...xaxisLabels,
+                                style: { colors: themeOptions.xaxis.labels.style.colors }
+                            }
+                        },
+                        yaxis: {
+                            labels: {
+                                ...yaxisLabels,
+                                style: { colors: themeOptions.yaxis.labels.style.colors },
+                                formatter: yaxisLabels.formatter || formatYAxisCurrency
+                            }
+                        },
+                        legend: themeOptions.legend,
+                        grid: themeOptions.grid
+                    },
+                    false,
+                    true
+                );
+            };
+
+            const observer = new MutationObserver(() => {
+                applyTheme();
+            });
+
+            observer.observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['data-bs-theme']
+            });
         },
 
         // Handle business table change event
