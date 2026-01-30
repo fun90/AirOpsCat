@@ -76,7 +76,7 @@ public class OpenController {
         result.put("subscriptionUrl", subscriptionUrls);
         result.put("appleId", appleId);
         result.put("applePwd", applePwd);
-        result.put("nickName", accountOpt.get().getUser().getNickName());
+        result.put("nickName", accountOpt.get().getRemark());
         return Response.ok(result).build();
     }
 
