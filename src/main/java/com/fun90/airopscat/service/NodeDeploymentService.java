@@ -227,6 +227,7 @@ public class NodeDeploymentService {
      * 生成Xray配置
      */
     private XrayConfig generateXrayConfig(Server server, List<Node> nodes) {
+        List<Node> enabledNodes = nodes.stream().filter(o -> o.getDisabled() == 0).toList();
         String configTemplate = configFileReader.readFileContent("templates/core/xray.json");
         XrayConfig xrayConfig = JsonUtil.toObject(configTemplate, XrayConfig.class);
 
@@ -241,7 +242,7 @@ public class NodeDeploymentService {
             }
         }
 
-        for (Node node : nodes) {
+        for (Node node : enabledNodes) {
             processNodeConfiguration(node, inbounds, outbounds, routingRules);
         }
 
