@@ -13,6 +13,7 @@ import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.ProtocolType;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
+import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.util.NativeRandomUtils;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -37,6 +38,9 @@ public class NodeService {
     
     @Inject
     ServerRepository serverRepository;
+
+    @Inject
+    TagRepository tagRepository;
     
     @Inject
     ObjectMapper objectMapper;
@@ -91,9 +95,17 @@ public class NodeService {
         
         // Search in name, remark, or server properties
         if (search != null && !search.trim().isEmpty()) {
+            String searchLike = "%" + search.toLowerCase() + "%";
             query.append(" and (lower(name) like :search or lower(remark) like :search")
-                 .append(" or serverId in (select id from Server where lower(ip) like :search or lower(host) like :search))");
-            params.put("search", "%" + search.toLowerCase() + "%");
+                 .append(" or serverId in (select id from Server where lower(ip) like :search or lower(host) like :search)");
+            params.put("search", searchLike);
+
+            List<Long> tagNodeIds = tagRepository.findNodeIdsByTagNameLike(searchLike);
+            if (!tagNodeIds.isEmpty()) {
+                query.append(" or id in :tagNodeIds");
+                params.put("tagNodeIds", tagNodeIds);
+            }
+            query.append(")");
         }
 
         // Filter by serverId
@@ -323,6 +335,7 @@ public class NodeService {
         if (src.getServerId() != null) target.setServerId(src.getServerId());
         if (src.getType() != null) target.setType(src.getType());
         if (src.getPort() != null) target.setPort(src.getPort());
+        if (src.getProtocol() != null) target.setProtocol(src.getProtocol());
         if (src.getInbound() != null) target.setInbound(src.getInbound());
         if (src.getRule() != null) target.setRule(src.getRule());
         if (src.getLevel() != null) target.setLevel(src.getLevel());

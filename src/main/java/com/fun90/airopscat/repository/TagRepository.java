@@ -8,6 +8,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @ApplicationScoped
@@ -74,6 +75,22 @@ public class TagRepository implements PanacheRepository<Tag> {
             ")", Node.class)
             .setParameter("accountIds", accountIds)
             .getResultList();
+    }
+
+    public List<Long> findNodeIdsByTagNameLike(String searchLike) {
+        List<?> results = getEntityManager().createNativeQuery(
+                "SELECT nt.node_id FROM node_tag nt " +
+                "INNER JOIN tag t ON t.id = nt.tag_id " +
+                "WHERE lower(t.name) like ?1")
+            .setParameter(1, searchLike)
+            .getResultList();
+        List<Long> nodeIds = new ArrayList<>(results.size());
+        for (Object result : results) {
+            if (result instanceof Number number) {
+                nodeIds.add(number.longValue());
+            }
+        }
+        return nodeIds;
     }
 
     
