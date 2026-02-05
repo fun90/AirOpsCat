@@ -26,6 +26,7 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -66,7 +67,7 @@ public class ScheduledTaskService {
      * 每天凌晨5点执行的任务
      * 检查未禁用但已过期的账户，并重新部署相关的节点
      */
-    @Scheduled(cron = "0 0 5 * * ?")
+    @Scheduled(cron = "0 0 5 * * ?", timeZone = "Asia/Shanghai")
     @Transactional
     public void checkExpiredAccountsAndRedeployNodes() {
         log.info("开始执行定时任务：检查过期账户并重新部署节点");
@@ -198,6 +199,41 @@ public class ScheduledTaskService {
         }
         
         log.info("流量统计任务执行完成");
+    }
+
+    /**
+     * 检查当天到期（忽略小时）的账号，并发送提醒通知
+     */
+    @Scheduled(cron = "0 0 10 * * ?", timeZone = "Asia/Shanghai")
+    public void notifyAccountsExpiringToday() {
+        LocalDate today = LocalDate.now();
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = today.atTime(23, 59, 59);
+
+        try {
+            List<Account> expiringAccounts = accountRepository.findExpiringOnDate(startOfDay, endOfDay);
+            if (expiringAccounts.isEmpty()) {
+                log.info("今日没有到期账号");
+                return;
+            }
+
+            List<String> accountMarks = expiringAccounts.stream()
+                    .map(account -> {
+                        String remark = account.getRemark();
+                        if (remark != null && !remark.isBlank()) {
+                            return remark;
+                        }
+                        return account.getAccountNo();
+                    })
+                    .distinct()
+                    .toList();
+
+            String body = "今日到期账号数: " + accountMarks.size() + "\n" + String.join(", ", accountMarks);
+            barkService.sendInfoNotification("AirOpsCat 到期提醒", body);
+        } catch (Exception e) {
+            log.error("执行到期提醒任务时发生错误", e);
+            barkService.sendErrorNotification("AirOpsCat 到期提醒失败", "执行到期提醒任务时发生错误: " + e.getMessage());
+        }
     }
     
     /**
@@ -458,7 +494,7 @@ public class ScheduledTaskService {
      * 每天早上8点执行的任务
      * 清理Xray配置路径下5天前的备份文件（config.json.backup.{时间戳}）
      */
-    @Scheduled(cron = "0 0 8 * * ?")
+    @Scheduled(cron = "0 0 8 * * ?", timeZone = "Asia/Shanghai")
     public void cleanupOldXrayBackupFiles() {
         log.info("开始执行定时任务：清理Xray旧备份文件");
         

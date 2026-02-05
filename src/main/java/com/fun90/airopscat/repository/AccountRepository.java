@@ -41,6 +41,10 @@ public class AccountRepository implements PanacheRepository<Account> {
     public List<Account> findExpiredButNotDisabledAccounts(LocalDateTime now) {
         return find("disabled = 0 and toDate is not null and toDate < ?1", now).list();
     }
+
+    public List<Account> findExpiringOnDate(LocalDateTime startOfDay, LocalDateTime endOfDay) {
+        return find("disabled = 0 and toDate is not null and toDate between ?1 and ?2", startOfDay, endOfDay).list();
+    }
     
     @Transactional
     public int disableExpiredAccounts(List<Long> accountIds, LocalDateTime updateTime) {
