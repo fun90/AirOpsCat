@@ -18,6 +18,7 @@ import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
+import com.fun90.airopscat.service.expiration.ExpirationNotificationService;
 import com.fun90.airopscat.util.JsonUtil;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -62,6 +63,9 @@ public class ScheduledTaskService {
     
     @Inject
     AccountTrafficStatsService accountTrafficStatsService;
+
+    @Inject
+    ExpirationNotificationService expirationNotificationService;
 
     /**
      * 每天凌晨5点执行的任务
@@ -202,38 +206,13 @@ public class ScheduledTaskService {
     }
 
     /**
-     * 检查当天到期（忽略小时）的账号，并发送提醒通知
+     * 检查当天到期的账号、服务器、域名，并发送提醒通知
      */
-    @Scheduled(cron = "0 0 10 * * ?", timeZone = "Asia/Shanghai")
-    public void notifyAccountsExpiringToday() {
-        LocalDate today = LocalDate.now();
-        LocalDateTime startOfDay = today.atStartOfDay();
-        LocalDateTime endOfDay = today.atTime(23, 59, 59);
-
-        try {
-            List<Account> expiringAccounts = accountRepository.findExpiringOnDate(startOfDay, endOfDay);
-            if (expiringAccounts.isEmpty()) {
-                log.info("今日没有到期账号");
-                return;
-            }
-
-            List<String> accountMarks = expiringAccounts.stream()
-                    .map(account -> {
-                        String remark = account.getRemark();
-                        if (remark != null && !remark.isBlank()) {
-                            return remark;
-                        }
-                        return account.getAccountNo();
-                    })
-                    .distinct()
-                    .toList();
-
-            String body = "今日到期账号数: " + accountMarks.size() + "\n" + String.join(", ", accountMarks);
-            barkService.sendInfoNotification("AirOpsCat 到期提醒", body);
-        } catch (Exception e) {
-            log.error("执行到期提醒任务时发生错误", e);
-            barkService.sendErrorNotification("AirOpsCat 到期提醒失败", "执行到期提醒任务时发生错误: " + e.getMessage());
-        }
+    @Scheduled(cron = "{airopscat.expiration.notify.cron:0 0 10 * * ?}", timeZone = "Asia/Shanghai")
+    public void notifyExpiringResourcesToday() {
+        expirationNotificationService.notifyExpiringToday("account");
+        expirationNotificationService.notifyExpiringToday("server");
+        expirationNotificationService.notifyExpiringToday("domain");
     }
     
     /**

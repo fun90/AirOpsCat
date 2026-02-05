@@ -15,6 +15,10 @@ public class DomainRepository implements PanacheRepository<Domain> {
         return find("expireDate <= ?1", date).list();
     }
 
+    public List<Domain> findExpiringOnDate(LocalDate date) {
+        return find("expireDate = ?1", date).list();
+    }
+
 
     public long countExpiredDomains(LocalDate today) {
         return count("expireDate < ?1", today);

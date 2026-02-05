@@ -19,6 +19,10 @@ public class ServerRepository implements PanacheRepository<Server> {
     public Optional<Server> findAvailableServer(Long id, LocalDate now) {
         return find("id = ?1 and disabled = 0 and (expireDate is null or expireDate > ?2)", id, now).firstResultOptional();
     }
+
+    public List<Server> findExpiringOnDate(LocalDate date) {
+        return find("(disabled = 0 or disabled is null) and expireDate = ?1", date).list();
+    }
     
     
     public long countActiveServers(LocalDate now) {
