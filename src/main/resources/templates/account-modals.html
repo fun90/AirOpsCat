@@ -650,6 +650,14 @@
                     <div class="invalid-feedback" v-if="validationErrors.expiryDate">{{ validationErrors.expiryDate }}</div>
                 </div>
                 <div class="mb-3">
+                    <label class="form-label">续费金额</label>
+                    <div class="input-group">
+                        <span class="input-group-text">¥</span>
+                        <input type="number" step="1" min="0" class="form-control" :class="{ 'is-invalid': validationErrors.amount }" v-model="renewData.amount" placeholder="不填则不生成交易流水">
+                    </div>
+                    <div class="invalid-feedback" v-if="validationErrors.amount">{{ validationErrors.amount }}</div>
+                </div>
+                <div class="mb-3">
                     <div class="btn-list">
                         <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'months')">+1个月</button>
                         <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(3, 'months')">+3个月</button>

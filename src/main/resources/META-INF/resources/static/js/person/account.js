@@ -54,7 +54,8 @@ const accountTable = new DataTable({
         availableApps: [],
         renewModal: null,
         renewData: {
-            expiryDate: ''
+            expiryDate: '',
+            amount: ''
         },
         resetAuthCodeModal: null,
         // 在线IP相关数据
@@ -448,7 +449,8 @@ const accountTable = new DataTable({
             // Add one month
             baseDate.setMonth(baseDate.getMonth() + 1);
             this.renewData = {
-                expiryDate: formatDateTimeForLocal(baseDate)
+                expiryDate: formatDateTimeForLocal(baseDate),
+                amount: ''
             };
 
             this.validationErrors = {};
@@ -493,6 +495,14 @@ const accountTable = new DataTable({
                 }
             }
 
+            if (this.renewData.amount !== null && this.renewData.amount !== undefined && String(this.renewData.amount).trim() !== '') {
+                const amount = parseFloat(this.renewData.amount);
+                if (Number.isNaN(amount) || amount <= 0) {
+                    this.validationErrors.amount = '请输入有效金额';
+                    isValid = false;
+                }
+            }
+
             return isValid;
         },
 
@@ -501,7 +511,14 @@ const accountTable = new DataTable({
                 return;
             }
 
-            fetch(`/api/admin/accounts/${this.selectedItem.id}/renew?expiryDate=${encodeURIComponent(this.renewData.expiryDate)}`, {
+            const params = new URLSearchParams({
+                expiryDate: this.renewData.expiryDate
+            });
+            if (this.renewData.amount !== null && this.renewData.amount !== undefined && String(this.renewData.amount).trim() !== '') {
+                params.append('amount', this.renewData.amount);
+            }
+
+            fetch(`/api/admin/accounts/${this.selectedItem.id}/renew?${params.toString()}`, {
                 method: 'PATCH'
             })
                 .then(response => {

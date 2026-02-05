@@ -6,8 +6,10 @@ import com.fun90.airopscat.model.dto.AccountRequest;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.Transaction;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.model.enums.PeriodType;
+import com.fun90.airopscat.model.enums.TransactionType;
 import com.fun90.airopscat.service.*;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
@@ -19,7 +21,9 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -34,6 +38,7 @@ public class AccountController {
     private final UserService userService;
     private final TagService tagService;
     private final AccountOnlineIpService accountOnlineIpService;
+    private final TransactionService transactionService;
     
     @Inject
     SecurityIdentity securityIdentity;
@@ -43,11 +48,12 @@ public class AccountController {
     NodeDeploymentService nodeDeploymentService;
 
     @Inject
-    public AccountController(AccountService accountService, UserService userService, TagService tagService, AccountOnlineIpService accountOnlineIpService) {
+    public AccountController(AccountService accountService, UserService userService, TagService tagService, AccountOnlineIpService accountOnlineIpService, TransactionService transactionService) {
         this.accountService = accountService;
         this.userService = userService;
         this.tagService = tagService;
         this.accountOnlineIpService = accountOnlineIpService;
+        this.transactionService = transactionService;
     }
 
     @GET
@@ -285,10 +291,38 @@ public class AccountController {
     @Path("/{id}/renew")
     public Response renewAccount(
             @PathParam("id") Long id, 
-            @QueryParam("expiryDate") String expiryDate
+            @QueryParam("expiryDate") String expiryDate,
+            @QueryParam("amount") BigDecimal amount
     ) {
         LocalDateTime parsedDate = LocalDateTime.parse(expiryDate);
+        Account existingAccount = accountService.getAccountById(id);
+        LocalDateTime baseDate = existingAccount != null ? existingAccount.getToDate() : null;
+        LocalDateTime now = LocalDateTime.now();
+        if (baseDate == null || baseDate.isBefore(now)) {
+            baseDate = now;
+        }
+
         Account account = accountService.renewAccount(id, parsedDate);
+        
+        if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+            YearMonth baseMonth = YearMonth.from(baseDate);
+            YearMonth newMonth = YearMonth.from(parsedDate);
+            int months = (newMonth.getYear() - baseMonth.getYear()) * 12
+                    + (newMonth.getMonthValue() - baseMonth.getMonthValue());
+            if (months < 0) {
+                months = 1;
+            }
+
+            Transaction transaction = new Transaction();
+            transaction.setType(TransactionType.INCOME.getValue());
+            transaction.setAmount(amount);
+            transaction.setBusinessTable("account");
+            transaction.setBusinessId(account.getId());
+            transaction.setDescription("账号：" + months + "月");
+            transaction.setRemark(account.getRemark());
+            transactionService.saveTransaction(transaction);
+        }
+
         AccountDto dto = accountService.convertToDto(account);
         return Response.ok(dto).build();
     }

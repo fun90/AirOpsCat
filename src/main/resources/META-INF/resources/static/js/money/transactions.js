@@ -90,10 +90,12 @@ const transactionTable = new DataTable({
                 placeholder: '请先选择业务类型',
                 onSelect: (item) => {
                     this.newItem.businessId = item.id;
+                    this.newItem.remark = item.data.remark;
                 },
                 onChange: (text, item) => {
                     if (!item) {
                         this.newItem.businessId = '';
+                        this.newItem.remark = '';
                     }
                 }
             });
@@ -103,10 +105,12 @@ const transactionTable = new DataTable({
                 placeholder: '请先选择业务类型',
                 onSelect: (item) => {
                     this.editedItem.businessId = item.id;
+                    this.editedItem.remark = item.data.remark;
                 },
                 onChange: (text, item) => {
                     if (!item) {
                         this.editedItem.businessId = '';
+                        this.editedItem.remark = '';
                     }
                 }
             });
