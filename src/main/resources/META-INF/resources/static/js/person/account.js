@@ -38,7 +38,7 @@ const accountTable = new DataTable({
             'linux': ['clash-verge', 'sing-box'],
             'android': ['clash-meta', 'sing-box'],
             'harmony': ['clash-meta', 'sing-box'],
-            'ios': ['shadowrocket', 'loon', 'stash', 'sing-box']
+            'ios': ['shadowrocket', 'loon', 'stash', 'clash-mi', 'sing-box']
         },
         // 所有可用的应用列表
         allApps: [
@@ -48,6 +48,7 @@ const accountTable = new DataTable({
             { value: 'sing-box', label: 'sing-box' },
             { value: 'shadowrocket', label: 'Shadowrocket' },
             { value: 'loon', label: 'Loon' },
+            { value: 'clash-mi', label: 'Clash Mi' },
             { value: 'v2rayng', label: 'V2rayNG' }
         ],
         availableApps: [],
