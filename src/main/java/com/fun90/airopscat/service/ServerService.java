@@ -146,6 +146,7 @@ public class ServerService {
         dto.setSshPort(server.getSshPort());
         dto.setPrice(server.getPrice());
         dto.setMultiple(server.getMultiple());
+        dto.setBandwidth(server.getBandwidth());
         dto.setExpireDate(server.getExpireDate());
         dto.setDisabled(server.getDisabled());
         dto.setCreateTime(server.getCreateTime());
@@ -209,6 +210,7 @@ public class ServerService {
         if (src.getSshPort() != null) target.setSshPort(src.getSshPort());
         if (src.getPrice() != null) target.setPrice(src.getPrice());
         if (src.getMultiple() != null) target.setMultiple(src.getMultiple());
+        if (src.getBandwidth() != null) target.setBandwidth(src.getBandwidth());
         if (src.getExpireDate() != null) target.setExpireDate(src.getExpireDate());
         if (src.getDisabled() != null) target.setDisabled(src.getDisabled());
         if (src.getRemark() != null) target.setRemark(src.getRemark());

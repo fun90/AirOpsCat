@@ -21,6 +21,7 @@ public class ServerDto {
     private String supplier;
     private BigDecimal price;
     private BigDecimal multiple;
+    private Integer bandwidth;
     private Integer disabled;
     private String remark;
     private Map<String, Object> transitConfig = new HashMap<>();
@@ -28,6 +29,11 @@ public class ServerDto {
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
     private Long daysUntilExpiration; // 到期剩余天数
+    private Long trafficUploadBytes;
+    private Long trafficDownloadBytes;
+    private Long trafficTotalBytes;
+    private LocalDateTime trafficPeriodStart;
+    private LocalDateTime trafficPeriodEnd;
     
     // 辅助方法：获取服务器连接地址
     public String getConnectionString() {

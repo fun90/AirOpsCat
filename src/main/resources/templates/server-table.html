@@ -8,6 +8,7 @@
         <th>供应商</th>
         <th>SSH</th>
         <th>认证方式</th>
+        <th>流量使用</th>
         <th>到期时间</th>
         <th>价格</th>
         <th class="w-1">操作</th>
@@ -42,6 +43,16 @@
                 <span>{{ getAuthTypeLabel(server.authType) }}</span>
                 <small v-if="server.username" class="text-muted">{{ server.username }}</small>
             </div>
+        </td>
+        <td>
+            <div v-if="server.trafficTotalBytes != null"
+                 :title="'周期: ' + formatDateTime(server.trafficPeriodStart) + ' - ' + formatDateTime(server.trafficPeriodEnd) + '\n上行: ' + formatBytes(server.trafficUploadBytes) + '\n下行: ' + formatBytes(server.trafficDownloadBytes)"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 style="cursor: pointer;">
+                {{ formatBytes(server.trafficTotalBytes) }}
+            </div>
+            <span v-else class="text-muted">-</span>
         </td>
         <td v-text="formatDate(server.expireDate) || '永不过期'"></td>
         <td>
@@ -85,14 +96,14 @@
         </td>
     </tr>
     <tr v-if="loading">
-        <td colspan="9" class="text-center py-3">
+        <td colspan="11" class="text-center py-3">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </td>
     </tr>
     <tr v-else-if="records.length === 0">
-        <td colspan="9" class="text-center py-3">没有查到数据.</td>
+        <td colspan="11" class="text-center py-3">没有查到数据.</td>
     </tr>
     </tbody>
 </table>

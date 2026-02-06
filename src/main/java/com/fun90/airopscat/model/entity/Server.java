@@ -46,6 +46,8 @@ public class Server {
     private BigDecimal price;
     
     private BigDecimal multiple;
+
+    private Integer bandwidth;
     
     private Integer disabled;
     

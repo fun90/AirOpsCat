@@ -3,6 +3,7 @@ package com.fun90.airopscat.controller;
 import com.fun90.airopscat.model.dto.ServerDto;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.service.ServerService;
+import com.fun90.airopscat.service.ServerTrafficStatsService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -26,6 +27,9 @@ public class ServerController {
     @Inject
     ServerService serverService;
 
+    @Inject
+    ServerTrafficStatsService serverTrafficStatsService;
+
     @GET
     public Response getServerPage(
             @QueryParam("page") @DefaultValue("1") int page,
@@ -42,6 +46,7 @@ public class ServerController {
         List<ServerDto> serverDtos = serverQuery.list().stream()
                 .map(server -> serverService.convertToDto(server))
                 .collect(Collectors.toList());
+        serverTrafficStatsService.fillCurrentPeriodTraffic(serverDtos);
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", serverDtos);

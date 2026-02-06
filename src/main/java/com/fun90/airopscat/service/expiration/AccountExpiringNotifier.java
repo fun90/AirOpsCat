@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @ApplicationScoped
-public class AccountExpiringNotifier implements ExpiringResourceNotifier {
+public class AccountExpiringNotifier implements MonitorNotifier {
 
     @Inject
     AccountRepository accountRepository;
@@ -26,7 +26,7 @@ public class AccountExpiringNotifier implements ExpiringResourceNotifier {
     }
 
     @Override
-    public List<String> findExpiringItems(LocalDate today) {
+    public List<String> findItems(LocalDate today) {
         LocalDateTime startOfDay = today.atStartOfDay();
         LocalDateTime endOfDay = today.atTime(23, 59, 59);
 

@@ -12,45 +12,45 @@ import java.util.Optional;
 
 @Slf4j
 @ApplicationScoped
-public class ExpirationNotificationService {
+public class MonitorNotificationService {
 
     @Inject
     BarkService barkService;
 
     @Inject
-    Instance<ExpiringResourceNotifier> notifiers;
+    Instance<MonitorNotifier> notifiers;
 
-    public void notifyExpiringToday(String type) {
+    public void notify(String type) {
         LocalDate today = LocalDate.now();
 
-        Optional<ExpiringResourceNotifier> notifierOpt = findNotifier(type);
+        Optional<MonitorNotifier> notifierOpt = findNotifier(type);
         if (notifierOpt.isEmpty()) {
-            log.warn("未找到到期提醒处理器: {}", type);
+            log.warn("未找到提醒处理器: {}", type);
             return;
         }
 
-        ExpiringResourceNotifier notifier = notifierOpt.get();
+        MonitorNotifier notifier = notifierOpt.get();
         try {
-            List<String> items = notifier.findExpiringItems(today);
+            List<String> items = notifier.findItems(today);
             if (items.isEmpty()) {
-                log.info("{} 今日没有到期记录", notifier.getTitle());
+                log.info("{} 今日没有需要提醒的记录", notifier.getTitle());
                 return;
             }
 
             String body = notifier.buildBody(items);
             barkService.sendInfoNotification(notifier.getTitle(), body);
         } catch (Exception e) {
-            log.error("执行{}到期提醒时发生错误", notifier.getTitle(), e);
-            barkService.sendErrorNotification("AirOpsCat 到期提醒失败",
+            log.error("执行{}提醒时发生错误", notifier.getTitle(), e);
+            barkService.sendErrorNotification("AirOpsCat 提醒失败",
                     "执行" + notifier.getTitle() + "时发生错误: " + e.getMessage());
         }
     }
 
-    private Optional<ExpiringResourceNotifier> findNotifier(String type) {
+    private Optional<MonitorNotifier> findNotifier(String type) {
         if (type == null || type.isBlank()) {
             return Optional.empty();
         }
-        for (ExpiringResourceNotifier notifier : notifiers) {
+        for (MonitorNotifier notifier : notifiers) {
             if (type.equalsIgnoreCase(notifier.getType())) {
                 return Optional.of(notifier);
             }

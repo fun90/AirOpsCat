@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @ApplicationScoped
-public class ServerExpiringNotifier implements ExpiringResourceNotifier {
+public class ServerExpiringNotifier implements MonitorNotifier {
 
     @Inject
     ServerRepository serverRepository;
@@ -25,7 +25,7 @@ public class ServerExpiringNotifier implements ExpiringResourceNotifier {
     }
 
     @Override
-    public List<String> findExpiringItems(LocalDate today) {
+    public List<String> findItems(LocalDate today) {
         List<Server> servers = serverRepository.findExpiringOnDate(today);
         return servers.stream()
                 .map(server -> {

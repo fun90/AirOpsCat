@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @ApplicationScoped
-public class DomainExpiringNotifier implements ExpiringResourceNotifier {
+public class DomainExpiringNotifier implements MonitorNotifier {
 
     @Inject
     DomainRepository domainRepository;
@@ -25,7 +25,7 @@ public class DomainExpiringNotifier implements ExpiringResourceNotifier {
     }
 
     @Override
-    public List<String> findExpiringItems(LocalDate today) {
+    public List<String> findItems(LocalDate today) {
         List<Domain> domains = domainRepository.findExpiringOnDate(today);
         return domains.stream()
                 .map(Domain::getDomain)

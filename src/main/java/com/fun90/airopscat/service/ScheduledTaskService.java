@@ -18,7 +18,7 @@ import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
-import com.fun90.airopscat.service.expiration.ExpirationNotificationService;
+import com.fun90.airopscat.service.expiration.MonitorNotificationService;
 import com.fun90.airopscat.util.JsonUtil;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -27,7 +27,6 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -65,7 +64,10 @@ public class ScheduledTaskService {
     AccountTrafficStatsService accountTrafficStatsService;
 
     @Inject
-    ExpirationNotificationService expirationNotificationService;
+    ServerTrafficStatsService serverTrafficStatsService;
+
+    @Inject
+    MonitorNotificationService monitorNotificationService;
 
     /**
      * 每天凌晨5点执行的任务
@@ -210,9 +212,17 @@ public class ScheduledTaskService {
      */
     @Scheduled(cron = "{airopscat.expiration.notify.cron:0 0 10 * * ?}", timeZone = "Asia/Shanghai")
     public void notifyExpiringResourcesToday() {
-        expirationNotificationService.notifyExpiringToday("account");
-        expirationNotificationService.notifyExpiringToday("server");
-        expirationNotificationService.notifyExpiringToday("domain");
+        monitorNotificationService.notify("account");
+        monitorNotificationService.notify("server");
+        monitorNotificationService.notify("domain");
+    }
+
+    /**
+     * 服务器流量达到阈值提醒
+     */
+    @Scheduled(cron = "{airopscat.server.traffic.notify.cron:0 10 10 * * ?}", timeZone = "Asia/Shanghai")
+    public void notifyServerTrafficThreshold() {
+        monitorNotificationService.notify("server-traffic");
     }
     
     /**
@@ -246,12 +256,20 @@ public class ScheduledTaskService {
                 // 流量倍率
                 BigDecimal multiple = server.getMultiple() == null ? BigDecimal.ONE : server.getMultiple();
                 
+                long totalUploadBytes = 0L;
+                long totalDownloadBytes = 0L;
+
                 // 处理每个用户的流量统计
                 for (String userEmail : userEmails) {
                     TrafficStats trafficStats = allTrafficStats.get(userEmail);
                     
                     if (trafficStats != null) {
                         try {
+                            long adjustedUpload = multiple.multiply(new BigDecimal(trafficStats.uploadBytes())).longValue();
+                            long adjustedDownload = multiple.multiply(new BigDecimal(trafficStats.downloadBytes())).longValue();
+                            totalUploadBytes += trafficStats.uploadBytes();
+                            totalDownloadBytes += trafficStats.downloadBytes();
+
                             // 查找对应的账户
                             Optional<Account> accountOpt = accountRepository.findByAccountNo(userEmail);
                             if (accountOpt.isPresent()) {
@@ -262,8 +280,8 @@ public class ScheduledTaskService {
                                     account.getId(),
                                     account.getUserId(),
                                     account.getPeriodType(),
-                                    multiple.multiply(new BigDecimal(trafficStats.uploadBytes())).longValue(),
-                                    multiple.multiply(new BigDecimal(trafficStats.downloadBytes())).longValue()
+                                    adjustedUpload,
+                                    adjustedDownload
                                 );
                                 successCount++;
                                 
@@ -278,6 +296,15 @@ public class ScheduledTaskService {
                     } else {
                         log.debug("服务器：{} 上的用户 {} 没有流量数据", server.getName(), userEmail);
                     }
+                }
+
+                if (totalUploadBytes > 0 || totalDownloadBytes > 0) {
+                    serverTrafficStatsService.saveOrUpdateTrafficStats(
+                            server.getId(),
+                            server.getExpireDate(),
+                            totalUploadBytes,
+                            totalDownloadBytes
+                    );
                 }
                 
             }
