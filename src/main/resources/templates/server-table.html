@@ -1,6 +1,7 @@
 <table class="table table-selectable card-table table-vcenter text-nowrap datatable">
     <thead>
     <tr>
+        <th>ID</th>
         <th>IP</th>
         <th>主机名/名称</th>
         <th>状态</th>
@@ -14,6 +15,7 @@
     </thead>
     <tbody>
     <tr v-for="server in records" :key="server.id">
+        <td v-text="server.id"></td>
         <td>
             <div class="d-flex align-items-center">
                 <span v-text="server.ip" class="text-truncate"></span>

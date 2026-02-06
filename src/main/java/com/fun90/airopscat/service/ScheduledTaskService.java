@@ -167,7 +167,7 @@ public class ScheduledTaskService {
                 try {
                     // 获取服务器信息
                     Server server = serverRepository.findAvailableServer(serverConfig.getServerId(), now.toLocalDate()).orElse(null);
-                    if (server == null) {
+                    if (server == null || server.getDisabled() == 1) {
                         log.warn("服务器 {} 不存在，跳过", serverConfig.getServerId());
                         continue;
                     }
@@ -189,7 +189,7 @@ public class ScheduledTaskService {
                 }
             }
             
-            log.info("流量统计收集完成 - 成功处理: {} 个配置, 失败: {} 个配置", successCount, failureCount);
+            log.info("流量统计收集完成 - 成功: {} , 失败: {} ", successCount, failureCount);
             
             // 发送通知
             if (failureCount > 0) {
@@ -499,6 +499,11 @@ public class ScheduledTaskService {
                     Server server = serverRepository.findById(serverConfig.getServerId());
                     if (server == null) {
                         log.warn("服务器 {} 不存在，跳过", serverConfig.getServerId());
+                        continue;
+                    }
+                    if (server.getDisabled() == 1) {
+                        log.info("服务器 {} 失效，清除数据", serverConfig.getServerId());
+                        serverConfigRepository.deleteById(serverConfig.getId());
                         continue;
                     }
                     
