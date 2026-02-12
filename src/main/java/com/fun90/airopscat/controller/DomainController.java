@@ -2,7 +2,11 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.DomainDto;
 import com.fun90.airopscat.model.entity.Domain;
+import com.fun90.airopscat.model.entity.Transaction;
+import com.fun90.airopscat.model.enums.PaymentMethod;
+import com.fun90.airopscat.model.enums.TransactionType;
 import com.fun90.airopscat.service.DomainService;
+import com.fun90.airopscat.service.TransactionService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -11,7 +15,9 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +31,9 @@ public class DomainController {
     
     @Inject
     DomainService domainService;
+
+    @Inject
+    TransactionService transactionService;
 
     @GET
     public Response getDomainPage(
@@ -122,5 +131,57 @@ public class DomainController {
 
         domainService.deleteDomain(id);
         return Response.ok().build();
+    }
+
+    @PATCH
+    @Path("/{id}/renew")
+    public Response renewDomain(
+            @PathParam("id") Long id,
+            @QueryParam("expiryDate") String expiryDateStr,
+            @QueryParam("amount") BigDecimal amount,
+            @QueryParam("paymentMethod") String paymentMethod
+    ) {
+        LocalDate expiryDate = LocalDate.parse(expiryDateStr);
+        Domain existingDomain = domainService.getDomainById(id);
+        LocalDate baseDate = existingDomain != null ? existingDomain.getExpireDate() : null;
+        LocalDate today = LocalDate.now();
+        if (baseDate == null || baseDate.isBefore(today)) {
+            baseDate = today;
+        }
+
+        Domain domain = domainService.renewDomain(id, expiryDate);
+
+        if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+            if (paymentMethod == null || paymentMethod.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("message", "填写金额时必须选择付款方式"))
+                        .build();
+            }
+            if (PaymentMethod.fromValue(paymentMethod) == null) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("message", "付款方式不合法"))
+                        .build();
+            }
+
+            YearMonth baseMonth = YearMonth.from(baseDate);
+            YearMonth newMonth = YearMonth.from(expiryDate);
+            int months = (newMonth.getYear() - baseMonth.getYear()) * 12
+                    + (newMonth.getMonthValue() - baseMonth.getMonthValue());
+            if (months < 1) {
+                months = 1;
+            }
+
+            Transaction transaction = new Transaction();
+            transaction.setType(TransactionType.EXPENSE.getValue());
+            transaction.setAmount(amount);
+            transaction.setBusinessTable("domain");
+            transaction.setBusinessId(domain.getId());
+            transaction.setDescription("域名：" + months + "月");
+            transaction.setRemark(domain.getRemark());
+            transaction.setPaymentMethod(paymentMethod);
+            transactionService.saveTransaction(transaction);
+        }
+
+        return Response.ok(domainService.convertToDto(domain)).build();
     }
 }

@@ -2,8 +2,12 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.ServerDto;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.entity.Transaction;
+import com.fun90.airopscat.model.enums.PaymentMethod;
+import com.fun90.airopscat.model.enums.TransactionType;
 import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.ServerTrafficStatsService;
+import com.fun90.airopscat.service.TransactionService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -12,7 +16,9 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +35,9 @@ public class ServerController {
 
     @Inject
     ServerTrafficStatsService serverTrafficStatsService;
+
+    @Inject
+    TransactionService transactionService;
 
     @GET
     public Response getServerPage(
@@ -172,10 +181,51 @@ public class ServerController {
     @Path("/{id}/renew")
     public Response renewServer(
             @PathParam("id") Long id, 
-            @QueryParam("expiryDate") String expiryDateStr
+            @QueryParam("expiryDate") String expiryDateStr,
+            @QueryParam("amount") BigDecimal amount,
+            @QueryParam("paymentMethod") String paymentMethod
     ) {
         LocalDate expiryDate = LocalDate.parse(expiryDateStr);
+        Server existingServer = serverService.getServerById(id);
+        LocalDate baseDate = existingServer != null ? existingServer.getExpireDate() : null;
+        LocalDate today = LocalDate.now();
+        if (baseDate == null || baseDate.isBefore(today)) {
+            baseDate = today;
+        }
+
         Server server = serverService.renewServer(id, expiryDate);
+
+        if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+            if (paymentMethod == null || paymentMethod.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("message", "填写金额时必须选择付款方式"))
+                        .build();
+            }
+            if (PaymentMethod.fromValue(paymentMethod) == null) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("message", "付款方式不合法"))
+                        .build();
+            }
+
+            YearMonth baseMonth = YearMonth.from(baseDate);
+            YearMonth newMonth = YearMonth.from(expiryDate);
+            int months = (newMonth.getYear() - baseMonth.getYear()) * 12
+                    + (newMonth.getMonthValue() - baseMonth.getMonthValue());
+            if (months < 1) {
+                months = 1;
+            }
+
+            Transaction transaction = new Transaction();
+            transaction.setType(TransactionType.EXPENSE.getValue());
+            transaction.setAmount(amount);
+            transaction.setBusinessTable("server");
+            transaction.setBusinessId(server.getId());
+            transaction.setDescription("服务器：" + months + "月");
+            transaction.setRemark(server.getRemark());
+            transaction.setPaymentMethod(paymentMethod);
+            transactionService.saveTransaction(transaction);
+        }
+
         ServerDto dto = serverService.convertToDto(server);
         return Response.ok(dto).build();
     }

@@ -12,6 +12,7 @@ const accountTable = new DataTable({
             status: ''
         },
         periodTypes: [],
+        paymentMethods: [],
         availableTags: [],
         
         // 搜索组件实例
@@ -55,7 +56,8 @@ const accountTable = new DataTable({
         renewModal: null,
         renewData: {
             expiryDate: '',
-            amount: ''
+            amount: '',
+            paymentMethod: ''
         },
         resetAuthCodeModal: null,
         // 在线IP相关数据
@@ -89,6 +91,7 @@ const accountTable = new DataTable({
         // Initialize any additional data
         initialize() {
             this.fetchPeriodTypes();
+            this.fetchPaymentMethods();
             this.fetchAvailableTags();
             this.fetchDocsConfig();
             this.initializeSearchComponents();
@@ -151,6 +154,17 @@ const accountTable = new DataTable({
                 })
                 .catch(error => {
                     console.error('Error fetching period types:', error);
+                });
+        },
+
+        fetchPaymentMethods() {
+            fetch('/api/admin/transactions/paymentMethods')
+                .then(response => response.json())
+                .then(data => {
+                    this.paymentMethods = data;
+                })
+                .catch(error => {
+                    console.error('Error fetching payment methods:', error);
                 });
         },
 
@@ -450,7 +464,8 @@ const accountTable = new DataTable({
             baseDate.setMonth(baseDate.getMonth() + 1);
             this.renewData = {
                 expiryDate: formatDateTimeForLocal(baseDate),
-                amount: ''
+                amount: '',
+                paymentMethod: ''
             };
 
             this.validationErrors = {};
@@ -501,6 +516,10 @@ const accountTable = new DataTable({
                     this.validationErrors.amount = '请输入有效金额';
                     isValid = false;
                 }
+                if (!this.renewData.paymentMethod) {
+                    this.validationErrors.paymentMethod = '请选择付款方式';
+                    isValid = false;
+                }
             }
 
             return isValid;
@@ -516,6 +535,7 @@ const accountTable = new DataTable({
             });
             if (this.renewData.amount !== null && this.renewData.amount !== undefined && String(this.renewData.amount).trim() !== '') {
                 params.append('amount', this.renewData.amount);
+                params.append('paymentMethod', this.renewData.paymentMethod);
             }
 
             fetch(`/api/admin/accounts/${this.selectedItem.id}/renew?${params.toString()}`, {

@@ -658,6 +658,14 @@
                     <div class="invalid-feedback" v-if="validationErrors.amount">{{ validationErrors.amount }}</div>
                 </div>
                 <div class="mb-3">
+                    <label class="form-label">付款方式</label>
+                    <select class="form-select" :class="{ 'is-invalid': validationErrors.paymentMethod }" v-model="renewData.paymentMethod">
+                        <option value="">请选择付款方式</option>
+                        <option v-for="type in paymentMethods" :key="type.value" :value="type.value">{{ type.label }}</option>
+                    </select>
+                    <div class="invalid-feedback" v-if="validationErrors.paymentMethod">{{ validationErrors.paymentMethod }}</div>
+                </div>
+                <div class="mb-3">
                     <div class="btn-list">
                         <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'months')">+1个月</button>
                         <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(3, 'months')">+3个月</button>

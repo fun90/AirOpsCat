@@ -21,10 +21,13 @@ const serverTable = new DataTable({
         totalCost: 0,
         totalEffectiveCost: 0,
         authTypes: [],
+        paymentMethods: [],
         testingConnection: false,
         connectionTestResult: null,
         renewData: {
-            expiryDate: ''
+            expiryDate: '',
+            amount: '',
+            paymentMethod: ''
         },
         transitConfigJson: '',
         coreConfigJson: '',
@@ -53,6 +56,7 @@ const serverTable = new DataTable({
         // Initialize any additional data
         initialize() {
             this.fetchAuthTypes();
+            this.fetchPaymentMethods();
         },
 
         // Fetch authentication types
@@ -69,6 +73,17 @@ const serverTable = new DataTable({
                 })
                 .catch(error => {
                     console.error('Error fetching auth types:', error);
+                });
+        },
+
+        fetchPaymentMethods() {
+            fetch('/api/admin/transactions/paymentMethods')
+                .then(response => response.json())
+                .then(data => {
+                    this.paymentMethods = data;
+                })
+                .catch(error => {
+                    console.error('Error fetching payment methods:', error);
                 });
         },
 
@@ -414,7 +429,9 @@ const serverTable = new DataTable({
             // Add one month
             baseDate.setMonth(baseDate.getMonth() + 1);
             this.renewData = {
-                expiryDate: baseDate.toISOString().split('T')[0] // Format: YYYY-MM-DD
+                expiryDate: baseDate.toISOString().split('T')[0], // Format: YYYY-MM-DD
+                amount: '',
+                paymentMethod: ''
             };
 
             this.validationErrors = {};
@@ -459,6 +476,18 @@ const serverTable = new DataTable({
                 }
             }
 
+            if (this.renewData.amount !== null && this.renewData.amount !== undefined && String(this.renewData.amount).trim() !== '') {
+                const amount = parseFloat(this.renewData.amount);
+                if (Number.isNaN(amount) || amount <= 0) {
+                    this.validationErrors.amount = '请输入有效金额';
+                    isValid = false;
+                }
+                if (!this.renewData.paymentMethod) {
+                    this.validationErrors.paymentMethod = '请选择付款方式';
+                    isValid = false;
+                }
+            }
+
             return isValid;
         },
 
@@ -467,7 +496,15 @@ const serverTable = new DataTable({
                 return;
             }
 
-            fetch(`/api/admin/servers/${this.selectedItem.id}/renew?expiryDate=${encodeURIComponent(this.renewData.expiryDate)}`, {
+            const params = new URLSearchParams({
+                expiryDate: this.renewData.expiryDate
+            });
+            if (this.renewData.amount !== null && this.renewData.amount !== undefined && String(this.renewData.amount).trim() !== '') {
+                params.append('amount', this.renewData.amount);
+                params.append('paymentMethod', this.renewData.paymentMethod);
+            }
+
+            fetch(`/api/admin/servers/${this.selectedItem.id}/renew?${params.toString()}`, {
                 method: 'PATCH'
             })
                 .then(response => {

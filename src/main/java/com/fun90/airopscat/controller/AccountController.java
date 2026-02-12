@@ -8,6 +8,7 @@ import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Transaction;
 import com.fun90.airopscat.model.entity.User;
+import com.fun90.airopscat.model.enums.PaymentMethod;
 import com.fun90.airopscat.model.enums.PeriodType;
 import com.fun90.airopscat.model.enums.TransactionType;
 import com.fun90.airopscat.service.*;
@@ -292,7 +293,8 @@ public class AccountController {
     public Response renewAccount(
             @PathParam("id") Long id, 
             @QueryParam("expiryDate") String expiryDate,
-            @QueryParam("amount") BigDecimal amount
+            @QueryParam("amount") BigDecimal amount,
+            @QueryParam("paymentMethod") String paymentMethod
     ) {
         LocalDateTime parsedDate = LocalDateTime.parse(expiryDate);
         Account existingAccount = accountService.getAccountById(id);
@@ -305,6 +307,17 @@ public class AccountController {
         Account account = accountService.renewAccount(id, parsedDate);
         
         if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+            if (paymentMethod == null || paymentMethod.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("message", "填写金额时必须选择付款方式"))
+                        .build();
+            }
+            if (PaymentMethod.fromValue(paymentMethod) == null) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("message", "付款方式不合法"))
+                        .build();
+            }
+
             YearMonth baseMonth = YearMonth.from(baseDate);
             YearMonth newMonth = YearMonth.from(parsedDate);
             int months = (newMonth.getYear() - baseMonth.getYear()) * 12
@@ -320,6 +333,7 @@ public class AccountController {
             transaction.setBusinessId(account.getId());
             transaction.setDescription("账号：" + months + "月");
             transaction.setRemark(account.getRemark());
+            transaction.setPaymentMethod(paymentMethod);
             transactionService.saveTransaction(transaction);
         }
 

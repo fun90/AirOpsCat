@@ -1,5 +1,7 @@
 package com.fun90.airopscat.model.enums;
 
+import java.util.Objects;
+
 public enum PaymentMethod {
     WeChat("WeChat", "微信"),
     AliPay("AliPay", "支付宝"),
@@ -26,7 +28,7 @@ public enum PaymentMethod {
             return null;
         }
         for (PaymentMethod type : PaymentMethod.values()) {
-            if (type.value == value) {
+            if (Objects.equals(type.value, value)) {
                 return type;
             }
         }

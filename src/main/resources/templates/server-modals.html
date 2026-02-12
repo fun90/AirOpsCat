@@ -398,6 +398,22 @@
                         <button type="button" class="btn btn-outline-secondary" @click="setRenewPeriod(1, 'years')">+1年</button>
                     </div>
                 </div>
+                <div class="mb-3">
+                    <label class="form-label">续费金额</label>
+                    <div class="input-group">
+                        <span class="input-group-text">¥</span>
+                        <input type="number" step="0.01" min="0" class="form-control" :class="{ 'is-invalid': validationErrors.amount }" v-model="renewData.amount" placeholder="不填则不生成交易流水">
+                    </div>
+                    <div class="invalid-feedback" v-if="validationErrors.amount">{{ validationErrors.amount }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">付款方式</label>
+                    <select class="form-select" :class="{ 'is-invalid': validationErrors.paymentMethod }" v-model="renewData.paymentMethod">
+                        <option value="">请选择付款方式</option>
+                        <option v-for="type in paymentMethods" :key="type.value" :value="type.value">{{ type.label }}</option>
+                    </select>
+                    <div class="invalid-feedback" v-if="validationErrors.paymentMethod">{{ validationErrors.paymentMethod }}</div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>

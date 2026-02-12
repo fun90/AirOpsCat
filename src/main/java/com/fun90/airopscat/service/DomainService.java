@@ -142,4 +142,15 @@ public class DomainService {
         domainRepository.deleteById(id);
     }
 
+    @Transactional
+    public Domain renewDomain(Long id, LocalDate newExpiryDate) {
+        Domain domain = domainRepository.findById(id);
+        if (domain == null) {
+            throw new EntityNotFoundException("Domain not found");
+        }
+
+        domain.setExpireDate(newExpiryDate);
+        return domain;
+    }
+
 }

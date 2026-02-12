@@ -26,6 +26,9 @@
         <td v-text="domain.remark || '-'"></td>
         <td>
             <div class="btn-list flex-nowrap">
+                <button @click="openRenewDomainModal(domain)" class="btn btn-sm btn-outline-success">
+                    <i class="ti ti-calendar-plus"></i> 续期
+                </button>
                 <button @click="openEditModal(domain)" class="btn btn-sm btn-outline-primary">
                     <i class="ti ti-edit"></i> 编辑
                 </button>

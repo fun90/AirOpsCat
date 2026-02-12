@@ -1,4 +1,5 @@
 import { DataTable } from '/static/js/common/data-table.js';
+import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 
 const domainTable = new DataTable({
     data: {
@@ -13,6 +14,12 @@ const domainTable = new DataTable({
             expiryFrom: '',
             expiryTo: ''
         },
+        paymentMethods: [],
+        renewData: {
+            expiryDate: '',
+            amount: '',
+            paymentMethod: ''
+        },
         newItem: {
             domain: '',
             expireDate: '',
@@ -23,6 +30,8 @@ const domainTable = new DataTable({
     methods: {
         // Initialize with default expiry date for new domains
         initialize() {
+            this.fetchPaymentMethods();
+
             // Get one year from now for default expiration date
             const today = new Date();
             today.setFullYear(today.getFullYear() + 1); // Add one year
@@ -30,6 +39,17 @@ const domainTable = new DataTable({
 
             // Set default expiry date
             this.newItem.expireDate = oneYearFromNow;
+        },
+
+        fetchPaymentMethods() {
+            fetch('/api/admin/transactions/paymentMethods')
+                .then(response => response.json())
+                .then(data => {
+                    this.paymentMethods = data;
+                })
+                .catch(error => {
+                    console.error('Error fetching payment methods:', error);
+                });
         },
 
         // Domain status methods
@@ -143,6 +163,112 @@ const domainTable = new DataTable({
                 price: domain.price,
                 remark: domain.remark || ''
             };
+        },
+
+        // Renew domain methods
+        openRenewDomainModal(domain) {
+            this.selectedItem = domain;
+
+            let baseDate;
+            if (domain.expireDate && new Date(domain.expireDate) > new Date()) {
+                baseDate = new Date(domain.expireDate);
+            } else {
+                baseDate = new Date();
+            }
+
+            baseDate.setMonth(baseDate.getMonth() + 1);
+            this.renewData = {
+                expiryDate: baseDate.toISOString().split('T')[0],
+                amount: '',
+                paymentMethod: ''
+            };
+
+            this.validationErrors = {};
+            this.renewModal = new Modal(document.getElementById('renewDomainModal'));
+            this.renewModal.show();
+        },
+
+        setRenewPeriod(value, unit) {
+            let baseDate;
+            if (this.selectedItem.expireDate && new Date(this.selectedItem.expireDate) > new Date()) {
+                baseDate = new Date(this.selectedItem.expireDate);
+            } else {
+                baseDate = new Date();
+            }
+
+            if (unit === 'days') {
+                baseDate.setDate(baseDate.getDate() + value);
+            } else if (unit === 'months') {
+                baseDate.setMonth(baseDate.getMonth() + value);
+            } else if (unit === 'years') {
+                baseDate.setFullYear(baseDate.getFullYear() + value);
+            }
+
+            this.renewData.expiryDate = baseDate.toISOString().split('T')[0];
+        },
+
+        validateRenewForm() {
+            let isValid = true;
+            this.validationErrors = {};
+
+            if (!this.renewData.expiryDate) {
+                this.validationErrors.expiryDate = '请选择到期时间';
+                isValid = false;
+            } else {
+                const expiryDate = new Date(this.renewData.expiryDate);
+                const now = new Date();
+                if (expiryDate <= now) {
+                    this.validationErrors.expiryDate = '到期时间必须大于当前时间';
+                    isValid = false;
+                }
+            }
+
+            if (this.renewData.amount !== null && this.renewData.amount !== undefined && String(this.renewData.amount).trim() !== '') {
+                const amount = parseFloat(this.renewData.amount);
+                if (Number.isNaN(amount) || amount <= 0) {
+                    this.validationErrors.amount = '请输入有效金额';
+                    isValid = false;
+                }
+                if (!this.renewData.paymentMethod) {
+                    this.validationErrors.paymentMethod = '请选择付款方式';
+                    isValid = false;
+                }
+            }
+
+            return isValid;
+        },
+
+        renewDomain() {
+            if (!this.validateRenewForm()) {
+                return;
+            }
+
+            const params = new URLSearchParams({
+                expiryDate: this.renewData.expiryDate
+            });
+            if (this.renewData.amount !== null && this.renewData.amount !== undefined && String(this.renewData.amount).trim() !== '') {
+                params.append('amount', this.renewData.amount);
+                params.append('paymentMethod', this.renewData.paymentMethod);
+            }
+
+            fetch(`/api/admin/domains/${this.selectedItem.id}/renew?${params.toString()}`, {
+                method: 'PATCH'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('续期失败');
+                    }
+                    return response.json();
+                })
+                .then(() => {
+                    this.fetchRecords();
+                    this.renewModal.hide();
+                    ToastUtils.show('Success', '续期成功', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', '续期失败', 'danger');
+                });
         },
 
         // URLs for API calls
