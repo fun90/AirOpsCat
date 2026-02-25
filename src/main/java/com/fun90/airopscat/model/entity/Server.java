@@ -50,6 +50,11 @@ public class Server {
     private Integer bandwidth;
     
     private Integer disabled;
+
+    /**
+     * 外部的服务器
+     */
+    private Integer external;
     
     private String remark;
 

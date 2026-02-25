@@ -192,8 +192,10 @@ public class NodeDeploymentService {
         // 2. 保存服务器配置
         ServerConfig serverConfig = saveServerConfig(server, CORE_TYPE_XRAY, xrayConfig);
 
-        // 3. 远程部署配置
-        deployConfigToServer(server, CORE_TYPE_XRAY, serverConfig.getConfig());
+        // 3. 远程部署配置：托管给外部的服务器不需要部署配置
+        if (server.getExternal() == null || server.getExternal() == 0) {
+            deployConfigToServer(server, CORE_TYPE_XRAY, serverConfig.getConfig());
+        }
 
         // 4. 更新节点状态（只更新以该服务器为主服务器的节点状态）
         return new ArrayList<>(updateNodeDeploymentStatus(nodes, server.getId()));

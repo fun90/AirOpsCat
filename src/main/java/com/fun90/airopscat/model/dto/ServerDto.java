@@ -23,6 +23,7 @@ public class ServerDto {
     private BigDecimal multiple;
     private Integer bandwidth;
     private Integer disabled;
+    private Integer external;
     private String remark;
     private Map<String, Object> transitConfig = new HashMap<>();
     private Map<String, Object> coreConfig = new HashMap<>();

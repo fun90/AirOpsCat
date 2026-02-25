@@ -47,6 +47,7 @@ const serverTable = new DataTable({
                 multiple: 1,
                 bandwidth: '',
                 disabled: false,
+                external: false,
                 remark: '',
                 transitConfig: null,
                 coreConfig: null
@@ -256,6 +257,7 @@ const serverTable = new DataTable({
                 multiple: this.newItem.multiple || 1,
                 bandwidth: this.newItem.bandwidth || null,
                 disabled: this.newItem.disabled ? 1 : 0,
+                external: this.newItem.external ? 1 : 0,
                 remark: this.newItem.remark || null,
                 transitConfig: transitConfig,
                 coreConfig: coreConfig
@@ -293,6 +295,7 @@ const serverTable = new DataTable({
                 multiple: this.editedItem.multiple || 1,
                 bandwidth: this.editedItem.bandwidth || null,
                 disabled: this.editedItem.disabled,
+                external: this.editedItem.external,
                 remark: this.editedItem.remark || null,
                 transitConfig: transitConfig,
                 coreConfig: coreConfig
@@ -319,6 +322,7 @@ const serverTable = new DataTable({
                 multiple: 1,
                 bandwidth: '',
                 disabled: false,
+                external: false,
                 remark: '',
                 transitConfig: null,
                 coreConfig: null
@@ -357,6 +361,7 @@ const serverTable = new DataTable({
                 multiple: server.multiple || 1,
                 bandwidth: server.bandwidth || '',
                 disabled: server.disabled,
+                external: server.external,
                 remark: server.remark || '',
                 transitConfig: server.transitConfig,
                 coreConfig: server.coreConfig

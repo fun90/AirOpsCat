@@ -73,10 +73,10 @@ public class NodeService {
             String publicKey = "";
             
             for (String outputLine : output) {
-                if (outputLine.startsWith("Private key:")) {
-                    privateKey = outputLine.substring("Private key:".length()).trim();
-                } else if (outputLine.startsWith("Public key:")) {
-                    publicKey = outputLine.substring("Public key:".length()).trim();
+                if (outputLine.startsWith("PrivateKey:")) {
+                    privateKey = outputLine.substring("PrivateKey:".length()).trim();
+                } else if (outputLine.startsWith("Password:")) {
+                    publicKey = outputLine.substring("Password:".length()).trim();
                 }
             }
             
