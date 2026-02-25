@@ -5,6 +5,7 @@ import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.dto.xray.InboundConfig;
 import com.fun90.airopscat.model.dto.xray.OutboundConfig;
+import com.fun90.airopscat.model.dto.xray.RoutingConfig;
 import com.fun90.airopscat.model.dto.xray.XrayConfig;
 import com.fun90.airopscat.model.dto.xray.routing.RoutingRule;
 import com.fun90.airopscat.model.dto.xray.setting.InboundSetting;
@@ -236,9 +237,13 @@ public class NodeDeploymentService {
         List<RoutingRule> routingRules = xrayConfig.getRouting().getRules().stream().filter(o -> o.getRuleTag() != null && o.getRuleTag().startsWith("default-")).collect(Collectors.toList());
 
         if (server.getTransitConfig() != null && !server.getTransitConfig().equals("{}")) {
-            RoutingRule nodeRoutingRule = JsonUtil.toObject(server.getTransitConfig(), RoutingRule.class);
-            if (nodeRoutingRule != null && nodeRoutingRule.getType() != null) {
-                routingRules.add(nodeRoutingRule);
+            // 服务器维度的配置
+            XrayConfig transitConfig = JsonUtil.toObject(server.getTransitConfig(), XrayConfig.class);
+
+            // 路由
+            RoutingConfig routing = transitConfig.getRouting();
+            if (routing != null && routing.getRules() != null) {
+                routingRules.addAll(routing.getRules());
             }
         }
 

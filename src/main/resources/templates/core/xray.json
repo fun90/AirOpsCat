@@ -45,6 +45,18 @@
       "tag": "default-blocked",
       "protocol": "blackhole",
       "settings": {}
+    },
+    {
+      "tag": "default-warp",
+      "protocol": "socks",
+      "settings": {
+        "servers": [
+          {
+            "address": "127.0.0.1",
+            "port": 40000
+          }
+        ]
+      }
     }
   ],
   "routing": {
