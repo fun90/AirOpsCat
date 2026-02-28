@@ -133,6 +133,9 @@ public class AccountService {
         dto.setDisabled(account.getDisabled());
         dto.setPeriodType(account.getPeriodType());
         dto.setRemark(account.getRemark());
+        dto.setLevel(account.getLevel());
+        dto.setMaxOnlineIps(account.getMaxOnlineIps());
+        dto.setSpeed(account.getSpeed());
         
         // Enrich with user email if available
         if (account.getUserId() != null) {

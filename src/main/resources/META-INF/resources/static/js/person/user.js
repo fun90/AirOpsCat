@@ -13,7 +13,7 @@ const userTable = new DataTable({
             email: '',
             password: '',
             nickName: '',
-            role: 'PARTNER',
+            role: 'VIP',
             disabled: false
         }
     },
@@ -110,9 +110,9 @@ const userTable = new DataTable({
         resetCreateForm() {
             this.newItem = {
                 email: '',
-                password: '',
+                password: Math.random().toString(36).slice(-16),
                 nickName: '',
-                role: 'PARTNER',
+                role: 'VIP',
                 disabled: false
             };
         },
