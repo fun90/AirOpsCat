@@ -9,6 +9,7 @@ import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting;
 import com.fun90.airopscat.model.dto.xray.setting.stream.RealitySettings;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.ProtocolType;
 import com.fun90.airopscat.repository.NodeRepository;
@@ -228,7 +229,7 @@ public class NodeService {
     }
 
     @Transactional
-    public Node updateNode(Node node) {
+    public Node updateNode(Node node, Set<Tag> tagSet) {
         Node existingNode = nodeRepository.findById(node.getId());
         if (existingNode == null) {
             throw new EntityNotFoundException("Node not found");
@@ -238,7 +239,7 @@ public class NodeService {
         validateNodeServersAndPorts(node);
 
         // 检查节点是否有实质性变更
-        boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node);
+        boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node, tagSet);
 
         // 使用工具方法复制非null属性
         copyNonNullProperties(node, existingNode);
@@ -276,7 +277,7 @@ public class NodeService {
     /**
      * 检查节点是否有实质性变更（影响部署的变更）
      */
-    private boolean hasSubstantialChanges(Node oldNode, Node newNode) {
+    private boolean hasSubstantialChanges(Node oldNode, Node newNode, Set<Tag> newTagSet) {
         // 检查端口变更
         if (newNode.getPort() != null && !newNode.getPort().equals(oldNode.getPort())) {
             return true;
@@ -301,8 +302,10 @@ public class NodeService {
         }
 
         // 检查配置变更
-        if ((newNode.getInbound() != null && !newNode.getInbound().equals(oldNode.getInbound())) ||
-                (newNode.getRule() != null && !newNode.getRule().equals(oldNode.getRule()))) {
+        if (newNode.getInbound() != null && !newNode.getInbound().equals(oldNode.getInbound())) {
+            return true;
+        }
+        if (newNode.getRule() != null && !newNode.getRule().equals(oldNode.getRule())) {
             return true;
         }
         
@@ -320,7 +323,7 @@ public class NodeService {
         }
 
         // 检查是否存在tag变更
-        if (newNode.getTags() != null && !newNode.getTags().equals(oldNode.getTags())) {
+        if (newNode.getTags() != null && !newTagSet.equals(oldNode.getTags())) {
             return true;
         }
 

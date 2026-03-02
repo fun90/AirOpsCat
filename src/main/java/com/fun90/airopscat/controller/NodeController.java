@@ -6,6 +6,7 @@ import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.dto.NodeRequest;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.service.NodeDeploymentService;
 import com.fun90.airopscat.service.NodeService;
@@ -19,10 +20,7 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -198,7 +196,11 @@ public class NodeController {
         try {
             // 使用 NodeConverter 转换请求为实体，并设置 ID
             Node node = NodeConverter.fromRequest(request, id);
-            Node updatedNode = nodeService.updateNode(node);
+            Set<Tag> tagSet = new HashSet<>();
+            if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
+                tagSet = request.getTagIds().stream().map(tid -> tagService.getTagById(tid)).collect(Collectors.toSet());
+            }
+            Node updatedNode = nodeService.updateNode(node, tagSet);
             
             // 处理标签关联
             if (request.getTagIds() != null) {
