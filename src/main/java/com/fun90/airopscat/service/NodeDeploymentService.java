@@ -332,8 +332,7 @@ public class NodeDeploymentService {
 
         ConversionStrategy strategy = strategyRegistry.getStrategy(outInbound.getProtocol());
         if (strategy != null) {
-            String host = (outServer.getHost() == null || outServer.getHost().trim().isEmpty()) ? outServer.getIp() : outServer.getHost();
-            OutboundConfig outbound = strategy.convert(outInbound, host, outNode.getPort());
+            OutboundConfig outbound = strategy.convert(outInbound, outServer.getIp(), outNode.getPort());
             outbound.setTag(outNode.getTag());
             outbounds.add(outbound);
         }
