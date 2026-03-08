@@ -418,8 +418,8 @@ public class NodeService {
     }
     
     // 生成默认配置模板
-    public DefaultConfigDto<InboundConfig> generateDefaultInbound(String protocol) {
-        DefaultConfigDto<InboundConfig> dto = new DefaultConfigDto<>();
+    public DefaultConfigDto generateDefaultInbound(String protocol) {
+        DefaultConfigDto dto = new DefaultConfigDto();
         dto.setProtocol(protocol);
         InboundConfig inbound = new InboundConfig();
         dto.setConfig(inbound);
