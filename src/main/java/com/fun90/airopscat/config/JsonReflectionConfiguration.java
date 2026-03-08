@@ -11,6 +11,7 @@ import com.fun90.airopscat.model.dto.xray.routing.BalancerConfig;
 import com.fun90.airopscat.model.dto.xray.routing.RoutingRule;
 import com.fun90.airopscat.model.dto.xray.setting.InboundSetting;
 import com.fun90.airopscat.model.dto.xray.setting.OutboundSetting;
+import com.fun90.airopscat.model.dto.xray.setting.Sniffing;
 import com.fun90.airopscat.model.dto.xray.setting.StreamSetting;
 import com.fun90.airopscat.model.dto.xray.setting.inbound.DokodemoDoorInboundSetting;
 import com.fun90.airopscat.model.dto.xray.setting.inbound.ShadowsocksInboundSetting;
@@ -47,7 +48,8 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     InboundSetting.class,
     OutboundSetting.class,
     StreamSetting.class,
-    
+    Sniffing.class,
+
     // Inbound Setting Classes
     DokodemoDoorInboundSetting.class,
     ShadowsocksInboundSetting.class,
@@ -76,6 +78,8 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     HttpSettings.class,
     RealitySettings.class,
     TcpSettings.class,
+    TlsSettings.class,
+    Certificate.class,
     WebSocketSettings.class,
     
     // Enum Classes
@@ -128,7 +132,8 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     // Other DTOs
     com.fun90.airopscat.model.dto.TagDto.class,
     com.fun90.airopscat.model.dto.TransactionDto.class,
-    
+    com.fun90.airopscat.model.dto.DefaultConfigDto.class,
+
     // Entity Classes (for direct JSON serialization)
     com.fun90.airopscat.model.entity.User.class,
     com.fun90.airopscat.model.entity.Account.class,

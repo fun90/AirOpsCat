@@ -418,16 +418,13 @@ public class NodeService {
     }
     
     // 生成默认配置模板
-    public DefaultConfigDto generateDefaultInbound(String protocol) {
-        log.info("generateDefaultInbound start");
-        DefaultConfigDto dto = new DefaultConfigDto();
+    public DefaultConfigDto<InboundConfig> generateDefaultInbound(String protocol) {
+        DefaultConfigDto<InboundConfig> dto = new DefaultConfigDto<>();
         dto.setProtocol(protocol);
         InboundConfig inbound = new InboundConfig();
         dto.setConfig(inbound);
-        log.info("generateDefaultInbound 1: {}", dto);
         // 根据协议类型生成不同的默认配置
         if ("vless".equalsIgnoreCase(protocol)) {
-            log.info("generateDefaultInbound vless: {}", dto);
             inbound.setProtocol("vless");
 
             VlessInboundSetting setting = new VlessInboundSetting();
@@ -463,7 +460,6 @@ public class NodeService {
             sniffing.setDestOverride(Stream.of("http", "tls").collect(Collectors.toList()));
             inbound.setSniffing(sniffing);
         } else if("vless-reality".equalsIgnoreCase(protocol)) {
-            log.info("generateDefaultInbound vless-reality: {}", dto);
             inbound.setProtocol("vless");
 
             VlessInboundSetting setting = new VlessInboundSetting();
@@ -531,7 +527,6 @@ public class NodeService {
             // TODO: Implement ShadowTLS configuration generation
         }
 
-        log.info("generateDefaultInbound 2: {}", dto);
         return dto;
     }
     
