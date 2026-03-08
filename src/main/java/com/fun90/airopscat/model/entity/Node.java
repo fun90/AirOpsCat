@@ -51,6 +51,8 @@ public class Node {
     private Integer disabled;
     
     private String name;
+
+    private Integer no;
     
     private String remark;
     

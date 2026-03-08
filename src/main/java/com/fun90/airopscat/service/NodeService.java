@@ -195,6 +195,11 @@ public class NodeService {
 
     // 验证节点的服务器和端口
     private void validateNodeServersAndPorts(Node node) {
+        // 确保名称+编号唯一
+        if (nodeRepository.existsByNameAndNoAndIdNot(node.getName(), node.getNo(), node.getId())) {
+            throw new IllegalArgumentException("名称与编号重复：" + node.getName() + " " + node.getNo());
+        }
+
         // 确保主服务器存在
         if (node.getServerId() != null && serverRepository.findById(node.getServerId()) == null) {
             throw new EntityNotFoundException("Server with ID " + node.getServerId() + " not found");
@@ -339,6 +344,7 @@ public class NodeService {
     // 工具方法：手动复制非null属性（替代Spring BeanUtils）
     private void copyNonNullProperties(Node src, Node target) {
         if (src.getName() != null) target.setName(src.getName());
+        if (src.getNo() != null) target.setNo(src.getNo());
         if (src.getRemark() != null) target.setRemark(src.getRemark());
         if (src.getServerId() != null) target.setServerId(src.getServerId());
         if (src.getType() != null) target.setType(src.getType());

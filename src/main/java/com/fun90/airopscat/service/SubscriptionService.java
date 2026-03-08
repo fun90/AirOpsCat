@@ -10,6 +10,7 @@ import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.util.ConfigFileReader;
+import com.fun90.airopscat.util.NodeObfuscator;
 import com.fun90.airopscat.util.ThymeleafUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -18,10 +19,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -174,6 +172,11 @@ public class SubscriptionService {
 
         if (activeNodes.isEmpty()) {
             return ApiResponseDto.error("当前没有可用的活跃节点，请稍后重试");
+        }
+
+        // 节点混淆
+        if (account.getNodeMultiple() != null) {
+            activeNodes = NodeObfuscator.obfuscate(activeNodes, account.getNodeMultiple(), account.getNodePrefix());
         }
 
         // 根据应用类型生成配置

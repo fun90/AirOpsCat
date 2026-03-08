@@ -71,6 +71,7 @@ const accountTable = new DataTable({
         newItem: {
             userId: '',
             level: 0,
+            nodePrefix: '8',
             fromDate: '',
             toDate: '',
             periodType: 'MONTHLY',
@@ -580,6 +581,12 @@ const accountTable = new DataTable({
                 isValid = false;
             }
 
+            // NodeMultiple validation
+            if (!this.newItem.nodeMultiple) {
+                this.validationErrors.nodeMultiple = '请填写倍数';
+                isValid = false;
+            }
+
             return isValid;
         },
 
@@ -596,6 +603,12 @@ const accountTable = new DataTable({
             // PeriodType validation
             if (!this.editedItem.periodType) {
                 this.validationErrors.periodType = '请选择统计周期类型';
+                isValid = false;
+            }
+
+            // NodeMultiple validation
+            if (!this.editedItem.nodeMultiple) {
+                this.validationErrors.nodeMultiple = '请填写倍数';
                 isValid = false;
             }
 
@@ -616,6 +629,8 @@ const accountTable = new DataTable({
                 userId: this.newItem.userId,
                 accountNo: this.newItem.accountNo,
                 level: this.newItem.level || null,
+                nodeMultiple: this.newItem.nodeMultiple || null,
+                nodePrefix: this.newItem.nodePrefix || null,
                 fromDate: this.newItem.fromDate || localDateTimeFormat,
                 toDate: this.newItem.toDate || oneMonthLaterFormat,
                 periodType: this.newItem.periodType,
@@ -635,6 +650,8 @@ const accountTable = new DataTable({
                 userId: this.editedItem.userId,
                 accountNo: this.editedItem.accountNo,
                 level: this.editedItem.level,
+                nodeMultiple: this.editedItem.nodeMultiple || null,
+                nodePrefix: this.editedItem.nodePrefix || '',
                 fromDate: this.editedItem.fromDate || null,
                 toDate: this.editedItem.toDate || null,
                 periodType: this.editedItem.periodType,
@@ -662,6 +679,7 @@ const accountTable = new DataTable({
                 userId: '',
                 accountNo: '',
                 level: 0,
+                nodePrefix: '8',
                 fromDate: localDateTimeFormat,
                 toDate: oneMonthLaterFormat,
                 periodType: 'MONTHLY',
@@ -703,6 +721,8 @@ const accountTable = new DataTable({
                 userId: account.userId,
                 accountNo: account.accountNo,
                 level: account.level,
+                nodeMultiple: account.nodeMultiple,
+                nodePrefix: account.nodePrefix || '',
                 fromDate: formatDateForInput(account.fromDate),
                 toDate: formatDateForInput(account.toDate),
                 periodType: account.periodType,

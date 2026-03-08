@@ -150,6 +150,8 @@ public class AccountService {
         dto.setPeriodType(account.getPeriodType());
         dto.setRemark(account.getRemark());
         dto.setLevel(account.getLevel());
+        dto.setNodeMultiple(account.getNodeMultiple());
+        dto.setNodePrefix(account.getNodePrefix());
         dto.setMaxOnlineIps(account.getMaxOnlineIps());
         dto.setSpeed(account.getSpeed());
         

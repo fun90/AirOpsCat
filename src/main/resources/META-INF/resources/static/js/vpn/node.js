@@ -308,6 +308,18 @@ const nodeTable = new DataTable({
                 isValid = false;
             }
 
+            // Check node name
+            if (!this.newItem.name) {
+                this.validationErrors.name = '请填写节点名称';
+                isValid = false;
+            }
+
+            // Check node no
+            if (!this.newItem.no) {
+                this.validationErrors.no = '请填写节点编号';
+                isValid = false;
+            }
+
             // Check node type
             if (this.newItem.type === null || this.newItem.type === undefined) {
                 this.validationErrors.type = '请选择节点类型';
@@ -332,6 +344,18 @@ const nodeTable = new DataTable({
                 isValid = false;
             } else if (this.editedItem.port < 1 || this.editedItem.port > 65535) {
                 this.validationErrors.port = '端口范围应为1-65535';
+                isValid = false;
+            }
+
+            // Check node name
+            if (!this.editedItem.name) {
+                this.validationErrors.name = '请填写节点名称';
+                isValid = false;
+            }
+
+            // Check node no
+            if (!this.editedItem.no) {
+                this.validationErrors.no = '请填写节点编号';
                 isValid = false;
             }
 
@@ -369,6 +393,7 @@ const nodeTable = new DataTable({
                     level: this.newItem.level || 0,
                     disabled: this.newItem.disabled ? 1 : 0,
                     name: this.newItem.name || null,
+                    no: this.newItem.no || null,
                     remark: this.newItem.remark || null,
                     inbound: inboundConfig,
                     outId: this.newItem.outId || null,
@@ -405,6 +430,7 @@ const nodeTable = new DataTable({
                     level: this.editedItem.level || 0,
                     disabled: this.editedItem.disabled,
                     name: this.editedItem.name || null,
+                    no: this.editedItem.no || null,
                     remark: this.editedItem.remark || null,
                     inbound: this.editedNodeInbound,
                     outId: this.editedItem.outId === 0 ? null : this.editedItem.outId,
@@ -428,7 +454,8 @@ const nodeTable = new DataTable({
                 type: 0,
                 level: 0,
                 disabled: false,
-                name: '',
+                name: null,
+                no: null,
                 remark: '',
                 inbound: null,
                 outId: null,
@@ -482,7 +509,8 @@ const nodeTable = new DataTable({
                 type: node.type,
                 level: node.level || 0,
                 disabled: node.disabled,
-                name: node.name || '',
+                name: node.name || null,
+                no: node.no || null,
                 remark: node.remark || '',
                 inbound: node.inbound,
                 outId: !node.outId ? 0 : node.outId,

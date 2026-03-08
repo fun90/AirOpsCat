@@ -18,7 +18,11 @@ public class Account {
     private Long id;
     
     private Integer level;
-    
+
+    private Integer nodeMultiple;
+
+    private String nodePrefix;
+
     @Column(name = "from_date")
     private LocalDateTime fromDate;
     

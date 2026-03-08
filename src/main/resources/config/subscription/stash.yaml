@@ -49,11 +49,13 @@ proxies:
     tls: true
     udp: true
     flow: xtls-rprx-vision
-  {#if node.inbound.streamSettings.realitySettings}
+  {#if node.protocol == 'vless-reality'}
     servername: {node.inbound.streamSettings.realitySettings.serverNames[0]}
     reality-opts:
       public-key: {node.inbound.streamSettings.realitySettings.publicKey}
       short-id: {node.inbound.streamSettings.realitySettings.shortIds[0]}
+  {#else}
+    skip-cert-verify: true
   {/if}
     client-fingerprint: chrome
 {/for}

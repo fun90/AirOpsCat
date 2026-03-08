@@ -9,6 +9,8 @@ import java.util.List;
 public class AccountDto {
     private Long id;
     private Integer level;
+    private Integer nodeMultiple;
+    private String nodePrefix;
     private LocalDateTime fromDate;
     private LocalDateTime toDate;
     private String periodType;

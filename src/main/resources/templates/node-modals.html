@@ -27,7 +27,23 @@
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label">节点名称</label>
-                                    <input type="text" class="form-control" v-model="newItem.name">
+                                    <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.name }" v-model="newItem.name">
+                                    <div class="invalid-feedback" v-if="validationErrors.name">{{ validationErrors.name }}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label required">节点编号</label>
+                                    <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.no }" v-model="newItem.no" min="1">
+                                    <div class="invalid-feedback" v-if="validationErrors.no">{{ validationErrors.no }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">节点备注</label>
+                                    <input type="text" class="form-control" v-model="newItem.remark">
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -79,10 +95,6 @@
                                     <input type="number" class="form-control" v-model="newItem.level" min="0">
                                 </div>
                             </div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">备注</label>
-                            <textarea class="form-control" v-model="newItem.remark" rows="2"></textarea>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">标签</label>
@@ -202,8 +214,24 @@
                         <div class="row mt-3">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">节点名称</label>
-                                    <input type="text" class="form-control" v-model="editedItem.name">
+                                    <label class="form-label required">节点名称</label>
+                                    <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.name }" v-model="editedItem.name">
+                                    <div class="invalid-feedback" v-if="validationErrors.name">{{ validationErrors.name }}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label required">节点编号</label>
+                                    <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.no }" v-model="editedItem.no" min="1">
+                                    <div class="invalid-feedback" v-if="validationErrors.no">{{ validationErrors.no }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">节点备注</label>
+                                    <input type="text" class="form-control" v-model="editedItem.remark">
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -256,10 +284,6 @@
                                     <input type="number" class="form-control" v-model="editedItem.level" min="0">
                                 </div>
                             </div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">备注</label>
-                            <textarea class="form-control" v-model="editedItem.remark" rows="2"></textarea>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">标签</label>
@@ -430,4 +454,4 @@
             </div>
         </div>
     </div>
-</div> 
+</div>

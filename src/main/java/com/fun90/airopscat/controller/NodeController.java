@@ -133,7 +133,6 @@ public class NodeController {
     @GET
     @Path("/default-inbound")
     public Response getDefaultInbound(@QueryParam("protocol") String protocol) {
-        log.info("getDefaultInbound protocol={}", protocol);
         return Response.ok(nodeService.generateDefaultInbound(protocol)).build();
     }
     

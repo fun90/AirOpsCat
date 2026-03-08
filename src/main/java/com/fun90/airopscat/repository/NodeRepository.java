@@ -51,6 +51,11 @@ public class NodeRepository implements PanacheRepository<Node> {
     public boolean existsByServerIdAndPortAndIdNot(Long serverId, Integer port, Long id) {
         return count("serverId = ?1 and port = ?2 and id != ?3", serverId, port, id) > 0;
     }
+
+    // 检查名称和编号是否已被使用
+    public boolean existsByNameAndNoAndIdNot(String name, Integer no, Long id) {
+        return count("name = ?1 and no = ?2 and id != ?3", name, no, id) > 0;
+    }
     
     public boolean existsByServerIdAndPort(Long serverId, Integer port) {
         return count("serverId = ?1 and port = ?2", serverId, port) > 0;

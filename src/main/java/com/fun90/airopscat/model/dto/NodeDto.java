@@ -33,6 +33,7 @@ public class NodeDto {
     private Integer deployed;
     private Integer disabled;
     private String name;
+    private Integer no;
     private String remark;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

@@ -105,6 +105,21 @@
                         </div>
                     </div>
                 </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">节点倍数</label>
+                            <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.nodeMultiple }" v-model="newItem.nodeMultiple" min="1" max="10">
+                            <div class="invalid-feedback" v-if="validationErrors.nodeMultiple">{{ validationErrors.nodeMultiple }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">节点前缀</label>
+                            <input type="text" class="form-control" v-model="newItem.nodePrefix" placeholder="节点编号前缀">
+                        </div>
+                    </div>
+                </div>
                 <div class="mb-3">
                     <label class="form-label">标签</label>
                     <div class="row">
@@ -235,6 +250,21 @@
                         <div class="mb-3">
                             <label class="form-label">备注名</label>
                             <input type="text" class="form-control" v-model="editedItem.remark" placeholder="账户备注名">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">节点倍数</label>
+                            <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.nodeMultiple }" v-model="editedItem.nodeMultiple" min="1" max="10">
+                            <div class="invalid-feedback" v-if="validationErrors.nodeMultiple">{{ validationErrors.nodeMultiple }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">节点前缀</label>
+                            <input type="text" class="form-control" v-model="editedItem.nodePrefix" placeholder="节点编号前缀">
                         </div>
                     </div>
                 </div>
