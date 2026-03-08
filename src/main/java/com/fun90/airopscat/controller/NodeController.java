@@ -19,10 +19,12 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @ApplicationScoped
 @Path("/api/admin/nodes")
 @Produces(MediaType.APPLICATION_JSON)
@@ -131,6 +133,7 @@ public class NodeController {
     @GET
     @Path("/default-inbound")
     public Response getDefaultInbound(@QueryParam("protocol") String protocol) {
+        log.info("getDefaultInbound protocol={}", protocol);
         return Response.ok(nodeService.generateDefaultInbound(protocol)).build();
     }
     
