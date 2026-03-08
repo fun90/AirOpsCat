@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fun90.airopscat.config.jackson.InboundConfigDeserializer;
 import com.fun90.airopscat.model.dto.xray.setting.InboundSetting;
+import com.fun90.airopscat.model.dto.xray.setting.Sniffing;
 import com.fun90.airopscat.model.dto.xray.setting.StreamSetting;
 import lombok.Data;
 
@@ -18,4 +19,5 @@ public class InboundConfig {
     private String protocol;
     private InboundSetting settings;
     private StreamSetting streamSettings;
+    private Sniffing sniffing;
 }

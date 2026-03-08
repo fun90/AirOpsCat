@@ -2,6 +2,7 @@ package com.fun90.airopscat.model.enums;
 
 public enum ProtocolType {
     VLESS("VLESS", "vless", 0),
+    VLESS_REALITY("VLESS-REALITY", "vless-reality", 0),
     HYSTERIA2("Hysteria2", "hysteria2", 0),
     SOCKS("Socks", "socks", 1),
     SHADOWSOCKS("Shadowsocks", "shadowsocks", 1),

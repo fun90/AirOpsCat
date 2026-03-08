@@ -28,8 +28,8 @@ public class VlessInboundSetting extends InboundSetting {
     @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class VlessFallback {
+        private String alpn;
         private String dest;
-        private Integer port;
-        private String xver;
+        private Integer xver;
     }
 }

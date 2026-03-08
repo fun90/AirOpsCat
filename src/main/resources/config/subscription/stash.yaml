@@ -41,12 +41,10 @@ profile:
 proxies:
 {#for node in nodes}
   - name: {node.name}
-    type: {node.protocol ?: ''}
+    type: {node.inbound.protocol ?: ''}
     server: {node.serverHost}
     port: {node.port}
-  {#if node.protocol == 'vless'}
     uuid: {account.uuid}
-  {/if}
     network: tcp
     tls: true
     udp: true
@@ -56,8 +54,6 @@ proxies:
     reality-opts:
       public-key: {node.inbound.streamSettings.realitySettings.publicKey}
       short-id: {node.inbound.streamSettings.realitySettings.shortIds[0]}
-  {#else}
-    servername: {node.rule.serverName}
   {/if}
     client-fingerprint: chrome
 {/for}

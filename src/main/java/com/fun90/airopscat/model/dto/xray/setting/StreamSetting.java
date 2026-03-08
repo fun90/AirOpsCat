@@ -11,6 +11,7 @@ public class StreamSetting {
     private String network;
     private String security;
     private RealitySettings realitySettings;
+    private TlsSettings tlsSettings;
     private TcpSettings tcpSettings;
     private WebSocketSettings wsSettings;
     private HttpSettings httpSettings;

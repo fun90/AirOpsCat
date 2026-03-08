@@ -49,7 +49,13 @@ public class AccountService {
         
         // Search condition
         if (search != null && !search.trim().isEmpty()) {
-            conditions.add("(lower(accountNo) like :search or lower(user.email) like :search or lower(user.nickName) like :search)");
+            String condition = "(lower(accountNo) like :search or lower(user.email) like :search or lower(user.nickName) like :search";
+            if (isUUID(search)) {
+                condition += " or lower(user.uuid) like :search)";
+            } else {
+                condition += ")";
+            }
+            conditions.add(condition);
             params.put("search", "%" + search.toLowerCase() + "%");
         }
         
@@ -89,6 +95,16 @@ public class AccountService {
             return accountRepository.findAll(sort);
         } else {
             return accountRepository.find(query, sort, params);
+        }
+    }
+
+    private boolean isUUID(String uuidString) {
+        if (uuidString == null) return false;
+        try {
+            UUID.fromString(uuidString);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 

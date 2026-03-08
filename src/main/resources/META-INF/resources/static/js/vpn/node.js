@@ -27,7 +27,7 @@ const nodeTable = new DataTable({
             serverId: '',
             backupServerId: '',
             port: null,
-            protocol: null,
+            protocol: 'vless',
             type: 0, // 默认为代理节点
             level: 0,
             disabled: false,
@@ -237,13 +237,12 @@ const nodeTable = new DataTable({
 
         // Protocol related methods
         onProtocolChange() {
-            this.newItem.protocol = this.newNodeInbound.protocol;
             // 获取默认配置
-            fetch(`/api/admin/nodes/default-inbound?protocol=${this.newNodeInbound.protocol}`)
+            fetch(`/api/admin/nodes/default-inbound?protocol=${this.newItem.protocol}`)
                 .then(response => response.json())
                 .then(data => {
-                    this.newNodeInbound = data;
-                    this.newNodeInboundJson = JSON.stringify(data, null, 2);
+                    this.newNodeInbound = data.config;
+                    this.newNodeInboundJson = JSON.stringify(data.config, null, 2);
                 })
                 .catch(error => {
                     console.error('Error getting default inbound config:', error);
@@ -251,13 +250,12 @@ const nodeTable = new DataTable({
         },
 
         onEditProtocolChange() {
-            this.editedItem.protocol = this.editedNodeInbound.protocol;
             // 获取默认配置
-            fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedNodeInbound.protocol}`)
+            fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedItem.protocol}`)
                 .then(response => response.json())
                 .then(data => {
-                    this.editedNodeInbound = data;
-                    this.editedNodeInboundJson = JSON.stringify(data, null, 2);
+                    this.editedNodeInbound = data.config;
+                    this.editedNodeInboundJson = JSON.stringify(data.config, null, 2);
                 })
                 .catch(error => {
                     console.error('Error getting default inbound config:', error);
@@ -426,7 +424,7 @@ const nodeTable = new DataTable({
                 serverId: this.servers.length > 0 ? this.servers[0].id : '',
                 backupServerId: '',
                 port: null,
-                protocol: null,
+                protocol: 'vless',
                 type: 0,
                 level: 0,
                 disabled: false,
