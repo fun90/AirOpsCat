@@ -106,6 +106,11 @@ public class SubscriptionService {
             return "错误: 当前没有可用的活跃节点，请稍后重试";
         }
 
+        // 节点混淆
+        if (account.getNodeMultiple() != null) {
+            activeNodes = NodeObfuscator.obfuscate(activeNodes, account.getNodeMultiple(), account.getNodePrefix());
+        }
+
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("account", account);
         templateData.put("nodes", activeNodes);

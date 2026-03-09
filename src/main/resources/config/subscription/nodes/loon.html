@@ -2,6 +2,9 @@
 {#if node.protocol == 'hysteria2'}
 {node.name}=Hysteria2,{node.serverHost},{node.port},{account.uuid},skip-cert-verify=true,tls-name={node.inbound.streamSettings.realitySettings.serverNames[0]}
 {/if}
+{#if node.protocol == 'vless'}
+{node.name}=VLESS,{node.serverHost},{node.port},{account.uuid},transport=tcp,flow=xtls-rprx-vision,over-tls=true,sni={node.serverHost},skip-cert-verify=true
+{/if}
 {#if node.protocol == 'vless-reality'}
 {node.name}=VLESS,{node.serverHost},{node.port},{account.uuid},transport=tcp,flow=xtls-rprx-vision,public-key={node.inbound.streamSettings.realitySettings.publicKey},short-id={node.inbound.streamSettings.realitySettings.shortIds[0]},over-tls=true,sni={node.inbound.streamSettings.realitySettings.serverNames[0]},skip-cert-verify=true
 {/if}
