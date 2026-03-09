@@ -135,16 +135,21 @@
       "uuid": "{account.uuid}",
       "tls": {
         "enabled": true,
+        "insecure": true,
+        {#if node.protocol == 'vless-reality'}
         "server_name": "{node.inbound.streamSettings.realitySettings.serverNames[0]}",
-        "insecure": false,
         "reality": {
           "enabled": true,
           "public_key": "{node.inbound.streamSettings.realitySettings.publicKey}",
           "short_id": "{node.inbound.streamSettings.realitySettings.shortIds[0]}"
         },
+        {#else}
+        "server_name": "{node.serverHost}",
+        {/if}
         "utls": {
-          "enabled": true
-        }
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
       },
       "flow": "xtls-rprx-vision"
     }{#if node_hasNext},{/if}
