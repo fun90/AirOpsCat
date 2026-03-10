@@ -57,18 +57,6 @@
       ]
     },
     {
-      "tag": "🤖 OpenAI",
-      "type": "selector",
-      "interrupt_exist_connections": true,
-      "outbounds": [
-        "🚀 节点选择",
-        "🎈 自动选择",
-        {#for node in nodes}
-        "{node.name}"{#if node_hasNext},{/if}
-        {/for}
-      ]
-    },
-    {
       "tag": "🪟 Microsoft",
       "type": "selector",
       "interrupt_exist_connections": true,
@@ -199,11 +187,6 @@
       },
       {
         "action": "route",
-        "rule_set": "geosite-chat",
-        "outbound": "🤖 OpenAI"
-      },
-      {
-        "action": "route",
         "rule_set": "geosite-onedrive",
         "outbound": "🐬 OneDrive"
       },
@@ -227,13 +210,6 @@
           "GeoIP-CN"
         ],
         "outbound": "🎯 全球直连"
-      },
-      {
-        "action": "route",
-        "rule_set": [
-          "GeoLocation-!CN"
-        ],
-        "outbound": "🚀 节点选择"
       }
     ],
     "rule_set": [
@@ -270,13 +246,6 @@
         "type": "remote",
         "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-!cn.srs",
         "format": "binary",
-        "download_detour": "🎯 全球直连"
-      },
-      {
-        "tag": "geosite-chat",
-        "type": "remote",
-        "format": "binary",
-        "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/category-ai-!cn.srs",
         "download_detour": "🎯 全球直连"
       },
       {
