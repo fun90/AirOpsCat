@@ -250,6 +250,14 @@ public class NodeDeploymentService {
             // 服务器维度的配置
             XrayConfig transitConfig = JsonUtil.toObject(server.getTransitConfig(), XrayConfig.class);
 
+            // 出站代理
+            List<OutboundConfig> serverOutbounds = transitConfig.getOutbounds();
+            List<String> tags = outbounds.stream().map(OutboundConfig::getTag).toList();
+            if (serverOutbounds != null && !serverOutbounds.isEmpty()) {
+                serverOutbounds = serverOutbounds.stream().filter(o -> !tags.contains(o.getTag())).toList();
+                outbounds.addAll(serverOutbounds);
+            }
+
             // 路由
             RoutingConfig routing = transitConfig.getRouting();
             if (routing != null && routing.getRules() != null) {
