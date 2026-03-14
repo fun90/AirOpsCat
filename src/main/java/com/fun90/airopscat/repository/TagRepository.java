@@ -9,7 +9,9 @@ import jakarta.transaction.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class TagRepository implements PanacheRepository<Tag> {
@@ -58,10 +60,53 @@ public class TagRepository implements PanacheRepository<Tag> {
     }
 
     public List<Account> findActiveAccountsByTagIds(List<Long> tagIds, LocalDateTime currentTime) {
+        if (tagIds == null || tagIds.isEmpty()) {
+            return List.of();
+        }
         return find("select a from Account a join a.tags t where t.id in ?1 and a.disabled = 0 and (a.toDate is null or a.toDate > ?2)", 
                    tagIds, currentTime)
                 .project(Account.class)
                 .list();
+    }
+
+    public Map<Long, List<Long>> findTagIdsByNodeIds(List<Long> nodeIds) {
+        Map<Long, List<Long>> result = new HashMap<>();
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return result;
+        }
+
+        List<?> rows = getEntityManager().createQuery(
+                "select n.id, t.id from Node n join n.tags t where n.id in ?1")
+            .setParameter(1, nodeIds)
+            .getResultList();
+
+        for (Object row : rows) {
+            Object[] values = (Object[]) row;
+            Long nodeId = ((Number) values[0]).longValue();
+            Long tagId = ((Number) values[1]).longValue();
+            result.computeIfAbsent(nodeId, key -> new ArrayList<>()).add(tagId);
+        }
+        return result;
+    }
+
+    public Map<Long, List<Long>> findAccountIdsByTagIds(List<Long> tagIds) {
+        Map<Long, List<Long>> result = new HashMap<>();
+        if (tagIds == null || tagIds.isEmpty()) {
+            return result;
+        }
+
+        List<?> rows = getEntityManager().createQuery(
+                "select t.id, a.id from Account a join a.tags t where t.id in ?1")
+            .setParameter(1, tagIds)
+            .getResultList();
+
+        for (Object row : rows) {
+            Object[] values = (Object[]) row;
+            Long tagId = ((Number) values[0]).longValue();
+            Long accountId = ((Number) values[1]).longValue();
+            result.computeIfAbsent(tagId, key -> new ArrayList<>()).add(accountId);
+        }
+        return result;
     }
 
     public List<Node> findNodesByAccountIds(List<Long> accountIds) {

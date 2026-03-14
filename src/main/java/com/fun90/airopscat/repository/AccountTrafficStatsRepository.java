@@ -5,7 +5,9 @@ import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class AccountTrafficStatsRepository implements PanacheRepository<AccountTrafficStats> {
@@ -39,6 +41,28 @@ public class AccountTrafficStatsRepository implements PanacheRepository<AccountT
         return find("select sum(downloadBytes) + sum(uploadBytes) from AccountTrafficStats where accountId = ?1 and ?2 between periodStart and periodEnd", accountId, LocalDateTime.now())
                 .project(Long.class)
                 .firstResult();
+    }
+
+    public Map<Long, Long> sumBytesByAccountIds(List<Long> accountIds, LocalDateTime currentTime) {
+        Map<Long, Long> result = new HashMap<>();
+        if (accountIds == null || accountIds.isEmpty()) {
+            return result;
+        }
+
+        List<Object[]> rows = getEntityManager().createQuery(
+                "select ats.accountId, sum(ats.downloadBytes) + sum(ats.uploadBytes) " +
+                        "from AccountTrafficStats ats " +
+                        "where ats.accountId in ?1 and ?2 between ats.periodStart and ats.periodEnd " +
+                        "group by ats.accountId",
+                Object[].class)
+            .setParameter(1, accountIds)
+            .setParameter(2, currentTime)
+            .getResultList();
+
+        for (Object[] row : rows) {
+            result.put((Long) row[0], row[1] == null ? 0L : ((Number) row[1]).longValue());
+        }
+        return result;
     }
     
     /**

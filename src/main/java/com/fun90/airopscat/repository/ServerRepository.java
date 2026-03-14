@@ -16,6 +16,13 @@ public class ServerRepository implements PanacheRepository<Server> {
         return find("disabled", disabled).list();
     }
 
+    public List<Server> findByIdIn(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return find("id in ?1", ids).list();
+    }
+
     public Optional<Server> findAvailableServer(Long id, LocalDate now) {
         return find("id = ?1 and disabled = 0 and external == 0 and (expireDate is null or expireDate > ?2)", id, now).firstResultOptional();
     }

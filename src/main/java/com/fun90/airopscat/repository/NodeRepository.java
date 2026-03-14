@@ -17,6 +17,17 @@ public class NodeRepository implements PanacheRepository<Node> {
     public List<Node> findByServerIdOrBackupServerId(Long serverId) {
         return find("serverId = ?1 or backupServerId = ?1", serverId).list();
     }
+
+    public List<Node> findByServerIdsOrBackupServerIds(List<Long> serverIds) {
+        return find("serverId in ?1 or backupServerId in ?1", serverIds).list();
+    }
+
+    public List<Node> findByIdIn(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return find("id in ?1", ids).list();
+    }
     
     public List<Node> findByType(Integer type) {
         return find("type", type).list();
