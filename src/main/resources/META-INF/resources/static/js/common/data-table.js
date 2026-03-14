@@ -27,7 +27,7 @@ export class DataTable {
       
       // Pagination
       currentPage: 1,
-      pageSize: 10,
+      pageSize: 15,
       totalItems: 0,
       startIndex: 1,
       endIndex: 1,
