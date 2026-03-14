@@ -51,8 +51,7 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
     public void upsertOnlineStatus(String accountNo, String clientIp, String nodeIp, LocalDateTime lastOnlineTime, LocalDateTime createTime, LocalDateTime updateTime) {
         getEntityManager().createNativeQuery(
             "INSERT INTO account_online_ip (account_no, client_ip, node_ip, last_online_time, create_time, update_time) VALUES (?1, ?2, ?3, ?4, ?5, ?6) " +
-            "ON CONFLICT(account_no, client_ip, node_ip) DO UPDATE SET " +
-            "last_online_time = ?4, update_time = ?6")
+            "ON DUPLICATE KEY UPDATE last_online_time = VALUES(last_online_time), update_time = VALUES(update_time)")
             .setParameter(1, accountNo)
             .setParameter(2, clientIp)
             .setParameter(3, nodeIp)

@@ -38,7 +38,7 @@ AirOpsCat 是一个基于 Quarkus 3.24.3 构建的现代化服务器管理系统
 ### 后端技术
 - **框架**: Quarkus 3.24.3
 - **语言**: Java 21
-- **数据库**: SQLite + JPA/Hibernate
+- **数据库**: MySQL + JPA/Hibernate
 - **安全**: Quarkus Security + JPA Security
 - **模板引擎**: Qute
 - **构建工具**: Maven + GraalVM Native Image
@@ -148,6 +148,9 @@ chmod +x airopscat-linux-amd64
 # 创建外部配置文件
 cat > application.properties << EOF
 quarkus.http.port=8080
+quarkus.datasource.username=airopscat
+quarkus.datasource.password=change-me
+quarkus.datasource.jdbc.url=jdbc:mysql://127.0.0.1:3306/airopscat?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
 airopscat.crypto.secret-key=your-production-secret-key
 airopscat.subscription.url=https://your-domain.com/subscribe
 airopscat.bark.url=https://api.day.app
