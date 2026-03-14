@@ -260,8 +260,11 @@ public class NodeDeploymentService {
 
             // 路由
             RoutingConfig routing = transitConfig.getRouting();
-            if (routing != null && routing.getRules() != null) {
-                routingRules.addAll(routing.getRules());
+            if (routing != null) {
+                if (routing.getDomainStrategy() != null)
+                    routing.setDomainStrategy(routing.getDomainStrategy());
+                if (routing.getRules() != null)
+                    routingRules.addAll(routing.getRules());
             }
         }
 
