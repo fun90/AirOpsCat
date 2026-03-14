@@ -75,7 +75,7 @@
                             <i class="ti ti-edit"></i> 编辑
                         </a>
                         <a class="dropdown-item" href="#" @click.prevent="openTestConnectionModal(server)">
-                            <i class="ti ti-connection"></i> 测试连接
+                            <i class="ti ti-plug-connected"></i> 测试连接
                         </a>
                         <a class="dropdown-item" href="#" @click.prevent="openRenewServerModal(server)">
                             <i class="ti ti-calendar-plus"></i> 续期
@@ -89,6 +89,9 @@
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(server)">
                             <i class="ti ti-trash"></i> 删除
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openTrafficCalibrationModal(server)">
+                            <i class="ti ti-target"></i> 流量校准
                         </a>
                     </div>
                 </div>

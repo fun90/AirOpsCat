@@ -1,7 +1,9 @@
 package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.ServerDto;
+import com.fun90.airopscat.model.dto.ServerTrafficCalibrationDto;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.entity.ServerTrafficStats;
 import com.fun90.airopscat.model.entity.Transaction;
 import com.fun90.airopscat.model.enums.PaymentMethod;
 import com.fun90.airopscat.model.enums.TransactionType;
@@ -136,6 +138,64 @@ public class ServerController {
         server.setId(id);
         Server updatedServer = serverService.updateServer(server);
         ServerDto dto = serverService.convertToDto(updatedServer);
+        return Response.ok(dto).build();
+    }
+
+    @PUT
+    @Path("/{id}/traffic-calibration")
+    public Response calibrateTraffic(@PathParam("id") Long id, ServerTrafficCalibrationDto calibrationDto) {
+        Server existingServer = serverService.getServerById(id);
+        if (existingServer == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        if (calibrationDto == null) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", "请求数据不能为空"))
+                    .build();
+        }
+        if (calibrationDto.getUploadGb() == null || calibrationDto.getUploadGb().compareTo(BigDecimal.ZERO) < 0) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", "上传流量必须大于或等于 0"))
+                    .build();
+        }
+        if (calibrationDto.getDownloadGb() == null || calibrationDto.getDownloadGb().compareTo(BigDecimal.ZERO) < 0) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", "下载流量必须大于或等于 0"))
+                    .build();
+        }
+        if (calibrationDto.getPeriodStartDate() == null || calibrationDto.getPeriodEndDate() == null) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", "请选择完整的流量统计周期"))
+                    .build();
+        }
+        if (calibrationDto.getPeriodEndDate().isBefore(calibrationDto.getPeriodStartDate())) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", "流量统计周期结束日期不能早于开始日期"))
+                    .build();
+        }
+
+        long uploadBytes = calibrationDto.getUploadGb()
+                .multiply(BigDecimal.valueOf(1024L * 1024L * 1024L))
+                .longValue();
+        long downloadBytes = calibrationDto.getDownloadGb()
+                .multiply(BigDecimal.valueOf(1024L * 1024L * 1024L))
+                .longValue();
+
+        ServerTrafficStats stats = serverTrafficStatsService.calibrateTrafficStats(
+                id,
+                calibrationDto.getPeriodStartDate(),
+                calibrationDto.getPeriodEndDate(),
+                uploadBytes,
+                downloadBytes
+        );
+
+        ServerDto dto = serverService.convertToDto(existingServer);
+        dto.setTrafficUploadBytes(stats.getUploadBytes());
+        dto.setTrafficDownloadBytes(stats.getDownloadBytes());
+        dto.setTrafficTotalBytes(stats.getUploadBytes() + stats.getDownloadBytes());
+        dto.setTrafficPeriodStart(stats.getPeriodStart());
+        dto.setTrafficPeriodEnd(stats.getPeriodEnd());
         return Response.ok(dto).build();
     }
 

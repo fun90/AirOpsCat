@@ -18,6 +18,7 @@ public class ServerDto {
     private String host;
     private String name;
     private LocalDate expireDate;
+    private LocalDate bandwidthDate;
     private String supplier;
     private BigDecimal price;
     private BigDecimal multiple;

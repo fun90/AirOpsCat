@@ -148,6 +148,7 @@ public class ServerService {
         dto.setMultiple(server.getMultiple());
         dto.setBandwidth(server.getBandwidth());
         dto.setExpireDate(server.getExpireDate());
+        dto.setBandwidthDate(server.getBandwidthDate());
         dto.setDisabled(server.getDisabled());
         dto.setExternal(server.getExternal());
         dto.setCreateTime(server.getCreateTime());
@@ -213,6 +214,7 @@ public class ServerService {
         if (src.getMultiple() != null) target.setMultiple(src.getMultiple());
         if (src.getBandwidth() != null) target.setBandwidth(src.getBandwidth());
         if (src.getExpireDate() != null) target.setExpireDate(src.getExpireDate());
+        if (src.getBandwidthDate() != null) target.setBandwidthDate(src.getBandwidthDate());
         if (src.getDisabled() != null) target.setDisabled(src.getDisabled());
         if (src.getExternal() != null) target.setExternal(src.getExternal());
         if (src.getRemark() != null) target.setRemark(src.getRemark());

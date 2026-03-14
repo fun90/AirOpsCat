@@ -29,6 +29,12 @@ const serverTable = new DataTable({
             amount: '',
             paymentMethod: ''
         },
+        trafficCalibration: {
+            uploadGb: '',
+            downloadGb: '',
+            periodStartDate: '',
+            periodEndDate: ''
+        },
         transitConfigJson: '',
         coreConfigJson: '',
         editTransitConfigJson: '',
@@ -42,6 +48,7 @@ const serverTable = new DataTable({
                 host: '',
                 name: '',
                 expireDate: '',
+                bandwidthDate: '',
                 supplier: '',
                 price: '',
                 multiple: 1,
@@ -252,6 +259,7 @@ const serverTable = new DataTable({
                 host: this.newItem.host || null,
                 name: this.newItem.name || null,
                 expireDate: this.newItem.expireDate || null,
+                bandwidthDate: this.newItem.bandwidthDate || null,
                 supplier: this.newItem.supplier || null,
                 price: this.newItem.price || null,
                 multiple: this.newItem.multiple || 1,
@@ -290,6 +298,7 @@ const serverTable = new DataTable({
                 host: this.editedItem.host || null,
                 name: this.editedItem.name || null,
                 expireDate: this.editedItem.expireDate || null,
+                bandwidthDate: this.editedItem.bandwidthDate || null,
                 supplier: this.editedItem.supplier || null,
                 price: this.editedItem.price || null,
                 multiple: this.editedItem.multiple || 1,
@@ -356,6 +365,7 @@ const serverTable = new DataTable({
                 host: server.host || '',
                 name: server.name || '',
                 expireDate: formatDateForInput(server.expireDate),
+                bandwidthDate: formatDateForInput(server.bandwidthDate),
                 supplier: server.supplier || '',
                 price: server.price,
                 multiple: server.multiple || 1,
@@ -494,6 +504,135 @@ const serverTable = new DataTable({
             }
 
             return isValid;
+        },
+
+        openTrafficCalibrationModal(server) {
+            this.selectedItem = server;
+            this.validationErrors = {};
+
+            const inferredPeriod = this.inferTrafficPeriod(server);
+            this.trafficCalibration = {
+                uploadGb: this.bytesToGbValue(server.trafficUploadBytes),
+                downloadGb: this.bytesToGbValue(server.trafficDownloadBytes),
+                periodStartDate: inferredPeriod.start,
+                periodEndDate: inferredPeriod.end
+            };
+
+            this.trafficCalibrationModal = new Modal(document.getElementById('trafficCalibrationModal'));
+            this.trafficCalibrationModal.show();
+        },
+
+        inferTrafficPeriod(server) {
+            if (server.trafficPeriodStart && server.trafficPeriodEnd) {
+                return {
+                    start: this.formatDateInput(server.trafficPeriodStart),
+                    end: this.formatDateInput(server.trafficPeriodEnd)
+                };
+            }
+
+            const today = new Date();
+            const billingDay = server.bandwidthDate
+                ? new Date(server.bandwidthDate).getDate()
+                : today.getDate();
+
+            let start = new Date(today.getFullYear(), today.getMonth(), billingDay);
+            if (start > today) {
+                start = new Date(today.getFullYear(), today.getMonth() - 1, billingDay);
+            }
+            const end = new Date(start.getFullYear(), start.getMonth() + 1, start.getDate() - 1);
+
+            return {
+                start: this.formatDateInput(start),
+                end: this.formatDateInput(end)
+            };
+        },
+
+        formatDateInput(dateValue) {
+            if (!dateValue) return '';
+            const date = new Date(dateValue);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        },
+
+        bytesToGbValue(bytes) {
+            const value = Number(bytes || 0) / (1024 * 1024 * 1024);
+            return Number.isFinite(value) ? value.toFixed(2) : '0.00';
+        },
+
+        validateTrafficCalibrationForm() {
+            let isValid = true;
+            this.validationErrors = {};
+
+            const uploadGb = parseFloat(this.trafficCalibration.uploadGb);
+            if (this.trafficCalibration.uploadGb === '' || Number.isNaN(uploadGb) || uploadGb < 0) {
+                this.validationErrors.trafficUploadGb = '请输入有效的上传流量';
+                isValid = false;
+            }
+
+            const downloadGb = parseFloat(this.trafficCalibration.downloadGb);
+            if (this.trafficCalibration.downloadGb === '' || Number.isNaN(downloadGb) || downloadGb < 0) {
+                this.validationErrors.trafficDownloadGb = '请输入有效的下载流量';
+                isValid = false;
+            }
+
+            if (!this.trafficCalibration.periodStartDate) {
+                this.validationErrors.trafficPeriodStartDate = '请选择周期开始日期';
+                isValid = false;
+            }
+
+            if (!this.trafficCalibration.periodEndDate) {
+                this.validationErrors.trafficPeriodEndDate = '请选择周期结束日期';
+                isValid = false;
+            }
+
+            if (this.trafficCalibration.periodStartDate && this.trafficCalibration.periodEndDate
+                && this.trafficCalibration.periodEndDate < this.trafficCalibration.periodStartDate) {
+                this.validationErrors.trafficPeriodEndDate = '周期结束日期不能早于开始日期';
+                isValid = false;
+            }
+
+            return isValid;
+        },
+
+        saveTrafficCalibration() {
+            if (!this.selectedItem || !this.validateTrafficCalibrationForm()) {
+                return;
+            }
+
+            fetch(`/api/admin/servers/${this.selectedItem.id}/traffic-calibration`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    uploadGb: this.trafficCalibration.uploadGb,
+                    downloadGb: this.trafficCalibration.downloadGb,
+                    periodStartDate: this.trafficCalibration.periodStartDate,
+                    periodEndDate: this.trafficCalibration.periodEndDate
+                })
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        if (response.status === 400) {
+                            return response.json().then(data => {
+                                throw new Error(data.message || '流量校准失败');
+                            });
+                        }
+                        throw new Error('流量校准失败');
+                    }
+                    return response.json();
+                })
+                .then(() => {
+                    this.fetchRecords();
+                    this.trafficCalibrationModal.hide();
+                    ToastUtils.show('Success', '流量校准成功', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '流量校准失败', 'danger');
+                });
         },
 
         renewServer() {

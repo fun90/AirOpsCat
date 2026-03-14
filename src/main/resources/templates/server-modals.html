@@ -58,14 +58,6 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">到期日期</label>
-                                    <input type="date" class="form-control" v-model="newItem.expireDate">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
                                     <label class="form-label">价格</label>
                                     <div class="input-group">
                                         <span class="input-group-text">¥</span>
@@ -73,18 +65,32 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                        <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">倍率</label>
-                                    <input type="number" step="0.01" min="0" class="form-control" v-model="newItem.multiple" placeholder="1.0">
+                                    <label class="form-label">到期日期</label>
+                                    <input type="date" class="form-control" v-model="newItem.expireDate">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">流量日期</label>
+                                    <input type="date" class="form-control" v-model="newItem.bandwidthDate">
                                 </div>
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">带宽上限 (GB)</label>
+                                    <label class="form-label">流量上限 (GB)</label>
                                     <input type="number" min="0" class="form-control" v-model="newItem.bandwidth" placeholder="如: 1000">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">流量倍率</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" v-model="newItem.multiple" placeholder="1.0">
                                 </div>
                             </div>
                         </div>
@@ -235,14 +241,6 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">到期日期</label>
-                                    <input type="date" class="form-control" v-model="editedItem.expireDate">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
                                     <label class="form-label">价格</label>
                                     <div class="input-group">
                                         <span class="input-group-text">¥</span>
@@ -250,17 +248,31 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                        <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">倍率</label>
-                                    <input type="number" step="0.01" min="0" class="form-control" v-model="editedItem.multiple" placeholder="1.0">
+                                    <label class="form-label">到期日期</label>
+                                    <input type="date" class="form-control" v-model="editedItem.expireDate">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">流量日期</label>
+                                    <input type="date" class="form-control" v-model="editedItem.bandwidthDate">
                                 </div>
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">带宽上限 (GB)</label>
+                                    <label class="form-label">流量倍率</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" v-model="editedItem.multiple" placeholder="1.0">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">流量上限 (GB)</label>
                                     <input type="number" min="0" class="form-control" v-model="editedItem.bandwidth" placeholder="如: 1000">
                                 </div>
                             </div>
@@ -442,6 +454,71 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
                 <button type="button" class="btn btn-primary" @click="renewServer">续期</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Traffic Calibration Modal -->
+<div class="modal modal-blur fade" id="trafficCalibrationModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">流量校准</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div v-if="selectedItem" class="mb-3">
+                    <div class="text-secondary small">当前服务器</div>
+                    <div class="fw-bold">{{ selectedItem.ip }}<span v-if="selectedItem.name"> / {{ selectedItem.name }}</span></div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">上传流量 (GB)</label>
+                            <input type="number" step="0.01" min="0" class="form-control"
+                                   :class="{ 'is-invalid': validationErrors.trafficUploadGb }"
+                                   v-model="trafficCalibration.uploadGb">
+                            <div class="invalid-feedback" v-if="validationErrors.trafficUploadGb">{{ validationErrors.trafficUploadGb }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">下载流量 (GB)</label>
+                            <input type="number" step="0.01" min="0" class="form-control"
+                                   :class="{ 'is-invalid': validationErrors.trafficDownloadGb }"
+                                   v-model="trafficCalibration.downloadGb">
+                            <div class="invalid-feedback" v-if="validationErrors.trafficDownloadGb">{{ validationErrors.trafficDownloadGb }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">周期开始</label>
+                            <input type="date" class="form-control"
+                                   :class="{ 'is-invalid': validationErrors.trafficPeriodStartDate }"
+                                   v-model="trafficCalibration.periodStartDate">
+                            <div class="invalid-feedback" v-if="validationErrors.trafficPeriodStartDate">{{ validationErrors.trafficPeriodStartDate }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">周期结束</label>
+                            <input type="date" class="form-control"
+                                   :class="{ 'is-invalid': validationErrors.trafficPeriodEndDate }"
+                                   v-model="trafficCalibration.periodEndDate">
+                            <div class="invalid-feedback" v-if="validationErrors.trafficPeriodEndDate">{{ validationErrors.trafficPeriodEndDate }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-hint">
+                    校准会直接覆盖当前周期的服务器流量统计值。
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" @click="saveTrafficCalibration">保存校准</button>
             </div>
         </div>
     </div>

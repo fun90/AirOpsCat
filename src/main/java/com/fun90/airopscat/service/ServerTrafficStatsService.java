@@ -21,7 +21,7 @@ public class ServerTrafficStatsService {
     ServerTrafficStatsRepository serverTrafficStatsRepository;
 
     @Transactional
-    public ServerTrafficStats saveOrUpdateTrafficStats(Long serverId, LocalDate expireDate, long uploadBytes, long downloadBytes) {
+    public ServerTrafficStats saveOrUpdateTrafficStats(Long serverId, LocalDate bandwidthDate, long uploadBytes, long downloadBytes) {
         LocalDateTime now = LocalDateTime.now();
         List<ServerTrafficStats> existingStats = serverTrafficStatsRepository.findByServerIdAndCurrentTime(serverId, now);
 
@@ -34,7 +34,7 @@ public class ServerTrafficStatsService {
 
         ServerTrafficStats newStats = new ServerTrafficStats();
         newStats.setServerId(serverId);
-        LocalDateTime periodStart = calculatePeriodStart(now);
+        LocalDateTime periodStart = calculatePeriodStart(now.toLocalDate().withDayOfMonth(bandwidthDate.getDayOfMonth()));
         newStats.setPeriodStart(periodStart);
         newStats.setPeriodEnd(calculatePeriodEnd(periodStart));
         newStats.setUploadBytes(uploadBytes);
@@ -67,6 +67,31 @@ public class ServerTrafficStatsService {
         }
     }
 
+    @Transactional
+    public ServerTrafficStats calibrateTrafficStats(Long serverId, LocalDate periodStartDate, LocalDate periodEndDate,
+                                                    long uploadBytes, long downloadBytes) {
+        LocalDateTime now = LocalDateTime.now();
+        List<ServerTrafficStats> existingStats = serverTrafficStatsRepository.findByServerIdAndCurrentTime(serverId, now);
+
+        ServerTrafficStats stats;
+        if (!existingStats.isEmpty()) {
+            stats = existingStats.getFirst();
+            stats.setPeriodStart(periodStartDate.atStartOfDay());
+            stats.setPeriodEnd(periodEndDate.atStartOfDay());
+            stats.setUploadBytes(uploadBytes);
+            stats.setDownloadBytes(downloadBytes);
+            return stats;
+        }
+        stats = new ServerTrafficStats();
+        stats.setServerId(serverId);
+        stats.setPeriodStart(periodStartDate.atStartOfDay());
+        stats.setPeriodEnd(periodEndDate.plusDays(1).atStartOfDay().minusNanos(1));
+        stats.setUploadBytes(uploadBytes);
+        stats.setDownloadBytes(downloadBytes);
+        serverTrafficStatsRepository.persist(stats);
+        return stats;
+    }
+
     private Map<Long, ServerTrafficStats> getCurrentPeriodStatsMap(List<Long> serverIds, LocalDateTime now) {
         List<ServerTrafficStats> statsList = serverTrafficStatsRepository.findByServerIdsAndCurrentTime(serverIds, now);
         Map<Long, ServerTrafficStats> result = new HashMap<>();
@@ -79,9 +104,8 @@ public class ServerTrafficStatsService {
         return result;
     }
 
-    private LocalDateTime calculatePeriodStart(LocalDateTime now) {
-        LocalDate monthStart = now.toLocalDate().withDayOfMonth(1);
-        return monthStart.atStartOfDay();
+    private LocalDateTime calculatePeriodStart(LocalDate start) {
+        return start.atStartOfDay();
     }
 
     private LocalDateTime calculatePeriodEnd(LocalDateTime periodStart) {

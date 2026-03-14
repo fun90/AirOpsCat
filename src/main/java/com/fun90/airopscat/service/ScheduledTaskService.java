@@ -301,7 +301,7 @@ public class ScheduledTaskService {
                 if (totalUploadBytes > 0 || totalDownloadBytes > 0) {
                     serverTrafficStatsService.saveOrUpdateTrafficStats(
                             server.getId(),
-                            server.getExpireDate(),
+                            server.getBandwidthDate(),
                             totalUploadBytes,
                             totalDownloadBytes
                     );

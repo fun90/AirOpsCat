@@ -133,6 +133,10 @@ public class NodeDeploymentService {
                 if (server == null) {
                     throw new IllegalArgumentException("服务器不存在，serverId: " + serverId);
                 }
+                if (server.getDisabled() == 1) {
+                    log.info("服务器「{}」已被禁用，跳过部署", server);
+                    continue;
+                }
                 results.addAll(deployNodesForServer(server, allServerNodes));
             }
         }
@@ -231,12 +235,16 @@ public class NodeDeploymentService {
      */
     private XrayConfig generateXrayConfig(Server server, List<Node> nodes) {
         List<Node> enabledNodes = nodes.stream().filter(o -> o.getDisabled() == 0).toList();
-        String configTemplate = configFileReader.readFileContent("templates/core/xray.json");
+        String configTemplate = configFileReader.readFileContent("config/core/xray.json");
         XrayConfig xrayConfig = JsonUtil.toObject(configTemplate, XrayConfig.class);
 
         List<InboundConfig> inbounds = xrayConfig.getInbounds().stream().filter(o -> o.getTag() != null && o.getTag().startsWith("default-")).collect(Collectors.toList());
         List<OutboundConfig> outbounds = xrayConfig.getOutbounds().stream().filter(o -> o.getTag() != null && o.getTag().startsWith("default-")).collect(Collectors.toList());
         List<RoutingRule> routingRules = xrayConfig.getRouting().getRules().stream().filter(o -> o.getRuleTag() != null && o.getRuleTag().startsWith("default-")).collect(Collectors.toList());
+
+        for (Node node : enabledNodes) {
+            processNodeConfiguration(node, inbounds, outbounds, routingRules);
+        }
 
         if (server.getTransitConfig() != null && !server.getTransitConfig().equals("{}")) {
             // 服务器维度的配置
@@ -247,10 +255,6 @@ public class NodeDeploymentService {
             if (routing != null && routing.getRules() != null) {
                 routingRules.addAll(routing.getRules());
             }
-        }
-
-        for (Node node : enabledNodes) {
-            processNodeConfiguration(node, inbounds, outbounds, routingRules);
         }
 
         xrayConfig.setInbounds(inbounds);
@@ -431,7 +435,7 @@ public class NodeDeploymentService {
 
         // 现在 auth 字段通过 JPA 转换器自动解密，直接使用即可
         String auth = server.getAuth();
-        
+
         if ("PASSWORD".equalsIgnoreCase(server.getAuthType()) || "password".equalsIgnoreCase(server.getAuthType())) {
             sshConfig.setPassword(auth);
         } else {

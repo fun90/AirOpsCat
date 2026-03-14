@@ -40,6 +40,8 @@ public class Server {
     
     @Column(name = "expire_date")
     private LocalDate expireDate;
+
+    private LocalDate bandwidthDate;
     
     private String supplier;
     
