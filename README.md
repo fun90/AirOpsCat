@@ -180,7 +180,7 @@ Type=exec
 User=airopscat
 Group=airopscat
 WorkingDirectory=/opt/airopscat
-ExecStart=/opt/airopscat/airopscat-linux-amd64 -Dquarkus.config.locations=/opt/airopscat/application.properties
+ExecStart=/opt/airopscat/airopscat-linux-amd64 -Dquarkus.config.locations=/opt/airopscat/application.properties -Duser.timezone=Asia/Shanghai
 Restart=always
 RestartSec=5
 
