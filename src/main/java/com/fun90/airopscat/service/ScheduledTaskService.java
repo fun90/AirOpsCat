@@ -168,9 +168,21 @@ public class ScheduledTaskService {
             for (ServerConfig serverConfig : xrayConfigs) {
                 try {
                     // 获取服务器信息
-                    Server server = serverRepository.findAvailableServer(serverConfig.getServerId(), now.toLocalDate()).orElse(null);
-                    if (server == null || server.getDisabled() == 1) {
-                        log.warn("服务器 {} 不存在，跳过", serverConfig.getServerId());
+                    Server server = serverRepository.findById(serverConfig.getServerId());
+                    if (server == null) {
+                        log.info("服务器[ID:{}] 不存在，跳过流量统计", serverConfig.getServerId());
+                        continue;
+                    }
+                    if (server.getDisabled() == 1) {
+                        log.info("服务器[{}, ID:{}] 未启用，跳过流量统计", server.getName(), server.getId());
+                        continue;
+                    }
+                    if (server.getExpireDate() != null && now.toLocalDate().isAfter(server.getExpireDate())) {
+                        log.info("服务器[{}, ID:{}] 已过期，跳过流量统计", server.getName(), server.getId());
+                        continue;
+                    }
+                    if (server.getExternal() != null && server.getExternal() == 1) {
+                        log.info("服务器[{}, ID:{}] 为托管，跳过流量统计", server.getName(), server.getId());
                         continue;
                     }
                     
