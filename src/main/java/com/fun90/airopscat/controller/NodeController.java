@@ -8,7 +8,7 @@ import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.NodeType;
-import com.fun90.airopscat.service.NodeDeploymentService;
+import com.fun90.airopscat.service.deployment.NodeDeploymentService;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.TagService;
