@@ -312,7 +312,7 @@ public class NodeService {
         }
 
         // 检查配置变更
-        if (newNode.getInbound() != null && !newNode.getInbound().equals(oldNode.getInbound())) {
+        if (newNode.getInbound() != null && !newNode.getInbound().equals(oldNode.getInbound().replaceAll(" ", ""))) {
             return true;
         }
         if (newNode.getRule() != null && !newNode.getRule().equals(oldNode.getRule())) {
