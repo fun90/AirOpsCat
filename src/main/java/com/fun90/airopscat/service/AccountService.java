@@ -49,7 +49,7 @@ public class AccountService {
         
         // Search condition
         if (search != null && !search.trim().isEmpty()) {
-            String condition = "(lower(accountNo) like :search or lower(user.email) like :search or lower(user.nickName) like :search";
+            String condition = "(lower(accountNo) like :search or lower(remark) like :search or lower(user.email) like :search or lower(user.nickName) like :search";
             if (isUUID(search)) {
                 condition += " or lower(user.uuid) like :search)";
             } else {

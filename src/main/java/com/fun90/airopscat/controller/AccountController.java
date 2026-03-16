@@ -193,6 +193,8 @@ public class AccountController {
         account.setUserId(request.getUserId());
         account.setAccountNo(request.getAccountNo());
         account.setLevel(request.getLevel());
+        account.setNodeMultiple(request.getNodeMultiple());
+        account.setNodePrefix(request.getNodePrefix());
         account.setFromDate(request.getFromDate());
         account.setToDate(request.getToDate());
         account.setPeriodType(request.getPeriodType());
