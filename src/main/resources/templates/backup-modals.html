@@ -1,0 +1,45 @@
+<div class="modal modal-blur fade" id="backup-restoreModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">确认恢复备份？</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">恢复会用备份文件覆盖当前数据库内容，请确认当前系统数据已经不需要保留。</p>
+                <div class="alert alert-warning mb-0" role="alert">
+                    <div class="d-flex">
+                        <div>
+                            <i class="ti ti-alert-triangle"></i>
+                        </div>
+                        <div class="ms-2">
+                            <div class="fw-bold">高风险操作</div>
+                            <div v-if="selectedItem">即将恢复：{{ selectedItem.fileName }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning" :disabled="restoringBackup" @click="restoreSelectedBackup">
+                    {{ restoringBackup ? '恢复中...' : '确认恢复' }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal modal-blur fade" id="backup-deleteModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="modal-title">确认删除备份？</div>
+                <div>删除后将无法恢复，请确认当前备份文件不再需要。</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" @click="deleteItem">确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>

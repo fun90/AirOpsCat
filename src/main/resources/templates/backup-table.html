@@ -1,0 +1,59 @@
+<table class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+    <tr>
+        <th>文件名</th>
+        <th>大小</th>
+        <th>更新时间</th>
+        <th>路径</th>
+        <th class="w-1">操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="backup in records" :key="backup.id">
+        <td>
+            <div class="fw-medium"
+                 :title="backup.fileName"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 style="cursor: pointer;"
+                 v-text="backup.fileName"></div>
+        </td>
+        <td v-text="formatBytes(backup.size)"></td>
+        <td v-text="formatDate(backup.lastModifiedTime)"></td>
+        <td>
+            <span class="text-secondary" v-text="backup.path"></span>
+        </td>
+        <td>
+            <div class="btn-list flex-nowrap">
+                <div class="dropdown position-static">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" :href="getDownloadUrl(backup)">
+                            <i class="ti ti-download"></i> 下载
+                        </a>
+                        <a class="dropdown-item" href="#" :class="{ disabled: restoringBackup }" @click.prevent="!restoringBackup && openRestoreModal(backup)">
+                            <i class="ti ti-history"></i> 恢复
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-danger" href="#" :class="{ disabled: restoringBackup }" @click.prevent="!restoringBackup && confirmDelete(backup)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="5" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="5" class="text-center py-3">暂无备份文件。</td>
+    </tr>
+    </tbody>
+</table>

@@ -1,0 +1,55 @@
+<div class="card-body border-bottom">
+    <div class="row">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-primary text-white avatar">
+                                <i class="ti ti-archive"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">备份数量</div>
+                            <div class="text-muted">{{ stats.total || 0 }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-green text-white avatar">
+                                <i class="ti ti-file-zip"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">总大小</div>
+                            <div class="text-muted">{{ formatBytes(stats.totalSize || 0) }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-6">
+            <div class="card card-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <span class="bg-blue text-white avatar">
+                                <i class="ti ti-clock"></i>
+                            </span>
+                        </div>
+                        <div class="col">
+                            <div class="font-weight-medium">最近一次备份</div>
+                            <div class="text-muted">{{ formatDate(stats.lastBackupTime) || '暂无备份' }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,34 @@
+<div class="page-body">
+    <div class="container-xl">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-actions w-100">
+                        <div class="row g-2 align-items-center">
+                            <div class="col">
+                                <div class="text-secondary small">备份目录</div>
+                                <div class="fw-medium text-break">{{ stats.backupDir || '-' }}</div>
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-primary" :disabled="runningBackup" @click="runBackup">
+                                    <i class="ti ti-database-export"></i>
+                                    {{ runningBackup ? '备份中...' : '立即备份' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {#include backup-stats /}
+
+                <div class="table-responsive">
+                    {#include backup-table /}
+                </div>
+
+                {#include pagination-controls /}
+            </div>
+        </div>
+
+        {#include backup-modals /}
+    </div>
+</div>

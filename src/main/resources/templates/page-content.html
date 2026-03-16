@@ -19,6 +19,8 @@
         {#include transactions-content /}
     {#is '/system/tag'}
         {#include tag-content /}
+    {#is '/system/backup'}
+        {#include backup-content /}
     {#else}
         <div class="page-body">
             <div class="container-xl">
