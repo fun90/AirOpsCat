@@ -20,10 +20,10 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             executable_suffix: ""
-          - os: windows-latest
-            platform: windows
-            executable_suffix: ".exe"
-            artifact_name: airopscat-windows-amd64.exe
+#          - os: windows-latest
+#            platform: windows
+#            executable_suffix: ".exe"
+#            artifact_name: airopscat-windows-amd64.exe
 
     steps:
     - name: Checkout code
