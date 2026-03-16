@@ -77,22 +77,22 @@ jobs:
     - name: Prepare for native build
       run: ./mvnw clean compile -DskipTests
 
-    - name: Build native executable (Windows)
-      if: matrix.os == 'windows-latest'
-      run: ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
-      shell: cmd
-      timeout-minutes: 40
+#    - name: Build native executable (Windows)
+#      if: matrix.os == 'windows-latest'
+#      run: ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
+#      shell: cmd
+#      timeout-minutes: 40
 
     - name: Build native executable (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: ./mvnw clean package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
       timeout-minutes: 40
 
-    - name: Rename executable (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        move target\airopscat-*-runner.exe target\${{ matrix.artifact_name }}
-      shell: cmd
+#    - name: Rename executable (Windows)
+#      if: matrix.os == 'windows-latest'
+#      run: |
+#        move target\airopscat-*-runner.exe target\${{ matrix.artifact_name }}
+#      shell: cmd
 
     - name: Create both Linux versions (regular and UPX)
       if: matrix.os == 'ubuntu-latest'
@@ -109,15 +109,15 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: mkdir -p dist-regular dist-upx
 
-    - name: Create distribution directories (Windows)
-      if: matrix.os == 'windows-latest'
-      run: mkdir dist
-      shell: cmd
-
-    - name: Copy executable to dist (Windows)
-      if: matrix.os == 'windows-latest'
-      run: copy target\${{ matrix.artifact_name }} dist\
-      shell: cmd
+#    - name: Create distribution directories (Windows)
+#      if: matrix.os == 'windows-latest'
+#      run: mkdir dist
+#      shell: cmd
+#
+#    - name: Copy executable to dist (Windows)
+#      if: matrix.os == 'windows-latest'
+#      run: copy target\${{ matrix.artifact_name }} dist\
+#      shell: cmd
 
     - name: Copy executables to dist (Linux)
       if: matrix.os == 'ubuntu-latest'
@@ -126,11 +126,11 @@ jobs:
         cp target/airopscat-linux-amd64-upx dist-upx/
 
 
-    - name: Create distribution archive (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        7z a -tzip ${{ matrix.artifact_name }}.zip dist\*
-      shell: cmd
+#    - name: Create distribution archive (Windows)
+#      if: matrix.os == 'windows-latest'
+#      run: |
+#        7z a -tzip ${{ matrix.artifact_name }}.zip dist\*
+#      shell: cmd
 
     - name: Create distribution archives (Linux)
       if: matrix.os == 'ubuntu-latest'
@@ -154,13 +154,13 @@ jobs:
         path: airopscat-linux-amd64-upx.tar.gz
         retention-days: 30
 
-    - name: Upload distribution archive (Windows)
-      if: matrix.os == 'windows-latest'
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.artifact_name }}-distribution
-        path: ${{ matrix.artifact_name }}.zip
-        retention-days: 30
+#    - name: Upload distribution archive (Windows)
+#      if: matrix.os == 'windows-latest'
+#      uses: actions/upload-artifact@v4
+#      with:
+#        name: ${{ matrix.artifact_name }}-distribution
+#        path: ${{ matrix.artifact_name }}.zip
+#        retention-days: 30
 
   release:
     name: Create Release
