@@ -133,6 +133,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.dto.TagDto.class,
     com.fun90.airopscat.model.dto.TransactionDto.class,
     com.fun90.airopscat.model.dto.DefaultConfigDto.class,
+    com.fun90.airopscat.model.dto.BackupFileDto.class,
 
     // Entity Classes (for direct JSON serialization)
     com.fun90.airopscat.model.entity.User.class,
