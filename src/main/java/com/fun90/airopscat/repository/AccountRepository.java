@@ -8,18 +8,18 @@ import jakarta.transaction.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @ApplicationScoped
 public class AccountRepository implements PanacheRepository<Account> {
 
-    public Optional<Account> findByAccountNo(String accountNo) {
-        return find("accountNo", accountNo).firstResultOptional();
+    public List<Account> findByAccountNos(Set<String> accountNos) {
+        return find("accountNo in ?1", accountNos).list();
     }
     
     public Optional<Account> findByAuthCode(String authCode) {
         return find("authCode", authCode).firstResultOptional();
     }
-
 
     public long countActiveAccounts(LocalDateTime now) {
         return count("disabled = 0 and (toDate is null or toDate > ?1)", now);

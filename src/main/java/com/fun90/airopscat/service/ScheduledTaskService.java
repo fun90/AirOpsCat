@@ -186,16 +186,9 @@ public class ScheduledTaskService {
                         log.info("服务器[{}, ID:{}] 为托管，跳过流量统计", server.getName(), server.getId());
                         continue;
                     }
-                    
-                    // 解析Xray配置
-                    XrayConfig xrayConfig = JsonUtil.toObject(serverConfig.getConfig(), XrayConfig.class);
-                    if (xrayConfig == null || xrayConfig.getInbounds() == null) {
-                        log.warn("Xray配置解析失败，跳过服务器 {}", server.getId());
-                        continue;
-                    }
-                    
+
                     // 收集该服务器上所有用户的流量统计
-                    int serverSuccessCount = collectServerTrafficStats(server, xrayConfig);
+                    int serverSuccessCount = collectServerTrafficStats(server);
                     successCount += serverSuccessCount;
                     
                 } catch (Exception e) {
@@ -241,7 +234,7 @@ public class ScheduledTaskService {
     /**
      * 收集单个服务器的流量统计
      */
-    private int collectServerTrafficStats(Server server, XrayConfig xrayConfig) {
+    private int collectServerTrafficStats(Server server) {
         int successCount = 0;
         
         try {
@@ -257,14 +250,6 @@ public class ScheduledTaskService {
                     log.info("服务器 {} 没有流量统计数据", server.getId());
                     return 0;
                 }
-                
-                // 遍历所有入站配置，提取用户邮箱
-                Set<String> userEmails = new HashSet<>();
-                for (InboundConfig inbound : xrayConfig.getInbounds()) {
-                    if (inbound.getSettings() != null) {
-                        userEmails.addAll(extractUserEmailsFromInbound(inbound));
-                    }
-                }
 
                 // 流量倍率
                 BigDecimal multiple = server.getMultiple() == null ? BigDecimal.ONE : server.getMultiple();
@@ -272,10 +257,13 @@ public class ScheduledTaskService {
                 long totalUploadBytes = 0L;
                 long totalDownloadBytes = 0L;
 
+                List<Account> accountList = accountRepository.findByAccountNos(allTrafficStats.keySet());
+                Map<String, Account> accountMap = accountList.stream().collect(Collectors.toMap(Account::getAccountNo, account -> account));
+
                 // 处理每个用户的流量统计
-                for (String userEmail : userEmails) {
-                    TrafficStats trafficStats = allTrafficStats.get(userEmail);
-                    
+                for (Map.Entry<String, TrafficStats> entry : allTrafficStats.entrySet()) {
+                    String accountNo = entry.getKey();
+                    TrafficStats trafficStats = entry.getValue();
                     if (trafficStats != null) {
                         try {
                             long adjustedUpload = multiple.multiply(new BigDecimal(trafficStats.uploadBytes())).longValue();
@@ -284,10 +272,8 @@ public class ScheduledTaskService {
                             totalDownloadBytes += trafficStats.downloadBytes();
 
                             // 查找对应的账户
-                            Optional<Account> accountOpt = accountRepository.findByAccountNo(userEmail);
-                            if (accountOpt.isPresent()) {
-                                Account account = accountOpt.get();
-                                
+                            Account account = accountMap.get(accountNo);
+                            if (account != null) {
                                 // 智能保存或更新流量统计（根据当前时间查询已有记录，匹配则累加，否则新增）
                                 accountTrafficStatsService.saveOrUpdateTrafficStats(
                                     account.getId(),
@@ -299,15 +285,15 @@ public class ScheduledTaskService {
                                 successCount++;
                                 
                                 log.debug("处理服务器：{} 上的用户 {} 流量统计: 上传 {} 字节, 下载 {} 字节",
-                                        server.getName(), userEmail, trafficStats.uploadBytes(), trafficStats.downloadBytes());
+                                        server.getName(), accountNo, trafficStats.uploadBytes(), trafficStats.downloadBytes());
                             } else {
-                                log.warn("服务器：{} 上未找到用户邮箱 {} 对应的账户", server.getName(), userEmail);
+                                log.warn("服务器：{} 上未找到用户邮箱 {} 对应的账户", server.getName(), accountNo);
                             }
                         } catch (Exception e) {
-                            log.error("处理用户 {} 流量统计失败: {}", userEmail, e.getMessage());
+                            log.error("处理用户 {} 流量统计失败: {}", accountNo, e.getMessage());
                         }
                     } else {
-                        log.debug("服务器：{} 上的用户 {} 没有流量数据", server.getName(), userEmail);
+                        log.debug("服务器：{} 上的用户 {} 没有流量数据", server.getName(), accountNo);
                     }
                 }
 
@@ -373,14 +359,14 @@ public class ScheduledTaskService {
         try {
             // 使用statsquery命令一次性获取所有统计数据，并重置计数器
             String command = "xray api statsquery --server=127.0.0.1:100 --reset=true";
-            
+
             CommandResult result = connection.executeCommand(command);
-            
+
             if (!result.isSuccess()) {
                 log.error("执行xray statsquery命令失败: {}", result.getStderr());
                 return trafficStatsMap;
             }
-            
+
             // 解析JSON响应
             String output = result.getStdout();
             if (output == null || output.trim().isEmpty()) {
@@ -402,7 +388,7 @@ public class ScheduledTaskService {
     
     /**
      * 解析xray statsquery命令输出
-     * 输出格式为: {"stat": [{"name": "user>>>username>>>traffic>>>uplink", "value": 173163}, ...]}
+     * 输出格式为: {"stat": [{"name": "user>>>username>>>traffic>>>uplink", "value": 173163}, {"name": "inbound>>>default-api>>>traffic>>>downlink", "value": 173163}...]}
      */
     private Map<String, TrafficStats> parseXrayStatsQueryOutput(String output) {
         Map<String, TrafficStats> userTrafficMap = new HashMap<>();
@@ -451,16 +437,19 @@ public class ScheduledTaskService {
                 }
                 
                 // 解析用户流量统计名称格式: user>>>username>>>traffic>>>uplink/downlink
-                if (name.startsWith("user>>>") && name.contains(">>>traffic>>>")) {
-                    String[] parts = name.split(">>>");
-                    if (parts.length >= 4) {
-                        String username = parts[1];
-                        String trafficType = parts[3];
-                        
-                        if ("uplink".equals(trafficType)) {
-                            uplinkMap.put(username, value);
-                        } else if ("downlink".equals(trafficType)) {
-                            downlinkMap.put(username, value);
+                // 解析用户流量统计名称格式: inbound>>>default-api>>>traffic>>>uplink/downlink
+                if (name.contains(">>>traffic>>>")) {
+                    if (name.startsWith("user>>>") || name.startsWith("inbound>>>")) {
+                        String[] parts = name.split(">>>");
+                        if (parts.length >= 4) {
+                            String username = parts[1];
+                            String trafficType = parts[3];
+
+                            if ("uplink".equals(trafficType)) {
+                                uplinkMap.put(username, value);
+                            } else if ("downlink".equals(trafficType)) {
+                                downlinkMap.put(username, value);
+                            }
                         }
                     }
                 }
