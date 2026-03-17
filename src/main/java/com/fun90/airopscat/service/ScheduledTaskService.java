@@ -268,8 +268,8 @@ public class ScheduledTaskService {
                         try {
                             long adjustedUpload = multiple.multiply(new BigDecimal(trafficStats.uploadBytes())).longValue();
                             long adjustedDownload = multiple.multiply(new BigDecimal(trafficStats.downloadBytes())).longValue();
-                            totalUploadBytes += trafficStats.uploadBytes();
-                            totalDownloadBytes += trafficStats.downloadBytes();
+                            totalUploadBytes += adjustedUpload;
+                            totalDownloadBytes += adjustedDownload;
 
                             // 查找对应的账户
                             Account account = accountMap.get(accountNo);
@@ -287,7 +287,7 @@ public class ScheduledTaskService {
                                 log.debug("处理服务器：{} 上的用户 {} 流量统计: 上传 {} 字节, 下载 {} 字节",
                                         server.getName(), accountNo, trafficStats.uploadBytes(), trafficStats.downloadBytes());
                             } else {
-                                log.warn("服务器：{} 上未找到用户邮箱 {} 对应的账户", server.getName(), accountNo);
+                                log.warn("服务器：{} 上未找到用户 {}", server.getName(), accountNo);
                             }
                         } catch (Exception e) {
                             log.error("处理用户 {} 流量统计失败: {}", accountNo, e.getMessage());
@@ -437,9 +437,8 @@ public class ScheduledTaskService {
                 }
                 
                 // 解析用户流量统计名称格式: user>>>username>>>traffic>>>uplink/downlink
-                // 解析用户流量统计名称格式: inbound>>>default-api>>>traffic>>>uplink/downlink
                 if (name.contains(">>>traffic>>>")) {
-                    if (name.startsWith("user>>>") || name.startsWith("inbound>>>")) {
+                    if (name.startsWith("user>>>")) {
                         String[] parts = name.split(">>>");
                         if (parts.length >= 4) {
                             String username = parts[1];
