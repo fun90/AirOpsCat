@@ -3,11 +3,6 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.SshConfig;
-import com.fun90.airopscat.model.dto.xray.InboundConfig;
-import com.fun90.airopscat.model.dto.xray.XrayConfig;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.ShadowsocksInboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.SocksInboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
@@ -17,9 +12,9 @@ import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.deployment.NodeDeploymentService;
+import com.fun90.airopscat.service.expiration.MonitorNotificationService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
-import com.fun90.airopscat.service.expiration.MonitorNotificationService;
 import com.fun90.airopscat.util.JsonUtil;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -315,42 +310,7 @@ public class ScheduledTaskService {
         
         return successCount;
     }
-    
-    /**
-     * 从入站配置中提取用户邮箱列表
-     */
-    private List<String> extractUserEmailsFromInbound(InboundConfig inbound) {
-        List<String> userEmails = new ArrayList<>();
-        
-        if (inbound.getSettings() instanceof VlessInboundSetting vlessSettings) {
-            if (vlessSettings.getClients() != null) {
-                for (VlessInboundSetting.VlessClient client : vlessSettings.getClients()) {
-                    if (client.getEmail() != null && !client.getEmail().trim().isEmpty()) {
-                        userEmails.add(client.getEmail());
-                    }
-                }
-            }
-        } else if (inbound.getSettings() instanceof ShadowsocksInboundSetting ssSettings) {
-            if (ssSettings.getClients() != null) {
-                for (ShadowsocksInboundSetting.ShadowsocksClient client : ssSettings.getClients()) {
-                    if (client.getEmail() != null && !client.getEmail().trim().isEmpty()) {
-                        userEmails.add(client.getEmail());
-                    }
-                }
-            }
-        } else if (inbound.getSettings() instanceof SocksInboundSetting socksSettings) {
-            if (socksSettings.getAccounts() != null) {
-                for (SocksInboundSetting.SocksAccount account : socksSettings.getAccounts()) {
-                    if (account.getUser() != null && !account.getUser().trim().isEmpty()) {
-                        userEmails.add(account.getUser());
-                    }
-                }
-            }
-        }
-        
-        return userEmails;
-    }
-    
+
     /**
      * 通过xray api statsquery一次性获取所有流量统计数据
      */
