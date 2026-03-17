@@ -51,6 +51,9 @@ public class DatabaseBackupService {
     @ConfigProperty(name = "airopscat.backup.mysqldump-path", defaultValue = "mysqldump")
     String mysqldumpPath;
 
+    @ConfigProperty(name = "airopscat.backup.retention-days", defaultValue = "30")
+    int retentionDays;
+
     @Scheduled(cron = "{airopscat.backup.cron:0 0 6 * * ?}", timeZone = "Asia/Shanghai")
     public void scheduledBackup() {
         try {
@@ -58,6 +61,42 @@ public class DatabaseBackupService {
             log.info("Database backup created successfully: {}", backupFile.getFileName());
         } catch (Exception e) {
             log.error("Failed to create scheduled database backup", e);
+        }
+    }
+
+    @Scheduled(cron = "{airopscat.backup.cleanup.cron:0 30 6 * * ?}", timeZone = "Asia/Shanghai")
+    public void cleanupExpiredBackups() {
+        if (retentionDays < 1) {
+            log.warn("Skip cleanup because backup retention days is less than 1: {}", retentionDays);
+            return;
+        }
+
+        LocalDateTime cutoff = LocalDateTime.now(SHANGHAI_ZONE).minusDays(retentionDays);
+        int deletedCount = 0;
+
+        try {
+            Path backupDirectory = ensureBackupDirectory();
+            try (var paths = Files.list(backupDirectory)) {
+                for (Path path : paths.toList()) {
+                    if (!Files.isRegularFile(path)) {
+                        continue;
+                    }
+                    String fileName = path.getFileName().toString();
+                    if (!fileName.startsWith(FILE_PREFIX) || !fileName.endsWith(FILE_SUFFIX)) {
+                        continue;
+                    }
+                    if (getLastModifiedTime(path).isBefore(cutoff)) {
+                        Files.deleteIfExists(path);
+                        deletedCount++;
+                    }
+                }
+            }
+
+            if (deletedCount > 0) {
+                log.info("Cleaned up {} expired backup files older than {} days", deletedCount, retentionDays);
+            }
+        } catch (Exception e) {
+            log.error("Failed to cleanup expired backup files", e);
         }
     }
 
