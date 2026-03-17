@@ -2,6 +2,7 @@ package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.AccountTrafficStatsDto;
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
+import com.fun90.airopscat.model.enums.PeriodType;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.UserRepository;
 import io.quarkus.panache.common.Sort;
@@ -13,7 +14,9 @@ import jakarta.persistence.Query;
 import jakarta.persistence.TypedQuery;
 import jakarta.transaction.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
@@ -208,7 +211,7 @@ public class AccountTrafficStatsService {
     }
 
     @Transactional
-    public AccountTrafficStats saveOrUpdateTrafficStats(Long accountId, Long userId, String periodType,
+    public AccountTrafficStats saveOrUpdateTrafficStats(Long accountId, Long userId, String periodType, LocalDateTime toDate,
                                                         long uploadBytes, long downloadBytes) {
         LocalDateTime currentTime = LocalDateTime.now();
         List<AccountTrafficStats> existingStats = getStatsByAccountAndCurrentTime(accountId, currentTime);
@@ -223,7 +226,14 @@ public class AccountTrafficStatsService {
         AccountTrafficStats newStats = new AccountTrafficStats();
         newStats.setUserId(userId);
         newStats.setAccountId(accountId);
-        newStats.setPeriodStart(currentTime);
+        LocalDate expireDate = toDate.toLocalDate();
+        if (PeriodType.MONTHLY.name().equals(periodType)) {
+            newStats.setPeriodStart(expireDate.minusMonths(1).atStartOfDay());
+            newStats.setPeriodEnd(expireDate.atTime(LocalTime.MAX));
+        } else {
+            newStats.setPeriodStart(expireDate.minusYears(1).atStartOfDay());
+            newStats.setPeriodEnd(expireDate.atTime(LocalTime.MAX));
+        }
         newStats.setPeriodEnd(calculatePeriodEnd(currentTime, periodType));
         newStats.setUploadBytes(uploadBytes);
         newStats.setDownloadBytes(downloadBytes);

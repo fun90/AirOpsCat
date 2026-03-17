@@ -279,6 +279,7 @@ public class ScheduledTaskService {
                                     account.getId(),
                                     account.getUserId(),
                                     account.getPeriodType(),
+                                    account.getToDate(),
                                     adjustedUpload,
                                     adjustedDownload
                                 );
