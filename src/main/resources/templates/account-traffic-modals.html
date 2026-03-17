@@ -1,23 +1,17 @@
-<!-- Create Stats Modal -->
+{#include fragments/common/search_dropdown_styles /}
+
 <div class="modal modal-blur fade" id="traffic-stats-createModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">添加流量统计</h5>
+                <h5 class="modal-title">新增流量统计</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label required">人员</label>
-                    <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="newItem.userId">
-                        <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
-                    </select>
-                    <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label required">账户ID</label>
-                    <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.accountId }" v-model="newItem.accountId">
-                    <div class="invalid-feedback" v-if="validationErrors.accountId">{{ validationErrors.accountId }}</div>
+                    <label class="form-label required">账户</label>
+                    {#include fragments/common/search_dropdown_component componentVar='trafficStatsCreateAccountSearch' cssClass='' /}
+                    <div class="invalid-feedback d-block" v-if="validationErrors.accountId">{{ validationErrors.accountId }}</div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label required">开始时间</label>
@@ -48,7 +42,6 @@
     </div>
 </div>
 
-<!-- Edit Stats Modal -->
 <div class="modal modal-blur fade" id="traffic-stats-editModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
@@ -58,16 +51,9 @@
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label required">人员</label>
-                    <select class="form-select" :class="{ 'is-invalid': validationErrors.userId }" v-model="editedItem.userId">
-                        <option v-for="user in users" :key="user.id" :value="user.id">{{ user.email || user.nickName }}</option>
-                    </select>
-                    <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label required">账户ID</label>
-                    <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.accountId }" v-model="editedItem.accountId">
-                    <div class="invalid-feedback" v-if="validationErrors.accountId">{{ validationErrors.accountId }}</div>
+                    <label class="form-label required">账户</label>
+                    {#include fragments/common/search_dropdown_component componentVar='trafficStatsEditAccountSearch' cssClass='' /}
+                    <div class="invalid-feedback d-block" v-if="validationErrors.accountId">{{ validationErrors.accountId }}</div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label required">开始时间</label>
@@ -96,4 +82,4 @@
             </div>
         </div>
     </div>
-</div> 
+</div>

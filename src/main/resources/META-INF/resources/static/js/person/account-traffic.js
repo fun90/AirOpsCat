@@ -1,21 +1,47 @@
-
 import { DataTable } from '/static/js/common/data-table.js';
+import { createSearchDropdown } from '/static/js/common/search-dropdown.js';
+
+const DEFAULT_SORT_BY = 'totalBytes';
+const DEFAULT_SORT_DIRECTION = 'desc';
+const getTodayDate = () => new Date().toISOString().slice(0, 10);
+
+const buildAccountSearchDropdown = (onSelect, onClear) => createSearchDropdown({
+    apiUrl: '/api/admin/accounts',
+    placeholder: '搜索账户备注或账号...',
+    formatItem: (item) => ({
+        id: item.id,
+        name: `${item.remark || '未命名账户'}${item.accountNo ? ` (${item.accountNo})` : ''}`,
+        data: item
+    }),
+    onSelect: (item) => {
+        if (!item || !item.data) {
+            return;
+        }
+        onSelect(item.data);
+    },
+    onChange: (text, item) => {
+        if (!item) {
+            onClear();
+        }
+    }
+});
 
 const trafficStatsTable = new DataTable({
     data: {
         entityName: 'traffic-stats',
         modalIdPrefix: 'traffic-stats-',
         filters: {
-            userId: '',
-            startDate: '',
+            startDate: getTodayDate(),
             endDate: ''
         },
-        users: [],
+        createAccountSearch: null,
+        editAccountSearch: null,
         totalUpload: 0,
         totalDownload: 0,
         totalUploadFormatted: '0 B',
         totalDownloadFormatted: '0 B',
-        userMap: {}, // 用于缓存用户ID和邮箱的映射
+        sortBy: DEFAULT_SORT_BY,
+        sortDirection: DEFAULT_SORT_DIRECTION,
         newItem: {
             userId: '',
             accountId: '',
@@ -26,50 +52,62 @@ const trafficStatsTable = new DataTable({
         }
     },
     methods: {
-        // Initialize data
         initialize() {
-            this.fetchUsers();
+            this.initializeSearchComponents();
         },
 
-        // Override the base fetchRecords method to handle traffic stats specific logic
+        initializeSearchComponents() {
+            this.createAccountSearch = buildAccountSearchDropdown(
+                (account) => {
+                    this.newItem.accountId = account.id;
+                    this.newItem.userId = account.userId || '';
+                },
+                () => {
+                    this.newItem.accountId = '';
+                    this.newItem.userId = '';
+                }
+            );
+
+            this.editAccountSearch = buildAccountSearchDropdown(
+                (account) => {
+                    this.editedItem.accountId = account.id;
+                    this.editedItem.userId = account.userId || '';
+                },
+                () => {
+                    this.editedItem.accountId = '';
+                    this.editedItem.userId = '';
+                }
+            );
+
+            setTimeout(() => {
+                this.createAccountSearch?.bindToDOM('trafficStatsCreateAccountSearch');
+                this.editAccountSearch?.bindToDOM('trafficStatsEditAccountSearch');
+            }, 100);
+        },
+
         fetchRecords() {
             this.loading = true;
 
-            // Build query parameters
             const params = new URLSearchParams({
                 page: this.currentPage,
-                size: this.pageSize
+                size: this.pageSize,
+                sortBy: this.sortBy,
+                sortDirection: this.sortDirection
             });
 
-            // Add search query if present
             if (this.searchQuery) {
                 params.append('search', this.searchQuery);
             }
 
-            // Add specific filters
-            if (this.filters.userId) {
-                params.append('userId', this.filters.userId);
-            }
-
             if (this.filters.startDate) {
-                // Convert to ISO string format for API
-                const startDateTime = new Date(this.filters.startDate);
-                startDateTime.setHours(0, 0, 0, 0);
-                params.append('startDate', startDateTime.toISOString());
+                params.append('startDate', `${this.filters.startDate}T00:00:00`);
             }
 
             if (this.filters.endDate) {
-                // Convert to ISO string format for API
-                const endDateTime = new Date(this.filters.endDate);
-                endDateTime.setHours(23, 59, 59, 999);
-                params.append('endDate', endDateTime.toISOString());
+                params.append('endDate', `${this.filters.endDate}T23:59:59`);
             }
 
-            const url = this.filters.userId ?
-                `/api/admin/traffic-stats/user/${this.filters.userId}?${params.toString()}` :
-                `/api/admin/traffic-stats?${params.toString()}`;
-
-            fetch(url)
+            fetch(`/api/admin/traffic-stats?${params.toString()}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
@@ -79,24 +117,14 @@ const trafficStatsTable = new DataTable({
                 .then(data => {
                     this.records = data.records || [];
                     this.totalItems = data.total || 0;
-                    this.startIndex = (this.currentPage - 1) * this.pageSize + 1;
-                    this.endIndex = Math.min(this.startIndex + this.pageSize - 1, this.totalItems);
+                    this.startIndex = this.totalItems === 0 ? 0 : (this.currentPage - 1) * this.pageSize + 1;
+                    this.endIndex = this.totalItems === 0 ? 0 : Math.min(this.startIndex + this.pageSize - 1, this.totalItems);
                     this.totalPages = data.pages || 0;
                     this.currentPage = data.current || 1;
-
-                    // 总流量统计数据，只有在按用户或账户筛选时才有
-                    if (data.totalUpload !== undefined) {
-                        this.totalUpload = data.totalUpload;
-                        this.totalDownload = data.totalDownload;
-                        this.totalUploadFormatted = data.totalUploadFormatted;
-                        this.totalDownloadFormatted = data.totalDownloadFormatted;
-                    } else {
-                        this.totalUpload = 0;
-                        this.totalDownload = 0;
-                        this.totalUploadFormatted = '0 B';
-                        this.totalDownloadFormatted = '0 B';
-                    }
-
+                    this.totalUpload = data.totalUpload || 0;
+                    this.totalDownload = data.totalDownload || 0;
+                    this.totalUploadFormatted = data.totalUploadFormatted || '0 B';
+                    this.totalDownloadFormatted = data.totalDownloadFormatted || '0 B';
                     this.loading = false;
                 })
                 .catch(error => {
@@ -106,55 +134,52 @@ const trafficStatsTable = new DataTable({
                 });
         },
 
-        fetchUsers() {
-            fetch('/api/admin/users')
-                .then(response => response.json())
-                .then(data => {
-                    this.users = data.records;
-
-                    // 建立用户ID到邮箱的映射
-                    this.users.forEach(user => {
-                        this.userMap[user.id] = user.email || user.nickName || user.id;
-                    });
-
-                    // 如果是第一次加载且当前没有选中用户，选择第一个用户
-                    if (this.users.length > 0 && !this.newItem.userId) {
-                        this.newItem.userId = this.users[0].id;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching users:', error);
-                });
+        toggleSort(field) {
+            if (this.sortBy === field) {
+                this.sortDirection = this.sortDirection === 'desc' ? 'asc' : 'desc';
+            } else {
+                this.sortBy = field;
+                this.sortDirection = 'desc';
+            }
+            this.currentPage = 1;
+            this.fetchRecords();
         },
 
-        getUserEmail(userId) {
-            return this.userMap[userId] || userId;
+        isSortActive(field) {
+            return this.sortBy === field;
         },
 
-        // Override validation methods for traffic stats specific validation
+        getSortIcon(field) {
+            if (this.sortBy !== field) {
+                return 'ti ti-selector';
+            }
+            return this.sortDirection === 'desc' ? 'ti ti-sort-descending' : 'ti ti-sort-ascending';
+        },
+
+        resetFilters() {
+            this.searchQuery = '';
+            this.filters.startDate = getTodayDate();
+            this.filters.endDate = '';
+            this.sortBy = DEFAULT_SORT_BY;
+            this.sortDirection = DEFAULT_SORT_DIRECTION;
+            this.currentPage = 1;
+            this.fetchRecords();
+        },
+
         validateCreateForm() {
             let isValid = true;
             this.validationErrors = {};
 
-            // UserID validation
-            if (!this.newItem.userId) {
-                this.validationErrors.userId = '请选择用户';
-                isValid = false;
-            }
-
-            // AccountID validation
             if (!this.newItem.accountId) {
-                this.validationErrors.accountId = '账户ID不能为空';
+                this.validationErrors.accountId = '请选择账户';
                 isValid = false;
             }
 
-            // Period start validation
             if (!this.newItem.periodStart) {
                 this.validationErrors.periodStart = '开始时间不能为空';
                 isValid = false;
             }
 
-            // Period end validation
             if (!this.newItem.periodEnd) {
                 this.validationErrors.periodEnd = '结束时间不能为空';
                 isValid = false;
@@ -170,25 +195,16 @@ const trafficStatsTable = new DataTable({
             let isValid = true;
             this.validationErrors = {};
 
-            // UserID validation
-            if (!this.editedItem.userId) {
-                this.validationErrors.userId = '请选择用户';
-                isValid = false;
-            }
-
-            // AccountID validation
             if (!this.editedItem.accountId) {
-                this.validationErrors.accountId = '账户ID不能为空';
+                this.validationErrors.accountId = '请选择账户';
                 isValid = false;
             }
 
-            // Period start validation
             if (!this.editedItem.periodStart) {
                 this.validationErrors.periodStart = '开始时间不能为空';
                 isValid = false;
             }
 
-            // Period end validation
             if (!this.editedItem.periodEnd) {
                 this.validationErrors.periodEnd = '结束时间不能为空';
                 isValid = false;
@@ -200,7 +216,6 @@ const trafficStatsTable = new DataTable({
             return isValid;
         },
 
-        // Override prepareCreateData to format the data for traffic stats API
         prepareCreateData() {
             return {
                 userId: this.newItem.userId,
@@ -212,7 +227,6 @@ const trafficStatsTable = new DataTable({
             };
         },
 
-        // Override prepareUpdateData to format the data for traffic stats API
         prepareUpdateData() {
             return {
                 userId: this.editedItem.userId,
@@ -225,31 +239,30 @@ const trafficStatsTable = new DataTable({
         },
 
         resetCreateForm() {
-            // Initialize with current date for period start/end
             const now = new Date();
-            const localDateTimeFormat = now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+            const localDateTimeFormat = now.toISOString().slice(0, 16);
 
             this.newItem = {
-                userId: this.users.length > 0 ? this.users[0].id : '',
+                userId: '',
                 accountId: '',
                 periodStart: localDateTimeFormat,
                 periodEnd: localDateTimeFormat,
                 uploadBytes: 0,
                 downloadBytes: 0
             };
+
+            this.createAccountSearch?.clear();
         },
 
-        // Override prepareEditForm to format dates for datetime-local input
         prepareEditForm(record) {
-            // Format dates for datetime-local input
             const formatDateForInput = (dateString) => {
-                if (!dateString) return '';
-                const date = new Date(dateString);
-                return date.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+                if (!dateString) {
+                    return '';
+                }
+                return new Date(dateString).toISOString().slice(0, 16);
             };
 
-            // Return the formatted data object
-            return {
+            const editedItem = {
                 id: record.id,
                 userId: record.userId,
                 accountId: record.accountId,
@@ -258,14 +271,29 @@ const trafficStatsTable = new DataTable({
                 uploadBytes: record.uploadBytes || 0,
                 downloadBytes: record.downloadBytes || 0
             };
+
+            if (this.editAccountSearch) {
+                this.editAccountSearch.setValue(
+                    `${record.nickname || '未命名账户'}${record.accountId ? ` (#${record.accountId})` : ''}`,
+                    {
+                        id: record.accountId,
+                        name: record.nickname || '未命名账户',
+                        data: {
+                            id: record.accountId,
+                            userId: record.userId,
+                            remark: record.nickname
+                        }
+                    }
+                );
+            }
+
+            return editedItem;
         },
 
-        // Override getApiUrl to return the correct API endpoint
         getApiUrl() {
             return '/api/admin/traffic-stats';
         }
     }
 });
 
-// Initialize the Vue app
 trafficStatsTable.createApp('#app');

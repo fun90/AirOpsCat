@@ -12,19 +12,6 @@ import java.util.Map;
 @ApplicationScoped
 public class AccountTrafficStatsRepository implements PanacheRepository<AccountTrafficStats> {
 
-
-    public Long sumUploadBytesByUserId(Long userId) {
-        return find("select sum(uploadBytes) from AccountTrafficStats where userId = ?1", userId)
-                .project(Long.class)
-                .firstResult();
-    }
-    
-    public Long sumDownloadBytesByUserId(Long userId) {
-        return find("select sum(downloadBytes) from AccountTrafficStats where userId = ?1 and ?2 between periodStart and periodEnd", userId, LocalDateTime.now())
-                .project(Long.class)
-                .firstResult();
-    }
-    
     public Long sumUploadBytesByAccountId(Long accountId) {
         return find("select sum(uploadBytes) from AccountTrafficStats where accountId = ?1 and ?2 between periodStart and periodEnd", accountId, LocalDateTime.now())
                 .project(Long.class)
