@@ -104,9 +104,9 @@ jobs:
 #        upx --best target/airopscat-linux-amd64-upx
 
 
-#    - name: Create distribution directories (Linux)
-#      if: matrix.os == 'ubuntu-latest'
-#      run: mkdir -p dist-regular dist-upx
+    - name: Create distribution directories (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: mkdir -p dist-regular dist-upx
 
 #    - name: Create distribution directories (Windows)
 #      if: matrix.os == 'windows-latest'
