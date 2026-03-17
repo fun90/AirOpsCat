@@ -56,13 +56,13 @@ jobs:
         java --version
         native-image --version
 
-    - name: Install UPX (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        wget https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-amd64_linux.tar.xz
-        tar -xf upx-5.0.2-amd64_linux.tar.xz
-        sudo mv upx-5.0.2-amd64_linux/upx /usr/local/bin/
-        upx --version
+#    - name: Install UPX (Linux)
+#      if: matrix.os == 'ubuntu-latest'
+#      run: |
+#        wget https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-amd64_linux.tar.xz
+#        tar -xf upx-5.0.2-amd64_linux.tar.xz
+#        sudo mv upx-5.0.2-amd64_linux/upx /usr/local/bin/
+#        upx --version
 
 #    - name: Install UPX (Windows)
 #      if: matrix.os == 'windows-latest'
@@ -98,15 +98,15 @@ jobs:
       run: |
         # Create regular version
         cp target/airopscat-*-runner target/airopscat-linux-amd64
-        
-        # Create UPX compressed version
-        cp target/airopscat-*-runner target/airopscat-linux-amd64-upx
-        upx --best target/airopscat-linux-amd64-upx
+
+#        # Create UPX compressed version
+#        cp target/airopscat-*-runner target/airopscat-linux-amd64-upx
+#        upx --best target/airopscat-linux-amd64-upx
 
 
-    - name: Create distribution directories (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: mkdir -p dist-regular dist-upx
+#    - name: Create distribution directories (Linux)
+#      if: matrix.os == 'ubuntu-latest'
+#      run: mkdir -p dist-regular dist-upx
 
 #    - name: Create distribution directories (Windows)
 #      if: matrix.os == 'windows-latest'
@@ -122,7 +122,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         cp target/airopscat-linux-amd64 dist-regular/
-        cp target/airopscat-linux-amd64-upx dist-upx/
+#        cp target/airopscat-linux-amd64-upx dist-upx/
 
 
 #    - name: Create distribution archive (Windows)
@@ -135,7 +135,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         tar -czf airopscat-linux-amd64.tar.gz -C dist-regular airopscat-linux-amd64
-        tar -czf airopscat-linux-amd64-upx.tar.gz -C dist-upx airopscat-linux-amd64-upx
+#        tar -czf airopscat-linux-amd64-upx.tar.gz -C dist-upx airopscat-linux-amd64-upx
 
     - name: Upload Linux regular distribution
       if: matrix.os == 'ubuntu-latest'
@@ -145,13 +145,13 @@ jobs:
         path: airopscat-linux-amd64.tar.gz
         retention-days: 30
 
-    - name: Upload Linux UPX distribution
-      if: matrix.os == 'ubuntu-latest'
-      uses: actions/upload-artifact@v4
-      with:
-        name: airopscat-linux-amd64-upx-distribution
-        path: airopscat-linux-amd64-upx.tar.gz
-        retention-days: 30
+#    - name: Upload Linux UPX distribution
+#      if: matrix.os == 'ubuntu-latest'
+#      uses: actions/upload-artifact@v4
+#      with:
+#        name: airopscat-linux-amd64-upx-distribution
+#        path: airopscat-linux-amd64-upx.tar.gz
+#        retention-days: 30
 
 #    - name: Upload distribution archive (Windows)
 #      if: matrix.os == 'windows-latest'
