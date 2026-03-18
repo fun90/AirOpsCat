@@ -62,7 +62,7 @@ proxies:
 
 proxy-groups:
   - name: 代理
-    icon: https://static.fun90.com/clash/Proxy.png
+    icon: https://raw.githubusercontent.com/Koolson/Qure/refs/heads/master/IconSet/Color/Proxy.png
     type: select
     proxies:
       - 自动
@@ -71,7 +71,7 @@ proxy-groups:
       - {node.name}
       {/for}
   - name: Microsoft
-    icon: https://static.fun90.com/clash/Microsoft.png
+    icon: https://raw.githubusercontent.com/Koolson/Qure/refs/heads/master/IconSet/Color/Microsoft.png
     type: select
     proxies:
       - 代理
@@ -80,7 +80,7 @@ proxy-groups:
       - {node.name}
       {/for}
   - name: Apple
-    icon: https://static.fun90.com/clash/Apple_1.png
+    icon: https://raw.githubusercontent.com/Koolson/Qure/refs/heads/master/IconSet/Color/Apple_1.png
     type: select
     proxies:
       - 直连
@@ -89,7 +89,7 @@ proxy-groups:
       - {node.name}
       {/for}
   - name: 自动
-    icon: https://static.fun90.com/clash/Auto.png
+    icon: https://raw.githubusercontent.com/Koolson/Qure/refs/heads/master/IconSet/Color/Auto.png
     type: url-test
     url: http://www.gstatic.com/generate_204
     interval: 300
@@ -98,18 +98,12 @@ proxy-groups:
       - {node.name}
       {/for}
   - name: 直连
-    icon: https://static.fun90.com/clash/Direct.png
+    icon: https://raw.githubusercontent.com/Koolson/Qure/refs/heads/master/IconSet/Color/Direct.png
     type: select
     proxies:
       - DIRECT
 
 rule-providers:
-  hst:
-    type: http
-    behavior: classical
-    url: {subscriptionUrl}/rules/clash/hst.yaml
-    path: ./ruleset/hst.yaml
-    interval: 86400
   myreject:
     type: http
     behavior: classical
@@ -166,8 +160,6 @@ rule-providers:
     interval: 86400
 
 rules:
-  - DOMAIN-SUFFIX,fun90.com,DIRECT
-  - RULE-SET,hst,DIRECT
   - RULE-SET,myreject,REJECT
   - RULE-SET,mydirect,DIRECT
   - RULE-SET,myproxy,代理
