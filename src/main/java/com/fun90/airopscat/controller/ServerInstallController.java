@@ -45,6 +45,8 @@ public class ServerInstallController {
     @Path("/servers")
     public Response getServers() {
         List<Map<String, Object>> serverOptions = serverService.getAllActiveServers().stream()
+                // 只需要非托管的服务器
+                .filter(o -> o.getExternal() == null || o.getExternal() == 0)
                 .map(server -> {
                     Map<String, Object> option = new HashMap<>();
                     option.put("id", server.getId());

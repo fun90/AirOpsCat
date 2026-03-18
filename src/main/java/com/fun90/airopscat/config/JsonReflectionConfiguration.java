@@ -115,7 +115,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.dto.NodeDto.class,
     com.fun90.airopscat.model.dto.NodeRequest.class,
     com.fun90.airopscat.model.dto.DomainDto.class,
-    
+
     // Operation Result DTOs
     com.fun90.airopscat.model.dto.CommandResult.class,
     com.fun90.airopscat.model.dto.BatchCommandResult.class,
@@ -134,6 +134,9 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.dto.TransactionDto.class,
     com.fun90.airopscat.model.dto.DefaultConfigDto.class,
     com.fun90.airopscat.model.dto.BackupFileDto.class,
+    com.fun90.airopscat.model.dto.install.ServerInstallExecuteRequest.class,
+    com.fun90.airopscat.model.dto.install.InstallScriptDto.class,
+    com.fun90.airopscat.model.dto.install.ServerInstallStepResultDto.class,
 
     // Entity Classes (for direct JSON serialization)
     com.fun90.airopscat.model.entity.User.class,
