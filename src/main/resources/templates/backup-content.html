@@ -10,10 +10,17 @@
                                 <div class="fw-medium text-break">{{ stats.backupDir || '-' }}</div>
                             </div>
                             <div class="col-auto">
-                                <button class="btn btn-primary" :disabled="runningBackup" @click="runBackup">
-                                    <i class="ti ti-database-export"></i>
-                                    {{ runningBackup ? '备份中...' : '立即备份' }}
-                                </button>
+                                <div class="btn-list">
+                                    <button class="btn btn-primary" :disabled="runningBackup || uploadingBackup" @click="runBackup">
+                                        <i class="ti ti-database-export"></i>
+                                        {{ runningBackup ? '备份中...' : '立即备份' }}
+                                    </button>
+                                    <button class="btn btn-outline-primary" :disabled="uploadingBackup || runningBackup" @click="triggerUpload">
+                                        <i class="ti ti-upload"></i>
+                                        {{ uploadingBackup ? '上传中...' : '上传备份' }}
+                                    </button>
+                                    <input id="backup-upload-input" type="file" class="d-none" accept=".sql.gz" @change="uploadBackupFile">
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -173,6 +173,28 @@ public class DatabaseBackupService {
         return resolveBackupFile(fileName).toFile();
     }
 
+    public BackupFileDto uploadBackup(String fileName, Path uploadedFile) {
+        if (fileName == null || fileName.isBlank()) {
+            throw new IllegalArgumentException("Backup file name is required");
+        }
+        if (!fileName.endsWith(FILE_SUFFIX)) {
+            throw new IllegalArgumentException("Only .sql.gz backup files are supported");
+        }
+
+        try {
+            Path backupDirectory = ensureBackupDirectory();
+            Path targetFile = backupDirectory.resolve(fileName).normalize();
+            if (!targetFile.startsWith(backupDirectory)) {
+                throw new IllegalArgumentException("Invalid backup file name");
+            }
+
+            Files.copy(uploadedFile, targetFile, StandardCopyOption.REPLACE_EXISTING);
+            return toDto(targetFile);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to upload backup file: " + fileName, e);
+        }
+    }
+
     public void restoreBackup(String fileName) {
         Path backupFile = resolveBackupFile(fileName);
 

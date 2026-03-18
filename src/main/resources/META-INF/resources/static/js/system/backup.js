@@ -6,6 +6,7 @@ const backupTable = new DataTable({
         entityName: 'backups',
         modalIdPrefix: 'backup-',
         runningBackup: false,
+        uploadingBackup: false,
         restoringBackup: false,
         restoreModal: null,
         stats: {
@@ -26,6 +27,53 @@ const backupTable = new DataTable({
 
         getDownloadUrl(item) {
             return `/api/admin/backups/${encodeURIComponent(item.fileName)}/download`;
+        },
+
+        triggerUpload() {
+            const uploadInput = document.getElementById('backup-upload-input');
+            if (uploadInput) {
+                uploadInput.click();
+            }
+        },
+
+        uploadBackupFile(event) {
+            const file = event.target.files?.[0];
+            if (!file) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            this.uploadingBackup = true;
+            fetch('/api/admin/backups/upload', {
+                method: 'POST',
+                body: formData
+            })
+                .then(async response => {
+                    if (!response.ok) {
+                        let message = '上传备份失败';
+                        try {
+                            const errorData = await response.json();
+                            message = errorData.message || message;
+                        } catch (_) {
+                        }
+                        throw new Error(message);
+                    }
+                    return response.json();
+                })
+                .then(() => {
+                    this.fetchRecords();
+                    ToastUtils.show('Success', '备份文件上传成功', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '上传备份失败', 'danger');
+                })
+                .finally(() => {
+                    this.uploadingBackup = false;
+                    event.target.value = '';
+                });
         },
 
         openRestoreModal(item) {

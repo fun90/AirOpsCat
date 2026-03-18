@@ -18,6 +18,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.File;
 import java.util.Map;
+import org.jboss.resteasy.reactive.RestForm;
+import org.jboss.resteasy.reactive.multipart.FileUpload;
 
 @ApplicationScoped
 @Path("/api/admin/backups")
@@ -41,6 +43,20 @@ public class BackupController {
     @Path("/run")
     public Response runBackup() {
         BackupFileDto backupFile = databaseBackupService.createBackup();
+        return Response.ok(backupFile).build();
+    }
+
+    @POST
+    @Path("/upload")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    public Response uploadBackup(@RestForm("file") FileUpload fileUpload) {
+        if (fileUpload == null) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", "Please select a backup file"))
+                    .build();
+        }
+
+        BackupFileDto backupFile = databaseBackupService.uploadBackup(fileUpload.fileName(), fileUpload.uploadedFile());
         return Response.ok(backupFile).build();
     }
 
