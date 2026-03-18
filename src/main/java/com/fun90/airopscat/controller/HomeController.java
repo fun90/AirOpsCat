@@ -36,11 +36,12 @@ public class HomeController {
     @Inject
     public HomeController() {
         menu.put("/person/user", new MenuItem("人员", "用户管理", "添加用户、编辑用户、查看用户", "/person/user"));
-        menu.put("/person/account", new MenuItem("人员", "账户管理", "添加账户、编辑账户、查看账户详情/列表", "/person/account"));
+        menu.put("/person/account", new MenuItem("人员", "账户管理", "添加账户、编辑账户、查看账户详情列表", "/person/account"));
         menu.put("/person/account-traffic", new MenuItem("人员", "账户流量", "查看流量统计", "/person/account-traffic"));
         menu.put("/person/user-panel", new MenuItem("人员", "用户面板", "查看您的账户信息和客户端配置", "/person/user-panel"));
         menu.put("/device/domain", new MenuItem("设备", "域名", "添加域名、编辑域名、查看域名", "/device/domain"));
         menu.put("/device/server", new MenuItem("设备", "服务器", "添加服务器、编辑服务器、查看服务器", "/device/server"));
+        menu.put("/device/server-install", new MenuItem("设备", "一键装机", "选择装机脚本，按顺序执行并查看每一步的结果", "/device/server-install"));
         menu.put("/vpn/node", new MenuItem("代理", "节点管理", "添加、编辑、部署节点，查看节点", "/vpn/node"));
         menu.put("/vpn/server-config", new MenuItem("代理", "配置管理", "查看服务器上对应的配置", "/vpn/server-config"));
         menu.put("/money/transactions", new MenuItem("财务", "交易流水", "查看收入、支出等流水", "/money/transactions"));
@@ -119,7 +120,7 @@ public class HomeController {
     }
 
     private boolean shouldShowAddButton(String uri) {
-        return !"/system/backup".equals(uri);
+        return !"/system/backup".equals(uri) && !"/device/server-install".equals(uri);
     }
 
     private String getButtonTextForPage(String uri) {

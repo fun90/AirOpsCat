@@ -11,6 +11,8 @@
         {#include domain-content /}
     {#is '/device/server'}
         {#include server-content /}
+    {#is '/device/server-install'}
+        {#include server-install-content /}
     {#is '/vpn/node'}
         {#include node-content /}
     {#is '/vpn/server-config'}

@@ -1,0 +1,173 @@
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row g-4">
+            <div class="col-12 col-xl-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">安装目标</h3>
+                        <div class="card-actions">
+                            <button class="btn btn-outline-primary btn-sm" type="button" @click="refreshAll" :disabled="loading || executing">
+                                刷新
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label required">选择服务器</label>
+                            <select class="form-select" v-model="selectedServerId" :disabled="executing">
+                                <option value="">请选择服务器</option>
+                                <option v-for="server in servers" :key="server.id" :value="String(server.id)">
+                                    {{ server.name }}
+                                </option>
+                            </select>
+                            <div class="form-hint">会使用当前服务器已保存的 SSH 信息执行脚本。</div>
+                        </div>
+
+                        <div class="alert alert-info" v-if="scripts.length">
+                            勾选脚本后会按文件名前缀顺序执行，例如 `01-prepare.sh` 会先于 `02-runtime.sh`。
+                        </div>
+                        <div class="alert alert-warning" v-else>
+                            当前脚本目录没有匹配 `01-xxx.sh` 规则的脚本。
+                        </div>
+
+                        <div class="d-flex gap-2 flex-wrap mb-3" v-if="scripts.length">
+                            <button class="btn btn-outline-secondary btn-sm" type="button" @click="selectAllScripts" :disabled="executing">
+                                全选
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" type="button" @click="clearScriptSelection" :disabled="executing">
+                                清空
+                            </button>
+                            <button class="btn btn-primary" type="button" @click="runSelectedScripts" :disabled="!canStartExecution">
+                                <span v-if="executing" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                开始执行
+                            </button>
+                        </div>
+
+                        <div class="list-group list-group-flush">
+                            <label class="list-group-item" v-for="script in scripts" :key="script.fileName">
+                                <div class="row align-items-start">
+                                    <div class="col-auto pt-1">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               :value="script.fileName"
+                                               v-model="selectedScriptNames"
+                                               :disabled="executing">
+                                    </div>
+                                    <div class="col">
+                                        <div class="fw-medium">{{ script.fileName }}</div>
+                                        <div class="text-secondary small">{{ script.title }}</div>
+                                        <div class="text-secondary small" v-if="script.description">{{ script.description }}</div>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-xl-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">执行步骤</h3>
+                        <div class="card-actions text-secondary small" v-if="selectedSteps.length">
+                            已选择 {{ selectedSteps.length }} 个步骤
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div v-if="!selectedSteps.length" class="empty py-5">
+                            <div class="empty-img"><i class="ti ti-checklist fs-1 text-secondary"></i></div>
+                            <p class="empty-title">先选择要执行的脚本</p>
+                            <p class="empty-subtitle text-secondary">系统会顺序执行，并展示每一步的输出和错误信息。</p>
+                        </div>
+
+                        <div v-else class="list-group list-group-flush">
+                            <div class="list-group-item" v-for="(step, index) in selectedSteps" :key="step.fileName">
+                                <div class="d-flex justify-content-between gap-3 align-items-start">
+                                    <div>
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            <span class="badge" :class="statusBadgeClass(step.status)">{{ statusLabel(step.status) }}</span>
+                                            <span class="fw-medium">{{ index + 1 }}. {{ step.title }}</span>
+                                            <span class="text-secondary small">{{ step.fileName }}</span>
+                                        </div>
+                                        <div class="text-secondary small mt-1">{{ step.description || '按顺序执行的安装步骤' }}</div>
+                                        <div class="text-warning small mt-1" v-if="isStepLocked(index)">
+                                            需前一个步骤执行成功后才可继续
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button class="btn btn-outline-primary btn-sm"
+                                                type="button"
+                                                @click="executeSingleStep(step.fileName)"
+                                                :disabled="!canRunSingleStep(index)">
+                                            执行此步
+                                        </button>
+                                        <button class="btn btn-outline-warning btn-sm"
+                                                type="button"
+                                                @click="retryStep(step.fileName)"
+                                                :disabled="!canRetryStep(step, index)">
+                                            重试
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="row g-3 mt-1" v-if="step.result">
+                                    <div class="col-md-4">
+                                        <div class="small text-secondary">退出码</div>
+                                        <div class="fw-medium">{{ step.result.exitStatus }}</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="small text-secondary">耗时</div>
+                                        <div class="fw-medium">{{ formatDuration(step.result.durationMs) }}</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="small text-secondary">执行时间</div>
+                                        <div class="fw-medium">{{ formatDateTime(step.result.finishedAt) || '-' }}</div>
+                                    </div>
+                                    <div class="col-12" v-if="step.result.stdout">
+                                        <div class="small text-secondary mb-1">标准输出</div>
+                                        <pre class="bg-dark text-white p-3 rounded small install-log">{{ step.result.stdout }}</pre>
+                                    </div>
+                                    <div class="col-12" v-if="step.result.stderr">
+                                        <div class="small text-secondary mb-1">{{ stderrTitle(step) }}</div>
+                                        <pre class="p-3 rounded small install-log" :class="stderrClass(step)">{{ step.result.stderr }}</pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h3 class="card-title">脚本规范建议</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-primary">
+                            推荐把关键过程输出到标准输出，并在失败时返回非 0 退出码，这样页面才能准确显示每一步结果。
+                        </div>
+                        <ul class="mb-0 ps-3">
+                            <li>文件名使用 `01-xxx.sh`、`02-xxx.sh` 这种有序格式。</li>
+                            <li>脚本开头建议加 `set -euo pipefail`，避免错误被吞掉。</li>
+                            <li>关键节点用 `echo` 打印，例如“开始安装 Docker”“完成写入配置”。</li>
+                            <li>执行时会自动注入变量：`$server_ip` 为服务器 IP，`$server_host` 为服务器域名或主机名。</li>
+                            <li>系统配置也会注入：`$airopscat_domain` 对应 `airopscat.domain`，`$airopscat_api_token` 对应 `airopscat.api.token`。</li>
+                            <li>可选元信息：前几行支持 `# @title: 安装 Docker`、`# @description: 安装容器运行时`。</li>
+                            <li>脚本尽量设计成幂等，失败后修复环境即可重试。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .install-log {
+        max-height: 280px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+</style>
