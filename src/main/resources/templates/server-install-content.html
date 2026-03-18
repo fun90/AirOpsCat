@@ -73,6 +73,14 @@
                             已选择 {{ selectedSteps.length }} 个步骤
                         </div>
                     </div>
+                    <div class="progress progress-sm rounded-0" v-if="selectedSteps.length">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                             :style="{ width: progressPercent + '%' }"
+                             :aria-valuenow="progressPercent"
+                             aria-valuemin="0"
+                             aria-valuemax="100">
+                        </div>
+                    </div>
                     <div class="card-body p-0">
                         <div v-if="!selectedSteps.length" class="empty py-5">
                             <div class="empty-img"><i class="ti ti-checklist fs-1 text-secondary"></i></div>
@@ -81,11 +89,17 @@
                         </div>
 
                         <div v-else class="list-group list-group-flush">
-                            <div class="list-group-item" v-for="(step, index) in selectedSteps" :key="step.fileName">
+                            <div class="list-group-item install-step-item"
+                                 :class="stepItemClass(step, index)"
+                                 v-for="(step, index) in selectedSteps"
+                                 :key="step.fileName">
                                 <div class="d-flex justify-content-between gap-3 align-items-start">
                                     <div>
                                         <div class="d-flex align-items-center gap-2 flex-wrap">
-                                            <span class="badge" :class="statusBadgeClass(step.status)">{{ statusLabel(step.status) }}</span>
+                                            <span class="badge install-status-badge" :class="statusBadgeClass(step.status)">
+                                                <span v-if="step.status === 'running'" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                                {{ statusLabel(step.status) }}
+                                            </span>
                                             <span class="fw-medium">{{ index + 1 }}. {{ step.title }}</span>
                                             <span class="text-secondary small">{{ step.fileName }}</span>
                                         </div>
@@ -100,6 +114,7 @@
                                                 type="button"
                                                 @click="executeSingleStep(step.fileName)"
                                                 :disabled="!canRunSingleStep(index)">
+                                            <span v-if="step.status === 'running'" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
                                             执行此步
                                         </button>
                                         <button class="btn btn-outline-warning btn-sm"
@@ -163,11 +178,51 @@
 </div>
 
 <style>
+    .install-step-item {
+        transition: background-color 0.25s ease, box-shadow 0.25s ease, border-left-color 0.25s ease;
+        border-left: 4px solid transparent;
+    }
+
+    .install-step-running {
+        background: linear-gradient(90deg, rgba(32, 107, 196, 0.10), rgba(32, 107, 196, 0.02));
+        border-left-color: var(--tblr-primary);
+        animation: install-step-pulse 1.6s ease-in-out infinite;
+    }
+
+    .install-step-success {
+        border-left-color: var(--tblr-success);
+    }
+
+    .install-step-failed {
+        border-left-color: var(--tblr-danger);
+    }
+
+    .install-step-pending {
+        border-left-color: rgba(98, 105, 118, 0.35);
+    }
+
+    .install-status-badge {
+        display: inline-flex;
+        align-items: center;
+    }
+
     .install-log {
         max-height: 280px;
         overflow: auto;
         white-space: pre-wrap;
         word-break: break-word;
         font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    @keyframes install-step-pulse {
+        0% {
+            box-shadow: inset 0 0 0 0 rgba(32, 107, 196, 0.00);
+        }
+        50% {
+            box-shadow: inset 0 0 0 999px rgba(32, 107, 196, 0.06);
+        }
+        100% {
+            box-shadow: inset 0 0 0 0 rgba(32, 107, 196, 0.00);
+        }
     }
 </style>

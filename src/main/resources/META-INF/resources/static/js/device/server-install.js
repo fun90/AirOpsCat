@@ -26,6 +26,16 @@ const serverInstallApp = PetiteVue.createApp({
         return !this.executing && !!this.selectedServerId && this.selectedSteps.length > 0;
     },
 
+    get progressPercent() {
+        if (!this.selectedSteps.length) {
+            return 0;
+        }
+
+        const completedCount = this.selectedSteps.filter(step => step.status === 'success').length;
+        const runningBonus = this.selectedSteps.some(step => step.status === 'running') ? 0.5 : 0;
+        return Math.min(100, ((completedCount + runningBonus) / this.selectedSteps.length) * 100);
+    },
+
     mounted() {
         this.refreshAll();
     },
