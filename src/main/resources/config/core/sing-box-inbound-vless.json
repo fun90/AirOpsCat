@@ -1,12 +1,6 @@
 {
   "type": "vless",
-  "users": [
-    {
-      "name": "default",
-      "uuid": "{uuid}",
-      "flow": "xtls-rprx-vision"
-    }
-  ],
+  "users": [],
   "tls": {
     "enabled": true,
     "server_name": "{serverName}",

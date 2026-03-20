@@ -1,5 +1,4 @@
-
-import { DataTable } from '/static/js/common/data-table.js';
+﻿import { DataTable } from '/static/js/common/data-table.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 
 const nodeTable = new DataTable({
@@ -23,14 +22,13 @@ const nodeTable = new DataTable({
             proxy: 0,
             landing: 0
         },
-        // Form data
         newItem: {
             serverId: '',
             backupServerId: '',
             port: null,
             coreType: 'xray',
             protocol: 'vless',
-            type: 0, // 默认为代理节�?
+            type: 0,
             level: 0,
             disabled: false,
             name: '',
@@ -40,7 +38,6 @@ const nodeTable = new DataTable({
             rule: null,
             tagIds: []
         },
-        // Additional data for node management
         portCheckMessage: '',
         editPortCheckMessage: '',
         newNodeInbound: {
@@ -54,14 +51,12 @@ const nodeTable = new DataTable({
         editedNodeInboundJson: '',
         editedNodeOutbound: '',
         editedNodeRuleJson: '',
-        // For viewing configs
         viewConfigModal: null,
         batchDeployModal: null,
         selectedNodeIds: [],
         batchDeploying: false
     },
     methods: {
-        // Initialize additional data
         initialize() {
             this.fetchServers();
             this.fetchLandingNodes();
@@ -71,14 +66,11 @@ const nodeTable = new DataTable({
             this.fetchAvailableTags();
         },
 
-        // Fetch data methods
         fetchServers() {
             fetch('/api/admin/nodes/servers')
                 .then(response => response.json())
                 .then(data => {
                     this.servers = data;
-
-                    // 如果是第一次加载且当前没有选中服务器，选择第一个服务器
                     if (this.servers.length > 0 && !this.newItem.serverId) {
                         this.newItem.serverId = this.servers[0].id;
                     }
@@ -95,7 +87,7 @@ const nodeTable = new DataTable({
                     this.landingNodes = data;
                 })
                 .catch(error => {
-                    console.error('Error fetching servers:', error);
+                    console.error('Error fetching landing nodes:', error);
                 });
         },
 
@@ -143,7 +135,6 @@ const nodeTable = new DataTable({
                 });
         },
 
-        // Get Badge classes
         getTypeBadgeClass(type) {
             switch (type) {
                 case 0: return 'text-bg-blue';
@@ -178,7 +169,6 @@ const nodeTable = new DataTable({
             this.syncProtocolSelection(this.editedItem, true);
         },
 
-        // Server and port related methods
         onServerChange() {
             this.checkPortAvailability();
         },
@@ -204,7 +194,7 @@ const nodeTable = new DataTable({
                 })
                 .catch(error => {
                     console.error('Error checking port:', error);
-                    this.portCheckMessage = '检查端口失�?;
+                    this.portCheckMessage = '检查端口失败';
                 });
         },
 
@@ -225,13 +215,13 @@ const nodeTable = new DataTable({
                 })
                 .catch(error => {
                     console.error('Error checking port:', error);
-                    this.editPortCheckMessage = '检查端口失�?;
+                    this.editPortCheckMessage = '检查端口失败';
                 });
         },
 
         getAvailablePort() {
             if (!this.newItem.serverId) {
-                ToastUtils.show('Warning', '请先选择服务�?, 'warning');
+                ToastUtils.show('Warning', '请先选择服务器', 'warning');
                 return;
             }
 
@@ -249,7 +239,7 @@ const nodeTable = new DataTable({
 
         getEditAvailablePort() {
             if (!this.editedItem.serverId) {
-                ToastUtils.show('Warning', '请先选择服务�?, 'warning');
+                ToastUtils.show('Warning', '请先选择服务器', 'warning');
                 return;
             }
 
@@ -265,9 +255,7 @@ const nodeTable = new DataTable({
                 });
         },
 
-        // Protocol related methods
         onProtocolChange() {
-            // 获取默认配置
             const coreType = this.getDefaultInboundCoreType(this.newItem);
             fetch(`/api/admin/nodes/default-inbound?protocol=${this.newItem.protocol}&coreType=${encodeURIComponent(coreType)}`)
                 .then(response => response.json())
@@ -281,7 +269,6 @@ const nodeTable = new DataTable({
         },
 
         onEditProtocolChange() {
-            // 获取默认配置
             const coreType = this.getDefaultInboundCoreType(this.editedItem);
             fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedItem.protocol}&coreType=${encodeURIComponent(coreType)}`)
                 .then(response => response.json())
@@ -336,7 +323,6 @@ const nodeTable = new DataTable({
             }
         },
 
-        // Generator methods
         generateUuid() {
             this.newNodeInbound.uuid = this.uuidv4();
         },
@@ -353,7 +339,6 @@ const nodeTable = new DataTable({
             }
         },
 
-        // View configuration
         viewNodeConfig(node) {
             this.editedNodeInboundJson = JSON.stringify(node.inbound || {}, null, 2);
             this.editedNodeRuleJson = JSON.stringify(node.rule || {}, null, 2);
@@ -362,51 +347,45 @@ const nodeTable = new DataTable({
             this.viewConfigModal.show();
         },
 
-        // Form validation and preparation
         validateCreateForm() {
             let isValid = true;
             this.validationErrors = {};
 
-            // Check server
             if (!this.newItem.serverId) {
-                this.validationErrors.serverId = '请选择服务�?;
+                this.validationErrors.serverId = '请选择服务器';
                 isValid = false;
             }
 
-            // Check port
             if (!this.newItem.port) {
-                this.validationErrors.port = '请输入端�?;
+                this.validationErrors.port = '请输入端口';
                 isValid = false;
             } else if (this.newItem.port < 1 || this.newItem.port > 65535) {
-                this.validationErrors.port = '端口范围应为1-65535';
+                this.validationErrors.port = '端口范围应为 1-65535';
                 isValid = false;
             }
 
-            // Check node name
             if (!this.newItem.name) {
-                this.validationErrors.name = '请填写节点名�?;
+                this.validationErrors.name = '请填写节点名称';
                 isValid = false;
             }
 
-            // Check node no
             if (!this.newItem.no) {
-                this.validationErrors.no = '请填写节点编�?;
+                this.validationErrors.no = '请填写节点编号';
                 isValid = false;
             }
 
-            // Check node type
             if (this.newItem.type === null || this.newItem.type === undefined) {
                 this.validationErrors.type = '请选择节点类型';
                 isValid = false;
             }
 
             if (!this.newItem.coreType) {
-                this.validationErrors.coreType = 'Please select a core type';
+                this.validationErrors.coreType = '请选择内核类型';
                 isValid = false;
             }
 
             if (!this.newItem.protocol || !this.getAvailableProtocols(this.newItem).some(protocol => protocol.value === this.newItem.protocol)) {
-                this.validationErrors.protocol = 'Please select a supported protocol';
+                this.validationErrors.protocol = '请选择可用协议';
                 isValid = false;
             }
 
@@ -417,29 +396,26 @@ const nodeTable = new DataTable({
             let isValid = true;
             this.validationErrors = {};
 
-            // Similar validation as create form
             if (!this.editedItem.serverId) {
-                this.validationErrors.serverId = '请选择服务�?;
+                this.validationErrors.serverId = '请选择服务器';
                 isValid = false;
             }
 
             if (!this.editedItem.port) {
-                this.validationErrors.port = '请输入端�?;
+                this.validationErrors.port = '请输入端口';
                 isValid = false;
             } else if (this.editedItem.port < 1 || this.editedItem.port > 65535) {
-                this.validationErrors.port = '端口范围应为1-65535';
+                this.validationErrors.port = '端口范围应为 1-65535';
                 isValid = false;
             }
 
-            // Check node name
             if (!this.editedItem.name) {
-                this.validationErrors.name = '请填写节点名�?;
+                this.validationErrors.name = '请填写节点名称';
                 isValid = false;
             }
 
-            // Check node no
             if (!this.editedItem.no) {
-                this.validationErrors.no = '请填写节点编�?;
+                this.validationErrors.no = '请填写节点编号';
                 isValid = false;
             }
 
@@ -449,12 +425,12 @@ const nodeTable = new DataTable({
             }
 
             if (!this.editedItem.coreType) {
-                this.validationErrors.coreType = 'Please select a core type';
+                this.validationErrors.coreType = '请选择内核类型';
                 isValid = false;
             }
 
             if (!this.editedItem.protocol || !this.getAvailableProtocols(this.editedItem).some(protocol => protocol.value === this.editedItem.protocol)) {
-                this.validationErrors.protocol = 'Please select a supported protocol';
+                this.validationErrors.protocol = '请选择可用协议';
                 isValid = false;
             }
 
@@ -463,21 +439,17 @@ const nodeTable = new DataTable({
 
         prepareCreateData() {
             try {
-                // Merge inbound config with JSON
                 let inboundConfig = this.newNodeInbound;
                 if (this.newNodeInboundJson) {
                     const jsonData = JSON.parse(this.newNodeInboundJson);
                     inboundConfig = { ...inboundConfig, ...jsonData };
                 }
 
-                // Process rule configs
                 let ruleConfig = null;
-
                 if (this.newNodeRuleJson) {
                     ruleConfig = JSON.parse(this.newNodeRuleJson);
                 }
 
-                // Prepare data for API
                 return {
                     serverId: this.newItem.serverId,
                     backupServerId: this.newItem.backupServerId || null,
@@ -497,20 +469,18 @@ const nodeTable = new DataTable({
                 };
             } catch (e) {
                 console.error('Error parsing JSON:', e);
-                ToastUtils.show('Error', 'JSON格式错误: ' + e.message, 'danger');
+                ToastUtils.show('Error', 'JSON 格式错误: ' + e.message, 'danger');
                 throw e;
             }
         },
 
         prepareUpdateData() {
             try {
-                // Similar to create data preparation
                 if (this.editedNodeInboundJson) {
                     this.editedNodeInbound = JSON.parse(this.editedNodeInboundJson);
                 }
 
                 let ruleConfig = null;
-
                 if (this.editedNodeRuleJson) {
                     ruleConfig = JSON.parse(this.editedNodeRuleJson);
                 }
@@ -535,7 +505,7 @@ const nodeTable = new DataTable({
                 };
             } catch (e) {
                 console.error('Error parsing JSON:', e);
-                ToastUtils.show('Error', 'JSON格式错误: ' + e.message, 'danger');
+                ToastUtils.show('Error', 'JSON 格式错误: ' + e.message, 'danger');
                 throw e;
             }
         },
@@ -560,17 +530,14 @@ const nodeTable = new DataTable({
                 tagIds: []
             };
 
-            // Reset inbound data
             this.newNodeInbound = {
                 protocol: 'vless'
             };
-            this.onProtocolChange(); // Get default configuration
+            this.onProtocolChange();
 
             this.newNodeRuleJson = '{}';
             this.portCheckMessage = '';
         },
-
-
 
         loadNodeTags(nodeId) {
             fetch(`/api/admin/tags/nodes/${nodeId}`)
@@ -586,17 +553,13 @@ const nodeTable = new DataTable({
 
         prepareEditForm(node) {
             this.fetchLandingNodes();
-            // Format inbound and rule data
             this.editedNodeInbound = node.inbound || { protocol: 'vless' };
             this.editedNodeInboundJson = JSON.stringify(node.inbound || {}, null, 2);
             this.editedNodeRuleJson = JSON.stringify(node.rule || {}, null, 2);
 
             this.editPortCheckMessage = '';
-
-            // Load current node tags
             this.loadNodeTags(node.id);
 
-            // Return basic item data
             return {
                 id: node.id,
                 serverId: node.serverId,
@@ -613,11 +576,10 @@ const nodeTable = new DataTable({
                 inbound: node.inbound,
                 outId: !node.outId ? 0 : node.outId,
                 rule: node.rule,
-                tagIds: [] // Will be loaded asynchronously
+                tagIds: []
             };
         },
 
-        // URLs for API calls
         getApiUrl() {
             return '/api/admin/nodes';
         },
@@ -637,7 +599,6 @@ const nodeTable = new DataTable({
         copyNode(node) {
             if (!node.id) return;
 
-            // Show loading toast
             ToastUtils.show('Info', '正在复制节点...', 'info');
 
             fetch(`/api/admin/nodes/${node.id}/copy`, {
@@ -649,8 +610,7 @@ const nodeTable = new DataTable({
                     }
                     return response.json();
                 })
-                .then(data => {
-                    // Refresh the node list
+                .then(() => {
                     this.fetchRecords();
                     ToastUtils.show('Success', '复制节点成功', 'success');
                 })
@@ -673,7 +633,7 @@ const nodeTable = new DataTable({
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: "[]"
+                body: '[]'
             })
                 .then(response => {
                     if (!response.ok) {
@@ -694,7 +654,6 @@ const nodeTable = new DataTable({
                         ToastUtils.show('Warning', `成功: ${successCount}, 失败: ${failureCount}`, 'warning');
                     }
 
-                    // Refresh the node list
                     this.fetchRecords();
                 })
                 .catch(error => {
@@ -705,7 +664,6 @@ const nodeTable = new DataTable({
         },
 
         deployNode(node, forcibly = false) {
-            // Show loading toast
             ToastUtils.show('Info', '正在部署节点...', 'info');
 
             fetch(`/api/admin/nodes/${node.id}/${forcibly ? 'deployForcibly' : 'deploy'}`, {
@@ -719,7 +677,6 @@ const nodeTable = new DataTable({
                 })
                 .then(data => {
                     if (data.success) {
-                        // Refresh the node list
                         this.fetchRecords();
                         ToastUtils.show('Success', data.message, 'success');
                     } else {
@@ -738,5 +695,4 @@ const nodeTable = new DataTable({
     }
 });
 
-// Initialize the Vue app
 nodeTable.createApp('#app');
