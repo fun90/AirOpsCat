@@ -33,7 +33,9 @@
         "network": "tcp,udp",
         "address": "127.0.0.1"
       }
-    }
+    }{#if hasExtraInbounds},
+    {extraInbounds}
+    {/if}
   ],
   "outbounds": [
     {
@@ -57,7 +59,9 @@
           }
         ]
       }
-    }
+    }{#if hasExtraOutbounds},
+    {extraOutbounds}
+    {/if}
   ],
   "routing": {
     "domainStrategy": "AsIs",
@@ -73,7 +77,9 @@
         "type": "field",
         "ip": ["geoip:private", "geoip:cn"],
         "outboundTag": "default-blocked"
-      }
+      }{#if hasExtraRoutingRules},
+      {extraRoutingRules}
+      {/if}
     ]
   }
 }

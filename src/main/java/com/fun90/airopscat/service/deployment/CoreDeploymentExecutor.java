@@ -3,7 +3,8 @@ package com.fun90.airopscat.service.deployment;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.SshConfig;
-import com.fun90.airopscat.model.dto.xray.XrayConfig;
+import com.fun90.airopscat.model.dto.deployment.CoreDeploymentExecution;
+import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
@@ -11,22 +12,18 @@ import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
-import com.fun90.airopscat.model.dto.deployment.CoreDeploymentExecution;
-import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
-import com.fun90.airopscat.model.dto.deployment.XrayNodeSnapshot;
-import com.fun90.airopscat.util.JsonUtil;
+import com.fun90.airopscat.service.deployment.registry.CoreConfigBuilderRegistry;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
 @Slf4j
 @ApplicationScoped
 @RequiredArgsConstructor
@@ -40,9 +37,7 @@ public class CoreDeploymentExecutor {
     private final CoreManagementService coreManagementService;
     private final ServerConfigRepository serverConfigRepository;
     private final NodeRepository nodeRepository;
-    private final XrayConfigBuilder xrayConfigBuilder;
-
-    // ── Execution ──────────────────────────────────────────────────────────────
+    private final CoreConfigBuilderRegistry coreConfigBuilderRegistry;
 
     public List<CoreDeploymentExecution> executeForServer(DeploymentServerContext ctx) {
         Server server = ctx.server();
@@ -53,61 +48,27 @@ public class CoreDeploymentExecutor {
 
         List<CoreDeploymentExecution> results = new ArrayList<>();
         for (Map.Entry<String, List<Node>> entry : nodesByCoreType.entrySet()) {
-            results.addAll(executeForCoreType(ctx, entry.getKey(), entry.getValue()));
+            results.add(executeConfigBuilder(ctx, entry.getKey(), entry.getValue()));
         }
         return results;
     }
 
-    private List<CoreDeploymentExecution> executeForCoreType(DeploymentServerContext ctx,
-                                                              String coreType, List<Node> nodes) {
-        return switch (coreType) {
-            case CORE_TYPE_XRAY -> List.of(executeXray(ctx, nodes));
-            case CORE_TYPE_HYSTERIA -> executeHysteria(ctx.server(), nodes);
-            default -> List.of(CoreDeploymentExecution.failure(ctx.server(), coreType, nodes,
-                    "不支持的核心类型: " + coreType));
-        };
-    }
-
-    private CoreDeploymentExecution executeXray(DeploymentServerContext ctx, List<Node> nodes) {
+    private CoreDeploymentExecution executeConfigBuilder(DeploymentServerContext ctx,
+                                                         String coreType,
+                                                         List<Node> nodes) {
         Server server = ctx.server();
-        List<XrayNodeSnapshot> snapshots = nodes.stream()
-                .map(Node::getId)
-                .map(ctx.xraySnapshotMap()::get)
-                .filter(Objects::nonNull)
-                .toList();
-
-        XrayConfig xrayConfig = xrayConfigBuilder.build(ctx.serverSnapshot(), snapshots);
-        String configJson = JsonUtil.toJsonStringPretty(xrayConfig);
-
-        if (server.getExternal() == null || server.getExternal() == 0) {
-            deployToServer(server, CORE_TYPE_XRAY, configJson);
-        }
-        return CoreDeploymentExecution.success(server, CORE_TYPE_XRAY, nodes, configJson);
-    }
-
-    private List<CoreDeploymentExecution> executeHysteria(Server server, List<Node> nodes) {
-        List<CoreDeploymentExecution> results = new ArrayList<>();
-        for (Node node : nodes) {
-            try {
-                String config = buildHysteriaConfig(node);
-                deployToServer(server, CORE_TYPE_HYSTERIA, config);
-                results.add(CoreDeploymentExecution.success(server, CORE_TYPE_HYSTERIA,
-                        Collections.singletonList(node), config));
-            } catch (Exception e) {
-                log.error("Deploy hysteria node {} failed on server {}", node.getId(), server.getName(), e);
-                results.add(CoreDeploymentExecution.failure(server, CORE_TYPE_HYSTERIA,
-                        Collections.singletonList(node), e.getMessage()));
+        try {
+            String config = coreConfigBuilderRegistry.getStrategy(coreType).build(ctx, nodes);
+            if (server.getExternal() == null || server.getExternal() == 0) {
+                deployToServer(server, coreType, config);
             }
+            return CoreDeploymentExecution.success(server, coreType, nodes, config);
+        } catch (UnsupportedOperationException | IllegalArgumentException e) {
+            return CoreDeploymentExecution.failure(server, coreType, nodes, e.getMessage());
+        } catch (Exception e) {
+            log.error("Deploy nodes failed for core {} on server {}", coreType, server.getName(), e);
+            return CoreDeploymentExecution.failure(server, coreType, nodes, e.getMessage());
         }
-        return results;
-    }
-
-    private String buildHysteriaConfig(Node node) {
-        Map<String, Object> config = node.getInbound() != null
-                ? JsonUtil.toObject(node.getInbound(), Map.class)
-                : new HashMap<>();
-        config.put("listen", ":" + node.getPort());
-        return JsonUtil.toJsonString(config);
     }
 
     private void deployToServer(Server server, String coreType, String config) {
@@ -141,8 +102,6 @@ public class CoreDeploymentExecutor {
         }
         return sshConfig;
     }
-
-    // ── Persistence ────────────────────────────────────────────────────────────
 
     public List<DeploymentResult> persist(CoreDeploymentExecution execution) {
         if (!execution.success()) {
@@ -190,8 +149,6 @@ public class CoreDeploymentExecutor {
         }
         return results;
     }
-
-    // ── Helpers ────────────────────────────────────────────────────────────────
 
     private String determineCoreType(String protocol) {
         return PROTOCOL_HYSTERIA2.equalsIgnoreCase(protocol) ? CORE_TYPE_HYSTERIA : CORE_TYPE_XRAY;
