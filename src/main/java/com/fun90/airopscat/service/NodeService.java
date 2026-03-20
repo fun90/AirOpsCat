@@ -2,15 +2,6 @@ package com.fun90.airopscat.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.dto.DefaultConfigDto;
-import com.fun90.airopscat.model.dto.xray.InboundConfig;
-import com.fun90.airopscat.model.dto.xray.setting.Sniffing;
-import com.fun90.airopscat.model.dto.xray.setting.StreamSetting;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.ShadowsocksInboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.SocksInboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.stream.Certificate;
-import com.fun90.airopscat.model.dto.xray.setting.stream.RealitySettings;
-import com.fun90.airopscat.model.dto.xray.setting.stream.TlsSettings;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.Tag;
@@ -19,7 +10,7 @@ import com.fun90.airopscat.model.enums.ProtocolType;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
-import com.fun90.airopscat.util.NativeRandomUtils;
+import com.fun90.airopscat.service.inbound.DefaultInboundService;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -28,9 +19,6 @@ import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -51,48 +39,8 @@ public class NodeService {
     @Inject
     ObjectMapper objectMapper;
 
-    private static final String[] DESTINATIONS = {"www.apple.com", "www.icloud.com", "www.amazon.com"};
-
-    /**
-     * Generate X25519 key pair using xray command
-     * @return array containing [privateKey, publicKey]
-     */
-    private String[] generateX25519Keys() {
-        try {
-            ProcessBuilder pb = new ProcessBuilder("xray", "x25519");
-            Process process = pb.start();
-            
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            List<String> output = new ArrayList<>();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.add(line);
-            }
-            
-            process.waitFor();
-            reader.close();
-            
-            // Expected output format:
-            // Private key: xxx
-            // Public key: xxx
-            String privateKey = "";
-            String publicKey = "";
-            
-            for (String outputLine : output) {
-                if (outputLine.startsWith("PrivateKey:")) {
-                    privateKey = outputLine.substring("PrivateKey:".length()).trim();
-                } else if (outputLine.startsWith("Password:")) {
-                    publicKey = outputLine.substring("Password:".length()).trim();
-                }
-            }
-            
-            return new String[]{privateKey, publicKey};
-        } catch (IOException | InterruptedException e) {
-            log.error("Failed to generate X25519 keys", e);
-            // Fallback to hardcoded keys if xray command fails
-            return new String[]{"ABR3X0eLYM_6CRHTFepn7GrpSHEFCYqzGFaZ6Uj1L0E", "_bhnIqIPO2m2ov5JY3BTroTVPpZk40Xbf6WLlRCxASw"};
-        }
-    }
+    @Inject
+    DefaultInboundService defaultInboundService;
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Node> getNodePage(String search, Long serverId, Integer type, Boolean disabled) {
         // Build query string
@@ -423,129 +371,7 @@ public class NodeService {
         return port;
     }
     
-    // 生成默认配置模板
-    public DefaultConfigDto<InboundConfig> generateDefaultInbound(String protocol) {
-        DefaultConfigDto<InboundConfig> dto = new DefaultConfigDto<>();
-        dto.setProtocol(protocol);
-        InboundConfig inbound = new InboundConfig();
-        dto.setConfig(inbound);
-        // 根据协议类型生成不同的默认配置
-        if ("vless".equalsIgnoreCase(protocol)) {
-            inbound.setProtocol("vless");
-
-            VlessInboundSetting setting = new VlessInboundSetting();
-            setting.setClients(Collections.emptyList());
-            setting.setDecryption("none");
-            VlessInboundSetting.VlessFallback fallback0 = new VlessInboundSetting.VlessFallback();
-            fallback0.setDest("7001");
-            fallback0.setXver(1);
-            VlessInboundSetting.VlessFallback fallback1 = new VlessInboundSetting.VlessFallback();
-            fallback1.setAlpn("h2");
-            fallback1.setDest("7002");
-            fallback1.setXver(1);
-            setting.setFallbacks(Stream.of(fallback0, fallback1).collect(Collectors.toList()));
-            inbound.setSettings(setting);
-
-            StreamSetting streamSetting = new StreamSetting();
-            streamSetting.setNetwork("tcp");
-            streamSetting.setSecurity("tls");
-
-            TlsSettings tlsSettings = new TlsSettings();
-            tlsSettings.setRejectUnknownSni(true);
-            tlsSettings.setMinVersion("1.2");
-            Certificate certificate = new Certificate();
-            certificate.setOcspStapling(3600);
-            certificate.setCertificateFile("/usr/local/etc/certs/xray.crt");
-            certificate.setKeyFile("/usr/local/etc/certs/xray.key");
-            tlsSettings.setCertificates(Collections.singletonList(certificate));
-            streamSetting.setTlsSettings(tlsSettings);
-            inbound.setStreamSettings(streamSetting);
-
-            Sniffing sniffing = new Sniffing();
-            sniffing.setEnabled(true);
-            sniffing.setDestOverride(Stream.of("http", "tls").collect(Collectors.toList()));
-            inbound.setSniffing(sniffing);
-        } else if("vless-reality".equalsIgnoreCase(protocol)) {
-            inbound.setProtocol("vless");
-
-            VlessInboundSetting setting = new VlessInboundSetting();
-            setting.setClients(Collections.emptyList());
-            setting.setDecryption("none");
-            inbound.setSettings(setting);
-            StreamSetting streamSetting = new StreamSetting();
-            streamSetting.setNetwork("tcp");
-            streamSetting.setSecurity("reality");
-            RealitySettings realitySettings = new RealitySettings();
-            realitySettings.setShow(false);
-
-            // Randomly select destination and server name
-            String selectedDest = NativeRandomUtils.randomChoice(DESTINATIONS);
-            realitySettings.setDest(selectedDest + ":443");
-            realitySettings.setServerNames(Collections.singletonList(selectedDest));
-
-            // Generate X25519 keys
-            String[] keys = generateX25519Keys();
-            realitySettings.setPrivateKey(keys[0]);
-            realitySettings.setPublicKey(keys[1]);
-
-            // Generate random short IDs
-            String shortId = NativeRandomUtils.generateRandomHexFast(16);
-            realitySettings.setShortIds(List.of(shortId));
-            streamSetting.setRealitySettings(realitySettings);
-            inbound.setStreamSettings(streamSetting);
-
-            Sniffing sniffing = new Sniffing();
-            sniffing.setEnabled(true);
-            sniffing.setDestOverride(Stream.of("http", "tls", "quic").collect(Collectors.toList()));
-            sniffing.setRouteOnly(true);
-            inbound.setSniffing(sniffing);
-        } else if ("shadowsocks".equalsIgnoreCase(protocol)) {
-            inbound.setProtocol("shadowsocks");
-
-            ShadowsocksInboundSetting shadowsocksInboundSetting = new ShadowsocksInboundSetting();
-            shadowsocksInboundSetting.setNetwork("tcp,udp");
-            shadowsocksInboundSetting.setMethod("aes-256-gcm");
-            shadowsocksInboundSetting.setPassword(generateRandomPassword(20));
-            shadowsocksInboundSetting.setEmail(generateRandomPassword(8));
-            shadowsocksInboundSetting.setLevel(0);
-            inbound.setSettings(shadowsocksInboundSetting);
-        } else if ("socks".equalsIgnoreCase(protocol)) {
-            inbound.setProtocol("socks");
-
-            SocksInboundSetting socksInboundSetting = new SocksInboundSetting();
-            socksInboundSetting.setAuth("password");
-
-            // Create SOCKS account with random user and password
-            SocksInboundSetting.SocksAccount account = new SocksInboundSetting.SocksAccount();
-            account.setUser(NativeRandomUtils.generateRandomHexFast(12));
-            account.setPass(generateRandomPassword(20));
-
-            socksInboundSetting.setAccounts(List.of(account));
-            socksInboundSetting.setUdp(true);
-            socksInboundSetting.setIp("127.0.0.1");
-
-            inbound.setSettings(socksInboundSetting);
-        } else if ("hysteria2".equalsIgnoreCase(protocol)) {
-            inbound.setProtocol("hysteria2");
-            // TODO: Implement Hysteria2 configuration generation
-        } else if ("shadowtls".equalsIgnoreCase(protocol)) {
-            inbound.setProtocol("shadowtls");
-            // TODO: Implement ShadowTLS configuration generation
-        }
-
-        return dto;
-    }
-    
-    // 生成随机密码
-    private String generateRandomPassword(int length) {
-        String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        StringBuilder password = new StringBuilder();
-        Random random = new Random();
-        
-        for (int i = 0; i < length; i++) {
-            password.append(characters.charAt(random.nextInt(characters.length())));
-        }
-        
-        return password.toString();
+    public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, String coreType) {
+        return defaultInboundService.generateDefaultInbound(coreType, protocol);
     }
 }

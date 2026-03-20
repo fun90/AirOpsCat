@@ -238,7 +238,8 @@ const nodeTable = new DataTable({
         // Protocol related methods
         onProtocolChange() {
             // 获取默认配置
-            fetch(`/api/admin/nodes/default-inbound?protocol=${this.newItem.protocol}`)
+            const coreType = this.getDefaultInboundCoreType(this.newItem);
+            fetch(`/api/admin/nodes/default-inbound?protocol=${this.newItem.protocol}&coreType=${encodeURIComponent(coreType)}`)
                 .then(response => response.json())
                 .then(data => {
                     this.newNodeInbound = data.config;
@@ -251,7 +252,8 @@ const nodeTable = new DataTable({
 
         onEditProtocolChange() {
             // 获取默认配置
-            fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedItem.protocol}`)
+            const coreType = this.getDefaultInboundCoreType(this.editedItem);
+            fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedItem.protocol}&coreType=${encodeURIComponent(coreType)}`)
                 .then(response => response.json())
                 .then(data => {
                     this.editedNodeInbound = data.config;
@@ -260,6 +262,10 @@ const nodeTable = new DataTable({
                 .catch(error => {
                     console.error('Error getting default inbound config:', error);
                 });
+        },
+
+        getDefaultInboundCoreType(item) {
+            return item && item.coreType ? item.coreType : 'xray';
         },
 
         // Generator methods

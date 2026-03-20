@@ -132,8 +132,9 @@ public class NodeController {
     
     @GET
     @Path("/default-inbound")
-    public Response getDefaultInbound(@QueryParam("protocol") String protocol) {
-        return Response.ok(nodeService.generateDefaultInbound(protocol)).build();
+    public Response getDefaultInbound(@QueryParam("protocol") String protocol,
+                                      @QueryParam("coreType") @DefaultValue("xray") String coreType) {
+        return Response.ok(nodeService.generateDefaultInbound(protocol, coreType)).build();
     }
     
     @GET
