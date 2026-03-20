@@ -1,8 +1,11 @@
 package com.fun90.airopscat.model.enums;
 
+import lombok.Getter;
+
 /**
  * 内核管理操作类型
  */
+@Getter
 public enum CoreOperation {
     START("start", "启动"),
     STOP("stop", "停止"),
@@ -25,15 +28,7 @@ public enum CoreOperation {
         this.code = code;
         this.description = description;
     }
-    
-    public String getCode() {
-        return code;
-    }
-    
-    public String getDescription() {
-        return description;
-    }
-    
+
     public static CoreOperation fromCode(String code) {
         for (CoreOperation operation : values()) {
             if (operation.code.equals(code)) {

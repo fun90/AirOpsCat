@@ -1,5 +1,8 @@
 package com.fun90.airopscat.model.enums;
 
+import lombok.Getter;
+
+@Getter
 public enum ServerAuthType {
     PASSWORD("密码"),
     KEY("密钥");
@@ -9,11 +12,7 @@ public enum ServerAuthType {
     ServerAuthType(String description) {
         this.description = description;
     }
-    
-    public String getDescription() {
-        return description;
-    }
-    
+
     public static ServerAuthType fromString(String text) {
         for (ServerAuthType type : ServerAuthType.values()) {
             if (type.name().equalsIgnoreCase(text)) {

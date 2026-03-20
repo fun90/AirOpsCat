@@ -2,7 +2,6 @@ package com.fun90.airopscat.config;
 
 import com.fun90.airopscat.model.dto.ApiResponseDto;
 import com.fun90.airopscat.model.dto.BarkNotificationDto;
-import com.fun90.airopscat.model.enums.XrayProtocolType;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 
 /**
@@ -11,7 +10,6 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
  */
 @RegisterForReflection(targets = {
     // Enum Classes
-    XrayProtocolType.class,
     com.fun90.airopscat.model.enums.PeriodType.class,
     com.fun90.airopscat.model.enums.ProtocolType.class,
     com.fun90.airopscat.model.enums.NodeType.class,

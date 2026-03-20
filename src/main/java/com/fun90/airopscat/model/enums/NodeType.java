@@ -1,5 +1,8 @@
 package com.fun90.airopscat.model.enums;
 
+import lombok.Getter;
+
+@Getter
 public enum NodeType {
     PROXY(0, "代理"),
     LANDING(1, "落地");
@@ -11,15 +14,7 @@ public enum NodeType {
         this.value = value;
         this.description = description;
     }
-    
-    public int getValue() {
-        return value;
-    }
-    
-    public String getDescription() {
-        return description;
-    }
-    
+
     public static NodeType fromValue(Integer value) {
         if (value == null) {
             return null;

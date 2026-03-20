@@ -1,5 +1,8 @@
 package com.fun90.airopscat.model.enums;
 
+import lombok.Getter;
+
+@Getter
 public enum ProtocolType {
     VLESS("VLESS", "vless", 0),
     VLESS_REALITY("VLESS-REALITY", "vless-reality", 0),
@@ -17,17 +20,7 @@ public enum ProtocolType {
         this.value = value;
         this.type = type;
     }
-    
-    public String getValue() {
-        return value;
-    }
 
-    public String getLabel() {
-        return label;
-    }
-
-    public Integer getType() { return this.type; }
-    
     public static ProtocolType fromString(String text) {
         for (ProtocolType type : ProtocolType.values()) {
             if (type.value.equalsIgnoreCase(text)) {

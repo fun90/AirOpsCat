@@ -1,5 +1,8 @@
 package com.fun90.airopscat.model.enums;
 
+import lombok.Getter;
+
+@Getter
 public enum TransactionType {
     INCOME(0, "收入"),
     EXPENSE(1, "支出");
@@ -11,15 +14,7 @@ public enum TransactionType {
         this.value = value;
         this.description = description;
     }
-    
-    public int getValue() {
-        return value;
-    }
-    
-    public String getDescription() {
-        return description;
-    }
-    
+
     public static TransactionType fromValue(Integer value) {
         if (value == null) {
             return null;

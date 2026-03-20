@@ -1,5 +1,8 @@
 package com.fun90.airopscat.model.enums;
 
+import lombok.Getter;
+
+@Getter
 public enum CoreType {
     XRAY("xray", "xray"),
 
@@ -16,11 +19,4 @@ public enum CoreType {
         this.name = name;
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public String getValue() {
-        return value;
-    }
 }

@@ -1,7 +1,10 @@
 package com.fun90.airopscat.model.enums;
 
+import lombok.Getter;
+
 import java.util.Objects;
 
+@Getter
 public enum PaymentMethod {
     WeChat("WeChat", "微信"),
     AliPay("AliPay", "支付宝"),
@@ -14,15 +17,7 @@ public enum PaymentMethod {
         this.value = value;
         this.description = description;
     }
-    
-    public String getValue() {
-        return value;
-    }
-    
-    public String getDescription() {
-        return description;
-    }
-    
+
     public static PaymentMethod fromValue(String value) {
         if (value == null) {
             return null;
