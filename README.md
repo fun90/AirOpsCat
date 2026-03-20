@@ -1,293 +1,218 @@
-# AirOpsCat 🐱💨
+# AirOpsCat
 
-一个轻量、灵活、高效的服务器管理系统，保持敏捷，掌控一切。
+AirOpsCat is a lightweight server and proxy management system built with Quarkus and Java 21. It provides user management, server management, node deployment, subscription generation, scheduled tasks, and notification support for proxy service providers.
 
-[![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.java.net/projects/jdk/21/)
-[![Quarkus](https://img.shields.io/badge/Quarkus-3.24.3-brightgreen.svg)](https://quarkus.io/)
+[![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
+[![Quarkus](https://img.shields.io/badge/Quarkus-3.24.4-brightgreen.svg)](https://quarkus.io/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/Build-Passing-success.svg)](https://github.com/fun90/AirOpsCat)
 
-## 📖 项目简介
+![PC Preview](./docs/pc-preview-1.png)
 
-AirOpsCat 是一个基于 Quarkus 3.24.3 构建的现代化服务器管理系统，专为代理服务提供商设计。通过 GraalVM Native Image 技术实现超快启动时间和低内存占用，提供完整的用户管理、服务器管理、节点配置、流量统计和订阅服务等功能。
+## Overview
 
-预览
-![PC端](./docs/pc-preview-1.png)
+- Backend: Quarkus 3.24.4, Java 21
+- Database: MySQL with Hibernate ORM and Panache
+- Template engine: Qute
+- Security: Quarkus Security with form login and role-based access control
+- Remote operations: JSch-based SSH integration
+- Packaging: Fast JAR and GraalVM native image
 
-### 🎯 设计理念
-- **简单小巧**: 轻量级架构，快速部署
-- **扩展性强**: 模块化设计，易于定制
-- **高效稳定**: 基于 Quarkus 3.24.3 和 Java 21
-- **用户友好**: 现代化 Web 界面，响应式设计
-- **云原生**: 支持 Native Image，超快启动时间（< 0.2秒）
+## Main Capabilities
 
-## ✨ 功能列表
+- User and role management for `ADMIN`, `PARTNER`, and `VIP`
+- Account lifecycle management with traffic statistics and expiration handling
+- Server management through SSH
+- Node and inbound management for VLESS, Shadowsocks, and SOCKS
+- Subscription generation for client distribution
+- Scheduled jobs for traffic collection, cleanup, backup, and notifications
+- Bark integration for push notifications
 
-| 功能模块 | 主要特性 | 说明 |
-|---------|---------|------|
-| 👥 **用户管理** | 多角色权限控制、用户认证、面板自助服务 | 支持管理员、合作伙伴、VIP用户三种角色 |
-| 💰 **账户管理** | 生命周期管理、流量统计、在线IP监控 | 流量配额管理、认证码生成、使用统计 |
-| 🖥️ **服务器管理** | SSH连接、配置模板、自动化部署 | 服务器信息管理和远程操作 |
-| 🌐 **节点管理** | 多协议支持、部署配置、状态监控 | 支持VLESS、Shadowsocks、SOCKS协议 |
-| 📱 **订阅服务** | 多平台支持、动态配置、实时更新 | 适配各主流客户端的订阅生成 |
-| 📊 **数据统计** | 流量统计、用户监控、财务记录 | 详细的使用数据分析和报表 |
-| 🔔 **通知服务** | Bark推送、系统告警、用户通知 | 实时消息推送和状态提醒 |
+## Project Structure
 
-## 🛠️ 技术栈
-
-### 后端技术
-- **框架**: Quarkus 3.24.3
-- **语言**: Java 21
-- **数据库**: MySQL + JPA/Hibernate
-- **安全**: Quarkus Security + JPA Security
-- **模板引擎**: Qute
-- **构建工具**: Maven + GraalVM Native Image
-
-### 前端技术
-- **UI框架**: Tabler UI 1.3.2
-- **响应式**: petite-vue 0.4.1
-- **样式**: Bootstrap 5 + CSS3
-- **图标**: Tabler Icons
-
-## 🚀 快速开始
-
-### 默认用户密码
-admin@airopscat.com
-
-admin123
-
-### 环境要求
-- **运行环境**: 
-  - 方式一：Java 21 或更高版本（JAR 运行）
-  - 方式二：无需 Java 环境（Native Image 运行）
-- **构建环境**（仅开发时需要）:
-  - GraalVM 21.0.6+ （Native Image 构建）
-  - Maven 3.6+ 或使用项目内置的 Maven Wrapper
-
-### 方式一：下载预构建版本（推荐）
-
-从 [GitHub Releases](https://github.com/fun90/AirOpsCat/releases) 下载对应平台的 native 可执行文件：
-
-```bash
-# 下载并运行 Linux 版本
-wget https://github.com/fun90/AirOpsCat/releases/latest/download/airopscat-linux-amd64
-chmod +x airopscat-linux-amd64
-
-# 直接运行（使用内置配置）
-./airopscat-linux-amd64
-
-# 使用外部配置文件运行（推荐）
-./airopscat-linux-amd64 -Dquarkus.config.locations=./application.properties
+```text
+src/main/java/com/fun90/airopscat
++-- config        Application bootstrap and runtime configuration
++-- controller    Web pages and REST endpoints
++-- model         Entities, DTOs, enums, and view objects
++-- repository    Panache repositories
++-- security      Authentication and authorization helpers
++-- service       Business logic, deployment, SSH, and protocol strategies
++-- util          Shared utilities
 ```
 
-**Native Image 优势**:
-- **极快启动**: < 0.2 秒启动时间
-- **低内存占用**: 相比 JVM 减少 70%+ 内存使用
-- **无需 Java 环境**: 可独立运行
-- **文件大小**: 约 128MB 单文件可执行程序
+Important entrypoints:
 
-### 方式二：开发模式运行
+- Main application: `src/main/java/com/fun90/airopscat/AirOpsCatApplication.java`
+- Home/dashboard controller: `src/main/java/com/fun90/airopscat/controller/HomeController.java`
+- Startup data initialization: `src/main/java/com/fun90/airopscat/config/DataInitializationConfig.java`
+- Runtime configuration: `src/main/resources/application.properties`
+
+## Requirements
+
+### Runtime
+
+- Java 21 or newer for JAR mode
+- MySQL 8.x or compatible MySQL service
+
+### Build
+
+- GraalVM with `native-image` installed if you want to build the native executable
+- Maven is optional because the project includes Maven Wrapper
+
+## Quick Start
+
+### 1. Configure the database
+
+The app reads database settings from environment variables by default:
+
+```properties
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=airopscat
+DB_USERNAME=root
+DB_PASSWORD=123456
+```
+
+You can also override Quarkus properties directly with an external `application.properties`.
+
+### 2. Run in development mode
+
+Windows:
+
+```powershell
+.\mvnw.cmd quarkus:dev
+```
+
+Linux/macOS:
 
 ```bash
-# 克隆项目
-git clone https://github.com/fun90/AirOpsCat.git
-cd AirOpsCat
-
-# 开发模式运行（支持热重载）
 ./mvnw quarkus:dev
-
-# 访问开发控制台
-# http://localhost:8080/q/dev
 ```
 
-### 方式三：标准 JAR 构建
+The dev console is available at [http://localhost:8080/q/dev](http://localhost:8080/q/dev).
+
+### 3. Build and run the application
+
+Windows:
+
+```powershell
+.\mvnw.cmd clean package
+java -jar target/quarkus-app/quarkus-run.jar
+```
+
+Linux/macOS:
 
 ```bash
-# 构建项目
 ./mvnw clean package
-
-# 运行应用
 java -jar target/quarkus-app/quarkus-run.jar
+```
 
-# 使用外部配置文件运行
+### 4. Run with external configuration
+
+```bash
 java -Dquarkus.config.locations=./application.properties -jar target/quarkus-app/quarkus-run.jar
 ```
 
-### 方式四：Native Image 构建
+## Native Build
 
-需要安装 [GraalVM 21](https://www.graalvm.org/downloads/) 和 Native Image：
+Build the native executable with GraalVM:
+
+Windows:
+
+```powershell
+.\mvnw.cmd package -Pnative -DskipTests
+```
+
+Linux/macOS:
 
 ```bash
-# 安装 GraalVM Native Image 组件
-gu install native-image
-
-# 构建 native 可执行文件（需要 8GB+ 内存，约 4 分钟）
-./mvnw package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
-
-# 运行（< 0.2s 启动时间）
-./target/airopscat-linux-amd64
+./mvnw package -Pnative -DskipTests
 ```
 
-## ⚙️ 配置说明
+The native profile also includes additional image build arguments from `pom.xml`.
 
-### 基础配置
+## Tests
 
-应用支持内置配置和外部配置文件两种方式。外部配置文件优先级更高，推荐在生产环境使用。
+Run tests with Maven Wrapper:
 
-外部 `application.properties` 文件（通过 `-Dquarkus.config.locations` 指定）
+Windows:
 
-## 🚀 部署指南
+```powershell
+.\mvnw.cmd test
+```
 
-### Native Image 部署（推荐）
+Linux/macOS:
 
 ```bash
-# 下载并部署 Native Image
-wget https://github.com/fun90/AirOpsCat/releases/latest/download/airopscat-linux-amd64
-chmod +x airopscat-linux-amd64
-
-# 创建外部配置文件
-cat > application.properties << EOF
-quarkus.http.port=8080
-quarkus.datasource.username=airopscat
-quarkus.datasource.password=change-me
-quarkus.datasource.jdbc.url=jdbc:mysql://127.0.0.1:3306/airopscat?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-airopscat.crypto.secret-key=your-production-secret-key
-airopscat.subscription.url=https://your-domain.com/subscribe
-airopscat.bark.url=https://api.day.app
-airopscat.bark.device-key=your-device-key
-EOF
-
-# 启动应用
-./airopscat-linux-amd64 -Dquarkus.config.locations=./application.properties
+./mvnw test
 ```
 
-### 系统服务部署
+Current test coverage is still light. At the time of writing, the repository includes:
 
-#### Systemd 服务
+- `src/test/java/com/fun90/airopscat/service/deployment/CoreConfigBuilderTest.java`
+- `src/test/java/com/fun90/airopscat/service/ssh/pool/SshPoolServiceTest.java`
+
+## Default Seed Data
+
+On startup, if no `ADMIN` user exists, the application seeds default users:
+
+- `admin@airopscat.com` / `admin123`
+- `partner@airopscat.com` / `partner123`
+- `vip@airopscat.com` / `vip123`
+
+These defaults come from `DataInitializationConfig.java` and should be changed immediately in any non-local environment.
+
+## Configuration Notes
+
+The main application configuration lives in `src/main/resources/application.properties`.
+
+Notable defaults in the current codebase:
+
+- HTTP host: `127.0.0.1`
+- HTTP port: `8080`
+- Database kind: `mysql`
+- Schema management: `update`
+- Form login is enabled
+- CORS is enabled
+- Subscription base URL default: `http://localhost:8080/subscribe`
+
+Custom application properties use the `airopscat.*` namespace, including:
+
+- `airopscat.crypto.secret-key`
+- `airopscat.subscription.url`
+- `airopscat.bark.url`
+- `airopscat.backup.*`
+- `airopscat.install.remote-work-dir`
+
+## Deployment Notes
+
+- The repository includes Docker-related files under `src/main/docker`.
+- Assembly and install assets live under `src/main/assembly` and `src/main/resources/config/install`.
+- The application contains scheduled jobs for backup, cleanup, traffic collection, account expiration handling, and notifications. Be careful when changing related services because those changes can affect background processing as well as request handling.
+
+## Security Warning
+
+The current repository contains development-friendly defaults in versioned files, including database credentials, seed credentials, and other secret-like values. Treat them as local defaults only and override them in real environments through external configuration or environment variables.
+
+## Contributing
+
+Typical workflow:
 
 ```bash
-# 创建应用目录
-sudo mkdir -p /opt/airopscat
-sudo cp airopscat-linux-amd64 /opt/airopscat/
-sudo cp application.properties /opt/airopscat/
-sudo chmod +x /opt/airopscat/airopscat-linux-amd64
-
-# 创建 systemd 服务文件
-sudo tee /etc/systemd/system/airopscat.service > /dev/null << EOF
-[Unit]
-Description=AirOpsCat Server Management System
-After=network.target
-
-[Service]
-Type=exec
-User=airopscat
-Group=airopscat
-WorkingDirectory=/opt/airopscat
-ExecStart=/opt/airopscat/airopscat-linux-amd64 -Dquarkus.config.locations=/opt/airopscat/application.properties -Duser.timezone=Asia/Shanghai
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# 创建用户和启动服务
-sudo useradd -r -s /bin/false airopscat
-sudo chown -R airopscat:airopscat /opt/airopscat
-sudo systemctl daemon-reload
-sudo systemctl enable airopscat
-sudo systemctl start airopscat
+git checkout -b feature/your-change
+git commit -m "feat: describe your change"
+git push origin feature/your-change
 ```
 
-### 反向代理配置
+Recommended commit prefixes:
 
-#### Nginx 配置示例
+- `feat`
+- `fix`
+- `docs`
+- `refactor`
+- `test`
+- `chore`
 
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-    
-    location / {
-        proxy_pass http://localhost:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
+## License
 
-## 🤝 贡献指南
-
-我们欢迎所有形式的贡献！
-
-### 开发环境搭建
-
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建 Pull Request
-
-### 代码规范
-
-- 遵循 Java 编码规范
-- 使用 Lombok 简化代码
-- 添加适当的注释
-- 编写单元测试
-
-### 提交规范
-
-```
-feat: 新功能
-fix: 修复bug
-docs: 文档更新
-style: 代码格式调整
-refactor: 代码重构
-test: 测试相关
-chore: 构建过程或辅助工具的变动
-```
-
-# 版本规划
-- [ ] **v2.2.0 UI**
-  - [ ] 列表调整：隐藏ID等
-  - [ ] 简洁统计
-  - [ ] badge背景调整
-
-- [ ] **v2.2.1 UI**
-  - [ ] 登录页重新设计
-
-- [ ] **v3.0.0 重构**
-  - [ ] 清理API接口
-  - [ ] 清理Java代码
-  - [ ] 去除无用字段：服务器配置信息字段
-  - [ ] 简化优化代码
-  - [ ] 调整目录结构
-
-- [ ] **v3.0.1**
-  - [ ] 接口层返回参数只使用Dto
-  - [ ] 减少编译文件大小：简化JsonReflectionConfiguration
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-## 🙏 致谢
-
-- [Quarkus](https://quarkus.io/) - 云原生 Java 框架
-- [GraalVM](https://www.graalvm.org/) - Native Image 支持
-- [Tabler UI](https://tabler.io/) - 现代化的UI组件库
-- [petite-vue](https://github.com/vuejs/petite-vue) - 轻量级Vue.js
-- [Qute](https://quarkus.io/guides/qute) - 现代化模板引擎
-- [Hibernate ORM](https://hibernate.org/orm/) - 对象关系映射框架
-
-## 📞 联系我们
-
-- **项目地址**: [https://github.com/fun90/AirOpsCat](https://github.com/fun90/AirOpsCat)
-- **问题反馈**: [Issues](https://github.com/fun90/AirOpsCat/issues)
-- **讨论交流**: [Discussions](https://github.com/fun90/AirOpsCat/discussions)
-
----
-
-⭐ 如果这个项目对您有帮助，请给我们一个星标！
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
