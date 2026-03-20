@@ -124,7 +124,7 @@ public class XrayDefaultInboundStrategy implements DefaultInboundStrategy {
                 String normalizedLine = line.trim();
                 if (normalizedLine.startsWith("Private key:") || normalizedLine.startsWith("PrivateKey:")) {
                     privateKey = normalizedLine.substring(normalizedLine.indexOf(':') + 1).trim();
-                } else if (normalizedLine.startsWith("Public key:") || normalizedLine.startsWith("PublicKey:")) {
+                } else if (normalizedLine.startsWith("Public key:") || normalizedLine.startsWith("Password:")) {
                     publicKey = normalizedLine.substring(normalizedLine.indexOf(':') + 1).trim();
                 }
             }
