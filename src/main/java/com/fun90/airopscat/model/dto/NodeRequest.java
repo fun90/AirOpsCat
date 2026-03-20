@@ -12,6 +12,7 @@ public class NodeRequest {
     private Long backupServerId;
     private Integer port;
     private String protocol;
+    private String coreType;
     private Integer type;
     private Map<String, Object> inbound;
     private Long outId;

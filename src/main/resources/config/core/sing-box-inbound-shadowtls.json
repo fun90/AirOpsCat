@@ -1,0 +1,15 @@
+{
+  "type": "shadowtls",
+  "version": 3,
+  "users": [
+    {
+      "name": "default",
+      "password": "{password}"
+    }
+  ],
+  "handshake": {
+    "server": "{serverName}",
+    "server_port": 443
+  },
+  "strict_mode": false
+}

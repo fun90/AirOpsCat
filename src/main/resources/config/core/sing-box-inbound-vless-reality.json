@@ -1,0 +1,29 @@
+{
+  "type": "vless",
+  "users": [
+    {
+      "name": "default",
+      "uuid": "{uuid}",
+      "flow": "xtls-rprx-vision"
+    }
+  ],
+  "tls": {
+    "enabled": true,
+    "server_name": "{serverName}",
+    "reality": {
+      "enabled": true,
+      "handshake": {
+        "server": "{serverName}",
+        "server_port": 443
+      },
+      "private_key": "{privateKey}",
+      "public_key": "{publicKey}",
+      "short_id": [
+        "{shortId}"
+      ]
+    }
+  },
+  "transport": {
+    "type": "tcp"
+  }
+}

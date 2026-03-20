@@ -19,4 +19,16 @@ public enum CoreType {
         this.name = name;
     }
 
+    public static CoreType fromValue(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        for (CoreType type : CoreType.values()) {
+            if (type.value.equalsIgnoreCase(value.trim())) {
+                return type;
+            }
+        }
+        return null;
+    }
+
 }

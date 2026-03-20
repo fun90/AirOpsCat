@@ -1,0 +1,9 @@
+{
+  "type": "socks",
+  "users": [
+    {
+      "username": "{username}",
+      "password": "{password}"
+    }
+  ]
+}

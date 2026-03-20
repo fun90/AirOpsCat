@@ -29,6 +29,9 @@ public class Node {
 
     // 代理协议：VLESS、Hysteria2、Socks、Shadowsocks、ShadowTLS
     private String protocol;
+
+    @Column(name = "core_type")
+    private String coreType;
     
     private Integer type; // 0:代理，1:落地
 

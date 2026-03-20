@@ -1,16 +1,17 @@
 package com.fun90.airopscat.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.dto.DefaultConfigDto;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.Tag;
+import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.ProtocolType;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
-import com.fun90.airopscat.service.inbound.DefaultInboundService;
+import com.fun90.airopscat.service.inbound.registry.DefaultInboundStrategyRegistry;
+import com.fun90.airopscat.service.inbound.strategy.DefaultInboundStrategy;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -21,7 +22,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @ApplicationScoped
 public class NodeService {
@@ -35,12 +35,9 @@ public class NodeService {
 
     @Inject
     TagRepository tagRepository;
-    
-    @Inject
-    ObjectMapper objectMapper;
 
     @Inject
-    DefaultInboundService defaultInboundService;
+    DefaultInboundStrategyRegistry strategyRegistry;
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Node> getNodePage(String search, Long serverId, Integer type, Boolean disabled) {
         // Build query string
@@ -172,6 +169,35 @@ public class NodeService {
         }
     }
 
+    private void normalizeAndValidateNodeProtocol(Node node) {
+        String coreType = node.getCoreType();
+        if (coreType == null || coreType.trim().isEmpty()) {
+            coreType = CoreType.XRAY.getValue();
+            node.setCoreType(coreType);
+        }
+
+        CoreType parsedCoreType = CoreType.fromValue(coreType);
+        if (parsedCoreType == null || parsedCoreType == CoreType.HYSTERIA2) {
+            throw new IllegalArgumentException("Unsupported core type: " + coreType);
+        }
+
+        if (node.getType() == null) {
+            throw new IllegalArgumentException("Node type cannot be empty");
+        }
+
+        if (node.getProtocol() == null || node.getProtocol().trim().isEmpty()) {
+            throw new IllegalArgumentException("Protocol cannot be empty");
+        }
+
+        if (!ProtocolType.isSupported(node.getProtocol(), node.getType(), node.getCoreType())) {
+            String supportedProtocols = ProtocolType.getSupportedProtocols(node.getType(), node.getCoreType()).stream()
+                    .map(ProtocolType::getLabel)
+                    .collect(Collectors.joining(", "));
+            throw new IllegalArgumentException("Protocol " + node.getProtocol() + " is not supported for node type "
+                    + node.getType() + " and core type " + node.getCoreType() + ". Supported protocols: " + supportedProtocols);
+        }
+    }
+
     @Transactional
     public Node saveNode(Node node) {
         // 设置默认值（如果未提供）
@@ -181,6 +207,7 @@ public class NodeService {
         
         // 验证服务器和端口
         validateNodeServersAndPorts(node);
+        normalizeAndValidateNodeProtocol(node);
         
         nodeRepository.persist(node);
         return node;
@@ -195,6 +222,7 @@ public class NodeService {
 
         // 验证服务器和端口
         validateNodeServersAndPorts(node);
+        normalizeAndValidateNodeProtocol(node);
 
         // 检查节点是否有实质性变更
         boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node, tagSet);
@@ -243,6 +271,12 @@ public class NodeService {
 
         // 检查类型变更
         if (newNode.getType() != null && !newNode.getType().equals(oldNode.getType())) {
+            return true;
+        }
+
+        String newCoreType = newNode.getCoreType() != null ? newNode.getCoreType() : CoreType.XRAY.getValue();
+        String oldCoreType = oldNode.getCoreType() != null ? oldNode.getCoreType() : CoreType.XRAY.getValue();
+        if (!newCoreType.equals(oldCoreType)) {
             return true;
         }
 
@@ -298,6 +332,7 @@ public class NodeService {
         if (src.getType() != null) target.setType(src.getType());
         if (src.getPort() != null) target.setPort(src.getPort());
         if (src.getProtocol() != null) target.setProtocol(src.getProtocol());
+        if (src.getCoreType() != null) target.setCoreType(src.getCoreType());
         if (src.getInbound() != null) target.setInbound(src.getInbound());
         if (src.getRule() != null) target.setRule(src.getRule());
         if (src.getLevel() != null) target.setLevel(src.getLevel());
@@ -347,6 +382,19 @@ public class NodeService {
                     option.put("value", type.getValue());
                     option.put("label", type.getLabel());
                     option.put("type", type.getType());
+                    option.put("coreTypes", type.getCoreTypes());
+                    return option;
+                })
+                .collect(Collectors.toList());
+    }
+
+    public List<Map<String, Object>> getNodeCoreTypeOptions() {
+        return Arrays.stream(CoreType.values())
+                .filter(type -> type == CoreType.XRAY || type == CoreType.SING_BOX)
+                .map(type -> {
+                    Map<String, Object> option = new HashMap<>();
+                    option.put("value", type.getValue());
+                    option.put("label", type.getName());
                     return option;
                 })
                 .collect(Collectors.toList());
@@ -372,6 +420,8 @@ public class NodeService {
     }
     
     public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, String coreType) {
-        return defaultInboundService.generateDefaultInbound(coreType, protocol);
+        String normalizedCoreType = (coreType == null || coreType.trim().isEmpty()) ? CoreType.XRAY.getValue() : coreType;
+        DefaultInboundStrategy strategy = strategyRegistry.getStrategy(normalizedCoreType);
+        return strategy.generateDefaultInbound(protocol);
     }
 }

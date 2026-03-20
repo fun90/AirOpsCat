@@ -21,6 +21,7 @@ public class NodeDto {
     private String backupServerHost;
     private Integer port;
     private String protocol;
+    private String coreType;
     private Integer type;
     private String typeDescription;
     private Map<String, Object> inbound = new HashMap<>();

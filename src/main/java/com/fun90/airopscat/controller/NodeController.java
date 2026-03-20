@@ -111,6 +111,12 @@ public class NodeController {
     }
     
     @GET
+    @Path("/core-types")
+    public Response getNodeCoreTypes() {
+        return Response.ok(nodeService.getNodeCoreTypeOptions()).build();
+    }
+
+    @GET
     @Path("/protocols")
     public Response getProtocolTypes() {
         return Response.ok(nodeService.getProtocolTypeOptions()).build();

@@ -1,0 +1,20 @@
+{
+  "type": "hysteria2",
+  "users": [
+    {
+      "name": "default",
+      "password": "{password}"
+    }
+  ],
+  "up_mbps": 100,
+  "down_mbps": 100,
+  "tls": {
+    "enabled": true,
+    "server_name": "{serverName}",
+    "alpn": [
+      "h3"
+    ],
+    "certificate_path": "/usr/local/etc/certs/fullchain.cer",
+    "key_path": "/usr/local/etc/certs/private.key"
+  }
+}

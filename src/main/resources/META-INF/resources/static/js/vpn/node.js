@@ -14,6 +14,7 @@ const nodeTable = new DataTable({
         servers: [],
         landingNodes: [],
         nodeTypes: [],
+        coreTypes: [],
         protocolTypes: [],
         availableTags: [],
         stats: {
@@ -27,8 +28,9 @@ const nodeTable = new DataTable({
             serverId: '',
             backupServerId: '',
             port: null,
+            coreType: 'xray',
             protocol: 'vless',
-            type: 0, // 默认为代理节点
+            type: 0, // 默认为代理节�?
             level: 0,
             disabled: false,
             name: '',
@@ -64,6 +66,7 @@ const nodeTable = new DataTable({
             this.fetchServers();
             this.fetchLandingNodes();
             this.fetchNodeTypes();
+            this.fetchCoreTypes();
             this.fetchProtocolTypes();
             this.fetchAvailableTags();
         },
@@ -107,6 +110,17 @@ const nodeTable = new DataTable({
                 });
         },
 
+        fetchCoreTypes() {
+            fetch('/api/admin/nodes/core-types')
+                .then(response => response.json())
+                .then(data => {
+                    this.coreTypes = data;
+                })
+                .catch(error => {
+                    console.error('Error fetching core types:', error);
+                });
+        },
+
         fetchProtocolTypes() {
             fetch('/api/admin/nodes/protocols')
                 .then(response => response.json())
@@ -146,6 +160,22 @@ const nodeTable = new DataTable({
             if (this.newItem.type === 1) {
                 this.newItem.outId = null;
             }
+            this.syncProtocolSelection(this.newItem, false);
+        },
+
+        onCoreTypeChange() {
+            this.syncProtocolSelection(this.newItem, false);
+        },
+
+        onEditTypeChange() {
+            if (this.editedItem.type === 1) {
+                this.editedItem.outId = 0;
+            }
+            this.syncProtocolSelection(this.editedItem, true);
+        },
+
+        onEditCoreTypeChange() {
+            this.syncProtocolSelection(this.editedItem, true);
         },
 
         // Server and port related methods
@@ -174,7 +204,7 @@ const nodeTable = new DataTable({
                 })
                 .catch(error => {
                     console.error('Error checking port:', error);
-                    this.portCheckMessage = '检查端口失败';
+                    this.portCheckMessage = '检查端口失�?;
                 });
         },
 
@@ -195,13 +225,13 @@ const nodeTable = new DataTable({
                 })
                 .catch(error => {
                     console.error('Error checking port:', error);
-                    this.editPortCheckMessage = '检查端口失败';
+                    this.editPortCheckMessage = '检查端口失�?;
                 });
         },
 
         getAvailablePort() {
             if (!this.newItem.serverId) {
-                ToastUtils.show('Warning', '请先选择服务器', 'warning');
+                ToastUtils.show('Warning', '请先选择服务�?, 'warning');
                 return;
             }
 
@@ -219,7 +249,7 @@ const nodeTable = new DataTable({
 
         getEditAvailablePort() {
             if (!this.editedItem.serverId) {
-                ToastUtils.show('Warning', '请先选择服务器', 'warning');
+                ToastUtils.show('Warning', '请先选择服务�?, 'warning');
                 return;
             }
 
@@ -268,6 +298,44 @@ const nodeTable = new DataTable({
             return item && item.coreType ? item.coreType : 'xray';
         },
 
+        getAvailableProtocols(item) {
+            const coreType = this.getDefaultInboundCoreType(item);
+            return this.protocolTypes.filter(protocol => {
+                const matchedType = protocol.type === item.type;
+                const matchedCore = !protocol.coreTypes || protocol.coreTypes.includes(coreType);
+                return matchedType && matchedCore;
+            });
+        },
+
+        syncProtocolSelection(item, isEdit) {
+            if (!item) {
+                return;
+            }
+
+            const protocols = this.getAvailableProtocols(item);
+            if (protocols.length === 0) {
+                item.protocol = '';
+                if (isEdit) {
+                    this.editedNodeInbound = {};
+                    this.editedNodeInboundJson = '{}';
+                } else {
+                    this.newNodeInbound = {};
+                    this.newNodeInboundJson = '{}';
+                }
+                return;
+            }
+
+            if (!protocols.some(protocol => protocol.value === item.protocol)) {
+                item.protocol = protocols[0].value;
+            }
+
+            if (isEdit) {
+                this.onEditProtocolChange();
+            } else {
+                this.onProtocolChange();
+            }
+        },
+
         // Generator methods
         generateUuid() {
             this.newNodeInbound.uuid = this.uuidv4();
@@ -301,13 +369,13 @@ const nodeTable = new DataTable({
 
             // Check server
             if (!this.newItem.serverId) {
-                this.validationErrors.serverId = '请选择服务器';
+                this.validationErrors.serverId = '请选择服务�?;
                 isValid = false;
             }
 
             // Check port
             if (!this.newItem.port) {
-                this.validationErrors.port = '请输入端口';
+                this.validationErrors.port = '请输入端�?;
                 isValid = false;
             } else if (this.newItem.port < 1 || this.newItem.port > 65535) {
                 this.validationErrors.port = '端口范围应为1-65535';
@@ -316,19 +384,29 @@ const nodeTable = new DataTable({
 
             // Check node name
             if (!this.newItem.name) {
-                this.validationErrors.name = '请填写节点名称';
+                this.validationErrors.name = '请填写节点名�?;
                 isValid = false;
             }
 
             // Check node no
             if (!this.newItem.no) {
-                this.validationErrors.no = '请填写节点编号';
+                this.validationErrors.no = '请填写节点编�?;
                 isValid = false;
             }
 
             // Check node type
             if (this.newItem.type === null || this.newItem.type === undefined) {
                 this.validationErrors.type = '请选择节点类型';
+                isValid = false;
+            }
+
+            if (!this.newItem.coreType) {
+                this.validationErrors.coreType = 'Please select a core type';
+                isValid = false;
+            }
+
+            if (!this.newItem.protocol || !this.getAvailableProtocols(this.newItem).some(protocol => protocol.value === this.newItem.protocol)) {
+                this.validationErrors.protocol = 'Please select a supported protocol';
                 isValid = false;
             }
 
@@ -341,12 +419,12 @@ const nodeTable = new DataTable({
 
             // Similar validation as create form
             if (!this.editedItem.serverId) {
-                this.validationErrors.serverId = '请选择服务器';
+                this.validationErrors.serverId = '请选择服务�?;
                 isValid = false;
             }
 
             if (!this.editedItem.port) {
-                this.validationErrors.port = '请输入端口';
+                this.validationErrors.port = '请输入端�?;
                 isValid = false;
             } else if (this.editedItem.port < 1 || this.editedItem.port > 65535) {
                 this.validationErrors.port = '端口范围应为1-65535';
@@ -355,18 +433,28 @@ const nodeTable = new DataTable({
 
             // Check node name
             if (!this.editedItem.name) {
-                this.validationErrors.name = '请填写节点名称';
+                this.validationErrors.name = '请填写节点名�?;
                 isValid = false;
             }
 
             // Check node no
             if (!this.editedItem.no) {
-                this.validationErrors.no = '请填写节点编号';
+                this.validationErrors.no = '请填写节点编�?;
                 isValid = false;
             }
 
             if (this.editedItem.type === null || this.editedItem.type === undefined) {
                 this.validationErrors.type = '请选择节点类型';
+                isValid = false;
+            }
+
+            if (!this.editedItem.coreType) {
+                this.validationErrors.coreType = 'Please select a core type';
+                isValid = false;
+            }
+
+            if (!this.editedItem.protocol || !this.getAvailableProtocols(this.editedItem).some(protocol => protocol.value === this.editedItem.protocol)) {
+                this.validationErrors.protocol = 'Please select a supported protocol';
                 isValid = false;
             }
 
@@ -394,6 +482,7 @@ const nodeTable = new DataTable({
                     serverId: this.newItem.serverId,
                     backupServerId: this.newItem.backupServerId || null,
                     port: this.newItem.port,
+                    coreType: this.newItem.coreType,
                     protocol: this.newItem.protocol,
                     type: this.newItem.type,
                     level: this.newItem.level || 0,
@@ -431,6 +520,7 @@ const nodeTable = new DataTable({
                     serverId: this.editedItem.serverId,
                     backupServerId: this.editedItem.backupServerId === 0 ? null : this.editedItem.backupServerId,
                     port: this.editedItem.port,
+                    coreType: this.editedItem.coreType,
                     protocol: this.editedItem.protocol,
                     type: this.editedItem.type,
                     level: this.editedItem.level || 0,
@@ -456,6 +546,7 @@ const nodeTable = new DataTable({
                 serverId: this.servers.length > 0 ? this.servers[0].id : '',
                 backupServerId: '',
                 port: null,
+                coreType: 'xray',
                 protocol: 'vless',
                 type: 0,
                 level: 0,
@@ -511,6 +602,7 @@ const nodeTable = new DataTable({
                 serverId: node.serverId,
                 backupServerId: !node.backupServerId ? 0 : node.backupServerId,
                 port: node.port,
+                coreType: node.coreType || 'xray',
                 protocol: node.protocol,
                 type: node.type,
                 level: node.level || 0,
