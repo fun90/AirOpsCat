@@ -50,8 +50,9 @@ profile:
 
 proxies:
 {#for node in nodes}
+{#if node.protocol == 'vless' || node.protocol == 'vless-reality'}
   - name: {node.name}
-    type: {node.inbound.protocol ?: ''}
+    type: vless
     server: {node.serverHost}
     port: {node.port}
     uuid: {account.uuid}
@@ -60,14 +61,34 @@ proxies:
     udp: true
     flow: xtls-rprx-vision
   {#if node.protocol == 'vless-reality'}
+    {#if node.coreType == 'sing-box'}
+    servername: {node.inbound.tls.server_name}
+    reality-opts:
+      public-key: {node.inbound.tls.reality.public_key}
+      short-id: {node.inbound.tls.reality.short_id[0]}
+    {#else if node.coreType == 'xray'}
     servername: {node.inbound.streamSettings.realitySettings.serverNames[0]}
     reality-opts:
       public-key: {node.inbound.streamSettings.realitySettings.publicKey}
       short-id: {node.inbound.streamSettings.realitySettings.shortIds[0]}
+    {/if}
   {#else}
     skip-cert-verify: true
   {/if}
     client-fingerprint: chrome
+{/if}
+{#if node.protocol == 'hysteria2' && node.coreType == 'sing-box'}
+  - name: {node.name}
+    type: hysteria2
+    server: {node.serverHost}
+    port: {node.port}
+    password: {node.inbound.users[0].password}
+    sni: {node.inbound.tls.server_name}
+    skip-cert-verify: true
+    alpn:
+      - h3
+    udp: true
+{/if}
 {/for}
 
 proxy-groups:
@@ -78,7 +99,9 @@ proxy-groups:
       - 自动
       - 直连
       {#for node in nodes}
+      {#if node.protocol == 'vless' || node.protocol == 'vless-reality' || (node.protocol == 'hysteria2' && node.coreType == 'sing-box')}
       - {node.name}
+      {/if}
       {/for}
   - name: Microsoft
     icon: https://raw.githubusercontent.com/Koolson/Qure/refs/heads/master/IconSet/Color/Microsoft.png
@@ -87,7 +110,9 @@ proxy-groups:
       - 代理
       - 直连
       {#for node in nodes}
+      {#if node.protocol == 'vless' || node.protocol == 'vless-reality' || (node.protocol == 'hysteria2' && node.coreType == 'sing-box')}
       - {node.name}
+      {/if}
       {/for}
   - name: Apple
     icon: https://raw.githubusercontent.com/Koolson/Qure/refs/heads/master/IconSet/Color/Apple_1.png
@@ -96,7 +121,9 @@ proxy-groups:
       - 直连
       - 代理
       {#for node in nodes}
+      {#if node.protocol == 'vless' || node.protocol == 'vless-reality' || (node.protocol == 'hysteria2' && node.coreType == 'sing-box')}
       - {node.name}
+      {/if}
       {/for}
   - name: 自动
     icon: https://raw.githubusercontent.com/Koolson/Qure/refs/heads/master/IconSet/Color/Auto.png
@@ -105,7 +132,9 @@ proxy-groups:
     interval: 300
     proxies:
       {#for node in nodes}
+      {#if node.protocol == 'vless' || node.protocol == 'vless-reality' || (node.protocol == 'hysteria2' && node.coreType == 'sing-box')}
       - {node.name}
+      {/if}
       {/for}
   - name: 直连
     icon: https://raw.githubusercontent.com/Koolson/Qure/refs/heads/master/IconSet/Color/Direct.png

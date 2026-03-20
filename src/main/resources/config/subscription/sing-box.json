@@ -117,6 +117,31 @@
     {#for node in nodes}
     {
       "tag": "{node.name}",
+      {#if node.protocol == 'hysteria2' && node.coreType == 'sing-box'}
+      "type": "hysteria2",
+      "server": "{node.serverHost}",
+      "server_port": {node.port},
+      "password": "{node.inbound.users[0].password}",
+      "tls": {
+        "enabled": true,
+        "insecure": true,
+        "server_name": "{node.inbound.tls.server_name}",
+        "alpn": [
+          "h3"
+        ]
+      }
+      {#else if node.protocol == 'shadowtls' && node.coreType == 'sing-box'}
+      "type": "shadowtls",
+      "server": "{node.serverHost}",
+      "server_port": {node.port},
+      "version": {node.inbound.version},
+      "password": "{node.inbound.users[0].password}",
+      "tls": {
+        "enabled": true,
+        "insecure": true,
+        "server_name": "{node.inbound.handshake.server}"
+      }
+      {#else}
       "type": "vless",
       "server": "{node.serverHost}",
       "server_port": {node.port},
@@ -125,12 +150,21 @@
         "enabled": true,
         "insecure": true,
         {#if node.protocol == 'vless-reality'}
+        {#if node.coreType == 'sing-box'}
+        "server_name": "{node.inbound.tls.server_name}",
+        "reality": {
+          "enabled": true,
+          "public_key": "{node.inbound.tls.reality.public_key}",
+          "short_id": "{node.inbound.tls.reality.short_id[0]}"
+        },
+        {#else if node.coreType == 'xray'}
         "server_name": "{node.inbound.streamSettings.realitySettings.serverNames[0]}",
         "reality": {
           "enabled": true,
           "public_key": "{node.inbound.streamSettings.realitySettings.publicKey}",
           "short_id": "{node.inbound.streamSettings.realitySettings.shortIds[0]}"
         },
+        {/if}
         {#else}
         "server_name": "{node.serverHost}",
         {/if}
@@ -140,6 +174,7 @@
         },
       },
       "flow": "xtls-rprx-vision"
+      {/if}
     }{#if node_hasNext},{/if}
     {/for}
   ],

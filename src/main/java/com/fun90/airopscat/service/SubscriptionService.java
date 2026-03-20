@@ -7,6 +7,7 @@ import com.fun90.airopscat.model.dto.SubscrptionDto;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.util.ConfigFileReader;
@@ -99,6 +100,7 @@ public class SubscriptionService {
         List<NodeDto> activeNodes = availableNodes.stream()
                 .filter(node -> node.getDeployed() != null && node.getDeployed() == 1)
                 .filter(node -> node.getDisabled() == null || node.getDisabled() == 0)
+                .filter(node -> Objects.equals(node.getType(), NodeType.PROXY.getValue()))
                 .map(NodeConverter::toDto)
                 .collect(Collectors.toList());
 
@@ -172,6 +174,7 @@ public class SubscriptionService {
         List<NodeDto> activeNodes = availableNodes.stream()
                 .filter(node -> node.getDeployed() != null && node.getDeployed() == 1)
                 .filter(node -> node.getDisabled() == null || node.getDisabled() == 0)
+                .filter(node -> Objects.equals(node.getType(), NodeType.PROXY.getValue()))
                 .map(NodeConverter::toDto)
                 .collect(Collectors.toList());
 
