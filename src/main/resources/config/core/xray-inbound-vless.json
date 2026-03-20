@@ -24,8 +24,8 @@
       "certificates": [
         {
           "ocspStapling": 3600,
-          "certificateFile": "/usr/local/etc/certs/xray.crt",
-          "keyFile": "/usr/local/etc/certs/xray.key"
+          "certificateFile": "/usr/local/etc/certs/fullchain.cer",
+          "keyFile": "/usr/local/etc/certs/private.key"
         }
       ]
     }

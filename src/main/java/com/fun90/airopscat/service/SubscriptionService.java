@@ -58,14 +58,14 @@ public class SubscriptionService {
         if (ruleName == null || ruleName.trim().isEmpty()) {
             return "错误: 规则名称不能为空";
         }
-        
+
         String templateName = "rules/" + appType + "/" + ruleName;
         String content = getTemplateContent(templateName);
-        
+
         if (content == null) {
             return "错误: 找不到对应的规则文件: " + templateName;
         }
-        
+
         return content;
     }
 
@@ -77,7 +77,7 @@ public class SubscriptionService {
         }
 
         Account account = optionalAccount.get();
-        
+
         // 检查账户状态
         if (!account.isActive()) {
             return "错误: 账户已被禁用，请联系管理员";
@@ -90,7 +90,7 @@ public class SubscriptionService {
 
         // 获取账户可用的节点
         List<Node> availableNodes = tagService.getAvailableNodesByAccount(account.getId());
-        
+
         if (availableNodes.isEmpty()) {
             return "错误: 当前账户没有可用的节点，请联系管理员";
         }
@@ -151,7 +151,7 @@ public class SubscriptionService {
         }
 
         Account account = optionalAccount.get();
-        
+
         // 检查账户状态
         if (!account.isActive()) {
             return ApiResponseDto.error("账户已被禁用，请联系管理员");
@@ -189,7 +189,7 @@ public class SubscriptionService {
         if (content == null) {
             return ApiResponseDto.error("生成配置文件失败，不支持的应用类型: " + appName);
         }
-        
+
 
         String fileName = account.getRemark();
         long bandwidth = account.getBandwidth() != null ? account.getBandwidth() : 500L;
@@ -208,10 +208,6 @@ public class SubscriptionService {
     private String generateConfigByApp(Account account, List<NodeDto> nodes, String osName, String appName, Map<String, String> params) {
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("account", account);
-        List<NodeDto> aiNodes = nodes.stream()
-                .filter(node -> node.getTags().stream().anyMatch(tag -> "AI".equals(tag.getName())))
-                .collect(Collectors.toList());
-        templateData.put("aiNodes", aiNodes.isEmpty() ? nodes : aiNodes);
         templateData.put("nodes", nodes);
         templateData.put("osName", osName);
         templateData.put("appName", appName);
@@ -264,4 +260,4 @@ public class SubscriptionService {
     private String getTemplateContent(String templateName) {
         return configFileReader.readFileContent("config/subscription/" + templateName);
     }
-} 
+}
