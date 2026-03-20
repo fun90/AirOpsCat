@@ -6,7 +6,7 @@ import java.util.Map;
 
 public interface DefaultInboundStrategy {
 
-    DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol);
+    DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, Long serverId);
 
     String getStrategyName();
 }

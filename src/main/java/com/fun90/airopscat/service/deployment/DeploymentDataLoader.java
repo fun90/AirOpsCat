@@ -41,7 +41,11 @@ public class DeploymentDataLoader {
 
     public DeploymentPreload load(List<Node> inputNodes) {
         List<Long> targetServerIds = collectTargetServerIds(inputNodes);
-        List<Node> relatedNodes = nodeRepository.findByServerIdsOrBackupServerIds(targetServerIds);
+        Map<Long, Set<String>> targetCoreTypesByServerId = collectTargetCoreTypesByServerId(inputNodes);
+        List<Node> relatedNodes = filterRelatedNodesByServerCore(
+                nodeRepository.findByServerIdsOrBackupServerIds(targetServerIds),
+                targetCoreTypesByServerId
+        );
 
         Map<Long, Server> serverMap = loadServerMap(targetServerIds, relatedNodes);
         ensureServersExist(targetServerIds, serverMap);
@@ -72,6 +76,37 @@ public class DeploymentDataLoader {
             }
         }
         return new ArrayList<>(serverIds);
+    }
+
+    private Map<Long, Set<String>> collectTargetCoreTypesByServerId(List<Node> nodes) {
+        Map<Long, Set<String>> coreTypesByServerId = new LinkedHashMap<>();
+        for (Node node : nodes) {
+            String coreType = normalizeCoreType(node.getCoreType());
+            coreTypesByServerId
+                    .computeIfAbsent(node.getServerId(), key -> new LinkedHashSet<>())
+                    .add(coreType);
+            if (node.getBackupServerId() != null) {
+                coreTypesByServerId
+                        .computeIfAbsent(node.getBackupServerId(), key -> new LinkedHashSet<>())
+                        .add(coreType);
+            }
+        }
+        return coreTypesByServerId;
+    }
+
+    private List<Node> filterRelatedNodesByServerCore(List<Node> nodes, Map<Long, Set<String>> targetCoreTypesByServerId) {
+        return nodes.stream()
+                .filter(node -> matchesTargetServerCore(node.getServerId(), node.getCoreType(), targetCoreTypesByServerId)
+                        || matchesTargetServerCore(node.getBackupServerId(), node.getCoreType(), targetCoreTypesByServerId))
+                .toList();
+    }
+
+    private boolean matchesTargetServerCore(Long serverId, String coreType, Map<Long, Set<String>> targetCoreTypesByServerId) {
+        if (serverId == null) {
+            return false;
+        }
+        Set<String> allowedCoreTypes = targetCoreTypesByServerId.get(serverId);
+        return allowedCoreTypes != null && allowedCoreTypes.contains(normalizeCoreType(coreType));
     }
 
     private Map<Long, Server> loadServerMap(List<Long> targetServerIds, List<Node> relatedNodes) {
@@ -222,14 +257,8 @@ public class DeploymentDataLoader {
     }
 
     private boolean supportsManagedClients(Node node) {
-        String protocol = node.getProtocol();
-        if (protocol == null) {
-            return false;
-        }
-        String normalizedProtocol = protocol.trim().toLowerCase();
         String coreType = normalizeCoreType(node.getCoreType());
-        return (CORE_TYPE_XRAY.equals(coreType) || CORE_TYPE_SING_BOX.equals(coreType))
-                && ("vless".equals(normalizedProtocol) || "vless-reality".equals(normalizedProtocol));
+        return (CORE_TYPE_XRAY.equals(coreType) || CORE_TYPE_SING_BOX.equals(coreType));
     }
 
     private String normalizeCoreType(String coreType) {

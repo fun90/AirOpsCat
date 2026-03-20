@@ -1,5 +1,7 @@
 {
   "type": "vless",
+  "sniff": true,
+  "sniff_override_destination": true,
   "users": [],
   "tls": {
     "enabled": true,
@@ -16,8 +18,5 @@
         "{shortId}"
       ]
     }
-  },
-  "transport": {
-    "type": "tcp"
   }
 }

@@ -419,9 +419,9 @@ public class NodeService {
         return port;
     }
     
-    public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, String coreType) {
+    public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, Long serverId, String coreType) {
         String normalizedCoreType = (coreType == null || coreType.trim().isEmpty()) ? CoreType.XRAY.getValue() : coreType;
         DefaultInboundStrategy strategy = strategyRegistry.getStrategy(normalizedCoreType);
-        return strategy.generateDefaultInbound(protocol);
+        return strategy.generateDefaultInbound(protocol, serverId);
     }
 }

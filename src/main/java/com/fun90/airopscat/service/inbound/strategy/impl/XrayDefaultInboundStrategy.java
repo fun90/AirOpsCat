@@ -38,7 +38,7 @@ public class XrayDefaultInboundStrategy implements DefaultInboundStrategy {
     ConfigFileReader configFileReader;
 
     @Override
-    public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol) {
+    public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, Long serverId) {
         String normalizedProtocol = normalizeProtocol(protocol);
         String templatePath = getTemplatePath(normalizedProtocol);
         Map<String, Object> templateData = buildTemplateData(normalizedProtocol);

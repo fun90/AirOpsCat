@@ -89,6 +89,7 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
 
     private Map<String, Object> buildInbound(NodeDeploymentSnapshot node) {
         Map<String, Object> inbound = toMap(node.inbound());
+        removeRealityPublicKey(inbound);
         inbound.put("tag", node.tag());
         inbound.put("listen", "::");
         inbound.put("listen_port", node.port());
@@ -96,8 +97,24 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
         String protocol = normalize(node.protocol());
         if ("vless".equals(protocol) || "vless-reality".equals(protocol)) {
             inbound.put("users", buildVlessUsers(node.clients()));
+        } else if ("hysteria2".equals(protocol)) {
+            inbound.put("users", buildHysteria2Users(node.clients()));
         }
         return inbound;
+    }
+
+    private void removeRealityPublicKey(Map<String, Object> inbound) {
+        Map<String, Object> tls = asMap(inbound.get("tls"));
+        if (tls == null) {
+            return;
+        }
+
+        Map<String, Object> reality = asMap(tls.get("reality"));
+        if (reality == null) {
+            return;
+        }
+
+        reality.remove("public_key");
     }
 
     private List<Map<String, Object>> buildVlessUsers(List<VlessClient> clients) {
@@ -109,6 +126,17 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
                     if (client.flow() != null && !client.flow().isBlank()) {
                         user.put("flow", client.flow());
                     }
+                    return user;
+                })
+                .toList();
+    }
+
+    private List<Map<String, Object>> buildHysteria2Users(List<VlessClient> clients) {
+        return clients.stream()
+                .map(client -> {
+                    Map<String, Object> user = new LinkedHashMap<>();
+                    user.put("name", client.email());
+                    user.put("password", client.id());
                     return user;
                 })
                 .toList();

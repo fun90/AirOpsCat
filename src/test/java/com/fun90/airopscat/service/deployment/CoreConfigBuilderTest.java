@@ -9,6 +9,7 @@ import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.stream.StreamSupport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -73,7 +74,10 @@ class CoreConfigBuilderTest {
         assertEquals("node_2", outbounds.get(2).path("tag").asText());
         assertEquals("1.2.3.4", outbounds.get(2).path("server").asText());
 
-        JsonNode rule = root.path("route").path("rules").get(0);
+        JsonNode rule = StreamSupport.stream(root.path("route").path("rules").spliterator(), false)
+                .filter(candidate -> candidate.path("outbound").asText().equals("node_2"))
+                .findFirst()
+                .orElseThrow();
         assertEquals("node_1", rule.path("inbound").get(0).asText());
         assertEquals("node_2", rule.path("outbound").asText());
     }

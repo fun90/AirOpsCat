@@ -22,7 +22,7 @@ public class SingBoxCoreManagementStrategy implements CoreManagementStrategy {
 
     private static final String CORE_TYPE = "sing-box";
     private static final String SERVICE_NAME = "sing-box";
-    private static final String BINARY_PATH = "/usr/local/bin/sing-box";
+    private static final String BINARY_PATH = "/usr/bin/sing-box";
     private static final String CONFIG_PATH = "/etc/sing-box/config.json";
 
     @Override
@@ -101,12 +101,12 @@ public class SingBoxCoreManagementStrategy implements CoreManagementStrategy {
                     if (backupResult.isSuccess()) {
                         connection.executeCommand(String.format("mv %s %s", backupPath, configPath));
                         result.setMessage("Config validation failed and the previous config has been restored: "
-                                + validateResult.getStdout());
+                                + validateResult.getStderr());
                     } else {
-                        result.setMessage("Config validation failed: " + validateResult.getStdout());
+                        result.setMessage("Config validation failed: " + validateResult.getStderr());
                     }
                     result.setSuccess(false);
-                    result.setError(validateResult.getStdout());
+                    result.setError(validateResult.getStderr());
                 }
             } else {
                 String currentConfig = connection.readRemoteFile(CONFIG_PATH);

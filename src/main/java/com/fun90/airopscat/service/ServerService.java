@@ -85,6 +85,17 @@ public class ServerService {
         return serverRepository.findById(id);
     }
 
+    public String getServerHostById(Long id) {
+        if (id == null) {
+            return null;
+        }
+        Server server = serverRepository.findById(id);
+        if (server == null || server.getHost() == null || server.getHost().trim().isEmpty()) {
+            return null;
+        }
+        return server.getHost().trim();
+    }
+
     public Map<String, Long> getServersStats() {
         LocalDate now = LocalDate.now();
         LocalDate inOneMonth = now.plusMonths(1);

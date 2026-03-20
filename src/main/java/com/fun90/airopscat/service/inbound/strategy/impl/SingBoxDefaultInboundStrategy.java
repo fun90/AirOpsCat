@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.annotation.SupportedCores;
 import com.fun90.airopscat.model.dto.DefaultConfigDto;
 import com.fun90.airopscat.model.enums.CoreType;
+import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.inbound.strategy.DefaultInboundStrategy;
 import com.fun90.airopscat.util.ConfigFileReader;
 import com.fun90.airopscat.util.NativeRandomUtils;
@@ -37,11 +38,14 @@ public class SingBoxDefaultInboundStrategy implements DefaultInboundStrategy {
     @Inject
     ConfigFileReader configFileReader;
 
+    @Inject
+    ServerService serverService;
+
     @Override
-    public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol) {
+    public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, Long serverId) {
         String normalizedProtocol = normalizeProtocol(protocol);
         String templatePath = getTemplatePath(normalizedProtocol);
-        Map<String, Object> templateData = buildTemplateData(normalizedProtocol);
+        Map<String, Object> templateData = buildTemplateData(normalizedProtocol, serverId);
         String templateContent = configFileReader.readFileContent(templatePath);
         String renderedConfig = templateUtil.processStringTemplate(templateContent, templateData);
 
@@ -83,14 +87,15 @@ public class SingBoxDefaultInboundStrategy implements DefaultInboundStrategy {
         };
     }
 
-    private Map<String, Object> buildTemplateData(String protocol) {
+    private Map<String, Object> buildTemplateData(String protocol, Long serverId) {
         Map<String, Object> templateData = new HashMap<>();
         String selectedServerName = NativeRandomUtils.randomChoice(SERVER_NAMES);
+        String serverHost = serverService.getServerHostById(serverId);
 
         switch (protocol) {
             case "vless":
                 templateData.put("uuid", UUID.randomUUID().toString());
-                templateData.put("serverName", selectedServerName);
+                templateData.put("serverName", serverHost != null ? serverHost : selectedServerName);
                 return templateData;
             case "vless-reality":
                 String[] keys = generateRealityKeyPair();
@@ -102,7 +107,7 @@ public class SingBoxDefaultInboundStrategy implements DefaultInboundStrategy {
                 return templateData;
             case "hysteria2":
                 templateData.put("password", NativeRandomUtils.generateRandomAlphanumeric(20));
-                templateData.put("serverName", selectedServerName);
+                templateData.put("serverName", serverHost != null ? serverHost : selectedServerName);
                 return templateData;
             case "shadowtls":
                 templateData.put("password", NativeRandomUtils.generateRandomAlphanumeric(20));

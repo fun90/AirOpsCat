@@ -1,7 +1,17 @@
 {
   "log": {
-    "level": "error",
+    "level": "info",
+    "output": "/var/lib/sing-box/box.log",
     "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "type": "tls",
+        "tag": "google",
+        "server": "8.8.8.8"
+      }
+    ]
   },
   "inbounds": [
     {#if hasExtraInbounds}
@@ -24,18 +34,35 @@
     "auto_detect_interface": true,
     "rules": [
       {
-        "geoip": [
-          "private",
-          "cn"
-        ],
-        "action": "reject" 
+        "port": 53,
+        "action": "hijack-dns"
       },
       {
-        "geosite": ["cn"],
+        "ip_is_private": true,
+        "action": "reject"
+      },
+      {
+        "rule_set": ["geoip-cn", "geosite-cn"],
         "action": "reject"
       }{#if hasExtraRouteRules},
       {extraRouteRules}
       {/if}
+    ],
+    "rule_set": [
+      {
+        "tag": "geoip-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/refs/heads/rule-set/geoip-cn.srs",
+        "download_detour": "default-direct"
+      },
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/refs/heads/rule-set/geosite-cn.srs",
+        "download_detour": "default-direct"
+      }
     ]
   }
 }

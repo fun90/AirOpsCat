@@ -257,7 +257,7 @@ const nodeTable = new DataTable({
 
         onProtocolChange() {
             const coreType = this.getDefaultInboundCoreType(this.newItem);
-            fetch(`/api/admin/nodes/default-inbound?protocol=${this.newItem.protocol}&coreType=${encodeURIComponent(coreType)}`)
+            fetch(`/api/admin/nodes/default-inbound?protocol=${this.newItem.protocol}&serverId=${encodeURIComponent(this.newItem.serverId || '')}&coreType=${encodeURIComponent(coreType)}`)
                 .then(response => response.json())
                 .then(data => {
                     this.newNodeInbound = data.config;
@@ -270,7 +270,7 @@ const nodeTable = new DataTable({
 
         onEditProtocolChange() {
             const coreType = this.getDefaultInboundCoreType(this.editedItem);
-            fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedItem.protocol}&coreType=${encodeURIComponent(coreType)}`)
+            fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedItem.protocol}&serverId=${encodeURIComponent(this.editedItem.serverId || '')}&coreType=${encodeURIComponent(coreType)}`)
                 .then(response => response.json())
                 .then(data => {
                     this.editedNodeInbound = data.config;

@@ -121,7 +121,11 @@
       "type": "hysteria2",
       "server": "{node.serverHost}",
       "server_port": {node.port},
-      "password": "{node.inbound.users[0].password}",
+      "password": "{account.uuid}",
+      "obfs": {
+          "type": "salamander",
+          "password": "{password}"
+      },
       "tls": {
         "enabled": true,
         "insecure": true,
@@ -135,7 +139,7 @@
       "server": "{node.serverHost}",
       "server_port": {node.port},
       "version": {node.inbound.version},
-      "password": "{node.inbound.users[0].password}",
+      "password": "{account.uuid}",
       "tls": {
         "enabled": true,
         "insecure": true,

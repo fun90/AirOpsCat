@@ -7,7 +7,6 @@ ipv6: true
 log-level: error
 allow-lan: false
 unified-delay: true
-global-client-fingerprint: chrome
 geox-url:
   geoip: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat
   geosite: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat
@@ -34,7 +33,7 @@ dns:
   nameserver:
     - https://doh.pub/dns-query
     - https://dns.alidns.com/dns-query
-    
+
 profile:
   store-selected: true
 
@@ -72,9 +71,12 @@ proxies:
     type: hysteria2
     server: {node.serverHost}
     port: {node.port}
-    password: {node.inbound.users[0].password}
+    password: {account.uuid}
+    obfs: salamander
+    obfs-password: {node.inbound.obfs.password}
     sni: {node.inbound.tls.server_name}
     skip-cert-verify: true
+    client-fingerprint: chrome
     alpn:
       - h3
     udp: true
