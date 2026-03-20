@@ -1,6 +1,7 @@
 package com.fun90.airopscat.util;
 
 import com.fun90.airopscat.model.dto.NodeDto;
+import com.fun90.airopscat.model.enums.CoreType;
 
 import java.util.*;
 import java.util.regex.*;
@@ -75,6 +76,7 @@ public class NodeObfuscator {
         copy.setBackupServerHost(src.getBackupServerHost());
         copy.setPort(src.getPort());
         copy.setProtocol(src.getProtocol());
+        copy.setCoreType(src.getCoreType());
         copy.setType(src.getType());
         copy.setTypeDescription(src.getTypeDescription());
         copy.setOutId(src.getOutId());
