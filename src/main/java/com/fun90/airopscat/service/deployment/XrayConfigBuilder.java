@@ -2,8 +2,8 @@ package com.fun90.airopscat.service.deployment;
 
 import com.fun90.airopscat.annotation.SupportedCores;
 import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
+import com.fun90.airopscat.model.dto.deployment.NodeDeploymentSnapshot;
 import com.fun90.airopscat.model.dto.deployment.ServerSnapshot;
-import com.fun90.airopscat.model.dto.deployment.XrayNodeSnapshot;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.service.deployment.strategy.CoreConfigBuilder;
 import com.fun90.airopscat.util.ConfigFileReader;
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @ApplicationScoped
 @RequiredArgsConstructor
-@SupportedCores(value = {"xray"}, priority = 1, description = "Xray 部署配置构建策略")
+@SupportedCores(value = {"xray"}, priority = 1, description = "Xray 閮ㄧ讲閰嶇疆鏋勫缓绛栫暐")
 public class XrayConfigBuilder implements CoreConfigBuilder {
 
     private static final List<String> DEFAULT_OUTBOUND_TAGS = List.of(
@@ -38,16 +38,16 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
 
     @Override
     public String build(DeploymentServerContext ctx, List<Node> nodes) {
-        List<XrayNodeSnapshot> snapshots = nodes.stream()
+        List<NodeDeploymentSnapshot> snapshots = nodes.stream()
                 .map(Node::getId)
-                .map(ctx.xraySnapshotMap()::get)
+                .map(ctx.nodeSnapshotMap()::get)
                 .filter(Objects::nonNull)
                 .toList();
         return build(ctx.serverSnapshot(), snapshots);
     }
 
-    public String build(ServerSnapshot serverSnapshot, List<XrayNodeSnapshot> nodes) {
-        List<XrayNodeSnapshot> enabledNodes = nodes.stream()
+    public String build(ServerSnapshot serverSnapshot, List<NodeDeploymentSnapshot> nodes) {
+        List<NodeDeploymentSnapshot> enabledNodes = nodes.stream()
                 .filter(node -> node.disabled() == 0)
                 .toList();
 
@@ -55,7 +55,7 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
         List<Map<String, Object>> outbounds = new ArrayList<>();
         List<Map<String, Object>> routingRules = new ArrayList<>();
 
-        for (XrayNodeSnapshot node : enabledNodes) {
+        for (NodeDeploymentSnapshot node : enabledNodes) {
             applyNodeConfig(node, inbounds, outbounds, routingRules);
         }
 
@@ -89,7 +89,7 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
                 .collect(Collectors.joining(",\n"));
     }
 
-    private void applyNodeConfig(XrayNodeSnapshot node,
+    private void applyNodeConfig(NodeDeploymentSnapshot node,
                                  List<Map<String, Object>> inbounds,
                                  List<Map<String, Object>> outbounds,
                                  List<Map<String, Object>> routingRules) {
@@ -108,7 +108,7 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
         }
     }
 
-    private Map<String, Object> buildInbound(XrayNodeSnapshot node) {
+    private Map<String, Object> buildInbound(NodeDeploymentSnapshot node) {
         Map<String, Object> inbound = toMap(node.inbound());
         Map<String, Object> settings = asMap(inbound.get("settings"));
         if ("vless".equalsIgnoreCase(Objects.toString(inbound.get("protocol"), null)) && settings != null) {
@@ -119,7 +119,7 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
         return inbound;
     }
 
-    private void addOutboundIfAbsent(XrayNodeSnapshot node, List<Map<String, Object>> outbounds) {
+    private void addOutboundIfAbsent(NodeDeploymentSnapshot node, List<Map<String, Object>> outbounds) {
         if (node.outInbound() == null || node.outTag() == null
                 || node.outServerIp() == null || node.outPort() == null) {
             return;
@@ -254,7 +254,7 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
         return outbound;
     }
 
-    private Map<String, Object> buildRoutingRule(XrayNodeSnapshot node) {
+    private Map<String, Object> buildRoutingRule(NodeDeploymentSnapshot node) {
         Map<String, Object> rule = new LinkedHashMap<>();
         rule.put("inboundTag", Collections.singletonList(node.tag()));
         rule.put("outboundTag", node.outTag());

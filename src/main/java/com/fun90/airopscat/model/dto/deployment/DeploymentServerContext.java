@@ -10,6 +10,6 @@ public record DeploymentServerContext(
         Server server,
         List<Node> nodes,
         ServerSnapshot serverSnapshot,
-        Map<Long, XrayNodeSnapshot> xraySnapshotMap
+        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap
 ) {}
  

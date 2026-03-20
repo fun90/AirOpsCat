@@ -1,6 +1,10 @@
 package com.fun90.airopscat.service.deployment;
 
-import com.fun90.airopscat.model.dto.deployment.*;
+import com.fun90.airopscat.model.dto.deployment.DeploymentPreload;
+import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
+import com.fun90.airopscat.model.dto.deployment.NodeDeploymentSnapshot;
+import com.fun90.airopscat.model.dto.deployment.ServerSnapshot;
+import com.fun90.airopscat.model.dto.deployment.VlessClient;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
@@ -10,19 +14,25 @@ import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
-@Slf4j
 @ApplicationScoped
 @RequiredArgsConstructor
 public class DeploymentDataLoader {
 
     private static final String CORE_TYPE_XRAY = "xray";
-    private static final String PROTOCOL_HYSTERIA2 = "hysteria2";
+    private static final String CORE_TYPE_SING_BOX = "sing-box";
 
     private final NodeRepository nodeRepository;
     private final ServerRepository serverRepository;
@@ -36,7 +46,7 @@ public class DeploymentDataLoader {
         Map<Long, Server> serverMap = loadServerMap(targetServerIds, relatedNodes);
         ensureServersExist(targetServerIds, serverMap);
 
-        Map<Long, XrayNodeSnapshot> xraySnapshotMap = buildXraySnapshotMap(relatedNodes, serverMap);
+        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap = buildNodeSnapshotMap(relatedNodes, serverMap);
         Map<Long, List<Node>> nodesByServerId = groupNodesByDeploymentServer(targetServerIds, relatedNodes);
 
         Map<Long, DeploymentServerContext> serverContexts = new LinkedHashMap<>();
@@ -46,7 +56,7 @@ public class DeploymentDataLoader {
                     server,
                     nodesByServerId.getOrDefault(serverId, Collections.emptyList()),
                     new ServerSnapshot(server.getTransitConfig()),
-                    xraySnapshotMap
+                    nodeSnapshotMap
             ));
         }
 
@@ -65,9 +75,7 @@ public class DeploymentDataLoader {
     }
 
     private Map<Long, Server> loadServerMap(List<Long> targetServerIds, List<Node> relatedNodes) {
-        List<Node> xrayNodes = filterXrayNodes(relatedNodes);
-
-        List<Long> outNodeIds = xrayNodes.stream()
+        List<Long> outNodeIds = relatedNodes.stream()
                 .map(Node::getOutId)
                 .filter(Objects::nonNull)
                 .distinct()
@@ -105,18 +113,17 @@ public class DeploymentDataLoader {
     private void ensureServersExist(List<Long> targetServerIds, Map<Long, Server> serverMap) {
         for (Long serverId : targetServerIds) {
             if (!serverMap.containsKey(serverId)) {
-                throw new IllegalArgumentException("服务器不存在, serverId: " + serverId);
+                throw new IllegalArgumentException("鏈嶅姟鍣ㄤ笉瀛樺湪, serverId: " + serverId);
             }
         }
     }
 
-    private Map<Long, XrayNodeSnapshot> buildXraySnapshotMap(List<Node> relatedNodes, Map<Long, Server> serverMap) {
-        List<Node> xrayNodes = filterXrayNodes(relatedNodes);
-        if (xrayNodes.isEmpty()) {
+    private Map<Long, NodeDeploymentSnapshot> buildNodeSnapshotMap(List<Node> relatedNodes, Map<Long, Server> serverMap) {
+        if (relatedNodes.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        List<Long> outNodeIds = xrayNodes.stream()
+        List<Long> outNodeIds = relatedNodes.stream()
                 .map(Node::getOutId)
                 .filter(Objects::nonNull)
                 .distinct()
@@ -124,22 +131,27 @@ public class DeploymentDataLoader {
         Map<Long, Node> outNodeMap = nodeRepository.findByIdIn(outNodeIds).stream()
                 .collect(Collectors.toMap(Node::getId, node -> node));
 
-        Map<Long, List<VlessClient>> nodeClientsMap = buildNodeClientsMap(xrayNodes);
+        Map<Long, List<VlessClient>> nodeClientsMap = buildNodeClientsMap(relatedNodes);
 
-        Map<Long, XrayNodeSnapshot> snapshots = new HashMap<>();
-        for (Node node : xrayNodes) {
+        Map<Long, NodeDeploymentSnapshot> snapshots = new HashMap<>();
+        for (Node node : relatedNodes) {
             Node outNode = outNodeMap.get(node.getOutId());
             if (outNode != null && !serverMap.containsKey(outNode.getServerId())) {
-                throw new IllegalArgumentException("出站服务器不存在: " + outNode.getServerId());
+                throw new IllegalArgumentException("鍑虹珯鏈嶅姟鍣ㄤ笉瀛樺湪: " + outNode.getServerId());
             }
+
             Server outServer = outNode == null ? null : serverMap.get(outNode.getServerId());
-            snapshots.put(node.getId(), new XrayNodeSnapshot(
+            snapshots.put(node.getId(), new NodeDeploymentSnapshot(
                     node.getId(),
+                    normalizeCoreType(node.getCoreType()),
+                    node.getProtocol(),
                     node.getPort(),
                     node.getDisabled(),
                     node.getInbound(),
                     node.getOutId(),
                     node.getTag(),
+                    outNode == null ? null : normalizeCoreType(outNode.getCoreType()),
+                    outNode == null ? null : outNode.getProtocol(),
                     outNode == null ? null : outNode.getTag(),
                     outNode == null ? null : outNode.getInbound(),
                     outServer == null ? null : outServer.getIp(),
@@ -150,10 +162,17 @@ public class DeploymentDataLoader {
         return snapshots;
     }
 
-    private Map<Long, List<VlessClient>> buildNodeClientsMap(List<Node> xrayNodes) {
+    private Map<Long, List<VlessClient>> buildNodeClientsMap(List<Node> nodes) {
+        List<Node> nodesWithManagedClients = nodes.stream()
+                .filter(this::supportsManagedClients)
+                .toList();
+        if (nodesWithManagedClients.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
         LocalDateTime now = LocalDateTime.now();
-        List<Long> xrayNodeIds = xrayNodes.stream().map(Node::getId).toList();
-        Map<Long, List<Long>> nodeTagIdsMap = tagRepository.findTagIdsByNodeIds(xrayNodeIds);
+        List<Long> nodeIds = nodesWithManagedClients.stream().map(Node::getId).toList();
+        Map<Long, List<Long>> nodeTagIdsMap = tagRepository.findTagIdsByNodeIds(nodeIds);
 
         List<Long> allTagIds = nodeTagIdsMap.values().stream()
                 .flatMap(List::stream)
@@ -161,14 +180,14 @@ public class DeploymentDataLoader {
                 .toList();
 
         Map<Long, Account> accountMap = tagRepository.findActiveAccountsByTagIds(allTagIds, now).stream()
-                .collect(Collectors.toMap(Account::getId, a -> a, (left, right) -> left));
+                .collect(Collectors.toMap(Account::getId, account -> account, (left, right) -> left));
 
         Map<Long, List<Long>> tagAccountIdsMap = tagRepository.findAccountIdsByTagIds(allTagIds);
         Map<Long, Long> accountUsageMap = accountTrafficRepository.sumBytesByAccountIds(
                 new ArrayList<>(accountMap.keySet()), now);
 
         Map<Long, List<VlessClient>> result = new HashMap<>();
-        for (Node node : xrayNodes) {
+        for (Node node : nodesWithManagedClients) {
             if (node.getInbound() == null) {
                 continue;
             }
@@ -184,9 +203,9 @@ public class DeploymentDataLoader {
                     .filter(account -> isWithinBandwidth(account, accountUsageMap.get(account.getId())))
                     .map(this::toVlessClient)
                     .toList();
-
             result.put(node.getId(), clients);
         }
+
         return result;
     }
 
@@ -202,13 +221,21 @@ public class DeploymentDataLoader {
         return new VlessClient(account.getUuid(), account.getAccountNo(), "xtls-rprx-vision");
     }
 
-    private List<Node> filterXrayNodes(List<Node> nodes) {
-        return nodes.stream()
-                .filter(node -> CORE_TYPE_XRAY.equals(determineCoreType(node.getProtocol())))
-                .toList();
+    private boolean supportsManagedClients(Node node) {
+        String protocol = node.getProtocol();
+        if (protocol == null) {
+            return false;
+        }
+        String normalizedProtocol = protocol.trim().toLowerCase();
+        String coreType = normalizeCoreType(node.getCoreType());
+        return (CORE_TYPE_XRAY.equals(coreType) || CORE_TYPE_SING_BOX.equals(coreType))
+                && ("vless".equals(normalizedProtocol) || "vless-reality".equals(normalizedProtocol));
     }
 
-    private String determineCoreType(String protocol) {
-        return PROTOCOL_HYSTERIA2.equalsIgnoreCase(protocol) ? "hysteria" : CORE_TYPE_XRAY;
+    private String normalizeCoreType(String coreType) {
+        if (coreType == null || coreType.trim().isEmpty()) {
+            return CORE_TYPE_XRAY;
+        }
+        return coreType.trim().toLowerCase();
     }
 }

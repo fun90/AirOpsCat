@@ -1,0 +1,31 @@
+{
+  "log": {
+    "level": "error",
+    "timestamp": true
+  },
+  "inbounds": [
+    {#if hasExtraInbounds}
+    {extraInbounds}
+    {/if}
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "default-direct"
+    },
+    {
+      "type": "block",
+      "tag": "default-blocked"
+    }{#if hasExtraOutbounds},
+    {extraOutbounds}
+    {/if}
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "rules": [
+      {#if hasExtraRouteRules}
+      {extraRouteRules}
+      {/if}
+    ]
+  }
+}

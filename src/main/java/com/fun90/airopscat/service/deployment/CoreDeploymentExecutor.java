@@ -30,8 +30,8 @@ import java.util.stream.Collectors;
 public class CoreDeploymentExecutor {
 
     private static final String CORE_TYPE_XRAY = "xray";
+    private static final String CORE_TYPE_SING_BOX = "sing-box";
     private static final String CORE_TYPE_HYSTERIA = "hysteria";
-    private static final String PROTOCOL_HYSTERIA2 = "hysteria2";
     private static final String DEFAULT_USERNAME = "root";
 
     private final CoreManagementService coreManagementService;
@@ -44,7 +44,7 @@ public class CoreDeploymentExecutor {
         log.info("Deploy nodes for server {}({}), count={}", server.getName(), server.getId(), ctx.nodes().size());
 
         Map<String, List<Node>> nodesByCoreType = ctx.nodes().stream()
-                .collect(Collectors.groupingBy(node -> determineCoreType(node.getProtocol())));
+                .collect(Collectors.groupingBy(node -> determineCoreType(node.getCoreType())));
 
         List<CoreDeploymentExecution> results = new ArrayList<>();
         for (Map.Entry<String, List<Node>> entry : nodesByCoreType.entrySet()) {
@@ -129,6 +129,8 @@ public class CoreDeploymentExecutor {
         serverConfig.setCreateTime(LocalDateTime.now());
         serverConfig.setPath(CORE_TYPE_XRAY.equalsIgnoreCase(coreType)
                 ? "/usr/local/etc/xray/config.json"
+                : CORE_TYPE_SING_BOX.equalsIgnoreCase(coreType)
+                ? "/etc/sing-box/config.json"
                 : "/etc/hysteria/config.json");
         return serverConfig;
     }
@@ -150,8 +152,16 @@ public class CoreDeploymentExecutor {
         return results;
     }
 
-    private String determineCoreType(String protocol) {
-        return PROTOCOL_HYSTERIA2.equalsIgnoreCase(protocol) ? CORE_TYPE_HYSTERIA : CORE_TYPE_XRAY;
+    private String determineCoreType(String coreType) {
+        if (coreType == null || coreType.trim().isEmpty()) {
+            return CORE_TYPE_XRAY;
+        }
+        String normalizedCoreType = coreType.trim().toLowerCase();
+        return switch (normalizedCoreType) {
+            case CORE_TYPE_SING_BOX -> CORE_TYPE_SING_BOX;
+            case "hysteria2", CORE_TYPE_HYSTERIA, "hy2" -> CORE_TYPE_HYSTERIA;
+            default -> CORE_TYPE_XRAY;
+        };
     }
 
     private DeploymentResult toSuccessResult(Node node, String message) {
