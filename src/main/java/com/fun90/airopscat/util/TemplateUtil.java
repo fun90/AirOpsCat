@@ -8,7 +8,7 @@ import jakarta.inject.Inject;
 import java.util.Map;
 
 @ApplicationScoped
-public class ThymeleafUtil {
+public class TemplateUtil {
     
     @Inject
     Engine engine;

@@ -11,7 +11,7 @@ import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.util.ConfigFileReader;
 import com.fun90.airopscat.util.NodeObfuscator;
-import com.fun90.airopscat.util.ThymeleafUtil;
+import com.fun90.airopscat.util.TemplateUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -28,7 +28,7 @@ public class SubscriptionService {
     private final AccountRepository accountRepository;
     private final AccountTrafficStatsRepository accountTrafficRepository;
     private final TagService tagService;
-    private final ThymeleafUtil thymeleafUtil;
+    private final TemplateUtil templateUtil;
     private final ConfigFileReader configFileReader;
     private final String subscriptionUrl;
 
@@ -37,13 +37,13 @@ public class SubscriptionService {
             AccountRepository accountRepository,
             AccountTrafficStatsRepository accountTrafficRepository,
             TagService tagService,
-            ThymeleafUtil thymeleafUtil,
+            TemplateUtil templateUtil,
             ConfigFileReader configFileReader,
             @ConfigProperty(name = "airopscat.subscription.url") String subscriptionUrl) {
         this.accountRepository = accountRepository;
         this.accountTrafficRepository = accountTrafficRepository;
         this.tagService = tagService;
-        this.thymeleafUtil = thymeleafUtil;
+        this.templateUtil = templateUtil;
         this.configFileReader = configFileReader;
         this.subscriptionUrl = subscriptionUrl;
     }
@@ -124,7 +124,7 @@ public class SubscriptionService {
             return "错误: 找不到对应的节点模板: " + appType;
         }
 
-        String result = thymeleafUtil.processStringTemplate(templateContent, templateData);
+        String result = templateUtil.processStringTemplate(templateContent, templateData);
         // 清理多余的空行
         return result.replaceAll("(?m)^\\s*$[\n\r]+", "").trim();
     }
@@ -226,7 +226,7 @@ public class SubscriptionService {
             return null;
         }
 
-        return thymeleafUtil.processStringTemplate(templateContent, templateData);
+        return templateUtil.processStringTemplate(templateContent, templateData);
     }
 
     // 获取配置URL
