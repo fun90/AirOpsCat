@@ -42,6 +42,11 @@
         "action": "reject"
       },
       {
+        "domain_suffix": [ "gstatic.com" ],
+        "action": "route",
+        "outbound": "default-direct"
+      },
+      {
         "rule_set": ["geoip-cn", "geosite-cn"],
         "action": "reject"
       }{#if hasExtraRouteRules},
