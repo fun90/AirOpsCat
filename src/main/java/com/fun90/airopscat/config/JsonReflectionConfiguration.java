@@ -1,24 +1,7 @@
 package com.fun90.airopscat.config;
 
-import com.fun90.airopscat.config.jackson.InboundConfigDeserializer;
-import com.fun90.airopscat.config.jackson.OutboundConfigDeserializer;
 import com.fun90.airopscat.model.dto.ApiResponseDto;
 import com.fun90.airopscat.model.dto.BarkNotificationDto;
-import com.fun90.airopscat.model.dto.xray.*;
-import com.fun90.airopscat.model.dto.xray.policy.LevelPolicy;
-import com.fun90.airopscat.model.dto.xray.policy.SystemPolicy;
-import com.fun90.airopscat.model.dto.xray.routing.BalancerConfig;
-import com.fun90.airopscat.model.dto.xray.routing.RoutingRule;
-import com.fun90.airopscat.model.dto.xray.setting.InboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.OutboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.Sniffing;
-import com.fun90.airopscat.model.dto.xray.setting.StreamSetting;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.DokodemoDoorInboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.ShadowsocksInboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.SocksInboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.outbound.*;
-import com.fun90.airopscat.model.dto.xray.setting.stream.*;
 import com.fun90.airopscat.model.enums.XrayProtocolType;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 
@@ -27,61 +10,6 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
  * 为Quarkus native image注册需要JSON反序列化的类
  */
 @RegisterForReflection(targets = {
-    // Core Xray Configuration Classes
-    XrayConfig.class,
-    ApiConfig.class,
-    LogConfig.class,
-    PolicyConfig.class,
-    InboundConfig.class,
-    OutboundConfig.class,
-    RoutingConfig.class,
-    
-    // Policy Classes
-    LevelPolicy.class,
-    SystemPolicy.class,
-    
-    // Routing Classes
-    BalancerConfig.class,
-    RoutingRule.class,
-    
-    // Setting Classes
-    InboundSetting.class,
-    OutboundSetting.class,
-    StreamSetting.class,
-    Sniffing.class,
-
-    // Inbound Setting Classes
-    DokodemoDoorInboundSetting.class,
-    ShadowsocksInboundSetting.class,
-    ShadowsocksInboundSetting.ShadowsocksClient.class,
-    SocksInboundSetting.class,
-    SocksInboundSetting.SocksAccount.class,
-    VlessInboundSetting.class,
-    VlessInboundSetting.VlessClient.class,
-    VlessInboundSetting.VlessFallback.class,
-    
-    // Outbound Setting Classes
-    BlackholeOutboundSetting.class,
-    BlackholeOutboundSetting.BlackholeResponse.class,
-    FreedomOutboundSetting.class,
-    ShadowsocksOutboundSetting.class,
-    ShadowsocksOutboundSetting.ShadowsocksServer.class,
-    SocksOutboundSetting.class,
-    SocksOutboundSetting.SocksServer.class,
-    SocksOutboundSetting.SocksUser.class,
-    VlessOutboundSetting.class,
-    VlessOutboundSetting.VlessServer.class,
-    VlessOutboundSetting.VlessUser.class,
-    
-    // Stream Setting Classes
-    GrpcSettings.class,
-    HttpSettings.class,
-    RealitySettings.class,
-    TcpSettings.class,
-    TlsSettings.class,
-    Certificate.class,
-    WebSocketSettings.class,
-    
     // Enum Classes
     XrayProtocolType.class,
     com.fun90.airopscat.model.enums.PeriodType.class,
@@ -92,10 +20,6 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.enums.ServerAuthType.class,
     com.fun90.airopscat.model.enums.PaymentMethod.class,
     com.fun90.airopscat.model.enums.TransactionType.class,
-    
-    // Jackson Deserializers
-    InboundConfigDeserializer.class,
-    OutboundConfigDeserializer.class,
     
     // Other DTO Classes
     ApiResponseDto.class,

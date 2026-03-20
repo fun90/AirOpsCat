@@ -1,7 +1,5 @@
 package com.fun90.airopscat.model.dto.deployment;
  
-import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting.VlessClient;
- 
 import java.util.List;
  
 public record XrayNodeSnapshot(

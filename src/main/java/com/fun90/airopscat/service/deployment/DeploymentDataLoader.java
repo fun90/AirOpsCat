@@ -1,8 +1,6 @@
 package com.fun90.airopscat.service.deployment;
 
-import com.fun90.airopscat.model.dto.xray.InboundConfig;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting;
-import com.fun90.airopscat.model.dto.xray.setting.inbound.VlessInboundSetting.VlessClient;
+import com.fun90.airopscat.model.dto.deployment.*;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
@@ -10,25 +8,12 @@ import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
-import com.fun90.airopscat.model.dto.deployment.DeploymentPreload;
-import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
-import com.fun90.airopscat.model.dto.deployment.ServerSnapshot;
-import com.fun90.airopscat.model.dto.deployment.XrayNodeSnapshot;
-import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -187,10 +172,6 @@ public class DeploymentDataLoader {
             if (node.getInbound() == null) {
                 continue;
             }
-            InboundConfig inbound = JsonUtil.toObject(node.getInbound(), InboundConfig.class);
-            if (!(inbound.getSettings() instanceof VlessInboundSetting)) {
-                continue;
-            }
 
             Set<Long> accountIds = new LinkedHashSet<>();
             for (Long tagId : nodeTagIdsMap.getOrDefault(node.getId(), Collections.emptyList())) {
@@ -218,11 +199,7 @@ public class DeploymentDataLoader {
     }
 
     private VlessClient toVlessClient(Account account) {
-        VlessClient client = new VlessClient();
-        client.setId(account.getUuid());
-        client.setEmail(account.getAccountNo());
-        client.setFlow("xtls-rprx-vision");
-        return client;
+        return new VlessClient(account.getUuid(), account.getAccountNo(), "xtls-rprx-vision");
     }
 
     private List<Node> filterXrayNodes(List<Node> nodes) {
