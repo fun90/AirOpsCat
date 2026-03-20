@@ -23,7 +23,17 @@
   "route": {
     "auto_detect_interface": true,
     "rules": [
-      {#if hasExtraRouteRules}
+      {
+        "geoip": [
+          "private",
+          "cn"
+        ],
+        "action": "reject" 
+      },
+      {
+        "geosite": ["cn"],
+        "action": "reject"
+      }{#if hasExtraRouteRules},
       {extraRouteRules}
       {/if}
     ]
