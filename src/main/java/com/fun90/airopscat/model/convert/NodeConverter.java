@@ -3,7 +3,6 @@ package com.fun90.airopscat.model.convert;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.dto.NodeRequest;
 import com.fun90.airopscat.model.entity.Node;
-import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.util.JsonUtil;
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,7 +21,7 @@ public class NodeConverter {
         dto.setType(node.getType());
         dto.setPort(node.getPort());
         dto.setProtocol(node.getProtocol());
-        dto.setCoreType(node.getCoreType() != null ? node.getCoreType() : CoreType.XRAY.getValue());
+        dto.setCoreType(node.getCoreType());
         dto.setServerId(node.getServerId());
         dto.setBackupServerId(node.getBackupServerId());
         dto.setOutId(node.getOutId());
@@ -107,7 +106,7 @@ public class NodeConverter {
         node.setBackupServerId(request.getBackupServerId());
         node.setPort(request.getPort());
         node.setProtocol(request.getProtocol());
-        node.setCoreType(request.getCoreType() != null ? request.getCoreType() : CoreType.XRAY.getValue());
+        node.setCoreType(request.getCoreType());
         node.setType(request.getType());
         node.setInbound(request.getInbound() != null ? 
             JsonUtil.toJsonString(request.getInbound()) : null);

@@ -44,7 +44,7 @@ public class CoreDeploymentExecutor {
         log.info("Deploy nodes for server {}({}), count={}", server.getName(), server.getId(), ctx.nodes().size());
 
         Map<String, List<Node>> nodesByCoreType = ctx.nodes().stream()
-                .collect(Collectors.groupingBy(node -> determineCoreType(node.getCoreType())));
+                .collect(Collectors.groupingBy(node -> node.getCoreType().trim().toLowerCase()));
 
         List<CoreDeploymentExecution> results = new ArrayList<>();
         for (Map.Entry<String, List<Node>> entry : nodesByCoreType.entrySet()) {
@@ -154,18 +154,6 @@ public class CoreDeploymentExecutor {
             }
         }
         return results;
-    }
-
-    private String determineCoreType(String coreType) {
-        if (coreType == null || coreType.trim().isEmpty()) {
-            return CORE_TYPE_XRAY;
-        }
-        String normalizedCoreType = coreType.trim().toLowerCase();
-        return switch (normalizedCoreType) {
-            case CORE_TYPE_SING_BOX -> CORE_TYPE_SING_BOX;
-            case "hysteria2", CORE_TYPE_HYSTERIA, "hy2" -> CORE_TYPE_HYSTERIA;
-            default -> CORE_TYPE_XRAY;
-        };
     }
 
     private DeploymentResult toSuccessResult(Node node, String message) {

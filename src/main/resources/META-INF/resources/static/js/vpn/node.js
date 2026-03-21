@@ -618,7 +618,7 @@ const nodeTable = new DataTable({
                 serverId: node.serverId,
                 backupServerId: !node.backupServerId ? 0 : node.backupServerId,
                 port: node.port,
-                coreType: node.coreType || 'xray',
+                coreType: node.coreType,
                 protocol: node.protocol,
                 type: node.type,
                 level: node.level || 0,

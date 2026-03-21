@@ -119,11 +119,11 @@ public class NodeDeploymentService {
 
         Set<String> coreTypes = new LinkedHashSet<>();
         for (Node node : ctx.nodes()) {
-            coreTypes.add(determineCoreType(node.getCoreType()));
+            coreTypes.add(node.getCoreType());
         }
         if (ctx.serverSnapshot().routeRules() != null) {
             ctx.serverSnapshot().routeRules().stream()
-                    .map(routeRule -> determineCoreType(routeRule.coreType()))
+                    .map(routeRule -> routeRule.coreType().trim().toLowerCase())
                     .forEach(coreTypes::add);
         }
 
@@ -131,7 +131,7 @@ public class NodeDeploymentService {
         for (String coreType : coreTypes) {
             try {
                 List<Node> coreNodes = ctx.nodes().stream()
-                        .filter(node -> determineCoreType(node.getCoreType()).equals(coreType))
+                        .filter(node -> node.getCoreType().equals(coreType))
                         .toList();
                 String config = coreConfigBuilderRegistry.getStrategy(coreType).build(ctx, coreNodes);
                 configs.put(coreType, config);
@@ -140,17 +140,5 @@ public class NodeDeploymentService {
             }
         }
         return configs;
-    }
-
-    private String determineCoreType(String coreType) {
-        if (coreType == null || coreType.trim().isEmpty()) {
-            return "xray";
-        }
-        String normalizedCoreType = coreType.trim().toLowerCase();
-        return switch (normalizedCoreType) {
-            case "sing-box" -> "sing-box";
-            case "hysteria2", "hysteria", "hy2" -> "hysteria";
-            default -> "xray";
-        };
     }
 }

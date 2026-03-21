@@ -41,6 +41,9 @@ public class NodeRepository implements PanacheRepository<Node> {
         return find("deployed = ?1 and id in ?2", deployed, nodeIds).list();
     }
 
+    public long fillEmptyCoreType(String coreType) {
+        return update("coreType = ?1 where coreType is null or trim(coreType) = ''", coreType);
+    }
 
     public long countProxyNodes() {
         return count("type = 0");

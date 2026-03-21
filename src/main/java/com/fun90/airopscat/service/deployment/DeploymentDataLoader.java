@@ -327,9 +327,6 @@ public class DeploymentDataLoader {
     }
 
     private String normalizeCoreType(String coreType) {
-        if (coreType == null || coreType.trim().isEmpty()) {
-            return CORE_TYPE_XRAY;
-        }
         return coreType.trim().toLowerCase();
     }
 }

@@ -195,8 +195,7 @@ public class NodeService {
     private void normalizeAndValidateNodeProtocol(Node node) {
         String coreType = node.getCoreType();
         if (coreType == null || coreType.trim().isEmpty()) {
-            coreType = CoreType.XRAY.getValue();
-            node.setCoreType(coreType);
+            throw new IllegalArgumentException("Core type cannot be empty");
         }
 
         CoreType parsedCoreType = CoreType.fromValue(coreType);
@@ -297,8 +296,8 @@ public class NodeService {
             return true;
         }
 
-        String newCoreType = newNode.getCoreType() != null ? newNode.getCoreType() : CoreType.XRAY.getValue();
-        String oldCoreType = oldNode.getCoreType() != null ? oldNode.getCoreType() : CoreType.XRAY.getValue();
+        String newCoreType = newNode.getCoreType();
+        String oldCoreType = oldNode.getCoreType();
         if (!newCoreType.equals(oldCoreType)) {
             return true;
         }
