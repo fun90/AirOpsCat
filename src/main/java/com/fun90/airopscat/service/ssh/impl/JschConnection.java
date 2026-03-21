@@ -125,6 +125,27 @@ public class JschConnection implements SshConnection {
         return String.format("SSH连接 [%s@%s:%d]", 
                 config.getUsername(), config.getHost(), config.getPort());
     }
+
+    @Override
+    public int forwardLocalPort(int localPort, String remoteHost, int remotePort) throws IOException {
+        ensureConnected();
+        try {
+            return session.setPortForwardingL(localPort, remoteHost, remotePort);
+        } catch (JSchException e) {
+            throw new IOException(String.format("建立本地端口转发失败: %d -> %s:%d",
+                    localPort, remoteHost, remotePort), e);
+        }
+    }
+
+    @Override
+    public void cancelLocalPortForward(int localPort) throws IOException {
+        ensureConnected();
+        try {
+            session.delPortForwardingL(localPort);
+        } catch (JSchException e) {
+            throw new IOException("取消本地端口转发失败: " + localPort, e);
+        }
+    }
     
     @Override
     public void close() {

@@ -57,4 +57,21 @@ public interface SshConnection extends AutoCloseable {
      * @return 连接信息字符串
      */
     String getConnectionInfo();
+
+    /**
+     * 建立本地端口转发
+     * @param localPort 本地端口，传0时由系统自动分配
+     * @param remoteHost 远端主机
+     * @param remotePort 远端端口
+     * @return 实际绑定的本地端口
+     * @throws IOException 建立失败
+     */
+    int forwardLocalPort(int localPort, String remoteHost, int remotePort) throws IOException;
+
+    /**
+     * 取消本地端口转发
+     * @param localPort 本地端口
+     * @throws IOException 取消失败
+     */
+    void cancelLocalPortForward(int localPort) throws IOException;
 }

@@ -15,7 +15,9 @@ import com.fun90.airopscat.service.deployment.NodeDeploymentService;
 import com.fun90.airopscat.service.expiration.MonitorNotificationService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
-import com.fun90.airopscat.util.JsonUtil;
+import com.fun90.airopscat.service.traffic.TrafficStatsCollector;
+import com.fun90.airopscat.service.traffic.UserTrafficStats;
+import com.fun90.airopscat.service.traffic.registry.TrafficStatsCollectorRegistry;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -64,6 +66,9 @@ public class ScheduledTaskService {
 
     @Inject
     MonitorNotificationService monitorNotificationService;
+
+    @Inject
+    TrafficStatsCollectorRegistry trafficStatsCollectorRegistry;
 
     /**
      * 每天凌晨5点执行的任务
@@ -144,25 +149,36 @@ public class ScheduledTaskService {
         log.info("开始执行定时任务：收集用户流量统计");
         
         try {
-            // 1. 获取所有Xray类型的服务器配置
-            List<ServerConfig> xrayConfigs = serverConfigRepository.findByConfigType("xray");
-            
-            if (xrayConfigs.isEmpty()) {
-                log.info("没有找到Xray配置，任务结束");
+            List<ServerConfig> serverConfigs = serverConfigRepository.findAll().list();
+
+            if (serverConfigs.isEmpty()) {
+                log.info("没有找到可用的内核配置，任务结束");
                 return;
             }
-            
-            log.info("找到 {} 个Xray配置", xrayConfigs.size());
-            
-            // 2. 当前时间（用于记录统计时间）
+
+            log.info("找到 {} 个内核配置，支持的流量采集器: {}", serverConfigs.size(),
+                    trafficStatsCollectorRegistry.getRegisteredTypes());
+
             LocalDateTime now = LocalDateTime.now();
-            
             int successCount = 0;
             int failureCount = 0;
-            
-            // 3. 遍历每个Xray配置
-            for (ServerConfig serverConfig : xrayConfigs) {
+
+            for (ServerConfig serverConfig : serverConfigs) {
                 try {
+                    String configType = normalizeConfigType(serverConfig.getConfigType());
+                    if (configType == null) {
+                        log.debug("配置 {} 未设置 configType，跳过流量统计", serverConfig.getId());
+                        continue;
+                    }
+                    if (serverConfig.getEnabled() != null && serverConfig.getEnabled() == 0) {
+                        log.debug("配置 {} 已禁用，跳过流量统计", serverConfig.getId());
+                        continue;
+                    }
+                    if (!trafficStatsCollectorRegistry.getRegisteredTypes().contains(configType)) {
+                        log.debug("配置 {} 的内核 {} 暂无流量采集器，跳过", serverConfig.getId(), configType);
+                        continue;
+                    }
+
                     // 获取服务器信息
                     Server server = serverRepository.findById(serverConfig.getServerId());
                     if (server == null) {
@@ -182,12 +198,11 @@ public class ScheduledTaskService {
                         continue;
                     }
 
-                    // 收集该服务器上所有用户的流量统计
-                    int serverSuccessCount = collectServerTrafficStats(server);
+                    TrafficStatsCollector collector = trafficStatsCollectorRegistry.getStrategy(configType);
+                    int serverSuccessCount = collectServerTrafficStats(server, serverConfig, collector);
                     successCount += serverSuccessCount;
-                    
                 } catch (Exception e) {
-                    log.error("处理服务器配置 {} 时发生错误: {}", serverConfig.getId(), e.getMessage());
+                    log.error("处理服务器配置 {} 时发生错误: {}", serverConfig.getId(), e.getMessage(), e);
                     failureCount++;
                 }
             }
@@ -229,36 +244,29 @@ public class ScheduledTaskService {
     /**
      * 收集单个服务器的流量统计
      */
-    private int collectServerTrafficStats(Server server) {
+    private int collectServerTrafficStats(Server server, ServerConfig serverConfig, TrafficStatsCollector collector) {
         int successCount = 0;
         
         try {
-            // 创建SSH连接
             SshConfig sshConfig = createSshConfig(server);
             
             try (SshConnection connection = sshConnectionService.createConnection(sshConfig)) {
-                
-                // 使用statsquery一次性获取所有流量统计数据
-                Map<String, TrafficStats> allTrafficStats = getAllXrayTrafficStats(connection);
-                
+                Map<String, UserTrafficStats> allTrafficStats = collector.collectUserTrafficStats(connection, server, serverConfig);
                 if (allTrafficStats.isEmpty()) {
-                    log.info("服务器 {} 没有流量统计数据", server.getId());
+                    log.info("服务器 {} 的 {} 内核没有流量统计数据", server.getId(), normalizeConfigType(serverConfig.getConfigType()));
                     return 0;
                 }
 
-                // 流量倍率
                 BigDecimal multiple = server.getMultiple() == null ? BigDecimal.ONE : server.getMultiple();
-                
                 long totalUploadBytes = 0L;
                 long totalDownloadBytes = 0L;
 
                 List<Account> accountList = accountRepository.findByAccountNos(allTrafficStats.keySet());
                 Map<String, Account> accountMap = accountList.stream().collect(Collectors.toMap(Account::getAccountNo, account -> account));
 
-                // 处理每个用户的流量统计
-                for (Map.Entry<String, TrafficStats> entry : allTrafficStats.entrySet()) {
+                for (Map.Entry<String, UserTrafficStats> entry : allTrafficStats.entrySet()) {
                     String accountNo = entry.getKey();
-                    TrafficStats trafficStats = entry.getValue();
+                    UserTrafficStats trafficStats = entry.getValue();
                     if (trafficStats != null) {
                         try {
                             long adjustedUpload = multiple.multiply(new BigDecimal(trafficStats.uploadBytes())).longValue();
@@ -266,10 +274,8 @@ public class ScheduledTaskService {
                             totalUploadBytes += adjustedUpload;
                             totalDownloadBytes += adjustedDownload;
 
-                            // 查找对应的账户
                             Account account = accountMap.get(accountNo);
                             if (account != null) {
-                                // 智能保存或更新流量统计（根据当前时间查询已有记录，匹配则累加，否则新增）
                                 accountTrafficStatsService.saveOrUpdateTrafficStats(
                                     account.getId(),
                                     account.getUserId(),
@@ -280,8 +286,9 @@ public class ScheduledTaskService {
                                 );
                                 successCount++;
                                 
-                                log.debug("处理服务器：{} 上的用户 {} 流量统计: 上传 {} 字节, 下载 {} 字节",
-                                        server.getName(), accountNo, trafficStats.uploadBytes(), trafficStats.downloadBytes());
+                                log.debug("处理服务器：{} 上的用户 {} 流量统计: 上传 {} 字节, 下载 {} 字节, core={}",
+                                        server.getName(), accountNo, trafficStats.uploadBytes(), trafficStats.downloadBytes(),
+                                        normalizeConfigType(serverConfig.getConfigType()));
                             } else {
                                 log.warn("服务器：{} 上未找到用户 {}", server.getName(), accountNo);
                             }
@@ -309,132 +316,6 @@ public class ScheduledTaskService {
         }
         
         return successCount;
-    }
-
-    /**
-     * 通过xray api statsquery一次性获取所有流量统计数据
-     */
-    private Map<String, TrafficStats> getAllXrayTrafficStats(SshConnection connection) {
-        Map<String, TrafficStats> trafficStatsMap = new HashMap<>();
-        
-        try {
-            // 使用statsquery命令一次性获取所有统计数据，并重置计数器
-            String command = "xray api statsquery --server=127.0.0.1:100 --reset=true";
-
-            CommandResult result = connection.executeCommand(command);
-
-            if (!result.isSuccess()) {
-                log.error("执行xray statsquery命令失败: {}", result.getStderr());
-                return trafficStatsMap;
-            }
-
-            // 解析JSON响应
-            String output = result.getStdout();
-            if (output == null || output.trim().isEmpty()) {
-                log.debug("xray statsquery返回空结果");
-                return trafficStatsMap;
-            }
-            
-            Map<String, TrafficStats> userTrafficMap = parseXrayStatsQueryOutput(output);
-            trafficStatsMap.putAll(userTrafficMap);
-            
-            log.debug("成功获取 {} 个用户的流量统计", userTrafficMap.size());
-            
-        } catch (Exception e) {
-            log.error("获取xray流量统计失败: {}", e.getMessage());
-        }
-        
-        return trafficStatsMap;
-    }
-    
-    /**
-     * 解析xray statsquery命令输出
-     * 输出格式为: {"stat": [{"name": "user>>>username>>>traffic>>>uplink", "value": 173163}, {"name": "inbound>>>default-api>>>traffic>>>downlink", "value": 173163}...]}
-     */
-    private Map<String, TrafficStats> parseXrayStatsQueryOutput(String output) {
-        Map<String, TrafficStats> userTrafficMap = new HashMap<>();
-        
-        if (output == null || output.trim().isEmpty()) {
-            return userTrafficMap;
-        }
-        
-        try {
-            // 使用JsonUtil解析JSON输出
-            Map<String, Object> jsonMap = JsonUtil.toObject(output, Map.class);
-            if (jsonMap == null) {
-                return userTrafficMap;
-            }
-            
-            // 获取stat数组
-            Object statObj = jsonMap.get("stat");
-            if (!(statObj instanceof List)) {
-                return userTrafficMap;
-            }
-            
-            List<Map<String, Object>> stats = (List<Map<String, Object>>) statObj;
-            
-            // 用于存储每个用户的上传和下载流量
-            Map<String, Long> uplinkMap = new HashMap<>();
-            Map<String, Long> downlinkMap = new HashMap<>();
-            
-            // 遍历所有统计项
-            for (Map<String, Object> stat : stats) {
-                String name = (String) stat.get("name");
-                Object valueObj = stat.get("value");
-                
-                if (name == null || valueObj == null) {
-                    continue;
-                }
-                
-                long value = 0L;
-                if (valueObj instanceof Number) {
-                    value = ((Number) valueObj).longValue();
-                } else if (valueObj instanceof String) {
-                    try {
-                        value = Long.parseLong((String) valueObj);
-                    } catch (NumberFormatException e) {
-                        continue;
-                    }
-                }
-                
-                // 解析用户流量统计名称格式: user>>>username>>>traffic>>>uplink/downlink
-                if (name.contains(">>>traffic>>>")) {
-                    if (name.startsWith("user>>>")) {
-                        String[] parts = name.split(">>>");
-                        if (parts.length >= 4) {
-                            String username = parts[1];
-                            String trafficType = parts[3];
-
-                            if ("uplink".equals(trafficType)) {
-                                uplinkMap.put(username, value);
-                            } else if ("downlink".equals(trafficType)) {
-                                downlinkMap.put(username, value);
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // 合并上传和下载流量数据
-            Set<String> allUsers = new HashSet<>();
-            allUsers.addAll(uplinkMap.keySet());
-            allUsers.addAll(downlinkMap.keySet());
-            
-            for (String username : allUsers) {
-                long uploadBytes = uplinkMap.getOrDefault(username, 0L);
-                long downloadBytes = downlinkMap.getOrDefault(username, 0L);
-                
-                // 只有当流量大于0时才记录
-                if (uploadBytes > 0 || downloadBytes > 0) {
-                    userTrafficMap.put(username, new TrafficStats(uploadBytes, downloadBytes));
-                }
-            }
-            
-        } catch (Exception e) {
-            log.warn("解析xray statsquery输出失败: {}", output, e);
-        }
-        
-        return userTrafficMap;
     }
     
     /**
@@ -603,10 +484,10 @@ public class ScheduledTaskService {
         return cleanedCount;
     }
 
-    /**
-         * 流量统计数据类
-         */
-        private record TrafficStats(long uploadBytes, long downloadBytes) {
+    private String normalizeConfigType(String configType) {
+        if (configType == null || configType.isBlank()) {
+            return null;
+        }
+        return configType.trim().toLowerCase();
     }
-
-} 
+}

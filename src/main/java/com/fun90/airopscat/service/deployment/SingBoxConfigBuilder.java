@@ -70,7 +70,7 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
 
         applyManagedRouteRules(serverSnapshot, nodeSnapshotMap, outbounds, routeRules, ruleSets);
         applyServerTransitConfig(serverSnapshot, outbounds, routeRules);
-        return renderConfig(inbounds, outbounds, routeRules, ruleSets);
+        return renderConfig(inbounds, outbounds, routeRules, ruleSets, collectStatsUsers(enabledNodes));
     }
 
     @Override
@@ -275,7 +275,8 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
     private String renderConfig(List<Map<String, Object>> inbounds,
                                 List<Map<String, Object>> outbounds,
                                 List<Map<String, Object>> routeRules,
-                                List<Map<String, Object>> ruleSets) {
+                                List<Map<String, Object>> ruleSets,
+                                List<String> statsUsers) {
         String configTemplate = configFileReader.readFileContent("config/core/sing-box.json");
         Map<String, Object> templateData = Map.of(
                 "hasExtraInbounds", !inbounds.isEmpty(),
@@ -285,7 +286,9 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
                 "hasExtraRouteRules", !routeRules.isEmpty(),
                 "extraRouteRules", toJsonFragments(routeRules),
                 "hasExtraRuleSets", !ruleSets.isEmpty(),
-                "extraRuleSets", toJsonFragments(ruleSets)
+                "extraRuleSets", toJsonFragments(ruleSets),
+                "hasStatsUsers", !statsUsers.isEmpty(),
+                "statsUsers", JsonUtil.toJsonString(statsUsers)
         );
         return templateUtil.processStringTemplate(configTemplate, templateData);
     }
@@ -476,6 +479,16 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
         return items.stream()
                 .map(JsonUtil::toJsonString)
                 .collect(Collectors.joining(",\n"));
+    }
+
+    private List<String> collectStatsUsers(List<NodeDeploymentSnapshot> enabledNodes) {
+        return enabledNodes.stream()
+                .flatMap(node -> node.clients().stream())
+                .map(VlessClient::email)
+                .filter(Objects::nonNull)
+                .filter(name -> !name.isBlank())
+                .distinct()
+                .toList();
     }
 
     private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String field) {
