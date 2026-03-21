@@ -61,15 +61,15 @@
             </span>
         </td>
         <td>
-            <span class="badge" :class="getDeploymentStatusBadgeClass(node.deployed)">
-                {{ node.deployed === 0 ? '未部署' : '已部署' }}
+            <span class="badge" :class="isNodeDeploying(node.id) ? 'text-bg-info' : getDeploymentStatusBadgeClass(node.deployed)">
+                {{ isNodeDeploying(node.id) ? '部署中' : (node.deployed === 0 ? '未部署' : '已部署') }}
             </span>
         </td>
         <td>
             <div class="btn-list">
                 <div class="dropdown position-static action-dropdown">
-                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
-                        操作
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown" :disabled="isNodeDeploying(node.id)">
+                        {{ isNodeDeploying(node.id) ? '部署中' : '操作' }}
                     </button>
                     <div class="dropdown-menu dropdown-menu-end">
                         <a class="dropdown-item" href="#" @click="openEditModal(node)">
@@ -88,10 +88,10 @@
                         <a class="dropdown-item" href="#" @click.prevent="copyNode(node)">
                             <i class="ti ti-copy"></i> 复制
                         </a>
-                        <a v-if="node.deployed === 0" class="dropdown-item" href="#" @click.prevent="deployNode(node)">
+                        <a v-if="node.deployed === 0" class="dropdown-item" href="#" :class="{ disabled: isNodeDeploying(node.id) }" @click.prevent="deployNode(node)">
                             <i class="ti ti-rocket"></i> 部署
                         </a>
-                        <a v-else class="dropdown-item" href="#" @click.prevent="deployNode(node, true)">
+                        <a v-else class="dropdown-item" href="#" :class="{ disabled: isNodeDeploying(node.id) }" @click.prevent="deployNode(node, true)">
                             <i class="ti ti-rocket"></i> 重新部署
                         </a>
                         <div v-if="node.deployed === 1 && node.disabled === 1" class="dropdown-divider"></div>

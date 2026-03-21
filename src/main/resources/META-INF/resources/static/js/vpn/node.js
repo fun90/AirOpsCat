@@ -59,7 +59,8 @@ const nodeTable = new DataTable({
         viewConfigModal: null,
         batchDeployModal: null,
         selectedNodeIds: [],
-        batchDeploying: false
+        batchDeploying: false,
+        deployingNodeIds: []
     },
     methods: {
         initialize() {
@@ -716,7 +717,15 @@ const nodeTable = new DataTable({
         },
 
         deployNode(node, forcibly = false) {
-            ToastUtils.show('Info', '正在部署节点...', 'info');
+            if (this.deployingNodeIds.includes(node.id)) {
+                return;
+            }
+
+            this.deployingNodeIds.push(node.id);
+            const loadingToast = ToastUtils.loading(
+                forcibly ? '重新部署中' : '部署中',
+                `${node.name || `节点 #${node.id}`} 正在部署，请稍候...`
+            );
 
             fetch(`/api/admin/nodes/${node.id}/${forcibly ? 'deployForcibly' : 'deploy'}`, {
                 method: 'POST'
@@ -738,7 +747,15 @@ const nodeTable = new DataTable({
                 .catch(error => {
                     console.error('Error:', error);
                     ToastUtils.show('Error', '部署节点失败', 'danger');
+                })
+                .finally(() => {
+                    loadingToast.hide();
+                    this.deployingNodeIds = this.deployingNodeIds.filter(id => id !== node.id);
                 });
+        },
+
+        isNodeDeploying(nodeId) {
+            return this.deployingNodeIds.includes(nodeId);
         },
 
         getDeploymentStatusBadgeClass(deployed) {

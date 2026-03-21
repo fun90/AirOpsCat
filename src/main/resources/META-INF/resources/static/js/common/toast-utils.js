@@ -10,6 +10,48 @@
 import { Toast } from '/static/tabler/js/tabler.esm.min.js';
 
 const ToastUtils = {
+    createContainer() {
+        let toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toast-container';
+            toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+            document.body.appendChild(toastContainer);
+        }
+        return toastContainer;
+    },
+
+    createToastElement(title, message, type, options = {}) {
+        const {
+            showSpinner = false,
+            closable = true
+        } = options;
+
+        const toastEl = document.createElement('div');
+        toastEl.className = `toast align-items-center text-white border-0 bg-${type}`;
+        toastEl.setAttribute('role', 'alert');
+        toastEl.setAttribute('aria-live', 'assertive');
+        toastEl.setAttribute('aria-atomic', 'true');
+        toastEl.innerHTML = `
+            <div class="d-flex align-items-center">
+                <div class="toast-body d-flex align-items-center gap-2">
+                    ${showSpinner ? '<span class="spinner-border spinner-border-sm flex-shrink-0" role="status" aria-hidden="true"></span>' : ''}
+                    <div class="d-flex flex-column">
+                        ${title ? `<strong>${title}</strong>` : ''}
+                        <span>${message || '操作成功'}</span>
+                    </div>
+                </div>
+                ${closable ? '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>' : ''}
+            </div>
+        `;
+
+        toastEl.addEventListener('hidden.bs.toast', () => {
+            toastEl.remove();
+        });
+
+        return toastEl;
+    },
+
     /**
      * 显示一个 Toast 通知
      * @param {string} title - Toast 标题
@@ -18,43 +60,38 @@ const ToastUtils = {
      * @param {number} [delay=3000] - 自动隐藏延迟(毫秒)
      */
     show(title, message, type, delay = 3000) {
-        // 如果已存在 toast 容器则使用，否则创建新的
-        let toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) {
-            toastContainer = document.createElement('div');
-            toastContainer.id = 'toast-container';
-            toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
-            document.body.appendChild(toastContainer);
-        }
-
-        // 创建新的 toast 元素
-        const toastEl = document.createElement('div');
-        toastEl.className = `toast align-items-center text-white border-0 bg-${type}`;
-        toastEl.innerHTML = `
-            <div class="d-flex">
-                <div class="toast-body">
-                    <i class="fas fa-check-circle"></i> ${message || '操作成功'}
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-            </div>
-        `;
-
-        // 添加到容器
+        const toastContainer = this.createContainer();
+        const toastEl = this.createToastElement(title, message, type);
         toastContainer.appendChild(toastEl);
 
-        // 初始化 toast 并显示
         const toast = new Toast(toastEl, {
             delay: delay,
             autohide: true
         });
 
-        // 使用 show() API 显示 toast
+        toast.show();
+        return toast;
+    },
+
+    loading(title, message) {
+        const toastContainer = this.createContainer();
+        const toastEl = this.createToastElement(title, message, 'info', {
+            showSpinner: true,
+            closable: false
+        });
+        toastContainer.appendChild(toastEl);
+
+        const toast = new Toast(toastEl, {
+            autohide: false
+        });
+
         toast.show();
 
-        // 监听关闭事件，移除DOM元素
-        toastEl.addEventListener('hidden.bs.toast', () => {
-            toastEl.remove();
-        });
+        return {
+            hide() {
+                toast.hide();
+            }
+        };
     },
 
     /**
