@@ -24,12 +24,6 @@ public class AccountTrafficStatsRepository implements PanacheRepository<AccountT
                 .firstResult();
     }
 
-    public Long sumBytesByAccountId(Long accountId) {
-        return find("select sum(downloadBytes) + sum(uploadBytes) from AccountTrafficStats where accountId = ?1 and ?2 between periodStart and periodEnd", accountId, LocalDateTime.now())
-                .project(Long.class)
-                .firstResult();
-    }
-
     public Map<Long, Long> sumBytesByAccountIds(List<Long> accountIds, LocalDateTime currentTime) {
         Map<Long, Long> result = new HashMap<>();
         if (accountIds == null || accountIds.isEmpty()) {
@@ -51,7 +45,7 @@ public class AccountTrafficStatsRepository implements PanacheRepository<AccountT
         }
         return result;
     }
-    
+
     /**
      * 查找指定账户在指定时间范围内的流量统计记录（当前时间在时间范围内）
      * @param accountId 账户ID

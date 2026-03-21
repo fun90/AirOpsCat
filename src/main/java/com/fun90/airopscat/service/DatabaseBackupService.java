@@ -247,10 +247,6 @@ public class DatabaseBackupService {
         }
     }
 
-    public Map<String, Object> getBackupStats() {
-        return getBackupStats(listBackups());
-    }
-
     private Map<String, Object> getBackupStats(List<BackupFileDto> backups) {
         long totalSize = backups.stream().mapToLong(BackupFileDto::getSize).sum();
 

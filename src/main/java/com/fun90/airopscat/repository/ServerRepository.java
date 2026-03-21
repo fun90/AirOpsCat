@@ -7,7 +7,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
 @ApplicationScoped
 public class ServerRepository implements PanacheRepository<Server> {
@@ -23,37 +22,33 @@ public class ServerRepository implements PanacheRepository<Server> {
         return find("id in ?1", ids).list();
     }
 
-    public Optional<Server> findAvailableServer(Long id, LocalDate now) {
-        return find("id = ?1 and disabled = 0 and external == 0 and (expireDate is null or expireDate > ?2)", id, now).firstResultOptional();
-    }
-
     public List<Server> findExpiringOnDate(LocalDate date) {
         return find("(disabled = 0 or disabled is null) and expireDate = ?1", date).list();
     }
-    
-    
+
+
     public long countActiveServers(LocalDate now) {
         return count("disabled = 0 and (expireDate is null or expireDate > ?1)", now);
     }
-    
+
     public long countExpiredServers(LocalDate now) {
         return count("expireDate is not null and expireDate < ?1", now);
     }
-    
+
     public long countDisabledServers() {
         return count("disabled = 1");
     }
-    
+
     public long countExpiringInOneMonth(LocalDate now, LocalDate inOneMonth) {
         return count("expireDate is not null and expireDate between ?1 and ?2", now, inOneMonth);
     }
-    
+
     public BigDecimal getTotalServerCost() {
         return find("select sum(price) from Server")
                 .project(BigDecimal.class)
                 .firstResult();
     }
-    
+
     public List<Object[]> countBySupplier() {
         return getEntityManager()
                 .createQuery("select s.supplier, count(s) from Server s group by s.supplier", Object[].class)

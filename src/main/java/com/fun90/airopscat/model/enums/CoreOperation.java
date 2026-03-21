@@ -20,21 +20,13 @@ public enum CoreOperation {
     GET_VERSION("version", "获取版本"),
     GET_LOGS("logs", "获取日志"),
     IS_INSTALLED("is_installed", "检查安装状态");
-    
+
     private final String code;
     private final String description;
-    
+
     CoreOperation(String code, String description) {
         this.code = code;
         this.description = description;
     }
 
-    public static CoreOperation fromCode(String code) {
-        for (CoreOperation operation : values()) {
-            if (operation.code.equals(code)) {
-                return operation;
-            }
-        }
-        throw new IllegalArgumentException("Unknown operation code: " + code);
-    }
 }

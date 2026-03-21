@@ -24,19 +24,9 @@ public class CoreManagementService {
 
     @Inject
     CoreManagementStrategyRegistry strategyRegistry;
-    
+
     @Inject
     SshConnectionService sshConnectionService;
-
-    /**
-     * 执行内核管理操作
-     */
-    public CoreManagementResult executeOperation(String coreType, CoreOperation operation,
-                                                 SshConfig sshConfig, Object... params) {
-        List<CoreManagementResult> results = executeOperations(coreType, sshConfig,
-                new OperationRequest(operation, params));
-        return results.isEmpty() ? buildFailureResult(coreType, operation, sshConfig, "操作执行失败") : results.getFirst();
-    }
 
     /**
      * 在同一个SSH连接中顺序执行多个内核管理操作
@@ -85,7 +75,7 @@ public class CoreManagementService {
 
     private CoreManagementResult executeOperationInternal(CoreManagementStrategy strategy,
                                                          CoreOperation operation,
-                                                         SshConnection connection, 
+                                                         SshConnection connection,
                                                          Object... params) {
         return switch (operation) {
             case START -> strategy.start(connection);

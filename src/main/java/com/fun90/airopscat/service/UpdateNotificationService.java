@@ -148,20 +148,4 @@ public class UpdateNotificationService {
         printSeparator();
     }
 
-    /**
-     * 手动检查更新 (可供其他服务调用)
-     */
-    public CompletableFuture<GitHubReleaseDto> checkForUpdatesAsync() {
-        if (!AppConstants.UPDATE_CHECK_ENABLED) {
-            return CompletableFuture.completedFuture(null);
-        }
-
-        return gitHubApiClient.getLatestRelease()
-                .toCompletableFuture()
-                .orTimeout(AppConstants.UPDATE_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .exceptionally(throwable -> {
-                    log.debug("手动版本检查失败", throwable);
-                    return null;
-                });
-    }
 }

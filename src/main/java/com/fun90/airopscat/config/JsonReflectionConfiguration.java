@@ -19,18 +19,18 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.enums.PaymentMethod.class,
     com.fun90.airopscat.model.enums.TransactionType.class,
     com.fun90.airopscat.model.enums.RouteRuleType.class,
-    
+
     // Other DTO Classes
     ApiResponseDto.class,
     BarkNotificationDto.class,
-    
+
     // Account and User Related DTOs
     com.fun90.airopscat.model.dto.AccountDto.class,
     com.fun90.airopscat.model.dto.AccountOnlineIpDto.class,
     com.fun90.airopscat.model.dto.AccountRequest.class,
     com.fun90.airopscat.model.dto.AccountTrafficStatsDto.class,
     com.fun90.airopscat.model.dto.UserDto.class,
-    
+
     // Server and Node Related DTOs
     com.fun90.airopscat.model.dto.ServerDto.class,
     com.fun90.airopscat.model.dto.ServerConfigDto.class,
@@ -41,17 +41,14 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
 
     // Operation Result DTOs
     com.fun90.airopscat.model.dto.CommandResult.class,
-    com.fun90.airopscat.model.dto.BatchCommandResult.class,
     com.fun90.airopscat.model.dto.CoreManagementResult.class,
-    com.fun90.airopscat.model.dto.BatchCoreManagementResult.class,
     com.fun90.airopscat.model.dto.DeploymentResult.class,
-    
+
     // Configuration DTOs
     com.fun90.airopscat.model.dto.SshConfig.class,
     com.fun90.airopscat.model.dto.SubscrptionDto.class,
     com.fun90.airopscat.model.dto.ClientRequest.class,
-    com.fun90.airopscat.model.dto.LoginRequest.class,
-    
+
     // Other DTOs
     com.fun90.airopscat.model.dto.TagDto.class,
     com.fun90.airopscat.model.dto.TransactionDto.class,

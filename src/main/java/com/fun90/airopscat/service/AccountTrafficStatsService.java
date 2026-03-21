@@ -39,10 +39,10 @@ public class AccountTrafficStatsService {
         this.entityManager = entityManager;
     }
 
-    public io.quarkus.hibernate.orm.panache.PanacheQuery<AccountTrafficStats> getStatsPage(String search, Long userId,
-                                                                                            Long accountId,
-                                                                                            LocalDateTime startDate,
-                                                                                            LocalDateTime endDate) {
+    public io.quarkus.hibernate.orm.panache.PanacheQuery<AccountTrafficStats> getStatsPage(Long userId,
+                                                                                           Long accountId,
+                                                                                           LocalDateTime startDate,
+                                                                                           LocalDateTime endDate) {
         StringBuilder query = new StringBuilder("1=1");
         Map<String, Object> params = new HashMap<>();
 

@@ -13,12 +13,4 @@ public enum PeriodType {
         this.description = description;
     }
 
-    public static PeriodType fromString(String text) {
-        for (PeriodType type : PeriodType.values()) {
-            if (type.name().equalsIgnoreCase(text)) {
-                return type;
-            }
-        }
-        return MONTHLY; // 默认为每月
-    }
 }

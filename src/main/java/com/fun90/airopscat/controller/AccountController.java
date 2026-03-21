@@ -39,13 +39,13 @@ import java.util.stream.Stream;
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class AccountController {
-    
+
     private final AccountService accountService;
     private final UserService userService;
     private final TagService tagService;
     private final AccountOnlineIpService accountOnlineIpService;
     private final TransactionService transactionService;
-    
+
     @Inject
     SecurityIdentity securityIdentity;
     @Inject
@@ -72,7 +72,7 @@ public class AccountController {
     ) {
         PanacheQuery<Account> accountQuery = accountService.getAccountPage(search, userId, status);
         accountQuery.page(Page.of(page - 1, size));
-        
+
         // Convert to DTOs
         List<Account> accounts = accountQuery.list();
         List<AccountDto> accountDtos = accounts.stream()
@@ -85,7 +85,7 @@ public class AccountController {
         response.put("pages", accountQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
-        
+
         // Add statistics
         response.put("stats", accountService.getAccountsStats());
 
@@ -102,7 +102,7 @@ public class AccountController {
         }
         return Response.status(Response.Status.NOT_FOUND).build();
     }
-    
+
     @GET
     @Path("/user/{userId}")
     public Response getAccountsByUser(
@@ -113,7 +113,7 @@ public class AccountController {
     ) {
         PanacheQuery<Account> accountQuery = accountService.getAccountPage(search, userId, null);
         accountQuery.page(Page.of(page - 1, size));
-        
+
         // Convert to DTOs
         List<Account> accounts = accountQuery.list();
         List<AccountDto> accountDtos = accounts.stream()
@@ -130,7 +130,7 @@ public class AccountController {
 
         return Response.ok(response).build();
     }
-    
+
     @GET
     @Path("/period-types")
     public Response getPeriodTypes() {
@@ -142,16 +142,16 @@ public class AccountController {
                     return map;
                 })
                 .collect(Collectors.toList());
-        
+
         return Response.ok(periodTypes).build();
     }
-    
+
     @GET
     @Path("/stats")
     public Response getAccountsStats() {
         return Response.ok(accountService.getAccountsStats()).build();
     }
-    
+
     @GET
     @Path("/my-accounts")
     public Response getMyAccounts(
@@ -163,17 +163,17 @@ public class AccountController {
         if (securityIdentity.isAnonymous()) {
             return Response.status(Response.Status.UNAUTHORIZED).build();
         }
-        
+
         String email = securityIdentity.getPrincipal().getName();
         User currentUser = userService.getByEmail(email);
         if (currentUser == null) {
             return Response.status(Response.Status.UNAUTHORIZED).build();
         }
-        
+
         // 获取当前用户的账户
         PanacheQuery<Account> accountQuery = accountService.getAccountPage(search, currentUser.getId(), null);
         accountQuery.page(Page.of(page - 1, size));
-        
+
         // Convert to DTOs
         List<Account> accounts = accountQuery.list();
         List<AccountDto> accountDtos = accounts.stream()
@@ -210,15 +210,15 @@ public class AccountController {
         account.setBandwidth(request.getBandwidth());
         account.setDisabled(request.getDisabled());
         account.setRemark(request.getRemark());
-        
+
         // 保存账户
         Account savedAccount = accountService.saveAccount(account);
-        
+
         // 处理标签关联
         if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
             tagService.updateAccountTags(savedAccount.getId(), request.getTagIds());
         }
-        
+
         return Response.ok(savedAccount).build();
     }
 
@@ -248,14 +248,14 @@ public class AccountController {
         account.setBandwidth(request.getBandwidth());
         account.setDisabled(request.getDisabled());
         account.setRemark(request.getRemark());
-        
+
         Account updatedAccount = accountService.updateAccount(account);
-        
+
         // 处理标签关联
         if (request.getTagIds() != null) {
             tagService.updateAccountTags(updatedAccount.getId(), request.getTagIds());
         }
-        
+
         return Response.ok(accountService.convertToDto(updatedAccount)).build();
     }
 
@@ -296,11 +296,11 @@ public class AccountController {
         }
         return Response.status(Response.Status.NOT_FOUND).build();
     }
-    
+
     @PATCH
     @Path("/{id}/renew")
     public Response renewAccount(
-            @PathParam("id") Long id, 
+            @PathParam("id") Long id,
             @QueryParam("expiryDate") String expiryDate,
             @QueryParam("amount") BigDecimal amount,
             @QueryParam("paymentMethod") String paymentMethod
@@ -314,7 +314,7 @@ public class AccountController {
         }
 
         Account account = accountService.renewAccount(id, parsedDate);
-        
+
         if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
             if (paymentMethod == null || paymentMethod.isBlank()) {
                 return Response.status(Response.Status.BAD_REQUEST)
@@ -349,7 +349,7 @@ public class AccountController {
         AccountDto dto = accountService.convertToDto(account);
         return Response.ok(dto).build();
     }
-    
+
     @PATCH
     @Path("/{id}/reset-auth")
     public Response resetAuthCode(@PathParam("id") Long id) {
@@ -376,28 +376,28 @@ public class AccountController {
         }
         return Response.status(Response.Status.NOT_FOUND).build();
     }
-    
+
     @GET
     @Path("/online/accountNo/{accountNo}")
     public Response getOnlineRecordsByAccountNo(@PathParam("accountNo") String accountNo) {
         List<AccountOnlineIpDto> records = accountOnlineIpService.getOnlineRecordsByAccountNo(accountNo);
         return Response.ok(records).build();
     }
-    
+
     @GET
     @Path("/online/node/{nodeIp}")
     public Response getOnlineRecordsByNodeIp(@PathParam("nodeIp") String nodeIp) {
         List<AccountOnlineIpDto> records = accountOnlineIpService.getOnlineRecordsByNodeIp(nodeIp);
         return Response.ok(records).build();
     }
-    
+
     @GET
     @Path("/online/all")
     public Response getAllOnlineRecords() {
         List<AccountOnlineIpDto> records = accountOnlineIpService.getAllOnlineRecords();
         return Response.ok(records).build();
     }
-    
+
     @DELETE
     @Path("/online/cleanup")
     public Response cleanupExpiredRecords() {
@@ -411,11 +411,11 @@ public class AccountController {
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 class ConfigController {
-    
+
     @Inject
     @ConfigProperty(name = "airopscat.docs.url", defaultValue = "https://docs.xxx.com")
     String docsUrl;
-    
+
     @GET
     @Path("/docs")
     public Response getDocsConfig() {

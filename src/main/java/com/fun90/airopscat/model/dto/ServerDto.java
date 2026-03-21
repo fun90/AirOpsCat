@@ -36,26 +36,5 @@ public class ServerDto {
     private Long trafficTotalBytes;
     private LocalDateTime trafficPeriodStart;
     private LocalDateTime trafficPeriodEnd;
-    
-    // 辅助方法：获取服务器连接地址
-    public String getConnectionString() {
-        if (sshPort == null || sshPort == 22) {
-            return ip;
-        } else {
-            return ip + ":" + sshPort;
-        }
-    }
-    
-    // 辅助方法：获取带有多倍率的价格
-    public BigDecimal getEffectivePrice() {
-        if (price == null) {
-            return BigDecimal.ZERO;
-        }
-        
-        if (multiple == null || multiple.compareTo(BigDecimal.ZERO) <= 0) {
-            return price;
-        }
-        
-        return price.multiply(multiple);
-    }
+
 }
