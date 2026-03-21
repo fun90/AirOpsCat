@@ -67,9 +67,13 @@
         </td>
         <td>
             <div class="btn-list">
-                <div class="dropdown position-static action-dropdown">
+                <button v-if="isNodeDeploying(node.id)" class="btn btn-sm btn-info" type="button" disabled>
+                    <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    部署中
+                </button>
+                <div v-else class="dropdown position-static action-dropdown">
                     <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown" :disabled="isNodeDeploying(node.id)">
-                        {{ isNodeDeploying(node.id) ? '部署中' : '操作' }}
+                        操作
                     </button>
                     <div class="dropdown-menu dropdown-menu-end">
                         <a class="dropdown-item" href="#" @click="openEditModal(node)">
