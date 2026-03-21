@@ -218,6 +218,18 @@ const routeRuleTable = new DataTable({
                 remark: item.remark || '',
                 serverIds: (item.serverIds || []).map(Number)
             };
+        },
+
+        getToggleStatusUrl(item, action) {
+            return `/api/admin/route-rules/${item.id}/${action}`;
+        },
+
+        updateItemStatus(item, data) {
+            const index = this.records.findIndex(record => record.id === item.id);
+            if (index !== -1) {
+                this.records[index].enabled = data.enabled;
+            }
+            this.fetchRecords();
         }
     }
 });

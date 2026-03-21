@@ -140,6 +140,21 @@ public class RouteRuleService {
         routeRuleRepository.deleteById(id);
     }
 
+    @Transactional
+    public RouteRule toggleRouteRuleStatus(Long id, boolean enabled) {
+        RouteRule routeRule = routeRuleRepository.findById(id);
+        if (routeRule == null) {
+            return null;
+        }
+
+        if (enabled) {
+            validateRouteRuleCanBeEnabled(routeRule);
+        }
+
+        routeRule.setEnabled(enabled ? 1 : 0);
+        return routeRule;
+    }
+
     public RouteRuleDto toDto(RouteRule routeRule) {
         RouteRuleDto dto = new RouteRuleDto();
         dto.setId(routeRule.getId());
@@ -183,6 +198,19 @@ public class RouteRuleService {
         routeRule.setServers(loadServers(request.getServerIds()));
     }
 
+    private void validateRouteRuleCanBeEnabled(RouteRule routeRule) {
+        Node outboundNode = nodeRepository.findById(routeRule.getOutboundNodeId());
+        if (outboundNode == null) {
+            throw new EntityNotFoundException("出站落地节点不存在");
+        }
+        if (!Objects.equals(outboundNode.getType(), NodeType.LANDING.getValue())) {
+            throw new IllegalArgumentException("出站节点必须是落地节点");
+        }
+        if (outboundNode.getDisabled() != null && outboundNode.getDisabled() == 1) {
+            throw new IllegalArgumentException("出站落地节点已禁用，无法启用路由规则");
+        }
+    }
+
     private void validateRequest(RouteRuleRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("路由规则不能为空");
@@ -222,7 +250,7 @@ public class RouteRuleService {
             throw new IllegalArgumentException("出站落地节点已禁用");
         }
         String outboundCoreType = normalizeCoreType(outboundNode.getCoreType());
-        if (!normalizeCoreType(request.getCoreType()).equals(outboundCoreType)) {
+        if (!request.getCoreType().equals(outboundCoreType)) {
             throw new IllegalArgumentException("路由规则内核类型必须与出站落地节点一致");
         }
 
@@ -267,7 +295,7 @@ public class RouteRuleService {
 
     private String normalizeCoreType(String coreType) {
         CoreType normalized = CoreType.fromValue(coreType);
-        return normalized == null ? null : normalized.getValue();
+        return normalized == null ? CoreType.XRAY.getValue() : normalized.getValue();
     }
 
     private String normalizeRuleType(String ruleType) {

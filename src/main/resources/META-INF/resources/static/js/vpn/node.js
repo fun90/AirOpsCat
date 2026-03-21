@@ -1,4 +1,5 @@
 ﻿import { DataTable } from '/static/js/common/data-table.js';
+import { createSearchDropdown } from '/static/js/common/search-dropdown.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 
 const nodeTable = new DataTable({
@@ -8,7 +9,10 @@ const nodeTable = new DataTable({
         filters: {
             serverId: '',
             type: '',
-            status: ''
+            coreType: '',
+            protocol: '',
+            disabled: '',
+            deployed: ''
         },
         servers: [],
         landingNodes: [],
@@ -16,6 +20,7 @@ const nodeTable = new DataTable({
         coreTypes: [],
         protocolTypes: [],
         availableTags: [],
+        serverFilterSearch: null,
         stats: {
             total: 0,
             active: 0,
@@ -64,6 +69,34 @@ const nodeTable = new DataTable({
             this.fetchCoreTypes();
             this.fetchProtocolTypes();
             this.fetchAvailableTags();
+            this.initializeSearchComponents();
+        },
+
+        initializeSearchComponents() {
+            this.serverFilterSearch = createSearchDropdown({
+                placeholder: '全部服务器',
+                apiUrl: '/api/admin/servers',
+                minQueryLength: 0,
+                formatItem: (item) => ({
+                    id: item.id,
+                    name: item.name ? `${item.ip} (${item.name})` : item.ip,
+                    data: item
+                }),
+                onSelect: (item) => {
+                    this.filters.serverId = String(item.id);
+                    this.onFilterChange();
+                },
+                onChange: (text, item) => {
+                    if (!text && !item && this.filters.serverId) {
+                        this.filters.serverId = '';
+                        this.onFilterChange();
+                    }
+                }
+            });
+
+            setTimeout(() => {
+                this.serverFilterSearch.bindToDOM('nodeServerFilter');
+            }, 100);
         },
 
         fetchServers() {
@@ -133,6 +166,25 @@ const nodeTable = new DataTable({
                 .catch(error => {
                     console.error('Error fetching available tags:', error);
                 });
+        },
+
+        onFilterChange() {
+            const availableProtocols = this.getFilterProtocolOptions();
+            if (this.filters.protocol && !availableProtocols.some(protocol => protocol.value === this.filters.protocol)) {
+                this.filters.protocol = '';
+            }
+            this.currentPage = 1;
+            this.fetchRecords();
+        },
+
+        getFilterProtocolOptions() {
+            return this.protocolTypes.filter(protocol => {
+                const matchedType = this.filters.type === '' || String(protocol.type) === String(this.filters.type);
+                const matchedCore = this.filters.coreType === ''
+                    || !protocol.coreTypes
+                    || protocol.coreTypes.includes(this.filters.coreType);
+                return matchedType && matchedCore;
+            });
         },
 
         getTypeBadgeClass(type) {

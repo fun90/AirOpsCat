@@ -84,7 +84,7 @@ export class DataTable {
         
         // Add any other filters
         for (const [key, value] of Object.entries(this.filters)) {
-          if (value) {
+          if (value !== '' && value !== null && value !== undefined) {
             params.append(key, value);
           }
         }

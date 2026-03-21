@@ -142,4 +142,28 @@ public class RouteRuleController {
         routeRuleService.deleteRouteRule(id);
         return Response.ok().build();
     }
+
+    @PATCH
+    @Path("/{id}/enable")
+    public Response enableRouteRule(@PathParam("id") Long id) {
+        try {
+            RouteRule routeRule = routeRuleService.toggleRouteRuleStatus(id, true);
+            if (routeRule == null) {
+                return Response.status(Response.Status.NOT_FOUND).build();
+            }
+            return Response.ok(Map.of("id", id, "enabled", 1)).build();
+        } catch (IllegalArgumentException | EntityNotFoundException e) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("message", e.getMessage())).build();
+        }
+    }
+
+    @PATCH
+    @Path("/{id}/disable")
+    public Response disableRouteRule(@PathParam("id") Long id) {
+        RouteRule routeRule = routeRuleService.toggleRouteRuleStatus(id, false);
+        if (routeRule == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        return Response.ok(Map.of("id", id, "enabled", 0)).build();
+    }
 }

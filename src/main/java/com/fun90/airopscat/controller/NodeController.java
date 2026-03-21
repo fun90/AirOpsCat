@@ -50,9 +50,12 @@ public class NodeController {
             @QueryParam("search") String search,
             @QueryParam("serverId") Long serverId,
             @QueryParam("type") Integer type,
-            @QueryParam("disabled") Boolean disabled
+            @QueryParam("coreType") String coreType,
+            @QueryParam("protocol") String protocol,
+            @QueryParam("disabled") Boolean disabled,
+            @QueryParam("deployed") Boolean deployed
     ) {
-        PanacheQuery<Node> nodeQuery = nodeService.getNodePage(search, serverId, type, disabled);
+        PanacheQuery<Node> nodeQuery = nodeService.getNodePage(search, serverId, type, coreType, protocol, disabled, deployed);
         nodeQuery.page(Page.of(page - 1, size));
         
         // Convert to DTOs
@@ -286,47 +289,55 @@ public class NodeController {
     @POST
     @Path("/{id}/copy")
     public Response copyNode(@PathParam("id") Long id) {
-        Node existingNode = nodeService.getNodeById(id);
-        if (existingNode == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
+        try {
+            Node existingNode = nodeService.getNodeById(id);
+            if (existingNode == null) {
+                return Response.status(Response.Status.NOT_FOUND).build();
+            }
+
+            // Create a copy of the node manually to avoid shared references
+            Node nodeCopy = new Node();
+
+            // Copy basic properties manually
+            nodeCopy.setServerId(existingNode.getServerId());
+            nodeCopy.setBackupServerId(existingNode.getBackupServerId());
+            nodeCopy.setProtocol(existingNode.getProtocol());
+            nodeCopy.setCoreType(existingNode.getCoreType());
+            nodeCopy.setType(existingNode.getType());
+            nodeCopy.setInbound(existingNode.getInbound());
+            nodeCopy.setOutId(existingNode.getOutId());
+            nodeCopy.setRule(existingNode.getRule());
+            nodeCopy.setLevel(existingNode.getLevel());
+            nodeCopy.setDisabled(existingNode.getDisabled());
+            nodeCopy.setRemark(existingNode.getRemark());
+
+            // Set deployed status to 0 (not deployed) for the copy
+            nodeCopy.setDeployed(0);
+
+            // Modify the name to indicate it's a copy
+            if (existingNode.getName() != null) {
+                nodeCopy.setName(existingNode.getName() + " (Copy)");
+            } else {
+                nodeCopy.setName("Copy of Node " + id);
+            }
+
+            // The port must be unique per server, so get a new available port
+            if (nodeCopy.getServerId() != null) {
+                Integer availablePort = nodeService.getAvailablePort(nodeCopy.getServerId());
+                nodeCopy.setPort(availablePort);
+            }
+
+            // Don't copy tags - let the new node start without any tags
+            // Don't copy server/outNode references - they will be loaded by JPA automatically
+
+            // Save the new node
+            Node savedNode = nodeService.saveNode(nodeCopy);
+            return Response.ok(savedNode).build();
+        } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
         }
-
-        // Create a copy of the node manually to avoid shared references
-        Node nodeCopy = new Node();
-        
-        // Copy basic properties manually
-        nodeCopy.setServerId(existingNode.getServerId());
-        nodeCopy.setProtocol(existingNode.getProtocol());
-        nodeCopy.setType(existingNode.getType());
-        nodeCopy.setInbound(existingNode.getInbound());
-        nodeCopy.setOutId(existingNode.getOutId());
-        nodeCopy.setRule(existingNode.getRule());
-        nodeCopy.setLevel(existingNode.getLevel());
-        nodeCopy.setDisabled(existingNode.getDisabled());
-        nodeCopy.setRemark(existingNode.getRemark());
-        
-        // Set deployed status to 0 (not deployed) for the copy
-        nodeCopy.setDeployed(0);
-
-        // Modify the name to indicate it's a copy
-        if (existingNode.getName() != null) {
-            nodeCopy.setName(existingNode.getName() + " (Copy)");
-        } else {
-            nodeCopy.setName("Copy of Node " + id);
-        }
-
-        // The port must be unique per server, so get a new available port
-        if (nodeCopy.getServerId() != null) {
-            Integer availablePort = nodeService.getAvailablePort(nodeCopy.getServerId());
-            nodeCopy.setPort(availablePort);
-        }
-
-        // Don't copy tags - let the new node start without any tags
-        // Don't copy server/outNode references - they will be loaded by JPA automatically
-
-        // Save the new node
-        Node savedNode = nodeService.saveNode(nodeCopy);
-        return Response.ok(savedNode).build();
     }
 
     @POST

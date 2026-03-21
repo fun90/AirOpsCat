@@ -60,6 +60,7 @@ export class SearchDropdown {
         this.elements = {
             dropdown: document.getElementById(`search-dropdown-${componentId}`),
             input: document.getElementById(`search-input-${componentId}`),
+            clear: document.getElementById(`search-clear-${componentId}`),
             menu: document.getElementById(`search-menu-${componentId}`),
             loading: document.getElementById(`search-loading-${componentId}`),
             results: document.getElementById(`search-results-${componentId}`),
@@ -80,7 +81,7 @@ export class SearchDropdown {
      * 设置事件监听器
      */
     setupEventListeners() {
-        const { input } = this.elements;
+        const { input, clear } = this.elements;
         
         input.addEventListener('input', (e) => {
             this.searchText = e.target.value;
@@ -114,6 +115,17 @@ export class SearchDropdown {
         input.addEventListener('keydown', (e) => {
             this.handleKeydown(e);
         });
+
+        if (clear) {
+            clear.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+            });
+
+            clear.addEventListener('click', () => {
+                this.clear();
+                input.focus();
+            });
+        }
     }
     
     /**
@@ -244,13 +256,17 @@ export class SearchDropdown {
     updateUI() {
         if (!this.isBound) return;
         
-        const { input, dropdown, menu, loading, results, noResults } = this.elements;
+        const { input, clear, dropdown, menu, loading, results, noResults } = this.elements;
         
         // 更新输入框
         if (input.value !== this.searchText) {
             input.value = this.searchText;
         }
         input.placeholder = this.options.placeholder;
+
+        if (clear) {
+            clear.style.display = this.searchText ? 'inline-flex' : 'none';
+        }
         
         // 更新下拉框显示
         const shouldShow = this.showDropdown || this.isLoading;

@@ -39,7 +39,15 @@ public class NodeService {
     @Inject
     DefaultInboundStrategyRegistry strategyRegistry;
 
-    public io.quarkus.hibernate.orm.panache.PanacheQuery<Node> getNodePage(String search, Long serverId, Integer type, Boolean disabled) {
+    public io.quarkus.hibernate.orm.panache.PanacheQuery<Node> getNodePage(
+            String search,
+            Long serverId,
+            Integer type,
+            String coreType,
+            String protocol,
+            Boolean disabled,
+            Boolean deployed
+    ) {
         // Build query string
         StringBuilder query = new StringBuilder("1=1");
         Map<String, Object> params = new HashMap<>();
@@ -71,10 +79,25 @@ public class NodeService {
             params.put("type", type);
         }
 
+        if (coreType != null && !coreType.trim().isEmpty()) {
+            query.append(" and coreType = :coreType");
+            params.put("coreType", coreType.trim());
+        }
+
+        if (protocol != null && !protocol.trim().isEmpty()) {
+            query.append(" and protocol = :protocol");
+            params.put("protocol", protocol.trim());
+        }
+
         // Filter by disabled status
         if (disabled != null) {
             query.append(" and disabled = :disabled");
             params.put("disabled", disabled ? 1 : 0);
+        }
+
+        if (deployed != null) {
+            query.append(" and deployed = :deployed");
+            params.put("deployed", deployed ? 1 : 0);
         }
 
         return nodeRepository.find(query.toString(), Sort.by("createTime").descending(), params);
