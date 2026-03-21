@@ -2,6 +2,8 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.DeploymentResult;
+import com.fun90.airopscat.model.dto.NodeCoreSwitchRequest;
+import com.fun90.airopscat.model.dto.NodeCoreSwitchResponse;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.dto.NodeRequest;
 import com.fun90.airopscat.model.entity.Node;
@@ -16,6 +18,7 @@ import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -363,5 +366,21 @@ public class NodeController {
     public Response deployNodes(List<Long> nodeIds) {
         List<DeploymentResult> results = nodeDeploymentService.deployNodes(nodeIds);
         return Response.ok(results).build();
+    }
+
+    @POST
+    @Path("/switch-core")
+    public Response switchNodeCore(NodeCoreSwitchRequest request) {
+        try {
+            NodeCoreSwitchResponse response = nodeDeploymentService.switchNodeCore(
+                    request == null ? null : request.getNodeIds(),
+                    request == null ? null : request.getTargetCoreType(),
+                    request != null && Boolean.TRUE.equals(request.getRedeploy()));
+            return Response.ok(response).build();
+        } catch (IllegalArgumentException | EntityNotFoundException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
+        }
     }
 }

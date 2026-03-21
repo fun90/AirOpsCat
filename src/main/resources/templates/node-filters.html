@@ -51,3 +51,9 @@
         <i class="ti ti-rocket"></i> 全部部署
     </button>
 </div> 
+
+<div class="col-auto">
+    <button class="btn btn-outline-primary" @click="openCoreSwitchModal" :disabled="selectedNodeIds.length === 0">
+        <i class="ti ti-cpu"></i> 切换内核
+    </button>
+</div>

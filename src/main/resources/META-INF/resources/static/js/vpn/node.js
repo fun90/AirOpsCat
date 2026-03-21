@@ -58,7 +58,11 @@ const nodeTable = new DataTable({
         editedNodeRuleJson: '',
         viewConfigModal: null,
         batchDeployModal: null,
+        coreSwitchModal: null,
         selectedNodeIds: [],
+        coreSwitchTarget: 'sing-box',
+        coreSwitchRedeploy: true,
+        switchingCore: false,
         batchDeploying: false,
         deployingNodeIds: []
     },
@@ -71,6 +75,11 @@ const nodeTable = new DataTable({
             this.fetchProtocolTypes();
             this.fetchAvailableTags();
             this.initializeSearchComponents();
+        },
+
+        afterFetch() {
+            const currentIds = new Set(this.records.map(record => record.id));
+            this.selectedNodeIds = this.selectedNodeIds.filter(id => currentIds.has(id));
         },
 
         initializeSearchComponents() {
@@ -676,6 +685,113 @@ const nodeTable = new DataTable({
         openBatchDeployModal() {
             this.batchDeployModal = new Modal(document.getElementById('batchDeployModal'));
             this.batchDeployModal.show();
+        },
+
+        openCoreSwitchModal() {
+            if (!this.selectedNodeIds.length) {
+                ToastUtils.show('Warning', '请先勾选要切换的节点', 'warning');
+                return;
+            }
+
+            const selectedNodes = this.records.filter(node => this.selectedNodeIds.includes(node.id));
+            const hasXray = selectedNodes.some(node => node.coreType === 'xray');
+            const hasSingBox = selectedNodes.some(node => node.coreType === 'sing-box');
+            if (hasXray && hasSingBox) {
+                ToastUtils.show('Warning', '所选节点必须是同一种原内核', 'warning');
+                return;
+            }
+
+            const sourceCoreType = hasXray ? 'xray' : 'sing-box';
+            this.coreSwitchTarget = sourceCoreType === 'xray' ? 'sing-box' : 'xray';
+            const unsupportedNodes = selectedNodes.filter(node =>
+                !this.getAvailableProtocols({ type: node.type, coreType: this.coreSwitchTarget })
+                    .some(protocol => protocol.value === node.protocol)
+            );
+            if (unsupportedNodes.length > 0) {
+                const labels = unsupportedNodes
+                    .map(node => `${node.name || `节点#${node.id}`}(${node.protocol})`)
+                    .join('、');
+                ToastUtils.show('Warning', `以下节点协议不支持切换到 ${this.coreSwitchTarget}: ${labels}`, 'warning');
+                return;
+            }
+            this.coreSwitchRedeploy = true;
+            this.coreSwitchModal = new Modal(document.getElementById('node-coreSwitchModal'));
+            this.coreSwitchModal.show();
+        },
+
+        isNodeSelected(nodeId) {
+            return this.selectedNodeIds.includes(nodeId);
+        },
+
+        toggleNodeSelection(nodeId, checked) {
+            if (checked) {
+                if (!this.selectedNodeIds.includes(nodeId)) {
+                    this.selectedNodeIds.push(nodeId);
+                }
+                return;
+            }
+            this.selectedNodeIds = this.selectedNodeIds.filter(id => id !== nodeId);
+        },
+
+        isAllCurrentPageSelected() {
+            return this.records.length > 0 && this.records.every(node => this.selectedNodeIds.includes(node.id));
+        },
+
+        toggleSelectAllCurrentPage(checked) {
+            if (checked) {
+                const merged = new Set([...this.selectedNodeIds, ...this.records.map(node => node.id)]);
+                this.selectedNodeIds = Array.from(merged);
+                return;
+            }
+            const currentIds = new Set(this.records.map(node => node.id));
+            this.selectedNodeIds = this.selectedNodeIds.filter(id => !currentIds.has(id));
+        },
+
+        switchSelectedNodesCore() {
+            if (!this.selectedNodeIds.length) {
+                ToastUtils.show('Warning', '请先勾选要切换的节点', 'warning');
+                return;
+            }
+
+            this.switchingCore = true;
+            fetch('/api/admin/nodes/switch-core', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    nodeIds: this.selectedNodeIds,
+                    targetCoreType: this.coreSwitchTarget,
+                    redeploy: this.coreSwitchRedeploy
+                })
+            })
+                .then(async response => {
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({ message: '切换内核失败' }));
+                        throw new Error(error.message || '切换内核失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.switchingCore = false;
+                    this.coreSwitchModal.hide();
+                    this.selectedNodeIds = [];
+                    this.fetchRecords();
+
+                    const deploymentSummary = data.redeployed
+                        ? `，重部署 ${data.deploymentResults ? data.deploymentResults.filter(result => result.success).length : 0} 项`
+                        : '';
+                    ToastUtils.show(
+                        'Success',
+                        `已切换 ${data.switchedCount} 个节点，跳过 ${data.unchangedCount} 个节点${deploymentSummary}`,
+                        'success'
+                    );
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    this.switchingCore = false;
+                    ToastUtils.show('Error', error.message || '切换内核失败', 'danger');
+                });
         },
 
         deploySelectedNodes() {

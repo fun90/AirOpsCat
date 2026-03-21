@@ -238,6 +238,12 @@ public class NodeService {
             throw new EntityNotFoundException("Node not found");
         }
 
+        if (node.getCoreType() != null
+                && existingNode.getCoreType() != null
+                && !node.getCoreType().equalsIgnoreCase(existingNode.getCoreType())) {
+            throw new IllegalArgumentException("节点不允许通过编辑修改内核类型，请使用切换内核功能");
+        }
+
         // 验证服务器和端口
         validateNodeServersAndPorts(node);
         normalizeAndValidateNodeProtocol(node);

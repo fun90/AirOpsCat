@@ -24,4 +24,11 @@ public class RouteRuleRepository implements PanacheRepository<RouteRule> {
     public long countByEnabled(Integer enabled) {
         return count("enabled", enabled);
     }
+
+    public List<RouteRule> findByOutboundNodeIds(List<Long> outboundNodeIds) {
+        if (outboundNodeIds == null || outboundNodeIds.isEmpty()) {
+            return List.of();
+        }
+        return find("outboundNodeId in ?1", outboundNodeIds).list();
+    }
 }

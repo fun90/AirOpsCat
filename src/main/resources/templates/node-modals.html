@@ -256,10 +256,11 @@
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label required">内核类型</label>
-                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.coreType }" v-model="editedItem.coreType" @change="onEditCoreTypeChange">
+                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.coreType }" v-model="editedItem.coreType" @change="onEditCoreTypeChange" disabled>
                                         <option v-for="coreType in coreTypes" :key="coreType.value" :value="coreType.value">{{ coreType.label }}</option>
                                     </select>
                                     <div class="invalid-feedback" v-if="validationErrors.coreType">{{ validationErrors.coreType }}</div>
+                                    <small class="form-hint">节点不允许通过编辑修改内核类型，请使用切换内核功能。</small>
                                 </div>
                             </div>
                         </div>
@@ -467,6 +468,38 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
                 <button type="button" class="btn btn-primary" @click="deploySelectedNodes" :disabled="batchDeploying">部署</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal modal-blur fade" id="node-coreSwitchModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">切换节点内核</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>已选择 <strong>{{ selectedNodeIds.length }}</strong> 个当前页节点。</p>
+                <div class="mb-3">
+                    <label class="form-label">目标内核</label>
+                    <select class="form-select" v-model="coreSwitchTarget">
+                        <option v-for="coreType in coreTypes.filter(item => item.value === coreSwitchTarget)" :key="coreType.value" :value="coreType.value">{{ coreType.label }}</option>
+                    </select>
+                </div>
+                <label class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" v-model="coreSwitchRedeploy">
+                    <span class="form-check-label">切换后立即重部署受影响服务器</span>
+                </label>
+                <small class="form-hint">流程：校验协议兼容性，翻译入站参数，联动修正引用该落地节点的路由规则，并按需重部署。</small>
+                <div v-if="switchingCore" class="progress mt-3">
+                    <div class="progress-bar progress-bar-indeterminate bg-primary"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" @click="switchSelectedNodesCore" :disabled="switchingCore">确认切换</button>
             </div>
         </div>
     </div>
