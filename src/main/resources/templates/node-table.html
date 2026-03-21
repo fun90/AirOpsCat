@@ -7,8 +7,7 @@
             <th>备用服务器</th>
             <th>端口</th>
             <th>类型</th>
-            <th>内核</th>
-            <th>协议</th>
+            <th>内核 / 协议</th>
             <th>出站</th>
             <th>级别</th>
             <th>启用状态</th>
@@ -46,20 +45,12 @@
         </td>
         <td>
             <span class="badge text-bg-secondary">
-                {{ node.coreType || 'xray' }}
+                {{ node.coreType || 'xray' }} / {{ node.protocol }}
             </span>
         </td>
         <td>
-            <span class="badge text-bg-info">
-                {{ node.protocol }}
-            </span>
-        </td>
-        <td v-if="node.type === 1">
-            -
-        </td>
-        <td v-else>
             <div class="d-flex flex-column">
-                <span>{{ node.outName || '默认' }}</span>
+                <span>{{ node.outName || '直连' }}</span>
                 <span v-if="node.outServerHost" class="text-muted small">{{ node.outServerHost }}:{{ node.outPort }}</span>
             </div>
         </td>
@@ -113,14 +104,14 @@
         </td>
     </tr>
     <tr v-if="loading">
-        <td colspan="13" class="text-center py-3">
+        <td colspan="12" class="text-center py-3">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </td>
     </tr>
     <tr v-else-if="records.length === 0">
-        <td colspan="13" class="text-center py-3">没有查到数据。</td>
+        <td colspan="12" class="text-center py-3">没有查到数据。</td>
     </tr>
     </tbody>
 </table>

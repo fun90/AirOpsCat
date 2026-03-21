@@ -18,6 +18,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.enums.ServerAuthType.class,
     com.fun90.airopscat.model.enums.PaymentMethod.class,
     com.fun90.airopscat.model.enums.TransactionType.class,
+    com.fun90.airopscat.model.enums.RouteRuleType.class,
     
     // Other DTO Classes
     ApiResponseDto.class,
@@ -54,6 +55,8 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     // Other DTOs
     com.fun90.airopscat.model.dto.TagDto.class,
     com.fun90.airopscat.model.dto.TransactionDto.class,
+    com.fun90.airopscat.model.dto.RouteRuleDto.class,
+    com.fun90.airopscat.model.dto.RouteRuleRequest.class,
     com.fun90.airopscat.model.dto.DefaultConfigDto.class,
     com.fun90.airopscat.model.dto.BackupFileDto.class,
     com.fun90.airopscat.model.dto.install.ServerInstallExecuteRequest.class,
@@ -71,6 +74,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.entity.Domain.class,
     com.fun90.airopscat.model.entity.Tag.class,
     com.fun90.airopscat.model.entity.Transaction.class,
+    com.fun90.airopscat.model.entity.RouteRule.class,
 
     // Time-related classes (Java standard classes are automatically registered)
     java.time.LocalDateTime.class,

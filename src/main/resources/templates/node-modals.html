@@ -165,7 +165,7 @@
                                 <div class="mb-3">
                                     <label class="form-label">出站配置</label>
                                     <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="newItem.outId">
-                                        <option value="null">默认</option>
+                                        <option value="null">直连</option>
                                         <option v-for="node in landingNodes" :key="node.id" :value="node.id">{{ node.name }}({{ node.serverHost }}:{{ node.port }})</option>
                                     </select>
                                     <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.outId }}</div>
@@ -353,7 +353,7 @@
                                 <div class="mb-3">
                                     <label class="form-label">出站配置</label>
                                     <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="editedItem.outId">
-                                        <option :value="0">默认</option>
+                                        <option :value="0">直连</option>
                                         <option v-for="node in landingNodes" :key="node.id" :value="node.id">{{ node.name }}({{ node.serverHost }}:{{ node.port }})</option>
                                     </select>
                                     <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.outId }}</div>
