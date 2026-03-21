@@ -1,6 +1,8 @@
 
 import { DataTable } from '/static/js/common/data-table.js';
 
+const LOCK_TIME_DURATION = 30;
+
 const userTable = new DataTable({
     data: {
         entityName: 'users',
@@ -9,10 +11,18 @@ const userTable = new DataTable({
             role: '',
             status: ''
         },
+        stats: {
+            total: 0,
+            active: 0,
+            locked: 0,
+            disabled: 0
+        },
         newItem: {
             email: '',
             password: '',
             nickName: '',
+            remarkName: '',
+            remark: '',
             role: 'VIP',
             disabled: false
         }
@@ -32,8 +42,60 @@ const userTable = new DataTable({
             }
         },
 
-        getStatusBadgeClass(disabled) {
-            return disabled === 0 ? 'text-bg-success' : 'text-bg-danger';
+        getRoleLabel(role) {
+            return role || 'PARTNER';
+        },
+
+        isUserLocked(user) {
+            if (!user || !user.lockTime || (user.disabled || 0) === 1) {
+                return false;
+            }
+
+            const lockTime = new Date(user.lockTime);
+            return Date.now() < lockTime.getTime() + LOCK_TIME_DURATION * 60 * 1000;
+        },
+
+        getStatusBadgeClass(user) {
+            if ((user.disabled || 0) === 1) {
+                return 'text-bg-danger';
+            }
+            if (this.isUserLocked(user)) {
+                return 'text-bg-warning';
+            }
+            return 'text-bg-success';
+        },
+
+        getStatusDescription(user) {
+            if ((user.disabled || 0) === 1) {
+                return '已禁用';
+            }
+            if (this.isUserLocked(user)) {
+                return '锁定中';
+            }
+            return '正常';
+        },
+
+        getFailedAttemptsText(user) {
+            const attempts = user.failedAttempts || 0;
+            return attempts > 0 ? `失败 ${attempts} 次` : '无失败记录';
+        },
+
+        getLockRemainingText(user) {
+            if (!this.isUserLocked(user)) {
+                return '';
+            }
+
+            const lockTime = new Date(user.lockTime);
+            const unlockAt = lockTime.getTime() + LOCK_TIME_DURATION * 60 * 1000;
+            const remainingMs = Math.max(unlockAt - Date.now(), 0);
+            const remainingMinutes = Math.ceil(remainingMs / (60 * 1000));
+            return `${remainingMinutes} 分钟后解锁`;
+        },
+
+        filterByStatus(status) {
+            this.filters.status = status;
+            this.currentPage = 1;
+            this.fetchRecords();
         },
 
         // Form validation and preparation
@@ -86,6 +148,8 @@ const userTable = new DataTable({
                 email: this.newItem.email,
                 password: this.newItem.password,
                 nickName: this.newItem.nickName || null,
+                remarkName: this.newItem.remarkName || null,
+                remark: this.newItem.remark || null,
                 role: this.newItem.role,
                 disabled: this.newItem.disabled ? 1 : 0
             };
@@ -95,6 +159,8 @@ const userTable = new DataTable({
             const data = {
                 email: this.editedItem.email,
                 nickName: this.editedItem.nickName || null,
+                remarkName: this.editedItem.remarkName || null,
+                remark: this.editedItem.remark || null,
                 role: this.editedItem.role,
                 disabled: this.editedItem.disabled
             };
@@ -112,6 +178,8 @@ const userTable = new DataTable({
                 email: '',
                 password: Math.random().toString(36).slice(-16),
                 nickName: '',
+                remarkName: '',
+                remark: '',
                 role: 'VIP',
                 disabled: false
             };
@@ -123,8 +191,12 @@ const userTable = new DataTable({
                 email: user.email,
                 password: '', // Empty password field
                 nickName: user.nickName || '',
+                remarkName: user.remarkName || '',
+                remark: user.remark || '',
                 role: user.role || 'PARTNER',
-                disabled: user.disabled
+                disabled: user.disabled,
+                failedAttempts: user.failedAttempts || 0,
+                lockTime: user.lockTime || null
             };
         },
 

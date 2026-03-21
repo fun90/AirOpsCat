@@ -2,6 +2,7 @@ package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.UserDto;
 import com.fun90.airopscat.model.entity.User;
+import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.UserRepository;
 import io.quarkus.elytron.security.common.BcryptUtil;
 import io.quarkus.panache.common.Sort;
@@ -14,15 +15,18 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDateTime;
 
 @ApplicationScoped
 public class UserService {
 
     private final UserRepository userRepository;
+    private final AccountRepository accountRepository;
 
     @Inject
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, AccountRepository accountRepository) {
         this.userRepository = userRepository;
+        this.accountRepository = accountRepository;
     }
 
     /**
@@ -52,7 +56,11 @@ public class UserService {
         // Status filter
         if (status != null && !status.trim().isEmpty()) {
             if ("active".equals(status)) {
-                conditions.add("disabled = 0");
+                conditions.add("(disabled = 0 or disabled is null) and (lockTime is null or lockTime < :unlockThreshold)");
+                params.put("unlockThreshold", LocalDateTime.now().minusMinutes(LoginLockService.LOCK_TIME_DURATION));
+            } else if ("locked".equals(status)) {
+                conditions.add("(disabled = 0 or disabled is null) and lockTime is not null and lockTime >= :lockedThreshold");
+                params.put("lockedThreshold", LocalDateTime.now().minusMinutes(LoginLockService.LOCK_TIME_DURATION));
             } else if ("disabled".equals(status)) {
                 conditions.add("disabled = 1");
             }
@@ -81,8 +89,26 @@ public class UserService {
         dto.setEmail(user.getEmail());
         dto.setNickName(user.getNickName());
         dto.setRemarkName(user.getRemarkName());
+        dto.setRemark(user.getRemark());
         dto.setRole(user.getRole());
+        dto.setDisabled(user.getDisabled());
+        dto.setFailedAttempts(user.getFailedAttempts());
+        dto.setLockTime(user.getLockTime());
+        dto.setCreateTime(user.getCreateTime());
+        dto.setUpdateTime(user.getUpdateTime());
+        dto.setAccountCount(user.getId() == null ? 0 : Math.toIntExact(accountRepository.countByUserId(user.getId())));
         return dto;
+    }
+
+    public Map<String, Long> getUserStats() {
+        LocalDateTime lockedThreshold = LocalDateTime.now().minusMinutes(LoginLockService.LOCK_TIME_DURATION);
+
+        Map<String, Long> stats = new HashMap<>();
+        stats.put("total", userRepository.count());
+        stats.put("active", userRepository.count("(disabled = 0 or disabled is null) and (lockTime is null or lockTime < ?1)", lockedThreshold));
+        stats.put("locked", userRepository.count("(disabled = 0 or disabled is null) and lockTime is not null and lockTime >= ?1", lockedThreshold));
+        stats.put("disabled", userRepository.count("disabled = 1"));
+        return stats;
     }
 
     @Transactional

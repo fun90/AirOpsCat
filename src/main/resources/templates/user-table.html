@@ -2,53 +2,97 @@
     <thead>
     <tr>
         <th>ID</th>
-        <th>Email</th>
-        <th>Nickname</th>
-        <th>Role</th>
-        <th>Status</th>
-        <th>Created</th>
-        <th>Actions</th>
+        <th>用户</th>
+        <th>角色</th>
+        <th>状态</th>
+        <th>关联账户</th>
+        <th>登录安全</th>
+        <th>创建时间</th>
+        <th class="w-1">操作</th>
     </tr>
     </thead>
     <tbody>
     <tr v-for="user in records" :key="user.id">
         <td v-text="user.id"></td>
-        <td v-text="user.email"></td>
-        <td v-text="user.nickName || '-'"></td>
         <td>
-            <span class="badge" :class="getRoleBadgeClass(user.role)" v-text="user.role || 'PARTNER'"></span>
+            <div class="d-flex flex-column">
+                <div class="d-flex align-items-center">
+                    <span class="text-decoration-none text-truncate fw-medium" style="max-width: 180px;">
+                        {{ user.nickName || user.remarkName || '未命名用户' }}
+                    </span>
+                </div>
+                <span class="text-muted small text-truncate" style="max-width: 220px;" :title="user.email">{{ user.email }}</span>
+                <span v-if="user.remarkName || user.remark" class="text-muted small text-truncate" style="max-width: 220px;" :title="user.remark || user.remarkName">
+                    {{ user.remarkName || user.remark }}
+                </span>
+            </div>
         </td>
         <td>
-            <span class="badge" :class="getStatusBadgeClass(user.disabled)">
-                {{ user.disabled === 0 ? 'Active' : 'Disabled' }}
+            <span class="badge" :class="getRoleBadgeClass(user.role)">
+                {{ getRoleLabel(user.role) }}
             </span>
         </td>
-        <td v-text="formatDate(user.createTime)"></td>
+        <td>
+            <span class="badge" :class="getStatusBadgeClass(user)">
+                {{ getStatusDescription(user) }}
+            </span>
+        </td>
+        <td>
+            <div class="d-flex align-items-center">
+                <span class="badge text-bg-blue me-2">{{ user.accountCount || 0 }}</span>
+                <span class="text-muted small">个账户</span>
+            </div>
+        </td>
+        <td>
+            <div class="d-flex flex-column">
+                <span class="small">{{ getFailedAttemptsText(user) }}</span>
+                <span class="text-muted small" v-if="isUserLocked(user)">
+                    {{ getLockRemainingText(user) }}
+                </span>
+                <span class="text-muted small" v-else-if="user.lockTime">
+                    已自动解锁
+                </span>
+            </div>
+        </td>
+        <td :title="`更新时间: ${formatDate(user.updateTime) || '-'}`"
+            data-bs-toggle="tooltip"
+            data-bs-placement="top"
+            style="cursor: pointer;"
+            v-text="formatDateTime(user.createTime) || '-'"></td>
         <td>
             <div class="btn-list flex-nowrap">
-                <button @click="openEditModal(user)" class="btn btn-sm btn-outline-primary">
-                    <i class="ti ti-edit"></i> 编辑
-                </button>
-                <button @click="toggleItemStatus(user, user.disabled === 0)" class="btn btn-sm"
-                        :class="user.disabled === 0 ? 'btn-outline-danger' : 'btn-outline-success'">
-                    <i class="ti" :class="user.disabled === 0 ? 'ti-ban' : 'ti-check'"></i>
-                    {{ user.disabled === 0 ? '禁用' : '启用' }}
-                </button>
-                <button @click="confirmDelete(user)" class="btn btn-sm btn-outline-danger">
-                    <i class="ti ti-trash"></i> 删除
-                </button>
+                <div class="dropdown position-static">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click.prevent="openEditModal(user)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a v-if="(user.disabled || 0) === 0" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(user, true)">
+                            <i class="ti ti-ban"></i> 禁用
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(user, false)">
+                            <i class="ti ti-check"></i> 启用
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(user)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
+                    </div>
+                </div>
             </div>
         </td>
     </tr>
     <tr v-if="loading">
-        <td colspan="7" class="text-center py-3">
+        <td colspan="8" class="text-center py-3">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </td>
     </tr>
     <tr v-else-if="records.length === 0">
-        <td colspan="7" class="text-center py-3">没有查到数据.</td>
+        <td colspan="8" class="text-center py-3">没有查到数据.</td>
     </tr>
     </tbody>
-</table> 
+</table>

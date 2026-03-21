@@ -1,31 +1,26 @@
 <div class="page-body">
     <div class="container-xl">
-        <!-- Use the common data table template -->
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <div class="card-actions">
+                    <div class="card-actions w-100">
                         <div class="row g-2">
-                            <!-- Search input -->
                             <div class="col">
-                                <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
+                                <input type="text" class="form-control" placeholder="搜索邮箱、昵称或备注名..." v-model="searchQuery" @input="searchDebounced">
                             </div>
-
-                            <!-- Filters -->
                             {#include user-filters /}
                         </div>
                     </div>
                 </div>
 
+                {#include user-stats /}
+
                 <div class="table-responsive">
-                    <!-- Table content -->
                     {#include user-table /}
                 </div>
 
-                <!-- Pagination controls -->
                 {#include pagination-controls /}
 
-                <!-- Delete Confirmation Modal -->
                 <div class="modal modal-blur fade" id="user-deleteModal" tabindex="-1" role="dialog">
                     <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
                         <div class="modal-content">
@@ -41,7 +36,6 @@
                     </div>
                 </div>
 
-                <!-- User specific modals -->
                 {#include user-modals /}
             </div>
         </div>

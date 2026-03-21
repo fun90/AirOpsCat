@@ -1,46 +1,72 @@
 <!-- Create User Modal -->
 <div class="modal modal-blur fade" id="user-createModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">添加用户</h5>
+                <h5 class="modal-title">新增</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label required">邮箱</label>
-                    <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }"
-                           placeholder="user@example.com" v-model="newItem.email">
-                    <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">邮箱</label>
+                            <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }"
+                                   placeholder="user@example.com" v-model="newItem.email">
+                            <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">密码</label>
+                            <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.password }"
+                                   placeholder="不少于 6 位" v-model="newItem.password">
+                            <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">昵称</label>
+                            <input type="text" class="form-control" placeholder="用户昵称" v-model="newItem.nickName">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">备注名</label>
+                            <input type="text" class="form-control" placeholder="便于识别的备注名" v-model="newItem.remarkName">
+                        </div>
+                    </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label required">密码</label>
-                    <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }"
-                           placeholder="Password" v-model="newItem.password">
-                    <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" rows="3" placeholder="用户备注信息" v-model="newItem.remark"></textarea>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">昵称</label>
-                    <input type="text" class="form-control" placeholder="Nickname" v-model="newItem.nickName">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">角色</label>
-                    <select class="form-select" v-model="newItem.role">
-                        <option value="PARTNER">PARTNER</option>
-                        <option value="ADMIN">ADMIN</option>
-                        <option value="VIP">VIP</option>
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" v-model="newItem.disabled">
-                        <span class="form-check-label">禁用账户</span>
-                    </label>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">角色</label>
+                            <select class="form-select" v-model="newItem.role">
+                                <option value="PARTNER">PARTNER</option>
+                                <option value="ADMIN">ADMIN</option>
+                                <option value="VIP">VIP</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-center">
+                        <div class="mb-3 w-100">
+                            <label class="form-check form-switch mt-md-4">
+                                <input class="form-check-input" type="checkbox" v-model="newItem.disabled">
+                                <span class="form-check-label">禁用账户</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary" @click="createItem">创建用户</button>
+                <button type="button" class="btn btn-primary" @click="createItem">创建</button>
             </div>
         </div>
     </div>
@@ -48,49 +74,81 @@
 
 <!-- Edit User Modal -->
 <div class="modal modal-blur fade" id="user-editModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">编辑用户</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label required">邮箱</label>
-                    <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }"
-                           placeholder="user@example.com" v-model="editedItem.email">
-                    <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">邮箱</label>
+                            <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.email }"
+                                   placeholder="user@example.com" v-model="editedItem.email">
+                            <div class="invalid-feedback" v-if="validationErrors.email">{{ validationErrors.email }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">密码 <span class="text-muted">(留空表示不修改)</span></label>
+                            <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.password }"
+                                   placeholder="输入新密码后覆盖旧密码" v-model="editedItem.password">
+                            <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">昵称</label>
+                            <input type="text" class="form-control" placeholder="用户昵称" v-model="editedItem.nickName">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">备注名</label>
+                            <input type="text" class="form-control" placeholder="便于识别的备注名" v-model="editedItem.remarkName">
+                        </div>
+                    </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">密码 <span class="text-muted">(留空表示不修改)</span></label>
-                    <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.password }"
-                           placeholder="New password" v-model="editedItem.password">
-                    <div class="invalid-feedback" v-if="validationErrors.password">{{ validationErrors.password }}</div>
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" rows="3" placeholder="用户备注信息" v-model="editedItem.remark"></textarea>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">昵称</label>
-                    <input type="text" class="form-control" placeholder="Nickname" v-model="editedItem.nickName">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">角色</label>
+                            <select class="form-select" v-model="editedItem.role">
+                                <option value="PARTNER">PARTNER</option>
+                                <option value="ADMIN">ADMIN</option>
+                                <option value="VIP">VIP</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-center">
+                        <div class="mb-3 w-100">
+                            <label class="form-check form-switch mt-md-4">
+                                <input class="form-check-input" type="checkbox" :checked="editedItem.disabled === 1"
+                                       @change="editedItem.disabled = $event.target.checked ? 1 : 0">
+                                <span class="form-check-label">禁用账户</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">角色</label>
-                    <select class="form-select" v-model="editedItem.role">
-                        <option value="PARTNER">PARTNER</option>
-                        <option value="ADMIN">ADMIN</option>
-                        <option value="VIP">VIP</option>
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" :checked="editedItem.disabled === 1"
-                               @change="editedItem.disabled = $event.target.checked ? 1 : 0">
-                        <span class="form-check-label">禁用账户</span>
-                    </label>
+                <div class="alert alert-secondary mb-0">
+                    <div class="d-flex justify-content-between flex-wrap gap-2">
+                        <span>失败次数：{{ editedItem.failedAttempts || 0 }}</span>
+                        <span>锁定时间：{{ formatDate(editedItem.lockTime) || '-' }}</span>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary" @click="updateItem">保存修改</button>
+                <button type="button" class="btn btn-primary" @click="updateItem">保存</button>
             </div>
         </div>
     </div>
-</div> 
+</div>

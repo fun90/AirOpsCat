@@ -1,5 +1,6 @@
 package com.fun90.airopscat.controller;
 
+import com.fun90.airopscat.model.dto.UserDto;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.service.UserService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
@@ -11,7 +12,9 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 @Path("/api/admin/users")
@@ -32,13 +35,17 @@ public class UserController {
     ) {
         PanacheQuery<User> userQuery = userService.getUserPage(search, role, status);
         userQuery.page(Page.of(page - 1, size));
+        List<UserDto> userDtos = userQuery.list().stream()
+                .map(userService::convertToDto)
+                .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
-        response.put("records", userQuery.list());
+        response.put("records", userDtos);
         response.put("total", userQuery.count());
         response.put("pages", userQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
+        response.put("stats", userService.getUserStats());
 
         return Response.ok(response).build();
     }
@@ -48,7 +55,7 @@ public class UserController {
     public Response getUserById(@PathParam("id") Long id) {
         User user = userService.getUserById(id);
         if (user != null) {
-            return Response.ok(user).build();
+            return Response.ok(userService.convertToDto(user)).build();
         }
         return Response.status(Response.Status.NOT_FOUND).build();
     }
@@ -56,7 +63,7 @@ public class UserController {
     @POST
     public Response createUser(User user) {
         User savedUser = userService.saveUser(user);
-        return Response.ok(savedUser).build();
+        return Response.ok(userService.convertToDto(savedUser)).build();
     }
 
     @PUT
@@ -69,7 +76,7 @@ public class UserController {
 
         user.setId(id);
         User updatedUser = userService.updateUser(user);
-        return Response.ok(updatedUser).build();
+        return Response.ok(userService.convertToDto(updatedUser)).build();
     }
 
     @DELETE

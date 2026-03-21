@@ -21,6 +21,10 @@ public class AccountRepository implements PanacheRepository<Account> {
         return find("authCode", authCode).firstResultOptional();
     }
 
+    public long countByUserId(Long userId) {
+        return count("userId", userId);
+    }
+
     public long countActiveAccounts(LocalDateTime now) {
         return count("disabled = 0 and (toDate is null or toDate > ?1)", now);
     }

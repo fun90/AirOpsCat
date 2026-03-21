@@ -1,0 +1,28 @@
+<div class="card-body border-bottom">
+    <div class="row g-2">
+        <div class="col-3">
+            <div class="text-center" role="button" @click="filterByStatus('')">
+                <div class="text-primary fw-bold h4 mb-0">{{ stats.total || 0 }}</div>
+                <div class="text-muted small">总计</div>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="text-center" role="button" @click="filterByStatus('active')">
+                <div class="text-success fw-bold h4 mb-0">{{ stats.active || 0 }}</div>
+                <div class="text-muted small">正常</div>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="text-center" role="button" @click="filterByStatus('locked')">
+                <div class="text-warning fw-bold h4 mb-0">{{ stats.locked || 0 }}</div>
+                <div class="text-muted small">锁定中</div>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="text-center" role="button" @click="filterByStatus('disabled')">
+                <div class="text-danger fw-bold h4 mb-0">{{ stats.disabled || 0 }}</div>
+                <div class="text-muted small">已禁用</div>
+            </div>
+        </div>
+    </div>
+</div>
