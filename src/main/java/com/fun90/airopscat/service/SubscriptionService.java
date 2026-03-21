@@ -62,11 +62,6 @@ public class SubscriptionService {
 
         String templateName = "rules/" + appType + "/" + ruleName;
         String content = getTemplateContent(templateName);
-
-        if (content == null) {
-            return "错误: 找不到对应的规则文件: " + templateName;
-        }
-
         return content;
     }
 
@@ -121,10 +116,6 @@ public class SubscriptionService {
 
         String templateName = "nodes/" + appType + ".html";
         String templateContent = getTemplateContent(templateName);
-
-        if (templateContent == null) {
-            return "错误: 找不到对应的节点模板: " + appType;
-        }
 
         String result = templateUtil.processStringTemplate(templateContent, templateData);
         // 清理多余的空行
@@ -218,13 +209,8 @@ public class SubscriptionService {
         templateData.put("timestamp", System.currentTimeMillis());
         templateData.putAll(params);
 
-        String templateName = getTemplateName(osName, appName);
+        String templateName = getTemplateName(appName);
         String templateContent = getTemplateContent(templateName);
-
-        if (templateContent == null) {
-            return null;
-        }
-
         return templateUtil.processStringTemplate(templateContent, templateData);
     }
 
@@ -243,7 +229,7 @@ public class SubscriptionService {
     /**
      * 获取模板名称
      */
-    private String getTemplateName(String osName, String appName) {
+    private String getTemplateName(String appName) {
         return appName + getSubscriptionFileSuffix(appName);
     }
 

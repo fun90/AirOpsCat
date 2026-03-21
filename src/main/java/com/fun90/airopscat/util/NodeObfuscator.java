@@ -1,19 +1,18 @@
 package com.fun90.airopscat.util;
 
 import com.fun90.airopscat.model.dto.NodeDto;
-import com.fun90.airopscat.model.enums.CoreType;
 
-import java.util.*;
-import java.util.regex.*;
-import java.util.stream.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 混淆节点工具类
  * 将 activeNodes 按 nodeMultiple 倍数复制，并对 name 字段进行混淆
  */
 public class NodeObfuscator {
-
-    private static final Pattern NUMBER_PATTERN = Pattern.compile("\\{(\\d+)}");
 
     /**
      * 混淆节点列表

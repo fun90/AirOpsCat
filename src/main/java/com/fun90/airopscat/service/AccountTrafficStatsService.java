@@ -242,11 +242,10 @@ public class AccountTrafficStatsService {
     }
 
     private LocalDateTime calculatePeriodEnd(LocalDateTime periodStart, String periodType) {
-        return switch (periodType.toUpperCase()) {
-            case "MONTHLY" -> periodStart.plusMonths(1).minusNanos(1);
-            case "YEARLY" -> periodStart.plusYears(1).minusNanos(1);
-            default -> periodStart.plusMonths(1).minusNanos(1);
-        };
+        if ("YEARLY".equalsIgnoreCase(periodType)) {
+            return periodStart.plusYears(1).minusNanos(1);
+        }
+        return periodStart.plusMonths(1).minusNanos(1);
     }
 
     public String formatBytes(long bytes) {

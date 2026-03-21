@@ -6,7 +6,6 @@ import com.fun90.airopscat.model.dto.ServerConfigDto;
 import com.fun90.airopscat.model.dto.ServerConfigRequest;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.enums.CoreType;
-import com.fun90.airopscat.model.enums.TransactionType;
 import com.fun90.airopscat.service.ServerConfigService;
 import com.fun90.airopscat.service.ServerService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;

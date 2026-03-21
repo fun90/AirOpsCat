@@ -17,16 +17,12 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class NodeService {
-
-    private static final Logger log = LoggerFactory.getLogger(NodeService.class);
     @Inject
     NodeRepository nodeRepository;
     

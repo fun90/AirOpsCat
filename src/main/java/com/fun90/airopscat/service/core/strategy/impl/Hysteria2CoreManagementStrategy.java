@@ -26,8 +26,6 @@ public class Hysteria2CoreManagementStrategy implements CoreManagementStrategy {
     private static final String SERVICE_NAME = "hysteria-server";
     private static final String BINARY_PATH = "/usr/local/bin/hysteria";
     private static final String CONFIG_PATH = "/etc/hysteria/config.yaml";
-    private static final String LOG_PATH = "/var/log/hysteria/";
-    private static final String SYSTEMD_SERVICE_PATH = "/etc/systemd/system/hysteria-server.service";
     
     @Override
     public CoreManagementResult start(SshConnection connection) {

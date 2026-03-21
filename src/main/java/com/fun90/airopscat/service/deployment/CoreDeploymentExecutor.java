@@ -31,7 +31,6 @@ public class CoreDeploymentExecutor {
 
     private static final String CORE_TYPE_XRAY = "xray";
     private static final String CORE_TYPE_SING_BOX = "sing-box";
-    private static final String CORE_TYPE_HYSTERIA = "hysteria";
     private static final String DEFAULT_USERNAME = "root";
 
     private final CoreManagementService coreManagementService;

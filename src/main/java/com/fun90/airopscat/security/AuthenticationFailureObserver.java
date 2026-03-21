@@ -67,7 +67,7 @@ public class AuthenticationFailureObserver {
                 log.debug("Authentication failure detected for user: {}", email);
 
                 final String finalEmail = email;
-                final String errorMessage = failure != null ? failure.getMessage() : "认证失败";
+                final String errorMessage = failure.getMessage();
 
                 // 在工作线程中处理数据库操作
                 context.vertx().executeBlocking(promise -> {

@@ -86,6 +86,8 @@ public class AccountService {
                     params.put("now", now);
                     params.put("sevenDaysLater", sevenDaysLater);
                     break;
+                default:
+                    break;
             }
         }
         
