@@ -74,14 +74,18 @@ public class CoreDeploymentExecutor {
     private void deployToServer(Server server, String coreType, String config) {
         SshConfig sshConfig = buildSshConfig(server);
 
-        CoreManagementResult configResult = coreManagementService.executeOperation(
-                coreType, CoreOperation.CONFIG, sshConfig, config);
+        List<CoreManagementResult> results = coreManagementService.executeOperations(
+                coreType,
+                sshConfig,
+                new CoreManagementService.OperationRequest(CoreOperation.CONFIG, config),
+                new CoreManagementService.OperationRequest(CoreOperation.RESTART)
+        );
+        CoreManagementResult configResult = results.getFirst();
         if (configResult == null || !configResult.isSuccess()) {
             throw new RuntimeException("配置上传失败: " + (configResult != null ? configResult.getMessage() : "未知错误"));
         }
 
-        CoreManagementResult restartResult = coreManagementService.executeOperation(
-                coreType, CoreOperation.RESTART, sshConfig);
+        CoreManagementResult restartResult = results.get(1);
         if (restartResult == null || !restartResult.isSuccess()) {
             throw new RuntimeException("服务重启失败: " + (restartResult != null ? restartResult.getMessage() : "未知错误"));
         }

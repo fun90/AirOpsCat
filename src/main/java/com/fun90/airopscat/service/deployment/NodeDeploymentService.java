@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 @Slf4j
 @ApplicationScoped
@@ -78,11 +79,13 @@ public class NodeDeploymentService {
 
     private List<DeploymentResult> processNodesByServer(List<Node> nodes) {
         DeploymentPreload preload = dataLoader.load(nodes);
+        ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
 
         List<CompletableFuture<List<CoreDeploymentExecution>>> futures = preload.serverContexts().values().stream()
                 .filter(ctx -> !ctx.nodes().isEmpty())
                 .filter(ctx -> ctx.server().getDisabled() != 1)
-                .map(ctx -> CompletableFuture.supplyAsync(() -> deploymentExecutor.executeForServer(ctx)))
+                .map(ctx -> CompletableFuture.supplyAsync(
+                        withContextClassLoader(contextClassLoader, () -> deploymentExecutor.executeForServer(ctx))))
                 .toList();
 
         List<DeploymentResult> results = new ArrayList<>();
@@ -92,6 +95,19 @@ public class NodeDeploymentService {
             }
         }
         return results;
+    }
+
+    private <T> Supplier<T> withContextClassLoader(ClassLoader contextClassLoader, Supplier<T> supplier) {
+        return () -> {
+            Thread currentThread = Thread.currentThread();
+            ClassLoader originalClassLoader = currentThread.getContextClassLoader();
+            try {
+                currentThread.setContextClassLoader(contextClassLoader);
+                return supplier.get();
+            } finally {
+                currentThread.setContextClassLoader(originalClassLoader);
+            }
+        };
     }
 
     public Map<String, String> previewServerConfigs(Long serverId) {

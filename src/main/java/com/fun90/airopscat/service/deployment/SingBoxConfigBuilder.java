@@ -414,7 +414,7 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
                     String tag = "geosite-" + name;
                     remoteRuleSetTags.add(tag);
                     addRuleSetIfAbsent(ruleSets, buildRemoteRuleSet(tag,
-                            "https://raw.githubusercontent.com/SagerNet/sing-geosite/refs/heads/rule-set/" + name + ".srs"));
+                            "https://raw.githubusercontent.com/SagerNet/sing-geosite/refs/heads/rule-set/" + tag + ".srs"));
                 }
                 continue;
             }
@@ -425,7 +425,7 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
                     String tag = "geoip-" + name;
                     remoteRuleSetTags.add(tag);
                     addRuleSetIfAbsent(ruleSets, buildRemoteRuleSet(tag,
-                            "https://raw.githubusercontent.com/SagerNet/sing-geoip/refs/heads/rule-set/" + name + ".srs"));
+                            "https://raw.githubusercontent.com/SagerNet/sing-geoip/refs/heads/rule-set/" + tag + ".srs"));
                 }
                 continue;
             }

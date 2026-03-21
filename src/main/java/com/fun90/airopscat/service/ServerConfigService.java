@@ -131,22 +131,16 @@ public class ServerConfigService {
         // 创建SSH配置
         SshConfig sshConfig = createSshConfig(server);
 
-        // 上传配置
-        CoreManagementResult result = coreManagementService.executeOperation(
-                serverConfig.getConfigType(), 
-                CoreOperation.CONFIG, 
-                sshConfig, 
-                serverConfig.getConfig()
+        List<CoreManagementResult> results = coreManagementService.executeOperations(
+                serverConfig.getConfigType(),
+                sshConfig,
+                new CoreManagementService.OperationRequest(CoreOperation.CONFIG, serverConfig.getConfig()),
+                new CoreManagementService.OperationRequest(CoreOperation.RESTART)
         );
+        CoreManagementResult result = results.getFirst();
 
         if (result.isSuccess()) {
-            // 重启服务
-            CoreManagementResult restartResult = coreManagementService.executeOperation(
-                    serverConfig.getConfigType(), 
-                    CoreOperation.RESTART, 
-                    sshConfig
-            );
-            
+            CoreManagementResult restartResult = results.get(1);
             if (!restartResult.isSuccess()) {
                 result.setSuccess(false);
                 result.setMessage("配置上传成功，但服务重启失败: " + restartResult.getMessage());
