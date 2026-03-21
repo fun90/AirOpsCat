@@ -290,6 +290,11 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
                         routeRule.id(), routeRule.outboundNodeId());
                 continue;
             }
+            if (!"xray".equalsIgnoreCase(Objects.toString(outboundNode.coreType(), "xray"))) {
+                log.warn("Skip xray route rule {}, outbound node {} core type mismatch: {}",
+                        routeRule.id(), routeRule.outboundNodeId(), outboundNode.coreType());
+                continue;
+            }
 
             addManagedOutboundIfAbsent(outboundNode, outbounds);
             routingRules.add(buildManagedRouteRule(routeRule, outboundNode.tag()));
@@ -360,4 +365,5 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
                 .map(item -> (Map<String, Object>) item)
                 .collect(Collectors.toList());
     }
+
 }

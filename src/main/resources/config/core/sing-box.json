@@ -68,6 +68,9 @@
         "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/refs/heads/rule-set/geosite-cn.srs",
         "download_detour": "default-direct"
       }
+      {#if hasExtraRuleSets},
+      {extraRuleSets}
+      {/if}
     ]
   }
 }

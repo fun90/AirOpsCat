@@ -370,25 +370,38 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">预览配置</h5>
-                <div class="btn-group btn-group-sm" v-if="!previewConfigLoading && previewConfigCoreTypes.length > 0">
-                    <button type="button" class="btn btn-outline-secondary" @click="copyPreviewConfig">
-                        <i class="ti ti-copy"></i> 复制
-                    </button>
-                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="row mb-3" v-if="selectedItem">
-                    <div class="col-md-6">
+                <div class="row mb-3 align-items-center" v-if="selectedItem && !previewConfigLoading && previewConfigCoreTypes.length > 0">
+                    <div class="col-md">
                         <div class="text-secondary small">服务器</div>
                         <div class="fw-bold">{{ selectedItem.ip }}<span v-if="selectedItem.name"> / {{ selectedItem.name }}</span></div>
                     </div>
+                    <div class="col-md-auto mt-2 mt-md-0">
+                        <div class="d-flex align-items-center gap-2">
+                        <ul class="nav nav-tabs mb-0">
+                            <li class="nav-item" v-for="coreType in previewConfigCoreTypes" :key="coreType">
+                                <a
+                                        href="javascript:void(0)"
+                                        class="nav-link py-1 px-3"
+                                        :class="{ active: previewConfigSelectedCoreType === coreType }"
+                                        @click="previewConfigSelectedCoreType = coreType">
+                                    {{ coreType }}
+                                </a>
+                            </li>
+                        </ul>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @click="copyPreviewConfig">
+                                <i class="ti ti-copy"></i> 复制
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3" v-else-if="selectedItem">
                     <div class="col-md-6">
-                        <label class="form-label">内核类型</label>
-                        <select class="form-select" v-model="previewConfigSelectedCoreType" :disabled="previewConfigLoading || previewConfigCoreTypes.length === 0">
-                            <option value="" v-if="previewConfigCoreTypes.length === 0">暂无可预览配置</option>
-                            <option v-for="coreType in previewConfigCoreTypes" :key="coreType" :value="coreType">{{ coreType }}</option>
-                        </select>
+                        <div class="text-secondary small">服务器</div>
+                        <div class="fw-bold">{{ selectedItem.ip }}<span v-if="selectedItem.name"> / {{ selectedItem.name }}</span></div>
                     </div>
                 </div>
 
@@ -405,21 +418,8 @@
                 </div>
 
                 <div v-else>
-                    <div class="mb-2">
-                        <div class="btn-list">
-                            <button
-                                    v-for="coreType in previewConfigCoreTypes"
-                                    :key="coreType"
-                                    type="button"
-                                    class="btn btn-sm"
-                                    :class="previewConfigSelectedCoreType === coreType ? 'btn-primary' : 'btn-outline-secondary'"
-                                    @click="previewConfigSelectedCoreType = coreType">
-                                {{ coreType }}
-                            </button>
-                        </div>
-                    </div>
                     <div class="border rounded bg-dark-lt">
-                        <pre class="mb-0 p-3 font-monospace" style="max-height: 60vh; overflow: auto; white-space: pre-wrap; word-break: break-word;">{{ getPreviewConfigContent() }}</pre>
+                        <pre class="mb-0 p-4 font-monospace" style="max-height: 65vh; overflow: auto; white-space: pre; word-break: normal; font-size: 12px; line-height: 1.6;">{{ getPreviewConfigContent() }}</pre>
                     </div>
                 </div>
             </div>

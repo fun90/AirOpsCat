@@ -62,13 +62,15 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
         List<Map<String, Object>> inbounds = new ArrayList<>();
         List<Map<String, Object>> outbounds = new ArrayList<>();
         List<Map<String, Object>> routeRules = new ArrayList<>();
+        List<Map<String, Object>> ruleSets = new ArrayList<>();
 
         for (NodeDeploymentSnapshot node : enabledNodes) {
             applyNodeConfig(node, inbounds, outbounds, routeRules);
         }
 
-        applyManagedRouteRules(serverSnapshot, nodeSnapshotMap, outbounds, routeRules);
-        return renderConfig(inbounds, outbounds, routeRules);
+        applyManagedRouteRules(serverSnapshot, nodeSnapshotMap, outbounds, routeRules, ruleSets);
+        applyServerTransitConfig(serverSnapshot, outbounds, routeRules);
+        return renderConfig(inbounds, outbounds, routeRules, ruleSets);
     }
 
     @Override
@@ -272,7 +274,8 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
 
     private String renderConfig(List<Map<String, Object>> inbounds,
                                 List<Map<String, Object>> outbounds,
-                                List<Map<String, Object>> routeRules) {
+                                List<Map<String, Object>> routeRules,
+                                List<Map<String, Object>> ruleSets) {
         String configTemplate = configFileReader.readFileContent("config/core/sing-box.json");
         Map<String, Object> templateData = Map.of(
                 "hasExtraInbounds", !inbounds.isEmpty(),
@@ -280,15 +283,45 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
                 "hasExtraOutbounds", !outbounds.isEmpty(),
                 "extraOutbounds", toJsonFragments(outbounds),
                 "hasExtraRouteRules", !routeRules.isEmpty(),
-                "extraRouteRules", toJsonFragments(routeRules)
+                "extraRouteRules", toJsonFragments(routeRules),
+                "hasExtraRuleSets", !ruleSets.isEmpty(),
+                "extraRuleSets", toJsonFragments(ruleSets)
         );
         return templateUtil.processStringTemplate(configTemplate, templateData);
+    }
+
+    private void applyServerTransitConfig(ServerSnapshot serverSnapshot,
+                                          List<Map<String, Object>> outbounds,
+                                          List<Map<String, Object>> routeRules) {
+        String transitConfig = serverSnapshot.transitConfig();
+        if (transitConfig == null || transitConfig.equals("{}")) {
+            return;
+        }
+
+        Map<String, Object> transit = toMap(transitConfig);
+        List<Map<String, Object>> transitOutbounds = asMapList(transit.get("outbounds"));
+        if (!transitOutbounds.isEmpty()) {
+            List<String> existingTags = new ArrayList<>(DEFAULT_OUTBOUND_TAGS);
+            existingTags.addAll(outbounds.stream()
+                    .map(outbound -> Objects.toString(outbound.get("tag"), null))
+                    .filter(Objects::nonNull)
+                    .toList());
+            transitOutbounds.stream()
+                    .filter(outbound -> !existingTags.contains(Objects.toString(outbound.get("tag"), null)))
+                    .forEach(outbounds::add);
+        }
+
+        Map<String, Object> route = asMap(transit.get("route"));
+        if (route != null) {
+            routeRules.addAll(asMapList(route.get("rules")));
+        }
     }
 
     private void applyManagedRouteRules(ServerSnapshot serverSnapshot,
                                         Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap,
                                         List<Map<String, Object>> outbounds,
-                                        List<Map<String, Object>> routeRules) {
+                                        List<Map<String, Object>> routeRules,
+                                        List<Map<String, Object>> ruleSets) {
         if (serverSnapshot.routeRules() == null || serverSnapshot.routeRules().isEmpty()) {
             return;
         }
@@ -305,9 +338,14 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
                         routeRule.id(), routeRule.outboundNodeId());
                 continue;
             }
+            if (!"sing-box".equalsIgnoreCase(Objects.toString(outboundNode.coreType(), "xray"))) {
+                log.warn("Skip sing-box route rule {}, outbound node {} core type mismatch: {}",
+                        routeRule.id(), routeRule.outboundNodeId(), outboundNode.coreType());
+                continue;
+            }
 
             addManagedOutboundIfAbsent(outboundNode, outbounds);
-            routeRules.add(buildManagedRouteRule(routeRule, outboundNode.tag()));
+            routeRules.addAll(buildManagedRouteRules(routeRule, outboundNode.tag(), ruleSets));
         }
     }
 
@@ -329,22 +367,115 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
         outbounds.add(outbound);
     }
 
-    private Map<String, Object> buildManagedRouteRule(RouteRuleSnapshot routeRule, String outboundTag) {
-        Map<String, Object> rule = new LinkedHashMap<>();
+    private List<Map<String, Object>> buildManagedRouteRules(RouteRuleSnapshot routeRule,
+                                                             String outboundTag,
+                                                             List<Map<String, Object>> ruleSets) {
         RouteRuleType ruleType = RouteRuleType.fromValue(routeRule.ruleType());
         Object ruleValue = JsonUtil.toObject(routeRule.ruleValue(), Object.class);
-
         if (ruleType == RouteRuleType.CUSTOM) {
-            Map<String, Object> customRule = asMap(ruleValue);
-            if (customRule != null) {
-                rule.putAll(customRule);
+            Map<String, Object> customRule = new LinkedHashMap<>();
+            Map<String, Object> source = asMap(ruleValue);
+            if (source != null) {
+                customRule.putAll(source);
             }
-        } else if (ruleType != null && ruleType.getSingBoxField() != null) {
-            rule.put(ruleType.getSingBoxField(), ruleValue);
+            customRule.put("outbound", outboundTag);
+            return List.of(customRule);
         }
 
+        if (ruleType == RouteRuleType.DOMAIN || ruleType == RouteRuleType.IP || ruleType == RouteRuleType.SOURCE_IP) {
+            return buildRuleSetAwareRules(ruleType, ruleValue, outboundTag, ruleSets);
+        }
+
+        Map<String, Object> rule = new LinkedHashMap<>();
+        if (ruleType != null && ruleType.getSingBoxField() != null) {
+            rule.put(ruleType.getSingBoxField(), ruleValue);
+        }
         rule.put("outbound", outboundTag);
-        return rule;
+        return List.of(rule);
+    }
+
+    private List<Map<String, Object>> buildRuleSetAwareRules(RouteRuleType ruleType,
+                                                             Object ruleValue,
+                                                             String outboundTag,
+                                                             List<Map<String, Object>> ruleSets) {
+        List<Object> values = toList(ruleValue);
+        List<Object> plainValues = new ArrayList<>();
+        List<String> remoteRuleSetTags = new ArrayList<>();
+
+        for (Object value : values) {
+            String normalized = Objects.toString(value, "").trim();
+            if (normalized.isEmpty()) {
+                continue;
+            }
+
+            if (normalized.startsWith("geosite:")) {
+                String name = normalized.substring("geosite:".length()).trim().toLowerCase();
+                if (!name.isEmpty()) {
+                    String tag = "geosite-" + name;
+                    remoteRuleSetTags.add(tag);
+                    addRuleSetIfAbsent(ruleSets, buildRemoteRuleSet(tag,
+                            "https://raw.githubusercontent.com/SagerNet/sing-geosite/refs/heads/rule-set/" + name + ".srs"));
+                }
+                continue;
+            }
+
+            if (normalized.startsWith("geoip:")) {
+                String name = normalized.substring("geoip:".length()).trim().toLowerCase();
+                if (!name.isEmpty()) {
+                    String tag = "geoip-" + name;
+                    remoteRuleSetTags.add(tag);
+                    addRuleSetIfAbsent(ruleSets, buildRemoteRuleSet(tag,
+                            "https://raw.githubusercontent.com/SagerNet/sing-geoip/refs/heads/rule-set/" + name + ".srs"));
+                }
+                continue;
+            }
+
+            plainValues.add(value);
+        }
+
+        List<Map<String, Object>> rules = new ArrayList<>();
+        if (!plainValues.isEmpty()) {
+            Map<String, Object> plainRule = new LinkedHashMap<>();
+            plainRule.put(ruleType.getSingBoxField(), plainValues.size() == 1 ? plainValues.getFirst() : plainValues);
+            plainRule.put("outbound", outboundTag);
+            rules.add(plainRule);
+        }
+        if (!remoteRuleSetTags.isEmpty()) {
+            Map<String, Object> ruleSetRule = new LinkedHashMap<>();
+            ruleSetRule.put("rule_set", remoteRuleSetTags);
+            ruleSetRule.put("outbound", outboundTag);
+            rules.add(ruleSetRule);
+        }
+        return rules;
+    }
+
+    private void addRuleSetIfAbsent(List<Map<String, Object>> ruleSets, Map<String, Object> candidate) {
+        String tag = Objects.toString(candidate.get("tag"), null);
+        if ("geoip-cn".equals(tag) || "geosite-cn".equals(tag)) {
+            return;
+        }
+        boolean exists = ruleSets.stream()
+                .map(ruleSet -> Objects.toString(ruleSet.get("tag"), null))
+                .anyMatch(tag::equals);
+        if (!exists) {
+            ruleSets.add(candidate);
+        }
+    }
+
+    private Map<String, Object> buildRemoteRuleSet(String tag, String url) {
+        Map<String, Object> ruleSet = new LinkedHashMap<>();
+        ruleSet.put("tag", tag);
+        ruleSet.put("type", "remote");
+        ruleSet.put("format", "binary");
+        ruleSet.put("url", url);
+        ruleSet.put("download_detour", "default-direct");
+        return ruleSet;
+    }
+
+    private String toJsonFragments(List<Map<String, Object>> items) {
+        return items.stream()
+                .map(JsonUtil::toJsonString)
+                .collect(Collectors.joining(",\n"));
     }
 
     private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String field) {
@@ -354,14 +485,18 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
         }
     }
 
-    private String toJsonFragments(List<Map<String, Object>> items) {
-        return items.stream()
-                .map(JsonUtil::toJsonString)
-                .collect(Collectors.joining(",\n"));
-    }
-
     private String normalize(String value) {
         return value == null ? "" : value.trim().toLowerCase();
+    }
+
+    private List<Object> toList(Object value) {
+        if (value instanceof List<?> list) {
+            return new ArrayList<>(list);
+        }
+        if (value == null) {
+            return Collections.emptyList();
+        }
+        return new ArrayList<>(List.of(value));
     }
 
     @SuppressWarnings("unchecked")
