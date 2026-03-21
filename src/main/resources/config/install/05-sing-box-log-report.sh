@@ -125,8 +125,9 @@ main() {
         fi
 
         # 匹配 "[<user_tag>] inbound connection to <domain>:<port>"
-        # user_tag 为方括号内的非空字符串（排除纯数字，避免与 conn_id 混淆）
-        if [[ "$line" =~ \[([a-zA-Z0-9_-]+)\]\ inbound\ connection\ to\ ([^:]+):[0-9]+ ]]; then
+        # user_tag 紧跟在 ": " 之后（即 "inbound/vless[node_39]: [wkfxv0n] inbound connection to"）
+        # 用 ":\ \[" 锚定，避免误匹配 inbound/vless[node_39] 中的节点名
+        if [[ "$line" =~ :[[:space:]]\[([a-zA-Z0-9_-]+)\][[:space:]]inbound[[:space:]]connection[[:space:]]to[[:space:]]([^:]+):[0-9]+ ]]; then
             local user_tag="${BASH_REMATCH[1]}"
             local domain="${BASH_REMATCH[2]}"
 
