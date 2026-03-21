@@ -10,6 +10,7 @@ import com.fun90.airopscat.model.enums.TransactionType;
 import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.ServerTrafficStatsService;
 import com.fun90.airopscat.service.TransactionService;
+import com.fun90.airopscat.service.deployment.NodeDeploymentService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -40,6 +41,9 @@ public class ServerController {
 
     @Inject
     TransactionService transactionService;
+
+    @Inject
+    NodeDeploymentService nodeDeploymentService;
 
     @GET
     public Response getServerPage(
@@ -84,6 +88,24 @@ public class ServerController {
             return Response.ok(dto).build();
         }
         return Response.status(Response.Status.NOT_FOUND).build();
+    }
+
+    @GET
+    @Path("/{id}/config-preview")
+    public Response getServerConfigPreview(@PathParam("id") Long id) {
+        Server server = serverService.getServerById(id);
+        if (server == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        Map<String, String> configs = nodeDeploymentService.previewServerConfigs(id);
+        Map<String, Object> response = new HashMap<>();
+        response.put("serverId", id);
+        response.put("serverName", server.getName());
+        response.put("serverIp", server.getIp());
+        response.put("coreTypes", configs.keySet());
+        response.put("configs", configs);
+        return Response.ok(response).build();
     }
     
     @GET

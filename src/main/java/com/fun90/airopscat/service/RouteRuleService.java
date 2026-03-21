@@ -221,6 +221,10 @@ public class RouteRuleService {
         if (outboundNode.getDisabled() != null && outboundNode.getDisabled() == 1) {
             throw new IllegalArgumentException("出站落地节点已禁用");
         }
+        String outboundCoreType = normalizeCoreType(outboundNode.getCoreType());
+        if (!normalizeCoreType(request.getCoreType()).equals(outboundCoreType)) {
+            throw new IllegalArgumentException("路由规则内核类型必须与出站落地节点一致");
+        }
 
         Set<Long> uniqueServerIds = new LinkedHashSet<>(request.getServerIds());
         List<Server> servers = serverRepository.findByIdIn(new ArrayList<>(uniqueServerIds));

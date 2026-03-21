@@ -101,6 +101,7 @@ public class RouteRuleController {
     public Response getLandingNodes(@QueryParam("coreType") String coreType) {
         List<NodeDto> nodes = nodeService.getNodeByType(NodeType.LANDING).stream()
                 .filter(node -> node.getDisabled() == null || node.getDisabled() == 0)
+                .filter(node -> coreType.equalsIgnoreCase(node.getCoreType() == null ? CoreType.XRAY.getValue() : node.getCoreType()))
                 .map(NodeConverter::toDto)
                 .toList();
         return Response.ok(nodes).build();

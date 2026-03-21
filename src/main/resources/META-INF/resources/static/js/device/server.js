@@ -24,6 +24,11 @@ const serverTable = new DataTable({
         paymentMethods: [],
         testingConnection: false,
         connectionTestResult: null,
+        previewConfigModal: null,
+        previewConfigLoading: false,
+        previewConfigCoreTypes: [],
+        previewConfigSelectedCoreType: '',
+        previewConfigs: {},
         renewData: {
             expiryDate: '',
             amount: '',
@@ -399,6 +404,52 @@ const serverTable = new DataTable({
 
             this.testConnectionModal = new Modal(document.getElementById('testConnectionModal'));
             this.testConnectionModal.show();
+        },
+
+        openConfigPreviewModal(server) {
+            this.selectedItem = server;
+            this.previewConfigLoading = true;
+            this.previewConfigCoreTypes = [];
+            this.previewConfigSelectedCoreType = '';
+            this.previewConfigs = {};
+
+            this.previewConfigModal = new Modal(document.getElementById('configPreviewModal'));
+            this.previewConfigModal.show();
+
+            fetch(`/api/admin/servers/${server.id}/config-preview`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('加载配置预览失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.previewConfigs = data.configs || {};
+                    this.previewConfigCoreTypes = Array.isArray(data.coreTypes) ? data.coreTypes : Object.keys(this.previewConfigs);
+                    this.previewConfigSelectedCoreType = this.previewConfigCoreTypes.length > 0 ? this.previewConfigCoreTypes[0] : '';
+                    this.previewConfigLoading = false;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    this.previewConfigLoading = false;
+                    ToastUtils.show('Error', error.message || '加载配置预览失败', 'danger');
+                });
+        },
+
+        getPreviewConfigContent() {
+            if (!this.previewConfigSelectedCoreType) {
+                return '';
+            }
+            return this.previewConfigs[this.previewConfigSelectedCoreType] || '';
+        },
+
+        copyPreviewConfig() {
+            const content = this.getPreviewConfigContent();
+            if (!content) {
+                ToastUtils.show('Warning', '当前没有可复制的配置', 'warning');
+                return;
+            }
+            this.copyToClipboard(content);
         },
 
         testConnection() {

@@ -68,7 +68,6 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
         }
 
         applyManagedRouteRules(serverSnapshot, nodeSnapshotMap, outbounds, routeRules);
-        applyServerTransitConfig(serverSnapshot, outbounds, routeRules);
         return renderConfig(inbounds, outbounds, routeRules);
     }
 
@@ -284,33 +283,6 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
                 "extraRouteRules", toJsonFragments(routeRules)
         );
         return templateUtil.processStringTemplate(configTemplate, templateData);
-    }
-
-    private void applyServerTransitConfig(ServerSnapshot serverSnapshot,
-                                          List<Map<String, Object>> outbounds,
-                                          List<Map<String, Object>> routeRules) {
-        String transitConfig = serverSnapshot.transitConfig();
-        if (transitConfig == null || transitConfig.equals("{}")) {
-            return;
-        }
-
-        Map<String, Object> transit = toMap(transitConfig);
-        List<Map<String, Object>> transitOutbounds = asMapList(transit.get("outbounds"));
-        if (!transitOutbounds.isEmpty()) {
-            List<String> existingTags = new ArrayList<>(DEFAULT_OUTBOUND_TAGS);
-            existingTags.addAll(outbounds.stream()
-                    .map(outbound -> Objects.toString(outbound.get("tag"), null))
-                    .filter(Objects::nonNull)
-                    .toList());
-            transitOutbounds.stream()
-                    .filter(outbound -> !existingTags.contains(Objects.toString(outbound.get("tag"), null)))
-                    .forEach(outbounds::add);
-        }
-
-        Map<String, Object> route = asMap(transit.get("route"));
-        if (route != null) {
-            routeRules.addAll(asMapList(route.get("rules")));
-        }
     }
 
     private void applyManagedRouteRules(ServerSnapshot serverSnapshot,

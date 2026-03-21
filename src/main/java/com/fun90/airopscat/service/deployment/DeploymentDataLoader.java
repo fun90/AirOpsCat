@@ -75,6 +75,42 @@ public class DeploymentDataLoader {
         return new DeploymentPreload(targetServerIds, serverContexts);
     }
 
+    public DeploymentServerContext loadForServer(Long serverId) {
+        Server server = serverRepository.findById(serverId);
+        if (server == null) {
+            throw new IllegalArgumentException("鏈嶅姟鍣ㄤ笉瀛樺湪, serverId: " + serverId);
+        }
+
+        List<Long> targetServerIds = List.of(serverId);
+        List<Node> relatedNodes = nodeRepository.findByServerIdOrBackupServerId(serverId);
+        Map<Long, List<RouteRuleSnapshot>> routeRulesByServerId = routeRuleService.getEnabledSnapshotsByServerIds(targetServerIds);
+        List<RouteRuleSnapshot> routeRuleSnapshots = routeRulesByServerId.getOrDefault(serverId, Collections.emptyList());
+
+        Map<Long, Set<String>> targetCoreTypesByServerId = collectTargetCoreTypesByServerId(relatedNodes);
+        if (!routeRuleSnapshots.isEmpty()) {
+            Set<String> coreTypes = targetCoreTypesByServerId.computeIfAbsent(serverId, key -> new LinkedHashSet<>());
+            routeRuleSnapshots.stream()
+                    .map(RouteRuleSnapshot::coreType)
+                    .map(this::normalizeCoreType)
+                    .forEach(coreTypes::add);
+        }
+
+        List<Node> filteredNodes = targetCoreTypesByServerId.isEmpty()
+                ? Collections.emptyList()
+                : filterRelatedNodesByServerCore(relatedNodes, targetCoreTypesByServerId);
+
+        Map<Long, Server> serverMap = loadServerMap(targetServerIds, filteredNodes, routeRuleSnapshots);
+        ensureServersExist(targetServerIds, serverMap);
+
+        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap = buildNodeSnapshotMap(filteredNodes, routeRuleSnapshots, serverMap);
+        return new DeploymentServerContext(
+                server,
+                groupNodesByDeploymentServer(targetServerIds, filteredNodes).getOrDefault(serverId, Collections.emptyList()),
+                new ServerSnapshot(server.getTransitConfig(), routeRuleSnapshots),
+                nodeSnapshotMap
+        );
+    }
+
     private List<Long> collectTargetServerIds(List<Node> nodes) {
         Set<Long> serverIds = new LinkedHashSet<>();
         for (Node node : nodes) {

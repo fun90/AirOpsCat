@@ -1,7 +1,10 @@
 package com.fun90.airopscat.service.deployment;
 
 import com.fun90.airopscat.model.dto.DeploymentResult;
+import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
+import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.service.deployment.registry.CoreConfigBuilderRegistry;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.model.dto.deployment.CoreDeploymentExecution;
@@ -13,7 +16,11 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
@@ -25,6 +32,7 @@ public class NodeDeploymentService {
     private final TagRepository tagRepository;
     private final DeploymentDataLoader dataLoader;
     private final CoreDeploymentExecutor deploymentExecutor;
+    private final CoreConfigBuilderRegistry coreConfigBuilderRegistry;
 
     @Transactional
     public List<DeploymentResult> deployByAccountIds(List<Long> accountIdList) {
@@ -84,5 +92,49 @@ public class NodeDeploymentService {
             }
         }
         return results;
+    }
+
+    public Map<String, String> previewServerConfigs(Long serverId) {
+        DeploymentServerContext ctx = dataLoader.loadForServer(serverId);
+        Server server = ctx.server();
+        if (server == null) {
+            return Collections.emptyMap();
+        }
+
+        Set<String> coreTypes = new LinkedHashSet<>();
+        for (Node node : ctx.nodes()) {
+            coreTypes.add(determineCoreType(node.getCoreType()));
+        }
+        if (ctx.serverSnapshot().routeRules() != null) {
+            ctx.serverSnapshot().routeRules().stream()
+                    .map(routeRule -> determineCoreType(routeRule.coreType()))
+                    .forEach(coreTypes::add);
+        }
+
+        Map<String, String> configs = new LinkedHashMap<>();
+        for (String coreType : coreTypes) {
+            try {
+                List<Node> coreNodes = ctx.nodes().stream()
+                        .filter(node -> determineCoreType(node.getCoreType()).equals(coreType))
+                        .toList();
+                String config = coreConfigBuilderRegistry.getStrategy(coreType).build(ctx, coreNodes);
+                configs.put(coreType, config);
+            } catch (UnsupportedOperationException e) {
+                log.warn("Skip preview for unsupported core {} on server {}", coreType, serverId);
+            }
+        }
+        return configs;
+    }
+
+    private String determineCoreType(String coreType) {
+        if (coreType == null || coreType.trim().isEmpty()) {
+            return "xray";
+        }
+        String normalizedCoreType = coreType.trim().toLowerCase();
+        return switch (normalizedCoreType) {
+            case "sing-box" -> "sing-box";
+            case "hysteria2", "hysteria", "hy2" -> "hysteria";
+            default -> "xray";
+        };
     }
 }

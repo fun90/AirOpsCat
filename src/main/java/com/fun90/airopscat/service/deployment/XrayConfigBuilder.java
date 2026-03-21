@@ -68,7 +68,6 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
         }
 
         applyManagedRouteRules(serverSnapshot, nodeSnapshotMap, outbounds, routingRules);
-        applyServerTransitConfig(serverSnapshot, outbounds, routingRules);
         return renderConfig(inbounds, outbounds, routingRules);
     }
 
@@ -269,34 +268,6 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
         rule.put("outboundTag", node.outTag());
         rule.put("type", "field");
         return rule;
-    }
-
-    private void applyServerTransitConfig(ServerSnapshot serverSnapshot,
-                                          List<Map<String, Object>> outbounds,
-                                          List<Map<String, Object>> routingRules) {
-        String transitConfig = serverSnapshot.transitConfig();
-        if (transitConfig == null || transitConfig.equals("{}")) {
-            return;
-        }
-
-        Map<String, Object> transit = toMap(transitConfig);
-
-        List<Map<String, Object>> transitOutbounds = asMapList(transit.get("outbounds"));
-        if (!transitOutbounds.isEmpty()) {
-            List<String> existingTags = new ArrayList<>(DEFAULT_OUTBOUND_TAGS);
-            existingTags.addAll(outbounds.stream()
-                    .map(outbound -> Objects.toString(outbound.get("tag"), null))
-                    .filter(Objects::nonNull)
-                    .toList());
-            transitOutbounds.stream()
-                    .filter(outbound -> !existingTags.contains(Objects.toString(outbound.get("tag"), null)))
-                    .forEach(outbounds::add);
-        }
-
-        Map<String, Object> routing = asMap(transit.get("routing"));
-        if (routing != null) {
-            routingRules.addAll(asMapList(routing.get("rules")));
-        }
     }
 
     private void applyManagedRouteRules(ServerSnapshot serverSnapshot,
