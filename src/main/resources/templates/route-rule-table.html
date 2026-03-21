@@ -1,0 +1,57 @@
+<table class="table table-selectable card-table table-vcenter datatable">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>规则</th>
+        <th>内核/类型</th>
+        <th>作用服务器</th>
+        <th>出站节点</th>
+        <th>状态</th>
+        <th class="w-1">操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="item in records" :key="item.id">
+        <td>{{ item.id }}</td>
+        <td>
+            <div class="fw-bold">{{ item.name }}</div>
+            <div class="text-muted text-truncate" style="max-width: 280px;">{{ summarizeRuleValue(item.ruleValue) }}</div>
+        </td>
+        <td>
+            <div><span class="badge" :class="getCoreBadgeClass(item.coreType)">{{ item.coreType }}</span></div>
+            <div class="text-muted mt-1">{{ getRuleTypeLabel(item.ruleType) }}</div>
+        </td>
+        <td>
+            <div class="text-truncate" style="max-width: 260px;">{{ (item.serverNames || []).join('、') || '-' }}</div>
+        </td>
+        <td>
+            <div>{{ item.outboundNodeName || '-' }}</div>
+            <div class="text-muted">{{ item.outboundServerLabel || '' }}</div>
+        </td>
+        <td><span class="badge" :class="item.enabled === 1 ? 'text-bg-success' : 'text-bg-secondary'">{{ item.enabled === 1 ? '已启用' : '已禁用' }}</span></td>
+        <td>
+            <div class="btn-list flex-nowrap">
+                <div class="dropdown position-static">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">操作</button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click.prevent="openEditModal(item)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(item)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="7" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status"></div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="7" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table>

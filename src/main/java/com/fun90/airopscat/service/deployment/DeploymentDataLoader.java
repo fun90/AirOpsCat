@@ -3,6 +3,7 @@ package com.fun90.airopscat.service.deployment;
 import com.fun90.airopscat.model.dto.deployment.DeploymentPreload;
 import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
 import com.fun90.airopscat.model.dto.deployment.NodeDeploymentSnapshot;
+import com.fun90.airopscat.model.dto.deployment.RouteRuleSnapshot;
 import com.fun90.airopscat.model.dto.deployment.ServerSnapshot;
 import com.fun90.airopscat.model.dto.deployment.VlessClient;
 import com.fun90.airopscat.model.entity.Account;
@@ -12,6 +13,7 @@ import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
+import com.fun90.airopscat.service.RouteRuleService;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.RequiredArgsConstructor;
 
@@ -38,6 +40,7 @@ public class DeploymentDataLoader {
     private final ServerRepository serverRepository;
     private final TagRepository tagRepository;
     private final AccountTrafficStatsRepository accountTrafficRepository;
+    private final RouteRuleService routeRuleService;
 
     public DeploymentPreload load(List<Node> inputNodes) {
         List<Long> targetServerIds = collectTargetServerIds(inputNodes);
@@ -46,11 +49,16 @@ public class DeploymentDataLoader {
                 nodeRepository.findByServerIdsOrBackupServerIds(targetServerIds),
                 targetCoreTypesByServerId
         );
+        Map<Long, List<RouteRuleSnapshot>> routeRulesByServerId = routeRuleService.getEnabledSnapshotsByServerIds(targetServerIds);
+        List<RouteRuleSnapshot> routeRuleSnapshots = routeRulesByServerId.values().stream()
+                .flatMap(List::stream)
+                .distinct()
+                .toList();
 
-        Map<Long, Server> serverMap = loadServerMap(targetServerIds, relatedNodes);
+        Map<Long, Server> serverMap = loadServerMap(targetServerIds, relatedNodes, routeRuleSnapshots);
         ensureServersExist(targetServerIds, serverMap);
 
-        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap = buildNodeSnapshotMap(relatedNodes, serverMap);
+        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap = buildNodeSnapshotMap(relatedNodes, routeRuleSnapshots, serverMap);
         Map<Long, List<Node>> nodesByServerId = groupNodesByDeploymentServer(targetServerIds, relatedNodes);
 
         Map<Long, DeploymentServerContext> serverContexts = new LinkedHashMap<>();
@@ -59,7 +67,7 @@ public class DeploymentDataLoader {
             serverContexts.put(serverId, new DeploymentServerContext(
                     server,
                     nodesByServerId.getOrDefault(serverId, Collections.emptyList()),
-                    new ServerSnapshot(server.getTransitConfig()),
+                    new ServerSnapshot(server.getTransitConfig(), routeRulesByServerId.getOrDefault(serverId, Collections.emptyList())),
                     nodeSnapshotMap
             ));
         }
@@ -109,13 +117,19 @@ public class DeploymentDataLoader {
         return allowedCoreTypes != null && allowedCoreTypes.contains(normalizeCoreType(coreType));
     }
 
-    private Map<Long, Server> loadServerMap(List<Long> targetServerIds, List<Node> relatedNodes) {
-        List<Long> outNodeIds = relatedNodes.stream()
+    private Map<Long, Server> loadServerMap(List<Long> targetServerIds,
+                                            List<Node> relatedNodes,
+                                            List<RouteRuleSnapshot> routeRuleSnapshots) {
+        Set<Long> outboundNodeIds = new LinkedHashSet<>(relatedNodes.stream()
                 .map(Node::getOutId)
                 .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        Map<Long, Node> outNodeMap = nodeRepository.findByIdIn(outNodeIds).stream()
+                .toList());
+        outboundNodeIds.addAll(routeRuleSnapshots.stream()
+                .map(RouteRuleSnapshot::outboundNodeId)
+                .filter(Objects::nonNull)
+                .toList());
+
+        Map<Long, Node> outNodeMap = nodeRepository.findByIdIn(new ArrayList<>(outboundNodeIds)).stream()
                 .collect(Collectors.toMap(Node::getId, node -> node));
 
         Set<Long> allServerIds = new LinkedHashSet<>(targetServerIds);
@@ -153,12 +167,25 @@ public class DeploymentDataLoader {
         }
     }
 
-    private Map<Long, NodeDeploymentSnapshot> buildNodeSnapshotMap(List<Node> relatedNodes, Map<Long, Server> serverMap) {
-        if (relatedNodes.isEmpty()) {
+    private Map<Long, NodeDeploymentSnapshot> buildNodeSnapshotMap(List<Node> relatedNodes,
+                                                                   List<RouteRuleSnapshot> routeRuleSnapshots,
+                                                                   Map<Long, Server> serverMap) {
+        Set<Long> extraNodeIds = routeRuleSnapshots.stream()
+                .map(RouteRuleSnapshot::outboundNodeId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<Long, Node> snapshotNodeMap = relatedNodes.stream()
+                .collect(Collectors.toMap(Node::getId, node -> node, (left, right) -> left, LinkedHashMap::new));
+        if (!extraNodeIds.isEmpty()) {
+            nodeRepository.findByIdIn(new ArrayList<>(extraNodeIds)).forEach(node -> snapshotNodeMap.putIfAbsent(node.getId(), node));
+        }
+        List<Node> snapshotNodes = new ArrayList<>(snapshotNodeMap.values());
+
+        if (snapshotNodes.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        List<Long> outNodeIds = relatedNodes.stream()
+        List<Long> outNodeIds = snapshotNodes.stream()
                 .map(Node::getOutId)
                 .filter(Objects::nonNull)
                 .distinct()
@@ -166,20 +193,22 @@ public class DeploymentDataLoader {
         Map<Long, Node> outNodeMap = nodeRepository.findByIdIn(outNodeIds).stream()
                 .collect(Collectors.toMap(Node::getId, node -> node));
 
-        Map<Long, List<VlessClient>> nodeClientsMap = buildNodeClientsMap(relatedNodes);
+        Map<Long, List<VlessClient>> nodeClientsMap = buildNodeClientsMap(snapshotNodes);
 
         Map<Long, NodeDeploymentSnapshot> snapshots = new HashMap<>();
-        for (Node node : relatedNodes) {
+        for (Node node : snapshotNodes) {
             Node outNode = outNodeMap.get(node.getOutId());
             if (outNode != null && !serverMap.containsKey(outNode.getServerId())) {
                 throw new IllegalArgumentException("鍑虹珯鏈嶅姟鍣ㄤ笉瀛樺湪: " + outNode.getServerId());
             }
 
+            Server server = node.getServerId() == null ? null : serverMap.get(node.getServerId());
             Server outServer = outNode == null ? null : serverMap.get(outNode.getServerId());
             snapshots.put(node.getId(), new NodeDeploymentSnapshot(
                     node.getId(),
                     normalizeCoreType(node.getCoreType()),
                     node.getProtocol(),
+                    server == null ? null : server.getIp(),
                     node.getPort(),
                     node.getDisabled(),
                     node.getInbound(),

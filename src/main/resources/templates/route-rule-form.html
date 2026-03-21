@@ -1,0 +1,70 @@
+<div class="row">
+    <div class="col-md-6">
+        <div class="mb-3">
+            <label class="form-label required">规则名称</label>
+            <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.name }" v-model="newItem.name" placeholder="如：Netflix 走东京落地">
+            <div class="invalid-feedback" v-if="validationErrors.name">{{ validationErrors.name }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="mb-3">
+            <label class="form-label required">内核类型</label>
+            <select class="form-select" :class="{ 'is-invalid': validationErrors.coreType }" v-model="newItem.coreType" @change="onCreateCoreTypeChange">
+                <option v-for="type in coreTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+            </select>
+            <div class="invalid-feedback" v-if="validationErrors.coreType">{{ validationErrors.coreType }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="mb-3">
+            <label class="form-label required">规则类型</label>
+            <select class="form-select" :class="{ 'is-invalid': validationErrors.ruleType }" v-model="newItem.ruleType">
+                <option v-for="type in ruleTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+            </select>
+            <div class="invalid-feedback" v-if="validationErrors.ruleType">{{ validationErrors.ruleType }}</div>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-6">
+        <div class="mb-3">
+            <label class="form-label required">作用服务器</label>
+            <select class="form-select" multiple size="8" :class="{ 'is-invalid': validationErrors.serverIds }" v-model="newItem.serverIds">
+                <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
+            </select>
+            <div class="invalid-feedback" v-if="validationErrors.serverIds">{{ validationErrors.serverIds }}</div>
+            <div class="form-hint">可多选，同一条规则可绑定多个服务器。</div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="mb-3">
+            <label class="form-label required">出站落地节点</label>
+            <select class="form-select" :class="{ 'is-invalid': validationErrors.outboundNodeId }" v-model="newItem.outboundNodeId">
+                <option value="">请选择落地节点</option>
+                <option v-for="node in landingNodes" :key="node.id" :value="node.id">{{ formatLandingNode(node) }}</option>
+            </select>
+            <div class="invalid-feedback" v-if="validationErrors.outboundNodeId">{{ validationErrors.outboundNodeId }}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">备注</label>
+            <textarea class="form-control" v-model="newItem.remark" rows="3"></textarea>
+        </div>
+        <div class="mb-3">
+            <label class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" :checked="newItem.enabled === 1" @change="newItem.enabled = $event.target.checked ? 1 : 0">
+                <span class="form-check-label">启用规则</span>
+            </label>
+        </div>
+    </div>
+</div>
+<div class="mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <label class="form-label required">规则值 (JSON)</label>
+        <button type="button" class="btn btn-sm btn-outline-secondary" @click="formatCreateRuleValue">
+            <i class="ti ti-code"></i> 格式化
+        </button>
+    </div>
+    <textarea class="form-control font-monospace" :class="{ 'is-invalid': validationErrors.ruleValue }" v-model="newRuleValueJson" rows="12" placeholder='["geosite:netflix"]'></textarea>
+    <div class="invalid-feedback" v-if="validationErrors.ruleValue">{{ validationErrors.ruleValue }}</div>
+    <div class="form-hint">{{ getRuleValueHint(newItem.ruleType, newItem.coreType) }}</div>
+</div>

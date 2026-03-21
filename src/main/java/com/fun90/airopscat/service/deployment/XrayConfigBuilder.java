@@ -3,8 +3,10 @@ package com.fun90.airopscat.service.deployment;
 import com.fun90.airopscat.annotation.SupportedCores;
 import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
 import com.fun90.airopscat.model.dto.deployment.NodeDeploymentSnapshot;
+import com.fun90.airopscat.model.dto.deployment.RouteRuleSnapshot;
 import com.fun90.airopscat.model.dto.deployment.ServerSnapshot;
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.enums.RouteRuleType;
 import com.fun90.airopscat.service.deployment.strategy.CoreConfigBuilder;
 import com.fun90.airopscat.util.ConfigFileReader;
 import com.fun90.airopscat.util.JsonUtil;
@@ -43,10 +45,16 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
                 .map(ctx.nodeSnapshotMap()::get)
                 .filter(Objects::nonNull)
                 .toList();
-        return build(ctx.serverSnapshot(), snapshots);
+        return build(ctx.serverSnapshot(), snapshots, ctx.nodeSnapshotMap());
     }
 
     public String build(ServerSnapshot serverSnapshot, List<NodeDeploymentSnapshot> nodes) {
+        return build(serverSnapshot, nodes, Collections.emptyMap());
+    }
+
+    public String build(ServerSnapshot serverSnapshot,
+                        List<NodeDeploymentSnapshot> nodes,
+                        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap) {
         List<NodeDeploymentSnapshot> enabledNodes = nodes.stream()
                 .filter(node -> node.disabled() == 0)
                 .toList();
@@ -59,6 +67,7 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
             applyNodeConfig(node, inbounds, outbounds, routingRules);
         }
 
+        applyManagedRouteRules(serverSnapshot, nodeSnapshotMap, outbounds, routingRules);
         applyServerTransitConfig(serverSnapshot, outbounds, routingRules);
         return renderConfig(inbounds, outbounds, routingRules);
     }
@@ -288,6 +297,69 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
         if (routing != null) {
             routingRules.addAll(asMapList(routing.get("rules")));
         }
+    }
+
+    private void applyManagedRouteRules(ServerSnapshot serverSnapshot,
+                                        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap,
+                                        List<Map<String, Object>> outbounds,
+                                        List<Map<String, Object>> routingRules) {
+        if (serverSnapshot.routeRules() == null || serverSnapshot.routeRules().isEmpty()) {
+            return;
+        }
+
+        for (RouteRuleSnapshot routeRule : serverSnapshot.routeRules()) {
+            if (!"xray".equalsIgnoreCase(routeRule.coreType())) {
+                continue;
+            }
+
+            NodeDeploymentSnapshot outboundNode = nodeSnapshotMap.get(routeRule.outboundNodeId());
+            if (outboundNode == null || outboundNode.inbound() == null
+                    || outboundNode.serverIp() == null || outboundNode.port() == null) {
+                log.warn("Skip xray route rule {}, outbound node {} is unavailable",
+                        routeRule.id(), routeRule.outboundNodeId());
+                continue;
+            }
+
+            addManagedOutboundIfAbsent(outboundNode, outbounds);
+            routingRules.add(buildManagedRouteRule(routeRule, outboundNode.tag()));
+        }
+    }
+
+    private void addManagedOutboundIfAbsent(NodeDeploymentSnapshot outboundNode,
+                                            List<Map<String, Object>> outbounds) {
+        boolean alreadyPresent = DEFAULT_OUTBOUND_TAGS.contains(outboundNode.tag()) || outbounds.stream()
+                .map(outbound -> Objects.toString(outbound.get("tag"), null))
+                .anyMatch(outboundNode.tag()::equals);
+        if (alreadyPresent) {
+            return;
+        }
+
+        Map<String, Object> inbound = toMap(outboundNode.inbound());
+        Map<String, Object> outbound = buildOutbound(inbound, outboundNode.serverIp(), outboundNode.port());
+        if (outbound == null) {
+            return;
+        }
+        outbound.put("tag", outboundNode.tag());
+        outbounds.add(outbound);
+    }
+
+    private Map<String, Object> buildManagedRouteRule(RouteRuleSnapshot routeRule, String outboundTag) {
+        Map<String, Object> rule = new LinkedHashMap<>();
+        RouteRuleType ruleType = RouteRuleType.fromValue(routeRule.ruleType());
+        Object ruleValue = JsonUtil.toObject(routeRule.ruleValue(), Object.class);
+
+        if (ruleType == RouteRuleType.CUSTOM) {
+            Map<String, Object> customRule = asMap(ruleValue);
+            if (customRule != null) {
+                rule.putAll(customRule);
+            }
+        } else if (ruleType != null && ruleType.getXrayField() != null) {
+            rule.put(ruleType.getXrayField(), ruleValue);
+        }
+
+        rule.put("type", "field");
+        rule.put("outboundTag", outboundTag);
+        return rule;
     }
 
     private void copyStreamSettings(Map<String, Object> inbound, Map<String, Object> outbound) {

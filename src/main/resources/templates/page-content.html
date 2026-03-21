@@ -15,6 +15,8 @@
         {#include server-install-content /}
     {#is '/vpn/node'}
         {#include node-content /}
+    {#is '/vpn/route-rule'}
+        {#include route-rule-content /}
     {#is '/vpn/server-config'}
         {#include server-config-content /}
     {#is '/money/transactions'}

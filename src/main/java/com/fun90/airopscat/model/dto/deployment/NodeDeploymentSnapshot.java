@@ -6,6 +6,7 @@ public record NodeDeploymentSnapshot(
         Long id,
         String coreType,
         String protocol,
+        String serverIp,
         Integer port,
         Integer disabled,
         String inbound,

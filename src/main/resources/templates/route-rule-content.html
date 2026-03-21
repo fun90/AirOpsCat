@@ -1,0 +1,28 @@
+<div class="page-body">
+    <div class="container-xl">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-actions">
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="text" class="form-control" placeholder="搜索规则名称、服务器..." v-model="searchQuery" @input="searchDebounced">
+                            </div>
+                            {#include route-rule-filters /}
+                        </div>
+                    </div>
+                </div>
+
+                {#include route-rule-stats /}
+
+                <div class="table-responsive">
+                    {#include route-rule-table /}
+                </div>
+
+                {#include pagination-controls /}
+            </div>
+        </div>
+
+        {#include route-rule-modals /}
+    </div>
+</div>

@@ -1,0 +1,13 @@
+<div class="col-auto">
+    <select class="form-select" v-model="filters.coreType" @change="fetchRecords">
+        <option value="">全部内核</option>
+        <option v-for="type in coreTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+    </select>
+</div>
+<div class="col-auto">
+    <select class="form-select" v-model="filters.enabled" @change="fetchRecords">
+        <option value="">全部状态</option>
+        <option value="true">已启用</option>
+        <option value="false">已禁用</option>
+    </select>
+</div>

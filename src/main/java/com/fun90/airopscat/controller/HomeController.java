@@ -43,6 +43,7 @@ public class HomeController {
         menu.put("/device/server", new MenuItem("设备", "服务器", "添加服务器、编辑服务器、查看服务器", "/device/server"));
         menu.put("/device/server-install", new MenuItem("设备", "一键装机", "选择装机脚本，按顺序执行并查看每一步的结果", "/device/server-install"));
         menu.put("/vpn/node", new MenuItem("代理", "节点管理", "添加、编辑、部署节点，查看节点", "/vpn/node"));
+        menu.put("/vpn/route-rule", new MenuItem("代理", "路由规则", "为 xray、sing-box 管理路由规则", "/vpn/route-rule"));
         menu.put("/vpn/server-config", new MenuItem("代理", "配置管理", "查看服务器上对应的配置", "/vpn/server-config"));
         menu.put("/money/transactions", new MenuItem("财务", "交易流水", "查看收入、支出等流水", "/money/transactions"));
         menu.put("/system/tag", new MenuItem("系统", "标签管理", "添加标签、编辑标签、查看标签", "/system/tag"));
@@ -130,6 +131,7 @@ public class HomeController {
             case "/device/domain" -> "添加域名";
             case "/device/server" -> "添加服务器";
             case "/vpn/node" -> "添加节点";
+            case "/vpn/route-rule" -> "添加规则";
             case "/vpn/server-config" -> "添加配置";
             case "/system/tag" -> "添加标签";
             default -> "";
@@ -143,6 +145,7 @@ public class HomeController {
             case "/device/domain" -> "domain-";
             case "/device/server" -> "server-";
             case "/vpn/node" -> "node-";
+            case "/vpn/route-rule" -> "route-rule-";
             case "/vpn/server-config" -> "serverConfig-";
             case "/system/tag" -> "tag-";
             case "/system/backup" -> "backup-";
