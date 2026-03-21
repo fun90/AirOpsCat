@@ -177,39 +177,16 @@ jobs:
           **/airopscat-*
         body: |
           ## AirOpsCat ${{ github.ref_name }}
-          
-          Native executables for Linux and Windows built with Quarkus 3.24.3.
-          
-          ### 🚀 Key Features:
-          - **Ultra-fast startup**: < 0.2 seconds
-          - **Multiple Linux variants**: Regular and UPX-compressed versions
-          - **Zero dependencies**: No Java runtime required
-          - **Production ready**: Optimized native compilation
-          
-          ### 📦 Download Instructions:
-          - **Linux (Regular)**: Download `airopscat-linux-amd64.tar.gz` (~90MB, uncompressed)
-          - **Linux (UPX)**: Download `airopscat-linux-amd64-upx.tar.gz` (~30MB, UPX --best compressed)
-          - **Windows**: Download `airopscat-windows-amd64.exe.zip` (~90MB, uncompressed for compatibility)
-          
-          ### 🛠 Usage:
-          1. Extract the tar.gz archive (Linux) or zip file (Windows)
-          2. Run the executable directly
-          3. Open http://localhost:8080 in your browser
-          
-          ### ⚙️ Advanced Configuration:
-          Use external configuration file:
-          ```bash
-          # Linux
-          ./airopscat-linux-amd64 -Dquarkus.config.locations=./application.properties
-          # or UPX version
-          ./airopscat-linux-amd64-upx -Dquarkus.config.locations=./application.properties
-          ```
-          
-          ### 📋 System Requirements:
-          - **Linux**: x86_64 architecture, glibc 2.17+
-          - **Windows**: x86_64 architecture, Windows 10+
-          - **Memory**: 512MB RAM minimum
-          - **Storage**: 50MB free space
+
+          Native Linux build for this version.
+
+          Artifact:
+          - `airopscat-linux-amd64.tar.gz`
+
+          Usage:
+          - Extract the archive
+          - Run `./airopscat-linux-amd64`
+          - Open `http://localhost:8080`
         draft: false
         prerelease: false
       env:
