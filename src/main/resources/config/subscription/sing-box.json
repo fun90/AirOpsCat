@@ -212,11 +212,7 @@
           "clash.razord.top",
           "yacd.metacubex.one",
           "yacd.haishan.me",
-          "d.metacubex.one",
-          "fun90.com"
-        ],
-        "domain_suffix": [
-          ".fun90.com"
+          "d.metacubex.one"
         ],
         "rule_set": [
           "GeoSite-Private",
