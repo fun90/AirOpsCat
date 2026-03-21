@@ -5,17 +5,14 @@ import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.proto.v2rayapi.QueryStatsRequest;
 import com.fun90.airopscat.proto.v2rayapi.QueryStatsResponse;
+import com.fun90.airopscat.proto.v2rayapi.StatsServiceGrpc;
 import com.fun90.airopscat.proto.v2rayapi.Stat;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.traffic.AbstractV2RayApiTrafficStatsCollector;
 import com.fun90.airopscat.service.traffic.UserTrafficStats;
-import io.grpc.CallOptions;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import io.grpc.MethodDescriptor;
-import io.grpc.protobuf.ProtoUtils;
-import io.grpc.stub.ClientCalls;
+import io.quarkus.grpc.GrpcClient;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collections;
@@ -30,49 +27,37 @@ public class SingBoxTrafficStatsCollector extends AbstractV2RayApiTrafficStatsCo
 
     private static final String API_HOST = "127.0.0.1";
     private static final int DEFAULT_API_PORT = 101;
-    private static final String STATS_SERVICE_NAME = "v2ray.core.app.stats.command.StatsService";
-    private static final MethodDescriptor<QueryStatsRequest, QueryStatsResponse> QUERY_STATS_METHOD =
-            MethodDescriptor.<QueryStatsRequest, QueryStatsResponse>newBuilder()
-                    .setType(MethodDescriptor.MethodType.UNARY)
-                    .setFullMethodName(MethodDescriptor.generateFullMethodName(STATS_SERVICE_NAME, "QueryStats"))
-                    .setRequestMarshaller(ProtoUtils.marshaller(QueryStatsRequest.getDefaultInstance()))
-                    .setResponseMarshaller(ProtoUtils.marshaller(QueryStatsResponse.getDefaultInstance()))
-                    .build();
+
+    @GrpcClient("sing-box")
+    StatsServiceGrpc.StatsServiceBlockingStub statsServiceClient;
+
+    @ConfigProperty(name = "airopscat.sing-box.grpc.local-port", defaultValue = "11011")
+    int localGrpcPort;
 
     @Override
     public Map<String, UserTrafficStats> collectUserTrafficStats(SshConnection connection, Server server, ServerConfig serverConfig) {
         int apiPort = DEFAULT_API_PORT;
         Integer localPort = null;
-        ManagedChannel channel = null;
 
         try {
-            localPort = connection.forwardLocalPort(0, API_HOST, apiPort);
-            channel = ManagedChannelBuilder.forAddress(API_HOST, localPort)
-                    .usePlaintext()
-                    .build();
+            localPort = connection.forwardLocalPort(localGrpcPort, API_HOST, apiPort);
 
-            QueryStatsResponse response = ClientCalls.blockingUnaryCall(
-                    channel,
-                    QUERY_STATS_METHOD,
-                    CallOptions.DEFAULT.withDeadlineAfter(10, TimeUnit.SECONDS),
-                    QueryStatsRequest.newBuilder()
+            QueryStatsResponse response = statsServiceClient
+                    .withDeadlineAfter(10, TimeUnit.SECONDS)
+                    .queryStats(QueryStatsRequest.newBuilder()
                             .setReset(true)
                             .addPatterns("user>>>.*>>>traffic>>>.*")
                             .setRegexp(true)
-                            .build()
-            );
+                            .build());
 
             List<NamedTrafficStat> stats = response.getStatList().stream()
                     .map(this::toTrafficStat)
                     .toList();
             return parseUserTrafficStats(stats);
         } catch (Exception e) {
-            log.error("获取 sing-box 流量统计失败, serverId={}, apiPort={}", server.getId(), apiPort, e);
+            log.error("获取 sing-box 流量统计失败, serverId={}, apiPort={}, localGrpcPort={}", server.getId(), apiPort, localGrpcPort, e);
             return Collections.emptyMap();
         } finally {
-            if (channel != null) {
-                channel.shutdownNow();
-            }
             if (localPort != null) {
                 try {
                     connection.cancelLocalPortForward(localPort);

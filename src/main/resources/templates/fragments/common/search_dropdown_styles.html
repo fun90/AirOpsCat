@@ -4,6 +4,10 @@
         position: relative;
     }
 
+    .search-dropdown-control {
+        position: relative;
+    }
+
     .search-dropdown-clear,
     .search-dropdown-indicator {
         position: absolute;
@@ -79,6 +83,11 @@
     .search-dropdown .form-control {
         background-image: none;
         padding-right: 4rem;
+    }
+
+    .search-dropdown .form-control::after,
+    .search-dropdown .form-control.dropdown-toggle::after {
+        display: none;
     }
     
     /* 确保下拉框在模态框中正确显示 */

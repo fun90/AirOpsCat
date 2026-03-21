@@ -1,6 +1,6 @@
 
 import { DataTable } from '/static/js/common/data-table.js';
-import { Modal } from '/static/tabler/js/tabler.esm.min.js';
+import { Modal, Tooltip } from '/static/tabler/js/tabler.esm.min.js';
 
 const serverTable = new DataTable({
     data: {
@@ -70,6 +70,94 @@ const serverTable = new DataTable({
         initialize() {
             this.fetchAuthTypes();
             this.fetchPaymentMethods();
+        },
+
+        handleFilterChange() {
+            this.currentPage = 1;
+            this.fetchRecords();
+        },
+
+        getSupplierFilterValue(supplier) {
+            return supplier === '未知' ? '__UNKNOWN__' : supplier;
+        },
+
+        fetchRecords() {
+            this.loading = true;
+
+            const params = new URLSearchParams({
+                page: this.currentPage,
+                size: this.pageSize
+            });
+
+            if (this.searchQuery) {
+                params.append('search', this.searchQuery);
+            }
+
+            if (this.filters.supplier) {
+                params.append('supplier', this.filters.supplier);
+            }
+
+            switch (this.filters.status) {
+                case 'active':
+                    params.append('expired', 'false');
+                    params.append('disabled', 'false');
+                    break;
+                case 'expired':
+                    params.append('expired', 'true');
+                    params.append('disabled', 'false');
+                    break;
+                case 'disabled':
+                    params.append('disabled', 'true');
+                    break;
+                default:
+                    break;
+            }
+
+            fetch(`/api/admin/${this.entityName}?${params.toString()}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.records = data.records || [];
+                    this.totalItems = data.total || 0;
+                    this.startIndex = (this.currentPage - 1) * this.pageSize + 1;
+                    this.endIndex = Math.min(this.startIndex + this.pageSize - 1, this.totalItems);
+                    this.totalPages = data.pages || 0;
+                    this.currentPage = data.current || 1;
+
+                    if (data.stats) {
+                        this.stats = data.stats;
+                    }
+
+                    this.loading = false;
+
+                    this.$nextTick(() => {
+                        const existingTooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+                        existingTooltips.forEach(element => {
+                            const tooltipInstance = Tooltip.getInstance(element);
+                            if (tooltipInstance) {
+                                tooltipInstance.dispose();
+                            }
+                        });
+
+                        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                        tooltipTriggerList.map(function (tooltipTriggerEl) {
+                            return new Tooltip(tooltipTriggerEl);
+                        });
+                    });
+
+                    if (typeof this.afterFetch === 'function') {
+                        this.afterFetch(data);
+                    }
+                })
+                .catch(error => {
+                    console.error(`Error fetching ${this.entityName || 'records'}:`, error);
+                    ToastUtils.show('Error', `Failed to load ${this.entityName || 'records'}.`, 'danger');
+                    this.loading = false;
+                });
         },
 
         // Fetch authentication types

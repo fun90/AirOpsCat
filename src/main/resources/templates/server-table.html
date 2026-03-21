@@ -80,6 +80,9 @@
                         <a class="dropdown-item" href="#" @click.prevent="openConfigPreviewModal(server)">
                             <i class="ti ti-file-search"></i> 预览配置
                         </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openTrafficCalibrationModal(server)">
+                            <i class="ti ti-target"></i> 流量校准
+                        </a>
                         <a class="dropdown-item" href="#" @click.prevent="openRenewServerModal(server)">
                             <i class="ti ti-calendar-plus"></i> 续期
                         </a>
@@ -92,9 +95,6 @@
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(server)">
                             <i class="ti ti-trash"></i> 删除
-                        </a>
-                        <a class="dropdown-item" href="#" @click.prevent="openTrafficCalibrationModal(server)">
-                            <i class="ti ti-target"></i> 流量校准
                         </a>
                     </div>
                 </div>

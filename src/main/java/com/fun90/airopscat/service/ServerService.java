@@ -46,8 +46,12 @@ public class ServerService {
         
         // Supplier filter
         if (supplier != null && !supplier.trim().isEmpty()) {
-            conditions.add("supplier = :supplier");
-            params.put("supplier", supplier);
+            if ("__UNKNOWN__".equals(supplier)) {
+                conditions.add("(supplier is null or trim(supplier) = '')");
+            } else {
+                conditions.add("supplier = :supplier");
+                params.put("supplier", supplier);
+            }
         }
         
         // Expired filter
