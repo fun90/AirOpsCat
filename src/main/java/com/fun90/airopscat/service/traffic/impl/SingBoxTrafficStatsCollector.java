@@ -31,7 +31,7 @@ public class SingBoxTrafficStatsCollector extends AbstractV2RayApiTrafficStatsCo
     @GrpcClient("sing-box")
     StatsServiceGrpc.StatsServiceBlockingStub statsServiceClient;
 
-    @ConfigProperty(name = "airopscat.sing-box.grpc.local-port", defaultValue = "11011")
+    @ConfigProperty(name = "airopscat.sing-box.grpc.local-port", defaultValue = "101")
     int localGrpcPort;
 
     @Override
