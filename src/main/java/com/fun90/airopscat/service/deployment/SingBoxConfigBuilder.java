@@ -5,7 +5,7 @@ import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
 import com.fun90.airopscat.model.dto.deployment.NodeDeploymentSnapshot;
 import com.fun90.airopscat.model.dto.deployment.RouteRuleSnapshot;
 import com.fun90.airopscat.model.dto.deployment.ServerSnapshot;
-import com.fun90.airopscat.model.dto.deployment.VlessClient;
+import com.fun90.airopscat.model.dto.deployment.NodeClient;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.enums.RouteRuleType;
 import com.fun90.airopscat.service.deployment.strategy.CoreConfigBuilder;
@@ -127,7 +127,7 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
         reality.remove("public_key");
     }
 
-    private List<Map<String, Object>> buildVlessUsers(List<VlessClient> clients) {
+    private List<Map<String, Object>> buildVlessUsers(List<NodeClient> clients) {
         return clients.stream()
                 .map(client -> {
                     Map<String, Object> user = new LinkedHashMap<>();
@@ -141,7 +141,7 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
                 .toList();
     }
 
-    private List<Map<String, Object>> buildHysteria2Users(List<VlessClient> clients) {
+    private List<Map<String, Object>> buildHysteria2Users(List<NodeClient> clients) {
         return clients.stream()
                 .map(client -> {
                     Map<String, Object> user = new LinkedHashMap<>();
@@ -484,7 +484,7 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
     private List<String> collectStatsUsers(List<NodeDeploymentSnapshot> enabledNodes) {
         return enabledNodes.stream()
                 .flatMap(node -> node.clients().stream())
-                .map(VlessClient::email)
+                .map(NodeClient::email)
                 .filter(Objects::nonNull)
                 .filter(name -> !name.isBlank())
                 .distinct()

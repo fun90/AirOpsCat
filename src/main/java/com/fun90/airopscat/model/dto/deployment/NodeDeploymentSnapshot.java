@@ -18,5 +18,5 @@ public record NodeDeploymentSnapshot(
         String outInbound,
         String outServerIp,
         Integer outPort,
-        List<VlessClient> clients
+        List<NodeClient> clients
 ) {}

@@ -1,10 +1,7 @@
 package com.fun90.airopscat.service.deployment;
 
 import com.fun90.airopscat.annotation.SupportedCores;
-import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
-import com.fun90.airopscat.model.dto.deployment.NodeDeploymentSnapshot;
-import com.fun90.airopscat.model.dto.deployment.RouteRuleSnapshot;
-import com.fun90.airopscat.model.dto.deployment.ServerSnapshot;
+import com.fun90.airopscat.model.dto.deployment.*;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.enums.RouteRuleType;
 import com.fun90.airopscat.service.deployment.strategy.CoreConfigBuilder;
@@ -120,11 +117,25 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
         Map<String, Object> inbound = toMap(node.inbound());
         Map<String, Object> settings = asMap(inbound.get("settings"));
         if ("vless".equalsIgnoreCase(Objects.toString(inbound.get("protocol"), null)) && settings != null) {
-            settings.put("clients", node.clients());
+            settings.put("clients", buildVlessUsers(node.clients()));
         }
         inbound.put("tag", node.tag());
         inbound.put("port", node.port());
         return inbound;
+    }
+
+    private List<Map<String, Object>> buildVlessUsers(List<NodeClient> clients) {
+        return clients.stream()
+            .map(client -> {
+                Map<String, Object> user = new LinkedHashMap<>();
+                user.put("id", client.id());
+                user.put("email", client.email());
+                if (client.flow() != null && !client.flow().isBlank()) {
+                    user.put("flow", client.flow());
+                }
+                return user;
+            })
+            .toList();
     }
 
     private void addOutboundIfAbsent(NodeDeploymentSnapshot node, List<Map<String, Object>> outbounds) {

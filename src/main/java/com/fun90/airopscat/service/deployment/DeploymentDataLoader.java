@@ -5,7 +5,7 @@ import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
 import com.fun90.airopscat.model.dto.deployment.NodeDeploymentSnapshot;
 import com.fun90.airopscat.model.dto.deployment.RouteRuleSnapshot;
 import com.fun90.airopscat.model.dto.deployment.ServerSnapshot;
-import com.fun90.airopscat.model.dto.deployment.VlessClient;
+import com.fun90.airopscat.model.dto.deployment.NodeClient;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
@@ -229,7 +229,7 @@ public class DeploymentDataLoader {
         Map<Long, Node> outNodeMap = nodeRepository.findByIdIn(outNodeIds).stream()
                 .collect(Collectors.toMap(Node::getId, node -> node));
 
-        Map<Long, List<VlessClient>> nodeClientsMap = buildNodeClientsMap(snapshotNodes);
+        Map<Long, List<NodeClient>> nodeClientsMap = buildNodeClientsMap(snapshotNodes);
 
         Map<Long, NodeDeploymentSnapshot> snapshots = new HashMap<>();
         for (Node node : snapshotNodes) {
@@ -262,7 +262,7 @@ public class DeploymentDataLoader {
         return snapshots;
     }
 
-    private Map<Long, List<VlessClient>> buildNodeClientsMap(List<Node> nodes) {
+    private Map<Long, List<NodeClient>> buildNodeClientsMap(List<Node> nodes) {
         List<Node> nodesWithManagedClients = nodes.stream()
                 .filter(this::supportsManagedClients)
                 .toList();
@@ -286,7 +286,7 @@ public class DeploymentDataLoader {
         Map<Long, Long> accountUsageMap = accountTrafficRepository.sumBytesByAccountIds(
                 new ArrayList<>(accountMap.keySet()), now);
 
-        Map<Long, List<VlessClient>> result = new HashMap<>();
+        Map<Long, List<NodeClient>> result = new HashMap<>();
         for (Node node : nodesWithManagedClients) {
             if (node.getInbound() == null) {
                 continue;
@@ -297,7 +297,7 @@ public class DeploymentDataLoader {
                 accountIds.addAll(tagAccountIdsMap.getOrDefault(tagId, Collections.emptyList()));
             }
 
-            List<VlessClient> clients = accountIds.stream()
+            List<NodeClient> clients = accountIds.stream()
                     .map(accountMap::get)
                     .filter(Objects::nonNull)
                     .filter(account -> isWithinBandwidth(account, accountUsageMap.get(account.getId())))
@@ -317,8 +317,8 @@ public class DeploymentDataLoader {
         return usedBytes < bandwidthBytes;
     }
 
-    private VlessClient toVlessClient(Account account) {
-        return new VlessClient(account.getUuid(), account.getAccountNo(), "xtls-rprx-vision");
+    private NodeClient toVlessClient(Account account) {
+        return new NodeClient(account.getUuid(), account.getAccountNo(), "xtls-rprx-vision");
     }
 
     private boolean supportsManagedClients(Node node) {
