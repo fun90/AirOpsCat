@@ -68,9 +68,10 @@ public class AccountController {
             @QueryParam("size") @DefaultValue("10") int size,
             @QueryParam("search") String search,
             @QueryParam("userId") Long userId,
-            @QueryParam("status") String status
+            @QueryParam("status") String status,
+            @QueryParam("onlineStatus") String onlineStatus
     ) {
-        PanacheQuery<Account> accountQuery = accountService.getAccountPage(search, userId, status);
+        PanacheQuery<Account> accountQuery = accountService.getAccountPage(search, userId, status, onlineStatus);
         accountQuery.page(Page.of(page - 1, size));
 
         // Convert to DTOs
@@ -111,7 +112,7 @@ public class AccountController {
             @QueryParam("size") @DefaultValue("10") int size,
             @QueryParam("search") String search
     ) {
-        PanacheQuery<Account> accountQuery = accountService.getAccountPage(search, userId, null);
+        PanacheQuery<Account> accountQuery = accountService.getAccountPage(search, userId, null, null);
         accountQuery.page(Page.of(page - 1, size));
 
         // Convert to DTOs
@@ -171,7 +172,7 @@ public class AccountController {
         }
 
         // 获取当前用户的账户
-        PanacheQuery<Account> accountQuery = accountService.getAccountPage(search, currentUser.getId(), null);
+        PanacheQuery<Account> accountQuery = accountService.getAccountPage(search, currentUser.getId(), null, null);
         accountQuery.page(Page.of(page - 1, size));
 
         // Convert to DTOs

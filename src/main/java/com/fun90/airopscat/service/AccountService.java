@@ -38,7 +38,7 @@ public class AccountService {
     @Inject
     AccountOnlineIpService accountOnlineIpService;
 
-    public io.quarkus.hibernate.orm.panache.PanacheQuery<Account> getAccountPage(String search, Long userId, String status) {
+    public io.quarkus.hibernate.orm.panache.PanacheQuery<Account> getAccountPage(String search, Long userId, String status, String onlineStatus) {
         // Create sort by createTime descending
         Sort sort = Sort.by("createTime").descending();
         
@@ -85,6 +85,33 @@ public class AccountService {
                     conditions.add("disabled = 0 and toDate is not null and toDate > :now and toDate <= :sevenDaysLater");
                     params.put("now", now);
                     params.put("sevenDaysLater", sevenDaysLater);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if (onlineStatus != null && !onlineStatus.trim().isEmpty()) {
+            Set<String> onlineAccountNos = accountOnlineIpService.getAllOnlineRecords().stream()
+                    .map(AccountOnlineIpDto::getAccountNo)
+                    .filter(Objects::nonNull)
+                    .collect(java.util.stream.Collectors.toSet());
+
+            switch (onlineStatus.toLowerCase()) {
+                case "online":
+                    if (onlineAccountNos.isEmpty()) {
+                        conditions.add("accountNo in :onlineAccountNos");
+                        params.put("onlineAccountNos", Collections.singleton("__no_online_accounts__"));
+                    } else {
+                        conditions.add("accountNo in :onlineAccountNos");
+                        params.put("onlineAccountNos", onlineAccountNos);
+                    }
+                    break;
+                case "offline":
+                    if (!onlineAccountNos.isEmpty()) {
+                        conditions.add("accountNo not in :onlineAccountNos");
+                        params.put("onlineAccountNos", onlineAccountNos);
+                    }
                     break;
                 default:
                     break;

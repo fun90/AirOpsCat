@@ -9,7 +9,8 @@ const accountTable = new DataTable({
         modalIdPrefix: 'account-',
         filters: {
             userId: '',
-            status: ''
+            status: '',
+            onlineStatus: ''
         },
         periodTypes: [],
         paymentMethods: [],
@@ -300,9 +301,30 @@ const accountTable = new DataTable({
             }
         },
 
+        getCreateTimeDisplay(createTime) {
+            if (!createTime) return '创建时间未知';
+            return `创建于 ${formatRelativeTime(createTime)}`;
+        },
+
         // 通过状态筛选账户
         filterByStatus(status) {
             this.filters.status = status;
+            this.filters.onlineStatus = '';
+            this.currentPage = 1;
+            this.fetchRecords();
+        },
+
+        filterByOnlineStatus(onlineStatus) {
+            this.filters.onlineStatus = onlineStatus;
+            this.filters.status = '';
+            this.currentPage = 1;
+            this.fetchRecords();
+        },
+
+        clearFilters() {
+            this.filters.status = '';
+            this.filters.onlineStatus = '';
+            this.currentPage = 1;
             this.fetchRecords();
         },
 

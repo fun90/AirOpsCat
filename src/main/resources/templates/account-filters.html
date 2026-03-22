@@ -7,4 +7,12 @@
         <option value="expiring">将过期</option>
         <option value="disabled">已禁用</option>
     </select>
+</div>
+
+<div class="col-auto">
+    <select class="form-select" v-model="filters.onlineStatus" @change="currentPage = 1; fetchRecords()" style="width: 110px;">
+        <option value="">在线状态</option>
+        <option value="online">在线</option>
+        <option value="offline">离线</option>
+    </select>
 </div> 
