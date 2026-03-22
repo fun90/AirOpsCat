@@ -89,10 +89,7 @@
                 <i class="ti ti-dash me-1"></i>未设置
             </div>
         </td>
-        <td :title="`创建时间: ${formatDate(account.createTime) || '未知'}`"
-            data-bs-toggle="tooltip"
-            data-bs-placement="top"
-            style="cursor: pointer;">
+        <td>
             <div class="d-flex flex-column">
                 <span>{{ formatDateTime(account.toDate) || '永不过期' }}</span>
                 <small class="text-muted">{{ getCreateTimeDisplay(account.createTime) }}</small>
