@@ -1,28 +1,26 @@
 {#include fragments/common/search_dropdown_styles /}
 
 <!-- Server filter -->
-<div class="col-auto">
-    <div style="min-width: 220px;">
-        {#include fragments/common/search_dropdown_component componentVar='nodeServerFilter' cssClass='' /}
-    </div>
+<div class="col d-none d-lg-block">
+    {#include fragments/common/search_dropdown_component componentVar='nodeServerFilter' cssClass='w-100' /}
 </div>
 
 <!-- Type filter -->
-<div class="col-auto">
+<div class="col d-none d-lg-block">
     <select class="form-select" v-model="filters.type" @change="onFilterChange">
         <option value="">全部类型</option>
         <option v-for="type in nodeTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
     </select>
 </div>
 
-<div class="col-auto">
+<div class="col d-none d-lg-block">
     <select class="form-select" v-model="filters.coreType" @change="onFilterChange">
         <option value="">全部内核</option>
         <option v-for="coreType in coreTypes" :key="coreType.value" :value="coreType.value">{{ coreType.label }}</option>
     </select>
 </div>
 
-<div class="col-auto">
+<div class="col d-none d-lg-block">
     <select class="form-select" v-model="filters.protocol" @change="onFilterChange">
         <option value="">全部协议</option>
         <option v-for="protocol in getFilterProtocolOptions()" :key="protocol.value" :value="protocol.value">{{ protocol.label }}</option>
@@ -30,7 +28,7 @@
 </div>
 
 <!-- Status filter -->
-<div class="col-auto">
+<div class="col d-none d-lg-block">
     <select class="form-select" v-model="filters.disabled" @change="onFilterChange">
         <option value="">全部状态</option>
         <option value="false">已启用</option>
@@ -38,22 +36,10 @@
     </select>
 </div>
 
-<div class="col-auto">
+<div class="col d-none d-lg-block">
     <select class="form-select" v-model="filters.deployed" @change="onFilterChange">
         <option value="">全部部署状态</option>
         <option value="true">已部署</option>
         <option value="false">未部署</option>
     </select>
-</div>
-
-<div class="col-auto">
-    <button class="btn btn-secondary" @click="openBatchDeployModal">
-        <i class="ti ti-rocket"></i> 全部部署
-    </button>
-</div> 
-
-<div class="col-auto">
-    <button class="btn btn-outline-primary" @click="openCoreSwitchModal" :disabled="selectedNodeIds.length === 0">
-        <i class="ti ti-cpu"></i> 切换内核
-    </button>
 </div>

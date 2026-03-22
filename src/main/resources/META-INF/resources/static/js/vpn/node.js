@@ -21,6 +21,7 @@ const nodeTable = new DataTable({
         protocolTypes: [],
         availableTags: [],
         serverFilterSearch: null,
+        mobileServerFilterSearch: null,
         stats: {
             total: 0,
             active: 0,
@@ -83,30 +84,60 @@ const nodeTable = new DataTable({
         },
 
         initializeSearchComponents() {
-            this.serverFilterSearch = createSearchDropdown({
+            const buildServerFilterSearch = () => createSearchDropdown({
                 placeholder: '全部服务器',
                 apiUrl: '/api/admin/servers',
                 minQueryLength: 0,
                 formatItem: (item) => ({
                     id: item.id,
-                    name: item.name ? `${item.ip} (${item.name})` : item.ip,
+                    name: this.formatServerDisplayLabel(item),
                     data: item
                 }),
                 onSelect: (item) => {
                     this.filters.serverId = String(item.id);
+                    this.syncServerFilterSearches(item);
                     this.onFilterChange();
                 },
                 onChange: (text, item) => {
                     if (!text && !item && this.filters.serverId) {
                         this.filters.serverId = '';
+                        this.syncServerFilterSearches();
                         this.onFilterChange();
                     }
                 }
             });
 
+            this.serverFilterSearch = buildServerFilterSearch();
+            this.mobileServerFilterSearch = buildServerFilterSearch();
+
             setTimeout(() => {
                 this.serverFilterSearch.bindToDOM('nodeServerFilter');
+                this.mobileServerFilterSearch.bindToDOM('nodeMobileServerFilter');
             }, 100);
+        },
+
+        formatServerDisplayLabel(server) {
+            if (!server) {
+                return '';
+            }
+
+            if (server.data) {
+                return this.formatServerDisplayLabel(server.data);
+            }
+
+            return server.name ? `${server.ip} (${server.name})` : (server.ip || '');
+        },
+
+        syncServerFilterSearches(serverItem = null) {
+            const resolvedItem = serverItem || this.servers.find(item => String(item.id) === String(this.filters.serverId)) || null;
+            const text = this.formatServerDisplayLabel(resolvedItem);
+
+            [this.serverFilterSearch, this.mobileServerFilterSearch].forEach(search => {
+                if (!search || typeof search.setValue !== 'function') {
+                    return;
+                }
+                search.setValue(text, resolvedItem);
+            });
         },
 
         fetchServers() {
@@ -114,6 +145,7 @@ const nodeTable = new DataTable({
                 .then(response => response.json())
                 .then(data => {
                     this.servers = data;
+                    this.syncServerFilterSearches();
                     if (this.servers.length > 0 && !this.newItem.serverId) {
                         this.newItem.serverId = this.servers[0].id;
                     }
@@ -185,6 +217,146 @@ const nodeTable = new DataTable({
             }
             this.currentPage = 1;
             this.fetchRecords();
+        },
+
+        resetFilters() {
+            const hasChanges = this.searchQuery
+                || Object.values(this.filters).some(value => value !== '' && value !== null && value !== undefined);
+
+            this.searchQuery = '';
+            this.filters = {
+                serverId: '',
+                type: '',
+                coreType: '',
+                protocol: '',
+                disabled: '',
+                deployed: ''
+            };
+
+            [this.serverFilterSearch, this.mobileServerFilterSearch].forEach(search => {
+                if (search && typeof search.clear === 'function') {
+                    search.clear();
+                }
+            });
+
+            if (hasChanges) {
+                this.currentPage = 1;
+                this.fetchRecords();
+            }
+        },
+
+        activeFilterCount() {
+            let count = this.searchQuery ? 1 : 0;
+            count += Object.values(this.filters).filter(value => value !== '' && value !== null && value !== undefined).length;
+            return count;
+        },
+
+        hasActiveFilters() {
+            return this.activeFilterCount() > 0;
+        },
+
+        getOptionLabel(options, value) {
+            return options.find(option => String(option.value) === String(value))?.label || value;
+        },
+
+        getServerFilterLabel() {
+            if (!this.filters.serverId) {
+                return '';
+            }
+
+            const server = this.servers.find(item => String(item.id) === String(this.filters.serverId));
+            if (!server) {
+                return this.filters.serverId;
+            }
+
+            return this.formatServerDisplayLabel(server);
+        },
+
+        getActiveFilterTags() {
+            const tags = [];
+
+            if (this.searchQuery) {
+                tags.push({
+                    key: 'search',
+                    label: '搜索',
+                    value: this.searchQuery
+                });
+            }
+
+            if (this.filters.serverId) {
+                tags.push({
+                    key: 'serverId',
+                    label: '服务器',
+                    value: this.getServerFilterLabel()
+                });
+            }
+
+            if (this.filters.type !== '') {
+                tags.push({
+                    key: 'type',
+                    label: '类型',
+                    value: this.getOptionLabel(this.nodeTypes, this.filters.type)
+                });
+            }
+
+            if (this.filters.coreType) {
+                tags.push({
+                    key: 'coreType',
+                    label: '内核',
+                    value: this.getOptionLabel(this.coreTypes, this.filters.coreType)
+                });
+            }
+
+            if (this.filters.protocol) {
+                tags.push({
+                    key: 'protocol',
+                    label: '协议',
+                    value: this.getOptionLabel(this.getFilterProtocolOptions(), this.filters.protocol)
+                });
+            }
+
+            if (this.filters.disabled !== '') {
+                tags.push({
+                    key: 'disabled',
+                    label: '状态',
+                    value: this.filters.disabled === 'true' ? '已禁用' : '已启用'
+                });
+            }
+
+            if (this.filters.deployed !== '') {
+                tags.push({
+                    key: 'deployed',
+                    label: '部署',
+                    value: this.filters.deployed === 'true' ? '已部署' : '未部署'
+                });
+            }
+
+            return tags;
+        },
+
+        clearFilter(key) {
+            if (key === 'search') {
+                if (!this.searchQuery) {
+                    return;
+                }
+                this.searchQuery = '';
+            } else if (Object.prototype.hasOwnProperty.call(this.filters, key)) {
+                if (this.filters[key] === '') {
+                    return;
+                }
+                this.filters[key] = '';
+                if (key === 'serverId') {
+                    [this.serverFilterSearch, this.mobileServerFilterSearch].forEach(search => {
+                        if (search && typeof search.clear === 'function') {
+                            search.clear();
+                        }
+                    });
+                }
+            } else {
+                return;
+            }
+
+            this.onFilterChange();
         },
 
         getFilterProtocolOptions() {

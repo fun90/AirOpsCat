@@ -1,0 +1,64 @@
+<div class="offcanvas offcanvas-bottom d-flex flex-column d-lg-none" style="height: 85vh;" tabindex="-1" id="nodeFilterOffcanvas" aria-labelledby="nodeFilterOffcanvasLabel">
+    <div class="offcanvas-header border-bottom">
+        <div>
+            <h3 class="offcanvas-title" id="nodeFilterOffcanvasLabel">筛选节点</h3>
+            <div class="text-muted small">按服务器、类型、内核和状态快速缩小范围</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body overflow-auto">
+        <div class="row g-3">
+            <div class="col-12">
+                <label class="form-label">服务器</label>
+                {#include fragments/common/search_dropdown_component componentVar='nodeMobileServerFilter' cssClass='w-100' /}
+            </div>
+            <div class="col-12">
+                <label class="form-label">类型</label>
+                <select class="form-select" v-model="filters.type" @change="onFilterChange">
+                    <option value="">全部类型</option>
+                    <option v-for="type in nodeTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                </select>
+            </div>
+            <div class="col-12">
+                <label class="form-label">内核</label>
+                <select class="form-select" v-model="filters.coreType" @change="onFilterChange">
+                    <option value="">全部内核</option>
+                    <option v-for="coreType in coreTypes" :key="coreType.value" :value="coreType.value">{{ coreType.label }}</option>
+                </select>
+            </div>
+            <div class="col-12">
+                <label class="form-label">协议</label>
+                <select class="form-select" v-model="filters.protocol" @change="onFilterChange">
+                    <option value="">全部协议</option>
+                    <option v-for="protocol in getFilterProtocolOptions()" :key="protocol.value" :value="protocol.value">{{ protocol.label }}</option>
+                </select>
+            </div>
+            <div class="col-12">
+                <label class="form-label">启用状态</label>
+                <select class="form-select" v-model="filters.disabled" @change="onFilterChange">
+                    <option value="">全部状态</option>
+                    <option value="false">已启用</option>
+                    <option value="true">已禁用</option>
+                </select>
+            </div>
+            <div class="col-12">
+                <label class="form-label">部署状态</label>
+                <select class="form-select" v-model="filters.deployed" @change="onFilterChange">
+                    <option value="">全部部署状态</option>
+                    <option value="true">已部署</option>
+                    <option value="false">未部署</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="border-top p-3 mt-auto">
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary flex-fill" @click="resetFilters">
+                重置
+            </button>
+            <button type="button" class="btn btn-primary flex-fill" data-bs-dismiss="offcanvas">
+                完成
+            </button>
+        </div>
+    </div>
+</div>
