@@ -116,8 +116,7 @@ public class NodeDeploymentService {
         response.setRedeployed(Boolean.TRUE.equals(redeploy));
 
         Set<String> sourceCoreTypes = nodes.stream()
-                .map(node -> normalizeCoreType(node.getCoreType()))
-                .filter(coreType -> !coreType.isBlank())
+                .map(Node::getCoreType)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         if (sourceCoreTypes.size() != 1) {
             throw new IllegalArgumentException("所选节点必须属于同一种原内核后才能切换");
@@ -222,7 +221,7 @@ public class NodeDeploymentService {
         }
         if (ctx.serverSnapshot().routeRules() != null) {
             ctx.serverSnapshot().routeRules().stream()
-                    .map(routeRule -> routeRule.coreType().trim().toLowerCase())
+                    .map(routeRule -> routeRule.coreType())
                     .forEach(coreTypes::add);
         }
 
@@ -249,10 +248,6 @@ public class NodeDeploymentService {
         return parsedCoreType.getValue();
     }
 
-    private String normalizeCoreType(String coreType) {
-        return coreType == null ? "" : coreType.trim().toLowerCase(Locale.ROOT);
-    }
-
     private void validateNodeCoreSwitch(Node node, String targetCoreType, Map<Long, Node> outboundNodeMap) {
         if (node.getProtocol() == null || node.getProtocol().trim().isEmpty()) {
             throw new IllegalArgumentException("节点 " + node.getId() + " 缺少协议配置，无法切换内核");
@@ -267,8 +262,7 @@ public class NodeDeploymentService {
             if (outboundNode == null) {
                 throw new IllegalArgumentException("节点 " + node.getId() + " 的出站节点不存在，无法切换内核");
             }
-            String outboundCoreType = normalizeCoreType(outboundNode.getCoreType());
-            if (!targetCoreType.equals(outboundCoreType)) {
+            if (!targetCoreType.equals(outboundNode.getCoreType())) {
                 String outboundNodeLabel = outboundNode.getName() == null || outboundNode.getName().isBlank()
                         ? String.valueOf(outboundNode.getId())
                         : outboundNode.getName() + "(" + outboundNode.getId() + ")";
@@ -320,7 +314,7 @@ public class NodeDeploymentService {
     }
 
     private void collectSourceCores(Node node, Map<Long, Set<String>> sourceCoresByServerId) {
-        String sourceCoreType = normalizeCoreType(node.getCoreType());
+        String sourceCoreType = node.getCoreType();
         if (node.getServerId() != null) {
             sourceCoresByServerId
                     .computeIfAbsent(node.getServerId(), key -> new LinkedHashSet<>())

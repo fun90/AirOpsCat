@@ -4,6 +4,7 @@
             <th>ID</th>
             <th>服务器</th>
             <th>配置类型</th>
+            <th>状态</th>
             <th>配置路径</th>
             <th>配置大小</th>
             <th>创建时间</th>
@@ -24,6 +25,11 @@
         <td>
             <span class="badge" :class="getConfigTypeBadgeClass(config.configType)">
                 {{ config.configType }}
+            </span>
+        </td>
+        <td>
+            <span class="badge" :class="config.enabled === 0 ? 'text-bg-secondary' : 'text-bg-success'">
+                {{ config.enabled === 0 ? '已禁用' : '已启用' }}
             </span>
         </td>
         <td>
@@ -66,14 +72,14 @@
         </td>
     </tr>
     <tr v-if="loading">
-        <td colspan="8" class="text-center py-3">
+        <td colspan="9" class="text-center py-3">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </td>
     </tr>
     <tr v-else-if="records.length === 0">
-        <td colspan="8" class="text-center py-3">没有查到数据.</td>
+        <td colspan="9" class="text-center py-3">没有查到数据.</td>
     </tr>
     </tbody>
 </table> 

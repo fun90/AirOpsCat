@@ -198,6 +198,7 @@ public class NodeService {
         if (parsedCoreType == null || parsedCoreType == CoreType.HYSTERIA2) {
             throw new IllegalArgumentException("Unsupported core type: " + coreType);
         }
+        node.setCoreType(parsedCoreType.getValue());
 
         if (node.getType() == null) {
             throw new IllegalArgumentException("Node type cannot be empty");

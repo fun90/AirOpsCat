@@ -60,7 +60,7 @@ public class RouteRuleService {
         }
         if (coreType != null && !coreType.trim().isEmpty()) {
             query.append(" and rr.coreType = :coreType");
-            params.put("coreType", normalizeCoreType(coreType));
+            params.put("coreType", requireSupportedCoreType(coreType));
         }
         if (enabled != null) {
             query.append(" and rr.enabled = :enabled");
@@ -189,7 +189,7 @@ public class RouteRuleService {
         validateRequest(request);
 
         routeRule.setName(request.getName().trim());
-        routeRule.setCoreType(normalizeCoreType(request.getCoreType()));
+        routeRule.setCoreType(requireSupportedCoreType(request.getCoreType()));
         routeRule.setRuleType(normalizeRuleType(request.getRuleType()));
         routeRule.setRuleValue(writeRuleValue(request.getRuleValue()));
         routeRule.setOutboundNodeId(request.getOutboundNodeId());
@@ -218,10 +218,7 @@ public class RouteRuleService {
         if (request.getName() == null || request.getName().trim().isEmpty()) {
             throw new IllegalArgumentException("规则名称不能为空");
         }
-        CoreType coreType = CoreType.fromValue(request.getCoreType());
-        if (coreType == null || coreType == CoreType.HYSTERIA2) {
-            throw new IllegalArgumentException("仅支持 xray 和 sing-box 内核");
-        }
+        String requestCoreType = requireSupportedCoreType(request.getCoreType());
         RouteRuleType ruleType = RouteRuleType.fromValue(request.getRuleType());
         if (ruleType == null) {
             throw new IllegalArgumentException("规则类型不支持");
@@ -249,8 +246,7 @@ public class RouteRuleService {
         if (outboundNode.getDisabled() != null && outboundNode.getDisabled() == 1) {
             throw new IllegalArgumentException("出站落地节点已禁用");
         }
-        String outboundCoreType = normalizeCoreType(outboundNode.getCoreType());
-        if (!request.getCoreType().equals(outboundCoreType)) {
+        if (!requestCoreType.equals(outboundNode.getCoreType())) {
             throw new IllegalArgumentException("路由规则内核类型必须与出站落地节点一致");
         }
 
@@ -293,9 +289,12 @@ public class RouteRuleService {
         }
     }
 
-    private String normalizeCoreType(String coreType) {
+    private String requireSupportedCoreType(String coreType) {
         CoreType normalized = CoreType.fromValue(coreType);
-        return normalized == null ? CoreType.XRAY.getValue() : normalized.getValue();
+        if (normalized == null || normalized == CoreType.HYSTERIA2) {
+            throw new IllegalArgumentException("仅支持 xray 和 sing-box 内核");
+        }
+        return normalized.getValue();
     }
 
     private String normalizeRuleType(String ruleType) {

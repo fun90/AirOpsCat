@@ -16,6 +16,7 @@ public class ServerConfigConverter {
         dto.setConfig(serverConfig.getConfig());
         dto.setConfigType(serverConfig.getConfigType());
         dto.setPath(serverConfig.getPath());
+        dto.setEnabled(serverConfig.getEnabled());
         dto.setCreateTime(serverConfig.getCreateTime());
         dto.setUpdateTime(serverConfig.getUpdateTime());
         

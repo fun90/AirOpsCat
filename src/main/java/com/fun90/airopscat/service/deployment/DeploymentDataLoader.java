@@ -91,7 +91,6 @@ public class DeploymentDataLoader {
             Set<String> coreTypes = targetCoreTypesByServerId.computeIfAbsent(serverId, key -> new LinkedHashSet<>());
             routeRuleSnapshots.stream()
                     .map(RouteRuleSnapshot::coreType)
-                    .map(this::normalizeCoreType)
                     .forEach(coreTypes::add);
         }
 
@@ -125,7 +124,7 @@ public class DeploymentDataLoader {
     private Map<Long, Set<String>> collectTargetCoreTypesByServerId(List<Node> nodes) {
         Map<Long, Set<String>> coreTypesByServerId = new LinkedHashMap<>();
         for (Node node : nodes) {
-            String coreType = normalizeCoreType(node.getCoreType());
+            String coreType = node.getCoreType();
             coreTypesByServerId
                     .computeIfAbsent(node.getServerId(), key -> new LinkedHashSet<>())
                     .add(coreType);
@@ -150,7 +149,7 @@ public class DeploymentDataLoader {
             return false;
         }
         Set<String> allowedCoreTypes = targetCoreTypesByServerId.get(serverId);
-        return allowedCoreTypes != null && allowedCoreTypes.contains(normalizeCoreType(coreType));
+        return allowedCoreTypes != null && allowedCoreTypes.contains(coreType);
     }
 
     private Map<Long, Server> loadServerMap(List<Long> targetServerIds,
@@ -242,7 +241,7 @@ public class DeploymentDataLoader {
             Server outServer = outNode == null ? null : serverMap.get(outNode.getServerId());
             snapshots.put(node.getId(), new NodeDeploymentSnapshot(
                     node.getId(),
-                    normalizeCoreType(node.getCoreType()),
+                    node.getCoreType(),
                     node.getProtocol(),
                     server == null ? null : server.getIp(),
                     node.getPort(),
@@ -250,7 +249,7 @@ public class DeploymentDataLoader {
                     node.getInbound(),
                     node.getOutId(),
                     node.getTag(),
-                    outNode == null ? null : normalizeCoreType(outNode.getCoreType()),
+                    outNode == null ? null : outNode.getCoreType(),
                     outNode == null ? null : outNode.getProtocol(),
                     outNode == null ? null : outNode.getTag(),
                     outNode == null ? null : outNode.getInbound(),
@@ -322,11 +321,7 @@ public class DeploymentDataLoader {
     }
 
     private boolean supportsManagedClients(Node node) {
-        String coreType = normalizeCoreType(node.getCoreType());
+        String coreType = node.getCoreType();
         return (CORE_TYPE_XRAY.equals(coreType) || CORE_TYPE_SING_BOX.equals(coreType));
-    }
-
-    private String normalizeCoreType(String coreType) {
-        return coreType.trim().toLowerCase();
     }
 }

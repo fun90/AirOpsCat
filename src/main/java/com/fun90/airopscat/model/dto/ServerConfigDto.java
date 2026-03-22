@@ -11,6 +11,7 @@ public class ServerConfigDto {
     private String config;
     private String configType;
     private String path;
+    private Integer enabled;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
     
