@@ -9,11 +9,13 @@ import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.RouteRule;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.model.enums.ProtocolType;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.RouteRuleRepository;
+import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.model.dto.deployment.CoreDeploymentExecution;
@@ -48,6 +50,7 @@ public class NodeDeploymentService {
 
     private final NodeRepository nodeRepository;
     private final ServerRepository serverRepository;
+    private final ServerConfigRepository serverConfigRepository;
     private final RouteRuleRepository routeRuleRepository;
     private final TagRepository tagRepository;
     private final NodeService nodeService;
@@ -126,9 +129,10 @@ public class NodeDeploymentService {
 
         Set<Long> affectedServerIds = new LinkedHashSet<>();
         Map<Long, Set<String>> sourceCoresByServerId = new LinkedHashMap<>();
+        Map<Long, Node> outboundNodeMap = loadOutboundNodeMap(nodes);
         for (Node node : nodes) {
             collectSourceCores(node, sourceCoresByServerId);
-            validateNodeCoreSwitch(node, normalizedTargetCoreType);
+            validateNodeCoreSwitch(node, normalizedTargetCoreType, outboundNodeMap);
             Map<String, Object> translatedInbound = translateInboundConfig(node, normalizedTargetCoreType);
 
             node.setCoreType(normalizedTargetCoreType);
@@ -152,6 +156,8 @@ public class NodeDeploymentService {
             }
             response.setRouteRuleUpdatedCount(affectedRouteRules.size());
         }
+
+        disableInactiveSourceServerConfigs(affectedServerIds, sourceCoreType);
 
         if (Boolean.TRUE.equals(redeploy) && !affectedServerIds.isEmpty()) {
             stopSourceCoresBeforeRedeploy(sourceCoresByServerId);
@@ -247,7 +253,7 @@ public class NodeDeploymentService {
         return coreType == null ? "" : coreType.trim().toLowerCase(Locale.ROOT);
     }
 
-    private void validateNodeCoreSwitch(Node node, String targetCoreType) {
+    private void validateNodeCoreSwitch(Node node, String targetCoreType, Map<Long, Node> outboundNodeMap) {
         if (node.getProtocol() == null || node.getProtocol().trim().isEmpty()) {
             throw new IllegalArgumentException("节点 " + node.getId() + " 缺少协议配置，无法切换内核");
         }
@@ -255,6 +261,52 @@ public class NodeDeploymentService {
             throw new IllegalArgumentException("节点 " + node.getId()
                     + " 的协议 " + node.getProtocol()
                     + " 不支持目标内核 " + targetCoreType);
+        }
+        if (node.getOutId() != null) {
+            Node outboundNode = outboundNodeMap.get(node.getOutId());
+            if (outboundNode == null) {
+                throw new IllegalArgumentException("节点 " + node.getId() + " 的出站节点不存在，无法切换内核");
+            }
+            String outboundCoreType = normalizeCoreType(outboundNode.getCoreType());
+            if (!targetCoreType.equals(outboundCoreType)) {
+                String outboundNodeLabel = outboundNode.getName() == null || outboundNode.getName().isBlank()
+                        ? String.valueOf(outboundNode.getId())
+                        : outboundNode.getName() + "(" + outboundNode.getId() + ")";
+                throw new IllegalArgumentException("节点 " + node.getId()
+                        + " 已配置出站节点 " + outboundNodeLabel
+                        + "，请先将该出站节点切换到 " + targetCoreType + " 内核后再试");
+            }
+        }
+    }
+
+    private Map<Long, Node> loadOutboundNodeMap(List<Node> nodes) {
+        List<Long> outboundNodeIds = nodes.stream()
+                .map(Node::getOutId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (outboundNodeIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return nodeRepository.findByIdIn(outboundNodeIds).stream()
+                .collect(Collectors.toMap(Node::getId, outboundNode -> outboundNode));
+    }
+
+    private void disableInactiveSourceServerConfigs(Set<Long> affectedServerIds, String sourceCoreType) {
+        if (affectedServerIds == null || affectedServerIds.isEmpty() || sourceCoreType == null || sourceCoreType.isBlank()) {
+            return;
+        }
+
+        for (Long serverId : affectedServerIds) {
+            if (nodeRepository.countByServerAssociationAndCoreType(serverId, sourceCoreType) > 0) {
+                continue;
+            }
+            ServerConfig serverConfig = serverConfigRepository
+                    .findByServerIdAndConfigType(serverId, sourceCoreType)
+                    .orElse(null);
+            if (serverConfig != null) {
+                serverConfig.setEnabled(0);
+            }
         }
     }
 

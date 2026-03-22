@@ -121,6 +121,7 @@ public class CoreDeploymentExecutor {
                 .findByServerIdAndConfigType(server.getId(), coreType)
                 .orElseGet(() -> newServerConfig(server.getId(), coreType));
         serverConfig.setConfig(config);
+        serverConfig.setEnabled(1);
         serverConfig.setUpdateTime(LocalDateTime.now());
         serverConfigRepository.persist(serverConfig);
     }
@@ -130,6 +131,7 @@ public class CoreDeploymentExecutor {
         serverConfig.setServerId(serverId);
         serverConfig.setConfigType(coreType);
         serverConfig.setCreateTime(LocalDateTime.now());
+        serverConfig.setEnabled(1);
         serverConfig.setPath(CORE_TYPE_XRAY.equalsIgnoreCase(coreType)
                 ? "/usr/local/etc/xray/config.json"
                 : CORE_TYPE_SING_BOX.equalsIgnoreCase(coreType)

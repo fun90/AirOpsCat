@@ -28,6 +28,14 @@ public class NodeRepository implements PanacheRepository<Node> {
         }
         return find("id in ?1", ids).list();
     }
+
+    public long countByServerAssociationAndCoreType(Long serverId, String coreType) {
+        if (serverId == null || coreType == null || coreType.isBlank()) {
+            return 0;
+        }
+        return count("(serverId = ?1 or backupServerId = ?1) and lower(trim(coreType)) = ?2",
+                serverId, coreType.trim().toLowerCase());
+    }
     
     public List<Node> findByType(Integer type) {
         return find("type", type).list();
