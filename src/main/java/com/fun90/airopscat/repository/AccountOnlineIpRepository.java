@@ -18,21 +18,21 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
      * 根据accountNo查找在指定时间之后的在线记录
      */
     public List<AccountOnlineIp> findByAccountNoAndLastOnlineTimeAfter(String accountNo, LocalDateTime afterTime) {
-        return find("accountNo = ?1 and lastOnlineTime > ?2", accountNo, afterTime).list();
+        return find("accountNo = ?1 and lastOnlineTime > ?2 order by lastOnlineTime desc", accountNo, afterTime).list();
     }
     
     /**
      * 查找在指定时间之后的所有在线记录
      */
     public List<AccountOnlineIp> findByLastOnlineTimeAfter(LocalDateTime afterTime) {
-        return find("lastOnlineTime > ?1", afterTime).list();
+        return find("lastOnlineTime > ?1 order by lastOnlineTime desc", afterTime).list();
     }
     
     /**
      * 根据nodeIp查找在线记录
      */
     public List<AccountOnlineIp> findByNodeIp(String nodeIp) {
-        return find("nodeIp", nodeIp).list();
+        return find("nodeIp = ?1 order by lastOnlineTime desc", nodeIp).list();
     }
 
     /**
@@ -44,20 +44,36 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
     }
     
     /**
-     * 使用原生 SQL 的 INSERT ... ON CONFLICT 语句实现 upsert 操作
-     * 如果记录存在则仅更新 last_online_time 和 update_time，否则插入新记录
+     * 使用 MySQL 原生 UPSERT 原子更新在线状态。
+     * 如果距离上次续期超过离线阈值，则重新开始计算本次在线会话时间。
      */
     @Transactional
-    public void upsertOnlineStatus(String accountNo, String clientIp, String nodeIp, LocalDateTime lastOnlineTime, LocalDateTime createTime, LocalDateTime updateTime) {
+    public void upsertOnlineStatus(String accountNo,
+                                   String clientIp,
+                                   String nodeIp,
+                                   LocalDateTime lastOnlineTime,
+                                   LocalDateTime sessionStartTime,
+                                   LocalDateTime createTime,
+                                   LocalDateTime updateTime,
+                                   LocalDateTime offlineThresholdTime) {
         getEntityManager().createNativeQuery(
-            "INSERT INTO account_online_ip (account_no, client_ip, node_ip, last_online_time, create_time, update_time) VALUES (?1, ?2, ?3, ?4, ?5, ?6) " +
-            "ON DUPLICATE KEY UPDATE last_online_time = VALUES(last_online_time), update_time = VALUES(update_time)")
+            "INSERT INTO account_online_ip (account_no, client_ip, node_ip, last_online_time, session_start_time, create_time, update_time) " +
+            "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) " +
+            "ON DUPLICATE KEY UPDATE " +
+            "last_online_time = VALUES(last_online_time), " +
+            "session_start_time = CASE " +
+            "WHEN account_online_ip.last_online_time IS NULL OR account_online_ip.last_online_time <= ?8 THEN VALUES(session_start_time) " +
+            "WHEN account_online_ip.session_start_time IS NULL THEN COALESCE(account_online_ip.create_time, VALUES(session_start_time)) " +
+            "ELSE account_online_ip.session_start_time END, " +
+            "update_time = VALUES(update_time)")
             .setParameter(1, accountNo)
             .setParameter(2, clientIp)
             .setParameter(3, nodeIp)
             .setParameter(4, lastOnlineTime)
-            .setParameter(5, createTime)
-            .setParameter(6, updateTime)
+            .setParameter(5, sessionStartTime)
+            .setParameter(6, createTime)
+            .setParameter(7, updateTime)
+            .setParameter(8, offlineThresholdTime)
             .executeUpdate();
     }
 }

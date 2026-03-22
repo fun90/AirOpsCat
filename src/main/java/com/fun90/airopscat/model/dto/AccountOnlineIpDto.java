@@ -11,6 +11,7 @@ public class AccountOnlineIpDto {
     private String clientIp;
     private String nodeIp;
     private LocalDateTime lastOnlineTime;
+    private LocalDateTime sessionStartTime;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
     

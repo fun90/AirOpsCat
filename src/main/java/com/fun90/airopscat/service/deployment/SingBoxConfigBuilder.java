@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @ApplicationScoped
 @RequiredArgsConstructor
-@SupportedCores(value = {"sing-box"}, priority = 1, description = "Sing-box 閮ㄧ讲閰嶇疆鏋勫缓绛栫暐")
+@SupportedCores(value = {"sing-box"}, priority = 1, description = "Sing-box 部署配置构建策略")
 public class SingBoxConfigBuilder implements CoreConfigBuilder {
 
     private static final List<String> DEFAULT_OUTBOUND_TAGS = List.of(

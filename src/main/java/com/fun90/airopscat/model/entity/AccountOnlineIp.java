@@ -27,6 +27,9 @@ public class AccountOnlineIp {
     
     @Column(name = "last_online_time", nullable = false)
     private LocalDateTime lastOnlineTime;
+
+    @Column(name = "session_start_time")
+    private LocalDateTime sessionStartTime;
     
     private LocalDateTime createTime;
     

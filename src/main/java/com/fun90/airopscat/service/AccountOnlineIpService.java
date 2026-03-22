@@ -51,12 +51,10 @@ public class AccountOnlineIpService {
         String accountNo = request.getAccountNo();
         String clientIp = request.getClientIp();
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime offlineThresholdTime = now.minusMinutes(checkMinutes);
         
         try {
-            // 使用原生 SQL 的 INSERT ... ON CONFLICT 语句，真正的原子操作
-            // 基于 (account_no, client_ip, node_ip) 的唯一约束进行 upsert
-            // 如果记录存在则仅更新时间字段，保留原有的 id 和 create_time
-            accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, nodeIp, now, now, now);
+            accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, nodeIp, now, now, now, now, offlineThresholdTime);
         } catch (Exception e) {
             log.error("Failed to update online status for account {}: {}", accountNo, e.getMessage());
             throw new RuntimeException("Failed to update online status for account " + accountNo, e);
@@ -169,6 +167,7 @@ public class AccountOnlineIpService {
         dto.setClientIp(record.getClientIp());
         dto.setNodeIp(record.getNodeIp());
         dto.setLastOnlineTime(record.getLastOnlineTime());
+        dto.setSessionStartTime(resolveSessionStartTime(record));
         dto.setCreateTime(record.getCreateTime());
         dto.setUpdateTime(record.getUpdateTime());
         
@@ -185,6 +184,16 @@ public class AccountOnlineIpService {
         }
         
         return dto;
+    }
+
+    private LocalDateTime resolveSessionStartTime(AccountOnlineIp record) {
+        if (record.getSessionStartTime() != null) {
+            return record.getSessionStartTime();
+        }
+        if (record.getCreateTime() != null) {
+            return record.getCreateTime();
+        }
+        return record.getLastOnlineTime();
     }
     
     /**

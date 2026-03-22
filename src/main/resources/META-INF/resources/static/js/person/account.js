@@ -795,12 +795,12 @@ const accountTable = new DataTable({
             }
         },
 
-        getOnlineDuration(lastOnlineTime) {
-            if (!lastOnlineTime) return '-';
+        getOnlineDuration(sessionStartTime) {
+            if (!sessionStartTime) return '-';
             
             const now = new Date();
-            const lastTime = new Date(lastOnlineTime);
-            const diffMs = now.getTime() - lastTime.getTime();
+            const startTime = new Date(sessionStartTime);
+            const diffMs = Math.max(0, now.getTime() - startTime.getTime());
             
             const minutes = Math.floor(diffMs / (1000 * 60));
             const hours = Math.floor(minutes / 60);
