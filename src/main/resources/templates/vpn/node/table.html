@@ -20,8 +20,8 @@
         <td>
             <div class="d-flex flex-column gap-1">
                 <div class="d-flex align-items-center gap-2 min-w-0">
-                    <span class="avatar avatar-xs text-white flex-shrink-0" :class="getTypeBadgeClass(node.type)" :title="node.typeDescription">
-                        <i class="ti" :class="getTypeIconClass(node.type)"></i>
+                    <span class="badge flex-shrink-0" :class="getTypeBadgeClass(node.type)">
+                        {{ (node.type == 1) ? 'L' : 'P' }}
                     </span>
                     <div class="fw-medium text-truncate flex-grow-1" :title="(node.name && node.no) ? node.name + '-' + node.no : (node.name || node.no || '-')">
                         {{ (node.name && node.no) ? node.name + '-' + node.no : (node.name || node.no || '-') }}

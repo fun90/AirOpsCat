@@ -54,11 +54,7 @@
                 </span>
             </div>
         </td>
-        <td :title="`更新时间: ${formatDate(user.updateTime) || '-'}`"
-            data-bs-toggle="tooltip"
-            data-bs-placement="top"
-            style="cursor: pointer;"
-            v-text="formatDateTime(user.createTime) || '-'"></td>
+        <td v-text="formatDateTime(user.createTime) || '-'"></td>
         <td>
             <div class="btn-list flex-nowrap">
                 <div class="dropdown position-static">

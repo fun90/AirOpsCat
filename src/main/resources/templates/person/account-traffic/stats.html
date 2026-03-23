@@ -1,48 +1,21 @@
 <div class="card-body border-bottom">
-    <div class="row g-3">
-        <div class="col-md-4">
-            <div class="card card-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center gap-3">
-                        <span class="avatar bg-blue text-white">
-                            <i class="ti ti-arrow-up"></i>
-                        </span>
-                        <div>
-                            <div class="text-secondary">上传流量</div>
-                            <div class="fw-bold">{{ totalUploadFormatted }}</div>
-                        </div>
-                    </div>
-                </div>
+    <div class="row g-2">
+        <div class="col-4">
+            <div class="text-center">
+                <div class="text-primary fw-bold h4 mb-0">{{ totalUploadFormatted }}</div>
+                <div class="text-muted small">上传流量</div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card card-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center gap-3">
-                        <span class="avatar bg-green text-white">
-                            <i class="ti ti-arrow-down"></i>
-                        </span>
-                        <div>
-                            <div class="text-secondary">下载流量</div>
-                            <div class="fw-bold">{{ totalDownloadFormatted }}</div>
-                        </div>
-                    </div>
-                </div>
+        <div class="col-4">
+            <div class="text-center">
+                <div class="text-success fw-bold h4 mb-0">{{ totalDownloadFormatted }}</div>
+                <div class="text-muted small">下载流量</div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card card-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center gap-3">
-                        <span class="avatar bg-azure text-white">
-                            <i class="ti ti-exchange"></i>
-                        </span>
-                        <div>
-                            <div class="text-secondary">总流量</div>
-                            <div class="fw-bold">{{ formatBytes(totalUpload + totalDownload) }}</div>
-                        </div>
-                    </div>
-                </div>
+        <div class="col-4">
+            <div class="text-center">
+                <div class="text-info fw-bold h4 mb-0">{{ formatBytes(totalUpload + totalDownload) }}</div>
+                <div class="text-muted small">总流量</div>
             </div>
         </div>
     </div>

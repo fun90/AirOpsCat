@@ -1,55 +1,27 @@
-<div class="card-body border-bottom py-3">
-    <div class="row row-deck row-cards">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card card-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <span class="bg-primary text-white avatar me-3"><i class="ti ti-route"></i></span>
-                        <div>
-                            <div class="font-weight-medium">总规则</div>
-                            <div class="text-muted">{{ stats.total || 0 }}</div>
-                        </div>
-                    </div>
-                </div>
+<div class="card-body border-bottom">
+    <div class="row g-2">
+        <div class="col-3">
+            <div class="text-center">
+                <div class="text-primary fw-bold h4 mb-0">{{ stats.total || 0 }}</div>
+                <div class="text-muted small">总规则</div>
             </div>
         </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card card-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <span class="bg-success text-white avatar me-3"><i class="ti ti-check"></i></span>
-                        <div>
-                            <div class="font-weight-medium">已启用</div>
-                            <div class="text-muted">{{ stats.enabled || 0 }}</div>
-                        </div>
-                    </div>
-                </div>
+        <div class="col-3">
+            <div class="text-center">
+                <div class="text-success fw-bold h4 mb-0">{{ stats.enabled || 0 }}</div>
+                <div class="text-muted small">已启用</div>
             </div>
         </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card card-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <span class="bg-blue text-white avatar me-3">X</span>
-                        <div>
-                            <div class="font-weight-medium">Xray</div>
-                            <div class="text-muted">{{ stats.xray || 0 }}</div>
-                        </div>
-                    </div>
-                </div>
+        <div class="col-3">
+            <div class="text-center">
+                <div class="text-info fw-bold h4 mb-0">{{ stats.xray || 0 }}</div>
+                <div class="text-muted small">Xray</div>
             </div>
         </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card card-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <span class="bg-indigo text-white avatar me-3">S</span>
-                        <div>
-                            <div class="font-weight-medium">Sing-box</div>
-                            <div class="text-muted">{{ stats.singBox || 0 }}</div>
-                        </div>
-                    </div>
-                </div>
+        <div class="col-3">
+            <div class="text-center">
+                <div class="text-warning fw-bold h4 mb-0">{{ stats.singBox || 0 }}</div>
+                <div class="text-muted small">Sing-box</div>
             </div>
         </div>
     </div>
