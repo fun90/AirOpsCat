@@ -62,6 +62,11 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.dto.install.InstallScriptDto.class,
     com.fun90.airopscat.model.dto.install.ServerInstallStepResultDto.class,
 
+    // Qute Template VO Classes
+    com.fun90.airopscat.model.vo.ConsoleMenuGroup.class,
+    com.fun90.airopscat.model.vo.ConsoleMenuItem.class,
+    com.fun90.airopscat.model.vo.ConsolePage.class,
+
     // Entity Classes (for direct JSON serialization)
     com.fun90.airopscat.model.entity.User.class,
     com.fun90.airopscat.model.entity.Account.class,

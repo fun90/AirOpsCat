@@ -272,6 +272,12 @@ The current codebase includes scheduled jobs for:
 - Check `git status` before editing; the working tree may already contain user changes
 - Do not revert unrelated modifications
 - Prefer `rg` for codebase search
+- Native-image compatibility is mandatory for reflection-based JSON usage
+- When adding or modifying a class, you MUST register it in `JsonReflectionConfiguration` if it matches any of these cases:
+- It is used as a Qute template parameter
+- It is a controller request type or response type
+- It is serialized to JSON through `com.fun90.airopscat.util.JsonUtil`
+- Before considering a task complete, explicitly check whether any newly added or modified class matches the three cases above and update `JsonReflectionConfiguration` in the same change when required
 - When adding or reorganizing a console feature module, read `docs/how-to-add-console-module.md` first and follow its module registration, template layout, and JS path conventions
 - When updating documentation, verify against `pom.xml`, `application.properties`, and the actual package structure instead of older docs
 - Treat `README.md` as a helpful reference, but prefer source-of-truth from code and configuration when they differ
