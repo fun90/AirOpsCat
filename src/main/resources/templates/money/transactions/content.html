@@ -12,17 +12,17 @@
                             </div>
 
                             <!-- Filters -->
-                            {#include account-filters /}
+                            {#include money/transactions/filters /}
                         </div>
                     </div>
                 </div>
 
                 <!-- Stats content -->
-                {#include account-stats /}
+                {#include money/transactions/stats /}
 
                 <div class="table-responsive">
                     <!-- Table content -->
-                    {#include account-table /}
+                    {#include money/transactions/table /}
                 </div>
 
                 <!-- Pagination controls -->
@@ -31,6 +31,6 @@
         </div>
 
         <!-- Modals -->
-        {#include account-modals /}
+        {#include money/transactions/modals /}
     </div>
 </div> 

@@ -272,9 +272,18 @@ The current codebase includes scheduled jobs for:
 - Check `git status` before editing; the working tree may already contain user changes
 - Do not revert unrelated modifications
 - Prefer `rg` for codebase search
+- When adding or reorganizing a console feature module, read `docs/how-to-add-console-module.md` first and follow its module registration, template layout, and JS path conventions
 - When updating documentation, verify against `pom.xml`, `application.properties`, and the actual package structure instead of older docs
 - Treat `README.md` as a helpful reference, but prefer source-of-truth from code and configuration when they differ
 - Be careful with configuration defaults: this repository contains development-friendly secrets and sample credentials that should not be copied into production guidance as recommendations
+
+## Encoding Requirements
+
+- Treat repository text files as UTF-8 by default and preserve existing UTF-8 content when editing
+- Do not introduce GBK, ANSI, or other local Windows encodings when creating or modifying files
+- If a file already appears garbled or uses a different legacy encoding, stop and call it out before editing instead of rewriting it blindly
+- When adding Chinese text, keep the file encoding unchanged only if it is already valid UTF-8; otherwise ask before converting the file
+- Respect `.editorconfig` as the source of truth for charset and line ending behavior
 
 ## Useful Paths
 
@@ -287,3 +296,4 @@ The current codebase includes scheduled jobs for:
 - `src/main/java/com/fun90/airopscat/service/DatabaseBackupService.java`
 - `src/main/java/com/fun90/airopscat/service/deployment/NodeDeploymentService.java`
 - `src/main/java/com/fun90/airopscat/service/install/ServerInstallService.java`
+- `docs/how-to-add-console-module.md`

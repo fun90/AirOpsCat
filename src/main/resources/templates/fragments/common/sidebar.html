@@ -58,73 +58,32 @@
                     </a>
                 </li>
 
-                <li class="nav-item {#if moduleTitle is '人员'}dropdown active{/if}">
-                    <a class="nav-link dropdown-toggle" href="#/person" data-bs-toggle="dropdown" role="button" data-bs-auto-close="false" aria-expanded="false">
+                {#for group in menuGroups}
+                <li class="nav-item dropdown {#if currentModuleKey is group.key}active{/if}">
+                    <a class="nav-link dropdown-toggle" href="#/{group.key}" data-bs-toggle="dropdown" role="button" data-bs-auto-close="false" aria-expanded="false">
                         <span class="nav-link-icon d-md-none d-lg-inline-block">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-user-circle"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 10m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M6.168 18.849a4 4 0 0 1 3.832 -2.849h4a4 4 0 0 1 3.834 2.855" /></svg>
+                            {#when group.iconKey}
+                                {#is 'person'}
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-user-circle"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 10m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M6.168 18.849a4 4 0 0 1 3.832 -2.849h4a4 4 0 0 1 3.834 2.855" /></svg>
+                                {#is 'device'}
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-server-2"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 4m0 3a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3z" /><path d="M3 12m0 3a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3z" /><path d="M7 8l0 .01" /><path d="M7 16l0 .01" /><path d="M11 8h6" /><path d="M11 16h6" /></svg>
+                                {#is 'vpn'}
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-network"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 9a6 6 0 1 0 12 0a6 6 0 0 0 -12 0" /><path d="M12 3c1.333 .333 2 2.333 2 6s-.667 5.667 -2 6" /><path d="M12 3c-1.333 .333 -2 2.333 -2 6s.667 5.667 2 6" /><path d="M6 9h12" /><path d="M3 20h7" /><path d="M14 20h7" /><path d="M10 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M12 15v3" /></svg>
+                                {#is 'money'}
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-tax"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8.487 21h7.026a4 4 0 0 0 3.808 -5.224l-1.706 -5.306a5 5 0 0 0 -4.76 -3.47h-1.71a5 5 0 0 0 -4.76 3.47l-1.706 5.306a4 4 0 0 0 3.808 5.224" /><path d="M15 3q -1 4 -3 4t -3 -4z" /><path d="M14 11h-2.5a1.5 1.5 0 0 0 0 3h1a1.5 1.5 0 0 1 0 3h-2.5" /><path d="M12 10v1" /><path d="M12 17v1" /></svg>
+                                {#is 'system'}
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-assembly"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M19.875 6.27c.7 .398 1.13 1.143 1.125 1.948v7.284c0 .809 -.443 1.555 -1.158 1.948l-6.75 4.27a2.27 2.27 0 0 1 -2.184 0l-6.75 -4.27a2.23 2.23 0 0 1 -1.158 -1.948v-7.285c0 -.809 .443 -1.554 1.158 -1.947l6.75 -3.98a2.33 2.33 0 0 1 2.25 0l6.75 3.98z" /><path d="M15.5 9.422c.312 .18 .503 .515 .5 .876v3.277c0 .364 -.197 .7 -.515 .877l-3 1.922a1 1 0 0 1 -.97 0l-3 -1.922a1 1 0 0 1 -.515 -.876v-3.278c0 -.364 .197 -.7 .514 -.877l3 -1.79c.311 -.174 .69 -.174 1 0l3 1.79h-.014z" /></svg>
+                            {/when}
                         </span>
-                        <span class="nav-link-title">人员</span>
+                        <span class="nav-link-title">{group.title}</span>
                     </a>
-                    <div class="dropdown-menu {#if moduleTitle is '人员'}show{/if}">
-                        <a class="dropdown-item {#if uri is '/person/user'}active{/if}" href="/console/person/user">用户管理</a>
-                        <a class="dropdown-item {#if uri is '/person/account'}active{/if}" href="/console/person/account">账户管理</a>
-                        <a class="dropdown-item {#if uri is '/person/account-traffic'}active{/if}" href="/console/person/account-traffic">账户流量</a>
-                        <a class="dropdown-item {#if uri is '/person/user-panel'}active{/if}" href="/console/person/user-panel">用户面板</a>
+                    <div class="dropdown-menu {#if currentModuleKey is group.key}show{/if}">
+                        {#for item in group.items}
+                        <a class="dropdown-item {#if uri is item.uri}active{/if}" href="{item.href}">{item.title}</a>
+                        {/for}
                     </div>
                 </li>
-
-                <li class="nav-item {#if moduleTitle is '设备'}dropdown active{/if}">
-                    <a class="nav-link dropdown-toggle" href="#/device" data-bs-toggle="dropdown" role="button" data-bs-auto-close="false" aria-expanded="false">
-                        <span class="nav-link-icon d-md-none d-lg-inline-block">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-server-2"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 4m0 3a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3z" /><path d="M3 12m0 3a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3z" /><path d="M7 8l0 .01" /><path d="M7 16l0 .01" /><path d="M11 8h6" /><path d="M11 16h6" /></svg>
-                        </span>
-                        <span class="nav-link-title">设备</span>
-                    </a>
-                    <div class="dropdown-menu {#if moduleTitle is '设备'}show{/if}">
-                        <a class="dropdown-item {#if uri is '/device/domain'}active{/if}" href="/console/device/domain">域名</a>
-                        <a class="dropdown-item {#if uri is '/device/server'}active{/if}" href="/console/device/server">服务器</a>
-                        <a class="dropdown-item {#if uri is '/device/server-install'}active{/if}" href="/console/device/server-install">一键装机</a>
-                    </div>
-                </li>
-
-                <li class="nav-item {#if moduleTitle is '代理'}dropdown active{/if}">
-                    <a class="nav-link dropdown-toggle" href="#/vpn" data-bs-toggle="dropdown" role="button" data-bs-auto-close="false" aria-expanded="false">
-                        <span class="nav-link-icon d-md-none d-lg-inline-block">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-network"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 9a6 6 0 1 0 12 0a6 6 0 0 0 -12 0" /><path d="M12 3c1.333 .333 2 2.333 2 6s-.667 5.667 -2 6" /><path d="M12 3c-1.333 .333 -2 2.333 -2 6s.667 5.667 2 6" /><path d="M6 9h12" /><path d="M3 20h7" /><path d="M14 20h7" /><path d="M10 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M12 15v3" /></svg>
-                        </span>
-                        <span class="nav-link-title">代理</span>
-                    </a>
-                    <div class="dropdown-menu {#if moduleTitle is '代理'}show{/if}">
-                        <a class="dropdown-item {#if uri is '/vpn/node'}active{/if}" href="/console/vpn/node">节点管理</a>
-                        <a class="dropdown-item {#if uri is '/vpn/route-rule'}active{/if}" href="/console/vpn/route-rule">路由规则</a>
-                        <a class="dropdown-item {#if uri is '/vpn/server-config'}active{/if}" href="/console/vpn/server-config">配置管理</a>
-                    </div>
-                </li>
-
-                <li class="nav-item {#if moduleTitle is '财务'}dropdown active{/if}">
-                    <a class="nav-link dropdown-toggle" href="#/money" data-bs-toggle="dropdown" role="button" data-bs-auto-close="false" aria-expanded="false">
-                        <span class="nav-link-icon d-md-none d-lg-inline-block">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-tax"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8.487 21h7.026a4 4 0 0 0 3.808 -5.224l-1.706 -5.306a5 5 0 0 0 -4.76 -3.47h-1.71a5 5 0 0 0 -4.76 3.47l-1.706 5.306a4 4 0 0 0 3.808 5.224" /><path d="M15 3q -1 4 -3 4t -3 -4z" /><path d="M14 11h-2.5a1.5 1.5 0 0 0 0 3h1a1.5 1.5 0 0 1 0 3h-2.5" /><path d="M12 10v1" /><path d="M12 17v1" /></svg>
-                        </span>
-                        <span class="nav-link-title">财务</span>
-                    </a>
-                    <div class="dropdown-menu {#if moduleTitle is '财务'}show{/if}">
-                        <a class="dropdown-item {#if uri is '/money/transactions'}active{/if}" href="/console/money/transactions">交易流水</a>
-                    </div>
-                </li>
-
-                <li class="nav-item {#if moduleTitle is '系统'}dropdown active{/if}">
-                    <a class="nav-link dropdown-toggle" href="#/system" data-bs-toggle="dropdown" role="button" data-bs-auto-close="false" aria-expanded="false">
-                        <span class="nav-link-icon d-md-none d-lg-inline-block">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-assembly"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M19.875 6.27c.7 .398 1.13 1.143 1.125 1.948v7.284c0 .809 -.443 1.555 -1.158 1.948l-6.75 4.27a2.27 2.27 0 0 1 -2.184 0l-6.75 -4.27a2.23 2.23 0 0 1 -1.158 -1.948v-7.285c0 -.809 .443 -1.554 1.158 -1.947l6.75 -3.98a2.33 2.33 0 0 1 2.25 0l6.75 3.98z" /><path d="M15.5 9.422c.312 .18 .503 .515 .5 .876v3.277c0 .364 -.197 .7 -.515 .877l-3 1.922a1 1 0 0 1 -.97 0l-3 -1.922a1 1 0 0 1 -.515 -.876v-3.278c0 -.364 .197 -.7 .514 -.877l3 -1.79c.311 -.174 .69 -.174 1 0l3 1.79h-.014z" /></svg>
-                        </span>
-                        <span class="nav-link-title">系统</span>
-                    </a>
-                    <div class="dropdown-menu {#if moduleTitle is '系统'}show{/if}">
-                        <a class="dropdown-item {#if uri is '/system/tag'}active{/if}" href="/console/system/tag">标签管理</a>
-                        <a class="dropdown-item {#if uri is '/system/backup'}active{/if}" href="/console/system/backup">数据备份</a>
-                    </div>
-                </li>
+                {/for}
             </ul>
         </div>
     </div>

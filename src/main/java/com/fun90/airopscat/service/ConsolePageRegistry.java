@@ -1,0 +1,116 @@
+package com.fun90.airopscat.service;
+
+import com.fun90.airopscat.model.vo.ConsoleMenuGroup;
+import com.fun90.airopscat.model.vo.ConsoleMenuItem;
+import com.fun90.airopscat.model.vo.ConsolePage;
+import jakarta.enterprise.context.ApplicationScoped;
+
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@ApplicationScoped
+public class ConsolePageRegistry {
+
+    private static final String DEFAULT_MODAL_PREFIX = "item-";
+
+    private final Map<String, ConsolePage> pages = Map.ofEntries(
+            Map.entry("/person/user", page("person", "人员", 10, "person", "用户管理", 10,
+                    "添加用户、编辑用户、查看用户", "/person/user", "person/user/content",
+                    true, true, "添加用户", "user-")),
+            Map.entry("/person/account", page("person", "人员", 10, "person", "账户管理", 20,
+                    "添加账户、编辑账户、查看账户详情列表", "/person/account", "person/account/content",
+                    true, true, "添加账户", "account-")),
+            Map.entry("/person/account-traffic", page("person", "人员", 10, "person", "账户流量", 30,
+                    "查看流量统计", "/person/account-traffic", "person/account-traffic/content",
+                    true, true, "", DEFAULT_MODAL_PREFIX)),
+            Map.entry("/person/user-panel", page("person", "人员", 10, "person", "用户面板", 40,
+                    "查看您的账户信息和客户端配置", "/person/user-panel", "person/user-panel/content",
+                    true, true, "", DEFAULT_MODAL_PREFIX)),
+            Map.entry("/device/domain", page("device", "设备", 20, "device", "域名", 10,
+                    "添加域名、编辑域名、查看域名", "/device/domain", "device/domain/content",
+                    true, true, "添加域名", "domain-")),
+            Map.entry("/device/server", page("device", "设备", 20, "device", "服务器", 20,
+                    "添加服务器、编辑服务器、查看服务器", "/device/server", "device/server/content",
+                    true, true, "添加服务器", "server-")),
+            Map.entry("/device/server-install", page("device", "设备", 20, "device", "一键装机", 30,
+                    "选择装机脚本，按顺序执行并查看每一步的结果", "/device/server-install", "device/server-install/content",
+                    true, false, "", DEFAULT_MODAL_PREFIX)),
+            Map.entry("/vpn/node", page("vpn", "代理", 30, "vpn", "节点管理", 10,
+                    "添加、编辑、部署节点，查看节点", "/vpn/node", "vpn/node/content",
+                    true, true, "添加节点", "node-")),
+            Map.entry("/vpn/route-rule", page("vpn", "代理", 30, "vpn", "路由规则", 20,
+                    "为 xray、sing-box 管理路由规则", "/vpn/route-rule", "vpn/route-rule/content",
+                    true, true, "添加规则", "route-rule-")),
+            Map.entry("/vpn/server-config", page("vpn", "代理", 30, "vpn", "配置管理", 30,
+                    "查看服务器上对应的配置", "/vpn/server-config", "vpn/server-config/content",
+                    true, true, "添加配置", "serverConfig-")),
+            Map.entry("/money/transactions", page("money", "财务", 40, "money", "交易流水", 10,
+                    "查看收入、支出等流水", "/money/transactions", "money/transactions/content",
+                    true, true, "", DEFAULT_MODAL_PREFIX)),
+            Map.entry("/system/tag", page("system", "系统", 50, "system", "标签管理", 10,
+                    "添加标签、编辑标签、查看标签", "/system/tag", "system/tag/content",
+                    true, true, "添加标签", "tag-")),
+            Map.entry("/system/backup", page("system", "系统", 50, "system", "数据备份", 20,
+                    "查看和管理系统数据备份文件", "/system/backup", "system/backup/content",
+                    true, false, "", "backup-"))
+    );
+
+    public ConsolePage getPage(String uri) {
+        return pages.get(uri);
+    }
+
+    public ConsolePage getDashboardPage() {
+        return getPage("/person/user-panel");
+    }
+
+    public List<ConsoleMenuGroup> getMenuGroups() {
+        Map<String, List<ConsolePage>> groupedPages = pages.values().stream()
+                .filter(ConsolePage::showInMenu)
+                .sorted(Comparator.comparingInt(ConsolePage::moduleOrder)
+                        .thenComparingInt(ConsolePage::menuOrder))
+                .collect(Collectors.groupingBy(ConsolePage::moduleKey, LinkedHashMap::new, Collectors.toList()));
+
+        return groupedPages.values().stream()
+                .map(modulePages -> {
+                    ConsolePage firstPage = modulePages.getFirst();
+                    List<ConsoleMenuItem> items = modulePages.stream()
+                            .sorted(Comparator.comparingInt(ConsolePage::menuOrder))
+                            .map(page -> new ConsoleMenuItem(page.menuTitle(), page.uri(), "/console" + page.uri(), page.menuOrder()))
+                            .toList();
+                    return new ConsoleMenuGroup(
+                            firstPage.moduleKey(),
+                            firstPage.moduleTitle(),
+                            firstPage.moduleIconKey(),
+                            firstPage.moduleOrder(),
+                            items
+                    );
+                })
+                .sorted(Comparator.comparingInt(ConsoleMenuGroup::order))
+                .toList();
+    }
+
+    private static ConsolePage page(String moduleKey, String moduleTitle, int moduleOrder, String moduleIconKey,
+                                    String title, int menuOrder, String secondaryTitle, String uri,
+                                    String contentTemplate, boolean showInMenu, boolean showAddButton,
+                                    String buttonText, String modalIdPrefix) {
+        return new ConsolePage(
+                moduleKey,
+                moduleTitle,
+                moduleOrder,
+                moduleIconKey,
+                title,
+                title,
+                menuOrder,
+                secondaryTitle,
+                uri,
+                contentTemplate,
+                showInMenu,
+                showAddButton,
+                buttonText,
+                modalIdPrefix
+        );
+    }
+}

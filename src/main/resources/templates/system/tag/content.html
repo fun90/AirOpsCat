@@ -12,17 +12,17 @@
                             </div>
 
                             <!-- Filters -->
-                            {#include transactions-filters /}
+                            {#include system/tag/filters /}
                         </div>
                     </div>
                 </div>
 
                 <!-- Stats content -->
-                {#include transactions-stats /}
+                {#include system/tag/stats /}
 
                 <div class="table-responsive">
                     <!-- Table content -->
-                    {#include transactions-table /}
+                    {#include system/tag/table /}
                 </div>
 
                 <!-- Pagination controls -->
@@ -31,6 +31,6 @@
         </div>
 
         <!-- Modals -->
-        {#include transactions-modals /}
+        {#include system/tag/modals /}
     </div>
 </div> 

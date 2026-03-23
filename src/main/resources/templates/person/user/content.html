@@ -6,28 +6,27 @@
                     <div class="card-actions w-100">
                         <div class="row g-2">
                             <div class="col">
-                                <input type="text" class="form-control" placeholder="搜索 NICKNAME..." v-model="searchQuery" @input="searchDebounced">
+                                <input type="text" class="form-control" placeholder="搜索邮箱、昵称或备注名..." v-model="searchQuery" @input="searchDebounced">
                             </div>
-
-                            {#include account-traffic-filters /}
+                            {#include person/user/filters /}
                         </div>
                     </div>
                 </div>
 
-                {#include account-traffic-stats /}
+                {#include person/user/stats /}
 
                 <div class="table-responsive">
-                    {#include account-traffic-table /}
+                    {#include person/user/table /}
                 </div>
 
                 {#include pagination-controls /}
 
-                <div class="modal modal-blur fade" id="traffic-stats-deleteModal" tabindex="-1" role="dialog">
+                <div class="modal modal-blur fade" id="user-deleteModal" tabindex="-1" role="dialog">
                     <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
                         <div class="modal-content">
                             <div class="modal-body">
-                                <div class="modal-title">确认删除吗？</div>
-                                <div>删除后该条流量周期数据将无法恢复。</div>
+                                <div class="modal-title">确定删除吗?</div>
+                                <div>若确认删除，数据将无法恢复</div>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
@@ -36,9 +35,9 @@
                         </div>
                     </div>
                 </div>
+
+                {#include person/user/modals /}
             </div>
         </div>
-
-        {#include account-traffic-modals /}
     </div>
-</div>
+</div> 

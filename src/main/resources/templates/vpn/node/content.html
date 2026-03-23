@@ -9,7 +9,7 @@
                             <div class="col">
                                 <input type="text" class="form-control" placeholder="搜索节点名称、编号、备注" v-model="searchQuery" @input="searchDebounced">
                             </div>
-                            {#include node-filters /}
+                            {#include vpn/node/filters /}
                         </div>
                     </div>
 
@@ -43,18 +43,18 @@
                     </div>
                 </div>
 
-                {#include node-toolbar /}
-                {#include node-stats /}
+                {#include vpn/node/toolbar /}
+                {#include vpn/node/stats /}
 
                 <div class="table-responsive">
-                    {#include node-table /}
+                    {#include vpn/node/table /}
                 </div>
 
                 {#include pagination-controls /}
             </div>
         </div>
 
-        {#include node-mobile-filter-drawer /}
-        {#include node-modals /}
+        {#include vpn/node/mobile-filter-drawer /}
+        {#include vpn/node/modals /}
     </div>
 </div>

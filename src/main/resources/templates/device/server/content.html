@@ -12,24 +12,24 @@
                             </div>
 
                             <!-- Filters -->
-                            {#include domain-filters /}
+                            {#include device/server/filters /}
                         </div>
                     </div>
                 </div>
 
                 <!-- Stats Cards -->
-                {#include domain-stats /}
+                {#include device/server/stats /}
 
                 <div class="table-responsive">
                     <!-- Table content -->
-                    {#include domain-table /}
+                    {#include device/server/table /}
                 </div>
 
                 <!-- Pagination controls -->
                 {#include pagination-controls /}
 
                 <!-- Delete Confirmation Modal -->
-                <div class="modal modal-blur fade" id="domain-deleteModal" tabindex="-1" role="dialog">
+                <div class="modal modal-blur fade" id="server-deleteModal" tabindex="-1" role="dialog">
                     <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
                         <div class="modal-content">
                             <div class="modal-body">
@@ -44,8 +44,8 @@
                     </div>
                 </div>
 
-                <!-- Domain specific modals -->
-                {#include domain-modals /}
+                <!-- Server specific modals -->
+                {#include device/server/modals /}
             </div>
         </div>
     </div>

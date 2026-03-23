@@ -1,27 +1,35 @@
 <div class="page-body">
     <div class="container-xl">
+        <!-- Use the common data table template -->
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <div class="card-actions w-100">
+                    <div class="card-actions">
                         <div class="row g-2">
+                            <!-- Search input -->
                             <div class="col">
-                                <input type="text" class="form-control" placeholder="搜索邮箱、昵称或备注名..." v-model="searchQuery" @input="searchDebounced">
+                                <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
                             </div>
-                            {#include user-filters /}
+
+                            <!-- Filters -->
+                            {#include device/domain/filters /}
                         </div>
                     </div>
                 </div>
 
-                {#include user-stats /}
+                <!-- Stats Cards -->
+                {#include device/domain/stats /}
 
                 <div class="table-responsive">
-                    {#include user-table /}
+                    <!-- Table content -->
+                    {#include device/domain/table /}
                 </div>
 
+                <!-- Pagination controls -->
                 {#include pagination-controls /}
 
-                <div class="modal modal-blur fade" id="user-deleteModal" tabindex="-1" role="dialog">
+                <!-- Delete Confirmation Modal -->
+                <div class="modal modal-blur fade" id="domain-deleteModal" tabindex="-1" role="dialog">
                     <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
                         <div class="modal-content">
                             <div class="modal-body">
@@ -36,8 +44,9 @@
                     </div>
                 </div>
 
-                {#include user-modals /}
+                <!-- Domain specific modals -->
+                {#include device/domain/modals /}
             </div>
         </div>
     </div>
-</div> 
+</div>
