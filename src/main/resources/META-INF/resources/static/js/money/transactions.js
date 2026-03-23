@@ -3,6 +3,12 @@ import { DataTable } from '/static/js/common/data-table.js';
 import { createSearchDropdown, SearchDropdownPresets } from '/static/js/common/search-dropdown.js';
 import { formatDateTimeForLocal } from '/static/js/common/common.js';
 import ApexCharts from '/static/js/apexcharts.js';
+import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
+
+const DEFAULT_TRANSACTION_FILTERS = Object.freeze({
+    type: '',
+    businessTable: ''
+});
 
 function getCurrentThemeMode() {
     return (
@@ -35,10 +41,7 @@ const transactionTable = new DataTable({
     data: {
         entityName: 'transactions',
         modalIdPrefix: 'transaction-',
-        filters: {
-            type: '',
-            businessTable: ''
-        },
+        filters: { ...DEFAULT_TRANSACTION_FILTERS },
         transactionTypes: [],
         paymentMethods: [],
         businessTables: [],
@@ -568,6 +571,28 @@ const transactionTable = new DataTable({
         getApiUrl() {
             return '/api/admin/transactions';
         },
+
+        ...createResponsiveFilterMethods({
+            createDefaultFilters: () => ({ ...DEFAULT_TRANSACTION_FILTERS }),
+            getActiveTags() {
+                const tags = this.searchQuery ? [{
+                    key: 'search',
+                    label: '搜索',
+                    value: this.searchQuery
+                }] : [];
+
+                if (this.filters.type !== '') {
+                    const typeLabel = this.transactionTypes.find(item => String(item.value) === String(this.filters.type))?.label || this.filters.type;
+                    tags.push({ key: 'type', label: '交易类型', value: typeLabel });
+                }
+
+                if (this.filters.businessTable) {
+                    tags.push({ key: 'businessTable', label: '业务类型', value: this.getBusinessTableLabel(this.filters.businessTable) });
+                }
+
+                return tags;
+            }
+        })
 
     }
 });

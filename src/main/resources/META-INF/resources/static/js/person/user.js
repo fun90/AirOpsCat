@@ -1,7 +1,12 @@
 
 import { DataTable } from '/static/js/common/data-table.js';
+import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
 
 const LOCK_TIME_DURATION = 30;
+const DEFAULT_USER_FILTERS = Object.freeze({
+    role: '',
+    status: ''
+});
 
 const userTable = new DataTable({
     data: {
@@ -207,7 +212,33 @@ const userTable = new DataTable({
 
         getToggleStatusUrl(item, action) {
             return `/api/admin/users/${item.id}/${action}`;
-        }
+        },
+
+        ...createResponsiveFilterMethods({
+            createDefaultFilters: () => ({ ...DEFAULT_USER_FILTERS }),
+            getActiveTags() {
+                const tags = this.searchQuery ? [{
+                    key: 'search',
+                    label: '搜索',
+                    value: this.searchQuery
+                }] : [];
+
+                if (this.filters.role) {
+                    tags.push({ key: 'role', label: '角色', value: this.filters.role });
+                }
+
+                if (this.filters.status) {
+                    const statusLabelMap = {
+                        active: '正常',
+                        locked: '锁定中',
+                        disabled: '已禁用'
+                    };
+                    tags.push({ key: 'status', label: '状态', value: statusLabelMap[this.filters.status] || this.filters.status });
+                }
+
+                return tags;
+            }
+        })
     }
 });
 

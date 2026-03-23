@@ -1,13 +1,16 @@
 import { DataTable } from '/static/js/common/data-table.js';
+import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
+
+const DEFAULT_ROUTE_RULE_FILTERS = Object.freeze({
+    coreType: '',
+    enabled: ''
+});
 
 const routeRuleTable = new DataTable({
     data: {
         entityName: 'route-rules',
         modalIdPrefix: 'route-rule-',
-        filters: {
-            coreType: '',
-            enabled: ''
-        },
+        filters: { ...DEFAULT_ROUTE_RULE_FILTERS },
         stats: {
             total: 0,
             enabled: 0,
@@ -230,7 +233,29 @@ const routeRuleTable = new DataTable({
                 this.records[index].enabled = data.enabled;
             }
             this.fetchRecords();
-        }
+        },
+
+        ...createResponsiveFilterMethods({
+            createDefaultFilters: () => ({ ...DEFAULT_ROUTE_RULE_FILTERS }),
+            getActiveTags() {
+                const tags = this.searchQuery ? [{
+                    key: 'search',
+                    label: '搜索',
+                    value: this.searchQuery
+                }] : [];
+
+                if (this.filters.coreType) {
+                    const label = this.coreTypes.find(item => item.value === this.filters.coreType)?.label || this.filters.coreType;
+                    tags.push({ key: 'coreType', label: '内核', value: label });
+                }
+
+                if (this.filters.enabled !== '') {
+                    tags.push({ key: 'enabled', label: '状态', value: this.filters.enabled === 'true' ? '已启用' : '已禁用' });
+                }
+
+                return tags;
+            }
+        })
     }
 });
 

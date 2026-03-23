@@ -1,12 +1,17 @@
-<!-- Supplier filter -->
-<div class="col-auto">
+<div class="{#if layout == 'mobile'}col-12{#else}col-auto{/if}">
+    {#if layout == 'mobile'}
+        <label class="form-label">供应商</label>
+    {/if}
     <select class="form-select" v-model="filters.supplier" @change="handleFilterChange">
         <option value="">全部供应商</option>
         <option v-for="(count, supplier) in supplierStats" :key="supplier" :value="getSupplierFilterValue(supplier)">{{ supplier }} ({{ count }})</option>
     </select>
 </div>
-<!-- Status filter -->
-<div class="col-auto">
+
+<div class="{#if layout == 'mobile'}col-12{#else}col-auto{/if}">
+    {#if layout == 'mobile'}
+        <label class="form-label">状态</label>
+    {/if}
     <select class="form-select" v-model="filters.status" @change="handleFilterChange">
         <option value="">全部状态</option>
         <option value="active">活跃</option>

@@ -1,6 +1,7 @@
 ﻿import { DataTable } from '/static/js/common/data-table.js';
 import { createSearchDropdown } from '/static/js/common/search-dropdown.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
+import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
 
 const DEFAULT_NODE_FILTERS = Object.freeze({
     serverId: '',
@@ -124,10 +125,6 @@ const nodeTable = new DataTable({
             }, 100);
         },
 
-        createDefaultFilters() {
-            return { ...DEFAULT_NODE_FILTERS };
-        },
-
         formatServerDisplayLabel(server) {
             if (!server) {
                 return '';
@@ -231,35 +228,6 @@ const nodeTable = new DataTable({
             this.fetchRecords();
         },
 
-        resetFilters() {
-            const hasChanges = this.searchQuery
-                || Object.values(this.filters).some(value => value !== '' && value !== null && value !== undefined);
-
-            this.searchQuery = '';
-            this.filters = this.createDefaultFilters();
-
-            [this.serverFilterSearch, this.mobileServerFilterSearch].forEach(search => {
-                if (search && typeof search.clear === 'function') {
-                    search.clear();
-                }
-            });
-
-            if (hasChanges) {
-                this.currentPage = 1;
-                this.fetchRecords();
-            }
-        },
-
-        activeFilterCount() {
-            let count = this.searchQuery ? 1 : 0;
-            count += Object.values(this.filters).filter(value => value !== '' && value !== null && value !== undefined).length;
-            return count;
-        },
-
-        hasActiveFilters() {
-            return this.activeFilterCount() > 0;
-        },
-
         getOptionLabel(options, value) {
             return options.find(option => String(option.value) === String(value))?.label || value;
         },
@@ -316,54 +284,6 @@ const nodeTable = new DataTable({
                     getValueLabel: value => value === 'true' ? '已部署' : '未部署'
                 }
             ];
-        },
-
-        getActiveFilterTags() {
-            const tags = this.searchQuery ? [{
-                key: 'search',
-                label: '搜索',
-                value: this.searchQuery
-            }] : [];
-
-            this.getFilterDefinitions().forEach(definition => {
-                const value = this.filters[definition.key];
-                if (!definition.isActive(value)) {
-                    return;
-                }
-
-                tags.push({
-                    key: definition.key,
-                    label: definition.label,
-                    value: definition.getValueLabel(value)
-                });
-            });
-
-            return tags;
-        },
-
-        clearFilter(key) {
-            if (key === 'search') {
-                if (!this.searchQuery) {
-                    return;
-                }
-                this.searchQuery = '';
-            } else if (Object.prototype.hasOwnProperty.call(this.filters, key)) {
-                if (this.filters[key] === '') {
-                    return;
-                }
-                this.filters[key] = this.createDefaultFilters()[key];
-                if (key === 'serverId') {
-                    [this.serverFilterSearch, this.mobileServerFilterSearch].forEach(search => {
-                        if (search && typeof search.clear === 'function') {
-                            search.clear();
-                        }
-                    });
-                }
-            } else {
-                return;
-            }
-
-            this.onFilterChange();
         },
 
         getFilterProtocolOptions() {
@@ -1055,7 +975,52 @@ const nodeTable = new DataTable({
 
         getDeploymentStatusBadgeClass(deployed) {
             return deployed === 1 ? 'text-bg-success' : 'text-bg-warning';
-        }
+        },
+
+        ...createResponsiveFilterMethods({
+            createDefaultFilters: () => ({ ...DEFAULT_NODE_FILTERS }),
+            applyFilters() {
+                this.onFilterChange();
+            },
+            onReset() {
+                [this.serverFilterSearch, this.mobileServerFilterSearch].forEach(search => {
+                    if (search && typeof search.clear === 'function') {
+                        search.clear();
+                    }
+                });
+            },
+            onClear(key) {
+                if (key === 'serverId') {
+                    [this.serverFilterSearch, this.mobileServerFilterSearch].forEach(search => {
+                        if (search && typeof search.clear === 'function') {
+                            search.clear();
+                        }
+                    });
+                }
+            },
+            getActiveTags() {
+                const tags = this.searchQuery ? [{
+                    key: 'search',
+                    label: '搜索',
+                    value: this.searchQuery
+                }] : [];
+
+                this.getFilterDefinitions().forEach(definition => {
+                    const value = this.filters[definition.key];
+                    if (!definition.isActive(value)) {
+                        return;
+                    }
+
+                    tags.push({
+                        key: definition.key,
+                        label: definition.label,
+                        value: definition.getValueLabel(value)
+                    });
+                });
+
+                return tags;
+            }
+        })
     }
 });
 

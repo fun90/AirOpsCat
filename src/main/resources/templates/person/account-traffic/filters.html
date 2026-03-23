@@ -1,20 +1,32 @@
-<div class="col-auto">
+<div class="{#if layout == 'mobile'}col-12{#else}col-auto{/if}">
+    {#if layout == 'mobile'}
+        <label class="form-label">开始时间</label>
+    {/if}
     <div class="input-group">
-        <span class="input-group-text">开始时间</span>
+        {#if layout != 'mobile'}
+            <span class="input-group-text">开始时间</span>
+        {/if}
         <input type="date" class="form-control" v-model="filters.startDate" @change="currentPage = 1; fetchRecords()">
     </div>
 </div>
 
-<div class="col-auto">
+<div class="{#if layout == 'mobile'}col-12{#else}col-auto{/if}">
+    {#if layout == 'mobile'}
+        <label class="form-label">结束时间</label>
+    {/if}
     <div class="input-group">
-        <span class="input-group-text">结束时间</span>
+        {#if layout != 'mobile'}
+            <span class="input-group-text">结束时间</span>
+        {/if}
         <input type="date" class="form-control" v-model="filters.endDate" @change="currentPage = 1; fetchRecords()">
     </div>
 </div>
 
+{#if layout != 'mobile'}
 <div class="col-auto">
     <button type="button" class="btn btn-outline-secondary" @click="resetFilters">
         <i class="ti ti-refresh"></i>
         重置
     </button>
 </div>
+{/if}

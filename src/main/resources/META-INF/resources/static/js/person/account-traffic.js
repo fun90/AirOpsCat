@@ -1,9 +1,14 @@
 import { DataTable } from '/static/js/common/data-table.js';
 import { createSearchDropdown } from '/static/js/common/search-dropdown.js';
+import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
 
 const DEFAULT_SORT_BY = 'totalBytes';
 const DEFAULT_SORT_DIRECTION = 'desc';
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
+const createDefaultTrafficFilters = () => ({
+    startDate: getTodayDate(),
+    endDate: ''
+});
 
 const buildAccountSearchDropdown = (onSelect, onClear) => createSearchDropdown({
     apiUrl: '/api/admin/accounts',
@@ -30,10 +35,7 @@ const trafficStatsTable = new DataTable({
     data: {
         entityName: 'traffic-stats',
         modalIdPrefix: 'traffic-stats-',
-        filters: {
-            startDate: getTodayDate(),
-            endDate: ''
-        },
+        filters: createDefaultTrafficFilters(),
         createAccountSearch: null,
         editAccountSearch: null,
         totalUpload: 0,
@@ -154,16 +156,6 @@ const trafficStatsTable = new DataTable({
                 return 'ti ti-selector';
             }
             return this.sortDirection === 'desc' ? 'ti ti-sort-descending' : 'ti ti-sort-ascending';
-        },
-
-        resetFilters() {
-            this.searchQuery = '';
-            this.filters.startDate = getTodayDate();
-            this.filters.endDate = '';
-            this.sortBy = DEFAULT_SORT_BY;
-            this.sortDirection = DEFAULT_SORT_DIRECTION;
-            this.currentPage = 1;
-            this.fetchRecords();
         },
 
         validateCreateForm() {
@@ -292,7 +284,33 @@ const trafficStatsTable = new DataTable({
 
         getApiUrl() {
             return '/api/admin/traffic-stats';
-        }
+        },
+
+        ...createResponsiveFilterMethods({
+            createDefaultFilters: () => createDefaultTrafficFilters(),
+            onReset() {
+                this.sortBy = DEFAULT_SORT_BY;
+                this.sortDirection = DEFAULT_SORT_DIRECTION;
+            },
+            getActiveTags() {
+                const tags = this.searchQuery ? [{
+                    key: 'search',
+                    label: '搜索',
+                    value: this.searchQuery
+                }] : [];
+                const defaults = this.createDefaultFilters();
+
+                if (this.filters.startDate !== defaults.startDate) {
+                    tags.push({ key: 'startDate', label: '开始时间', value: this.filters.startDate || '未设置' });
+                }
+
+                if (this.filters.endDate !== defaults.endDate) {
+                    tags.push({ key: 'endDate', label: '结束时间', value: this.filters.endDate || '未设置' });
+                }
+
+                return tags;
+            }
+        })
     }
 });
 

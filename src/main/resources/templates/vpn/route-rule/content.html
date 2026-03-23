@@ -3,13 +3,37 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <div class="card-actions">
-                        <div class="row g-2">
+                    <div class="card-actions w-100">
+                        <div class="d-none d-lg-block">
+                            <div class="row g-2 align-items-center">
+                                <div class="col">
+                                    <input type="text" class="form-control" placeholder="搜索规则名称、服务器..." v-model="searchQuery" @input="searchDebounced">
+                                </div>
+                                {#include vpn/route-rule/filters layout='desktop' /}
+                            </div>
+                        </div>
+                        <div class="row g-2 align-items-center d-lg-none">
                             <div class="col">
                                 <input type="text" class="form-control" placeholder="搜索规则名称、服务器..." v-model="searchQuery" @input="searchDebounced">
                             </div>
-                            {#include vpn/route-rule/filters /}
+                            <div class="col-auto">
+                                <button class="btn btn-outline-primary" type="button" data-bs-toggle="offcanvas" data-bs-target="#routeRuleFilterOffcanvas" aria-controls="routeRuleFilterOffcanvas">
+                                    <i class="ti ti-adjustments-horizontal"></i>
+                                    <span class="d-none d-sm-inline">筛选</span>
+                                    <span v-if="activeFilterCount() > 0" class="badge bg-primary text-white ms-1">{{ activeFilterCount() }}</span>
+                                </button>
+                            </div>
                         </div>
+                        {#include fragments/common/filter-active-tags
+                            hasActiveFiltersExpr='hasActiveFilters()'
+                            activeTagsExpr='getActiveFilterTags()'
+                            wrapperClass='mt-3 d-lg-none'
+                            containerClass='d-flex flex-wrap gap-2'
+                            tagClass='badge bg-azure-lt text-azure border-0 d-inline-flex align-items-center gap-1'
+                            clearClass='badge bg-secondary-lt text-secondary border-0'
+                            clearMethod='clearFilter'
+                            resetMethod='resetFilters'
+                            clearLabel='清空筛选' /}
                     </div>
                 </div>
 
@@ -24,5 +48,18 @@
         </div>
 
         {#include vpn/route-rule/modals /}
+
+        {#include fragments/common/mobile_filter_drawer
+            drawerId='routeRuleFilterOffcanvas'
+            drawerLabelId='routeRuleFilterOffcanvasLabel'
+            title='筛选路由规则'
+            description='按内核和启用状态快速筛选规则'
+            resetMethod='resetFilters'
+            resetLabel='重置'
+            submitLabel='完成'}
+            {#fields}
+                {#include vpn/route-rule/filters layout='mobile' /}
+            {/fields}
+        {/include}
     </div>
 </div>

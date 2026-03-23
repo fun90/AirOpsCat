@@ -26,6 +26,13 @@
   - 搜索下拉样式
   - 供使用搜索下拉字段的页面继续复用
 
+### 公共 JS
+
+- `src/main/resources/META-INF/resources/static/js/common/responsive-filters.js`
+  - 通用响应式筛选行为封装
+  - 负责筛选计数、激活标签、单项清除、整组重置
+  - 页面只需要传入默认值、标签生成规则和少量 hook
+
 ### 业务页面模板
 
 - 页面自己的 `filter-fields.html`
@@ -43,19 +50,34 @@
   - 直接接入桌面端筛选字段
   - 使用公共 `mobile_filter_drawer` 片段承载移动端字段
   - 移动端激活标签区域使用公共 `filter-active-tags.html`
+- `src/main/resources/META-INF/resources/static/js/vpn/node.js`
+  - 通过 `responsive-filters.js` 接入公共筛选行为
+  - 仅保留节点页特有的服务器搜索同步和标签文案逻辑
+
+## 已接入页面
+
+目前以下页面已切换到公共筛选组件：
+
+- `src/main/resources/templates/vpn/node/content.html`
+- `src/main/resources/templates/person/user/content.html`
+- `src/main/resources/templates/person/account/content.html`
+- `src/main/resources/templates/person/account-traffic/content.html`
+- `src/main/resources/templates/device/server/content.html`
+- `src/main/resources/templates/vpn/route-rule/content.html`
+- `src/main/resources/templates/money/transactions/content.html`
 
 ## JS 约定
 
-为了让公共模板能跨页面复用，页面 JS 需要提供一组统一方法：
+为了让公共模板能跨页面复用，页面 JS 不再自己重复实现整套筛选方法，而是通过 `responsive-filters.js` 生成。
 
-- `hasActiveFilters()`
-  - 是否存在已激活筛选
-- `getActiveFilterTags()`
-  - 返回标签数组
-- `clearFilter(key)`
-  - 清空单个筛选
-- `resetFilters()`
-  - 重置全部筛选
+页面通常只需要提供：
+
+- 默认筛选值
+- 标签生成规则
+- 可选 hook
+  - `applyFilters`
+  - `onReset`
+  - `onClear`
 
 推荐标签结构：
 
@@ -66,16 +88,52 @@
 ]
 ```
 
+推荐接入方式：
+
+```js
+import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
+
+const DEFAULT_FILTERS = Object.freeze({
+  status: '',
+  type: ''
+});
+
+methods: {
+  ...createResponsiveFilterMethods({
+    createDefaultFilters: () => ({ ...DEFAULT_FILTERS }),
+    getActiveTags() {
+      const tags = this.searchQuery ? [{
+        key: 'search',
+        label: '搜索',
+        value: this.searchQuery
+      }] : [];
+
+      if (this.filters.status) {
+        tags.push({ key: 'status', label: '状态', value: this.filters.status });
+      }
+
+      if (this.filters.type) {
+        tags.push({ key: 'type', label: '类型', value: this.filters.type });
+      }
+
+      return tags;
+    }
+  }),
+  // 页面自己的其他方法
+}
+```
+
 ## 复用步骤
 
 如果其他页面要接入这套组件，建议按下面做：
 
-1. 新建页面自己的 `filter-fields.html`。
+1. 新建页面自己的 `filter-fields` 片段，支持 `layout='desktop'` 和 `layout='mobile'`。
 2. 在页面 `content.html` 中直接引入这份字段片段作为桌面端筛选区。
 3. 在同一个 `content.html` 中通过 `#include fragments/common/mobile_filter_drawer` 接入公共抽屉。
 4. 在 `#fields` section 中传入当前页面的移动端筛选字段。
 5. 在页面主内容模板中引入公共 `fragments/common/filter-active-tags.html`。
-6. 在页面 JS 中实现统一的筛选标签和重置方法。
+6. 在页面 JS 中通过 `responsive-filters.js` 接入公共筛选行为。
+7. 只补充页面特有的标签文案、搜索联动或额外重置逻辑。
 
 ## 适用边界
 

@@ -1,34 +1,50 @@
 <div class="page-body">
     <div class="container-xl">
-        <!-- Use the common data table template -->
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <div class="card-actions">
-                        <div class="row g-2">
-                            <!-- Search input -->
+                    <div class="card-actions w-100">
+                        <div class="d-none d-lg-block">
+                            <div class="row g-2 align-items-center">
+                                <div class="col">
+                                    <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
+                                </div>
+                                {#include device/server/filters layout='desktop' /}
+                            </div>
+                        </div>
+                        <div class="row g-2 align-items-center d-lg-none">
                             <div class="col">
                                 <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
                             </div>
-
-                            <!-- Filters -->
-                            {#include device/server/filters /}
+                            <div class="col-auto">
+                                <button class="btn btn-outline-primary" type="button" data-bs-toggle="offcanvas" data-bs-target="#serverFilterOffcanvas" aria-controls="serverFilterOffcanvas">
+                                    <i class="ti ti-adjustments-horizontal"></i>
+                                    <span class="d-none d-sm-inline">筛选</span>
+                                    <span v-if="activeFilterCount() > 0" class="badge bg-primary text-white ms-1">{{ activeFilterCount() }}</span>
+                                </button>
+                            </div>
                         </div>
+                        {#include fragments/common/filter-active-tags
+                            hasActiveFiltersExpr='hasActiveFilters()'
+                            activeTagsExpr='getActiveFilterTags()'
+                            wrapperClass='mt-3 d-lg-none'
+                            containerClass='d-flex flex-wrap gap-2'
+                            tagClass='badge bg-azure-lt text-azure border-0 d-inline-flex align-items-center gap-1'
+                            clearClass='badge bg-secondary-lt text-secondary border-0'
+                            clearMethod='clearFilter'
+                            resetMethod='resetFilters'
+                            clearLabel='清空筛选' /}
                     </div>
                 </div>
 
-                <!-- Stats Cards -->
                 {#include device/server/stats /}
 
                 <div class="table-responsive">
-                    <!-- Table content -->
                     {#include device/server/table /}
                 </div>
 
-                <!-- Pagination controls -->
                 {#include pagination-controls /}
 
-                <!-- Delete Confirmation Modal -->
                 <div class="modal modal-blur fade" id="server-deleteModal" tabindex="-1" role="dialog">
                     <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
                         <div class="modal-content">
@@ -44,9 +60,21 @@
                     </div>
                 </div>
 
-                <!-- Server specific modals -->
                 {#include device/server/modals /}
             </div>
         </div>
+
+        {#include fragments/common/mobile_filter_drawer
+            drawerId='serverFilterOffcanvas'
+            drawerLabelId='serverFilterOffcanvasLabel'
+            title='筛选服务器'
+            description='按供应商和状态快速缩小结果范围'
+            resetMethod='resetFilters'
+            resetLabel='重置'
+            submitLabel='完成'}
+            {#fields}
+                {#include device/server/filters layout='mobile' /}
+            {/fields}
+        {/include}
     </div>
 </div>

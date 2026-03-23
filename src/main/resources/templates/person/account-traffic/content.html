@@ -4,13 +4,36 @@
             <div class="card">
                 <div class="card-header">
                     <div class="card-actions w-100">
-                        <div class="row g-2">
+                        <div class="d-none d-lg-block">
+                            <div class="row g-2 align-items-center">
+                                <div class="col">
+                                    <input type="text" class="form-control" placeholder="搜索 NICKNAME..." v-model="searchQuery" @input="searchDebounced">
+                                </div>
+                                {#include person/account-traffic/filters layout='desktop' /}
+                            </div>
+                        </div>
+                        <div class="row g-2 align-items-center d-lg-none">
                             <div class="col">
                                 <input type="text" class="form-control" placeholder="搜索 NICKNAME..." v-model="searchQuery" @input="searchDebounced">
                             </div>
-
-                            {#include person/account-traffic/filters /}
+                            <div class="col-auto">
+                                <button class="btn btn-outline-primary" type="button" data-bs-toggle="offcanvas" data-bs-target="#accountTrafficFilterOffcanvas" aria-controls="accountTrafficFilterOffcanvas">
+                                    <i class="ti ti-adjustments-horizontal"></i>
+                                    <span class="d-none d-sm-inline">筛选</span>
+                                    <span v-if="activeFilterCount() > 0" class="badge bg-primary text-white ms-1">{{ activeFilterCount() }}</span>
+                                </button>
+                            </div>
                         </div>
+                        {#include fragments/common/filter-active-tags
+                            hasActiveFiltersExpr='hasActiveFilters()'
+                            activeTagsExpr='getActiveFilterTags()'
+                            wrapperClass='mt-3 d-lg-none'
+                            containerClass='d-flex flex-wrap gap-2'
+                            tagClass='badge bg-azure-lt text-azure border-0 d-inline-flex align-items-center gap-1'
+                            clearClass='badge bg-secondary-lt text-secondary border-0'
+                            clearMethod='clearFilter'
+                            resetMethod='resetFilters'
+                            clearLabel='清空筛选' /}
                     </div>
                 </div>
 
@@ -40,5 +63,18 @@
         </div>
 
         {#include person/account-traffic/modals /}
+
+        {#include fragments/common/mobile_filter_drawer
+            drawerId='accountTrafficFilterOffcanvas'
+            drawerLabelId='accountTrafficFilterOffcanvasLabel'
+            title='筛选流量'
+            description='按开始时间和结束时间快速筛选流量记录'
+            resetMethod='resetFilters'
+            resetLabel='重置'
+            submitLabel='完成'}
+            {#fields}
+                {#include person/account-traffic/filters layout='mobile' /}
+            {/fields}
+        {/include}
     </div>
 </div>

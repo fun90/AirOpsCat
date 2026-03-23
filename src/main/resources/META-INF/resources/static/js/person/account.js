@@ -2,16 +2,19 @@ import { DataTable } from '/static/js/common/data-table.js';
 import { createSearchDropdown, SearchDropdownPresets } from '/static/js/common/search-dropdown.js';
 import { formatDateTimeForLocal, formatRelativeTime } from '/static/js/common/common.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
+import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
+
+const DEFAULT_ACCOUNT_FILTERS = Object.freeze({
+    userId: '',
+    status: '',
+    onlineStatus: ''
+});
 
 const accountTable = new DataTable({
     data: {
         entityName: 'accounts',
         modalIdPrefix: 'account-',
-        filters: {
-            userId: '',
-            status: '',
-            onlineStatus: ''
-        },
+        filters: { ...DEFAULT_ACCOUNT_FILTERS },
         periodTypes: [],
         paymentMethods: [],
         availableTags: [],
@@ -322,10 +325,7 @@ const accountTable = new DataTable({
         },
 
         clearFilters() {
-            this.filters.status = '';
-            this.filters.onlineStatus = '';
-            this.currentPage = 1;
-            this.fetchRecords();
+            this.resetFilters();
         },
 
         // 查看账号详情
@@ -886,6 +886,37 @@ const accountTable = new DataTable({
                     ToastUtils.show('Error', '部署到节点失败', 'danger');
                 });
         },
+
+        ...createResponsiveFilterMethods({
+            createDefaultFilters: () => ({ ...DEFAULT_ACCOUNT_FILTERS }),
+            getActiveTags() {
+                const tags = this.searchQuery ? [{
+                    key: 'search',
+                    label: '搜索',
+                    value: this.searchQuery
+                }] : [];
+
+                if (this.filters.status) {
+                    const statusMap = {
+                        active: '活跃',
+                        expired: '已过期',
+                        expiring: '将过期',
+                        disabled: '已禁用'
+                    };
+                    tags.push({ key: 'status', label: '状态', value: statusMap[this.filters.status] || this.filters.status });
+                }
+
+                if (this.filters.onlineStatus) {
+                    const onlineStatusMap = {
+                        online: '在线',
+                        offline: '离线'
+                    };
+                    tags.push({ key: 'onlineStatus', label: '在线状态', value: onlineStatusMap[this.filters.onlineStatus] || this.filters.onlineStatus });
+                }
+
+                return tags;
+            }
+        })
 
     }
 });

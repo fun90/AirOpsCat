@@ -1,6 +1,8 @@
-<!-- Status filter -->
-<div class="col-auto">
-    <select class="form-select" v-model="filters.status" @change="fetchRecords" style="width: 100px;">
+<div class="{#if layout == 'mobile'}col-12{#else}col-auto{/if}">
+    {#if layout == 'mobile'}
+        <label class="form-label">状态</label>
+    {/if}
+    <select class="form-select" v-model="filters.status" @change="fetchRecords" style="{#if layout == 'desktop'}width: 100px;{/if}">
         <option value="">全部</option>
         <option value="active">活跃</option>
         <option value="expired">已过期</option>
@@ -9,10 +11,13 @@
     </select>
 </div>
 
-<div class="col-auto">
-    <select class="form-select" v-model="filters.onlineStatus" @change="currentPage = 1; fetchRecords()" style="width: 110px;">
+<div class="{#if layout == 'mobile'}col-12{#else}col-auto{/if}">
+    {#if layout == 'mobile'}
+        <label class="form-label">在线状态</label>
+    {/if}
+    <select class="form-select" v-model="filters.onlineStatus" @change="currentPage = 1; fetchRecords()" style="{#if layout == 'desktop'}width: 110px;{/if}">
         <option value="">在线状态</option>
         <option value="online">在线</option>
         <option value="offline">离线</option>
     </select>
-</div> 
+</div>

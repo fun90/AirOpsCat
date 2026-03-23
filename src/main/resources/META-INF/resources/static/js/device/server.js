@@ -1,6 +1,12 @@
 
 import { DataTable } from '/static/js/common/data-table.js';
 import { Modal, Tooltip } from '/static/tabler/js/tabler.esm.min.js';
+import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
+
+const DEFAULT_SERVER_FILTERS = Object.freeze({
+    supplier: '',
+    status: ''
+});
 
 const serverTable = new DataTable({
     data: {
@@ -13,10 +19,7 @@ const serverTable = new DataTable({
             disabled: 0,
             expiringSoon: 0
         },
-        filters: {
-            supplier: '',
-            status: ''
-        },
+        filters: { ...DEFAULT_SERVER_FILTERS },
         supplierStats: {},
         totalCost: 0,
         totalEffectiveCost: 0,
@@ -815,7 +818,33 @@ const serverTable = new DataTable({
 
         getToggleStatusUrl(item, action) {
             return `/api/admin/servers/${item.id}/${action}`;
-        }
+        },
+
+        ...createResponsiveFilterMethods({
+            createDefaultFilters: () => ({ ...DEFAULT_SERVER_FILTERS }),
+            getActiveTags() {
+                const tags = this.searchQuery ? [{
+                    key: 'search',
+                    label: '搜索',
+                    value: this.searchQuery
+                }] : [];
+
+                if (this.filters.supplier) {
+                    tags.push({ key: 'supplier', label: '供应商', value: this.filters.supplier === '__UNKNOWN__' ? '未知' : this.filters.supplier });
+                }
+
+                if (this.filters.status) {
+                    const statusMap = {
+                        active: '活跃',
+                        expired: '已过期',
+                        disabled: '已禁用'
+                    };
+                    tags.push({ key: 'status', label: '状态', value: statusMap[this.filters.status] || this.filters.status });
+                }
+
+                return tags;
+            }
+        })
     }
 });
 
