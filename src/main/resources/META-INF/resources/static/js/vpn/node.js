@@ -2,18 +2,20 @@
 import { createSearchDropdown } from '/static/js/common/search-dropdown.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 
+const DEFAULT_NODE_FILTERS = Object.freeze({
+    serverId: '',
+    type: '',
+    coreType: '',
+    protocol: '',
+    disabled: '',
+    deployed: ''
+});
+
 const nodeTable = new DataTable({
     data: {
         entityName: 'nodes',
         modalIdPrefix: 'node-',
-        filters: {
-            serverId: '',
-            type: '',
-            coreType: '',
-            protocol: '',
-            disabled: '',
-            deployed: ''
-        },
+        filters: { ...DEFAULT_NODE_FILTERS },
         servers: [],
         landingNodes: [],
         nodeTypes: [],
@@ -111,9 +113,19 @@ const nodeTable = new DataTable({
             this.mobileServerFilterSearch = buildServerFilterSearch();
 
             setTimeout(() => {
-                this.serverFilterSearch.bindToDOM('nodeServerFilter');
-                this.mobileServerFilterSearch.bindToDOM('nodeMobileServerFilter');
+                [
+                    { instance: this.serverFilterSearch, id: 'nodeServerFilter' },
+                    { instance: this.mobileServerFilterSearch, id: 'nodeMobileServerFilter' }
+                ].forEach(binding => {
+                    if (binding.instance) {
+                        binding.instance.bindToDOM(binding.id);
+                    }
+                });
             }, 100);
+        },
+
+        createDefaultFilters() {
+            return { ...DEFAULT_NODE_FILTERS };
         },
 
         formatServerDisplayLabel(server) {
@@ -224,14 +236,7 @@ const nodeTable = new DataTable({
                 || Object.values(this.filters).some(value => value !== '' && value !== null && value !== undefined);
 
             this.searchQuery = '';
-            this.filters = {
-                serverId: '',
-                type: '',
-                coreType: '',
-                protocol: '',
-                disabled: '',
-                deployed: ''
-            };
+            this.filters = this.createDefaultFilters();
 
             [this.serverFilterSearch, this.mobileServerFilterSearch].forEach(search => {
                 if (search && typeof search.clear === 'function') {
@@ -272,64 +277,66 @@ const nodeTable = new DataTable({
             return this.formatServerDisplayLabel(server);
         },
 
-        getActiveFilterTags() {
-            const tags = [];
-
-            if (this.searchQuery) {
-                tags.push({
-                    key: 'search',
-                    label: '搜索',
-                    value: this.searchQuery
-                });
-            }
-
-            if (this.filters.serverId) {
-                tags.push({
+        getFilterDefinitions() {
+            return [
+                {
                     key: 'serverId',
                     label: '服务器',
-                    value: this.getServerFilterLabel()
-                });
-            }
-
-            if (this.filters.type !== '') {
-                tags.push({
+                    isActive: value => value !== '',
+                    getValueLabel: () => this.getServerFilterLabel()
+                },
+                {
                     key: 'type',
                     label: '类型',
-                    value: this.getOptionLabel(this.nodeTypes, this.filters.type)
-                });
-            }
-
-            if (this.filters.coreType) {
-                tags.push({
+                    isActive: value => value !== '',
+                    getValueLabel: value => this.getOptionLabel(this.nodeTypes, value)
+                },
+                {
                     key: 'coreType',
                     label: '内核',
-                    value: this.getOptionLabel(this.coreTypes, this.filters.coreType)
-                });
-            }
-
-            if (this.filters.protocol) {
-                tags.push({
+                    isActive: value => value !== '',
+                    getValueLabel: value => this.getOptionLabel(this.coreTypes, value)
+                },
+                {
                     key: 'protocol',
                     label: '协议',
-                    value: this.getOptionLabel(this.getFilterProtocolOptions(), this.filters.protocol)
-                });
-            }
-
-            if (this.filters.disabled !== '') {
-                tags.push({
+                    isActive: value => value !== '',
+                    getValueLabel: value => this.getOptionLabel(this.getFilterProtocolOptions(), value)
+                },
+                {
                     key: 'disabled',
                     label: '状态',
-                    value: this.filters.disabled === 'true' ? '已禁用' : '已启用'
-                });
-            }
-
-            if (this.filters.deployed !== '') {
-                tags.push({
+                    isActive: value => value !== '',
+                    getValueLabel: value => value === 'true' ? '已禁用' : '已启用'
+                },
+                {
                     key: 'deployed',
                     label: '部署',
-                    value: this.filters.deployed === 'true' ? '已部署' : '未部署'
+                    isActive: value => value !== '',
+                    getValueLabel: value => value === 'true' ? '已部署' : '未部署'
+                }
+            ];
+        },
+
+        getActiveFilterTags() {
+            const tags = this.searchQuery ? [{
+                key: 'search',
+                label: '搜索',
+                value: this.searchQuery
+            }] : [];
+
+            this.getFilterDefinitions().forEach(definition => {
+                const value = this.filters[definition.key];
+                if (!definition.isActive(value)) {
+                    return;
+                }
+
+                tags.push({
+                    key: definition.key,
+                    label: definition.label,
+                    value: definition.getValueLabel(value)
                 });
-            }
+            });
 
             return tags;
         },
@@ -344,7 +351,7 @@ const nodeTable = new DataTable({
                 if (this.filters[key] === '') {
                     return;
                 }
-                this.filters[key] = '';
+                this.filters[key] = this.createDefaultFilters()[key];
                 if (key === 'serverId') {
                     [this.serverFilterSearch, this.mobileServerFilterSearch].forEach(search => {
                         if (search && typeof search.clear === 'function') {

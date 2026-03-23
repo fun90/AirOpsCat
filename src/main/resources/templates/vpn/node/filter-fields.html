@@ -1,34 +1,44 @@
-{#include fragments/common/search_dropdown_styles /}
-
-<!-- Server filter -->
-<div class="col d-none d-lg-block">
-    {#include fragments/common/search_dropdown_component componentVar='nodeServerFilter' cssClass='w-100' /}
+<div class="col-12 {#if layout == 'desktop'}col-xl-3 col-lg-6{/if}">
+    {#if layout == 'mobile'}
+        <label class="form-label">服务器</label>
+    {/if}
+    {#include fragments/common/search_dropdown_component componentVar=serverComponentVar cssClass='w-100' /}
 </div>
 
-<!-- Type filter -->
-<div class="col d-none d-lg-block">
+<div class="col-12 {#if layout == 'desktop'}col-xl-2 col-lg-6{/if}">
+    {#if layout == 'mobile'}
+        <label class="form-label">类型</label>
+    {/if}
     <select class="form-select" v-model="filters.type" @change="onFilterChange">
         <option value="">全部类型</option>
         <option v-for="type in nodeTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
     </select>
 </div>
 
-<div class="col d-none d-lg-block">
+<div class="col-12 {#if layout == 'desktop'}col-xl-2 col-lg-6{/if}">
+    {#if layout == 'mobile'}
+        <label class="form-label">内核</label>
+    {/if}
     <select class="form-select" v-model="filters.coreType" @change="onFilterChange">
         <option value="">全部内核</option>
         <option v-for="coreType in coreTypes" :key="coreType.value" :value="coreType.value">{{ coreType.label }}</option>
     </select>
 </div>
 
-<div class="col d-none d-lg-block">
+<div class="col-12 {#if layout == 'desktop'}col-xl-2 col-lg-6{/if}">
+    {#if layout == 'mobile'}
+        <label class="form-label">协议</label>
+    {/if}
     <select class="form-select" v-model="filters.protocol" @change="onFilterChange">
         <option value="">全部协议</option>
         <option v-for="protocol in getFilterProtocolOptions()" :key="protocol.value" :value="protocol.value">{{ protocol.label }}</option>
     </select>
 </div>
 
-<!-- Status filter -->
-<div class="col d-none d-lg-block">
+<div class="col-12 {#if layout == 'desktop'}col-xl-1 col-lg-6{/if}">
+    {#if layout == 'mobile'}
+        <label class="form-label">状态</label>
+    {/if}
     <select class="form-select" v-model="filters.disabled" @change="onFilterChange">
         <option value="">全部状态</option>
         <option value="false">已启用</option>
@@ -36,7 +46,10 @@
     </select>
 </div>
 
-<div class="col d-none d-lg-block">
+<div class="col-12 {#if layout == 'desktop'}col-xl-2 col-lg-6{/if}">
+    {#if layout == 'mobile'}
+        <label class="form-label">部署</label>
+    {/if}
     <select class="form-select" v-model="filters.deployed" @change="onFilterChange">
         <option value="">全部部署状态</option>
         <option value="true">已部署</option>

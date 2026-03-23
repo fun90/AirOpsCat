@@ -1,0 +1,16 @@
+<div v-if="{hasActiveFiltersExpr}" class="{wrapperClass}">
+    <div class="{containerClass}">
+        <button
+                v-for="tag in {activeTagsExpr}"
+                :key="tag.key"
+                type="button"
+                class="{tagClass}"
+                @click="{clearMethod}(tag.key)">
+            <span>{{ tag.label }}: {{ tag.value }}</span>
+            <i class="ti ti-x small"></i>
+        </button>
+        <button type="button" class="{clearClass}" @click="{resetMethod}">
+            {clearLabel}
+        </button>
+    </div>
+</div>

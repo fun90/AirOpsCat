@@ -1,0 +1,24 @@
+<div class="offcanvas offcanvas-bottom d-flex flex-column d-lg-none" style="height: 85vh;" tabindex="-1" id="{drawerId}" aria-labelledby="{drawerLabelId}">
+    <div class="offcanvas-header border-bottom">
+        <div>
+            <h3 class="offcanvas-title" id="{drawerLabelId}">{title}</h3>
+            <div class="text-muted small">{description}</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body overflow-auto">
+        <div class="row g-3">
+            {#insert fields}{/insert}
+        </div>
+    </div>
+    <div class="border-top p-3 mt-auto">
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary flex-fill" @click="{resetMethod}">
+                {resetLabel}
+            </button>
+            <button type="button" class="btn btn-primary flex-fill" data-bs-dismiss="offcanvas">
+                {submitLabel}
+            </button>
+        </div>
+    </div>
+</div>
