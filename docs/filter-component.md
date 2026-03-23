@@ -19,9 +19,10 @@
   - 通用“已激活筛选标签”区域
   - 负责渲染标签列表和“清空筛选”按钮
 - `src/main/resources/templates/fragments/common/mobile_filter_drawer.html`
-  - 通用移动端筛选抽屉片段
+  - 通用筛选抽屉片段
   - 负责标题、说明、底部按钮和字段区域容器
   - 通过 `#insert fields` 承载业务字段模板
+  - 默认仅移动端显示，也支持通过参数让桌面端复用同一套抽屉交互
 - `src/main/resources/templates/fragments/common/search_dropdown_styles.html`
   - 搜索下拉样式
   - 供使用搜索下拉字段的页面继续复用
@@ -47,9 +48,9 @@
 - `src/main/resources/templates/vpn/node/filter-fields.html`
   - 节点的业务筛选字段定义
 - `src/main/resources/templates/vpn/node/content.html`
-  - 直接接入桌面端筛选字段
-  - 使用公共 `mobile_filter_drawer` 片段承载移动端字段
-  - 移动端激活标签区域使用公共 `filter-active-tags.html`
+  - 当前改为搜索框旁按钮触发筛选抽屉
+  - 桌面端和移动端都复用公共 `mobile_filter_drawer` 片段
+  - 激活标签区域使用公共 `filter-active-tags.html`
 - `src/main/resources/META-INF/resources/static/js/vpn/node.js`
   - 通过 `responsive-filters.js` 接入公共筛选行为
   - 仅保留节点页特有的服务器搜索同步和标签文案逻辑
@@ -128,12 +129,45 @@ methods: {
 如果其他页面要接入这套组件，建议按下面做：
 
 1. 新建页面自己的 `filter-fields` 片段，支持 `layout='desktop'` 和 `layout='mobile'`。
-2. 在页面 `content.html` 中直接引入这份字段片段作为桌面端筛选区。
-3. 在同一个 `content.html` 中通过 `#include fragments/common/mobile_filter_drawer` 接入公共抽屉。
-4. 在 `#fields` section 中传入当前页面的移动端筛选字段。
+2. 根据页面复杂度决定桌面端交互：
+   - 筛选项较少时，可在 `content.html` 中直接内联桌面端字段。
+   - 筛选项较多时，可直接让桌面端也复用抽屉交互。
+3. 通过 `#include fragments/common/mobile_filter_drawer` 接入公共抽屉。
+4. 在 `#fields` section 中传入当前页面的筛选字段片段。
 5. 在页面主内容模板中引入公共 `fragments/common/filter-active-tags.html`。
 6. 在页面 JS 中通过 `responsive-filters.js` 接入公共筛选行为。
 7. 只补充页面特有的标签文案、搜索联动或额外重置逻辑。
+
+## 抽屉参数
+
+公共抽屉片段除了基础标题和按钮参数外，还支持以下可选参数：
+
+- `drawerClass`
+  - 控制抽屉在不同断点下的显示方式
+  - 默认值相当于 `d-lg-none`，即只在移动端显示
+  - 如果传空字符串，可让桌面端和移动端都显示同一个抽屉
+- `drawerStyle`
+  - 控制抽屉外层行内样式
+  - 默认值是 `height: 85vh;`
+
+节点页当前示例：
+
+```qute
+{#include fragments/common/mobile_filter_drawer
+    drawerId='nodeFilterOffcanvas'
+    drawerLabelId='nodeFilterOffcanvasLabel'
+    title='筛选节点'
+    description='按服务器、类型、内核、协议和状态快速缩小范围'
+    drawerClass=''
+    drawerStyle='height: 85vh;'
+    resetMethod='resetFilters'
+    resetLabel='重置'
+    submitLabel='完成'}
+    {#fields}
+        {#include vpn/node/filter-fields layout='mobile' serverComponentVar='nodeMobileServerFilter' /}
+    {/fields}
+{/include}
+```
 
 ## 适用边界
 
@@ -141,6 +175,7 @@ methods: {
 
 - 列表页筛选
 - 桌面端内联筛选 + 移动端抽屉筛选
+- 桌面端与移动端共用同一个抽屉筛选
 - 需要展示已激活筛选标签的场景
 
 如果页面需要完全不同的交互，例如多步筛选、复杂联动表单或高级查询面板，建议在这套公共壳子之外单独扩展。

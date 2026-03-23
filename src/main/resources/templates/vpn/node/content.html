@@ -2,58 +2,103 @@
     <div class="container-xl">
         <div class="col-12">
             <div class="card">
-                <div class="card-body">
-                    <div class="d-none d-lg-block pb-3">
-                        <div class="text-uppercase text-muted fw-bold small mb-3">筛选节点</div>
-                        <div class="row g-3 align-items-center">
-                            <div class="col-12 col-xl col-lg-6">
-                                <input type="text" class="form-control" placeholder="搜索节点名称、编号、备注" v-model="searchQuery" @input="searchDebounced">
+                <div class="card-table">
+                    <div class="card-header">
+                        <div class="row g-3 w-100 align-items-center">
+                            <div class="col-12 col-lg">
+                                <h3 class="card-title mb-0">节点列表</h3>
                             </div>
-                            {#include fragments/common/search_dropdown_styles /}
-                            {#include vpn/node/filter-fields layout='desktop' serverComponentVar='nodeServerFilter' /}
+                            <div class="col-12 col-lg-auto">
+                                <div class="row g-2 align-items-center justify-content-lg-end">
+                                    <div class="col-12 col-lg-auto">
+                                        <div class="d-flex gap-2">
+                                            <div class="input-group input-group-flat">
+                                                <span class="input-group-text">
+                                                    <i class="ti ti-search"></i>
+                                                </span>
+                                                <input type="text" class="form-control" placeholder="搜索节点名称、编号、备注" v-model="searchQuery" @input="searchDebounced">
+                                            </div>
+                                            <button class="btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#nodeFilterOffcanvasMobile" aria-controls="nodeFilterOffcanvasMobile">
+                                                <i class="ti ti-adjustments-horizontal"></i>
+                                                <span class="d-none d-sm-inline">筛选</span>
+                                                <span v-if="activeFilterCount() > 0" class="badge bg-primary text-white ms-1">{{ activeFilterCount() }}</span>
+                                            </button>
+                                            <button class="btn d-none d-lg-inline-flex" type="button" data-bs-toggle="offcanvas" data-bs-target="#nodeFilterOffcanvasDesktop" aria-controls="nodeFilterOffcanvasDesktop">
+                                                <i class="ti ti-adjustments-horizontal"></i>
+                                                <span>筛选</span>
+                                                <span v-if="activeFilterCount() > 0" class="badge bg-primary text-white ms-1">{{ activeFilterCount() }}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <div class="btn-list flex-nowrap">
+                                            <button class="btn" type="button" @click="openBatchDeployModal">
+                                                <i class="ti ti-rocket"></i>
+                                                批量部署
+                                            </button>
+                                            <button class="btn" type="button" @click="openCoreSwitchModal" :disabled="selectedNodeIds.length === 0">
+                                                <i class="ti ti-cpu"></i>
+                                                切换内核
+                                            </button>
+                                            <button class="btn" type="button" @click="fetchRecords">
+                                                <i class="ti ti-refresh"></i>
+                                                刷新
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                {#include fragments/common/search_dropdown_styles /}
+                                {#include fragments/common/filter-active-tags
+                                    hasActiveFiltersExpr='hasActiveFilters()'
+                                    activeTagsExpr='getActiveFilterTags()'
+                                    wrapperClass='mt-0'
+                                    containerClass='d-flex flex-wrap gap-2'
+                                    tagClass='badge bg-azure-lt text-azure border-0 d-inline-flex align-items-center gap-1'
+                                    clearClass='badge bg-secondary-lt text-secondary border-0'
+                                    clearMethod='resetFilters'
+                                    resetMethod='resetFilters'
+                                    clearLabel='清空筛选' /}
+                            </div>
                         </div>
                     </div>
 
-                    <div class="row g-3 align-items-center">
-                        <div class="col-12 d-lg-none">
-                            <div class="d-flex gap-2">
-                                <input type="text" class="form-control" placeholder="搜索节点名称、编号、备注" v-model="searchQuery" @input="searchDebounced">
-                                <button class="btn btn-outline-primary" type="button" data-bs-toggle="offcanvas" data-bs-target="#nodeFilterOffcanvas" aria-controls="nodeFilterOffcanvas">
-                                    <i class="ti ti-adjustments-horizontal"></i>
-                                    <span class="d-none d-sm-inline">筛选</span>
-                                    <span v-if="activeFilterCount() > 0" class="badge bg-primary text-white ms-1">{{ activeFilterCount() }}</span>
-                                </button>
-                            </div>
-                        </div>
+                    {#include vpn/node/stats /}
+
+                    <div class="table-responsive">
+                        {#include vpn/node/table /}
                     </div>
-                    {#include fragments/common/filter-active-tags
-                        hasActiveFiltersExpr='hasActiveFilters()'
-                        activeTagsExpr='getActiveFilterTags()'
-                        wrapperClass='mt-3 d-lg-none'
-                        containerClass='d-flex flex-wrap gap-2'
-                        tagClass='badge bg-azure-lt text-azure border-0 d-inline-flex align-items-center gap-1'
-                        clearClass='badge bg-secondary-lt text-secondary border-0'
-                        clearMethod='resetFilters'
-                        resetMethod='resetFilters'
-                        clearLabel='清空筛选' /}
+
+                    {#include pagination-controls /}
                 </div>
-
-                {#include vpn/node/toolbar /}
-                {#include vpn/node/stats /}
-
-                <div class="table-responsive">
-                    {#include vpn/node/table /}
-                </div>
-
-                {#include pagination-controls /}
             </div>
         </div>
 
         {#include fragments/common/mobile_filter_drawer
-            drawerId='nodeFilterOffcanvas'
-            drawerLabelId='nodeFilterOffcanvasLabel'
+            drawerId='nodeFilterOffcanvasDesktop'
+            drawerLabelId='nodeFilterOffcanvasDesktopLabel'
+            placementClass='offcanvas-end'
             title='筛选节点'
             description='按服务器、类型、内核、协议和状态快速缩小范围'
+            drawerClass='d-none d-lg-flex'
+            drawerStyle='width: min(420px, 100vw);'
+            resetMethod='resetFilters'
+            resetLabel='重置'
+            submitLabel='完成'}
+            {#fields}
+                {#include vpn/node/filter-fields layout='mobile' serverComponentVar='nodeServerFilter' /}
+            {/fields}
+        {/include}
+
+        {#include fragments/common/mobile_filter_drawer
+            drawerId='nodeFilterOffcanvasMobile'
+            drawerLabelId='nodeFilterOffcanvasMobileLabel'
+            placementClass='offcanvas-bottom'
+            title='筛选节点'
+            description='按服务器、类型、内核、协议和状态快速缩小范围'
+            drawerClass='d-flex d-lg-none'
+            drawerStyle='height: 85vh;'
             resetMethod='resetFilters'
             resetLabel='重置'
             submitLabel='完成'}

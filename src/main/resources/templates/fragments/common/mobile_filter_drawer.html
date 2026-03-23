@@ -1,4 +1,4 @@
-<div class="offcanvas offcanvas-bottom d-flex flex-column d-lg-none" style="height: 85vh;" tabindex="-1" id="{drawerId}" aria-labelledby="{drawerLabelId}">
+<div class="offcanvas {#if placementClass??}{placementClass}{#else}offcanvas-bottom{/if} d-flex flex-column {#if drawerClass??}{drawerClass}{#else}d-lg-none{/if}" {#if drawerStyle??}style="{drawerStyle}"{#else}style="height: 85vh;"{/if} tabindex="-1" id="{drawerId}" aria-labelledby="{drawerLabelId}">
     <div class="offcanvas-header border-bottom">
         <div>
             <h3 class="offcanvas-title" id="{drawerLabelId}">{title}</h3>

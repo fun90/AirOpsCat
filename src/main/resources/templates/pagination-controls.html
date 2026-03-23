@@ -1,18 +1,20 @@
-<div class="card-footer">
-    <div class="row g-2 justify-content-center justify-content-sm-between">
-        <div class="col-auto d-flex align-items-center">
-            每页显示
-            <div class="mx-2 d-inline-block">
-                <select class="form-select form-select-sm" v-model="pageSize" @change="changePageSize">
-                    <option value="10">10</option>
-                    <option value="15">15</option>
-                    <option value="20">20</option>
-                    <option value="50">50</option>
-                </select>
-            </div>
-            条记录
+<div class="card-footer d-flex flex-column flex-sm-row align-items-sm-center gap-3">
+    <div class="d-flex flex-column flex-sm-row align-items-sm-center gap-2 text-secondary">
+        <span>显示第 {{ totalItems === 0 ? 0 : startIndex }} - {{ totalItems === 0 ? 0 : endIndex }} 条，共 {{ totalItems || 0 }} 条</span>
+        <div class="d-flex align-items-center gap-2">
+            <span>每页</span>
+            <select class="form-select form-select-sm w-auto" v-model="pageSize" @change="changePageSize">
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+            </select>
+            <span>条</span>
         </div>
-        <div class="col-auto">
+    </div>
+    <div class="ms-sm-auto">
+        <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+            <span class="text-secondary small">第 {{ currentPage }} / {{ totalPages || 1 }} 页</span>
             <ul class="pagination m-0 ms-auto" v-if="totalPages > 0">
                 <li class="page-item" :class="{ disabled: currentPage === 1 }">
                     <a class="page-link" href="#" @click.prevent="prevPage">

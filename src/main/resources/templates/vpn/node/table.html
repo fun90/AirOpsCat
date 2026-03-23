@@ -1,20 +1,14 @@
-<table class="table table-selectable card-table table-vcenter text-nowrap datatable">
+<table class="table table-selectable card-table table-vcenter">
     <thead>
         <tr>
             <th class="w-1">
                 <input class="form-check-input" type="checkbox" :checked="isAllCurrentPageSelected()" @change="toggleSelectAllCurrentPage($event.target.checked)">
             </th>
-            <th>ID</th>
-            <th>名称-编号</th>
+            <th>节点</th>
             <th>服务器</th>
-            <th>备用服务器</th>
-            <th>端口</th>
-            <th>类型</th>
-            <th>内核 / 协议</th>
-            <th>出站</th>
-            <th>级别</th>
-            <th>启用状态</th>
-            <th>部署状态</th>
+            <th class="d-none d-xl-table-cell">备用服务器</th>
+            <th class="d-none d-lg-table-cell">出站</th>
+            <th>状态</th>
             <th class="w-1">操作</th>
         </tr>
     </thead>
@@ -23,63 +17,77 @@
         <td>
             <input class="form-check-input" type="checkbox" :checked="isNodeSelected(node.id)" @change="toggleNodeSelection(node.id, $event.target.checked)">
         </td>
-        <td v-text="node.id"></td>
         <td>
-            <div class="d-flex flex-column">
-                <span v-text="(node.name && node.no) ? node.name + '-' + node.no : (node.name || node.no || '-')" class="text-decoration-none text-truncate" style="max-width: 150px;"></span>
-                <span v-if="node.remark" class="text-muted small text-decoration-none text-truncate" style="max-width: 150px;">{{ node.remark }}</span>
+            <div class="d-flex flex-column gap-1">
+                <div class="fw-medium">
+                    {{ (node.name && node.no) ? node.name + '-' + node.no : (node.name || node.no || '-') }}
+                </div>
+                <div class="text-secondary small">
+                    <span>ID #{{ node.id }}</span>
+                    <span class="mx-1">·</span>
+                    <span>端口 {{ node.port || '-' }}</span>
+                    <span v-if="node.level !== null && node.level !== undefined" class="d-none d-md-inline">
+                        <span class="mx-1">·</span>
+                        <span>级别 {{ node.level }}</span>
+                    </span>
+                </div>
+                <div v-if="node.remark" class="text-secondary small text-break">
+                    {{ node.remark }}
+                </div>
+                <div class="badges-list">
+                    <span class="badge" :class="getTypeBadgeClass(node.type)">
+                        {{ node.typeDescription }}
+                    </span>
+                    <span class="badge text-bg-secondary">
+                        {{ node.coreType }} / {{ node.protocol }}
+                    </span>
+                </div>
             </div>
         </td>
         <td>
             <div class="d-flex flex-column">
-                <span v-text="node.serverIp" class="text-decoration-none text-truncate" style="max-width: 150px;"></span>
-                <span v-if="node.serverHost" class="text-muted small text-decoration-none text-truncate" style="max-width: 150px;">{{ node.serverHost }}</span>
+                <span class="fw-medium">{{ node.serverIp || '-' }}</span>
+                <span v-if="node.serverHost" class="text-secondary small text-break">{{ node.serverHost }}</span>
             </div>
         </td>
-        <td>
+        <td class="d-none d-xl-table-cell">
             <div class="d-flex flex-column" v-if="node.backupServerIp">
-                <span v-text="node.backupServerIp" class="text-decoration-none text-truncate" style="max-width: 150px;"></span>
-                <span v-if="node.backupServerHost" class="text-muted small text-decoration-none text-truncate" style="max-width: 150px;">{{ node.backupServerHost }}</span>
+                <span class="fw-medium">{{ node.backupServerIp }}</span>
+                <span v-if="node.backupServerHost" class="text-secondary small text-break">{{ node.backupServerHost }}</span>
             </div>
-            <span v-else class="text-muted">-</span>
+            <span v-else class="text-secondary">-</span>
         </td>
-        <td v-text="node.port"></td>
-        <td>
-            <span class="badge" :class="getTypeBadgeClass(node.type)">
-                {{ node.typeDescription }}
-            </span>
-        </td>
-        <td>
-            <span class="badge text-bg-secondary">
-                {{ node.coreType }} / {{ node.protocol }}
-            </span>
-        </td>
-        <td>
+        <td class="d-none d-lg-table-cell">
             <div class="d-flex flex-column">
                 <span>{{ node.outName || '直连' }}</span>
-                <span v-if="node.outServerHost" class="text-muted small">{{ node.outServerHost }}:{{ node.outPort }}</span>
+                <span v-if="node.outServerHost" class="text-secondary small text-break">{{ node.outServerHost }}:{{ node.outPort }}</span>
             </div>
         </td>
-        <td v-text="node.level || '-'"></td>
         <td>
-            <span class="badge" :class="getStatusBadgeClass(node.disabled)">
-                {{ node.disabled === 0 ? '已启用' : '已禁用' }}
-            </span>
+            <div class="d-flex flex-column gap-2">
+                <div class="badges-list">
+                    <span class="badge" :class="getStatusBadgeClass(node.disabled)">
+                        {{ node.disabled === 0 ? '已启用' : '已禁用' }}
+                    </span>
+                    <span class="badge" :class="isNodeDeploying(node.id) ? 'text-bg-info' : getDeploymentStatusBadgeClass(node.deployed)">
+                        {{ isNodeDeploying(node.id) ? '部署中' : (node.deployed === 0 ? '未部署' : '已部署') }}
+                    </span>
+                </div>
+                <div class="text-secondary small d-lg-none">
+                    <span>{{ node.outName || '直连' }}</span>
+                    <span v-if="node.outServerHost"> · {{ node.outServerHost }}:{{ node.outPort }}</span>
+                </div>
+            </div>
         </td>
         <td>
-            <span class="badge" :class="isNodeDeploying(node.id) ? 'text-bg-info' : getDeploymentStatusBadgeClass(node.deployed)">
-                {{ isNodeDeploying(node.id) ? '部署中' : (node.deployed === 0 ? '未部署' : '已部署') }}
-            </span>
-        </td>
-        <td>
-            <div class="btn-list">
+            <div class="btn-list flex-nowrap justify-content-end">
                 <button v-if="isNodeDeploying(node.id)" class="btn btn-sm btn-info" type="button" disabled>
                     <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
                     部署中
                 </button>
                 <div v-else class="dropdown position-static action-dropdown">
-                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown" :disabled="isNodeDeploying(node.id)">
-                        操作
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle align-text-top" data-bs-toggle="dropdown" :disabled="isNodeDeploying(node.id)">
+                        更多
                     </button>
                     <div class="dropdown-menu dropdown-menu-end">
                         <a class="dropdown-item" href="#" @click="openEditModal(node)">
@@ -114,14 +122,16 @@
         </td>
     </tr>
     <tr v-if="loading">
-        <td colspan="13" class="text-center py-3">
+        <td colspan="7" class="text-center py-5">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </td>
     </tr>
     <tr v-else-if="records.length === 0">
-        <td colspan="13" class="text-center py-3">没有查到数据。</td>
+        <td colspan="7" class="text-center py-5">
+            <div class="text-secondary">没有查到数据。</div>
+        </td>
     </tr>
     </tbody>
 </table>

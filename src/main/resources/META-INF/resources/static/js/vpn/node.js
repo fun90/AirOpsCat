@@ -114,14 +114,12 @@ const nodeTable = new DataTable({
             this.mobileServerFilterSearch = buildServerFilterSearch();
 
             setTimeout(() => {
-                [
-                    { instance: this.serverFilterSearch, id: 'nodeServerFilter' },
-                    { instance: this.mobileServerFilterSearch, id: 'nodeMobileServerFilter' }
-                ].forEach(binding => {
-                    if (binding.instance) {
-                        binding.instance.bindToDOM(binding.id);
-                    }
-                });
+                if (this.serverFilterSearch) {
+                    this.serverFilterSearch.bindToDOM('nodeServerFilter');
+                }
+                if (this.mobileServerFilterSearch) {
+                    this.mobileServerFilterSearch.bindToDOM('nodeMobileServerFilter');
+                }
             }, 100);
         },
 
