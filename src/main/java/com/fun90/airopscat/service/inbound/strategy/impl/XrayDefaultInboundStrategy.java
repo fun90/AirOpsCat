@@ -136,7 +136,7 @@ public class XrayDefaultInboundStrategy implements DefaultInboundStrategy {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            log.error("Failed to generate X25519 keys", e);
+            log.error("Failed to generate X25519 keys");
         }
 
         return new String[]{"ABR3X0eLYM_6CRHTFepn7GrpSHEFCYqzGFaZ6Uj1L0E", "_bhnIqIPO2m2ov5JY3BTroTVPpZk40Xbf6WLlRCxASw"};
