@@ -19,28 +19,23 @@
         </td>
         <td>
             <div class="d-flex flex-column gap-1">
-                <div class="fw-medium">
-                    {{ (node.name && node.no) ? node.name + '-' + node.no : (node.name || node.no || '-') }}
+                <div class="d-flex align-items-center gap-2 min-w-0">
+                    <span class="avatar avatar-xs text-white flex-shrink-0" :class="getTypeBadgeClass(node.type)" :title="node.typeDescription">
+                        <i class="ti" :class="getTypeIconClass(node.type)"></i>
+                    </span>
+                    <div class="fw-medium text-truncate flex-grow-1" :title="(node.name && node.no) ? node.name + '-' + node.no : (node.name || node.no || '-')">
+                        {{ (node.name && node.no) ? node.name + '-' + node.no : (node.name || node.no || '-') }}
+                    </div>
                 </div>
-                <div class="text-secondary small">
-                    <span>ID #{{ node.id }}</span>
-                    <span class="mx-1">·</span>
+                <div class="text-secondary small d-flex align-items-center flex-wrap gap-2">
+                    <span>#{{ node.id }}</span>
                     <span>端口 {{ node.port || '-' }}</span>
-                    <span v-if="node.level !== null && node.level !== undefined" class="d-none d-md-inline">
-                        <span class="mx-1">·</span>
-                        <span>级别 {{ node.level }}</span>
+                    <span class="badge text-bg-secondary-lt">
+                        {{ node.coreType }} / {{ node.protocol }}
                     </span>
                 </div>
                 <div v-if="node.remark" class="text-secondary small text-break">
                     {{ node.remark }}
-                </div>
-                <div class="badges-list">
-                    <span class="badge" :class="getTypeBadgeClass(node.type)">
-                        {{ node.typeDescription }}
-                    </span>
-                    <span class="badge text-bg-secondary">
-                        {{ node.coreType }} / {{ node.protocol }}
-                    </span>
                 </div>
             </div>
         </td>

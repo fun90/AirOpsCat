@@ -244,10 +244,10 @@ const serverTable = new DataTable({
         getStatusBadgeClass(item) {
             const statusType = this.getStatusTyp(item);
             switch (statusType) {
-                case 'active': return 'text-bg-success';
-                case 'expired': return 'text-bg-danger';
-                case 'disabled': return 'text-bg-secondary';
-                default: return 'text-bg-secondary';
+                case 'active': return 'bg-success-lt';
+                case 'expired': return 'bg-danger-lt';
+                case 'disabled': return 'bg-secondary-lt';
+                default: return 'bg-secondary-lt';
             }
         },
 

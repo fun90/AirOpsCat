@@ -18,7 +18,7 @@ const accountTable = new DataTable({
         periodTypes: [],
         paymentMethods: [],
         availableTags: [],
-        
+
         // 搜索组件实例
         userSearch: null,
         editUserSearch: null,
@@ -265,10 +265,10 @@ const accountTable = new DataTable({
         getStatusBadgeClass(item) {
             const statusType = this.getStatusTyp(item);
             switch (statusType) {
-                case 'active': return 'text-bg-success';
-                case 'expired': return 'text-bg-danger';
-                case 'disabled': return 'text-bg-secondary';
-                default: return 'text-bg-secondary';
+                case 'active': return 'bg-success-lt';
+                case 'expired': return 'bg-danger-lt';
+                case 'disabled': return 'bg-secondary-lt';
+                default: return 'bg-secondary-lt';
             }
         },
 
@@ -358,7 +358,7 @@ const accountTable = new DataTable({
 
         regenerateUuid() {
             if (!this.editedItem.id) return;
-            
+
             // 直接重新生成UUID
             this.editedItem.uuid = this.uuidv4();
         },
@@ -421,7 +421,7 @@ const accountTable = new DataTable({
                 appName: ''
             };
             this.configUrl = '';
-            
+
             this.configUrlModal = new Modal(document.getElementById('configUrlModal'));
             this.configUrlModal.show();
         },
@@ -819,15 +819,15 @@ const accountTable = new DataTable({
 
         getOnlineDuration(sessionStartTime) {
             if (!sessionStartTime) return '-';
-            
+
             const now = new Date();
             const startTime = new Date(sessionStartTime);
             const diffMs = Math.max(0, now.getTime() - startTime.getTime());
-            
+
             const minutes = Math.floor(diffMs / (1000 * 60));
             const hours = Math.floor(minutes / 60);
             const days = Math.floor(hours / 24);
-            
+
             if (days > 0) {
                 return `${days}天${hours % 24}小时`;
             } else if (hours > 0) {

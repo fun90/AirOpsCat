@@ -28,7 +28,7 @@
             </span>
         </td>
         <td>
-            <span class="badge" :class="config.enabled === 0 ? 'text-bg-secondary' : 'text-bg-success'">
+            <span class="badge" :class="config.enabled === 0 ? 'bg-danger-lt' : 'bg-success-lt'">
                 {{ config.enabled === 0 ? '已禁用' : '已启用' }}
             </span>
         </td>
@@ -82,4 +82,4 @@
         <td colspan="9" class="text-center py-3">没有查到数据.</td>
     </tr>
     </tbody>
-</table> 
+</table>

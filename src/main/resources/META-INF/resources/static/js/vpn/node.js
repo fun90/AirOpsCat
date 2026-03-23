@@ -302,8 +302,16 @@ const nodeTable = new DataTable({
             }
         },
 
+        getTypeIconClass(type) {
+            switch (type) {
+                case 0: return 'ti-world-code';
+                case 1: return 'ti-vector-triangle';
+                default: return 'ti-point';
+            }
+        },
+
         getStatusBadgeClass(disabled) {
-            return disabled === 0 ? 'text-bg-success' : 'text-bg-danger';
+            return disabled === 0 ? 'bg-success-lt' : 'bg-danger-lt';
         },
 
         onTypeChange() {
@@ -972,7 +980,7 @@ const nodeTable = new DataTable({
         },
 
         getDeploymentStatusBadgeClass(deployed) {
-            return deployed === 1 ? 'text-bg-success' : 'text-bg-warning';
+            return deployed === 1 ? 'bg-success-lt' : 'bg-warning-lt';
         },
 
         ...createResponsiveFilterMethods({

@@ -62,12 +62,12 @@ const userTable = new DataTable({
 
         getStatusBadgeClass(user) {
             if ((user.disabled || 0) === 1) {
-                return 'text-bg-danger';
+                return 'bg-danger-lt';
             }
             if (this.isUserLocked(user)) {
-                return 'text-bg-warning';
+                return 'bg-warning-lt';
             }
-            return 'text-bg-success';
+            return 'bg-success-lt';
         },
 
         getStatusDescription(user) {

@@ -38,7 +38,7 @@ const tagTable = new DataTable({
         },
 
         getStatusBadgeClass(tag) {
-            return tag.disabled === 1 ? 'text-bg-secondary' : 'text-bg-success';
+            return tag.disabled === 1 ? 'bg-danger-lt' : 'bg-success-lt';
         },
 
         // Account status methods for association modal
@@ -239,4 +239,4 @@ const tagTable = new DataTable({
 });
 
 // Initialize the Vue app
-tagTable.createApp('#app'); 
+tagTable.createApp('#app');

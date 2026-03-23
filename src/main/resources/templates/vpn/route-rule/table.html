@@ -28,7 +28,7 @@
             <div>{{ item.outboundNodeName || '-' }}</div>
             <div class="text-muted">{{ item.outboundServerLabel || '' }}</div>
         </td>
-        <td><span class="badge" :class="item.enabled === 1 ? 'text-bg-success' : 'text-bg-secondary'">{{ item.enabled === 1 ? '已启用' : '已禁用' }}</span></td>
+        <td><span class="badge" :class="item.enabled === 1 ? 'bg-success-lt' : 'bg-danger-lt'">{{ item.enabled === 1 ? '已启用' : '已禁用' }}</span></td>
         <td>
             <div class="btn-list flex-nowrap">
                 <div class="dropdown position-static">

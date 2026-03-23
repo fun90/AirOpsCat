@@ -71,15 +71,15 @@ const domainTable = new DataTable({
 
         getStatusBadgeClass(daysUntilExpiration) {
             if (daysUntilExpiration === undefined || daysUntilExpiration === null) {
-                return "text-bg-secondary";
+                return "bg-secondary-lt";
             }
 
             if (daysUntilExpiration < 0) {
-                return "text-bg-danger";
+                return "bg-danger-lt";
             } else if (daysUntilExpiration <= 30) {
-                return "text-bg-warning";
+                return "bg-warning-lt";
             } else {
-                return "text-bg-success";
+                return "bg-success-lt";
             }
         },
 
