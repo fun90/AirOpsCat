@@ -26,6 +26,9 @@ public class HomeController {
     @ConfigProperty(name = "quarkus.application.name", defaultValue = "AirOpsCat")
     String appName;
 
+    @ConfigProperty(name = "quarkus.application.version", defaultValue = "dev")
+    String appVersion;
+
     @Inject
     Template layout;
 
@@ -107,6 +110,7 @@ public class HomeController {
                 .render();
 
         return layout.data("appName", appName)
+                .data("appVersion", appVersion)
                 .data("currentModuleKey", page.moduleKey())
                 .data("menuGroups", pageRegistry.getMenuGroups())
                 .data("moduleTitle", page.moduleTitle())

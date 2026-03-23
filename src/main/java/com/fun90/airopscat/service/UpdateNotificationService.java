@@ -9,6 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 import java.util.concurrent.CompletableFuture;
@@ -25,6 +26,9 @@ public class UpdateNotificationService {
     @Inject
     @RestClient
     GitHubApiClient gitHubApiClient;
+
+    @ConfigProperty(name = "quarkus.application.version", defaultValue = "dev")
+    String appVersion;
 
     void onStart(@Observes StartupEvent event) {
         // 异步执行版本检查，避免阻塞应用启动
@@ -69,7 +73,7 @@ public class UpdateNotificationService {
     private void printWelcomeMessage() {
         log.info("===========================================");
         log.info("🐱 欢迎使用 AirOpsCat");
-        log.info("当前版本: {}", VersionUtil.formatVersion(AppConstants.APP_VERSION));
+        log.info("当前版本: {}", VersionUtil.formatVersion(appVersion));
     }
 
     /**
@@ -92,7 +96,7 @@ public class UpdateNotificationService {
         String latestVersion = latestRelease.getVersion();
         log.info("最新版本: {}", VersionUtil.formatVersion(latestVersion));
 
-        if (VersionUtil.isNewerVersion(AppConstants.APP_VERSION, latestVersion)) {
+        if (VersionUtil.isNewerVersion(appVersion, latestVersion)) {
             printUpdateAvailable(latestRelease);
         } else {
             log.info("✅ 您使用的是最新版本");

@@ -10,11 +10,6 @@ public final class AppConstants {
     }
 
     /**
-     * 应用版本号
-     */
-    public static final String APP_VERSION = "2.2.0";
-
-    /**
      * 更新检查超时时间 (秒)
      */
     public static final int UPDATE_CHECK_TIMEOUT_SECONDS = 10;
