@@ -124,6 +124,18 @@ public class CoreDeploymentExecutor {
         serverConfig.setEnabled(1);
         serverConfig.setUpdateTime(LocalDateTime.now());
         serverConfigRepository.persist(serverConfig);
+        reconcileServerConfigStatuses(server.getId());
+    }
+
+    private void reconcileServerConfigStatuses(Long serverId) {
+        for (ServerConfig serverConfig : serverConfigRepository.findByServerId(serverId)) {
+            boolean shouldEnable = hasActiveCoreUsage(serverId, serverConfig.getConfigType());
+            serverConfig.setEnabled(shouldEnable ? 1 : 0);
+        }
+    }
+
+    private boolean hasActiveCoreUsage(Long serverId, String coreType) {
+        return nodeRepository.countActiveByServerAssociationAndCoreType(serverId, coreType) > 0;
     }
 
     private ServerConfig newServerConfig(Long serverId, String coreType) {

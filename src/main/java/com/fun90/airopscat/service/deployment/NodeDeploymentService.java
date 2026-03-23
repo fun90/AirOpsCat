@@ -7,15 +7,12 @@ import com.fun90.airopscat.model.dto.NodeCoreSwitchResponse;
 import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
 import com.fun90.airopscat.model.entity.Node;
-import com.fun90.airopscat.model.entity.RouteRule;
 import com.fun90.airopscat.model.entity.Server;
-import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.model.enums.CoreType;
+import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.ProtocolType;
 import com.fun90.airopscat.repository.NodeRepository;
-import com.fun90.airopscat.repository.RouteRuleRepository;
-import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.model.dto.deployment.CoreDeploymentExecution;
@@ -50,8 +47,6 @@ public class NodeDeploymentService {
 
     private final NodeRepository nodeRepository;
     private final ServerRepository serverRepository;
-    private final ServerConfigRepository serverConfigRepository;
-    private final RouteRuleRepository routeRuleRepository;
     private final TagRepository tagRepository;
     private final NodeService nodeService;
     private final CoreManagementService coreManagementService;
@@ -125,6 +120,7 @@ public class NodeDeploymentService {
         if (sourceCoreType.equals(normalizedTargetCoreType)) {
             throw new IllegalArgumentException("目标内核必须不同于原内核");
         }
+        validateNoLandingNodesForCoreSwitch(nodes);
 
         Set<Long> affectedServerIds = new LinkedHashSet<>();
         Map<Long, Set<String>> sourceCoresByServerId = new LinkedHashMap<>();
@@ -144,20 +140,6 @@ public class NodeDeploymentService {
         response.setSwitchedCount(response.getSwitchedNodeIds().size());
         response.setUnchangedCount(0);
 
-        if (!response.getSwitchedNodeIds().isEmpty()) {
-            List<RouteRule> affectedRouteRules = routeRuleRepository.findByOutboundNodeIds(response.getSwitchedNodeIds());
-            for (RouteRule routeRule : affectedRouteRules) {
-                routeRule.setCoreType(normalizedTargetCoreType);
-                routeRule.getServers().stream()
-                        .map(Server::getId)
-                        .filter(Objects::nonNull)
-                        .forEach(affectedServerIds::add);
-            }
-            response.setRouteRuleUpdatedCount(affectedRouteRules.size());
-        }
-
-        disableInactiveSourceServerConfigs(affectedServerIds, sourceCoreType);
-
         if (Boolean.TRUE.equals(redeploy) && !affectedServerIds.isEmpty()) {
             stopSourceCoresBeforeRedeploy(sourceCoresByServerId);
             List<Node> affectedNodes = nodeRepository.findByServerIdsOrBackupServerIds(new ArrayList<>(affectedServerIds));
@@ -166,6 +148,17 @@ public class NodeDeploymentService {
         }
 
         return response;
+    }
+
+    private void validateNoLandingNodesForCoreSwitch(List<Node> nodes) {
+        List<Long> landingNodeIds = nodes.stream()
+                .filter(node -> Objects.equals(node.getType(), NodeType.LANDING.getValue()))
+                .map(Node::getId)
+                .toList();
+        if (!landingNodeIds.isEmpty()) {
+            throw new IllegalArgumentException("落地节点暂不支持切换内核。节点: "
+                    + landingNodeIds);
+        }
     }
 
     private List<Node> getUndeployedNodes(List<Long> nodeIds) {
@@ -284,24 +277,6 @@ public class NodeDeploymentService {
         }
         return nodeRepository.findByIdIn(outboundNodeIds).stream()
                 .collect(Collectors.toMap(Node::getId, outboundNode -> outboundNode));
-    }
-
-    private void disableInactiveSourceServerConfigs(Set<Long> affectedServerIds, String sourceCoreType) {
-        if (affectedServerIds == null || affectedServerIds.isEmpty() || sourceCoreType == null || sourceCoreType.isBlank()) {
-            return;
-        }
-
-        for (Long serverId : affectedServerIds) {
-            if (nodeRepository.countActiveByServerAssociationAndCoreType(serverId, sourceCoreType) > 0) {
-                continue;
-            }
-            ServerConfig serverConfig = serverConfigRepository
-                    .findByServerIdAndConfigType(serverId, sourceCoreType)
-                    .orElse(null);
-            if (serverConfig != null) {
-                serverConfig.setEnabled(0);
-            }
-        }
     }
 
     private void collectNodeServers(Node node, Set<Long> affectedServerIds) {
