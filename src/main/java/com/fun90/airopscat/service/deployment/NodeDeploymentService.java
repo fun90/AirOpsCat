@@ -292,7 +292,7 @@ public class NodeDeploymentService {
         }
 
         for (Long serverId : affectedServerIds) {
-            if (nodeRepository.countByServerAssociationAndCoreType(serverId, sourceCoreType) > 0) {
+            if (nodeRepository.countActiveByServerAssociationAndCoreType(serverId, sourceCoreType) > 0) {
                 continue;
             }
             ServerConfig serverConfig = serverConfigRepository

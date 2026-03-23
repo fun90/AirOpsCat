@@ -36,6 +36,14 @@ public class NodeRepository implements PanacheRepository<Node> {
         return count("(serverId = ?1 or backupServerId = ?1) and lower(trim(coreType)) = ?2",
                 serverId, coreType.trim().toLowerCase());
     }
+
+    public long countActiveByServerAssociationAndCoreType(Long serverId, String coreType) {
+        if (serverId == null || coreType == null || coreType.isBlank()) {
+            return 0;
+        }
+        return count("(serverId = ?1 or backupServerId = ?1) and lower(trim(coreType)) = ?2 and (disabled is null or disabled = 0)",
+                serverId, coreType.trim().toLowerCase());
+    }
     
     public List<Node> findByType(Integer type) {
         return find("type", type).list();
