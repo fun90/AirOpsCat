@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -45,13 +46,19 @@ public class OpenController {
 
     @POST
     @Path("/account/online/{nodeIp}")
-    public Response access(ClientRequest request, @PathParam("nodeIp") String nodeIp, @HeaderParam("Token") String requestToken) {
+    public Response access(List<ClientRequest> requests, @PathParam("nodeIp") String nodeIp, @HeaderParam("Token") String requestToken) {
         // 验证API Token
         if (!this.apiToken.equals(requestToken)) {
             return Response.status(Response.Status.UNAUTHORIZED).build();
         }
 
-        accountOnlineIpService.updateOnlineStatus(request, nodeIp);
+        if (requests == null || requests.isEmpty()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                .entity(Map.of("error", "请求体不能为空"))
+                .build();
+        }
+
+        accountOnlineIpService.updateOnlineStatus(requests, nodeIp);
         return Response.ok().build();
     }
 

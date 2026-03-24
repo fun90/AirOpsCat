@@ -62,6 +62,20 @@ public class AccountOnlineIpService {
     }
 
     /**
+     * 批量处理客户端在线状态更新
+     *
+     * @param requests 客户端请求列表
+     * @param nodeIp 节点IP
+     */
+    @Transactional
+    public void updateOnlineStatus(List<ClientRequest> requests, String nodeIp) {
+        requests.stream()
+            .filter(Objects::nonNull)
+            .filter(request -> request.getAccountNo() != null && request.getClientIp() != null)
+            .forEach(request -> updateOnlineStatus(request, nodeIp));
+    }
+
+    /**
      * 获取指定accountNo的在线记录（只返回在配置时间窗口内的记录）
      */
     public List<AccountOnlineIpDto> getOnlineRecordsByAccountNo(String accountNo) {
