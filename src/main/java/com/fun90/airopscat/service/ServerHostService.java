@@ -3,6 +3,7 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.ServerHostDto;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerHost;
+import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.ServerHostRepository;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -21,11 +22,15 @@ public class ServerHostService {
 
     private final ServerHostRepository serverHostRepository;
     private final ServerRepository serverRepository;
+    private final NodeRepository nodeRepository;
 
     @Inject
-    public ServerHostService(ServerHostRepository serverHostRepository, ServerRepository serverRepository) {
+    public ServerHostService(ServerHostRepository serverHostRepository,
+                             ServerRepository serverRepository,
+                             NodeRepository nodeRepository) {
         this.serverHostRepository = serverHostRepository;
         this.serverRepository = serverRepository;
+        this.nodeRepository = nodeRepository;
     }
 
     public List<ServerHost> getHostsByServerId(Long serverId) {
@@ -137,21 +142,47 @@ public class ServerHostService {
         }
 
         List<NormalizedHost> normalizedHosts = normalizeHosts(hostDtos, fallbackHost);
-        serverHostRepository.deleteByServerId(server.getId());
+        List<ServerHost> existingHosts = serverHostRepository.findByServerId(server.getId());
+        Map<Long, ServerHost> existingById = new LinkedHashMap<>();
+        Map<String, ServerHost> existingByHost = new LinkedHashMap<>();
+        for (ServerHost existingHost : existingHosts) {
+            existingById.put(existingHost.getId(), existingHost);
+            existingByHost.putIfAbsent(existingHost.getHost().trim().toLowerCase(), existingHost);
+        }
 
+        List<Long> retainedIds = new ArrayList<>();
         List<ServerHost> persistedHosts = new ArrayList<>();
         for (int i = 0; i < normalizedHosts.size(); i++) {
             NormalizedHost normalizedHost = normalizedHosts.get(i);
-            ServerHost host = new ServerHost();
-            host.setServerId(server.getId());
+            ServerHost host = resolveExistingHost(existingById, existingByHost, normalizedHost);
+            boolean isNewHost = host == null;
+            if (isNewHost) {
+                host = new ServerHost();
+                host.setServerId(server.getId());
+            }
             host.setHost(normalizedHost.host());
             host.setIsPrimary(i == 0 ? 1 : 0);
             host.setEnabled(normalizedHost.enabled());
             host.setSort(i);
             host.setDomainId(normalizedHost.domainId());
             host.setRemark(normalizedHost.remark());
-            serverHostRepository.persist(host);
+            if (isNewHost) {
+                serverHostRepository.persist(host);
+            }
+            if (host.getId() != null) {
+                retainedIds.add(host.getId());
+            }
             persistedHosts.add(host);
+        }
+
+        List<Long> removedHostIds = existingHosts.stream()
+                .map(ServerHost::getId)
+                .filter(Objects::nonNull)
+                .filter(id -> !retainedIds.contains(id))
+                .toList();
+        if (!removedHostIds.isEmpty()) {
+            nodeRepository.clearAccessHostIds(removedHostIds);
+            serverHostRepository.deleteByIds(removedHostIds);
         }
 
         server.setHost(persistedHosts.isEmpty() ? null : persistedHosts.getFirst().getHost());
@@ -177,6 +208,7 @@ public class ServerHostService {
                 }
                 String normalized = dto.getHost().trim();
                 deduplicated.putIfAbsent(normalized.toLowerCase(), new NormalizedHost(
+                        dto.getId(),
                         normalized,
                         dto.getEnabled() == null ? 1 : (dto.getEnabled() == 0 ? 0 : 1),
                         dto.getDomainId(),
@@ -187,11 +219,25 @@ public class ServerHostService {
 
         if (deduplicated.isEmpty() && fallbackHost != null && !fallbackHost.isBlank()) {
             String normalized = fallbackHost.trim();
-            deduplicated.put(normalized.toLowerCase(), new NormalizedHost(normalized, 1, null, null));
+            deduplicated.put(normalized.toLowerCase(), new NormalizedHost(null, normalized, 1, null, null));
         }
 
         return new ArrayList<>(new LinkedHashSet<>(deduplicated.values()));
     }
 
-    private record NormalizedHost(String host, Integer enabled, Long domainId, String remark) {}
+    private ServerHost resolveExistingHost(Map<Long, ServerHost> existingById,
+                                           Map<String, ServerHost> existingByHost,
+                                           NormalizedHost normalizedHost) {
+        if (normalizedHost.id() != null) {
+            ServerHost byId = existingById.remove(normalizedHost.id());
+            if (byId != null) {
+                existingByHost.remove(byId.getHost().trim().toLowerCase());
+                return byId;
+            }
+        }
+
+        return existingByHost.remove(normalizedHost.host().trim().toLowerCase());
+    }
+
+    private record NormalizedHost(Long id, String host, Integer enabled, Long domainId, String remark) {}
 }

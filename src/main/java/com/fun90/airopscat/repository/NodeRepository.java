@@ -61,6 +61,13 @@ public class NodeRepository implements PanacheRepository<Node> {
         return update("coreType = ?1 where coreType is null or trim(coreType) = ''", coreType);
     }
 
+    public long clearAccessHostIds(List<Long> accessHostIds) {
+        if (accessHostIds == null || accessHostIds.isEmpty()) {
+            return 0;
+        }
+        return update("accessHostId = null where accessHostId in ?1", accessHostIds);
+    }
+
     public long countProxyNodes() {
         return count("type = 0");
     }

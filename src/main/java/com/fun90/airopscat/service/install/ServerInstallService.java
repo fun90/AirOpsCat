@@ -210,7 +210,7 @@ public class ServerInstallService {
                 + "; airopscat_api_token=" + quoteShell(defaultString(airopscatApiToken))
                 + "; declare -a server_hosts=" + toBashArray(hosts)
                 + "; export AIROPSCAT_STEP_NAME server_ip server_host airopscat_domain airopscat_api_token"
-                + "; /bin/bash " + quoteShell(remoteScriptPath);
+                + "; source " + quoteShell(remoteScriptPath);
     }
 
     private String toBashArray(List<String> values) {
