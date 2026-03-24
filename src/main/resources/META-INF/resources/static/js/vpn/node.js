@@ -34,6 +34,7 @@ const nodeTable = new DataTable({
         newItem: {
             serverId: '',
             backupServerId: '',
+            accessHostId: '',
             port: null,
             coreType: 'xray',
             protocol: 'vless',
@@ -135,6 +136,26 @@ const nodeTable = new DataTable({
             return server.name ? `${server.ip} (${server.name})` : (server.ip || '');
         },
 
+        getServerHosts(serverId) {
+            const server = this.servers.find(item => String(item.id) === String(serverId));
+            if (!server || !Array.isArray(server.hosts)) {
+                return [];
+            }
+            return server.hosts;
+        },
+
+        syncAccessHostSelection(item) {
+            if (!item || !item.serverId) {
+                item.accessHostId = '';
+                return;
+            }
+
+            const availableHosts = this.getServerHosts(item.serverId);
+            if (!availableHosts.some(host => String(host.id || '') === String(item.accessHostId))) {
+                item.accessHostId = '';
+            }
+        },
+
         syncServerFilterSearches(serverItem = null) {
             const resolvedItem = serverItem || this.servers.find(item => String(item.id) === String(this.filters.serverId)) || null;
             const text = this.formatServerDisplayLabel(resolvedItem);
@@ -155,6 +176,10 @@ const nodeTable = new DataTable({
                     this.syncServerFilterSearches();
                     if (this.servers.length > 0 && !this.newItem.serverId) {
                         this.newItem.serverId = this.servers[0].id;
+                    }
+                    this.syncAccessHostSelection(this.newItem);
+                    if (this.editedItem) {
+                        this.syncAccessHostSelection(this.editedItem);
                     }
                 })
                 .catch(error => {
@@ -337,10 +362,12 @@ const nodeTable = new DataTable({
         },
 
         onServerChange() {
+            this.syncAccessHostSelection(this.newItem);
             this.checkPortAvailability();
         },
 
         onEditServerChange() {
+            this.syncAccessHostSelection(this.editedItem);
             this.checkEditPortAvailability();
         },
 
@@ -620,6 +647,7 @@ const nodeTable = new DataTable({
                 return {
                     serverId: this.newItem.serverId,
                     backupServerId: this.newItem.backupServerId || null,
+                    accessHostId: this.newItem.accessHostId || null,
                     port: this.newItem.port,
                     coreType: this.newItem.coreType,
                     protocol: this.newItem.protocol,
@@ -656,6 +684,7 @@ const nodeTable = new DataTable({
                     id: this.editedItem.id,
                     serverId: this.editedItem.serverId,
                     backupServerId: this.editedItem.backupServerId === 0 ? null : this.editedItem.backupServerId,
+                    accessHostId: this.editedItem.accessHostId || null,
                     port: this.editedItem.port,
                     coreType: this.editedItem.coreType,
                     protocol: this.editedItem.protocol,
@@ -682,6 +711,7 @@ const nodeTable = new DataTable({
             this.newItem = {
                 serverId: this.servers.length > 0 ? this.servers[0].id : '',
                 backupServerId: '',
+                accessHostId: '',
                 port: null,
                 coreType: 'xray',
                 protocol: 'vless',
@@ -731,6 +761,7 @@ const nodeTable = new DataTable({
                 id: node.id,
                 serverId: node.serverId,
                 backupServerId: !node.backupServerId ? 0 : node.backupServerId,
+                accessHostId: node.accessHostId || '',
                 port: node.port,
                 coreType: node.coreType,
                 protocol: node.protocol,

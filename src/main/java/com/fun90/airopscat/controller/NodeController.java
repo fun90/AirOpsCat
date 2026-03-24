@@ -12,6 +12,7 @@ import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.service.deployment.NodeDeploymentService;
 import com.fun90.airopscat.service.NodeService;
+import com.fun90.airopscat.service.ServerHostService;
 import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.TagService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
@@ -39,6 +40,9 @@ public class NodeController {
     
     @Inject
     ServerService serverService;
+
+    @Inject
+    ServerHostService serverHostService;
     
     @Inject
     NodeDeploymentService nodeDeploymentService;
@@ -282,7 +286,8 @@ public class NodeController {
                     option.put("name", (server.getName() != null ? server.getName() : "") +
                               " (" + server.getIp() + ")");
                     option.put("ip", server.getIp());
-                    option.put("host", server.getHost());
+                    option.put("host", serverHostService.resolvePrimaryHost(server));
+                    option.put("hosts", serverHostService.toDtos(serverHostService.getHostsByServerId(server.getId()), server));
                     return option;
                 })
                 .collect(Collectors.toList());
@@ -304,6 +309,7 @@ public class NodeController {
             // Copy basic properties manually
             nodeCopy.setServerId(existingNode.getServerId());
             nodeCopy.setBackupServerId(existingNode.getBackupServerId());
+            nodeCopy.setAccessHostId(existingNode.getAccessHostId());
             nodeCopy.setProtocol(existingNode.getProtocol());
             nodeCopy.setCoreType(existingNode.getCoreType());
             nodeCopy.setType(existingNode.getType());

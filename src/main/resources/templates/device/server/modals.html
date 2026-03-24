@@ -38,8 +38,9 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">主机名</label>
-                                    <input type="text" class="form-control" v-model="newItem.host">
+                                    <label class="form-label">接入 Hosts</label>
+                                    <textarea class="form-control font-monospace" v-model="hostsText" rows="4" placeholder="host1.example.com&#10;host2.example.com"></textarea>
+                                    <small class="form-hint">每行一个 host，第一行会作为主 host，同时兼容旧字段 `host`。</small>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -221,8 +222,9 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">主机名</label>
-                                    <input type="text" class="form-control" v-model="editedItem.host">
+                                    <label class="form-label">接入 Hosts</label>
+                                    <textarea class="form-control font-monospace" v-model="editHostsText" rows="4" placeholder="host1.example.com&#10;host2.example.com"></textarea>
+                                    <small class="form-hint">每行一个 host，第一行会作为主 host。</small>
                                 </div>
                             </div>
                             <div class="col-md-6">

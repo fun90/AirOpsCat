@@ -165,7 +165,7 @@
                             <li>文件名使用 `01-xxx.sh`、`02-xxx.sh` 这种有序格式。</li>
                             <li>脚本开头建议加 `set -euo pipefail`，避免错误被吞掉。</li>
                             <li>关键节点用 `echo` 打印，例如“开始安装 Docker”“完成写入配置”。</li>
-                            <li>执行时会自动注入变量：`$server_ip` 为服务器 IP，`$server_host` 为服务器域名或主机名。</li>
+                            <li>执行时会自动注入变量：`$server_ip` 为服务器 IP，`$server_host` 为服务器主域名或主机名，`$server_hosts` 为服务器可用 host 列表（bash array）。</li>
                             <li>系统配置也会注入：`$airopscat_domain` 对应 `airopscat.domain`，`$airopscat_api_token` 对应 `airopscat.api.token`。</li>
                             <li>可选元信息：前几行支持 `# @title: 安装 Docker`、`# @description: 安装容器运行时`。</li>
                             <li>脚本尽量设计成幂等，失败后修复环境即可重试。</li>

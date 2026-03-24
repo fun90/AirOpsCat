@@ -7,6 +7,7 @@ import com.fun90.airopscat.model.entity.RouteRule;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.RouteRuleService;
+import com.fun90.airopscat.service.ServerHostService;
 import com.fun90.airopscat.service.ServerService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
@@ -33,6 +34,9 @@ public class RouteRuleController {
 
     @Inject
     ServerService serverService;
+
+    @Inject
+    ServerHostService serverHostService;
 
     @Inject
     NodeService nodeService;
@@ -88,7 +92,7 @@ public class RouteRuleController {
                     option.put("name", (server.getName() != null && !server.getName().isBlank() ? server.getName() : server.getIp())
                             + " (" + server.getIp() + ")");
                     option.put("ip", server.getIp());
-                    option.put("host", server.getHost());
+                    option.put("host", serverHostService.resolvePrimaryHost(server));
                     return option;
                 })
                 .collect(Collectors.toList());

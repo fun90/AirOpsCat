@@ -55,7 +55,8 @@ public class RouteRuleService {
 
         if (search != null && !search.trim().isEmpty()) {
             query.append(" and (lower(rr.name) like :search or lower(rr.ruleType) like :search or lower(coalesce(rr.remark, '')) like :search");
-            query.append(" or lower(coalesce(s.ip, '')) like :search or lower(coalesce(s.host, '')) like :search or lower(coalesce(s.name, '')) like :search)");
+            query.append(" or lower(coalesce(s.ip, '')) like :search or lower(coalesce(s.host, '')) like :search or lower(coalesce(s.name, '')) like :search");
+            query.append(" or s.id in (select sh.serverId from ServerHost sh where lower(sh.host) like :search))");
             params.put("search", "%" + search.trim().toLowerCase() + "%");
         }
         if (coreType != null && !coreType.trim().isEmpty()) {

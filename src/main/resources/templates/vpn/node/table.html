@@ -43,6 +43,7 @@
             <div class="d-flex flex-column">
                 <span class="fw-medium">{{ node.serverIp || '-' }}</span>
                 <span v-if="node.serverHost" class="text-secondary small text-break">{{ node.serverHost }}</span>
+                <span v-if="node.accessHost && node.accessHost !== node.serverHost" class="text-secondary small text-break">接入 Host: {{ node.accessHost }}</span>
             </div>
         </td>
         <td class="d-none d-xl-table-cell">

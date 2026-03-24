@@ -33,6 +33,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
 
     // Server and Node Related DTOs
     com.fun90.airopscat.model.dto.ServerDto.class,
+    com.fun90.airopscat.model.dto.ServerHostDto.class,
     com.fun90.airopscat.model.dto.ServerConfigDto.class,
     com.fun90.airopscat.model.dto.ServerConfigRequest.class,
     com.fun90.airopscat.model.dto.NodeDto.class,
@@ -73,6 +74,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.entity.AccountOnlineIp.class,
     com.fun90.airopscat.model.entity.AccountTrafficStats.class,
     com.fun90.airopscat.model.entity.Server.class,
+    com.fun90.airopscat.model.entity.ServerHost.class,
     com.fun90.airopscat.model.entity.ServerConfig.class,
     com.fun90.airopscat.model.entity.Node.class,
     com.fun90.airopscat.model.entity.Domain.class,

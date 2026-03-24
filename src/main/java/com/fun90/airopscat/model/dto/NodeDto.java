@@ -16,6 +16,8 @@ public class NodeDto {
     private Long serverId;
     private String serverIp;
     private String serverHost;
+    private Long accessHostId;
+    private String accessHost;
     private Long backupServerId;
     private String backupServerIp;
     private String backupServerHost;
@@ -73,7 +75,7 @@ public class NodeDto {
         if (serverIp == null) {
             return null;
         }
-        
+
         String host = serverHost != null && !serverHost.isEmpty() ? serverHost : serverIp;
         return host + ":" + port;
     }

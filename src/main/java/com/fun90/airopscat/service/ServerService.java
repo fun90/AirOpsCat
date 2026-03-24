@@ -3,6 +3,8 @@ package com.fun90.airopscat.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.dto.ServerDto;
+import com.fun90.airopscat.model.dto.ServerHostDto;
+import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.enums.ServerAuthType;
 import com.fun90.airopscat.repository.ServerRepository;
@@ -22,11 +24,13 @@ public class ServerService {
 
     private final ServerRepository serverRepository;
     private final ObjectMapper objectMapper;
+    private final ServerHostService serverHostService;
 
     @Inject
-    public ServerService(ServerRepository serverRepository, ObjectMapper objectMapper) {
+    public ServerService(ServerRepository serverRepository, ObjectMapper objectMapper, ServerHostService serverHostService) {
         this.serverRepository = serverRepository;
         this.objectMapper = objectMapper;
+        this.serverHostService = serverHostService;
     }
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Server> getServerPage(String search, String supplier, Boolean expired, Boolean disabled) {
@@ -40,7 +44,8 @@ public class ServerService {
         
         // Search condition
         if (search != null && !search.trim().isEmpty()) {
-            conditions.add("(lower(ip) like :search or lower(host) like :search or lower(name) like :search or lower(supplier) like :search)");
+            conditions.add("(lower(ip) like :search or lower(host) like :search or lower(name) like :search or lower(supplier) like :search"
+                    + " or id in (select sh.serverId from ServerHost sh where lower(sh.host) like :search))");
             params.put("search", "%" + search.toLowerCase() + "%");
         }
         
@@ -94,10 +99,11 @@ public class ServerService {
             return null;
         }
         Server server = serverRepository.findById(id);
-        if (server == null || server.getHost() == null || server.getHost().trim().isEmpty()) {
+        String host = serverHostService.resolvePrimaryHost(server);
+        if (host == null || host.isBlank()) {
             return null;
         }
-        return server.getHost().trim();
+        return host.trim();
     }
 
     public Map<String, Long> getServersStats() {
@@ -154,7 +160,9 @@ public class ServerService {
         dto.setId(server.getId());
         dto.setIp(server.getIp());
         dto.setUsername(server.getUsername());
-        dto.setHost(server.getHost());
+        String primaryHost = serverHostService.resolvePrimaryHost(server);
+        dto.setHost(primaryHost);
+        dto.setPrimaryHost(primaryHost);
         dto.setName(server.getName());
         dto.setSupplier(server.getSupplier());
         dto.setAuthType(server.getAuthType());
@@ -170,7 +178,9 @@ public class ServerService {
         dto.setCreateTime(server.getCreateTime());
         dto.setUpdateTime(server.getUpdateTime());
         dto.setRemark(server.getRemark());
-        
+        List<ServerHost> serverHosts = serverHostService.getHostsByServerId(server.getId());
+        dto.setHosts(serverHostService.toDtos(serverHosts, server));
+
         // Convert JSON strings to Map objects
         try {
             if (server.getTransitConfig() != null && !server.getTransitConfig().trim().isEmpty()) {
@@ -189,7 +199,8 @@ public class ServerService {
     }
 
     @Transactional
-    public Server saveServer(Server server) {
+    public Server saveServer(ServerDto serverDto) {
+        Server server = fromDto(serverDto);
         // Set default values if not provided
         if (server.getDisabled() == null) {
             server.setDisabled(0);
@@ -198,13 +209,15 @@ public class ServerService {
         if (server.getSshPort() == null) {
             server.setSshPort(22); // 默认SSH端口
         }
-        
+
         serverRepository.persist(server);
+        serverHostService.syncHosts(server, serverDto.getHosts(), serverDto.getHost());
         return server;
     }
 
     @Transactional
-    public Server updateServer(Server server) {
+    public Server updateServer(ServerDto serverDto) {
+        Server server = fromDto(serverDto);
         Server existingServer = serverRepository.findById(server.getId());
         if (existingServer == null) {
             throw new EntityNotFoundException("Server not found");
@@ -212,6 +225,7 @@ public class ServerService {
 
         // Allow optional fields to be cleared during edit operations.
         copyNonNullProperties(server, existingServer);
+        serverHostService.syncHosts(existingServer, serverDto.getHosts(), serverDto.getHost());
 
         // No need to call save/persist for updates in Panache
         return existingServer;
@@ -237,6 +251,58 @@ public class ServerService {
         target.setRemark(src.getRemark());
         target.setTransitConfig(src.getTransitConfig());
         target.setCoreConfig(src.getCoreConfig());
+    }
+
+    private Server fromDto(ServerDto dto) {
+        Server server = new Server();
+        server.setId(dto.getId());
+        server.setIp(dto.getIp());
+        server.setUsername(dto.getUsername());
+        server.setAuthType(dto.getAuthType());
+        server.setAuth(dto.getAuth());
+        server.setSshPort(dto.getSshPort());
+        server.setHost(resolvePrimaryHost(dto));
+        server.setName(dto.getName());
+        server.setSupplier(dto.getSupplier());
+        server.setPrice(dto.getPrice());
+        server.setMultiple(dto.getMultiple());
+        server.setBandwidth(dto.getBandwidth());
+        server.setExpireDate(dto.getExpireDate());
+        server.setBandwidthDate(dto.getBandwidthDate());
+        server.setDisabled(dto.getDisabled());
+        server.setExternal(dto.getExternal());
+        server.setRemark(dto.getRemark());
+        server.setTransitConfig(writeJson(dto.getTransitConfig()));
+        server.setCoreConfig(writeJson(dto.getCoreConfig()));
+        return server;
+    }
+
+    private String resolvePrimaryHost(ServerDto dto) {
+        if (dto.getHosts() != null) {
+            for (ServerHostDto hostDto : dto.getHosts()) {
+                if (hostDto != null && hostDto.getHost() != null && !hostDto.getHost().isBlank()) {
+                    return hostDto.getHost().trim();
+                }
+            }
+        }
+        if (dto.getPrimaryHost() != null && !dto.getPrimaryHost().isBlank()) {
+            return dto.getPrimaryHost().trim();
+        }
+        if (dto.getHost() != null && !dto.getHost().isBlank()) {
+            return dto.getHost().trim();
+        }
+        return null;
+    }
+
+    private String writeJson(Map<String, Object> value) {
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Invalid JSON config: " + e.getMessage(), e);
+        }
     }
 
     @Transactional

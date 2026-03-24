@@ -90,6 +90,19 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
+                                    <label class="form-label">接入 Host</label>
+                                    <select class="form-select" v-model="newItem.accessHostId">
+                                        <option value="">使用服务器主 host</option>
+                                        <option v-for="host in getServerHosts(newItem.serverId)" :key="host.id || host.host" :value="host.id || ''">
+                                            {{ host.host }}
+                                            <template v-if="host.isPrimary === 1"> (主)</template>
+                                        </option>
+                                    </select>
+                                    <small class="form-hint">用于订阅和节点地址展示；留空时自动使用服务器主 host。</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
                                     <label class="form-label">备用服务器</label>
                                     <select class="form-select" v-model="newItem.backupServerId">
                                         <option value="">无</option>
@@ -287,6 +300,19 @@
                             </div>
                         </div>
                         <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">接入 Host</label>
+                                    <select class="form-select" v-model="editedItem.accessHostId">
+                                        <option value="">使用服务器主 host</option>
+                                        <option v-for="host in getServerHosts(editedItem.serverId)" :key="host.id || host.host" :value="host.id || ''">
+                                            {{ host.host }}
+                                            <template v-if="host.isPrimary === 1"> (主)</template>
+                                        </option>
+                                    </select>
+                                    <small class="form-hint">用于订阅和节点地址展示；留空时自动使用服务器主 host。</small>
+                                </div>
+                            </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label">备用服务器</label>

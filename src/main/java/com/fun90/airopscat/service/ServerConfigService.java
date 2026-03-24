@@ -42,7 +42,8 @@ public class ServerConfigService {
         
         // Search condition - search in configType or related server properties
         if (search != null && !search.trim().isEmpty()) {
-            conditions.add("(lower(configType) like :search or serverId in (select id from Server where lower(ip) like :search or lower(host) like :search or lower(name) like :search))");
+            conditions.add("(lower(configType) like :search or serverId in (select id from Server where lower(ip) like :search or lower(host) like :search or lower(name) like :search"
+                    + " or id in (select sh.serverId from ServerHost sh where lower(sh.host) like :search)))");
             params.put("search", "%" + search.toLowerCase() + "%");
         }
         

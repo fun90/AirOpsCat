@@ -144,14 +144,14 @@ public class ServerController {
     }
 
     @POST
-    public Response createServer(Server server) {
+    public Response createServer(ServerDto server) {
         Server savedServer = serverService.saveServer(server);
-        return Response.ok(savedServer).build();
+        return Response.ok(serverService.convertToDto(savedServer)).build();
     }
 
     @PUT
     @Path("/{id}")
-    public Response updateServer(@PathParam("id") Long id, Server server) {
+    public Response updateServer(@PathParam("id") Long id, ServerDto server) {
         Server existingServer = serverService.getServerById(id);
         if (existingServer == null) {
             return Response.status(Response.Status.NOT_FOUND).build();

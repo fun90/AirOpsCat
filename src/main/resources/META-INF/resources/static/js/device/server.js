@@ -43,6 +43,8 @@ const serverTable = new DataTable({
             periodStartDate: '',
             periodEndDate: ''
         },
+        hostsText: '',
+        editHostsText: '',
         transitConfigJson: '',
         coreConfigJson: '',
         editTransitConfigJson: '',
@@ -54,6 +56,7 @@ const serverTable = new DataTable({
                 authType: 'PASSWORD',
                 auth: '',
                 host: '',
+                hosts: [],
                 name: '',
                 expireDate: '',
                 bandwidthDate: '',
@@ -352,7 +355,9 @@ const serverTable = new DataTable({
                 username: this.newItem.username || 'root',
                 authType: this.newItem.authType,
                 auth: this.newItem.auth,
-                host: this.newItem.host || null,
+                host: this.getPrimaryHostFromText(this.hostsText) || this.newItem.host || null,
+                primaryHost: this.getPrimaryHostFromText(this.hostsText) || this.newItem.host || null,
+                hosts: this.parseHostsText(this.hostsText),
                 name: this.newItem.name || null,
                 expireDate: this.newItem.expireDate || null,
                 bandwidthDate: this.newItem.bandwidthDate || null,
@@ -391,7 +396,9 @@ const serverTable = new DataTable({
                 username: this.editedItem.username || 'root',
                 authType: this.editedItem.authType,
                 auth: this.editedItem.auth,
-                host: this.editedItem.host || null,
+                host: this.getPrimaryHostFromText(this.editHostsText) || this.editedItem.host || null,
+                primaryHost: this.getPrimaryHostFromText(this.editHostsText) || this.editedItem.host || null,
+                hosts: this.parseHostsText(this.editHostsText),
                 name: this.editedItem.name || null,
                 expireDate: this.editedItem.expireDate || null,
                 bandwidthDate: this.editedItem.bandwidthDate || null,
@@ -420,6 +427,7 @@ const serverTable = new DataTable({
                 authType: this.authTypes.length > 0 ? this.authTypes[0].value : 'PASSWORD',
                 auth: '',
                 host: '',
+                hosts: [],
                 name: '',
                 expireDate: oneMonthLaterFormat,
                 supplier: '',
@@ -435,6 +443,7 @@ const serverTable = new DataTable({
 
             this.transitConfigJson = '';
             this.coreConfigJson = '';
+            this.hostsText = '';
         },
 
         prepareEditForm(server) {
@@ -450,6 +459,7 @@ const serverTable = new DataTable({
                 JSON.stringify(server.transitConfig, null, 2) : '';
             this.editCoreConfigJson = server.coreConfig ?
                 JSON.stringify(server.coreConfig, null, 2) : '';
+            this.editHostsText = this.serializeHosts(server.hosts, server.host);
 
             return {
                 id: server.id,
@@ -458,7 +468,8 @@ const serverTable = new DataTable({
                 username: server.username || 'root',
                 authType: server.authType,
                 auth: server.auth,
-                host: server.host || '',
+                host: server.primaryHost || server.host || '',
+                hosts: server.hosts || [],
                 name: server.name || '',
                 expireDate: formatDateForInput(server.expireDate),
                 bandwidthDate: formatDateForInput(server.bandwidthDate),
@@ -472,6 +483,35 @@ const serverTable = new DataTable({
                 transitConfig: server.transitConfig,
                 coreConfig: server.coreConfig
             };
+        },
+
+        parseHostsText(text) {
+            const values = (text || '')
+                .split(/\r?\n/)
+                .map(item => item.trim())
+                .filter(Boolean);
+
+            return values.map((host, index) => ({
+                host,
+                isPrimary: index === 0 ? 1 : 0,
+                enabled: 1,
+                sort: index
+            }));
+        },
+
+        getPrimaryHostFromText(text) {
+            const hosts = this.parseHostsText(text);
+            return hosts.length > 0 ? hosts[0].host : null;
+        },
+
+        serializeHosts(hosts, fallbackHost) {
+            if (Array.isArray(hosts) && hosts.length > 0) {
+                return hosts
+                    .map(host => host?.host)
+                    .filter(Boolean)
+                    .join('\n');
+            }
+            return fallbackHost || '';
         },
 
         afterFetch(data) {

@@ -4,6 +4,7 @@ import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.UserRepository;
+import com.fun90.airopscat.service.ServerHostService;
 import io.quarkus.elytron.security.common.BcryptUtil;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -25,6 +26,9 @@ public class DataInitializationConfig {
     @Inject
     NodeRepository nodeRepository;
 
+    @Inject
+    ServerHostService serverHostService;
+
     /**
      * 使用BCrypt编码密码，与Quarkus Security兼容
      */
@@ -35,6 +39,7 @@ public class DataInitializationConfig {
     @Transactional
     public void onStart(@Observes StartupEvent event) {
         initializeNodeCoreType();
+        initializeServerHosts();
 
         // 检查系统中是否已有管理员用户
         List<User> adminUser = userRepository.findByRole("ADMIN");
@@ -85,6 +90,13 @@ public class DataInitializationConfig {
         long updatedCount = nodeRepository.fillEmptyCoreType(CoreType.XRAY.getValue());
         if (updatedCount > 0) {
             log.info("Initialized coreType for {} node records with value {}", updatedCount, CoreType.XRAY.getValue());
+        }
+    }
+
+    private void initializeServerHosts() {
+        int createdCount = serverHostService.backfillPrimaryHosts();
+        if (createdCount > 0) {
+            log.info("Backfilled primary server_host records for {} servers", createdCount);
         }
     }
 }

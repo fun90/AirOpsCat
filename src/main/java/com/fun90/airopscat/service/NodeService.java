@@ -3,6 +3,7 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.DefaultConfigDto;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.model.enums.NodeType;
@@ -30,6 +31,9 @@ public class NodeService {
     ServerRepository serverRepository;
 
     @Inject
+    ServerHostService serverHostService;
+
+    @Inject
     TagRepository tagRepository;
 
     @Inject
@@ -52,7 +56,9 @@ public class NodeService {
         if (search != null && !search.trim().isEmpty()) {
             String searchLike = "%" + search.toLowerCase() + "%";
             query.append(" and (lower(name) like :search or lower(remark) like :search")
-                 .append(" or serverId in (select id from Server where lower(ip) like :search or lower(host) like :search)");
+                 .append(" or serverId in (select id from Server where lower(ip) like :search or lower(host) like :search"
+                         + " or id in (select sh.serverId from ServerHost sh where lower(sh.host) like :search))")
+                 .append(" or accessHostId in (select id from ServerHost where lower(host) like :search)");
             params.put("search", searchLike);
 
             List<Long> tagNodeIds = tagRepository.findNodeIdsByTagNameLike(searchLike);
@@ -173,6 +179,16 @@ public class NodeService {
         if (node.getBackupServerId() != null && serverRepository.findById(node.getBackupServerId()) == null) {
             throw new EntityNotFoundException("Backup server with ID " + node.getBackupServerId() + " not found");
         }
+
+        if (node.getAccessHostId() != null) {
+            ServerHost accessHost = serverHostService.getHostById(node.getAccessHostId());
+            if (accessHost == null) {
+                throw new EntityNotFoundException("Access host not found");
+            }
+            if (!Objects.equals(accessHost.getServerId(), node.getServerId())) {
+                throw new IllegalArgumentException("节点接入 host 必须属于当前主服务器");
+            }
+        }
         
         // 检查端口是否已被使用（包括主服务器和备用服务器）
         if (node.getServerId() != null && node.getPort() != null) {
@@ -275,7 +291,11 @@ public class NodeService {
             Server backupServer = serverRepository.findById(existingNode.getBackupServerId());
             existingNode.setBackupServer(backupServer);
         }
-        
+
+        existingNode.setAccessHost(existingNode.getAccessHostId() != null
+                ? serverHostService.getHostById(existingNode.getAccessHostId())
+                : null);
+
         // 手动加载关联的OutNode对象，避免lazy loading问题
         if (existingNode.getOutId() != null) {
             Node outNode = nodeRepository.findById(existingNode.getOutId());
@@ -307,6 +327,10 @@ public class NodeService {
 
         // 检查服务器变更
         if (newNode.getServerId() != null && !newNode.getServerId().equals(oldNode.getServerId())) {
+            return true;
+        }
+
+        if (!Objects.equals(newNode.getAccessHostId(), oldNode.getAccessHostId())) {
             return true;
         }
         
@@ -354,6 +378,7 @@ public class NodeService {
         if (src.getNo() != null) target.setNo(src.getNo());
         if (src.getRemark() != null) target.setRemark(src.getRemark());
         if (src.getServerId() != null) target.setServerId(src.getServerId());
+        target.setAccessHostId(src.getAccessHostId());
         if (src.getType() != null) target.setType(src.getType());
         if (src.getPort() != null) target.setPort(src.getPort());
         if (src.getProtocol() != null) target.setProtocol(src.getProtocol());

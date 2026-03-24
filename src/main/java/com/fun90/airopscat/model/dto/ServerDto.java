@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -17,6 +18,8 @@ public class ServerDto {
     private String authType;
     private String auth;
     private String host;
+    private String primaryHost;
+    private List<ServerHostDto> hosts;
     private String name;
     private LocalDate expireDate;
     private LocalDate bandwidthDate;

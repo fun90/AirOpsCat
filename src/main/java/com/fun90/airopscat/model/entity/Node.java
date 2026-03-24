@@ -24,6 +24,9 @@ public class Node {
     
     @Column(name = "backup_server_id")
     private Long backupServerId;
+
+    @Column(name = "access_host_id")
+    private Long accessHostId;
     
     private Integer port;
 
@@ -67,6 +70,10 @@ public class Node {
     @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REFRESH})
     @JoinColumn(name = "backup_server_id", insertable = false, updatable = false)
     private Server backupServer;
+
+    @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REFRESH})
+    @JoinColumn(name = "access_host_id", insertable = false, updatable = false)
+    private ServerHost accessHost;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "out_id", insertable = false, updatable = false)

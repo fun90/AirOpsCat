@@ -3,6 +3,8 @@ package com.fun90.airopscat.model.convert;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.dto.NodeRequest;
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.util.JsonUtil;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,6 +26,7 @@ public class NodeConverter {
         dto.setCoreType(node.getCoreType());
         dto.setServerId(node.getServerId());
         dto.setBackupServerId(node.getBackupServerId());
+        dto.setAccessHostId(node.getAccessHostId());
         dto.setOutId(node.getOutId());
         dto.setLevel(node.getLevel());
         dto.setDeployed(node.getDeployed());
@@ -39,8 +42,9 @@ public class NodeConverter {
         try {
             if (node.getServer() != null) {
                 dto.setServerIp(node.getServer().getIp());
-                dto.setServerHost(node.getServer().getHost());
+                dto.setServerHost(resolveEffectiveHost(node.getAccessHost(), node.getServer()));
             }
+            dto.setAccessHost(node.getAccessHost() != null ? node.getAccessHost().getHost() : null);
             if (node.getBackupServer() != null) {
                 dto.setBackupServerIp(node.getBackupServer().getIp());
                 dto.setBackupServerHost(node.getBackupServer().getHost());
@@ -58,7 +62,7 @@ public class NodeConverter {
                 dto.setOutName(node.getOutNode().getName());
                 dto.setOutPort(node.getOutNode().getPort());
                 if (node.getOutNode().getServer() != null) {
-                    dto.setOutServerHost(node.getOutNode().getServer().getHost());
+                    dto.setOutServerHost(resolveEffectiveHost(node.getOutNode().getAccessHost(), node.getOutNode().getServer()));
                 }
             }
         } catch (org.hibernate.LazyInitializationException e) {
@@ -104,6 +108,7 @@ public class NodeConverter {
         }
         node.setServerId(request.getServerId());
         node.setBackupServerId(request.getBackupServerId());
+        node.setAccessHostId(request.getAccessHostId());
         node.setPort(request.getPort());
         node.setProtocol(request.getProtocol());
         node.setCoreType(request.getCoreType());
@@ -120,6 +125,19 @@ public class NodeConverter {
         node.setRemark(request.getRemark());
         
         return node;
+    }
+
+    private static String resolveEffectiveHost(ServerHost accessHost, Server server) {
+        if (accessHost != null && accessHost.getHost() != null && !accessHost.getHost().isBlank()) {
+            return accessHost.getHost();
+        }
+        if (server == null) {
+            return null;
+        }
+        if (server.getHost() != null && !server.getHost().isBlank()) {
+            return server.getHost();
+        }
+        return server.getIp();
     }
 
     /**

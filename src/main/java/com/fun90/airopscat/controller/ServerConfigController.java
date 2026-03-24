@@ -7,6 +7,7 @@ import com.fun90.airopscat.model.dto.ServerConfigRequest;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.service.ServerConfigService;
+import com.fun90.airopscat.service.ServerHostService;
 import com.fun90.airopscat.service.ServerService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
@@ -33,6 +34,9 @@ public class ServerConfigController {
     
     @Inject
     ServerService serverService;
+
+    @Inject
+    ServerHostService serverHostService;
 
     @GET
     public Response getServerConfigPage(
@@ -182,7 +186,7 @@ public class ServerConfigController {
                     option.put("name", (server.getName() != null ? server.getName() : "") +
                               " (" + server.getIp() + ")");
                     option.put("ip", server.getIp());
-                    option.put("host", server.getHost());
+                    option.put("host", serverHostService.resolvePrimaryHost(server));
                     return option;
                 })
                 .collect(Collectors.toList());

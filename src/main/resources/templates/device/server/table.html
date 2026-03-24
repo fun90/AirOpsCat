@@ -28,6 +28,7 @@
         <td>
             <div class="d-flex flex-column">
                 <span v-if="server.host">{{ server.host }}</span>
+                <span v-if="server.hosts && server.hosts.length > 1" class="text-secondary small">共 {{ server.hosts.length }} 个 host</span>
                 <span v-if="server.name" class="text-muted">{{ server.name }}</span>
             </div>
         </td>

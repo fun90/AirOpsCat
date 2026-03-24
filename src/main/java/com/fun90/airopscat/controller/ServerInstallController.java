@@ -3,6 +3,7 @@ package com.fun90.airopscat.controller;
 import com.fun90.airopscat.model.dto.install.InstallScriptDto;
 import com.fun90.airopscat.model.dto.install.ServerInstallExecuteRequest;
 import com.fun90.airopscat.model.dto.install.ServerInstallStepResultDto;
+import com.fun90.airopscat.service.ServerHostService;
 import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.install.ServerInstallService;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -31,6 +32,9 @@ public class ServerInstallController {
     @Inject
     ServerService serverService;
 
+    @Inject
+    ServerHostService serverHostService;
+
     @GET
     @Path("/scripts")
     public Response getScripts() {
@@ -52,7 +56,7 @@ public class ServerInstallController {
                     option.put("id", server.getId());
                     option.put("name", (server.getName() != null ? server.getName() : "未命名服务器") + " (" + server.getIp() + ")");
                     option.put("ip", server.getIp());
-                    option.put("host", server.getHost());
+                    option.put("host", serverHostService.resolvePrimaryHost(server));
                     option.put("username", server.getUsername());
                     return option;
                 })

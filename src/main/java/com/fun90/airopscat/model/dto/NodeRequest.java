@@ -10,6 +10,7 @@ public class NodeRequest {
     private Long id;
     private Long serverId;
     private Long backupServerId;
+    private Long accessHostId;
     private Integer port;
     private String protocol;
     private String coreType;

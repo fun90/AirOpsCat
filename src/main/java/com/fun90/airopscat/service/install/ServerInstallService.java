@@ -5,6 +5,7 @@ import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.dto.install.InstallScriptDto;
 import com.fun90.airopscat.model.dto.install.ServerInstallStepResultDto;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.service.ServerHostService;
 import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
@@ -47,6 +48,9 @@ public class ServerInstallService {
 
     @Inject
     ServerService serverService;
+
+    @Inject
+    ServerHostService serverHostService;
 
     @Inject
     SshConnectionService sshConnectionService;
@@ -94,12 +98,7 @@ public class ServerInstallService {
             connection.writeRemoteFile(remoteScriptPath, scriptContent);
 
             String command = "chmod +x " + quoteShell(remoteScriptPath)
-                    + " && AIROPSCAT_STEP_NAME=" + quoteShell(script.getTitle())
-                    + " server_ip=" + quoteShell(defaultString(server.getIp()))
-                    + " server_host=" + quoteShell(defaultString(server.getHost()))
-                    + " airopscat_domain=" + quoteShell(defaultString(airopscatDomain))
-                    + " airopscat_api_token=" + quoteShell(defaultString(airopscatApiToken))
-                    + " /bin/bash " + quoteShell(remoteScriptPath);
+                    + " && /bin/bash -lc " + quoteShell(buildScriptExecutionCommand(script.getTitle(), server, remoteScriptPath));
 
             CommandResult commandResult = connection.executeCommand(command);
             result.setSuccess(commandResult.isSuccess());
@@ -200,5 +199,29 @@ public class ServerInstallService {
 
     private String defaultString(String value) {
         return value == null ? "" : value;
+    }
+
+    private String buildScriptExecutionCommand(String stepTitle, Server server, String remoteScriptPath) {
+        List<String> hosts = serverHostService.getResolvedHosts(server);
+        return "AIROPSCAT_STEP_NAME=" + quoteShell(stepTitle)
+                + "; server_ip=" + quoteShell(defaultString(server.getIp()))
+                + "; server_host=" + quoteShell(defaultString(serverHostService.resolvePrimaryHost(server)))
+                + "; airopscat_domain=" + quoteShell(defaultString(airopscatDomain))
+                + "; airopscat_api_token=" + quoteShell(defaultString(airopscatApiToken))
+                + "; declare -a server_hosts=" + toBashArray(hosts)
+                + "; export AIROPSCAT_STEP_NAME server_ip server_host airopscat_domain airopscat_api_token"
+                + "; /bin/bash " + quoteShell(remoteScriptPath);
+    }
+
+    private String toBashArray(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return "()";
+        }
+        StringBuilder builder = new StringBuilder("(");
+        for (String value : values) {
+            builder.append(quoteShell(defaultString(value))).append(' ');
+        }
+        builder.append(')');
+        return builder.toString();
     }
 }
