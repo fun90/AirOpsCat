@@ -13,6 +13,7 @@ public class ServerDto {
     private Long id;
     private String ip;
     private Integer sshPort;
+    private String username;
     private String authType;
     private String auth;
     private String host;

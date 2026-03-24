@@ -153,6 +153,7 @@ public class ServerService {
         // Copy properties manually
         dto.setId(server.getId());
         dto.setIp(server.getIp());
+        dto.setUsername(server.getUsername());
         dto.setHost(server.getHost());
         dto.setName(server.getName());
         dto.setSupplier(server.getSupplier());
@@ -209,7 +210,7 @@ public class ServerService {
             throw new EntityNotFoundException("Server not found");
         }
 
-        // Copy non-null properties manually
+        // Allow optional fields to be cleared during edit operations.
         copyNonNullProperties(server, existingServer);
 
         // No need to call save/persist for updates in Panache
@@ -219,22 +220,23 @@ public class ServerService {
     // 工具方法：复制非null属性
     private void copyNonNullProperties(Server src, Server target) {
         if (src.getIp() != null) target.setIp(src.getIp());
-        if (src.getHost() != null) target.setHost(src.getHost());
-        if (src.getName() != null) target.setName(src.getName());
-        if (src.getSupplier() != null) target.setSupplier(src.getSupplier());
+        if (src.getUsername() != null) target.setUsername(src.getUsername());
         if (src.getAuthType() != null) target.setAuthType(src.getAuthType());
         if (src.getAuth() != null) target.setAuth(src.getAuth());
         if (src.getSshPort() != null) target.setSshPort(src.getSshPort());
-        if (src.getPrice() != null) target.setPrice(src.getPrice());
         if (src.getMultiple() != null) target.setMultiple(src.getMultiple());
-        if (src.getBandwidth() != null) target.setBandwidth(src.getBandwidth());
-        if (src.getExpireDate() != null) target.setExpireDate(src.getExpireDate());
-        if (src.getBandwidthDate() != null) target.setBandwidthDate(src.getBandwidthDate());
         if (src.getDisabled() != null) target.setDisabled(src.getDisabled());
         if (src.getExternal() != null) target.setExternal(src.getExternal());
-        if (src.getRemark() != null) target.setRemark(src.getRemark());
-        if (src.getTransitConfig() != null) target.setTransitConfig(src.getTransitConfig());
-        if (src.getCoreConfig() != null) target.setCoreConfig(src.getCoreConfig());
+        target.setHost(src.getHost());
+        target.setName(src.getName());
+        target.setSupplier(src.getSupplier());
+        target.setPrice(src.getPrice());
+        target.setBandwidth(src.getBandwidth());
+        target.setExpireDate(src.getExpireDate());
+        target.setBandwidthDate(src.getBandwidthDate());
+        target.setRemark(src.getRemark());
+        target.setTransitConfig(src.getTransitConfig());
+        target.setCoreConfig(src.getCoreConfig());
     }
 
     @Transactional
