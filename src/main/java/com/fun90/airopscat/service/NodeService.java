@@ -59,15 +59,9 @@ public class NodeService {
             query.append(" and (lower(name) like :search or lower(remark) like :search")
                  .append(" or serverId in (select id from Server where lower(ip) like :search or lower(host) like :search"
                          + " or id in (select sh.serverId from ServerHost sh where lower(sh.host) like :search))")
-                 .append(" or accessHostId in (select id from ServerHost where lower(host) like :search)");
+                 .append(" or accessHostId in (select id from ServerHost where lower(host) like :search)")
+                 .append(")");
             params.put("search", searchLike);
-
-            List<Long> tagNodeIds = tagRepository.findNodeIdsByTagNameLike(searchLike);
-            if (!tagNodeIds.isEmpty()) {
-                query.append(" or id in :tagNodeIds");
-                params.put("tagNodeIds", tagNodeIds);
-            }
-            query.append(")");
         }
 
         // Filter by serverId
