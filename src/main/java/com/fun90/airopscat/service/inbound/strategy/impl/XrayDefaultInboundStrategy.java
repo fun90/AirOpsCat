@@ -4,7 +4,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.annotation.SupportedCores;
 import com.fun90.airopscat.model.dto.DefaultConfigDto;
+import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.model.enums.CoreType;
+import com.fun90.airopscat.service.ServerHostService;
+import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.inbound.strategy.DefaultInboundStrategy;
 import com.fun90.airopscat.util.ConfigFileReader;
 import com.fun90.airopscat.util.NativeRandomUtils;
@@ -37,11 +40,17 @@ public class XrayDefaultInboundStrategy implements DefaultInboundStrategy {
     @Inject
     ConfigFileReader configFileReader;
 
+    @Inject
+    ServerService serverService;
+
+    @Inject
+    ServerHostService serverHostService;
+
     @Override
-    public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, Long serverId) {
+    public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, Long serverId, Long accessHostId) {
         String normalizedProtocol = normalizeProtocol(protocol);
         String templatePath = getTemplatePath(normalizedProtocol);
-        Map<String, Object> templateData = buildTemplateData(normalizedProtocol);
+        Map<String, Object> templateData = buildTemplateData(normalizedProtocol, serverId, accessHostId);
         String templateContent = configFileReader.readFileContent(templatePath);
         String renderedConfig = templateUtil.processStringTemplate(templateContent, templateData);
 
@@ -81,11 +90,16 @@ public class XrayDefaultInboundStrategy implements DefaultInboundStrategy {
         };
     }
 
-    private Map<String, Object> buildTemplateData(String protocol) {
+    private Map<String, Object> buildTemplateData(String protocol, Long serverId, Long accessHostId) {
         Map<String, Object> templateData = new HashMap<>();
 
         switch (protocol) {
             case "vless":
+                ServerHost accessHost = serverHostService.getHostById(accessHostId);
+                String serverName = accessHost != null && accessHost.getHost() != null && !accessHost.getHost().isBlank()
+                    ? accessHost.getHost().trim()
+                    : serverService.getServerHostById(serverId);
+                templateData.put("serverName", serverName);
                 return templateData;
             case "vless-reality":
                 String selectedDest = NativeRandomUtils.randomChoice(DESTINATIONS);

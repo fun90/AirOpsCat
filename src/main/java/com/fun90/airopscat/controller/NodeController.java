@@ -150,8 +150,9 @@ public class NodeController {
     @Path("/default-inbound")
     public Response getDefaultInbound(@QueryParam("protocol") String protocol,
                                       @QueryParam("serverId") Long serverId,
+                                      @QueryParam("accessHostId") Long accessHostId,
                                       @QueryParam("coreType") @DefaultValue("xray") String coreType) {
-        return Response.ok(nodeService.generateDefaultInbound(protocol, serverId, coreType)).build();
+        return Response.ok(nodeService.generateDefaultInbound(protocol, serverId, accessHostId, coreType)).build();
     }
     
     @GET

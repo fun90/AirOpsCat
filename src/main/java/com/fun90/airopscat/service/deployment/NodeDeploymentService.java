@@ -344,7 +344,7 @@ public class NodeDeploymentService {
 
     private Map<String, Object> translateInboundConfig(Node node, String targetCoreType) {
         DefaultConfigDto<Map<String, Object>> defaultConfig =
-                nodeService.generateDefaultInbound(node.getProtocol(), node.getServerId(), targetCoreType);
+                nodeService.generateDefaultInbound(node.getProtocol(), node.getServerId(), node.getAccessHostId(), targetCoreType);
         Map<String, Object> targetInbound = copyMap(defaultConfig.getConfig());
         Map<String, Object> sourceInbound = parseInbound(node.getInbound());
 
