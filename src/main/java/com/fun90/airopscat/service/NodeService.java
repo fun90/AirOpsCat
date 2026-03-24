@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 public class NodeService {
     @Inject
     NodeRepository nodeRepository;
-    
+
     @Inject
     ServerRepository serverRepository;
 
@@ -42,6 +42,7 @@ public class NodeService {
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Node> getNodePage(
             String search,
             Long serverId,
+            Long nodeTagId,
             Integer type,
             String coreType,
             String protocol,
@@ -51,7 +52,7 @@ public class NodeService {
         // Build query string
         StringBuilder query = new StringBuilder("1=1");
         Map<String, Object> params = new HashMap<>();
-        
+
         // Search in name, remark, or server properties
         if (search != null && !search.trim().isEmpty()) {
             String searchLike = "%" + search.toLowerCase() + "%";
@@ -73,6 +74,11 @@ public class NodeService {
         if (serverId != null) {
             query.append(" and serverId = :serverId");
             params.put("serverId", serverId);
+        }
+
+        if (nodeTagId != null) {
+            query.append(" and id in (select n.id from Node n join n.tags t where t.id = :nodeTagId)");
+            params.put("nodeTagId", nodeTagId);
         }
 
         // Filter by type
@@ -124,10 +130,10 @@ public class NodeService {
         stats.put("landing", nodeRepository.countLandingNodes());
         stats.put("active", nodeRepository.countActiveNodes());
         stats.put("disabled", nodeRepository.countDisabledNodes());
-        
+
         return stats;
     }
-    
+
     // 检查端口是否可用
     public boolean isPortAvailable(Long serverId, Integer port, Long nodeId) {
         if (nodeId == null) {
@@ -142,7 +148,7 @@ public class NodeService {
         if (backupServerId == null) {
             return true; // 如果没有备用服务器，则认为可用
         }
-        
+
         if (nodeId == null) {
             // 检查是否有其他节点在该备用服务器上使用了相同端口
             return !nodeRepository.existsByBackupServerIdAndPort(backupServerId, port);
@@ -158,7 +164,7 @@ public class NodeService {
         if (backupServerId != null && serverId.equals(backupServerId)) {
             return false;
         }
-        
+
         // 使用单一SQL查询检查端口冲突
         return !nodeRepository.existsPortConflict(serverId, backupServerId, port, nodeId);
     }
@@ -174,7 +180,7 @@ public class NodeService {
         if (node.getServerId() != null && serverRepository.findById(node.getServerId()) == null) {
             throw new EntityNotFoundException("Server with ID " + node.getServerId() + " not found");
         }
-        
+
         // 确保备用服务器存在
         if (node.getBackupServerId() != null && serverRepository.findById(node.getBackupServerId()) == null) {
             throw new EntityNotFoundException("Backup server with ID " + node.getBackupServerId() + " not found");
@@ -189,7 +195,7 @@ public class NodeService {
                 throw new IllegalArgumentException("节点接入 host 必须属于当前主服务器");
             }
         }
-        
+
         // 检查端口是否已被使用（包括主服务器和备用服务器）
         if (node.getServerId() != null && node.getPort() != null) {
             if (!isNodePortsAvailable(node.getServerId(), node.getBackupServerId(), node.getPort(), node.getId())) {
@@ -239,11 +245,11 @@ public class NodeService {
         if (node.getDeployed() == null) {
             node.setDeployed(0);
         }
-        
+
         // 验证服务器和端口
         validateNodeServersAndPorts(node);
         normalizeAndValidateNodeProtocol(node);
-        
+
         nodeRepository.persist(node);
         return node;
     }
@@ -270,7 +276,7 @@ public class NodeService {
 
         // 使用工具方法复制非null属性
         copyNonNullProperties(node, existingNode);
-        
+
         // 特殊处理 outId 字段，确保 null 值也能被更新
         existingNode.setOutId(node.getOutId());
 
@@ -285,7 +291,7 @@ public class NodeService {
             Server server = serverRepository.findById(existingNode.getServerId());
             existingNode.setServer(server);
         }
-        
+
         // 手动加载关联的BackupServer对象，避免lazy loading问题
         if (existingNode.getBackupServerId() != null) {
             Server backupServer = serverRepository.findById(existingNode.getBackupServerId());
@@ -301,7 +307,7 @@ public class NodeService {
             Node outNode = nodeRepository.findById(existingNode.getOutId());
             existingNode.setOutNode(outNode);
         }
-        
+
         return existingNode;
     }
 
@@ -333,7 +339,7 @@ public class NodeService {
         if (!Objects.equals(newNode.getAccessHostId(), oldNode.getAccessHostId())) {
             return true;
         }
-        
+
         // 检查备用服务器变更
         if (newNode.getBackupServerId() == null && oldNode.getBackupServerId() != null) {
             return true;
@@ -349,7 +355,7 @@ public class NodeService {
         if (newNode.getRule() != null && !newNode.getRule().equals(oldNode.getRule())) {
             return true;
         }
-        
+
         // 特殊处理 outId 变更，包括从有值变为 null 的情况
         if (newNode.getOutId() == null && oldNode.getOutId() != null) {
             return true;
@@ -411,7 +417,7 @@ public class NodeService {
         }
         return null;
     }
-    
+
     // 获取节点类型选项
     public List<Map<String, Object>> getNodeTypeOptions() {
         return Arrays.stream(NodeType.values())
@@ -423,7 +429,7 @@ public class NodeService {
                 })
                 .collect(Collectors.toList());
     }
-    
+
     // 获取协议类型选项
     public List<Map<String, Object>> getProtocolTypeOptions() {
         return Arrays.stream(ProtocolType.values())
@@ -449,26 +455,26 @@ public class NodeService {
                 })
                 .collect(Collectors.toList());
     }
-    
+
     // 获取可用端口
     public Integer getAvailablePort(Long serverId) {
         List<Node> nodes = nodeRepository.findByServerId(serverId);
-        
+
         // 整理已使用的端口
         Set<Integer> usedPorts = nodes.stream()
                 .map(Node::getPort)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        
+
         // 查找未使用的端口（从10000开始）
         int port = 10000;
         while (usedPorts.contains(port)) {
             port++;
         }
-        
+
         return port;
     }
-    
+
     public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, Long serverId, Long accessHostId, String coreType) {
         String normalizedCoreType = (coreType == null || coreType.trim().isEmpty()) ? CoreType.XRAY.getValue() : coreType;
         DefaultInboundStrategy strategy = strategyRegistry.getStrategy(normalizedCoreType);

@@ -56,13 +56,14 @@ public class NodeController {
             @QueryParam("size") @DefaultValue("10") int size,
             @QueryParam("search") String search,
             @QueryParam("serverId") Long serverId,
+            @QueryParam("node_tag") Long nodeTagId,
             @QueryParam("type") Integer type,
             @QueryParam("coreType") String coreType,
             @QueryParam("protocol") String protocol,
             @QueryParam("disabled") Boolean disabled,
             @QueryParam("deployed") Boolean deployed
     ) {
-        PanacheQuery<Node> nodeQuery = nodeService.getNodePage(search, serverId, type, coreType, protocol, disabled, deployed);
+        PanacheQuery<Node> nodeQuery = nodeService.getNodePage(search, serverId, nodeTagId, type, coreType, protocol, disabled, deployed);
         nodeQuery.page(Page.of(page - 1, size));
         
         // Convert to DTOs

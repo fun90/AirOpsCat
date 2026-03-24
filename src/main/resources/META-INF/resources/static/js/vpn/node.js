@@ -5,6 +5,7 @@ import { createResponsiveFilterMethods } from '/static/js/common/responsive-filt
 
 const DEFAULT_NODE_FILTERS = Object.freeze({
     serverId: '',
+    node_tag: '',
     type: '',
     coreType: '',
     protocol: '',
@@ -275,6 +276,12 @@ const nodeTable = new DataTable({
                     label: '服务器',
                     isActive: value => value !== '',
                     getValueLabel: () => this.getServerFilterLabel()
+                },
+                {
+                    key: 'node_tag',
+                    label: '标签',
+                    isActive: value => value !== '',
+                    getValueLabel: value => this.availableTags.find(tag => String(tag.id) === String(value))?.name || value
                 },
                 {
                     key: 'type',

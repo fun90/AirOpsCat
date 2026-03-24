@@ -18,6 +18,16 @@
 
 <div class="col-12 {#if layout == 'desktop'}col-xl col-lg-6{/if}">
     {#if layout == 'mobile'}
+        <label class="form-label">标签</label>
+    {/if}
+    <select class="form-select" v-model="filters.node_tag" @change="onFilterChange">
+        <option value="">全部标签</option>
+        <option v-for="tag in availableTags" :key="tag.id" :value="tag.id">{{ tag.name }}</option>
+    </select>
+</div>
+
+<div class="col-12 {#if layout == 'desktop'}col-xl col-lg-6{/if}">
+    {#if layout == 'mobile'}
         <label class="form-label">内核</label>
     {/if}
     <select class="form-select" v-model="filters.coreType" @change="onFilterChange">
