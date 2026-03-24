@@ -60,11 +60,11 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
             "INSERT INTO account_online_ip (account_no, client_ip, node_ip, last_online_time, session_start_time, create_time, update_time) " +
             "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) " +
             "ON DUPLICATE KEY UPDATE " +
-            "last_online_time = VALUES(last_online_time), " +
             "session_start_time = CASE " +
             "WHEN account_online_ip.last_online_time IS NULL OR account_online_ip.last_online_time <= ?8 THEN VALUES(session_start_time) " +
             "WHEN account_online_ip.session_start_time IS NULL THEN COALESCE(account_online_ip.create_time, VALUES(session_start_time)) " +
             "ELSE account_online_ip.session_start_time END, " +
+            "last_online_time = VALUES(last_online_time), " +
             "update_time = VALUES(update_time)")
             .setParameter(1, accountNo)
             .setParameter(2, clientIp)
