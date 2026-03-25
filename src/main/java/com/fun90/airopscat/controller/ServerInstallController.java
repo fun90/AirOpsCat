@@ -64,6 +64,32 @@ public class ServerInstallController {
         return Response.ok(serverOptions).build();
     }
 
+    @GET
+    @Path("/scripts/{scriptName}/preview")
+    public Response previewScript(@jakarta.ws.rs.PathParam("scriptName") String scriptName) {
+        if (scriptName == null || scriptName.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", "脚本名称不能为空"))
+                    .build();
+        }
+
+        try {
+            String content = serverInstallService.getScriptContent(scriptName);
+            Map<String, Object> response = new HashMap<>();
+            response.put("scriptName", scriptName);
+            response.put("content", content);
+            return Response.ok(response).build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(Map.of("message", e.getMessage()))
+                    .build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("message", "读取脚本失败: " + e.getMessage()))
+                    .build();
+        }
+    }
+
     @POST
     @Path("/execute")
     public Response execute(ServerInstallExecuteRequest request) {

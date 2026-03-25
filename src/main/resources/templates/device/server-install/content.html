@@ -24,7 +24,7 @@
                         </div>
 
                         <div class="alert alert-info" v-if="scripts.length">
-                            勾选脚本后会按文件名前缀顺序执行，例如 `01-prepare.sh` 会先于 `02-runtime.sh`。
+                            勾选脚本后会按文件名前缀顺序执行,例如 `01-prepare.sh` 会先于 `02-runtime.sh`。点击脚本名称可预览内容。
                         </div>
                         <div class="alert alert-warning" v-else>
                             当前脚本目录没有匹配 `01-xxx.sh` 规则的脚本。
@@ -54,7 +54,14 @@
                                                :disabled="executing">
                                     </div>
                                     <div class="col">
-                                        <div class="fw-medium">{{ script.fileName }}</div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <a href="#" @click.prevent="previewScript(script.fileName)" class="fw-medium text-decoration-none">
+                                                {{ script.fileName }}
+                                            </a>
+                                            <button class="btn btn-sm btn-ghost-secondary" @click.prevent="previewScript(script.fileName)" :disabled="loadingPreview">
+                                                <i class="ti ti-eye"></i>
+                                            </button>
+                                        </div>
                                         <div class="text-secondary small">{{ script.title }}</div>
                                         <div class="text-secondary small" v-if="script.description">{{ script.description }}</div>
                                     </div>
@@ -66,6 +73,28 @@
             </div>
 
             <div class="col-12 col-xl-8">
+                <!-- Script Preview Card -->
+                <div class="card mb-4" v-if="previewContent">
+                    <div class="card-header">
+                        <h3 class="card-title">脚本预览</h3>
+                        <div class="card-actions">
+                            <button class="btn btn-sm btn-ghost-secondary" @click="closePreview" title="关闭预览">
+                                <i class="ti ti-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="p-3 border-bottom">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="ti ti-file-code"></i>
+                                <span class="fw-medium">{{ previewScriptName }}</span>
+                            </div>
+                        </div>
+                        <pre class="bg-dark text-white p-3 m-0 install-log" style="max-height: 400px;">{{ previewContent }}</pre>
+                    </div>
+                </div>
+
+                <!-- Execution Steps Card -->
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">执行步骤</h3>
@@ -85,7 +114,7 @@
                         <div v-if="!selectedSteps.length" class="empty py-5">
                             <div class="empty-img"><i class="ti ti-checklist fs-1 text-secondary"></i></div>
                             <p class="empty-title">先选择要执行的脚本</p>
-                            <p class="empty-subtitle text-secondary">系统会顺序执行，并展示每一步的输出和错误信息。</p>
+                            <p class="empty-subtitle text-secondary">系统会顺序执行,并展示每一步的输出和错误信息。</p>
                         </div>
 
                         <div v-else class="list-group list-group-flush">
@@ -101,7 +130,9 @@
                                                 {{ statusLabel(step.status) }}
                                             </span>
                                             <span class="fw-medium">{{ index + 1 }}. {{ step.title }}</span>
-                                            <span class="text-secondary small">{{ step.fileName }}</span>
+                                            <a href="#" @click.prevent="previewScript(step.fileName)" class="text-secondary small text-decoration-none">
+                                                {{ step.fileName }}
+                                            </a>
                                         </div>
                                         <div class="text-secondary small mt-1">{{ step.description || '按顺序执行的安装步骤' }}</div>
                                         <div class="text-warning small mt-1" v-if="isStepLocked(index)">
@@ -159,16 +190,16 @@
                     </div>
                     <div class="card-body">
                         <div class="alert alert-primary">
-                            推荐把关键过程输出到标准输出，并在失败时返回非 0 退出码，这样页面才能准确显示每一步结果。
+                            推荐把关键过程输出到标准输出,并在失败时返回非 0 退出码,这样页面才能准确显示每一步结果。
                         </div>
                         <ul class="mb-0 ps-3">
                             <li>文件名使用 `01-xxx.sh`、`02-xxx.sh` 这种有序格式。</li>
-                            <li>脚本开头建议加 `set -euo pipefail`，避免错误被吞掉。</li>
-                            <li>关键节点用 `echo` 打印，例如“开始安装 Docker”“完成写入配置”。</li>
-                            <li>执行时会自动注入变量：`$server_ip` 为服务器 IP，`$server_host` 为服务器主域名或主机名，`$server_hosts` 为服务器可用 host 列表（bash array）。</li>
-                            <li>系统配置也会注入：`$airopscat_domain` 对应 `airopscat.domain`，`$airopscat_api_token` 对应 `airopscat.api.token`。</li>
-                            <li>可选元信息：前几行支持 `# @title: 安装 Docker`、`# @description: 安装容器运行时`。</li>
-                            <li>脚本尽量设计成幂等，失败后修复环境即可重试。</li>
+                            <li>脚本开头建议加 `set -euo pipefail`,避免错误被吞掉。</li>
+                            <li>关键节点用 `echo` 打印,例如"开始安装 Docker""完成写入配置"。</li>
+                            <li>执行时会自动注入变量:`$server_ip` 为服务器 IP,`$server_host` 为服务器主域名或主机名,`$server_hosts` 为服务器可用 host 列表(bash array)。</li>
+                            <li>系统配置也会注入:`$airopscat_domain` 对应 `airopscat.domain`,`$airopscat_api_token` 对应 `airopscat.api.token`。</li>
+                            <li>可选元信息:前几行支持 `# @title: 安装 Docker`、`# @description: 安装容器运行时`。</li>
+                            <li>脚本尽量设计成幂等,失败后修复环境即可重试。</li>
                         </ul>
                     </div>
                 </div>

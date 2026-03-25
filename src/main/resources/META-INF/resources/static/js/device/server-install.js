@@ -6,6 +6,9 @@ const serverInstallApp = PetiteVue.createApp({
     stepStateMap: {},
     executing: false,
     loading: false,
+    loadingPreview: false,
+    previewContent: '',
+    previewScriptName: '',
 
     get selectedSteps() {
         const selectedSet = new Set(this.selectedScriptNames);
@@ -56,11 +59,20 @@ const serverInstallApp = PetiteVue.createApp({
             const scriptsPayload = await scriptsResponse.json();
             this.scripts = scriptsPayload.records || [];
             this.reconcileStepStates();
+            this.loadFromQueryParams();
         } catch (error) {
             console.error(error);
             ToastUtils.show('Error', error.message || '加载装机页面数据失败', 'danger');
         } finally {
             this.loading = false;
+        }
+    },
+
+    loadFromQueryParams() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const serverId = urlParams.get('serverId');
+        if (serverId) {
+            this.selectedServerId = serverId;
         }
     },
 
@@ -95,6 +107,44 @@ const serverInstallApp = PetiteVue.createApp({
         });
     },
 
+    async previewScript(scriptName) {
+        if (this.loadingPreview) {
+            return;
+        }
+
+        this.loadingPreview = true;
+        try {
+            const response = await fetch(`/api/admin/server-installs/scripts/${encodeURIComponent(scriptName)}/preview`);
+
+            if (!response.ok) {
+                const payload = await response.json();
+                throw new Error(payload.message || '加载脚本内容失败');
+            }
+
+            const payload = await response.json();
+            this.previewContent = payload.content || '';
+            this.previewScriptName = scriptName;
+
+            // Scroll to preview
+            setTimeout(() => {
+                const previewCard = document.querySelector('.card.mb-4');
+                if (previewCard) {
+                    previewCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 100);
+        } catch (error) {
+            console.error(error);
+            ToastUtils.show('Error', error.message || '加载脚本内容失败', 'danger');
+        } finally {
+            this.loadingPreview = false;
+        }
+    },
+
+    closePreview() {
+        this.previewContent = '';
+        this.previewScriptName = '';
+    },
+
     async runSelectedScripts() {
         if (!this.canStartExecution) {
             if (!this.selectedServerId) {
@@ -115,7 +165,7 @@ const serverInstallApp = PetiteVue.createApp({
                 const step = this.selectedSteps[nextIndex];
                 const result = await this.runStep(step.fileName);
                 if (!result.success) {
-                    ToastUtils.show('Warning', `${step.title} 执行失败，可修复后单步重试`, 'warning');
+                    ToastUtils.show('Warning', `${step.title} 执行失败,可修复后单步重试`, 'warning');
                     break;
                 }
             }
@@ -127,7 +177,7 @@ const serverInstallApp = PetiteVue.createApp({
     async executeSingleStep(fileName) {
         const index = this.selectedSteps.findIndex(step => step.fileName === fileName);
         if (index === -1 || !this.canRunSingleStep(index)) {
-            ToastUtils.show('Warning', '请按顺序执行，前一个步骤成功后才可执行下一个', 'warning');
+            ToastUtils.show('Warning', '请按顺序执行,前一个步骤成功后才可执行下一个', 'warning');
             return;
         }
 
@@ -259,6 +309,20 @@ const serverInstallApp = PetiteVue.createApp({
             && step.status === 'failed'
             && index === this.getNextExecutableIndex()
             && this.arePreviousStepsSuccessful(index);
+    },
+
+    stepItemClass(step, index) {
+        const classes = [];
+        if (step.status === 'running') {
+            classes.push('install-step-running');
+        } else if (step.status === 'success') {
+            classes.push('install-step-success');
+        } else if (step.status === 'failed') {
+            classes.push('install-step-failed');
+        } else {
+            classes.push('install-step-pending');
+        }
+        return classes.join(' ');
     },
 
     statusLabel(status) {

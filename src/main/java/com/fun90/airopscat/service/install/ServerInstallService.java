@@ -76,6 +76,10 @@ public class ServerInstallService {
         }
     }
 
+    public String getScriptContent(String scriptName) {
+        return readScriptContent(scriptName);
+    }
+
     public ServerInstallStepResultDto executeScript(Long serverId, String scriptName) {
         LocalDateTime startedAt = LocalDateTime.now();
         ServerInstallStepResultDto result = new ServerInstallStepResultDto();
