@@ -4,167 +4,186 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AirOpsCat is a Quarkus 3.24.3 application built with Java 21, providing a lightweight server management system for proxy service providers. It uses SQLite as the database, Qute for templating, and supports both standard JAR and GraalVM native compilation.
+AirOpsCat is a Quarkus 3.24.4 application built with Java 21, providing a server and proxy management system for proxy service providers. It supports account management, server management, node deployment, subscription generation, scheduled tasks, and push notifications.
+
+- **Backend**: Quarkus REST, CDI, Hibernate ORM, Panache, Scheduler
+- **Database**: MySQL via Agroal + Hibernate ORM
+- **Frontend**: Qute templates, Tabler 1.3.2, petite-vue
+- **Security**: Quarkus Security, JPA-backed users, form login, RBAC
+- **Remote operations**: JSch for SSH connectivity
+- **Protocol/Core support**: Xray, sing-box, hysteria2
+- **Packaging**: Fast JAR and GraalVM native image
 
 ## Common Development Commands
 
-### Build and Run
 ```bash
-# Build the project
+# Build
 ./mvnw clean package
 
-# Run the application  
+# Run
 java -jar target/quarkus-app/quarkus-run.jar
+java -Dquarkus.config.locations=./application.properties -jar target/quarkus-app/quarkus-run.jar
 
-# Build native executable (requires GraalVM)
-./mvnw package -Pnative -DskipTests
+# Dev mode (hot reload)
+./mvnw quarkus:dev
+./mvnw quarkus:dev -Dquarkus.http.port=8888
+./mvnw quarkus:dev -Ddebug=5005
+# App: http://localhost:8080  Dev console: http://localhost:8080/q/dev
 
-# Run tests (note: project currently has minimal test setup)
+# Tests (minimal coverage currently)
 ./mvnw test
-
-# Run single test file (pattern-based)
 ./mvnw test -Dtest=*ServiceTest
 
-# Run tests with debug output
-./mvnw test -X
-```
-
-### Development Mode
-```bash
-# Run in development mode with hot reload
-./mvnw quarkus:dev
-
-# Access development console at http://localhost:8080/q/dev
-# Includes database browser, config editor, and API testing tools
-
-# Run development mode with custom port
-./mvnw quarkus:dev -Dquarkus.http.port=8888
-
-# Run with debug mode enabled
-./mvnw quarkus:dev -Ddebug=5005
-```
-
-### Native Image Building
-```bash
-# Build native executable with optimization
+# Native build (requires GraalVM)
 ./mvnw package -Pnative -DskipTests -Dquarkus.native.additional-build-args=-J-Xmx8g
-
-# Run native executable
-./target/airopscat-2.0.4-runner
-
-# Run with external configuration
-./target/airopscat-2.0.4-runner -Dquarkus.config.locations=./application.properties
+./target/airopscat-2.2.0-runner -Dquarkus.config.locations=./application.properties
 ```
 
 ## Architecture Overview
 
-### Core Structure
-- **Main Application**: `com.fun90.airopscat.AirOpsCatApplication`
-- **Database**: SQLite with JPA/Hibernate using SQLite dialect
-- **Security**: Quarkus Security with JPA integration and form-based authentication
-- **Frontend**: Qute templates with Tabler UI, petite-vue, and Bootstrap 5
+### Package Structure
+- `controller/`: admin APIs, public APIs, login/dashboard routing
+- `service/`: business logic; key subpackages:
+  - `deployment/`: deployment orchestration and config builders
+  - `core/strategy/`: core management strategy implementations (Xray, SingBox, Hysteria2)
+  - `inbound/strategy/`: default inbound generation by core/protocol
+  - `traffic/`: traffic collectors and collector registry
+  - `expiration/`: expiration and threshold notification services
+  - `install/`: remote install script discovery and execution
+  - `ssh/`: SSH abstraction and provider implementations
+- `repository/`: Panache repositories
+- `model/`: entities (`model/entity/`), DTOs (`model/dto/`), VOs (`model/vo/`), enums (`model/enums/`)
+- `config/`: bootstrap, Jackson, crypto, data initialization, SSH autoconfiguration
+- `security/`: authentication handler, augmentor, login failure/status helpers
+- `util/`: crypto, JSON, template, config file, random, obfuscation helpers
 
-### Key Layers
-- **Controllers** (`controller/`): REST API endpoints and web controllers
-- **Services** (`service/`): Business logic layer with 18+ services
-- **Repositories** (`repository/`): Data access layer using Hibernate ORM with Panache
-- **Models** (`model/`): Entities, DTOs, VOs, and enums organized by type
-- **Configuration** (`config/`): Quarkus configuration classes including Jackson and SSH setup
-- **Security** (`security/`): Authentication and authorization configuration
-- **Utilities** (`util/`): Helper classes and common functionality
+### Key Entity Relationships
+- `Account` → `User` (many-to-one via `user_id`)
+- `Node` → `Server` (many-to-one primary + optional `backup_server_id`)
+- `Node` → `ServerHost` (many-to-one for access host via `access_host_id`)
+- `Node` → `Node` (self-referential one-to-one for outbound chaining via `out_id`)
+- `Tag` ↔ `Node`/`Account` (many-to-many via junction tables, not modeled as entities)
+- `AccountTrafficStats`/`ServerTrafficStats` track periodic bandwidth usage
+- `AccountOnlineIp` tracks concurrent sessions per account
+- Node relationships use EAGER fetch to prevent N+1 queries
 
-### Important Services
-- `AccountService`: Account management and lifecycle operations
-- `NodeService`: Proxy node management supporting VLESS, Shadowsocks, SOCKS protocols
-- `ServerService`: Server operations and SSH connectivity management
-- `SubscriptionService`: Multi-platform client subscription generation and management
-- `NodeDeploymentService`: Automated deployment of proxy configurations to servers
-- `ScheduledTaskService`: Background task management for traffic stats and cleanup
-- `BarkService`: Push notification service integration
-- `SshConnectionService`: SSH operations using JSch library
+### Strategy Pattern (Core of the Service Layer)
+Three registries map `CoreType` enum values to implementations:
 
-### Database Configuration
-- Uses SQLite with custom Hibernate dialect: `org.hibernate.community.dialect.SQLiteDialect`
-- Database file: `admin.db` (configurable in application.properties)
-- Auto-schema updates enabled with `quarkus.hibernate-orm.database.generation=update`
+1. **`CoreManagementStrategyRegistry`**: Lifecycle operations (start/stop/restart/install/uninstall/config) — each strategy receives an `SshConnection` for remote execution
+2. **`CoreConfigBuilderRegistry`**: Assembles deployment config JSON per core type; JSON templates in `src/main/resources/config/core/`
+3. **`TrafficStatsCollectorRegistry`**: Protocol-specific traffic stats; `AbstractV2RayApiTrafficStatsCollector` provides shared V2Ray API logic
 
-### Security Features
-- BCrypt password encryption
-- Session management (30-minute timeout)
-- Form-based authentication with Quarkus Security
-- Role-based access control (ADMIN, PARTNER, VIP)
-- Sensitive data encryption using configurable secret key
+Xray inbound/outbound conversion also uses a strategy pattern in `service/xray/strategy/`.
 
-## Development Notes
+### Subscription Generation Flow
+`SubscriptionController` → validates `authCode` → retrieves account-linked nodes via `TagService.getAvailableNodesByAccount()` (filters: deployed=1, disabled=0, type=PROXY) → optional `NodeObfuscator` duplicates nodes by configurable multiple → `TemplateUtil.processStringTemplate()` renders config from templates in `src/main/resources/config/subscription/` (Clash, Loon, SingBox, Shadowrocket).
 
-### Technology Stack
-- **Backend**: Quarkus 3.24.3, Java 21, Quarkus Security
-- **Database**: SQLite + JPA/Hibernate
-- **Frontend**: Qute, Tabler UI 1.3.2, petite-vue 0.4.1
-- **Build**: Maven with GraalVM Native Image support
-- **SSH Client**: JSch (compatible with Native Image)
+### Key Services
+- `AccountService`: account lifecycle, renewal, auth code management
+- `NodeService`: node CRUD, port checks, deployment entrypoints, core switching
+- `ServerService`: server CRUD, connection testing, renewal, traffic calibration
+- `SubscriptionService`: subscription URL generation and client-specific config rendering
+- `NodeDeploymentService`: deployment preparation and execution (async via `CompletableFuture`)
+- `CoreManagementService`: delegates start/stop/restart/status by core type
+- `ServerInstallService`: one-click install script loading and remote execution
+- `ScheduledTaskService`: background jobs for expiration, traffic, notifications
+- `DatabaseBackupService`: MySQL backup, cleanup, upload, restore, download
+- `AccountTrafficStatsService` / `ServerTrafficStatsService`: traffic data handling
+- `BarkService`: Bark push notification integration
+- `UpdateNotificationService`: GitHub release based update notification
+- `LoginLockService`: login failure tracking and lock support
+
+## Database and Configuration
+
+### Database
+- `quarkus.datasource.db-kind=mysql`
+- JDBC URL built from env vars: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`
+- Hibernate dialect: `org.hibernate.dialect.MySQLDialect`
+- Schema management: `update`; naming strategy: `CamelCaseToUnderscoresNamingStrategy`
 
 ### Configuration
-- Main config: `src/main/resources/application.properties`
-- Custom properties under `airopscat.*` namespace
-- External configuration support for production deployments
-- Environment variable support for sensitive values
-- Logging configured for file rotation (10MB max, 30 days retention)
+- Primary: `src/main/resources/application.properties`; dev overrides in `application-dev.properties`
+- Custom namespace `airopscat.*` — key properties:
+  - `subscription.url`, `crypto.secret-key`, `bark.url`, `bark.device-key`
+  - `sing-box.grpc.local-port`, `online.check-minutes`
+  - `install.remote-work-dir`, `install.scripts.dir`
+  - `backup.dir`, `backup.cron`, `backup.cleanup.cron`, `backup.retention-days`, `backup.mysqldump-path`
+  - `domain`, `api.token`, `docs.url`
+- `RawJsonDeserializer` preserves raw JSON for inbound/rule/config fields in Xray DTOs
 
-### Native Compilation
-- Supports GraalVM Native Image with specific build arguments
-- Profile: `native` for native compilation
-- Compatible with cross-platform builds (Linux, macOS, Windows)
-- Optimized for fast startup (< 0.2s) and low memory usage
+## Security
 
-### Build Packaging
-- Standard build creates executable JAR
-- Native build creates single executable file
-- Assembly plugin packages distribution
-- Separate systemd service setup script available
+- Form-based authentication, session timeout 30 minutes
+- Roles: `ADMIN`, `PARTNER`, `VIP` with path-based policies
+- Public routes: `/login`, `/subscribe/*`, `/api/open/*`, static assets, health endpoints
+- Additional role-scoped endpoints: `/api/partner/*`, `/api/vip/*`
+- `CryptoConverter` JPA converter encrypts sensitive fields (SSH credentials) via AES
+- `DataInitializationConfig` creates default users on first startup
 
-### Key Dependencies
-- Quarkus JSch extension for SSH connectivity
-- Lombok for code generation and boilerplate reduction
-- Jackson for JSON processing with custom deserializers for Xray configurations
-- Hibernate ORM with Panache for simplified data access
-- SQLite JDBC driver with Hibernate Community Dialects
-- Quarkus Security JPA for authentication and authorization
+## Frontend
 
-## Code Patterns
+- Qute templates: `src/main/resources/templates/` organized by domain (`vpn/`, `device/`, `person/`, `money/`, `system/`)
+- Each domain typically has: `content.html`, `table.html`, `filters.html`, `modals.html`, `stats.html`
+- Static assets: `src/main/resources/META-INF/resources/static/`
+  - JS modules in `static/js/` with shared utilities in `common/` (DataTable.js, toast-utils, responsive-filters)
+  - Tabler assets vendored under `static/tabler/`
+  - petite-vue loaded from `static/js/petite-vue.umd.js`
 
-### Entity Management
-- JPA entities in `model/entity/`
-- DTOs for data transfer in `model/dto/`
-- View objects in `model/vo/`
-- Enums in `model/enums/`
+## API Routes
 
-### Service Layer
-- Business logic encapsulation with clear separation of concerns
-- Transaction management using Quarkus CDI and JTA
-- SSH operations abstracted through dedicated service classes
-- Strategy pattern for core management and protocol conversion
-- Core management strategies in `service/core/strategy/`
-- Xray configuration conversion strategies in `service/xray/strategy/`
+### Admin APIs (`/api/admin/`)
+`users`, `accounts`, `servers`, `server-configs`, `nodes`, `route-rules`, `tags`, `domains`, `transactions`, `traffic-stats`, `backups`, `server-installs`, `bark`
 
-### Security Integration
-- Role-based access control with Quarkus Security
-- Form-based authentication configuration
-- Encryption utilities for sensitive data
-- Custom security policies defined in application.properties
+### Public / Shared
+`/api/user`, `/api/logout`, `/login`, `/subscribe/*`, `/api/open/*`
 
-### API Structure
-- RESTful endpoints under `/api/` prefix
-- Admin operations under `/api/admin/`
-- Subscription endpoints for client configuration generation
-- Bark notification endpoints for push notifications
-- Form-based authentication with session management
-- CORS configuration for cross-origin requests
+## Config Templates and Resources
 
-### Xray Configuration Management
-- Complex Xray configuration DTOs in `model/dto/xray/`
-- Custom Jackson deserializers for inbound/outbound configurations
-- Strategy pattern for protocol-specific conversion logic
-- Support for VLESS, Shadowsocks, SOCKS protocols with various transport layers
+- Core config templates: `src/main/resources/config/core/`
+  - Xray inbounds: `vless`, `vless-reality`, `shadowsocks`, `socks`
+  - sing-box inbounds: `vless`, `vless-reality`, `hysteria2`, `shadowtls`, `shadowsocks`, `socks`
+- Subscription templates: `src/main/resources/config/subscription/`
+- Install scripts: `src/main/resources/config/install/`
+- Packaging assets: `src/main/assembly/`
 
-This project follows Quarkus conventions and uses SQLite for simplicity while maintaining enterprise-grade security and functionality. The architecture emphasizes modularity through strategy patterns and clear separation between configuration management, service logic, and data persistence.
+## Scheduled and Background Work
+
+Be careful when modifying these — behavior is split between request handling and background jobs:
+`ScheduledTaskService`, `DatabaseBackupService`, `AccountOnlineIpService`, `ServerTrafficStatsService`, `AccountTrafficStatsService`, `service/expiration/*`
+
+## Critical Code Patterns
+
+### JsonReflectionConfiguration (Native Image)
+When adding or modifying a class, you **MUST** register it in `JsonReflectionConfiguration` if it matches any of:
+- Used as a Qute template parameter
+- Used as a controller request/response type
+- Serialized to JSON through `com.fun90.airopscat.util.JsonUtil`
+
+Always check this before marking a task complete.
+
+### Adding a Console Module
+Read `docs/how-to-add-console-module.md` first — it defines module registration, template layout, and JS path conventions.
+
+## Encoding Requirements
+
+- All files must be UTF-8; respect `.editorconfig` for charset and line endings
+- Do not introduce GBK, ANSI, or other Windows encodings
+- If a file appears garbled or uses a legacy encoding, stop and call it out before editing
+
+## CI/CD
+
+GitHub Actions (`.github/workflows/release.yml`) triggers on `v*.*.*` tags, builds Linux native binary via GraalVM 21, packages as tar.gz, and creates a GitHub release.
+
+## Useful Paths
+
+- `pom.xml`
+- `src/main/resources/application.properties`
+- `src/main/java/com/fun90/airopscat/AirOpsCatApplication.java`
+- `src/main/java/com/fun90/airopscat/controller/HomeController.java`
+- `src/main/java/com/fun90/airopscat/config/DataInitializationConfig.java`
+- `src/main/java/com/fun90/airopscat/service/ScheduledTaskService.java`
+- `src/main/java/com/fun90/airopscat/service/DatabaseBackupService.java`
+- `src/main/java/com/fun90/airopscat/service/deployment/NodeDeploymentService.java`
+- `src/main/java/com/fun90/airopscat/service/install/ServerInstallService.java`
+- `docs/how-to-add-console-module.md`
