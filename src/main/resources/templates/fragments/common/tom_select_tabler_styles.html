@@ -1,0 +1,159 @@
+<!-- Tom Select Tabler UI 适配样式 -->
+<style>
+    /* 隐藏被 Tom Select 初始化的原始 select 元素 */
+    select.tomselected,
+    select.form-select.tomselected,
+    .ts-wrapper + select,
+    select + .ts-wrapper ~ select {
+        display: none !important;
+        visibility: hidden !important;
+        position: absolute !important;
+        left: -9999px !important;
+    }
+
+    .ts-wrapper select {
+        display: none !important;
+    }
+
+    /* Tom Select 控件基础样式 */
+    .ts-wrapper.form-select {
+        padding: 0;
+    }
+
+    .ts-wrapper .ts-control {
+        min-height: calc(1.5em + 0.75rem + 2px);
+        padding: 0.25rem 0.75rem;
+        background-color: var(--tblr-bg-forms);
+        border: 1px solid var(--tblr-border-color);
+        border-radius: var(--tblr-border-radius);
+        color: var(--tblr-body-color);
+        font-size: 0.875rem;
+        line-height: 1.4285714286;
+    }
+
+    .ts-wrapper.multi .ts-control {
+        padding: 0.25rem 0.5rem;
+    }
+
+    .ts-wrapper .ts-control:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        outline: 0;
+    }
+
+    /* 已选项标签样式 */
+    .ts-wrapper .ts-control .item {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.5rem;
+        margin: 0.125rem 0.25rem 0.125rem 0;
+        background-color: #206bc4;
+        color: #fff;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        line-height: 1;
+    }
+
+    /* 移除按钮样式 */
+    .ts-wrapper .ts-control .item .remove {
+        margin-left: 0.25rem;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .ts-wrapper .ts-control .item .remove:hover {
+        color: #fff;
+    }
+
+    /* 输入框样式 */
+    .ts-wrapper .ts-control input {
+        color: var(--tblr-body-color);
+        font-size: 0.875rem;
+    }
+
+    /* 有选中项时隐藏 placeholder */
+    .ts-wrapper.multi.has-items .ts-control input::placeholder {
+        opacity: 0;
+    }
+
+    /* 下拉菜单样式 */
+    .ts-dropdown {
+        border: 1px solid var(--tblr-border-color);
+        border-radius: var(--tblr-border-radius);
+        background-color: var(--tblr-bg-surface);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        margin-top: 0.25rem;
+    }
+
+    .ts-dropdown .option {
+        padding: 0.5rem 0.75rem;
+        color: var(--tblr-body-color);
+        font-size: 0.875rem;
+        cursor: pointer;
+    }
+
+    .ts-dropdown .option:hover,
+    .ts-dropdown .option.active {
+        background-color: rgba(32, 107, 196, 0.06);
+        color: var(--tblr-body-color);
+    }
+
+    .ts-dropdown .option.selected {
+        background-color: rgba(32, 107, 196, 0.1);
+    }
+
+    /* 无结果提示 */
+    .ts-dropdown .no-results {
+        padding: 0.5rem 0.75rem;
+        color: var(--tblr-muted);
+        font-size: 0.875rem;
+        font-style: italic;
+    }
+
+    /* 加载状态 */
+    .ts-wrapper.loading .ts-control::after {
+        border-color: #206bc4 transparent transparent transparent;
+    }
+
+    /* 禁用状态 */
+    .ts-wrapper.disabled .ts-control {
+        background-color: var(--tblr-bg-forms-disabled);
+        opacity: 0.65;
+        cursor: not-allowed;
+    }
+
+    /* 暗色主题适配 */
+    [data-bs-theme="dark"] .ts-wrapper .ts-control {
+        background-color: var(--tblr-bg-forms);
+        border-color: var(--tblr-border-color);
+        color: var(--tblr-body-color);
+    }
+
+    [data-bs-theme="dark"] .ts-wrapper .ts-control .item {
+        background-color: rgba(32, 107, 196, 0.8);
+        color: rgba(255, 255, 255, 0.85);
+    }
+
+    [data-bs-theme="dark"] .ts-wrapper .ts-control .item .remove {
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    [data-bs-theme="dark"] .ts-wrapper .ts-control .item .remove:hover {
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    [data-bs-theme="dark"] .ts-dropdown {
+        background-color: var(--tblr-bg-surface);
+        border-color: var(--tblr-border-color);
+    }
+
+    [data-bs-theme="dark"] .ts-dropdown .option:hover,
+    [data-bs-theme="dark"] .ts-dropdown .option.active {
+        background-color: rgba(32, 107, 196, 0.15);
+    }
+</style>

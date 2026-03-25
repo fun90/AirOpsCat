@@ -1,4 +1,3 @@
-{#include fragments/common/search_dropdown_styles /}
 
 <div class="modal modal-blur fade" id="traffic-stats-createModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-dialog-centered" role="document">
@@ -10,7 +9,7 @@
             <div class="modal-body">
                 <div class="mb-3">
                     <label class="form-label required">账户</label>
-                    {#include fragments/common/search_dropdown_component componentVar='trafficStatsCreateAccountSearch' cssClass='' /}
+                    <select id="account-search-create" class="form-select" :class="{ 'is-invalid': validationErrors.accountId }"></select>
                     <div class="invalid-feedback d-block" v-if="validationErrors.accountId">{{ validationErrors.accountId }}</div>
                 </div>
                 <div class="mb-3">
@@ -52,7 +51,7 @@
             <div class="modal-body">
                 <div class="mb-3">
                     <label class="form-label required">账户</label>
-                    {#include fragments/common/search_dropdown_component componentVar='trafficStatsEditAccountSearch' cssClass='' /}
+                    <select id="account-search-edit" class="form-select" :class="{ 'is-invalid': validationErrors.accountId }"></select>
                     <div class="invalid-feedback d-block" v-if="validationErrors.accountId">{{ validationErrors.accountId }}</div>
                 </div>
                 <div class="mb-3">

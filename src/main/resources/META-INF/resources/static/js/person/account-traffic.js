@@ -1,5 +1,4 @@
 import { DataTable } from '/static/js/common/data-table.js';
-import { createSearchDropdown } from '/static/js/common/search-dropdown.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
 
 const DEFAULT_SORT_BY = 'totalBytes';
@@ -8,27 +7,6 @@ const getTodayDate = () => new Date().toISOString().slice(0, 10);
 const createDefaultTrafficFilters = () => ({
     startDate: getTodayDate(),
     endDate: ''
-});
-
-const buildAccountSearchDropdown = (onSelect, onClear) => createSearchDropdown({
-    apiUrl: '/api/admin/accounts',
-    placeholder: '搜索账户备注或账号...',
-    formatItem: (item) => ({
-        id: item.id,
-        name: `${item.remark || '未命名账户'}${item.accountNo ? ` (${item.accountNo})` : ''}`,
-        data: item
-    }),
-    onSelect: (item) => {
-        if (!item || !item.data) {
-            return;
-        }
-        onSelect(item.data);
-    },
-    onChange: (text, item) => {
-        if (!item) {
-            onClear();
-        }
-    }
 });
 
 const trafficStatsTable = new DataTable({
@@ -59,31 +37,96 @@ const trafficStatsTable = new DataTable({
         },
 
         initializeSearchComponents() {
-            this.createAccountSearch = buildAccountSearchDropdown(
-                (account) => {
-                    this.newItem.accountId = account.id;
-                    this.newItem.userId = account.userId || '';
-                },
-                () => {
-                    this.newItem.accountId = '';
-                    this.newItem.userId = '';
-                }
-            );
-
-            this.editAccountSearch = buildAccountSearchDropdown(
-                (account) => {
-                    this.editedItem.accountId = account.id;
-                    this.editedItem.userId = account.userId || '';
-                },
-                () => {
-                    this.editedItem.accountId = '';
-                    this.editedItem.userId = '';
-                }
-            );
-
             setTimeout(() => {
-                this.createAccountSearch?.bindToDOM('trafficStatsCreateAccountSearch');
-                this.editAccountSearch?.bindToDOM('trafficStatsEditAccountSearch');
+                const createSelectElement = document.getElementById('account-search-create');
+                if (createSelectElement) {
+                    this.createAccountSearch = new TomSelect(createSelectElement, {
+                        valueField: 'id',
+                        labelField: 'displayName',
+                        searchField: ['remark', 'accountNo'],
+                        placeholder: '搜索账户备注或账号...',
+                        render: {
+                            option: (data, escape) => {
+                                return `<div>${escape(data.remark || '未命名账户')}${data.accountNo ? ` (${escape(data.accountNo)})` : ''}</div>`;
+                            },
+                            item: (data, escape) => {
+                                return `<div>${escape(data.remark || '未命名账户')}${data.accountNo ? ` (${escape(data.accountNo)})` : ''}</div>`;
+                            }
+                        },
+                        load: (query, callback) => {
+                            if (!query.length || query.length < 2) {
+                                callback();
+                                return;
+                            }
+                            fetch(`/api/admin/accounts?search=${encodeURIComponent(query)}&size=20`)
+                                .then(response => response.json())
+                                .then(data => {
+                                    const accounts = (data.records || data).map(item => ({
+                                        ...item,
+                                        displayName: `${item.remark || '未命名账户'}${item.accountNo ? ` (${item.accountNo})` : ''}`
+                                    }));
+                                    callback(accounts);
+                                })
+                                .catch(() => callback());
+                        },
+                        onChange: (value) => {
+                            if (value) {
+                                const option = this.createAccountSearch.options[value];
+                                this.newItem.accountId = value;
+                                this.newItem.userId = option?.userId || '';
+                            } else {
+                                this.newItem.accountId = '';
+                                this.newItem.userId = '';
+                            }
+                        }
+                    });
+                    createSelectElement.style.display = 'none';
+                }
+
+                const editSelectElement = document.getElementById('account-search-edit');
+                if (editSelectElement) {
+                    this.editAccountSearch = new TomSelect(editSelectElement, {
+                        valueField: 'id',
+                        labelField: 'displayName',
+                        searchField: ['remark', 'accountNo'],
+                        placeholder: '搜索账户备注或账号...',
+                        render: {
+                            option: (data, escape) => {
+                                return `<div>${escape(data.remark || '未命名账户')}${data.accountNo ? ` (${escape(data.accountNo)})` : ''}</div>`;
+                            },
+                            item: (data, escape) => {
+                                return `<div>${escape(data.remark || '未命名账户')}${data.accountNo ? ` (${escape(data.accountNo)})` : ''}</div>`;
+                            }
+                        },
+                        load: (query, callback) => {
+                            if (!query.length || query.length < 2) {
+                                callback();
+                                return;
+                            }
+                            fetch(`/api/admin/accounts?search=${encodeURIComponent(query)}&size=20`)
+                                .then(response => response.json())
+                                .then(data => {
+                                    const accounts = (data.records || data).map(item => ({
+                                        ...item,
+                                        displayName: `${item.remark || '未命名账户'}${item.accountNo ? ` (${item.accountNo})` : ''}`
+                                    }));
+                                    callback(accounts);
+                                })
+                                .catch(() => callback());
+                        },
+                        onChange: (value) => {
+                            if (value) {
+                                const option = this.editAccountSearch.options[value];
+                                this.editedItem.accountId = value;
+                                this.editedItem.userId = option?.userId || '';
+                            } else {
+                                this.editedItem.accountId = '';
+                                this.editedItem.userId = '';
+                            }
+                        }
+                    });
+                    editSelectElement.style.display = 'none';
+                }
             }, 100);
         },
 
@@ -265,18 +308,13 @@ const trafficStatsTable = new DataTable({
             };
 
             if (this.editAccountSearch) {
-                this.editAccountSearch.setValue(
-                    `${record.nickname || '未命名账户'}${record.accountId ? ` (#${record.accountId})` : ''}`,
-                    {
-                        id: record.accountId,
-                        name: record.nickname || '未命名账户',
-                        data: {
-                            id: record.accountId,
-                            userId: record.userId,
-                            remark: record.nickname
-                        }
-                    }
-                );
+                this.editAccountSearch.clearOptions();
+                this.editAccountSearch.addOption({
+                    id: record.accountId,
+                    remark: record.nickname || '未命名账户',
+                    userId: record.userId
+                });
+                this.editAccountSearch.setValue(record.accountId, true);
             }
 
             return editedItem;

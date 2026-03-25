@@ -58,8 +58,7 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label">关联业务</label>
-                            <!-- 使用新的搜索下拉框组件 -->
-                            {#include fragments/common/search_dropdown_component componentVar='businessSearch' cssClass='' /}
+                            <select id="business-search" class="form-select"></select>
                             <div class="invalid-feedback" v-if="validationErrors.businessId" style="display: block;">{{ validationErrors.businessId }}</div>
                         </div>
                     </div>
@@ -142,8 +141,7 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label">关联业务</label>
-                            <!-- 使用新的搜索下拉框组件 -->
-                            {#include fragments/common/search_dropdown_component componentVar='editBusinessSearch' cssClass='' /}
+                            <select id="edit-business-search" class="form-select"></select>
                             <div class="invalid-feedback" v-if="validationErrors.editBusinessId" style="display: block;">{{ validationErrors.editBusinessId }}</div>
                         </div>
                     </div>

@@ -1,5 +1,4 @@
 import { DataTable } from '/static/js/common/data-table.js';
-import { createSearchDropdown, SearchDropdownPresets } from '/static/js/common/search-dropdown.js';
 import { formatDateTimeForLocal, formatRelativeTime, formatDateTimeFull } from '/static/js/common/common.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
@@ -108,50 +107,58 @@ const accountTable = new DataTable({
 
         // Initialize search dropdown components
         initializeSearchComponents() {
-            // 创建用户搜索组件（新建时使用）
-            this.userSearch = createSearchDropdown({
-                placeholder: '请搜索用户...',
-                apiUrl: '/api/admin/users',
-                formatItem: (item) => ({
-                    id: item.id,
-                    name: item.nickName,
-                    data: item
-                }),
-                displayField: (user) => user.nickName,
-                onSelect: (item) => {
-                    this.newItem.userId = item.id;
-                },
-                onChange: (text, item) => {
-                    if (!item) {
-                        this.newItem.userId = '';
-                    }
-                }
-            });
-
-            // 创建编辑用户搜索组件（编辑时使用）
-            this.editUserSearch = createSearchDropdown({
-                placeholder: '请搜索用户...',
-                apiUrl: '/api/admin/users',
-                formatItem: (item) => ({
-                    id: item.id,
-                    name: item.nickName,
-                    data: item
-                }),
-                displayField: (user) => user.nickName,
-                onSelect: (item) => {
-                    this.editedItem.userId = item.id;
-                },
-                onChange: (text, item) => {
-                    if (!item) {
-                        this.editedItem.userId = '';
-                    }
-                }
-            });
-
-            // 延迟绑定DOM，确保模板已渲染
             setTimeout(() => {
-                this.userSearch.bindToDOM('userSearch');
-                this.editUserSearch.bindToDOM('editUserSearch');
+                const userSelectElement = document.getElementById('user-search');
+                if (userSelectElement) {
+                    this.userSearch = new TomSelect(userSelectElement, {
+                        valueField: 'id',
+                        labelField: 'nickName',
+                        searchField: ['nickName', 'email'],
+                        placeholder: '请搜索用户...',
+                        load: (query, callback) => {
+                            if (!query.length || query.length < 2) {
+                                callback();
+                                return;
+                            }
+                            fetch(`/api/admin/users?search=${encodeURIComponent(query)}&size=20`)
+                                .then(response => response.json())
+                                .then(data => {
+                                    callback(data.records || data);
+                                })
+                                .catch(() => callback());
+                        },
+                        onChange: (value) => {
+                            this.newItem.userId = value || '';
+                        }
+                    });
+                    userSelectElement.style.display = 'none';
+                }
+
+                const editUserSelectElement = document.getElementById('edit-user-search');
+                if (editUserSelectElement) {
+                    this.editUserSearch = new TomSelect(editUserSelectElement, {
+                        valueField: 'id',
+                        labelField: 'nickName',
+                        searchField: ['nickName', 'email'],
+                        placeholder: '请搜索用户...',
+                        load: (query, callback) => {
+                            if (!query.length || query.length < 2) {
+                                callback();
+                                return;
+                            }
+                            fetch(`/api/admin/users?search=${encodeURIComponent(query)}&size=20`)
+                                .then(response => response.json())
+                                .then(data => {
+                                    callback(data.records || data);
+                                })
+                                .catch(() => callback());
+                        },
+                        onChange: (value) => {
+                            this.editedItem.userId = value || '';
+                        }
+                    });
+                    editUserSelectElement.style.display = 'none';
+                }
             }, 100);
         },
 
@@ -738,8 +745,9 @@ const accountTable = new DataTable({
 
             // Handle user search component for edit
             if (this.editUserSearch && account.userId) {
-                // 查找用户信息
-                this.editUserSearch.setValue(account.nickName, {id: account.userId, name: account.nickName});
+                this.editUserSearch.clearOptions();
+                this.editUserSearch.addOption({id: account.userId, nickName: account.nickName});
+                this.editUserSearch.setValue(account.userId, true);
             }
 
             return {

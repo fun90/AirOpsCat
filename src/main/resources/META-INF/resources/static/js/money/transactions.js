@@ -1,6 +1,5 @@
 
 import { DataTable } from '/static/js/common/data-table.js';
-import { createSearchDropdown, SearchDropdownPresets } from '/static/js/common/search-dropdown.js';
 import { formatDateTimeForLocal } from '/static/js/common/common.js';
 import ApexCharts from '/static/js/apexcharts.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
@@ -88,40 +87,42 @@ const transactionTable = new DataTable({
 
         // Initialize search dropdown components
         initializeSearchComponents() {
-            // 创建业务搜索组件（新建时使用）
-            this.businessSearch = createSearchDropdown({
-                placeholder: '请先选择业务类型',
-                onSelect: (item) => {
-                    this.newItem.businessId = item.id;
-                    this.newItem.remark = item.data.remark;
-                },
-                onChange: (text, item) => {
-                    if (!item) {
-                        this.newItem.businessId = '';
-                        this.newItem.remark = '';
-                    }
-                }
-            });
-
-            // 创建编辑业务搜索组件（编辑时使用）
-            this.editBusinessSearch = createSearchDropdown({
-                placeholder: '请先选择业务类型',
-                onSelect: (item) => {
-                    this.editedItem.businessId = item.id;
-                    this.editedItem.remark = item.data.remark;
-                },
-                onChange: (text, item) => {
-                    if (!item) {
-                        this.editedItem.businessId = '';
-                        this.editedItem.remark = '';
-                    }
-                }
-            });
-
-            // 延迟绑定DOM，确保模板已渲染
             setTimeout(() => {
-                this.businessSearch.bindToDOM('businessSearch');
-                this.editBusinessSearch.bindToDOM('editBusinessSearch');
+                const createSelectElement = document.getElementById('business-search');
+                if (createSelectElement) {
+                    this.businessSearch = new TomSelect(createSelectElement, {
+                        placeholder: '请先选择业务类型',
+                        onChange: (value) => {
+                            if (value) {
+                                const option = this.businessSearch.options[value];
+                                this.newItem.businessId = value;
+                                this.newItem.remark = option?.remark || option?.name || '';
+                            } else {
+                                this.newItem.businessId = '';
+                                this.newItem.remark = '';
+                            }
+                        }
+                    });
+                    this.businessSearch.disable();
+                }
+
+                const editSelectElement = document.getElementById('edit-business-search');
+                if (editSelectElement) {
+                    this.editBusinessSearch = new TomSelect(editSelectElement, {
+                        placeholder: '请先选择业务类型',
+                        onChange: (value) => {
+                            if (value) {
+                                const option = this.editBusinessSearch.options[value];
+                                this.editedItem.businessId = value;
+                                this.editedItem.remark = option?.remark || option?.name || '';
+                            } else {
+                                this.editedItem.businessId = '';
+                                this.editedItem.remark = '';
+                            }
+                        }
+                    });
+                    this.editBusinessSearch.disable();
+                }
             }, 100);
         },
 
@@ -342,58 +343,146 @@ const transactionTable = new DataTable({
             });
         },
 
+        // Get Tom Select configuration for business type
+        getBusinessSearchConfig(businessTable) {
+            switch (businessTable) {
+                case 'account':
+                    return {
+                        valueField: 'id',
+                        labelField: 'remark',
+                        searchField: ['remark', 'accountNo'],
+                        placeholder: '搜索账户备注或账号...',
+                        disabledField: null,
+                        load: (query, callback) => {
+                            if (!query.length || query.length < 2) {
+                                callback();
+                                return;
+                            }
+                            fetch(`/api/admin/accounts?search=${encodeURIComponent(query)}&size=20`)
+                                .then(response => response.json())
+                                .then(data => callback(data.records || data))
+                                .catch(() => callback());
+                        }
+                    };
+                case 'domain':
+                    return {
+                        valueField: 'id',
+                        labelField: 'domain',
+                        searchField: ['domain'],
+                        placeholder: '搜索域名...',
+                        disabledField: null,
+                        load: (query, callback) => {
+                            if (!query.length || query.length < 2) {
+                                callback();
+                                return;
+                            }
+                            fetch(`/api/admin/domains?search=${encodeURIComponent(query)}&size=20`)
+                                .then(response => response.json())
+                                .then(data => callback(data.records || data))
+                                .catch(() => callback());
+                        }
+                    };
+                case 'server':
+                    return {
+                        valueField: 'id',
+                        labelField: 'name',
+                        searchField: ['name', 'ip'],
+                        placeholder: '搜索服务器名称或IP...',
+                        disabledField: null,
+                        load: (query, callback) => {
+                            if (!query.length || query.length < 2) {
+                                callback();
+                                return;
+                            }
+                            fetch(`/api/admin/servers?search=${encodeURIComponent(query)}&size=20`)
+                                .then(response => response.json())
+                                .then(data => callback(data.records || data))
+                                .catch(() => callback());
+                        }
+                    };
+                default:
+                    return null;
+            }
+        },
+
         // Handle business table change event
         onBusinessTableChange() {
             this.newItem.businessId = '';
-            this.businessSearch.clear();
-            
-            if (this.newItem.businessTable) {
-                // 根据业务类型配置搜索组件
-                const preset = this.getBusinessSearchPreset(this.newItem.businessTable);
-                if (preset) {
-                    // 重新配置搜索组件
-                    Object.assign(this.businessSearch.options, preset);
-                    this.businessSearch.updateUI();
-                }
-            } else {
-                this.businessSearch.options.placeholder = '请先选择业务类型';
-                this.businessSearch.options.apiUrl = '';
-                this.businessSearch.updateUI();
+
+            if (this.businessSearch) {
+                this.businessSearch.destroy();
             }
+
+            setTimeout(() => {
+                const createSelectElement = document.getElementById('business-search');
+                if (!createSelectElement) return;
+
+                createSelectElement.disabled = false;
+
+                if (this.newItem.businessTable) {
+                    const config = this.getBusinessSearchConfig(this.newItem.businessTable);
+                    if (config) {
+                        this.businessSearch = new TomSelect(createSelectElement, {
+                            ...config,
+                            onChange: (value) => {
+                                if (value) {
+                                    const option = this.businessSearch.options[value];
+                                    this.newItem.businessId = value;
+                                    this.newItem.remark = option?.remark || option?.name || '';
+                                } else {
+                                    this.newItem.businessId = '';
+                                    this.newItem.remark = '';
+                                }
+                            }
+                        });
+                    }
+                } else {
+                    this.businessSearch = new TomSelect(createSelectElement, {
+                        placeholder: '请先选择业务类型'
+                    });
+                    this.businessSearch.disable();
+                }
+            }, 50);
         },
 
         // Handle edit business table change event
         onEditBusinessTableChange() {
             this.editedItem.businessId = '';
-            this.editBusinessSearch.clear();
-            
-            if (this.editedItem.businessTable) {
-                // 根据业务类型配置搜索组件
-                const preset = this.getBusinessSearchPreset(this.editedItem.businessTable);
-                if (preset) {
-                    // 重新配置搜索组件
-                    Object.assign(this.editBusinessSearch.options, preset);
-                    this.editBusinessSearch.updateUI();
-                }
-            } else {
-                this.editBusinessSearch.options.placeholder = '请先选择业务类型';
-                this.editBusinessSearch.options.apiUrl = '';
-                this.editBusinessSearch.updateUI();
-            }
-        },
 
-        // Get business search preset configuration
-        getBusinessSearchPreset(businessTable) {
-            switch (businessTable) {
-                case 'account':
-                    return SearchDropdownPresets.account();
-                case 'domain':
-                    return SearchDropdownPresets.domain();
-                case 'server':
-                    return SearchDropdownPresets.server();
-                default:
-                    return null;
+            if (this.editBusinessSearch) {
+                this.editBusinessSearch.destroy();
             }
+
+            setTimeout(() => {
+                const editSelectElement = document.getElementById('edit-business-search');
+                if (!editSelectElement) return;
+
+                editSelectElement.disabled = false;
+
+                if (this.editedItem.businessTable) {
+                    const config = this.getBusinessSearchConfig(this.editedItem.businessTable);
+                    if (config) {
+                        this.editBusinessSearch = new TomSelect(editSelectElement, {
+                            ...config,
+                            onChange: (value) => {
+                                if (value) {
+                                    const option = this.editBusinessSearch.options[value];
+                                    this.editedItem.businessId = value;
+                                    this.editedItem.remark = option?.remark || option?.name || '';
+                                } else {
+                                    this.editedItem.businessId = '';
+                                    this.editedItem.remark = '';
+                                }
+                            }
+                        });
+                    }
+                } else {
+                    this.editBusinessSearch = new TomSelect(editSelectElement, {
+                        placeholder: '请先选择业务类型'
+                    });
+                    this.editBusinessSearch.disable();
+                }
+            }, 50);
         },
 
 
@@ -505,10 +594,24 @@ const transactionTable = new DataTable({
 
             // Reset search components
             if (this.businessSearch) {
-                this.businessSearch.clear();
-                this.businessSearch.options.placeholder = '请先选择业务类型';
-                this.businessSearch.options.apiUrl = '';
-                this.businessSearch.updateUI();
+                this.businessSearch.destroy();
+                const createSelectElement = document.getElementById('business-search');
+                if (createSelectElement) {
+                    this.businessSearch = new TomSelect(createSelectElement, {
+                        placeholder: '请先选择业务类型',
+                        onChange: (value) => {
+                            if (value) {
+                                const option = this.businessSearch.options[value];
+                                this.newItem.businessId = value;
+                                this.newItem.remark = option?.remark || option?.name || '';
+                            } else {
+                                this.newItem.businessId = '';
+                                this.newItem.remark = '';
+                            }
+                        }
+                    });
+                    this.businessSearch.disable();
+                }
             }
         },
 
@@ -535,23 +638,51 @@ const transactionTable = new DataTable({
 
             // Handle business search component for edit
             if (this.editBusinessSearch) {
+                this.editBusinessSearch.destroy();
+            }
+
+            const editSelectElement = document.getElementById('edit-business-search');
+            if (editSelectElement) {
                 if (transaction.businessTable && transaction.businessId) {
-                    // 配置编辑搜索组件
-                    const preset = this.getBusinessSearchPreset(transaction.businessTable);
-                    if (preset) {
-                        Object.assign(this.editBusinessSearch.options, preset);
-                        
-                        // 设置已选中的业务信息
-                        this.editBusinessSearch.setValue(transaction.businessName || '', {
-                            id: transaction.businessId,
-                            name: transaction.businessName || ''
+                    const config = this.getBusinessSearchConfig(transaction.businessTable);
+                    if (config) {
+                        this.editBusinessSearch = new TomSelect(editSelectElement, {
+                            ...config,
+                            onChange: (value) => {
+                                if (value) {
+                                    const option = this.editBusinessSearch.options[value];
+                                    this.editedItem.businessId = value;
+                                    this.editedItem.remark = option?.remark || option?.name || '';
+                                } else {
+                                    this.editedItem.businessId = '';
+                                    this.editedItem.remark = '';
+                                }
+                            }
                         });
+
+                        // Add current business as an option
+                        this.editBusinessSearch.addOption({
+                            id: transaction.businessId,
+                            name: transaction.businessName || '',
+                            remark: transaction.businessName || ''
+                        });
+                        this.editBusinessSearch.setValue(transaction.businessId, true);
                     }
                 } else {
-                    this.editBusinessSearch.clear();
-                    this.editBusinessSearch.options.placeholder = '请先选择业务类型';
-                    this.editBusinessSearch.options.apiUrl = '';
-                    this.editBusinessSearch.updateUI();
+                    this.editBusinessSearch = new TomSelect(editSelectElement, {
+                        placeholder: '请先选择业务类型',
+                        onChange: (value) => {
+                            if (value) {
+                                const option = this.editBusinessSearch.options[value];
+                                this.editedItem.businessId = value;
+                                this.editedItem.remark = option?.remark || option?.name || '';
+                            } else {
+                                this.editedItem.businessId = '';
+                                this.editedItem.remark = '';
+                            }
+                        }
+                    });
+                    this.editBusinessSearch.disable();
                 }
             }
 

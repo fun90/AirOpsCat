@@ -1,5 +1,4 @@
 ﻿import { DataTable } from '/static/js/common/data-table.js';
-import { createSearchDropdown } from '/static/js/common/search-dropdown.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
 
@@ -27,7 +26,6 @@ const nodeTable = new DataTable({
         protocolTypes: [],
         availableTags: [],
         serverFilterSearch: null,
-        mobileServerFilterSearch: null,
         stats: {
             total: 0,
             active: 0,
@@ -91,39 +89,43 @@ const nodeTable = new DataTable({
         },
 
         initializeSearchComponents() {
-            const buildServerFilterSearch = () => createSearchDropdown({
-                placeholder: '全部服务器',
-                apiUrl: '/api/admin/servers',
-                minQueryLength: 2,
-                multiSelect: true,
-                defaultOptions: () => this.servers.slice(0, 10),
-                formatItem: (item) => ({
-                    id: item.id,
-                    name: this.formatServerDisplayLabel(item),
-                    data: item
-                }),
-                onSelect: (items) => {
-                    this.filters.serverId = items.map(item => item.id).join(',');
-                    this.onFilterChange();
-                },
-                onChange: (text, items) => {
-                    if (items.length === 0 && this.filters.serverId) {
-                        this.filters.serverId = '';
+            setTimeout(() => {
+                const selectElement = document.getElementById('server-filter-select');
+                if (!selectElement) return;
+
+                this.serverFilterSearch = new TomSelect(selectElement, {
+                    plugins: ['remove_button'],
+                    valueField: 'id',
+                    labelField: 'name',
+                    searchField: ['name', 'ip'],
+                    placeholder: '全部服务器',
+                    maxOptions: 50,
+                    options: this.servers.slice(0, 10).map(server => ({
+                        id: server.id,
+                        name: this.formatServerDisplayLabel(server),
+                        ip: server.ip
+                    })),
+                    load: (query, callback) => {
+                        if (!query.length || query.length < 2) {
+                            callback();
+                            return;
+                        }
+                        fetch(`/api/admin/servers?search=${encodeURIComponent(query)}&size=20`)
+                            .then(response => response.json())
+                            .then(data => {
+                                callback(data.records.map(server => ({
+                                    id: server.id,
+                                    name: this.formatServerDisplayLabel(server),
+                                    ip: server.ip
+                                })));
+                            })
+                            .catch(() => callback());
+                    },
+                    onChange: (values) => {
+                        this.filters.serverId = values.join(',');
                         this.onFilterChange();
                     }
-                }
-            });
-
-            this.serverFilterSearch = buildServerFilterSearch();
-            this.mobileServerFilterSearch = buildServerFilterSearch();
-
-            setTimeout(() => {
-                if (this.serverFilterSearch) {
-                    this.serverFilterSearch.bindToDOM('nodeServerFilter');
-                }
-                if (this.mobileServerFilterSearch) {
-                    this.mobileServerFilterSearch.bindToDOM('nodeMobileServerFilter');
-                }
+                });
             }, 100);
         },
 
@@ -172,15 +174,10 @@ const nodeTable = new DataTable({
         },
 
         syncServerFilterSearches(serverItem = null) {
-            const resolvedItem = serverItem || this.servers.find(item => String(item.id) === String(this.filters.serverId)) || null;
-            const text = this.formatServerDisplayLabel(resolvedItem);
+            if (!this.serverFilterSearch) return;
 
-            [this.serverFilterSearch, this.mobileServerFilterSearch].forEach(search => {
-                if (!search || typeof search.setValue !== 'function') {
-                    return;
-                }
-                search.setValue(text, resolvedItem);
-            });
+            const serverIds = this.filters.serverId ? this.filters.serverId.split(',').filter(id => id) : [];
+            this.serverFilterSearch.setValue(serverIds, true);
         },
 
         fetchServers() {
@@ -188,6 +185,18 @@ const nodeTable = new DataTable({
                 .then(response => response.json())
                 .then(data => {
                     this.servers = data;
+
+                    // 更新 Tom Select 默认选项
+                    if (this.serverFilterSearch && this.servers.length > 0) {
+                        const defaultOptions = this.servers.slice(0, 10).map(server => ({
+                            id: server.id,
+                            name: this.formatServerDisplayLabel(server),
+                            ip: server.ip
+                        }));
+                        this.serverFilterSearch.clearOptions();
+                        this.serverFilterSearch.addOptions(defaultOptions);
+                    }
+
                     this.syncServerFilterSearches();
                     if (this.servers.length > 0 && !this.newItem.serverId) {
                         this.newItem.serverId = this.servers[0].id;
@@ -1066,19 +1075,13 @@ const nodeTable = new DataTable({
                 this.onFilterChange();
             },
             onReset() {
-                [this.serverFilterSearch, this.mobileServerFilterSearch].forEach(search => {
-                    if (search && typeof search.clear === 'function') {
-                        search.clear();
-                    }
-                });
+                if (this.serverFilterSearch) {
+                    this.serverFilterSearch.clear();
+                }
             },
             onClear(key) {
-                if (key === 'serverId') {
-                    [this.serverFilterSearch, this.mobileServerFilterSearch].forEach(search => {
-                        if (search && typeof search.clear === 'function') {
-                            search.clear();
-                        }
-                    });
+                if (key === 'serverId' && this.serverFilterSearch) {
+                    this.serverFilterSearch.clear();
                 }
             },
             getActiveTags() {

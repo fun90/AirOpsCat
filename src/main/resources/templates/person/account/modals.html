@@ -1,5 +1,3 @@
-{#include fragments/common/search_dropdown_styles /}
-
 <!-- Create Account Modal -->
 <div class="modal modal-blur fade" id="account-createModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
@@ -13,8 +11,7 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label required">用户</label>
-                            <!-- 使用新的搜索下拉框组件 -->
-                            {#include fragments/common/search_dropdown_component componentVar='userSearch' cssClass='' /}
+                            <select id="user-search" class="form-select" :class="{ 'is-invalid': validationErrors.userId }"></select>
                             <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
                         </div>
                     </div>
@@ -164,8 +161,7 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label required">用户</label>
-                            <!-- 使用新的搜索下拉框组件 -->
-                            {#include fragments/common/search_dropdown_component componentVar='editUserSearch' cssClass='' /}
+                            <select id="edit-user-search" class="form-select" :class="{ 'is-invalid': validationErrors.userId }"></select>
                             <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
                         </div>
                     </div>
@@ -749,17 +745,17 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div v-if="onlineIpsLoading" class="text-center py-3">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
                 </div>
-                
+
                 <div v-else-if="onlineIps.length === 0" class="text-center py-3">
                     <div class="text-muted">暂无在线IP记录</div>
                 </div>
-                
+
                 <div v-else>
                     <div class="table-responsive">
                         <table class="table table-vcenter">

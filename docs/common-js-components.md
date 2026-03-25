@@ -9,7 +9,7 @@
 | 日期时间工具 | `src/main/resources/META-INF/resources/static/js/common/common.js` | 无 | 统一处理页面中的北京时间格式化与相对时间显示 |
 | 列表基类 | `src/main/resources/META-INF/resources/static/js/common/data-table.js` | 无 | 为后台列表页提供分页、搜索、CRUD、Modal、工具方法 |
 | 响应式筛选 | `src/main/resources/META-INF/resources/static/js/common/responsive-filters.js` | `templates/fragments/common/filter-active-tags.html`、`templates/fragments/common/mobile_filter_drawer.html` | 公共筛选能力，详细文档直接见 `docs/filter-component.md` |
-| 搜索下拉 | `src/main/resources/META-INF/resources/static/js/common/search-dropdown.js` | `templates/fragments/common/search_dropdown_component.html`、`templates/fragments/common/search_dropdown_styles.html` | 远程搜索并从候选项中选择实体 |
+| Tom Select 搜索下拉 | Tom Select v2.3.1 (CDN) | `templates/fragments/common/tom_select_tabler_styles.html` | 高级搜索下拉组件，支持远程搜索、多选、自定义渲染 |
 | Toast 通知 | `src/main/resources/META-INF/resources/static/js/common/toast-utils.js` | 无 | Tabler 风格通知、加载中提示 |
 | 文本域自动高度 | `src/main/resources/META-INF/resources/static/js/common/autosize.js`、`autosize.min.js` | 无 | 自动撑高 textarea |
 | Modal 中的 autosize 管理 | `src/main/resources/META-INF/resources/static/js/common/modal-autosize.js` | 无 | 处理 Modal / Tab 内 textarea 自动高度初始化与销毁 |
@@ -209,204 +209,110 @@ table.createApp('#app');
 - [`person/account.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/person/account.js)
 - [`money/transactions.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/money/transactions.js)
 
-## 4. 搜索下拉组件
+## 4. Tom Select 搜索下拉组件
 
-文件：[`search-dropdown.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/common/search-dropdown.js)
+库：Tom Select v2.3.1 (通过 CDN 加载)
 
-配套模板 / 样式：
-
-- [`search_dropdown_component.html`](/Users/xiong/code/me/AirOpsCat/src/main/resources/templates/fragments/common/search_dropdown_component.html)
-- [`search_dropdown_styles.html`](/Users/xiong/code/me/AirOpsCat/src/main/resources/templates/fragments/common/search_dropdown_styles.html)
+配套样式：[`tom_select_tabler_styles.html`](/Users/xiong/code/me/AirOpsCat/src/main/resources/templates/fragments/common/tom_select_tabler_styles.html)
 
 ### 组件用途
 
-远程搜索后展示候选结果，用户选中后把结果写回表单字段。常见于：
+高级搜索下拉组件，支持远程搜索、自定义渲染、多选等功能。常见于：
 
 - 选择用户
-- 选择账号
+- 选择账户
 - 选择域名
 - 选择服务器
 
-### 创建方式
+### 基本用法
 
 ```js
-import { createSearchDropdown } from '/static/js/common/search-dropdown.js';
-
-this.userSearch = createSearchDropdown({
-    apiUrl: '/api/admin/users',
-    placeholder: '请输入用户',
-    formatItem: (item) => ({
-        id: item.id,
-        name: item.nickName,
-        data: item
-    }),
-    onSelect: (item) => {
-        this.newItem.userId = item.id;
-    },
-    onChange: (text, item) => {
-        if (!item) {
-            this.newItem.userId = '';
+const selectElement = document.getElementById('user-search');
+const tomSelectInstance = new TomSelect(selectElement, {
+    valueField: 'id',
+    labelField: 'nickName',
+    searchField: ['nickName', 'email'],
+    placeholder: '请搜索用户...',
+    load: (query, callback) => {
+        if (!query.length || query.length < 2) {
+            callback();
+            return;
         }
+        fetch(`/api/admin/users?search=${encodeURIComponent(query)}&size=20`)
+            .then(response => response.json())
+            .then(data => callback(data.records || data))
+            .catch(() => callback());
+    },
+    onChange: (value) => {
+        this.newItem.userId = value || '';
     }
 });
-
-this.userSearch.bindToDOM('userSearch');
 ```
 
-### 模板接入
+### 关键配置项
 
-在页面模板中引入组件片段：
+- `valueField`: 选项的值字段（如 'id'）
+- `labelField`: 选项的显示字段（如 'nickName'、'domain'）
+- `searchField`: 可搜索的字段数组（如 ['nickName', 'email']）
+- `placeholder`: 占位符文本
+- `load`: 远程加载函数，接收 query 和 callback
+- `onChange`: 选中值变化时的回调
+- `disabledField`: 禁用字段，设为 null 可确保所有选项可选
+
+### 样式集成
+
+在页面模板中引入 Tabler 适配样式：
 
 ```html
-{#include fragments/common/search_dropdown_component componentVar='userSearch' cssClass='' /}
+{#include fragments/common/tom_select_tabler_styles /}
 ```
 
-组件实际会依赖以下 DOM id：
+### 显式隐藏原始 select
 
-- `search-dropdown-{componentVar}`
-- `search-input-{componentVar}`
-- `search-clear-{componentVar}`
-- `search-menu-{componentVar}`
-- `search-loading-{componentVar}`
-- `search-results-{componentVar}`
-- `search-no-results-{componentVar}`
+初始化后需显式隐藏原始 select 元素：
 
-因此 `bindToDOM('userSearch')` 必须和模板里的 `componentVar='userSearch'` 保持一致。
+```js
+const selectElement = document.getElementById('user-search');
+this.userSearch = new TomSelect(selectElement, { /* config */ });
+selectElement.style.display = 'none';
+```
 
-### 主要配置项
+### 动态切换配置
 
-- `apiUrl`
-- `searchParam`
-  - 默认 `search`
-- `sizeParam`
-  - 默认 `size`
-- `defaultSize`
-  - 默认 `20`
-- `minQueryLength`
-  - 默认 `2`
-  - 可以设为 `0`，例如服务器筛选支持点开即选
-- `debounceDelay`
-  - 默认 `300ms`
-- `placeholder`
-- `formatItem`
-  - 把接口返回项转换为前端显示项
-- `formatDisplay`
-  - 指定选中后输入框显示文本
-- `onSelect`
-- `onChange`
-- `enableCache`
-  - 默认开启
-- `cacheExpiration`
-  - 默认 `5` 分钟
-- `defaultOptions`
-  - 默认选项，未输入搜索内容时显示
-  - 可以是数组或返回数组的函数
-  - 可选配置
-- `multiSelect`
-  - 是否支持多选
-  - 默认 `false`
-  - 可选配置
+当需要根据业务类型动态切换搜索配置时：
 
-### 实例方法
+```js
+onBusinessTableChange() {
+    if (this.businessSearch) {
+        this.businessSearch.destroy();
+    }
 
-- `bindToDOM(componentId)`
-- `setValue(text, item = null)`
-- `getValue()`
-- `clear()`
-- `destroy()`
-- `updateUI()`
+    setTimeout(() => {
+        const selectElement = document.getElementById('business-search');
+        if (!selectElement) return;
 
-### 预设 Presets
+        selectElement.disabled = false;
 
-文件里内置了三个快捷预设：
-
-- `SearchDropdownPresets.account()`
-- `SearchDropdownPresets.domain()`
-- `SearchDropdownPresets.server()`
-
-适合“业务类型切换后动态替换数据源”的场景。当前 [`money/transactions.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/money/transactions.js) 就是这样接的。
+        const config = this.getBusinessSearchConfig(this.newItem.businessTable);
+        if (config) {
+            this.businessSearch = new TomSelect(selectElement, config);
+        }
+    }, 50);
+}
+```
 
 ### 当前接入页面
 
-- [`person/account/modals.html`](/Users/xiong/code/me/AirOpsCat/src/main/resources/templates/person/account/modals.html)
-- [`person/account-traffic/modals.html`](/Users/xiong/code/me/AirOpsCat/src/main/resources/templates/person/account-traffic/modals.html)
-- [`money/transactions/modals.html`](/Users/xiong/code/me/AirOpsCat/src/main/resources/templates/money/transactions/modals.html)
-- [`vpn/node/filter-fields.html`](/Users/xiong/code/me/AirOpsCat/src/main/resources/templates/vpn/node/filter-fields.html)
+- [`person/account.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/person/account.js) - 用户搜索
+- [`person/account-traffic.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/person/account-traffic.js) - 账户搜索
+- [`money/transactions.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/money/transactions.js) - 动态业务搜索（账户/域名/服务器）
 
-对应 JS：
+### 注意事项
 
-- [`person/account.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/person/account.js)
-- [`person/account-traffic.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/person/account-traffic.js)
-- [`money/transactions.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/money/transactions.js)
-- [`vpn/node.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/vpn/node.js)
-
-### 接入注意事项
-
-- 先渲染模板，再 `bindToDOM()`，所以现有页面通常在 `initializeSearchComponents()` 中 `setTimeout(..., 100)` 后绑定
-- `apiUrl` 为空时不会发起搜索
-- 默认从响应体读取 `data.records`
-- 选中后输入框显示的是 `formatDisplay(item)` 或 `item.name`
-- 如果输入框被清空，通常需要在 `onChange` 中同步把关联表单字段清空
-
-### 默认选项用法
-
-```js
-// 静态默认选项
-this.statusSearch = createSearchDropdown({
-    placeholder: '选择状态',
-    defaultOptions: [
-        {id: 'active', name: '激活'},
-        {id: 'inactive', name: '未激活'},
-        {id: 'expired', name: '已过期'}
-    ],
-    onSelect: (item) => {
-        this.filters.status = item.id;
-    }
-});
-
-// 动态默认选项
-this.serverSearch = createSearchDropdown({
-    apiUrl: '/api/admin/servers',
-    placeholder: '搜索服务器',
-    minQueryLength: 2,
-    defaultOptions: () => {
-        return this.recentServers || [];
-    },
-    formatItem: (item) => ({
-        id: item.id,
-        name: `${item.ip} (${item.name})`,
-        data: item
-    }),
-    onSelect: (item) => {
-        this.selectedServer = item.data;
-    }
-});
-```
-
-### 多选用法
-
-```js
-this.tagSearch = createSearchDropdown({
-    apiUrl: '/api/admin/tags',
-    placeholder: '选择标签',
-    multiSelect: true,
-    formatItem: (item) => ({
-        id: item.id,
-        name: item.name,
-        data: item
-    }),
-    onSelect: (items) => {
-        // items 是已选中项的数组
-        this.selectedTagIds = items.map(i => i.id);
-    },
-    onChange: (text, items) => {
-        // 实时更新
-        this.selectedTagIds = items.map(i => i.id);
-    }
-});
-
-this.tagSearch.bindToDOM('tagSearch');
-```
+- 初始化后必须显式隐藏原始 select 元素（`selectElement.style.display = 'none'`）
+- destroy/recreate 模式需要在 setTimeout 中执行，并显式启用 select（`selectElement.disabled = false`）
+- 设置 `disabledField: null` 确保所有搜索结果可选
+- 对于域名搜索，使用 `labelField: 'domain'` 而非 'name'
 
 ## 5. ToastUtils 通知组件
 
@@ -505,7 +411,7 @@ fetch('/api/admin/nodes/1/deploy', { method: 'POST' })
 1. `DataTable`
 2. `createResponsiveFilterMethods`
 3. `ToastUtils`
-4. 某些页面再叠加 `SearchDropdown`
+4. 某些页面再叠加 `Tom Select`
 
 典型页面可以参考：
 
@@ -517,7 +423,7 @@ fetch('/api/admin/nodes/1/deploy', { method: 'POST' })
 
 1. 先用 `DataTable` 搭起分页、搜索、CRUD 主体
 2. 如果页面有桌面端 / 移动端筛选，直接按 [`docs/filter-component.md`](/Users/xiong/code/me/AirOpsCat/docs/filter-component.md) 接入 `responsive-filters.js`
-3. 如果筛选项或表单项需要远程选实体，再接 `search-dropdown.js`
+3. 如果筛选项或表单项需要远程搜索选实体，使用 `Tom Select`
 4. 如果表单里有多行文本，直接给 `textarea` 加 `data-bs-toggle="autosize"`
 5. 业务操作中的成功 / 失败提示统一走 `ToastUtils`
 
@@ -525,10 +431,10 @@ fetch('/api/admin/nodes/1/deploy', { method: 'POST' })
 
 - 公共组件整体基于 `PetiteVue + Tabler + Bootstrap 5` 事件模型
 - `DataTable` 默认假设后台分页接口返回 `records / total / pages / current`
-- `SearchDropdown` 默认假设搜索接口返回 `records`
+- `Tom Select` 默认假设搜索接口返回 `records`
 - `ToastUtils` 是全局对象，不是 ES module 默认导出
 - `common.js` 当前时间处理固定按北京时间 `UTC+8`
-- `search_dropdown_styles.html` 需要页面显式 include；JS 本身不会自动注入样式
+- `tom_select_tabler_styles.html` 需要页面显式 include
 
 ## 9. 推荐阅读顺序
 
@@ -536,10 +442,9 @@ fetch('/api/admin/nodes/1/deploy', { method: 'POST' })
 
 1. [`data-table.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/common/data-table.js)
 2. [`docs/filter-component.md`](/Users/xiong/code/me/AirOpsCat/docs/filter-component.md)
-3. [`search-dropdown.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/common/search-dropdown.js)
-4. [`toast-utils.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/common/toast-utils.js)
-5. [`common.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/common/common.js)
-6. [`modal-autosize.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/common/modal-autosize.js)
+3. [`toast-utils.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/common/toast-utils.js)
+4. [`common.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/common/common.js)
+5. [`modal-autosize.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/common/modal-autosize.js)
 
 再结合以下业务页面读一遍，会最快进入状态：
 
