@@ -110,12 +110,12 @@ public class XrayDefaultInboundStrategy implements DefaultInboundStrategy {
                 templateData.put("shortId", NativeRandomUtils.generateRandomHexFast(16));
                 return templateData;
             case "shadowsocks":
-                templateData.put("password", generateRandomPassword(20));
-                templateData.put("email", generateRandomPassword(8));
+                templateData.put("password", NativeRandomUtils.generateRandomAlphanumeric(20));
+                templateData.put("email", NativeRandomUtils.generateRandomAlphanumeric(12));
                 return templateData;
             case "socks":
                 templateData.put("username", NativeRandomUtils.generateRandomHexFast(12));
-                templateData.put("password", generateRandomPassword(20));
+                templateData.put("password", NativeRandomUtils.generateRandomAlphanumeric(20));
                 return templateData;
             default:
                 throw new UnsupportedOperationException("Xray 默认入站配置暂不支持协议: " + protocol);
@@ -154,17 +154,5 @@ public class XrayDefaultInboundStrategy implements DefaultInboundStrategy {
         }
 
         return new String[]{"ABR3X0eLYM_6CRHTFepn7GrpSHEFCYqzGFaZ6Uj1L0E", "_bhnIqIPO2m2ov5JY3BTroTVPpZk40Xbf6WLlRCxASw"};
-    }
-
-    private String generateRandomPassword(int length) {
-        String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        StringBuilder password = new StringBuilder();
-        Random random = new Random();
-
-        for (int i = 0; i < length; i++) {
-            password.append(characters.charAt(random.nextInt(characters.length())));
-        }
-
-        return password.toString();
     }
 }

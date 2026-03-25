@@ -1,6 +1,7 @@
 {
   "type": "shadowsocks",
   "method": "aes-256-gcm",
+  "email": "{email}",
   "password": "{password}",
   "network": "tcp"
 }

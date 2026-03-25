@@ -122,10 +122,11 @@ public class SingBoxDefaultInboundStrategy implements DefaultInboundStrategy {
                 templateData.put("serverName", selectedServerName);
                 return templateData;
             case "shadowsocks":
+                templateData.put("email", NativeRandomUtils.generateRandomAlphanumeric(12));
                 templateData.put("password", NativeRandomUtils.generateRandomAlphanumeric(20));
                 return templateData;
             case "socks":
-                templateData.put("username", "user_" + NativeRandomUtils.generateRandomHexFast(6));
+                templateData.put("username", "user_" + NativeRandomUtils.generateRandomAlphanumeric(12));
                 templateData.put("password", NativeRandomUtils.generateRandomAlphanumeric(20));
                 return templateData;
             default:
