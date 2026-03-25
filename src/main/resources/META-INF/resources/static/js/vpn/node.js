@@ -10,7 +10,9 @@ const DEFAULT_NODE_FILTERS = Object.freeze({
     coreType: '',
     protocol: '',
     disabled: '',
-    deployed: ''
+    deployed: '',
+    sortBy: '',
+    sortOrder: 'desc'
 });
 
 const nodeTable = new DataTable({
@@ -92,21 +94,21 @@ const nodeTable = new DataTable({
             const buildServerFilterSearch = () => createSearchDropdown({
                 placeholder: '全部服务器',
                 apiUrl: '/api/admin/servers',
-                minQueryLength: 0,
+                minQueryLength: 2,
+                multiSelect: true,
+                defaultOptions: () => this.servers.slice(0, 10),
                 formatItem: (item) => ({
                     id: item.id,
                     name: this.formatServerDisplayLabel(item),
                     data: item
                 }),
-                onSelect: (item) => {
-                    this.filters.serverId = String(item.id);
-                    this.syncServerFilterSearches(item);
+                onSelect: (items) => {
+                    this.filters.serverId = items.map(item => item.id).join(',');
                     this.onFilterChange();
                 },
-                onChange: (text, item) => {
-                    if (!text && !item && this.filters.serverId) {
+                onChange: (text, items) => {
+                    if (items.length === 0 && this.filters.serverId) {
                         this.filters.serverId = '';
-                        this.syncServerFilterSearches();
                         this.onFilterChange();
                     }
                 }
@@ -134,7 +136,19 @@ const nodeTable = new DataTable({
                 return this.formatServerDisplayLabel(server.data);
             }
 
-            return server.name ? `${server.ip} (${server.name})` : (server.ip || '');
+            const ip = server.ip || '';
+            let name = server.name || '';
+
+            // 如果名称中包含括号，提取括号前的部分
+            if (name && name.includes('(')) {
+                name = name.substring(0, name.indexOf('(')).trim();
+            }
+
+            if (name && name !== ip) {
+                return `${name} (${ip})`;
+            }
+
+            return ip;
         },
 
         getServerHosts(serverId) {
@@ -261,12 +275,17 @@ const nodeTable = new DataTable({
                 return '';
             }
 
-            const server = this.servers.find(item => String(item.id) === String(this.filters.serverId));
-            if (!server) {
-                return this.filters.serverId;
+            const serverIds = this.filters.serverId.split(',').filter(id => id);
+            if (serverIds.length === 0) {
+                return '';
             }
 
-            return this.formatServerDisplayLabel(server);
+            const serverLabels = serverIds.map(id => {
+                const server = this.servers.find(item => String(item.id) === String(id));
+                return server ? this.formatServerDisplayLabel(server) : id;
+            });
+
+            return serverLabels.join(', ');
         },
 
         getFilterDefinitions() {
@@ -787,6 +806,26 @@ const nodeTable = new DataTable({
 
         getApiUrl() {
             return '/api/admin/nodes';
+        },
+
+        toggleSort(field) {
+            if (this.filters.sortBy === field) {
+                this.filters.sortOrder = this.filters.sortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.filters.sortBy = field;
+                this.filters.sortOrder = 'asc';
+            }
+            this.currentPage = 1;
+            this.fetchRecords();
+        },
+
+        getSortIcon(field) {
+            if (this.filters.sortBy !== field) return 'ti ti-selector';
+            return this.filters.sortOrder === 'asc' ? 'ti ti-sort-ascending' : 'ti ti-sort-descending';
+        },
+
+        isSortActive(field) {
+            return this.filters.sortBy === field;
         },
 
         getToggleStatusUrl(item, action) {

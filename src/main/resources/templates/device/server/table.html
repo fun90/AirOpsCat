@@ -3,7 +3,7 @@
     <tr>
         <th>ID</th>
         <th>IP</th>
-        <th>主机名/名称</th>
+        <th>名称/主机名</th>
         <th>状态</th>
         <th>供应商</th>
         <th>SSH</th>
@@ -27,9 +27,9 @@
         </td>
         <td>
             <div class="d-flex flex-column">
-                <span v-if="server.host">{{ server.host }}</span>
+                <span v-if="server.name">{{ server.name }}</span>
+                <span v-if="server.host" class="text-muted">{{ server.host }}</span>
                 <span v-if="server.hosts && server.hosts.length > 1" class="text-secondary small">共 {{ server.hosts.length }} 个 host</span>
-                <span v-if="server.name" class="text-muted">{{ server.name }}</span>
             </div>
         </td>
         <td>

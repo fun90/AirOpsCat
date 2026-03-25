@@ -41,13 +41,15 @@ public class NodeService {
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Node> getNodePage(
             String search,
-            Long serverId,
+            String serverIds,
             Long nodeTagId,
             Integer type,
             String coreType,
             String protocol,
             Boolean disabled,
-            Boolean deployed
+            Boolean deployed,
+            String sortBy,
+            String sortOrder
     ) {
         // Build query string
         StringBuilder query = new StringBuilder("1=1");
@@ -64,10 +66,20 @@ public class NodeService {
             params.put("search", searchLike);
         }
 
-        // Filter by serverId
-        if (serverId != null) {
-            query.append(" and serverId = :serverId");
-            params.put("serverId", serverId);
+        // Filter by serverId (support comma-separated IDs)
+        if (serverIds != null && !serverIds.trim().isEmpty()) {
+            String[] idArray = serverIds.split(",");
+            if (idArray.length == 1) {
+                query.append(" and serverId = :serverId");
+                params.put("serverId", Long.parseLong(idArray[0].trim()));
+            } else {
+                List<Long> idList = Arrays.stream(idArray)
+                        .map(String::trim)
+                        .map(Long::parseLong)
+                        .collect(Collectors.toList());
+                query.append(" and serverId in :serverIds");
+                params.put("serverIds", idList);
+            }
         }
 
         if (nodeTagId != null) {
@@ -102,7 +114,23 @@ public class NodeService {
             params.put("deployed", deployed ? 1 : 0);
         }
 
-        return nodeRepository.find(query.toString(), Sort.by("createTime").descending(), params);
+        // Build sort
+        Sort sort = buildSort(sortBy, sortOrder);
+        return nodeRepository.find(query.toString(), sort, params);
+    }
+
+    private Sort buildSort(String sortBy, String sortOrder) {
+        boolean ascending = "asc".equalsIgnoreCase(sortOrder);
+
+        if (sortBy == null || sortBy.trim().isEmpty()) {
+            return Sort.by("createTime").descending();
+        }
+
+        return switch (sortBy) {
+            case "name" -> ascending ? Sort.by("name", "no").ascending() : Sort.by("name", "no").descending();
+            case "server" -> ascending ? Sort.by("serverId").ascending() : Sort.by("serverId").descending();
+            default -> Sort.by("createTime").descending();
+        };
     }
 
     public Node getNodeById(Long id) {

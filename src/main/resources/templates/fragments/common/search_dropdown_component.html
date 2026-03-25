@@ -1,21 +1,28 @@
-<!-- 
+{!
     搜索下拉框组件模板 (Qute版本)
-    
+
     使用方式:
-    {!{#include fragments/common/search_dropdown_component componentVar='componentVar' cssClass='cssClass' /}!}
-    
+    {#include fragments/common/search_dropdown_component componentVar='componentVar' cssClass='cssClass' /}
+
     JavaScript配置示例:
-    const dropdown = createSearchDropdown({
-        apiUrl: '/api/search',
-        placeholder: '请输入搜索内容...',
-        onSelect: (item) => console.log(item)
-    });
+    const dropdown = createSearchDropdown(options);
     dropdown.bindToDOM('componentVar');
--->
+
+    支持的选项:
+    - apiUrl: 远程搜索接口
+    - placeholder: 占位符文本
+    - defaultOptions: 默认选项数组或函数
+    - multiSelect: 是否多选 (默认 false)
+    - onSelect: 选中回调
+!}
 
 <!-- 搜索下拉框组件（纯净版） -->
-<div class="dropdown search-dropdown {cssClass ?: ''}" 
+<div class="dropdown search-dropdown {cssClass ?: ''}"
      id="search-dropdown-{componentVar}">
+
+    <!-- 多选标签容器 -->
+    <div id="search-tags-{componentVar}" class="mb-2"></div>
+
     <div class="search-dropdown-control">
         <input type="text"
                class="form-control"
@@ -33,9 +40,9 @@
             <i class="ti ti-chevron-down"></i>
         </span>
     </div>
-    
+
     <div class="dropdown-menu" id="search-menu-{componentVar}">
-        
+
         <!-- 加载状态 -->
         <div class="dropdown-item-text text-center" id="search-loading-{componentVar}" style="display: none;">
             <div class="spinner-border spinner-border-sm text-primary" role="status">
@@ -43,10 +50,10 @@
             </div>
             <span class="ms-2">搜索中...</span>
         </div>
-        
+
         <!-- 搜索结果容器 -->
         <div id="search-results-{componentVar}"></div>
-        
+
         <!-- 无结果提示 -->
         <div class="dropdown-item-text text-muted" id="search-no-results-{componentVar}" style="display: none;">
             未找到匹配项

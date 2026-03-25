@@ -19,9 +19,11 @@ export class SearchDropdown {
             onChange: null,
             enableCache: true,
             cacheExpiration: 300000,
+            defaultOptions: null,
+            multiSelect: false,
             ...options
         };
-        
+
         // 内部状态
         this.searchText = '';
         this.filteredItems = [];
@@ -29,13 +31,14 @@ export class SearchDropdown {
         this.selectedIndex = -1;
         this.isLoading = false;
         this.selectedItem = null;
+        this.selectedItems = [];
         this.cache = new Map();
         this.debounceTimer = null;
-        
+
         // DOM元素
         this.elements = {};
         this.isBound = false;
-        
+
         // 绑定方法
         this.performSearch = this.performSearch.bind(this);
         this.debouncedSearch = this.debounce(this.performSearch, this.options.debounceDelay);
@@ -56,7 +59,7 @@ export class SearchDropdown {
      */
     bindToDOM(componentId) {
         if (this.isBound) return;
-        
+
         this.elements = {
             dropdown: document.getElementById(`search-dropdown-${componentId}`),
             input: document.getElementById(`search-input-${componentId}`),
@@ -64,14 +67,15 @@ export class SearchDropdown {
             menu: document.getElementById(`search-menu-${componentId}`),
             loading: document.getElementById(`search-loading-${componentId}`),
             results: document.getElementById(`search-results-${componentId}`),
-            noResults: document.getElementById(`search-no-results-${componentId}`)
+            noResults: document.getElementById(`search-no-results-${componentId}`),
+            tags: document.getElementById(`search-tags-${componentId}`)
         };
-        
+
         if (!this.elements.input) {
             console.warn(`搜索下拉框DOM绑定失败: ${componentId}`);
             return;
         }
-        
+
         this.setupEventListeners();
         this.isBound = true;
         this.updateUI();
@@ -86,21 +90,27 @@ export class SearchDropdown {
         input.addEventListener('input', (e) => {
             this.searchText = e.target.value;
             this.selectedIndex = -1;
-            this.selectedItem = null;
-            
-            if (this.options.onChange) {
-                this.options.onChange(this.searchText, this.selectedItem);
+            if (!this.options.multiSelect) {
+                this.selectedItem = null;
             }
-            
+
+            if (this.options.onChange) {
+                this.options.onChange(this.searchText, this.options.multiSelect ? this.selectedItems : this.selectedItem);
+            }
+
             if (this.searchText.length >= this.options.minQueryLength) {
                 this.debouncedSearch();
+            } else if (this.searchText.length === 0 && this.options.defaultOptions) {
+                this.showDefaultOptions();
             } else {
                 this.hideDropdown();
             }
         });
         
         input.addEventListener('focus', () => {
-            if (this.filteredItems.length > 0) {
+            if (this.searchText.length === 0 && this.options.defaultOptions) {
+                this.showDefaultOptions();
+            } else if (this.filteredItems.length > 0) {
                 this.showDropdown = true;
                 this.updateUI();
             }
@@ -158,6 +168,26 @@ export class SearchDropdown {
         }
     }
     
+    /**
+     * 显示默认选项
+     */
+    showDefaultOptions() {
+        if (!this.options.defaultOptions) return;
+
+        let options = this.options.defaultOptions;
+        if (typeof options === 'function') {
+            options = options();
+        }
+
+        if (this.options.formatItem) {
+            options = options.map(this.options.formatItem);
+        }
+
+        this.filteredItems = options;
+        this.showDropdown = true;
+        this.updateUI();
+    }
+
     /**
      * 执行搜索
      */
@@ -223,24 +253,59 @@ export class SearchDropdown {
      * 选择项目
      */
     selectItem(item) {
-        this.selectedItem = item;
-        this.searchText = this.options.formatDisplay ? 
-            this.options.formatDisplay(item) : 
-            (item.name || item.label || '');
-        
-        this.hideDropdown();
-        
+        if (this.options.multiSelect) {
+            const index = this.selectedItems.findIndex(i => i.id === item.id);
+            if (index >= 0) {
+                this.selectedItems.splice(index, 1);
+            } else {
+                this.selectedItems.push(item);
+            }
+            this.searchText = '';
+        } else {
+            this.selectedItem = item;
+            this.searchText = this.options.formatDisplay ?
+                this.options.formatDisplay(item) :
+                (item.name || item.label || '');
+            this.hideDropdown();
+        }
+
         if (this.options.onSelect) {
-            this.options.onSelect(item);
+            this.options.onSelect(this.options.multiSelect ? [...this.selectedItems] : item);
         }
-        
+
         if (this.options.onChange) {
-            this.options.onChange(this.searchText, item);
+            this.options.onChange(this.searchText, this.options.multiSelect ? this.selectedItems : item);
         }
-        
+
         this.updateUI();
     }
     
+    /**
+     * 渲染已选标签
+     */
+    renderSelectedTags() {
+        if (!this.elements.tags) return;
+
+        this.elements.tags.innerHTML = '';
+        this.selectedItems.forEach(item => {
+            const tag = document.createElement('span');
+            tag.className = 'badge bg-primary text-white me-1 mb-1';
+            tag.textContent = item.name || item.label || '';
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'btn-close btn-close-white ms-1';
+            removeBtn.style.fontSize = '0.5rem';
+            removeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectItem(item);
+            });
+
+            tag.appendChild(removeBtn);
+            this.elements.tags.appendChild(tag);
+        });
+    }
+
     /**
      * 隐藏下拉框
      */
@@ -255,9 +320,9 @@ export class SearchDropdown {
      */
     updateUI() {
         if (!this.isBound) return;
-        
+
         const { input, clear, dropdown, menu, loading, results, noResults } = this.elements;
-        
+
         // 更新输入框
         if (input.value !== this.searchText) {
             input.value = this.searchText;
@@ -265,19 +330,24 @@ export class SearchDropdown {
         input.placeholder = this.options.placeholder;
 
         if (clear) {
-            clear.style.display = this.searchText ? 'inline-flex' : 'none';
+            clear.style.display = (this.searchText || this.selectedItems.length > 0) ? 'inline-flex' : 'none';
         }
-        
+
+        // 更新多选标签
+        if (this.options.multiSelect && this.elements.tags) {
+            this.renderSelectedTags();
+        }
+
         // 更新下拉框显示
         const shouldShow = this.showDropdown || this.isLoading;
         dropdown.classList.toggle('show', shouldShow);
         menu.classList.toggle('show', shouldShow);
-        
+
         // 更新加载状态
         if (loading) {
             loading.style.display = this.isLoading ? 'block' : 'none';
         }
-        
+
         // 更新结果
         if (results) {
             results.innerHTML = '';
@@ -288,21 +358,32 @@ export class SearchDropdown {
                 if (index === this.selectedIndex) {
                     button.classList.add('active');
                 }
-                button.textContent = item.name || item.label || '';
-                
+
+                if (this.options.multiSelect) {
+                    const isSelected = this.selectedItems.some(i => i.id === item.id);
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'form-check-input me-2';
+                    checkbox.checked = isSelected;
+                    button.appendChild(checkbox);
+                }
+
+                const text = document.createTextNode(item.name || item.label || '');
+                button.appendChild(text);
+
                 button.addEventListener('click', (e) => {
                     e.preventDefault();
                     this.selectItem(item);
                 });
-                
+
                 results.appendChild(button);
             });
         }
-        
+
         // 更新无结果提示
         if (noResults) {
-            const showNoResults = !this.isLoading && 
-                                this.filteredItems.length === 0 && 
+            const showNoResults = !this.isLoading &&
+                                this.filteredItems.length === 0 &&
                                 this.searchText.length >= this.options.minQueryLength;
             noResults.style.display = showNoResults ? 'block' : 'none';
         }
@@ -321,25 +402,32 @@ export class SearchDropdown {
      * 获取值
      */
     getValue() {
+        if (this.options.multiSelect) {
+            return {
+                text: this.searchText,
+                items: [...this.selectedItems]
+            };
+        }
         return {
             text: this.searchText,
             item: this.selectedItem
         };
     }
-    
+
     /**
      * 清空
      */
     clear() {
         this.searchText = '';
         this.selectedItem = null;
+        this.selectedItems = [];
         this.filteredItems = [];
         this.hideDropdown();
-        
+
         if (this.options.onChange) {
-            this.options.onChange('', null);
+            this.options.onChange('', this.options.multiSelect ? [] : null);
         }
-        
+
         this.updateUI();
     }
     

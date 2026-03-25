@@ -298,6 +298,14 @@ this.userSearch.bindToDOM('userSearch');
   - 默认开启
 - `cacheExpiration`
   - 默认 `5` 分钟
+- `defaultOptions`
+  - 默认选项，未输入搜索内容时显示
+  - 可以是数组或返回数组的函数
+  - 可选配置
+- `multiSelect`
+  - 是否支持多选
+  - 默认 `false`
+  - 可选配置
 
 ### 实例方法
 
@@ -339,6 +347,66 @@ this.userSearch.bindToDOM('userSearch');
 - 默认从响应体读取 `data.records`
 - 选中后输入框显示的是 `formatDisplay(item)` 或 `item.name`
 - 如果输入框被清空，通常需要在 `onChange` 中同步把关联表单字段清空
+
+### 默认选项用法
+
+```js
+// 静态默认选项
+this.statusSearch = createSearchDropdown({
+    placeholder: '选择状态',
+    defaultOptions: [
+        {id: 'active', name: '激活'},
+        {id: 'inactive', name: '未激活'},
+        {id: 'expired', name: '已过期'}
+    ],
+    onSelect: (item) => {
+        this.filters.status = item.id;
+    }
+});
+
+// 动态默认选项
+this.serverSearch = createSearchDropdown({
+    apiUrl: '/api/admin/servers',
+    placeholder: '搜索服务器',
+    minQueryLength: 2,
+    defaultOptions: () => {
+        return this.recentServers || [];
+    },
+    formatItem: (item) => ({
+        id: item.id,
+        name: `${item.ip} (${item.name})`,
+        data: item
+    }),
+    onSelect: (item) => {
+        this.selectedServer = item.data;
+    }
+});
+```
+
+### 多选用法
+
+```js
+this.tagSearch = createSearchDropdown({
+    apiUrl: '/api/admin/tags',
+    placeholder: '选择标签',
+    multiSelect: true,
+    formatItem: (item) => ({
+        id: item.id,
+        name: item.name,
+        data: item
+    }),
+    onSelect: (items) => {
+        // items 是已选中项的数组
+        this.selectedTagIds = items.map(i => i.id);
+    },
+    onChange: (text, items) => {
+        // 实时更新
+        this.selectedTagIds = items.map(i => i.id);
+    }
+});
+
+this.tagSearch.bindToDOM('tagSearch');
+```
 
 ## 5. ToastUtils 通知组件
 

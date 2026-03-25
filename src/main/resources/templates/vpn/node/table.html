@@ -4,8 +4,18 @@
             <th class="w-1">
                 <input class="form-check-input" type="checkbox" :checked="isAllCurrentPageSelected()" @change="toggleSelectAllCurrentPage($event.target.checked)">
             </th>
-            <th>节点</th>
-            <th>服务器</th>
+            <th>
+                <button type="button" class="btn btn-link p-0 text-decoration-none" @click="toggleSort('name')">
+                    节点
+                    <i :class="getSortIcon('name')" :style="{ opacity: isSortActive('name') ? 1 : 0.45 }"></i>
+                </button>
+            </th>
+            <th>
+                <button type="button" class="btn btn-link p-0 text-decoration-none" @click="toggleSort('server')">
+                    服务器
+                    <i :class="getSortIcon('server')" :style="{ opacity: isSortActive('server') ? 1 : 0.45 }"></i>
+                </button>
+            </th>
             <th class="d-none d-xl-table-cell">备用服务器</th>
             <th class="d-none d-lg-table-cell">出站</th>
             <th>状态</th>
@@ -77,7 +87,7 @@
         </td>
         <td>
             <div class="btn-list flex-nowrap justify-content-end">
-                <button v-if="isNodeDeploying(node.id)" class="btn btn-sm btn-info" type="button" disabled>
+                <button v-if="isNodeDeploying(node.id)" class="btn btn-sm btn-muted" type="button" disabled>
                     <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
                     部署中
                 </button>
