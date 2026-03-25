@@ -76,9 +76,7 @@ public class AccountController {
 
         // Convert to DTOs
         List<Account> accounts = accountQuery.list();
-        List<AccountDto> accountDtos = accounts.stream()
-                .map(account -> accountService.convertToDto(account))
-                .collect(Collectors.toList());
+        List<AccountDto> accountDtos = accountService.convertToDtoList(accounts);
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", accountDtos);
@@ -117,9 +115,7 @@ public class AccountController {
 
         // Convert to DTOs
         List<Account> accounts = accountQuery.list();
-        List<AccountDto> accountDtos = accounts.stream()
-                .map(account -> accountService.convertToDto(account))
-                .collect(Collectors.toList());
+        List<AccountDto> accountDtos = accountService.convertToDtoList(accounts);
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", accountDtos);
@@ -177,9 +173,7 @@ public class AccountController {
 
         // Convert to DTOs
         List<Account> accounts = accountQuery.list();
-        List<AccountDto> accountDtos = accounts.stream()
-                .map(account -> accountService.convertToDto(account))
-                .collect(Collectors.toList());
+        List<AccountDto> accountDtos = accountService.convertToDtoList(accounts);
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", accountDtos);

@@ -7,6 +7,8 @@ import jakarta.transaction.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 在线IP记录仓库
@@ -33,6 +35,36 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
      */
     public List<AccountOnlineIp> findByNodeIp(String nodeIp) {
         return find("nodeIp = ?1 order by lastOnlineTime desc", nodeIp).list();
+    }
+
+    /**
+     * 批量查询各accountNo的最近一次在线时间
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, LocalDateTime> findMaxLastOnlineTimeMapByAccountNos(List<String> accountNos) {
+        if (accountNos == null || accountNos.isEmpty()) {
+            return Map.of();
+        }
+        List<Object[]> rows = getEntityManager()
+                .createQuery("SELECT a.accountNo, MAX(a.lastOnlineTime) FROM AccountOnlineIp a WHERE a.accountNo IN :accountNos GROUP BY a.accountNo")
+                .setParameter("accountNos", accountNos)
+                .getResultList();
+        return rows.stream()
+                .filter(row -> row[0] != null && row[1] != null)
+                .collect(Collectors.toMap(
+                        row -> (String) row[0],
+                        row -> (LocalDateTime) row[1]
+                ));
+    }
+
+    /**
+     * 查找指定accountNo最近一次在线时间（不限时间范围）
+     */
+    public LocalDateTime findMaxLastOnlineTimeByAccountNo(String accountNo) {
+        return find("accountNo = ?1 order by lastOnlineTime desc", accountNo)
+                .firstResultOptional()
+                .map(AccountOnlineIp::getLastOnlineTime)
+                .orElse(null);
     }
 
     /**

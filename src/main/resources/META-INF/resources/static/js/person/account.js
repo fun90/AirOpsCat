@@ -1,6 +1,6 @@
 import { DataTable } from '/static/js/common/data-table.js';
 import { createSearchDropdown, SearchDropdownPresets } from '/static/js/common/search-dropdown.js';
-import { formatDateTimeForLocal, formatRelativeTime } from '/static/js/common/common.js';
+import { formatDateTimeForLocal, formatRelativeTime, formatDateTimeFull } from '/static/js/common/common.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
 
@@ -93,6 +93,10 @@ const accountTable = new DataTable({
         deployModal: null,
     },
     methods: {
+        formatDateTimeFull(dateTime) {
+            return formatDateTimeFull(dateTime);
+        },
+
         // Initialize any additional data
         initialize() {
             this.fetchPeriodTypes();

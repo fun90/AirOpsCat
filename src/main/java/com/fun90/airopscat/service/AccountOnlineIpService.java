@@ -117,6 +117,20 @@ public class AccountOnlineIpService {
     }
 
     /**
+     * 批量获取各accountNo的最近一次在线时间
+     */
+    public Map<String, LocalDateTime> getLastOnlineTimeMap(List<String> accountNos) {
+        return accountOnlineIpRepository.findMaxLastOnlineTimeMapByAccountNos(accountNos);
+    }
+
+    /**
+     * 获取指定accountNo最近一次在线时间（不限时间范围）
+     */
+    public LocalDateTime getLastOnlineTime(String accountNo) {
+        return accountOnlineIpRepository.findMaxLastOnlineTimeByAccountNo(accountNo);
+    }
+
+    /**
      * 清理过期的在线记录
      */
     @Transactional

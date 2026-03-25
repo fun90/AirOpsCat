@@ -36,4 +36,5 @@ public class AccountDto {
     
     // 在线IP信息
     private List<AccountOnlineIpDto> onlineIps; // 在线IP列表
+    private LocalDateTime lastOnlineTime; // 最后在线时间
 }

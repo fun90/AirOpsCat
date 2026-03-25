@@ -226,6 +226,37 @@ public class AccountService {
         return dto;
     }
 
+    /**
+     * 批量转换账户列表为DTO，最后在线时间使用批量查询避免N+1
+     */
+    public List<AccountDto> convertToDtoList(List<Account> accounts) {
+        // 批量查询所有账号的最后在线时间
+        List<String> accountNos = accounts.stream()
+                .map(Account::getAccountNo)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+        Map<String, LocalDateTime> lastOnlineTimeMap = accountOnlineIpService.getLastOnlineTimeMap(accountNos);
+
+        return accounts.stream().map(account -> {
+            AccountDto dto = convertToDto(account);
+            if (account.getAccountNo() != null) {
+                // 优先取当前在线记录中最新的时间，否则取历史最大值
+                if (dto.getOnlineIps() != null && !dto.getOnlineIps().isEmpty()) {
+                    LocalDateTime latestOnline = dto.getOnlineIps().stream()
+                            .map(AccountOnlineIpDto::getLastOnlineTime)
+                            .filter(Objects::nonNull)
+                            .max(LocalDateTime::compareTo)
+                            .orElse(null);
+                    dto.setLastOnlineTime(latestOnline);
+                } else {
+                    dto.setLastOnlineTime(lastOnlineTimeMap.get(account.getAccountNo()));
+                }
+            }
+            return dto;
+        }).collect(java.util.stream.Collectors.toList());
+    }
+
     @Transactional
     public Account saveAccount(Account account) {
         // Generate UUID if not provided
