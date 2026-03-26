@@ -21,4 +21,5 @@ public class AccountOnlineIpDto {
     private Long userId; // 用户ID
     private String userEmail;
     private String nickName;
+    private String remark; // 账户备注
 } 

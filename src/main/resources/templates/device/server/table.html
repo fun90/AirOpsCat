@@ -6,8 +6,7 @@
         <th>名称/主机名</th>
         <th>状态</th>
         <th>供应商</th>
-        <th>SSH</th>
-        <th>认证方式</th>
+        <th>在线账户</th>
         <th>流量使用</th>
         <th>到期时间</th>
         <th>价格</th>
@@ -38,11 +37,17 @@
             </span>
         </td>
         <td v-text="server.supplier || '-'"></td>
-        <td v-text="server.sshPort || 22"></td>
         <td>
-            <div class="d-flex flex-column">
-                <span>{{ getAuthTypeLabel(server.authType) }}</span>
-                <small v-if="server.username" class="text-muted">{{ server.username }}</small>
+            <div v-if="server.onlineAccountCount && server.onlineAccountCount > 0">
+                <div class="d-flex align-items-center">
+                    <span class="badge text-bg-success me-2">{{ server.onlineAccountCount }}</span>
+                    <button @click="viewOnlineAccounts(server)" class="btn btn-sm btn-ghost-secondary">
+                        <i class="ti ti-eye"></i>
+                    </button>
+                </div>
+            </div>
+            <div v-else>
+                <span class="text-muted">-</span>
             </div>
         </td>
         <td>
@@ -52,16 +57,16 @@
                  data-bs-placement="top"
                  style="cursor: pointer;">
                 {{ formatBytes(server.trafficTotalBytes) }}
-            </div>
-            <span v-else class="text-muted">-</span>
-        </td>
-        <td v-text="formatDate(server.expireDate) || '永不过期'"></td>
-        <td>
-            <span v-if="server.price">
-                ¥ {{ server.price.toFixed(2) }}
                 <span v-if="server.multiple && server.multiple != 1" class="text-muted">
                     (×{{ server.multiple }})
                 </span>
+            </div>
+            <span v-else class="text-muted">-</span>
+        </td>
+        <td v-text="formatDateTime(server.expireDate) || '永不过期'"></td>
+        <td>
+            <span v-if="server.price">
+                ¥ {{ server.price.toFixed(2) }}
             </span>
             <span v-else>-</span>
         </td>
@@ -107,14 +112,14 @@
         </td>
     </tr>
     <tr v-if="loading">
-        <td colspan="11" class="text-center py-3">
+        <td colspan="10" class="text-center py-3">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </td>
     </tr>
     <tr v-else-if="records.length === 0">
-        <td colspan="11" class="text-center py-3">没有查到数据.</td>
+        <td colspan="10" class="text-center py-3">没有查到数据.</td>
     </tr>
     </tbody>
 </table>

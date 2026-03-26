@@ -93,15 +93,22 @@ public class AccountOnlineIpService {
     public List<AccountOnlineIpDto> getOnlineRecordsByNodeIp(String nodeIp) {
         // 计算检查时间范围（当前时间往前推checkMinutes分钟）
         LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(checkMinutes);
-        
+
         // 获取所有记录，然后过滤出在时间窗口内的记录
         List<AccountOnlineIp> allRecords = accountOnlineIpRepository.findByNodeIp(nodeIp);
         List<AccountOnlineIp> validRecords = allRecords.stream()
-                .filter(record -> record.getLastOnlineTime() != null && 
+                .filter(record -> record.getLastOnlineTime() != null &&
                         record.getLastOnlineTime().isAfter(checkStartTime))
                 .collect(Collectors.toList());
-        
+
         return convertToDtoList(validRecords);
+    }
+
+    /**
+     * 获取指定服务器IP的在线账户
+     */
+    public List<AccountOnlineIpDto> getOnlineAccountsByServerIp(String serverIp) {
+        return getOnlineRecordsByNodeIp(serverIp);
     }
 
     /**
@@ -198,19 +205,20 @@ public class AccountOnlineIpService {
         dto.setSessionStartTime(resolveSessionStartTime(record));
         dto.setCreateTime(record.getCreateTime());
         dto.setUpdateTime(record.getUpdateTime());
-        
+
         // 设置关联信息
         Account account = accountMap.get(record.getAccountNo());
         if (account != null) {
             dto.setAccountId(account.getId());
             dto.setUserId(account.getUserId());
-            
+            dto.setRemark(account.getRemark());
+
             User user = userMap.get(account.getUserId());
             if (user != null) {
                 dto.setUserNickName(user.getNickName());
             }
         }
-        
+
         return dto;
     }
 

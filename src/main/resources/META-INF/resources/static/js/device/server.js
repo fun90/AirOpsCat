@@ -49,6 +49,9 @@ const serverTable = new DataTable({
         coreConfigJson: '',
         editTransitConfigJson: '',
         editCoreConfigJson: '',
+        onlineAccounts: [],
+        onlineAccountsLoading: false,
+        onlineAccountsModal: null,
             newItem: {
                 ip: '',
                 sshPort: 22,
@@ -849,6 +852,48 @@ const serverTable = new DataTable({
                     console.error('Error:', error);
                     ToastUtils.show('Error', '续期失败', 'danger');
                 });
+        },
+
+        viewOnlineAccounts(server) {
+            this.selectedItem = server;
+            this.onlineAccounts = [];
+            this.onlineAccountsLoading = true;
+
+            if (!this.onlineAccountsModal) {
+                this.onlineAccountsModal = new Modal(document.getElementById('onlineAccountsModal'));
+            }
+            this.onlineAccountsModal.show();
+
+            fetch(`/api/admin/servers/${server.id}/online-accounts`)
+                .then(response => response.json())
+                .then(data => {
+                    this.onlineAccounts = data || [];
+                    this.onlineAccountsLoading = false;
+                })
+                .catch(error => {
+                    console.error('Error fetching online accounts:', error);
+                    this.onlineAccountsLoading = false;
+                    ToastUtils.show('Error', '获取在线账户失败', 'danger');
+                });
+        },
+
+        refreshOnlineAccounts() {
+            if (this.selectedItem) {
+                this.viewOnlineAccounts(this.selectedItem);
+            }
+        },
+
+        getOnlineDuration(sessionStartTime) {
+            if (!sessionStartTime) return '-';
+            const start = new Date(sessionStartTime);
+            const now = new Date();
+            const diffMs = now - start;
+            const diffMins = Math.floor(diffMs / 60000);
+            if (diffMins < 60) return `${diffMins}分钟`;
+            const diffHours = Math.floor(diffMins / 60);
+            if (diffHours < 24) return `${diffHours}小时`;
+            const diffDays = Math.floor(diffHours / 24);
+            return `${diffDays}天`;
         },
 
         // URLs for API calls

@@ -45,6 +45,9 @@ public class ServerController {
     @Inject
     NodeDeploymentService nodeDeploymentService;
 
+    @Inject
+    com.fun90.airopscat.service.AccountOnlineIpService accountOnlineIpService;
+
     @GET
     public Response getServerPage(
             @QueryParam("page") @DefaultValue("1") int page,
@@ -62,6 +65,14 @@ public class ServerController {
                 .map(server -> serverService.convertToDto(server))
                 .collect(Collectors.toList());
         serverTrafficStatsService.fillCurrentPeriodTraffic(serverDtos);
+
+        // Fill online account count (batch query to avoid N+1)
+        Map<String, Long> onlineCountByIp = accountOnlineIpService.getAllOnlineRecords().stream()
+                .collect(Collectors.groupingBy(
+                        com.fun90.airopscat.model.dto.AccountOnlineIpDto::getNodeIp,
+                        Collectors.counting()
+                ));
+        serverDtos.forEach(dto -> dto.setOnlineAccountCount(onlineCountByIp.getOrDefault(dto.getIp(), 0L).intValue()));
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", serverDtos);
@@ -106,6 +117,16 @@ public class ServerController {
         response.put("coreTypes", configs.keySet());
         response.put("configs", configs);
         return Response.ok(response).build();
+    }
+
+    @GET
+    @Path("/{id}/online-accounts")
+    public Response getServerOnlineAccounts(@PathParam("id") Long id) {
+        Server server = serverService.getServerById(id);
+        if (server == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        return Response.ok(accountOnlineIpService.getOnlineAccountsByServerIp(server.getIp())).build();
     }
     
     @GET

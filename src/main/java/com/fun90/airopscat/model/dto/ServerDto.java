@@ -40,5 +40,6 @@ public class ServerDto {
     private Long trafficTotalBytes;
     private LocalDateTime trafficPeriodStart;
     private LocalDateTime trafficPeriodEnd;
+    private Integer onlineAccountCount;
 
 }

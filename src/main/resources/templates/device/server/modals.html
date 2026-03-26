@@ -591,3 +591,77 @@
         </div>
     </div>
 </div>
+
+<!-- Online Accounts Modal -->
+<div class="modal modal-blur fade" id="onlineAccountsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">在线账户详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div v-if="selectedItem" class="alert alert-info">
+                    <div class="d-flex">
+                        <div>
+                            <i class="ti ti-info-circle"></i>
+                        </div>
+                        <div class="ms-2">
+                            <strong>{{ selectedItem.name || selectedItem.ip }}</strong> 的在线账户记录
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="onlineAccountsLoading" class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+
+                <div v-else-if="onlineAccounts.length === 0" class="text-center py-3">
+                    <div class="text-muted">暂无在线账户记录</div>
+                </div>
+
+                <div v-else>
+                    <div class="table-responsive">
+                        <table class="table table-vcenter">
+                            <thead>
+                                <tr>
+                                    <th>账户备注</th>
+                                    <th>客户端IP</th>
+                                    <th>最后在线时间</th>
+                                    <th>在线时长</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="account in onlineAccounts" :key="account.id">
+                                    <td>
+                                        <span class="badge text-bg-primary">{{ account.remark || account.accountNo }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="text-muted">{{ account.clientIp }}</span>
+                                        <button @click="copyToClipboard(account.clientIp)" class="btn btn-sm btn-ghost-secondary">
+                                            <i class="ti ti-copy"></i>
+                                        </button>
+                                    </td>
+                                    <td>
+                                        {{ formatDate(account.lastOnlineTime) }}
+                                    </td>
+                                    <td>
+                                        {{ getOnlineDuration(account.sessionStartTime) }}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-outline-secondary" @click="refreshOnlineAccounts">
+                    <i class="ti ti-refresh"></i> 刷新
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
