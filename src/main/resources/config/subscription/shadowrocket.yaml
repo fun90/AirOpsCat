@@ -32,17 +32,14 @@ dns:
   enhanced-mode: redir-host
   default-nameserver:
     - 223.5.5.5
-    - 114.114.114.114
   nameserver:
-    - https://doh.pub/dns-query
     - https://dns.alidns.com/dns-query
   nameserver-policy:
     geosite:geolocation-!cn:
       - "https://cloudflare-dns.com/dns-query#代理"
       - "https://dns.google/dns-query#代理"
   proxy-server-nameserver:
-    - "https://doh.pub/dns-query"
-    - "https://dns.alidns.com/dns-query"
+    - https://dns.alidns.com/dns-query
 
 profile:
   store-selected: true
