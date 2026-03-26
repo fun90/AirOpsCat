@@ -63,13 +63,14 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
         List<Map<String, Object>> outbounds = new ArrayList<>();
         List<Map<String, Object>> routeRules = new ArrayList<>();
         List<Map<String, Object>> ruleSets = new ArrayList<>();
+        List<String> statsUsers = new ArrayList<>();
 
         for (NodeDeploymentSnapshot node : enabledNodes) {
-            applyNodeConfig(node, inbounds, outbounds, routeRules);
+            applyNodeConfig(node, inbounds, outbounds, routeRules, statsUsers);
         }
 
         applyManagedRouteRules(serverSnapshot, nodeSnapshotMap, outbounds, routeRules, ruleSets);
-        return renderConfig(inbounds, outbounds, routeRules, ruleSets, collectStatsUsers(enabledNodes));
+        return renderConfig(inbounds, outbounds, routeRules, ruleSets, statsUsers.stream().distinct().toList());
     }
 
     @Override
@@ -80,13 +81,26 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
     private void applyNodeConfig(NodeDeploymentSnapshot node,
                                  List<Map<String, Object>> inbounds,
                                  List<Map<String, Object>> outbounds,
-                                 List<Map<String, Object>> routeRules) {
+                                 List<Map<String, Object>> routeRules,
+                                 List<String> statsUsers) {
         if (node.inbound() == null) {
             log.warn("Node {} inbound config is null, skip", node.id());
             return;
         }
 
-        inbounds.add(buildInbound(node));
+        Map<String, Object> inboundMap = toMap(node.inbound());
+        inbounds.add(buildInbound(node, inboundMap));
+
+        String protocol = normalize(node.protocol());
+        if ("shadowsocks".equals(protocol) || "socks".equals(protocol)) {
+            statsUsers.addAll(extractUsersFromInboundMap(inboundMap));
+        } else {
+            node.clients().stream()
+                    .map(NodeClient::email)
+                    .filter(Objects::nonNull)
+                    .filter(name -> !name.isBlank())
+                    .forEach(statsUsers::add);
+        }
 
         if (node.outId() != null) {
             addOutboundIfAbsent(node, outbounds);
@@ -96,20 +110,19 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
         }
     }
 
-    private Map<String, Object> buildInbound(NodeDeploymentSnapshot node) {
-        Map<String, Object> inbound = toMap(node.inbound());
-        removeRealityPublicKey(inbound);
-        inbound.put("tag", node.tag());
-        inbound.put("listen", "::");
-        inbound.put("listen_port", node.port());
+    private Map<String, Object> buildInbound(NodeDeploymentSnapshot node, Map<String, Object> inboundMap) {
+        removeRealityPublicKey(inboundMap);
+        inboundMap.put("tag", node.tag());
+        inboundMap.put("listen", "::");
+        inboundMap.put("listen_port", node.port());
 
         String protocol = normalize(node.protocol());
         if ("vless".equals(protocol) || "vless-reality".equals(protocol)) {
-            inbound.put("users", buildVlessUsers(node.clients()));
+            inboundMap.put("users", buildVlessUsers(node.clients()));
         } else if ("hysteria2".equals(protocol)) {
-            inbound.put("users", buildHysteria2Users(node.clients()));
+            inboundMap.put("users", buildHysteria2Users(node.clients()));
         }
-        return inbound;
+        return inboundMap;
     }
 
     private void removeRealityPublicKey(Map<String, Object> inbound) {
@@ -453,13 +466,18 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
                 .collect(Collectors.joining(",\n"));
     }
 
-    private List<String> collectStatsUsers(List<NodeDeploymentSnapshot> enabledNodes) {
-        return enabledNodes.stream()
-                .flatMap(node -> node.clients().stream())
-                .map(NodeClient::email)
-                .filter(Objects::nonNull)
+    private List<String> extractUsersFromInboundMap(Map<String, Object> inbound) {
+        List<Map<String, Object>> users = asMapList(inbound.get("users"));
+        return users.stream()
+                .map(user -> {
+                    Object name = user.get("name");
+                    if (name != null) {
+                        return Objects.toString(name, "");
+                    }
+                    Object username = user.get("username");
+                    return username != null ? Objects.toString(username, "") : "";
+                })
                 .filter(name -> !name.isBlank())
-                .distinct()
                 .toList();
     }
 

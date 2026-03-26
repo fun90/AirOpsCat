@@ -93,7 +93,6 @@ public class SubscriptionService {
 
         // 过滤已部署且启用的节点
         List<NodeDto> activeNodes = availableNodes.stream()
-                .filter(node -> node.getDeployed() != null && node.getDeployed() == 1)
                 .filter(node -> node.getDisabled() == null || node.getDisabled() == 0)
                 .filter(node -> Objects.equals(node.getType(), NodeType.PROXY.getValue()))
                 .map(NodeConverter::toDto)
@@ -161,9 +160,8 @@ public class SubscriptionService {
             return ApiResponseDto.error("当前账户没有可用的节点，请联系管理员");
         }
 
-        // 过滤已部署且启用的节点
+        // 过滤启用的节点
         List<NodeDto> activeNodes = availableNodes.stream()
-                .filter(node -> node.getDeployed() != null && node.getDeployed() == 1)
                 .filter(node -> node.getDisabled() == null || node.getDisabled() == 0)
                 .filter(node -> Objects.equals(node.getType(), NodeType.PROXY.getValue()))
                 .map(NodeConverter::toDto)
