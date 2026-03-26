@@ -1,5 +1,9 @@
 {
   "type": "shadowsocks",
   "method": "aes-256-gcm",
-  "password": "{password}"
+  "users": [ {
+    "name": "{name}",
+    "password": "{password}"
+  }
+]
 }

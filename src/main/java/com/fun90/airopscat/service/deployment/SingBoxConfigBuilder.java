@@ -215,7 +215,13 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
         outbound.put("server", serverAddress);
         outbound.put("server_port", serverPort);
         outbound.put("method", inbound.get("method"));
-        outbound.put("password", inbound.get("password"));
+
+        List<Map<String, Object>> users = asMapList(inbound.get("users"));
+        if (!users.isEmpty()) {
+            outbound.put("password", users.getFirst().get("password"));
+        } else {
+            outbound.put("password", inbound.get("password"));
+        }
         return outbound;
     }
 
