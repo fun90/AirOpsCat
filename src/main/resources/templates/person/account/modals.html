@@ -540,7 +540,7 @@
                                                     <button @click="copyToClipboard(ip.clientIp)" class="btn btn-sm btn-ghost-secondary">
                                                         <i class="ti ti-copy"></i>
                                                     </button>
-                                                    <small class="text-muted">{{ formatDateTime(ip.lastOnlineTime) }}</small>
+                                                    <small class="text-muted">{{ formatDate(ip.lastOnlineTime) }}</small>
                                                 </div>
                                             </div>
                                             <div v-if="selectedItem.onlineIps.length > 3" class="text-center py-2">
@@ -779,7 +779,7 @@
                                         <span class="text-muted">{{ ip.nodeIp }}</span>
                                     </td>
                                     <td>
-                                        {{ formatDateTime(ip.lastOnlineTime) }}
+                                        {{ formatDate(ip.lastOnlineTime) }}
                                     </td>
                                     <td>
                                         {{ getOnlineDuration(ip.sessionStartTime) }}
