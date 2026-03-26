@@ -3,6 +3,7 @@ import { DataTable } from '/static/js/common/data-table.js';
 import { formatDateTimeForLocal } from '/static/js/common/common.js';
 import ApexCharts from '/static/js/apexcharts.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
+import { createRemoteSearchConfig } from '/static/js/common/tom-select-helper.js';
 
 const DEFAULT_TRANSACTION_FILTERS = Object.freeze({
     type: '',
@@ -345,64 +346,32 @@ const transactionTable = new DataTable({
 
         // Get Tom Select configuration for business type
         getBusinessSearchConfig(businessTable) {
-            switch (businessTable) {
-                case 'account':
-                    return {
-                        valueField: 'id',
-                        labelField: 'remark',
-                        searchField: ['remark', 'accountNo'],
-                        placeholder: '搜索账户备注或账号...',
-                        disabledField: null,
-                        load: (query, callback) => {
-                            if (!query.length || query.length < 2) {
-                                callback();
-                                return;
-                            }
-                            fetch(`/api/admin/accounts?search=${encodeURIComponent(query)}&size=20`)
-                                .then(response => response.json())
-                                .then(data => callback(data.records || data))
-                                .catch(() => callback());
-                        }
-                    };
-                case 'domain':
-                    return {
-                        valueField: 'id',
-                        labelField: 'domain',
-                        searchField: ['domain'],
-                        placeholder: '搜索域名...',
-                        disabledField: null,
-                        load: (query, callback) => {
-                            if (!query.length || query.length < 2) {
-                                callback();
-                                return;
-                            }
-                            fetch(`/api/admin/domains?search=${encodeURIComponent(query)}&size=20`)
-                                .then(response => response.json())
-                                .then(data => callback(data.records || data))
-                                .catch(() => callback());
-                        }
-                    };
-                case 'server':
-                    return {
-                        valueField: 'id',
-                        labelField: 'name',
-                        searchField: ['name', 'ip'],
-                        placeholder: '搜索服务器名称或IP...',
-                        disabledField: null,
-                        load: (query, callback) => {
-                            if (!query.length || query.length < 2) {
-                                callback();
-                                return;
-                            }
-                            fetch(`/api/admin/servers?search=${encodeURIComponent(query)}&size=20`)
-                                .then(response => response.json())
-                                .then(data => callback(data.records || data))
-                                .catch(() => callback());
-                        }
-                    };
-                default:
-                    return null;
-            }
+            const configs = {
+                account: {
+                    apiUrl: '/api/admin/accounts',
+                    valueField: 'id',
+                    labelField: 'remark',
+                    searchField: ['remark', 'accountNo'],
+                    placeholder: '搜索账户备注或账号...'
+                },
+                domain: {
+                    apiUrl: '/api/admin/domains',
+                    valueField: 'id',
+                    labelField: 'domain',
+                    searchField: ['domain'],
+                    placeholder: '搜索域名...'
+                },
+                server: {
+                    apiUrl: '/api/admin/servers',
+                    valueField: 'id',
+                    labelField: 'name',
+                    searchField: ['name', 'ip'],
+                    placeholder: '搜索服务器名称或IP...'
+                }
+            };
+
+            const config = configs[businessTable];
+            return config ? createRemoteSearchConfig({ ...config, onChange: null }) : null;
         },
 
         // Handle business table change event

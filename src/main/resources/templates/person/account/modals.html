@@ -11,7 +11,7 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label required">用户</label>
-                            <select id="user-search" class="form-select" :class="{ 'is-invalid': validationErrors.userId }"></select>
+                            <select id="user-search" class="form-select tom-select-hidden" :class="{ 'is-invalid': validationErrors.userId }"></select>
                             <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
                         </div>
                     </div>
@@ -161,7 +161,7 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label required">用户</label>
-                            <select id="edit-user-search" class="form-select" :class="{ 'is-invalid': validationErrors.userId }"></select>
+                            <select id="edit-user-search" class="form-select tom-select-hidden" :class="{ 'is-invalid': validationErrors.userId }"></select>
                             <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
                         </div>
                     </div>

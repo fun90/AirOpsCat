@@ -1,21 +1,11 @@
 <!-- Tom Select Tabler UI 适配样式 -->
 <style>
-    /* 隐藏被 Tom Select 初始化的原始 select 元素 */
-    select.tomselected,
-    select.form-select.tomselected,
-    .ts-wrapper + select,
-    select + .ts-wrapper ~ select {
-        display: none !important;
-        visibility: hidden !important;
-        position: absolute !important;
-        left: -9999px !important;
-    }
-
-    .ts-wrapper select {
+    /* 隐藏原始 select */
+    select.tom-select-hidden {
         display: none !important;
     }
 
-    /* Tom Select 控件基础样式 */
+    /* 控件基础样式 */
     .ts-wrapper.form-select {
         padding: 0;
     }
@@ -29,10 +19,6 @@
         color: var(--tblr-body-color);
         font-size: 0.875rem;
         line-height: 1.4285714286;
-    }
-
-    .ts-wrapper.multi .ts-control {
-        padding: 0.25rem 0.5rem;
     }
 
     .ts-wrapper .ts-control:focus {
@@ -53,24 +39,14 @@
         font-size: 0.75rem;
         line-height: 1;
     }
-
-    /* 移除按钮样式 */
-    .ts-wrapper .ts-control .item .remove {
-        margin-left: 0.25rem;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        color: rgba(255, 255, 255, 0.7);
-        font-size: 1rem;
-        line-height: 1;
-        cursor: pointer;
+    .ts-wrapper.multi .ts-control .item {
+        line-height: 1.5;
+    }
+    .ts-wrapper.multi .ts-control > div {
+        border-radius: 0.25rem;
     }
 
-    .ts-wrapper .ts-control .item .remove:hover {
-        color: #fff;
-    }
-
-    /* 输入框样式 */
+        /* 输入框样式 */
     .ts-wrapper .ts-control input {
         color: var(--tblr-body-color);
         font-size: 0.875rem;

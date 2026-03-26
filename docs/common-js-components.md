@@ -314,6 +314,97 @@ onBusinessTableChange() {
 - 设置 `disabledField: null` 确保所有搜索结果可选
 - 对于域名搜索，使用 `labelField: 'domain'` 而非 'name'
 
+### Tom Select 辅助函数
+
+文件：[`tom-select-helper.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/common/tom-select-helper.js)
+
+为了减少代码重复，封装了常用的 TomSelect 配置和初始化逻辑。
+
+#### 核心函数
+
+**createRemoteSearchConfig(options)**
+
+创建远程搜索配置对象，支持以下参数：
+
+- `apiUrl`: API 端点
+- `valueField`: 值字段名
+- `labelField`: 显示字段名
+- `searchField`: 搜索字段数组
+- `placeholder`: 占位符
+- `onChange`: 值变化回调
+- `minQueryLength`: 最小查询长度（默认2）
+- `pageSize`: 每页数量（默认20）
+- `render`: 自定义渲染函数
+- `dataTransform`: 数据转换函数
+- `plugins`: TomSelect 插件数组
+- `options`: 初始选项数组
+- `maxOptions`: 最大选项数
+
+**initSelectOnModalShow(modalId, selectId, config, context, instanceKey, afterInit)**
+
+在 modal 显示时重新初始化 TomSelect，避免重复元素问题。
+
+#### 预配置函数
+
+**createUserSearch(onChange, options)**
+
+用户搜索配置，搜索字段：nickName、email
+
+**createAccountSearch(onChange)**
+
+账户搜索配置，自动格式化显示为 `remark (#accountNo)`，onChange 回调接收 `(value, option, instance)` 参数
+
+**createServerSearch(onChange, formatLabel)**
+
+服务器搜索配置，搜索字段：name、ip，支持自定义标签格式化
+
+**createDomainSearch(onChange)**
+
+域名搜索配置，搜索字段：domain
+
+#### 使用示例
+
+```js
+import { createUserSearch, initSelectOnModalShow } from '/static/js/common/tom-select-helper.js';
+
+// 在 modal 显示时初始化用户搜索
+initSelectOnModalShow(
+    'account-createModal',
+    'user-search',
+    createUserSearch((value) => { this.newItem.userId = value || ''; }, this.users),
+    this,
+    'userSearch'
+);
+
+// 账户搜索（获取完整选项对象）
+const config = createAccountSearch((value, option, instance) => {
+    this.newItem.accountId = value || '';
+    this.newItem.userId = option?.userId || '';
+});
+
+// 服务器搜索（多选 + 自定义格式）
+import { createRemoteSearchConfig } from '/static/js/common/tom-select-helper.js';
+
+this.serverSearch = new TomSelect(selectElement, createRemoteSearchConfig({
+    apiUrl: '/api/admin/servers',
+    valueField: 'id',
+    labelField: 'name',
+    searchField: ['name', 'ip'],
+    placeholder: '搜索服务器...',
+    plugins: ['remove_button'],
+    maxOptions: 50,
+    options: this.servers.slice(0, 10),
+    onChange: (values) => { this.filters.serverId = values.join(','); }
+}));
+```
+
+#### 当前接入页面
+
+- [`person/account.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/person/account.js) - createUserSearch
+- [`person/account-traffic.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/person/account-traffic.js) - createAccountSearch
+- [`money/transactions.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/money/transactions.js) - createRemoteSearchConfig
+- [`vpn/node.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/vpn/node.js) - createRemoteSearchConfig
+
 ## 5. ToastUtils 通知组件
 
 文件：[`toast-utils.js`](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/common/toast-utils.js)

@@ -2,6 +2,7 @@ import { DataTable } from '/static/js/common/data-table.js';
 import { formatDateTimeForLocal, formatRelativeTime, formatDateTimeFull } from '/static/js/common/common.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
+import { createUserSearch } from '/static/js/common/tom-select-helper.js';
 
 const DEFAULT_ACCOUNT_FILTERS = Object.freeze({
     userId: '',
@@ -17,6 +18,7 @@ const accountTable = new DataTable({
         periodTypes: [],
         paymentMethods: [],
         availableTags: [],
+        users: [],
 
         // 搜索组件实例
         userSearch: null,
@@ -102,64 +104,33 @@ const accountTable = new DataTable({
             this.fetchPaymentMethods();
             this.fetchAvailableTags();
             this.fetchDocsConfig();
+            this.fetchUsers();
             this.initializeSearchComponents();
         },
 
         // Initialize search dropdown components
         initializeSearchComponents() {
-            setTimeout(() => {
-                const userSelectElement = document.getElementById('user-search');
-                if (userSelectElement) {
-                    this.userSearch = new TomSelect(userSelectElement, {
-                        valueField: 'id',
-                        labelField: 'nickName',
-                        searchField: ['nickName', 'email'],
-                        placeholder: '请搜索用户...',
-                        load: (query, callback) => {
-                            if (!query.length || query.length < 2) {
-                                callback();
-                                return;
-                            }
-                            fetch(`/api/admin/users?search=${encodeURIComponent(query)}&size=20`)
-                                .then(response => response.json())
-                                .then(data => {
-                                    callback(data.records || data);
-                                })
-                                .catch(() => callback());
-                        },
-                        onChange: (value) => {
-                            this.newItem.userId = value || '';
-                        }
-                    });
-                    userSelectElement.style.display = 'none';
+            document.getElementById('account-createModal').addEventListener('show.bs.modal', () => {
+                if (this.userSearch) {
+                    this.userSearch.destroy();
                 }
+                this.userSearch = new TomSelect(document.getElementById('user-search'),
+                    createUserSearch((value) => { this.newItem.userId = value || ''; }, this.users)
+                );
+            });
 
-                const editUserSelectElement = document.getElementById('edit-user-search');
-                if (editUserSelectElement) {
-                    this.editUserSearch = new TomSelect(editUserSelectElement, {
-                        valueField: 'id',
-                        labelField: 'nickName',
-                        searchField: ['nickName', 'email'],
-                        placeholder: '请搜索用户...',
-                        load: (query, callback) => {
-                            if (!query.length || query.length < 2) {
-                                callback();
-                                return;
-                            }
-                            fetch(`/api/admin/users?search=${encodeURIComponent(query)}&size=20`)
-                                .then(response => response.json())
-                                .then(data => {
-                                    callback(data.records || data);
-                                })
-                                .catch(() => callback());
-                        },
-                        onChange: (value) => {
-                            this.editedItem.userId = value || '';
-                        }
-                    });
-                    editUserSelectElement.style.display = 'none';
+            document.getElementById('account-editModal').addEventListener('show.bs.modal', () => {
+                if (this.editUserSearch) {
+                    this.editUserSearch.destroy();
                 }
-            }, 100);
+                this.editUserSearch = new TomSelect(document.getElementById('edit-user-search'),
+                    createUserSearch((value) => { this.editedItem.userId = value || ''; }, this.users)
+                );
+                if (this.editedItem && this.editedItem.userId) {
+                    this.editUserSearch.addOption({ id: this.editedItem.userId, nickName: this.editedItem.nickName || '' });
+                    this.editUserSearch.setValue(this.editedItem.userId, true);
+                }
+            });
         },
 
         fetchPeriodTypes() {
@@ -192,6 +163,17 @@ const accountTable = new DataTable({
                 })
                 .catch(error => {
                     console.error('Error fetching available tags:', error);
+                });
+        },
+
+        fetchUsers() {
+            fetch('/api/admin/users?size=10')
+                .then(response => response.json())
+                .then(data => {
+                    this.users = data.records || data;
+                })
+                .catch(error => {
+                    console.error('Error fetching users:', error);
                 });
         },
 
@@ -743,16 +725,10 @@ const accountTable = new DataTable({
             // Load current account tags
             this.loadAccountTags(account.id);
 
-            // Handle user search component for edit
-            if (this.editUserSearch && account.userId) {
-                this.editUserSearch.clearOptions();
-                this.editUserSearch.addOption({id: account.userId, nickName: account.nickName});
-                this.editUserSearch.setValue(account.userId, true);
-            }
-
             return {
                 id: account.id,
                 userId: account.userId,
+                nickName: account.nickName,
                 accountNo: account.accountNo,
                 level: account.level,
                 nodeMultiple: account.nodeMultiple,

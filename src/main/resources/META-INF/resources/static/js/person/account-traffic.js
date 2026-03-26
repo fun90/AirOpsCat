@@ -1,5 +1,6 @@
 import { DataTable } from '/static/js/common/data-table.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
+import { createAccountSearch, initSelectOnModalShow } from '/static/js/common/tom-select-helper.js';
 
 const DEFAULT_SORT_BY = 'totalBytes';
 const DEFAULT_SORT_DIRECTION = 'desc';
@@ -37,97 +38,38 @@ const trafficStatsTable = new DataTable({
         },
 
         initializeSearchComponents() {
-            setTimeout(() => {
-                const createSelectElement = document.getElementById('account-search-create');
-                if (createSelectElement) {
-                    this.createAccountSearch = new TomSelect(createSelectElement, {
-                        valueField: 'id',
-                        labelField: 'displayName',
-                        searchField: ['remark', 'accountNo'],
-                        placeholder: '搜索账户备注或账号...',
-                        render: {
-                            option: (data, escape) => {
-                                return `<div>${escape(data.remark || '未命名账户')}${data.accountNo ? ` (${escape(data.accountNo)})` : ''}</div>`;
-                            },
-                            item: (data, escape) => {
-                                return `<div>${escape(data.remark || '未命名账户')}${data.accountNo ? ` (${escape(data.accountNo)})` : ''}</div>`;
-                            }
-                        },
-                        load: (query, callback) => {
-                            if (!query.length || query.length < 2) {
-                                callback();
-                                return;
-                            }
-                            fetch(`/api/admin/accounts?search=${encodeURIComponent(query)}&size=20`)
-                                .then(response => response.json())
-                                .then(data => {
-                                    const accounts = (data.records || data).map(item => ({
-                                        ...item,
-                                        displayName: `${item.remark || '未命名账户'}${item.accountNo ? ` (${item.accountNo})` : ''}`
-                                    }));
-                                    callback(accounts);
-                                })
-                                .catch(() => callback());
-                        },
-                        onChange: (value) => {
-                            if (value) {
-                                const option = this.createAccountSearch.options[value];
-                                this.newItem.accountId = value;
-                                this.newItem.userId = option?.userId || '';
-                            } else {
-                                this.newItem.accountId = '';
-                                this.newItem.userId = '';
-                            }
-                        }
-                    });
-                    createSelectElement.style.display = 'none';
-                }
+            initSelectOnModalShow(
+                'traffic-stats-createModal',
+                'account-search-create',
+                createAccountSearch((value, option) => {
+                    this.newItem.accountId = value || '';
+                    this.newItem.userId = option?.userId || '';
+                }),
+                this,
+                'createAccountSearch'
+            );
 
-                const editSelectElement = document.getElementById('account-search-edit');
-                if (editSelectElement) {
-                    this.editAccountSearch = new TomSelect(editSelectElement, {
-                        valueField: 'id',
-                        labelField: 'displayName',
-                        searchField: ['remark', 'accountNo'],
-                        placeholder: '搜索账户备注或账号...',
-                        render: {
-                            option: (data, escape) => {
-                                return `<div>${escape(data.remark || '未命名账户')}${data.accountNo ? ` (${escape(data.accountNo)})` : ''}</div>`;
-                            },
-                            item: (data, escape) => {
-                                return `<div>${escape(data.remark || '未命名账户')}${data.accountNo ? ` (${escape(data.accountNo)})` : ''}</div>`;
-                            }
-                        },
-                        load: (query, callback) => {
-                            if (!query.length || query.length < 2) {
-                                callback();
-                                return;
-                            }
-                            fetch(`/api/admin/accounts?search=${encodeURIComponent(query)}&size=20`)
-                                .then(response => response.json())
-                                .then(data => {
-                                    const accounts = (data.records || data).map(item => ({
-                                        ...item,
-                                        displayName: `${item.remark || '未命名账户'}${item.accountNo ? ` (${item.accountNo})` : ''}`
-                                    }));
-                                    callback(accounts);
-                                })
-                                .catch(() => callback());
-                        },
-                        onChange: (value) => {
-                            if (value) {
-                                const option = this.editAccountSearch.options[value];
-                                this.editedItem.accountId = value;
-                                this.editedItem.userId = option?.userId || '';
-                            } else {
-                                this.editedItem.accountId = '';
-                                this.editedItem.userId = '';
-                            }
-                        }
-                    });
-                    editSelectElement.style.display = 'none';
+            initSelectOnModalShow(
+                'traffic-stats-editModal',
+                'account-search-edit',
+                createAccountSearch((value, option) => {
+                    this.editedItem.accountId = value || '';
+                    this.editedItem.userId = option?.userId || '';
+                }),
+                this,
+                'editAccountSearch',
+                (instance) => {
+                    if (this.editedItem && this.editedItem.accountId) {
+                        instance.addOption({
+                            id: this.editedItem.accountId,
+                            remark: this.editedItem.nickname || '未命名账户',
+                            displayName: this.editedItem.nickname || '未命名账户',
+                            userId: this.editedItem.userId
+                        });
+                        instance.setValue(this.editedItem.accountId, true);
+                    }
                 }
-            }, 100);
+            );
         },
 
         fetchRecords() {
@@ -301,21 +243,12 @@ const trafficStatsTable = new DataTable({
                 id: record.id,
                 userId: record.userId,
                 accountId: record.accountId,
+                nickname: record.nickname,
                 periodStart: formatDateForInput(record.periodStart),
                 periodEnd: formatDateForInput(record.periodEnd),
                 uploadBytes: record.uploadBytes || 0,
                 downloadBytes: record.downloadBytes || 0
             };
-
-            if (this.editAccountSearch) {
-                this.editAccountSearch.clearOptions();
-                this.editAccountSearch.addOption({
-                    id: record.accountId,
-                    remark: record.nickname || '未命名账户',
-                    userId: record.userId
-                });
-                this.editAccountSearch.setValue(record.accountId, true);
-            }
 
             return editedItem;
         },

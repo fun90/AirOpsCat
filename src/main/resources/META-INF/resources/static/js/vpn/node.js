@@ -1,6 +1,7 @@
 ﻿import { DataTable } from '/static/js/common/data-table.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
+import { createRemoteSearchConfig } from '/static/js/common/tom-select-helper.js';
 
 const DEFAULT_NODE_FILTERS = Object.freeze({
     serverId: '',
@@ -93,39 +94,29 @@ const nodeTable = new DataTable({
                 const selectElement = document.getElementById('server-filter-select');
                 if (!selectElement) return;
 
-                this.serverFilterSearch = new TomSelect(selectElement, {
-                    plugins: ['remove_button'],
+                this.serverFilterSearch = new TomSelect(selectElement, createRemoteSearchConfig({
+                    apiUrl: '/api/admin/servers',
                     valueField: 'id',
                     labelField: 'name',
                     searchField: ['name', 'ip'],
                     placeholder: '全部服务器',
+                    plugins: ['remove_button'],
                     maxOptions: 50,
                     options: this.servers.slice(0, 10).map(server => ({
                         id: server.id,
                         name: this.formatServerDisplayLabel(server),
                         ip: server.ip
                     })),
-                    load: (query, callback) => {
-                        if (!query.length || query.length < 2) {
-                            callback();
-                            return;
-                        }
-                        fetch(`/api/admin/servers?search=${encodeURIComponent(query)}&size=20`)
-                            .then(response => response.json())
-                            .then(data => {
-                                callback(data.records.map(server => ({
-                                    id: server.id,
-                                    name: this.formatServerDisplayLabel(server),
-                                    ip: server.ip
-                                })));
-                            })
-                            .catch(() => callback());
-                    },
+                    dataTransform: (records) => records.map(server => ({
+                        id: server.id,
+                        name: this.formatServerDisplayLabel(server),
+                        ip: server.ip
+                    })),
                     onChange: (values) => {
                         this.filters.serverId = values.join(',');
                         this.onFilterChange();
                     }
-                });
+                }));
             }, 100);
         },
 
