@@ -51,7 +51,7 @@
 - 每种节点支持哪些协议
 - xray 和 sing-box 各支持哪些协议
 - 代理节点和落地节点是什么关系
-- 一个节点要不要绑定主服务器和备用服务器
+- 一个节点要不要绑定主节点服务器和备用节点
 - 节点的配置是否允许人工编辑 JSON
 - 节点的修改是否会影响部署状态
 - 节点部署是单节点、按服务器、还是按核心维度执行
@@ -131,7 +131,7 @@ Codex 的任务：
 
 - `id`
 - `serverId`
-- `backupServerId`
+- `backupNodeId`
 - `port`
 - `protocol`
 - `coreType`
@@ -188,7 +188,7 @@ Codex 的任务：
 这一阶段最重要的不是 CRUD，而是约束：
 
 - 协议必须和 `nodeType + coreType` 匹配
-- 主服务器和备用服务器不能冲突
+- 主节点和备用节点不能部署在同一服务器
 - 端口不能冲突
 - 修改关键字段后必须回到未部署
 
@@ -305,7 +305,7 @@ Codex 的任务：
 2. 节点分页查询
 3. 节点创建与编辑
 4. 端口冲突校验
-5. server / backupServer 校验
+5. server / backupNode 校验
 6. protocol 与 nodeType/coreType 组合校验
 7. 部署状态联动
 8. 获取默认 inbound 的 service 接口
@@ -644,7 +644,7 @@ Build node management as a protocol-aware and deployment-aware module, not just 
 2. 能创建一个 sing-box `vless-reality` 代理节点
 3. 能创建一个 `shadowsocks` 落地节点
 4. 页面只显示当前可选协议，不出现非法组合
-5. 主服务器和备用服务器的端口冲突能正确拦截
+5. 主节点服务器和备用节点服务器的端口冲突能正确拦截
 6. 节点编辑关键字段后自动变成未部署
 7. 能查看节点 inbound / rule 配置
 8. 能完成至少一种核心的真实部署

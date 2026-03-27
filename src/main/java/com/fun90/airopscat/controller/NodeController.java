@@ -67,11 +67,7 @@ public class NodeController {
     ) {
         PanacheQuery<Node> nodeQuery = nodeService.getNodePage(search, serverIds, nodeTagId, type, coreType, protocol, disabled, deployed, sortBy, sortOrder);
         nodeQuery.page(Page.of(page - 1, size));
-        
-        // Convert to DTOs
-        List<NodeDto> nodeDtos = nodeQuery.list().stream()
-                .map(NodeConverter::toDto)
-                .collect(Collectors.toList());
+        List<NodeDto> nodeDtos = nodeService.toNodeDtos(nodeQuery.list());
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", nodeDtos);
@@ -89,9 +85,8 @@ public class NodeController {
     @GET
     @Path("/{id}")
     public Response getNodeById(@PathParam("id") Long id) {
-        Node node = nodeService.getNodeById(id);
-        if (node != null) {
-            NodeDto dto = NodeConverter.toDto(node);
+        NodeDto dto = nodeService.getNodeDtoById(id);
+        if (dto != null) {
             return Response.ok(dto).build();
         }
         return Response.status(Response.Status.NOT_FOUND).build();
@@ -101,9 +96,7 @@ public class NodeController {
     @Path("/server/{serverId}")
     public Response getNodesByServer(@PathParam("serverId") Long serverId) {
         List<Node> nodes = nodeService.getNodesByServer(serverId);
-        List<NodeDto> nodeDtos = nodes.stream()
-                .map(NodeConverter::toDto)
-                .collect(Collectors.toList());
+        List<NodeDto> nodeDtos = nodeService.toNodeDtos(nodes);
         return Response.ok(nodeDtos).build();
     }
 
@@ -111,10 +104,16 @@ public class NodeController {
     @Path("/landing")
     public Response getLandingNodes() {
         List<Node> nodes = nodeService.getNodeByType(NodeType.LANDING);
-        List<NodeDto> nodeDtos = nodes.stream()
-                .map(NodeConverter::toDto)
-                .collect(Collectors.toList());
+        List<NodeDto> nodeDtos = nodeService.toNodeDtos(nodes);
         return Response.ok(nodeDtos).build();
+    }
+
+    @GET
+    @Path("/backup-options")
+    public Response getBackupNodeOptions(@QueryParam("type") Integer type,
+                                         @QueryParam("coreType") String coreType,
+                                         @QueryParam("excludeId") Long excludeId) {
+        return Response.ok(nodeService.getBackupNodeOptions(type, coreType, excludeId)).build();
     }
     
     @GET
@@ -162,7 +161,7 @@ public class NodeController {
     @Path("/check-port")
     public Response checkPortAvailability(
             @QueryParam("serverId") Long serverId,
-            @QueryParam("backupServerId") Long backupServerId,
+            @QueryParam("backupNodeId") Long backupNodeId,
             @QueryParam("port") Integer port,
             @QueryParam("nodeId") Long nodeId
     ) {
@@ -172,22 +171,25 @@ public class NodeController {
         boolean mainServerAvailable = nodeService.isPortAvailable(serverId, port, nodeId);
         response.put("mainServerAvailable", mainServerAvailable);
         
-        // 检查备用服务器端口
-        boolean backupServerAvailable = nodeService.isBackupPortAvailable(backupServerId, port, nodeId);
-        response.put("backupServerAvailable", backupServerAvailable);
+        // 检查备用节点端口
+        boolean backupNodeAvailable = nodeService.isBackupNodePortAvailable(backupNodeId, port, nodeId);
+        response.put("backupNodeAvailable", backupNodeAvailable);
         
         // 综合检查结果
-        boolean available = nodeService.isNodePortsAvailable(serverId, backupServerId, port, nodeId);
+        boolean available = nodeService.isNodePortsAvailable(serverId, backupNodeId, port, nodeId);
         response.put("available", available);
         
         // 如果不可用，提供详细信息
         if (!available) {
-            if (backupServerId != null && serverId.equals(backupServerId)) {
-                response.put("message", "主服务器和备用服务器不能相同");
-            } else if (!mainServerAvailable) {
+            if (!mainServerAvailable) {
                 response.put("message", "端口在主服务器上已被占用");
-            } else if (!backupServerAvailable) {
-                response.put("message", "端口在备用服务器上已被占用");
+            } else {
+                Node backupNode = backupNodeId == null ? null : nodeService.getNodeById(backupNodeId);
+                if (backupNode != null && serverId.equals(backupNode.getServerId())) {
+                    response.put("message", "主节点和备用节点不能部署在同一服务器");
+                } else if (!backupNodeAvailable) {
+                    response.put("message", "端口在备用节点服务器上已被占用");
+                }
             }
         }
         
@@ -206,7 +208,7 @@ public class NodeController {
                 tagService.updateNodeTags(savedNode.getId(), request.getTagIds());
             }
             
-            return Response.ok(NodeConverter.toDto(savedNode)).build();
+            return Response.ok(nodeService.getNodeDtoById(savedNode.getId())).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
@@ -231,7 +233,7 @@ public class NodeController {
                 tagService.updateNodeTags(updatedNode.getId(), request.getTagIds());
             }
             
-            return Response.ok(NodeConverter.toDto(updatedNode)).build();
+            return Response.ok(nodeService.getNodeDtoById(updatedNode.getId())).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
@@ -247,8 +249,14 @@ public class NodeController {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
-        nodeService.deleteNode(id);
-        return Response.ok().build();
+        try {
+            nodeService.deleteNode(id);
+            return Response.ok().build();
+        } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
+        }
     }
 
     @PATCH
@@ -312,7 +320,7 @@ public class NodeController {
 
             // Copy basic properties manually
             nodeCopy.setServerId(existingNode.getServerId());
-            nodeCopy.setBackupServerId(existingNode.getBackupServerId());
+            nodeCopy.setBackupNodeId(existingNode.getBackupNodeId());
             nodeCopy.setAccessHostId(existingNode.getAccessHostId());
             nodeCopy.setProtocol(existingNode.getProtocol());
             nodeCopy.setCoreType(existingNode.getCoreType());

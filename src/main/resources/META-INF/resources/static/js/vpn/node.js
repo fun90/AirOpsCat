@@ -22,6 +22,8 @@ const nodeTable = new DataTable({
         filters: { ...DEFAULT_NODE_FILTERS },
         servers: [],
         landingNodes: [],
+        backupNodeOptions: [],
+        editBackupNodeOptions: [],
         nodeTypes: [],
         coreTypes: [],
         protocolTypes: [],
@@ -35,7 +37,7 @@ const nodeTable = new DataTable({
         },
         newItem: {
             serverId: '',
-            backupServerId: '',
+            backupNodeId: '',
             accessHostId: '',
             port: null,
             coreType: 'xray',
@@ -193,13 +195,72 @@ const nodeTable = new DataTable({
                         this.newItem.serverId = this.servers[0].id;
                     }
                     this.syncAccessHostSelection(this.newItem);
+                    this.fetchBackupNodeOptions(this.newItem);
                     if (this.editedItem) {
                         this.syncAccessHostSelection(this.editedItem);
+                        this.fetchBackupNodeOptions(this.editedItem, true);
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching servers:', error);
                 });
+        },
+
+        fetchBackupNodeOptions(item, isEdit = false) {
+            const optionKey = isEdit ? 'editBackupNodeOptions' : 'backupNodeOptions';
+            if (!item || item.type === '' || item.type === null || item.type === undefined || !item.coreType) {
+                this[optionKey] = [];
+                if (item) {
+                    item.backupNodeId = isEdit ? 0 : '';
+                }
+                return;
+            }
+
+            const excludeId = isEdit ? (item.id || '') : '';
+            fetch(`/api/admin/nodes/backup-options?type=${encodeURIComponent(item.type)}&coreType=${encodeURIComponent(item.coreType)}&excludeId=${encodeURIComponent(excludeId)}`)
+                .then(response => response.json())
+                .then(data => {
+                    this[optionKey] = data;
+                    const selectedValue = String(item.backupNodeId ?? '');
+                    const hasSelected = selectedValue !== '' && selectedValue !== '0';
+                    if (hasSelected && !data.some(node => String(node.id) === selectedValue)) {
+                        item.backupNodeId = isEdit ? 0 : '';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching backup nodes:', error);
+                    this[optionKey] = [];
+                });
+        },
+
+        formatBackupNodeLabel(node) {
+            if (!node) {
+                return '';
+            }
+            const name = node.name
+                ? `${node.name}${node.no ? `-${node.no}` : ''}`
+                : `节点#${node.id}`;
+            const serverHost = node.serverHost || node.serverIp || '-';
+            const port = node.port || '-';
+            return `${name} (${serverHost}:${port})`;
+        },
+
+        onBackupNodeChange(isEdit = false) {
+            const item = isEdit ? this.editedItem : this.newItem;
+            if (!item) {
+                return;
+            }
+
+            const selectedValue = String(item.backupNodeId ?? '');
+            if (selectedValue !== '' && selectedValue !== '0') {
+                ToastUtils.show('Warning', '选择备用节点后，保存会覆盖该备用节点的协议、端口、入站和出站配置。', 'warning');
+            }
+
+            if (isEdit) {
+                this.checkEditPortAvailability();
+                return;
+            }
+            this.checkPortAvailability();
         },
 
         fetchLandingNodes() {
@@ -370,10 +431,12 @@ const nodeTable = new DataTable({
                 this.newItem.outId = null;
             }
             this.syncProtocolSelection(this.newItem, false);
+            this.fetchBackupNodeOptions(this.newItem);
         },
 
         onCoreTypeChange() {
             this.syncProtocolSelection(this.newItem, false);
+            this.fetchBackupNodeOptions(this.newItem);
         },
 
         onEditTypeChange() {
@@ -381,10 +444,12 @@ const nodeTable = new DataTable({
                 this.editedItem.outId = 0;
             }
             this.syncProtocolSelection(this.editedItem, true);
+            this.fetchBackupNodeOptions(this.editedItem, true);
         },
 
         onEditCoreTypeChange() {
             this.syncProtocolSelection(this.editedItem, true);
+            this.fetchBackupNodeOptions(this.editedItem, true);
         },
 
         onServerChange() {
@@ -403,7 +468,8 @@ const nodeTable = new DataTable({
                 return;
             }
 
-            fetch(`/api/admin/nodes/check-port?serverId=${this.newItem.serverId}&port=${this.newItem.port}`)
+            const backupNodeQuery = this.newItem.backupNodeId ? `&backupNodeId=${this.newItem.backupNodeId}` : '';
+            fetch(`/api/admin/nodes/check-port?serverId=${this.newItem.serverId}&port=${this.newItem.port}${backupNodeQuery}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.available) {
@@ -424,7 +490,10 @@ const nodeTable = new DataTable({
                 return;
             }
 
-            fetch(`/api/admin/nodes/check-port?serverId=${this.editedItem.serverId}&port=${this.editedItem.port}&nodeId=${this.editedItem.id}`)
+            const backupNodeQuery = this.editedItem.backupNodeId && this.editedItem.backupNodeId !== 0
+                ? `&backupNodeId=${this.editedItem.backupNodeId}`
+                : '';
+            fetch(`/api/admin/nodes/check-port?serverId=${this.editedItem.serverId}&port=${this.editedItem.port}&nodeId=${this.editedItem.id}${backupNodeQuery}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.available) {
@@ -458,6 +527,9 @@ const nodeTable = new DataTable({
         },
 
         getEditAvailablePort() {
+            if (this.isBackupManagedNode(this.editedItem)) {
+                return;
+            }
             if (!this.editedItem.serverId) {
                 ToastUtils.show('Warning', '请先选择服务器', 'warning');
                 return;
@@ -489,6 +561,9 @@ const nodeTable = new DataTable({
         },
 
         onEditProtocolChange() {
+            if (this.isBackupManagedNode(this.editedItem)) {
+                return;
+            }
             const coreType = this.getDefaultInboundCoreType(this.editedItem);
             fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedItem.protocol}&serverId=${encodeURIComponent(this.editedItem.serverId || '')}&accessHostId=${encodeURIComponent(this.editedItem.accessHostId || '')}&coreType=${encodeURIComponent(coreType)}`)
                 .then(response => response.json())
@@ -657,6 +732,20 @@ const nodeTable = new DataTable({
             return isValid;
         },
 
+        isBackupManagedNode(item) {
+            return !!(item && item.usedAsBackupNode);
+        },
+
+        getBackupManagedNodeHint(item) {
+            if (!this.isBackupManagedNode(item)) {
+                return '';
+            }
+            const label = item.backupForNodeName
+                ? `${item.backupForNodeName}${item.backupForNodeId ? ` (#${item.backupForNodeId})` : ''}`
+                : `节点 #${item.backupForNodeId}`;
+            return `当前作为 ${label} 的备用节点，协议、端口、入站配置、出站配置需在主节点中维护。`;
+        },
+
         prepareCreateData() {
             try {
                 let inboundConfig = this.newNodeInbound;
@@ -672,7 +761,7 @@ const nodeTable = new DataTable({
 
                 return {
                     serverId: this.newItem.serverId,
-                    backupServerId: this.newItem.backupServerId || null,
+                    backupNodeId: this.newItem.backupNodeId || null,
                     accessHostId: this.newItem.accessHostId || null,
                     port: this.newItem.port,
                     coreType: this.newItem.coreType,
@@ -709,7 +798,7 @@ const nodeTable = new DataTable({
                 return {
                     id: this.editedItem.id,
                     serverId: this.editedItem.serverId,
-                    backupServerId: this.editedItem.backupServerId === 0 ? null : this.editedItem.backupServerId,
+                    backupNodeId: this.editedItem.backupNodeId === 0 ? null : this.editedItem.backupNodeId,
                     accessHostId: this.editedItem.accessHostId || null,
                     port: this.editedItem.port,
                     coreType: this.editedItem.coreType,
@@ -736,7 +825,7 @@ const nodeTable = new DataTable({
             this.fetchLandingNodes();
             this.newItem = {
                 serverId: this.servers.length > 0 ? this.servers[0].id : '',
-                backupServerId: '',
+                backupNodeId: '',
                 accessHostId: '',
                 port: null,
                 coreType: 'xray',
@@ -760,6 +849,8 @@ const nodeTable = new DataTable({
 
             this.newNodeRuleJson = '{}';
             this.portCheckMessage = '';
+            this.backupNodeOptions = [];
+            this.fetchBackupNodeOptions(this.newItem);
         },
 
         loadNodeTags(nodeId) {
@@ -782,11 +873,20 @@ const nodeTable = new DataTable({
 
             this.editPortCheckMessage = '';
             this.loadNodeTags(node.id);
+            this.fetchBackupNodeOptions({
+                id: node.id,
+                type: node.type,
+                coreType: node.coreType,
+                backupNodeId: node.backupNodeId || 0
+            }, true);
 
             return {
                 id: node.id,
                 serverId: node.serverId,
-                backupServerId: !node.backupServerId ? 0 : node.backupServerId,
+                backupNodeId: !node.backupNodeId ? 0 : node.backupNodeId,
+                usedAsBackupNode: !!node.usedAsBackupNode,
+                backupForNodeId: node.backupForNodeId || null,
+                backupForNodeName: node.backupForNodeName || '',
                 accessHostId: node.accessHostId || '',
                 port: node.port,
                 coreType: node.coreType,

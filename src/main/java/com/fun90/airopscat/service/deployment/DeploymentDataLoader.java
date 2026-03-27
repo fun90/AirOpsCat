@@ -14,6 +14,7 @@ import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.RouteRuleService;
+import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.RequiredArgsConstructor;
 
@@ -46,7 +47,7 @@ public class DeploymentDataLoader {
         List<Long> targetServerIds = collectTargetServerIds(inputNodes);
         Map<Long, Set<String>> targetCoreTypesByServerId = collectTargetCoreTypesByServerId(inputNodes);
         List<Node> relatedNodes = filterRelatedNodesByServerCore(
-                nodeRepository.findByServerIdsOrBackupServerIds(targetServerIds),
+                nodeRepository.findByServerIdIn(targetServerIds),
                 targetCoreTypesByServerId
         );
         Map<Long, List<RouteRuleSnapshot>> routeRulesByServerId = routeRuleService.getEnabledSnapshotsByServerIds(targetServerIds);
@@ -82,7 +83,7 @@ public class DeploymentDataLoader {
         }
 
         List<Long> targetServerIds = List.of(serverId);
-        List<Node> relatedNodes = nodeRepository.findByServerIdOrBackupServerId(serverId);
+        List<Node> relatedNodes = nodeRepository.findByServerId(serverId);
         Map<Long, List<RouteRuleSnapshot>> routeRulesByServerId = routeRuleService.getEnabledSnapshotsByServerIds(targetServerIds);
         List<RouteRuleSnapshot> routeRuleSnapshots = routeRulesByServerId.getOrDefault(serverId, Collections.emptyList());
 
@@ -114,9 +115,6 @@ public class DeploymentDataLoader {
         Set<Long> serverIds = new LinkedHashSet<>();
         for (Node node : nodes) {
             serverIds.add(node.getServerId());
-            if (node.getBackupServerId() != null) {
-                serverIds.add(node.getBackupServerId());
-            }
         }
         return new ArrayList<>(serverIds);
     }
@@ -128,19 +126,13 @@ public class DeploymentDataLoader {
             coreTypesByServerId
                     .computeIfAbsent(node.getServerId(), key -> new LinkedHashSet<>())
                     .add(coreType);
-            if (node.getBackupServerId() != null) {
-                coreTypesByServerId
-                        .computeIfAbsent(node.getBackupServerId(), key -> new LinkedHashSet<>())
-                        .add(coreType);
-            }
         }
         return coreTypesByServerId;
     }
 
     private List<Node> filterRelatedNodesByServerCore(List<Node> nodes, Map<Long, Set<String>> targetCoreTypesByServerId) {
         return nodes.stream()
-                .filter(node -> matchesTargetServerCore(node.getServerId(), node.getCoreType(), targetCoreTypesByServerId)
-                        || matchesTargetServerCore(node.getBackupServerId(), node.getCoreType(), targetCoreTypesByServerId))
+                .filter(node -> matchesTargetServerCore(node.getServerId(), node.getCoreType(), targetCoreTypesByServerId))
                 .toList();
     }
 
@@ -187,9 +179,6 @@ public class DeploymentDataLoader {
             if (targetServerIdSet.contains(node.getServerId())) {
                 grouped.computeIfAbsent(node.getServerId(), id -> new ArrayList<>()).add(node);
             }
-            if (node.getBackupServerId() != null && targetServerIdSet.contains(node.getBackupServerId())) {
-                grouped.computeIfAbsent(node.getBackupServerId(), id -> new ArrayList<>()).add(node);
-            }
         }
         return grouped;
     }
@@ -229,6 +218,17 @@ public class DeploymentDataLoader {
                 .collect(Collectors.toMap(Node::getId, node -> node));
 
         Map<Long, List<NodeClient>> nodeClientsMap = buildNodeClientsMap(snapshotNodes);
+        Map<Long, Node> primaryNodesByBackupNodeId = snapshotNodes.stream()
+                .filter(node -> node.getBackupNodeId() != null)
+                .collect(Collectors.toMap(Node::getBackupNodeId, node -> node, (left, right) -> left, LinkedHashMap::new));
+        List<Long> backupNodeIds = snapshotNodes.stream()
+                .map(Node::getId)
+                .distinct()
+                .toList();
+        if (!backupNodeIds.isEmpty()) {
+            nodeRepository.findByBackupNodeIdIn(backupNodeIds)
+                    .forEach(node -> primaryNodesByBackupNodeId.putIfAbsent(node.getBackupNodeId(), node));
+        }
 
         Map<Long, NodeDeploymentSnapshot> snapshots = new HashMap<>();
         for (Node node : snapshotNodes) {
@@ -239,6 +239,7 @@ public class DeploymentDataLoader {
 
             Server server = node.getServerId() == null ? null : serverMap.get(node.getServerId());
             Server outServer = outNode == null ? null : serverMap.get(outNode.getServerId());
+            Node primaryNode = primaryNodesByBackupNodeId.get(node.getId());
             snapshots.put(node.getId(), new NodeDeploymentSnapshot(
                     node.getId(),
                     node.getCoreType(),
@@ -246,7 +247,7 @@ public class DeploymentDataLoader {
                     server == null ? null : server.getIp(),
                     node.getPort(),
                     node.getDisabled(),
-                    node.getInbound(),
+                    mergeBackupInbound(node, primaryNode),
                     node.getOutId(),
                     node.getTag(),
                     outNode == null ? null : outNode.getCoreType(),
@@ -255,10 +256,114 @@ public class DeploymentDataLoader {
                     outNode == null ? null : outNode.getInbound(),
                     outServer == null ? null : outServer.getIp(),
                     outNode == null ? null : outNode.getPort(),
-                    nodeClientsMap.getOrDefault(node.getId(), Collections.emptyList())
+                    mergeClients(
+                            nodeClientsMap.getOrDefault(node.getId(), Collections.emptyList()),
+                            primaryNode == null ? Collections.emptyList() : nodeClientsMap.getOrDefault(primaryNode.getId(), Collections.emptyList())
+                    )
             ));
         }
         return snapshots;
+    }
+
+    private String mergeBackupInbound(Node node, Node primaryNode) {
+        if (primaryNode == null || node.getInbound() == null || primaryNode.getInbound() == null) {
+            return node.getInbound();
+        }
+
+        Map<String, Object> backupInbound = toMap(node.getInbound());
+        Map<String, Object> primaryInbound = toMap(primaryNode.getInbound());
+        String protocol = Objects.toString(node.getProtocol(), "").trim().toLowerCase();
+
+        if ("vless".equals(protocol) || "vless-reality".equals(protocol)) {
+            Map<String, Object> backupSettings = ensureMap(backupInbound, "settings");
+            Map<String, Object> primarySettings = asMap(primaryInbound.get("settings"));
+            backupSettings.put("clients", mergeUserMaps(
+                    asMapList(backupSettings.get("clients")),
+                    asMapList(primarySettings == null ? null : primarySettings.get("clients")),
+                    "id"
+            ));
+            return JsonUtil.toJsonString(backupInbound);
+        }
+
+        if ("hysteria2".equals(protocol) || "socks".equals(protocol) || "shadowsocks".equals(protocol)) {
+            backupInbound.put("users", mergeUserMaps(
+                    asMapList(backupInbound.get("users")),
+                    asMapList(primaryInbound.get("users")),
+                    "name",
+                    "username",
+                    "password"
+            ));
+            return JsonUtil.toJsonString(backupInbound);
+        }
+
+        return node.getInbound();
+    }
+
+    private List<NodeClient> mergeClients(List<NodeClient> currentClients, List<NodeClient> primaryClients) {
+        Map<String, NodeClient> merged = new LinkedHashMap<>();
+        for (NodeClient client : currentClients) {
+            merged.put(client.id(), client);
+        }
+        for (NodeClient client : primaryClients) {
+            merged.put(client.id(), client);
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private List<Map<String, Object>> mergeUserMaps(List<Map<String, Object>> currentUsers,
+                                                    List<Map<String, Object>> extraUsers,
+                                                    String... preferredKeys) {
+        Map<String, Map<String, Object>> merged = new LinkedHashMap<>();
+        for (Map<String, Object> user : currentUsers) {
+            merged.put(resolveUserKey(user, preferredKeys), new LinkedHashMap<>(user));
+        }
+        for (Map<String, Object> user : extraUsers) {
+            merged.put(resolveUserKey(user, preferredKeys), new LinkedHashMap<>(user));
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private String resolveUserKey(Map<String, Object> user, String... preferredKeys) {
+        for (String preferredKey : preferredKeys) {
+            Object value = user.get(preferredKey);
+            if (value != null && !Objects.toString(value, "").isBlank()) {
+                return preferredKey + ":" + value;
+            }
+        }
+        return JsonUtil.toJsonString(user);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> toMap(String json) {
+        Map<String, Object> map = JsonUtil.toObject(json, Map.class);
+        return map == null ? new LinkedHashMap<>() : map;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> ensureMap(Map<String, Object> parent, String key) {
+        Object value = parent.get(key);
+        if (value instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        Map<String, Object> newMap = new LinkedHashMap<>();
+        parent.put(key, newMap);
+        return newMap;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asMap(Object value) {
+        return value instanceof Map<?, ?> map ? (Map<String, Object>) map : null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> asMapList(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return Collections.emptyList();
+        }
+        return list.stream()
+                .filter(Map.class::isInstance)
+                .map(item -> (Map<String, Object>) item)
+                .toList();
     }
 
     private Map<Long, List<NodeClient>> buildNodeClientsMap(List<Node> nodes) {

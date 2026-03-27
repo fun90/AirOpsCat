@@ -18,9 +18,13 @@ public class NodeDto {
     private String serverHost;
     private Long accessHostId;
     private String accessHost;
-    private Long backupServerId;
-    private String backupServerIp;
-    private String backupServerHost;
+    private Long backupNodeId;
+    private String backupNodeName;
+    private String backupNodeServerIp;
+    private String backupNodeServerHost;
+    private Boolean usedAsBackupNode;
+    private Long backupForNodeId;
+    private String backupForNodeName;
     private Integer port;
     private String protocol;
     private String coreType;

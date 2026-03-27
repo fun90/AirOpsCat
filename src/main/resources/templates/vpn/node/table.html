@@ -16,7 +16,7 @@
                     <i :class="getSortIcon('server')" :style="{ opacity: isSortActive('server') ? 1 : 0.45 }"></i>
                 </button>
             </th>
-            <th class="d-none d-xl-table-cell">备用服务器</th>
+            <th class="d-none d-xl-table-cell">备用节点</th>
             <th class="d-none d-lg-table-cell">出站</th>
             <th>状态</th>
             <th class="w-1">操作</th>
@@ -57,9 +57,10 @@
             </div>
         </td>
         <td class="d-none d-xl-table-cell">
-            <div class="d-flex flex-column" v-if="node.backupServerIp">
-                <span class="fw-medium">{{ node.backupServerIp }}</span>
-                <span v-if="node.backupServerHost" class="text-secondary small text-break">{{ node.backupServerHost }}</span>
+            <div class="d-flex flex-column" v-if="node.backupNodeId">
+                <span class="fw-medium">{{ node.backupNodeName || ('节点 #' + node.backupNodeId) }}</span>
+                <span v-if="node.backupNodeServerIp" class="text-secondary small text-break">{{ node.backupNodeServerIp }}</span>
+                <span v-if="node.backupNodeServerHost" class="text-secondary small text-break">{{ node.backupNodeServerHost }}</span>
             </div>
             <span v-else class="text-secondary">-</span>
         </td>

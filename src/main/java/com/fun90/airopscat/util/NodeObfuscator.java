@@ -72,9 +72,10 @@ public class NodeObfuscator {
         copy.setServerHost(src.getServerHost());
         copy.setAccessHostId(src.getAccessHostId());
         copy.setAccessHost(src.getAccessHost());
-        copy.setBackupServerId(src.getBackupServerId());
-        copy.setBackupServerIp(src.getBackupServerIp());
-        copy.setBackupServerHost(src.getBackupServerHost());
+        copy.setBackupNodeId(src.getBackupNodeId());
+        copy.setBackupNodeName(src.getBackupNodeName());
+        copy.setBackupNodeServerIp(src.getBackupNodeServerIp());
+        copy.setBackupNodeServerHost(src.getBackupNodeServerHost());
         copy.setPort(src.getPort());
         copy.setProtocol(src.getProtocol());
         copy.setCoreType(src.getCoreType());

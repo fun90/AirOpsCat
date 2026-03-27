@@ -117,7 +117,7 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
         Map<String, Object> inbound = toMap(node.inbound());
         Map<String, Object> settings = asMap(inbound.get("settings"));
         if ("vless".equalsIgnoreCase(Objects.toString(inbound.get("protocol"), null)) && settings != null) {
-            settings.put("clients", buildVlessUsers(node.clients()));
+            settings.put("clients", mergeVlessUsers(asMapList(settings.get("clients")), node.clients()));
         }
         inbound.put("tag", node.tag());
         inbound.put("port", node.port());
@@ -136,6 +136,19 @@ public class XrayConfigBuilder implements CoreConfigBuilder {
                 return user;
             })
             .toList();
+    }
+
+    private List<Map<String, Object>> mergeVlessUsers(List<Map<String, Object>> currentUsers, List<NodeClient> managedClients) {
+        Map<String, Map<String, Object>> merged = new LinkedHashMap<>();
+        for (Map<String, Object> user : currentUsers) {
+            String id = Objects.toString(user.get("id"), "");
+            merged.put(id.isBlank() ? JsonUtil.toJsonString(user) : id, new LinkedHashMap<>(user));
+        }
+        for (Map<String, Object> user : buildVlessUsers(managedClients)) {
+            String id = Objects.toString(user.get("id"), "");
+            merged.put(id.isBlank() ? JsonUtil.toJsonString(user) : id, user);
+        }
+        return new ArrayList<>(merged.values());
     }
 
     private void addOutboundIfAbsent(NodeDeploymentSnapshot node, List<Map<String, Object>> outbounds) {

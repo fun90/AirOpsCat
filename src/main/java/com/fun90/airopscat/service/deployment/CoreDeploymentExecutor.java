@@ -13,6 +13,7 @@ import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.deployment.registry.CoreConfigBuilderRegistry;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,9 @@ public class CoreDeploymentExecutor {
     private final NodeRepository nodeRepository;
     private final CoreConfigBuilderRegistry coreConfigBuilderRegistry;
 
+    @ConfigProperty(name = "airopscat.deployment.skip-remote-config", defaultValue = "false")
+    boolean skipRemoteConfigInCurrentEnv;
+
     public List<CoreDeploymentExecution> executeForServer(DeploymentServerContext ctx) {
         Server server = ctx.server();
         log.info("Deploy nodes for server {}({}), count={}", server.getName(), server.getId(), ctx.nodes().size());
@@ -59,7 +63,12 @@ public class CoreDeploymentExecutor {
         try {
             String config = coreConfigBuilderRegistry.getStrategy(coreType).build(ctx, nodes);
             if (server.getExternal() == null || server.getExternal() == 0) {
-                deployToServer(server, coreType, config);
+                if (skipRemoteConfigInCurrentEnv) {
+                    log.info("Skip remote config deployment in current environment, server={}({}), core={}",
+                            server.getName(), server.getId(), coreType);
+                } else {
+                    deployToServer(server, coreType, config);
+                }
             }
             return CoreDeploymentExecution.success(server, coreType, nodes, config);
         } catch (UnsupportedOperationException | IllegalArgumentException e) {

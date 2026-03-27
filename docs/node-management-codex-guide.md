@@ -35,7 +35,7 @@
 - 启用 / 禁用节点
 - 获取服务器列表、落地节点列表、可用端口
 - 根据 `coreType + protocol` 生成默认 inbound 配置
-- 校验主服务器 / 备用服务器端口冲突
+- 校验主节点服务器 / 备用节点服务器端口冲突
 - 节点复制
 - 单节点部署、强制重部署、批量部署
 - xray / sing-box 内核切换
@@ -97,7 +97,7 @@
 `Node` 实体里，真正决定节点行为的字段是：
 
 - `serverId`：主服务器
-- `backupServerId`：备用服务器
+- `backupNodeId`：备用节点
 - `port`：节点端口
 - `protocol`：协议
 - `coreType`：内核类型，当前主线是 `xray` / `sing-box`
@@ -121,7 +121,9 @@
 - 创建时允许直接选择 `coreType`。
 - 编辑时禁止直接修改 `coreType`，必须通过“切换内核”功能。
 - 代理节点可以选择落地节点作为 `outId`。
-- 支持备用服务器，因此端口冲突检查要同时覆盖主机和备机。
+- 支持备用节点，保存主节点时会同步覆盖备用节点的协议、端口、入站、出站配置。
+- 备用节点只能选择相同节点类型、相同内核类型，且不能与主节点部署在同一服务器。
+- 部署主节点时要联动部署备用节点，并将主节点入站中的用户信息合并到备用节点入站配置中。
 - inbound / rule 允许用户直接编辑 JSON。
 - 节点复制时需要重新分配端口，避免冲突。
 - 禁用节点、编辑关键字段、切换内核后，节点会回到“未部署”状态。
@@ -172,6 +174,7 @@
 - `GET /api/admin/nodes/stats`
 - `GET /api/admin/nodes/available-port`
 - `GET /api/admin/nodes/default-inbound`
+- `GET /api/admin/nodes/backup-options`
 - `GET /api/admin/nodes/check-port`
 - `POST /api/admin/nodes`
 - `PUT /api/admin/nodes/{id}`
@@ -234,7 +237,7 @@
 - `type`
 - `coreType`
 - `serverId`
-- `backupServerId`
+- `backupNodeId`
 - `inbound`
 - `rule`
 - `outId`

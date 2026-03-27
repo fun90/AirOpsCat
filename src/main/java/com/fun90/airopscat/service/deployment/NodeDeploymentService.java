@@ -67,7 +67,7 @@ public class NodeDeploymentService {
     @Transactional
     public List<DeploymentResult> deployNodes(List<Long> nodeIds) {
         try {
-            List<Node> undeployedNodes = getUndeployedNodes(nodeIds);
+            List<Node> undeployedNodes = expandWithBackupNodes(getUndeployedNodes(nodeIds));
             if (undeployedNodes.isEmpty()) {
                 log.info("No undeployed nodes found");
                 return Collections.emptyList();
@@ -82,7 +82,7 @@ public class NodeDeploymentService {
     @Transactional
     public List<DeploymentResult> deployNodesForcibly(List<Node> nodes) {
         try {
-            return processNodesByServer(nodes);
+            return processNodesByServer(expandWithBackupNodes(nodes));
         } catch (Exception e) {
             log.error("Force deploy nodes failed", e);
             throw new RuntimeException("节点部署失败: " + e.getMessage(), e);
@@ -142,7 +142,7 @@ public class NodeDeploymentService {
 
         if (Boolean.TRUE.equals(redeploy) && !affectedServerIds.isEmpty()) {
             stopSourceCoresBeforeRedeploy(sourceCoresByServerId);
-            List<Node> affectedNodes = nodeRepository.findByServerIdsOrBackupServerIds(new ArrayList<>(affectedServerIds));
+            List<Node> affectedNodes = nodeRepository.findByServerIdIn(new ArrayList<>(affectedServerIds));
             List<DeploymentResult> deploymentResults = deployNodesForcibly(affectedNodes);
             response.setDeploymentResults(deploymentResults);
         }
@@ -166,6 +166,29 @@ public class NodeDeploymentService {
             return nodeRepository.findByDeployedAndIdIn(0, nodeIds);
         }
         return nodeRepository.findByDeployed(0);
+    }
+
+    private List<Node> expandWithBackupNodes(List<Node> nodes) {
+        if (nodes == null || nodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<Long, Node> expandedNodes = nodes.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(Node::getId, node -> node, (left, right) -> left, LinkedHashMap::new));
+
+        List<Long> backupNodeIds = nodes.stream()
+                .map(Node::getBackupNodeId)
+                .filter(Objects::nonNull)
+                .filter(id -> !expandedNodes.containsKey(id))
+                .distinct()
+                .toList();
+        if (!backupNodeIds.isEmpty()) {
+            nodeRepository.findByIdIn(backupNodeIds)
+                    .forEach(node -> expandedNodes.putIfAbsent(node.getId(), node));
+        }
+
+        return new ArrayList<>(expandedNodes.values());
     }
 
     private List<DeploymentResult> processNodesByServer(List<Node> nodes) {
@@ -283,8 +306,11 @@ public class NodeDeploymentService {
         if (node.getServerId() != null) {
             affectedServerIds.add(node.getServerId());
         }
-        if (node.getBackupServerId() != null) {
-            affectedServerIds.add(node.getBackupServerId());
+        if (node.getBackupNodeId() != null) {
+            Node backupNode = nodeRepository.findById(node.getBackupNodeId());
+            if (backupNode != null && backupNode.getServerId() != null) {
+                affectedServerIds.add(backupNode.getServerId());
+            }
         }
     }
 
@@ -295,10 +321,13 @@ public class NodeDeploymentService {
                     .computeIfAbsent(node.getServerId(), key -> new LinkedHashSet<>())
                     .add(sourceCoreType);
         }
-        if (node.getBackupServerId() != null) {
-            sourceCoresByServerId
-                    .computeIfAbsent(node.getBackupServerId(), key -> new LinkedHashSet<>())
-                    .add(sourceCoreType);
+        if (node.getBackupNodeId() != null) {
+            Node backupNode = nodeRepository.findById(node.getBackupNodeId());
+            if (backupNode != null && backupNode.getServerId() != null) {
+                sourceCoresByServerId
+                        .computeIfAbsent(backupNode.getServerId(), key -> new LinkedHashSet<>())
+                        .add(sourceCoreType);
+            }
         }
     }
 

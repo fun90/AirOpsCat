@@ -118,9 +118,9 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
 
         String protocol = normalize(node.protocol());
         if ("vless".equals(protocol) || "vless-reality".equals(protocol)) {
-            inboundMap.put("users", buildVlessUsers(node.clients()));
+            inboundMap.put("users", mergeUsers(asMapList(inboundMap.get("users")), buildVlessUsers(node.clients()), "uuid"));
         } else if ("hysteria2".equals(protocol)) {
-            inboundMap.put("users", buildHysteria2Users(node.clients()));
+            inboundMap.put("users", mergeUsers(asMapList(inboundMap.get("users")), buildHysteria2Users(node.clients()), "name", "password"));
         }
         return inboundMap;
     }
@@ -162,6 +162,29 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
                     return user;
                 })
                 .toList();
+    }
+
+    private List<Map<String, Object>> mergeUsers(List<Map<String, Object>> currentUsers,
+                                                 List<Map<String, Object>> managedUsers,
+                                                 String... preferredKeys) {
+        Map<String, Map<String, Object>> merged = new LinkedHashMap<>();
+        for (Map<String, Object> user : currentUsers) {
+            merged.put(resolveUserKey(user, preferredKeys), new LinkedHashMap<>(user));
+        }
+        for (Map<String, Object> user : managedUsers) {
+            merged.put(resolveUserKey(user, preferredKeys), user);
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private String resolveUserKey(Map<String, Object> user, String... preferredKeys) {
+        for (String preferredKey : preferredKeys) {
+            Object value = user.get(preferredKey);
+            if (value != null && !Objects.toString(value, "").isBlank()) {
+                return preferredKey + ":" + value;
+            }
+        }
+        return JsonUtil.toJsonString(user);
     }
 
     private void addOutboundIfAbsent(NodeDeploymentSnapshot node, List<Map<String, Object>> outbounds) {

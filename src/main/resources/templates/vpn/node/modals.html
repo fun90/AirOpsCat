@@ -103,12 +103,12 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">备用服务器</label>
-                                    <select class="form-select" v-model="newItem.backupServerId">
+                                    <label class="form-label">备用节点</label>
+                                    <select class="form-select" v-model="newItem.backupNodeId" @change="onBackupNodeChange()">
                                         <option value="">无</option>
-                                        <option v-for="server in servers" :key="server.id" :value="server.id" :disabled="server.id === newItem.serverId">{{ server.name }}</option>
+                                        <option v-for="node in backupNodeOptions" :key="node.id" :value="node.id">{{ formatBackupNodeLabel(node) }}</option>
                                     </select>
-                                    <small class="form-hint">可选择一个备用服务器</small>
+                                    <small class="form-hint">只能选择相同节点类型、内核类型的节点。保存时会覆盖备用节点的协议、端口、入站和出站配置。</small>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -233,6 +233,9 @@
                 </ul>
                 <div class="tab-content">
                     <div class="tab-pane active show" id="edit-tabs-basic">
+                        <div v-if="isBackupManagedNode(editedItem)" class="alert alert-warning mb-3 mt-3" role="alert">
+                            {{ getBackupManagedNodeHint(editedItem) }}
+                        </div>
                         <div class="row mt-3">
                             <div class="col-md-6">
                                 <div class="mb-3">
@@ -291,8 +294,8 @@
                                 <div class="mb-3">
                                     <label class="form-label required">端口</label>
                                     <div class="input-group">
-                                        <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.port }" v-model="editedItem.port" min="1" max="65535">
-                                        <button class="btn" type="button" @click="getEditAvailablePort">自动获取</button>
+                                        <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.port }" v-model="editedItem.port" min="1" max="65535" :disabled="isBackupManagedNode(editedItem)">
+                                        <button class="btn" type="button" @click="getEditAvailablePort" :disabled="isBackupManagedNode(editedItem)">自动获取</button>
                                     </div>
                                     <div class="invalid-feedback" v-if="validationErrors.port">{{ validationErrors.port }}</div>
                                     <small class="form-hint" v-if="editPortCheckMessage">{{ editPortCheckMessage }}</small>
@@ -315,12 +318,12 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">备用服务器</label>
-                                    <select class="form-select" v-model="editedItem.backupServerId">
+                                    <label class="form-label">备用节点</label>
+                                    <select class="form-select" v-model="editedItem.backupNodeId" @change="onBackupNodeChange(true)">
                                         <option :value="0">无</option>
-                                        <option v-for="server in servers" :key="server.id" :value="server.id" :disabled="server.id === editedItem.serverId">{{ server.name }}</option>
+                                        <option v-for="node in editBackupNodeOptions" :key="node.id" :value="node.id">{{ formatBackupNodeLabel(node) }}</option>
                                     </select>
-                                    <small class="form-hint">可选择一个备用服务器</small>
+                                    <small class="form-hint">只能选择相同节点类型、内核类型的节点。保存时会覆盖备用节点的协议、端口、入站和出站配置。</small>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -353,10 +356,15 @@
                     </div>
                     <div class="tab-pane" id="edit-tabs-inbound">
                         <div class="row mt-3">
+                            <div v-if="isBackupManagedNode(editedItem)" class="col-md-12">
+                                <div class="alert alert-warning" role="alert">
+                                    {{ getBackupManagedNodeHint(editedItem) }}
+                                </div>
+                            </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label required">协议</label>
-                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="editedItem.protocol" @change="onEditProtocolChange">
+                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="editedItem.protocol" @change="onEditProtocolChange" :disabled="isBackupManagedNode(editedItem)">
                                         <option v-for="protocol in getAvailableProtocols(editedItem)" :key="protocol.value" :value="protocol.value">{{ protocol.label }}</option>
                                     </select>
                                     <div class="invalid-feedback" v-if="validationErrors.protocol">{{ validationErrors.protocol }}</div>
@@ -368,7 +376,7 @@
                             <div class="col-md-12">
                                 <div class="mb-3">
                                     <label class="form-label">高级配置 (JSON)</label>
-                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="editedNodeInboundJson" placeholder='{"key": "value"}'></textarea>
+                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="editedNodeInboundJson" placeholder='{"key": "value"}' :readonly="isBackupManagedNode(editedItem)"></textarea>
                                     <small class="form-hint">可以追加协议特有的其他配置参数</small>
                                 </div>
                             </div>
@@ -379,7 +387,7 @@
                             <div class="col-md-12">
                                 <div class="mb-3">
                                     <label class="form-label">出站配置</label>
-                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="editedItem.outId">
+                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="editedItem.outId" :disabled="isBackupManagedNode(editedItem)">
                                         <option :value="0">直连</option>
                                         <option v-for="node in landingNodes" :key="node.id" :value="node.id">{{ node.name }}({{ node.serverHost }}:{{ node.port }})</option>
                                     </select>

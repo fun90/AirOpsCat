@@ -22,8 +22,8 @@ public class Node {
     @Column(name = "server_id")
     private Long serverId;
     
-    @Column(name = "backup_server_id")
-    private Long backupServerId;
+    @Column(name = "backup_node_id")
+    private Long backupNodeId;
 
     @Column(name = "access_host_id")
     private Long accessHostId;
@@ -68,8 +68,8 @@ public class Node {
     private Server server;
 
     @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REFRESH})
-    @JoinColumn(name = "backup_server_id", insertable = false, updatable = false)
-    private Server backupServer;
+    @JoinColumn(name = "backup_node_id", insertable = false, updatable = false)
+    private Node backupNode;
 
     @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REFRESH})
     @JoinColumn(name = "access_host_id", insertable = false, updatable = false)

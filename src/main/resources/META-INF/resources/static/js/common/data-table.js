@@ -405,6 +405,8 @@ export class DataTable {
                 this.records[index] = data;
               }
             }
+
+            this.fetchRecords();
             
             this.editModal.hide();
             ToastUtils.show('Success', '更新成功', 'success');

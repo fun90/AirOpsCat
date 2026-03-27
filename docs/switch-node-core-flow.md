@@ -45,7 +45,7 @@ sequenceDiagram
             CMS-->>NDS: stopResult
         end
 
-        NDS->>NR: findByServerIdsOrBackupServerIds(affectedServerIds)
+        NDS->>NR: findByServerIdIn(affectedServerIds)
         NR-->>NDS: affectedNodes
         NDS->>NDS: deployNodesForcibly(affectedNodes)
         NDS->>DDL: load(affectedNodes)

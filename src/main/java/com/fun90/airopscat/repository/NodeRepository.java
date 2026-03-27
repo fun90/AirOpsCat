@@ -13,13 +13,19 @@ public class NodeRepository implements PanacheRepository<Node> {
         return find("serverId", serverId).list();
     }
 
-    // 一次性查询某个服务器的所有相关节点（作为主服务器或备用服务器）
-    public List<Node> findByServerIdOrBackupServerId(Long serverId) {
-        return find("serverId = ?1 or backupServerId = ?1", serverId).list();
+    public List<Node> findByServerIdIn(List<Long> serverIds) {
+        if (serverIds == null || serverIds.isEmpty()) {
+            return List.of();
+        }
+        return find("serverId in ?1", serverIds).list();
     }
 
-    public List<Node> findByServerIdsOrBackupServerIds(List<Long> serverIds) {
-        return find("serverId in ?1 or backupServerId in ?1", serverIds).list();
+    public List<Node> findByServerIdOrBackupNodeServerId(Long serverId) {
+        return find("serverId = ?1", serverId).list();
+    }
+
+    public List<Node> findByServerIdsOrBackupNodeServerIds(List<Long> serverIds) {
+        return findByServerIdIn(serverIds);
     }
 
     public List<Node> findByIdIn(List<Long> ids) {
@@ -33,7 +39,7 @@ public class NodeRepository implements PanacheRepository<Node> {
         if (serverId == null || coreType == null || coreType.isBlank()) {
             return 0;
         }
-        return count("(serverId = ?1 or backupServerId = ?1) and lower(trim(coreType)) = ?2",
+        return count("serverId = ?1 and lower(trim(coreType)) = ?2",
                 serverId, coreType.trim().toLowerCase());
     }
 
@@ -41,7 +47,7 @@ public class NodeRepository implements PanacheRepository<Node> {
         if (serverId == null || coreType == null || coreType.isBlank()) {
             return 0;
         }
-        return count("(serverId = ?1 or backupServerId = ?1) and lower(trim(coreType)) = ?2 and (disabled is null or disabled = 0)",
+        return count("serverId = ?1 and lower(trim(coreType)) = ?2 and (disabled is null or disabled = 0)",
                 serverId, coreType.trim().toLowerCase());
     }
     
@@ -98,32 +104,42 @@ public class NodeRepository implements PanacheRepository<Node> {
         return count("serverId = ?1 and port = ?2", serverId, port) > 0;
     }
     
-    // 检查备用服务器端口是否已被使用
-    public boolean existsByBackupServerIdAndPortAndIdNot(Long backupServerId, Integer port, Long id) {
-        return count("backupServerId = ?1 and port = ?2 and id != ?3", backupServerId, port, id) > 0;
-    }
-    
-    public boolean existsByBackupServerIdAndPort(Long backupServerId, Integer port) {
-        return count("backupServerId = ?1 and port = ?2", backupServerId, port) > 0;
-    }
-    
-    // 检查节点端口是否在主服务器或备用服务器上冲突（一次SQL查询）
-    public boolean existsPortConflict(Long serverId, Long backupServerId, Integer port, Long nodeId) {
-        if (backupServerId == null) {
-            // 只检查主服务器
-            if (nodeId == null) {
-                return count("serverId = ?1 and port = ?2", serverId, port) > 0;
-            } else {
-                return count("serverId = ?1 and port = ?2 and id != ?3", serverId, port, nodeId) > 0;
-            }
-        } else {
-            // 检查主服务器和备用服务器的端口冲突
-            String query = "(serverId = ?1 and port = ?2) or (backupServerId = ?3 and port = ?4)";
-            if (nodeId == null) {
-                return count(query, serverId, port, backupServerId, port) > 0;
-            } else {
-                return count(query + " and id != ?5", serverId, port, backupServerId, port, nodeId) > 0;
-            }
+    public boolean existsByServerIdAndPortAndIdNotIn(Long serverId, Integer port, List<Long> excludedIds) {
+        if (excludedIds == null || excludedIds.isEmpty()) {
+            return count("serverId = ?1 and port = ?2", serverId, port) > 0;
         }
+        return count("serverId = ?1 and port = ?2 and id not in ?3", serverId, port, excludedIds) > 0;
+    }
+
+    public List<Node> findByTypeAndCoreType(Integer type, String coreType, Long excludeId) {
+        if (excludeId == null) {
+            return find("type = ?1 and lower(trim(coreType)) = ?2", type, coreType.trim().toLowerCase()).list();
+        }
+        return find("type = ?1 and lower(trim(coreType)) = ?2 and id != ?3", type, coreType.trim().toLowerCase(), excludeId).list();
+    }
+
+    public List<Node> findByBackupNodeIdIn(List<Long> backupNodeIds) {
+        if (backupNodeIds == null || backupNodeIds.isEmpty()) {
+            return List.of();
+        }
+        return find("backupNodeId in ?1", backupNodeIds).list();
+    }
+
+    public Node findFirstByBackupNodeId(Long backupNodeId) {
+        return find("backupNodeId", backupNodeId).firstResult();
+    }
+
+    public boolean existsByBackupNodeIdAndIdNot(Long backupNodeId, Long id) {
+        if (backupNodeId == null) {
+            return false;
+        }
+        if (id == null) {
+            return count("backupNodeId = ?1", backupNodeId) > 0;
+        }
+        return count("backupNodeId = ?1 and id != ?2", backupNodeId, id) > 0;
+    }
+
+    public boolean existsByBackupNodeId(Long backupNodeId) {
+        return backupNodeId != null && count("backupNodeId = ?1", backupNodeId) > 0;
     }
 }
