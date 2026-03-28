@@ -21,16 +21,24 @@ import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.StringJoiner;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
+
+import com.fun90.airopscat.util.JsonUtil;
 
 @ApplicationScoped
 public class NodeService {
@@ -284,7 +292,7 @@ public class NodeService {
     }
 
     @Transactional
-    public Node updateNode(Node node, String nodeGroup, Set<Tag> tagSet) {
+    public Node updateNode(Node node, String nodeGroup, Set<Tag> tagSet, boolean tagsUpdated) {
         Node existingNode = nodeRepository.findById(node.getId());
         if (existingNode == null) {
             throw new EntityNotFoundException("Node not found");
@@ -302,7 +310,7 @@ public class NodeService {
         List<Node> groupNodes = nodeGroupService.validateNodeGroup(node);
         nodeGroupService.alignNodeToGroupConfiguration(node, groupNodes);
         validateNodeServersAndPorts(node, groupNodes);
-        boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node, tagSet);
+        boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node, tagSet, tagsUpdated);
 
         copyNonNullProperties(node, existingNode);
         existingNode.setOutId(node.getOutId());
@@ -331,59 +339,90 @@ public class NodeService {
         return existingNode;
     }
 
-    private boolean hasSubstantialChanges(Node oldNode, Node newNode, Set<Tag> newTagSet) {
-        if (newNode.getPort() != null && !newNode.getPort().equals(oldNode.getPort())) {
-            return true;
+    private boolean hasSubstantialChanges(Node oldNode, Node newNode, Set<Tag> newTagSet, boolean tagsUpdated) {
+        return !buildSubstantialChangeSignature(oldNode, oldNode.getTags(), true).equals(
+                buildSubstantialChangeSignature(newNode, newTagSet, tagsUpdated));
+    }
+
+    private String buildSubstantialChangeSignature(Node node, Set<Tag> tagSet, boolean includeTags) {
+        StringJoiner joiner = new StringJoiner("|");
+        joiner.add("serverId=" + normalizeValue(node.getServerId()));
+        joiner.add("accessHostId=" + normalizeValue(node.getAccessHostId()));
+        joiner.add("port=" + normalizeValue(node.getPort()));
+        joiner.add("type=" + normalizeValue(node.getType()));
+        joiner.add("protocol=" + normalizeText(node.getProtocol()));
+        joiner.add("coreType=" + normalizeText(node.getCoreType()));
+        joiner.add("inbound=" + normalizeJson(node.getInbound()));
+        joiner.add("rule=" + normalizeJson(node.getRule()));
+        joiner.add("outId=" + normalizeValue(node.getOutId()));
+        joiner.add("level=" + normalizeValue(node.getLevel()));
+        joiner.add("nodeGroup=" + normalizeNodeGroup(node.getNodeGroup()));
+        joiner.add("disabled=" + normalizeValue(node.getDisabled()));
+        if (includeTags) {
+            joiner.add("tags=" + normalizeTags(tagSet));
+        }
+        return md5Hex(joiner.toString());
+    }
+
+    private String normalizeValue(Object value) {
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private String normalizeText(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String normalizeNodeGroup(String nodeGroup) {
+        String normalizedGroup = nodeGroupService.normalizeNodeGroup(nodeGroup);
+        return normalizedGroup == null ? "" : normalizedGroup;
+    }
+
+    private String normalizeJson(String json) {
+        if (json == null || json.trim().isEmpty()) {
+            return "";
+        }
+        Object parsedJson = JsonUtil.toObject(json, Object.class);
+        return JsonUtil.toJsonString(canonicalizeJsonValue(parsedJson));
+    }
+
+    private Object canonicalizeJsonValue(Object value) {
+        if (value instanceof Map<?, ?> mapValue) {
+            Map<String, Object> normalizedMap = new TreeMap<>();
+            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
+                normalizedMap.put(String.valueOf(entry.getKey()), canonicalizeJsonValue(entry.getValue()));
+            }
+            return normalizedMap;
         }
 
-        if (newNode.getType() != null && !newNode.getType().equals(oldNode.getType())) {
-            return true;
+        if (value instanceof List<?> listValue) {
+            return listValue.stream()
+                    .map(this::canonicalizeJsonValue)
+                    .toList();
         }
 
-        if (!newNode.getCoreType().equals(oldNode.getCoreType())) {
-            return true;
-        }
+        return value;
+    }
 
-        if (newNode.getServerId() != null && !newNode.getServerId().equals(oldNode.getServerId())) {
-            return true;
+    private String normalizeTags(Set<Tag> tagSet) {
+        if (tagSet == null || tagSet.isEmpty()) {
+            return "";
         }
+        return tagSet.stream()
+                .map(Tag::getId)
+                .filter(Objects::nonNull)
+                .sorted()
+                .map(String::valueOf)
+                .collect(Collectors.joining(","));
+    }
 
-        if (!Objects.equals(newNode.getAccessHostId(), oldNode.getAccessHostId())) {
-            return true;
+    private String md5Hex(String source) {
+        try {
+            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+            byte[] digest = messageDigest.digest(source.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("MD5 algorithm not available", e);
         }
-
-        if (newNode.getProtocol() != null && !newNode.getProtocol().equals(oldNode.getProtocol())) {
-            return true;
-        }
-
-        if (newNode.getInbound() != null && !newNode.getInbound().equals(oldNode.getInbound().replaceAll(" ", ""))) {
-            return true;
-        }
-        if (newNode.getRule() != null && !newNode.getRule().equals(oldNode.getRule())) {
-            return true;
-        }
-
-        if (newNode.getOutId() == null && oldNode.getOutId() != null) {
-            return true;
-        }
-        if (newNode.getOutId() != null && !newNode.getOutId().equals(oldNode.getOutId())) {
-            return true;
-        }
-
-        if (newNode.getLevel() != null && !newNode.getLevel().equals(oldNode.getLevel())) {
-            return true;
-        }
-
-        if (!Objects.equals(nodeGroupService.normalizeNodeGroup(newNode.getNodeGroup()),
-                nodeGroupService.normalizeNodeGroup(oldNode.getNodeGroup()))) {
-            return true;
-        }
-
-        if (newNode.getTags() != null && !newTagSet.equals(oldNode.getTags())) {
-            return true;
-        }
-
-        return newNode.getDisabled() != null && !newNode.getDisabled().equals(oldNode.getDisabled());
     }
 
     private void copyNonNullProperties(Node src, Node target) {

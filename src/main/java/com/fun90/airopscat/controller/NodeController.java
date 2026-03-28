@@ -220,7 +220,7 @@ public class NodeController {
             if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
                 tagSet = request.getTagIds().stream().map(tid -> tagService.getTagById(tid)).collect(Collectors.toSet());
             }
-            Node updatedNode = nodeService.updateNode(node, request.getNodeGroup(), tagSet);
+            Node updatedNode = nodeService.updateNode(node, request.getNodeGroup(), tagSet, request.getTagIds() != null);
             
             // 处理标签关联
             if (request.getTagIds() != null) {
