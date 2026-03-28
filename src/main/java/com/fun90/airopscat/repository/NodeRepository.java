@@ -20,19 +20,35 @@ public class NodeRepository implements PanacheRepository<Node> {
         return find("serverId in ?1", serverIds).list();
     }
 
-    public List<Node> findByServerIdOrBackupNodeServerId(Long serverId) {
-        return find("serverId = ?1", serverId).list();
-    }
-
-    public List<Node> findByServerIdsOrBackupNodeServerIds(List<Long> serverIds) {
-        return findByServerIdIn(serverIds);
-    }
-
     public List<Node> findByIdIn(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return List.of();
         }
         return find("id in ?1", ids).list();
+    }
+
+    public List<Node> findByNodeGroup(String nodeGroup) {
+        if (nodeGroup == null || nodeGroup.isBlank()) {
+            return List.of();
+        }
+        return find("nodeGroup", nodeGroup.trim()).list();
+    }
+
+    public List<Node> findByNodeGroupAndIdNot(String nodeGroup, Long excludeId) {
+        if (nodeGroup == null || nodeGroup.isBlank()) {
+            return List.of();
+        }
+        if (excludeId == null) {
+            return findByNodeGroup(nodeGroup);
+        }
+        return find("nodeGroup = ?1 and id != ?2", nodeGroup.trim(), excludeId).list();
+    }
+
+    public List<Node> findByNodeGroupIn(List<String> nodeGroups) {
+        if (nodeGroups == null || nodeGroups.isEmpty()) {
+            return List.of();
+        }
+        return find("nodeGroup in ?1", nodeGroups).list();
     }
 
     public long countByServerAssociationAndCoreType(Long serverId, String coreType) {
@@ -111,35 +127,13 @@ public class NodeRepository implements PanacheRepository<Node> {
         return count("serverId = ?1 and port = ?2 and id not in ?3", serverId, port, excludedIds) > 0;
     }
 
-    public List<Node> findByTypeAndCoreType(Integer type, String coreType, Long excludeId) {
-        if (excludeId == null) {
-            return find("type = ?1 and lower(trim(coreType)) = ?2", type, coreType.trim().toLowerCase()).list();
+    public List<Node> findNodeGroupCandidateNodes(Integer type, String coreType, Long excludeId) {
+        String normalizedCoreType = coreType.trim().toLowerCase();
+        if (excludeId != null) {
+            return find("type = ?1 and lower(trim(coreType)) = ?2 and id != ?3",
+                    type, normalizedCoreType, excludeId).list();
         }
-        return find("type = ?1 and lower(trim(coreType)) = ?2 and id != ?3", type, coreType.trim().toLowerCase(), excludeId).list();
+        return find("type = ?1 and lower(trim(coreType)) = ?2", type, normalizedCoreType).list();
     }
 
-    public List<Node> findByBackupNodeIdIn(List<Long> backupNodeIds) {
-        if (backupNodeIds == null || backupNodeIds.isEmpty()) {
-            return List.of();
-        }
-        return find("backupNodeId in ?1", backupNodeIds).list();
-    }
-
-    public Node findFirstByBackupNodeId(Long backupNodeId) {
-        return find("backupNodeId", backupNodeId).firstResult();
-    }
-
-    public boolean existsByBackupNodeIdAndIdNot(Long backupNodeId, Long id) {
-        if (backupNodeId == null) {
-            return false;
-        }
-        if (id == null) {
-            return count("backupNodeId = ?1", backupNodeId) > 0;
-        }
-        return count("backupNodeId = ?1 and id != ?2", backupNodeId, id) > 0;
-    }
-
-    public boolean existsByBackupNodeId(Long backupNodeId) {
-        return backupNodeId != null && count("backupNodeId = ?1", backupNodeId) > 0;
-    }
 }

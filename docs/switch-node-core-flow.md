@@ -13,6 +13,7 @@ sequenceDiagram
     actor Client as Client / Controller
     participant NDS as NodeDeploymentService
     participant NR as NodeRepository
+    participant NGS as NodeGroupService
     participant NService as NodeService
     participant CMS as CoreManagementService
     participant DDL as DeploymentDataLoader
@@ -25,6 +26,9 @@ sequenceDiagram
     NDS->>NR: findByIdIn(uniqueNodeIds)
     NR-->>NDS: nodes
     NDS->>NDS: 校验节点存在、原内核唯一、目标内核不同
+    NDS->>NGS: normalizeNodeGroup / findGroupNodes
+    NGS-->>NDS: 同组节点
+    NDS->>NDS: 校验同一节点组必须整体选择
     NDS->>NDS: 校验所选节点中不包含落地节点
     NDS->>NR: findByIdIn(outboundNodeIds)
     NR-->>NDS: outboundNodeMap
@@ -48,7 +52,9 @@ sequenceDiagram
         NDS->>NR: findByServerIdIn(affectedServerIds)
         NR-->>NDS: affectedNodes
         NDS->>NDS: deployNodesForcibly(affectedNodes)
-        NDS->>DDL: load(affectedNodes)
+        NDS->>NGS: expandWithRelatedGroups(affectedNodes)
+        NGS-->>NDS: expandedAffectedNodes
+        NDS->>DDL: load(expandedAffectedNodes)
         DDL-->>NDS: DeploymentPreload
 
         loop 每台 server
@@ -85,8 +91,9 @@ flowchart TD
     D --> E["查询节点 findByIdIn"]
     E --> F{"节点数量匹配?"}
     F -- 否 --> F1["抛出 EntityNotFoundException"]
-    F -- 是 --> G["校验所选节点原内核必须唯一"]
-    G --> H{"目标内核与原内核相同?"}
+    F -- 是 --> G["校验同一节点组内的节点必须同时被选中"]
+    G --> G1["校验所选节点原内核必须唯一"]
+    G1 --> H{"目标内核与原内核相同?"}
     H -- 是 --> H1["抛出 IllegalArgumentException"]
     H -- 否 --> I{"包含落地节点?"}
     I -- 是 --> I1["抛出 IllegalArgumentException"]
@@ -119,9 +126,10 @@ flowchart TD
 ## 3. 关键节点说明
 
 - 该方法不是只改 `Node.coreType`，还会同步翻译并覆盖 `Node.inbound`，同时把节点重新标记为 `deployed = 0`。
+- 当前实现会先通过 `NodeGroupService` 校验所选节点，如果某个节点属于节点组，则必须整组一起切换。
 - 当前实现已显式禁止落地节点切换内核，避免影响把这些落地节点作为出站节点使用的代理节点。
 - 路由规则不再在切换内核过程中联动更新，因为路由规则只依赖落地节点，而当前实现已经禁止落地节点切换内核。
-- 如果 `redeploy = true`，重部署范围不是“仅本次切换的节点”，而是“所有受影响服务器上的相关节点”。
+- 如果 `redeploy = true`，重部署范围不是“仅本次切换的节点”，而是“所有受影响服务器上的相关节点”，并且会继续按节点组展开。
 - 重部署时会先停原内核，再按服务器和 `coreType` 分组重新下发配置。
 - `ServerConfig.enabled` 的最终状态不是在 `switchNodeCore` 中直接处理，而是在 `CoreDeploymentExecutor.saveServerConfig(...)` 后通过 `reconcileServerConfigStatuses(...)` 按节点数统一收敛。
 
@@ -132,6 +140,7 @@ switchNodeCore(nodeIds, targetCoreType, redeploy):
   1. 校验参数和目标内核
   2. 查询节点并校验:
      - 所有节点存在
+     - 同组节点必须整体选择
      - 原内核唯一
      - 目标内核与原内核不同
   3. 遍历节点:
@@ -142,6 +151,6 @@ switchNodeCore(nodeIds, targetCoreType, redeploy):
   4. 如果 redeploy:
      - 停止原内核
      - 查询受影响服务器上的全部相关节点
-     - 执行强制重部署
+     - 按节点组展开后执行强制重部署
   5. 返回响应
 ```

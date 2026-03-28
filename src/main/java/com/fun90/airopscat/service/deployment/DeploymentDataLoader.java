@@ -13,6 +13,7 @@ import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
+import com.fun90.airopscat.service.NodeGroupService;
 import com.fun90.airopscat.service.RouteRuleService;
 import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -42,10 +43,11 @@ public class DeploymentDataLoader {
     private final TagRepository tagRepository;
     private final AccountTrafficStatsRepository accountTrafficRepository;
     private final RouteRuleService routeRuleService;
-
+    private final NodeGroupService nodeGroupService;
     public DeploymentPreload load(List<Node> inputNodes) {
-        List<Long> targetServerIds = collectTargetServerIds(inputNodes);
-        Map<Long, Set<String>> targetCoreTypesByServerId = collectTargetCoreTypesByServerId(inputNodes);
+        List<Node> expandedInputNodes = nodeGroupService.expandWithRelatedGroups(inputNodes);
+        List<Long> targetServerIds = collectTargetServerIds(expandedInputNodes);
+        Map<Long, Set<String>> targetCoreTypesByServerId = collectTargetCoreTypesByServerId(expandedInputNodes);
         List<Node> relatedNodes = filterRelatedNodesByServerCore(
                 nodeRepository.findByServerIdIn(targetServerIds),
                 targetCoreTypesByServerId
@@ -83,7 +85,7 @@ public class DeploymentDataLoader {
         }
 
         List<Long> targetServerIds = List.of(serverId);
-        List<Node> relatedNodes = nodeRepository.findByServerId(serverId);
+        List<Node> relatedNodes = nodeGroupService.expandWithRelatedGroups(nodeRepository.findByServerId(serverId));
         Map<Long, List<RouteRuleSnapshot>> routeRulesByServerId = routeRuleService.getEnabledSnapshotsByServerIds(targetServerIds);
         List<RouteRuleSnapshot> routeRuleSnapshots = routeRulesByServerId.getOrDefault(serverId, Collections.emptyList());
 
@@ -218,17 +220,7 @@ public class DeploymentDataLoader {
                 .collect(Collectors.toMap(Node::getId, node -> node));
 
         Map<Long, List<NodeClient>> nodeClientsMap = buildNodeClientsMap(snapshotNodes);
-        Map<Long, Node> primaryNodesByBackupNodeId = snapshotNodes.stream()
-                .filter(node -> node.getBackupNodeId() != null)
-                .collect(Collectors.toMap(Node::getBackupNodeId, node -> node, (left, right) -> left, LinkedHashMap::new));
-        List<Long> backupNodeIds = snapshotNodes.stream()
-                .map(Node::getId)
-                .distinct()
-                .toList();
-        if (!backupNodeIds.isEmpty()) {
-            nodeRepository.findByBackupNodeIdIn(backupNodeIds)
-                    .forEach(node -> primaryNodesByBackupNodeId.putIfAbsent(node.getBackupNodeId(), node));
-        }
+        Map<Long, List<NodeClient>> mergedNodeClientsMap = buildAssociatedNodeClientsMap(snapshotNodes, nodeClientsMap);
 
         Map<Long, NodeDeploymentSnapshot> snapshots = new HashMap<>();
         for (Node node : snapshotNodes) {
@@ -239,7 +231,6 @@ public class DeploymentDataLoader {
 
             Server server = node.getServerId() == null ? null : serverMap.get(node.getServerId());
             Server outServer = outNode == null ? null : serverMap.get(outNode.getServerId());
-            Node primaryNode = primaryNodesByBackupNodeId.get(node.getId());
             snapshots.put(node.getId(), new NodeDeploymentSnapshot(
                     node.getId(),
                     node.getCoreType(),
@@ -247,7 +238,7 @@ public class DeploymentDataLoader {
                     server == null ? null : server.getIp(),
                     node.getPort(),
                     node.getDisabled(),
-                    mergeBackupInbound(node, primaryNode),
+                    node.getInbound(),
                     node.getOutId(),
                     node.getTag(),
                     outNode == null ? null : outNode.getCoreType(),
@@ -256,47 +247,10 @@ public class DeploymentDataLoader {
                     outNode == null ? null : outNode.getInbound(),
                     outServer == null ? null : outServer.getIp(),
                     outNode == null ? null : outNode.getPort(),
-                    mergeClients(
-                            nodeClientsMap.getOrDefault(node.getId(), Collections.emptyList()),
-                            primaryNode == null ? Collections.emptyList() : nodeClientsMap.getOrDefault(primaryNode.getId(), Collections.emptyList())
-                    )
+                    mergedNodeClientsMap.getOrDefault(node.getId(), Collections.emptyList())
             ));
         }
         return snapshots;
-    }
-
-    private String mergeBackupInbound(Node node, Node primaryNode) {
-        if (primaryNode == null || node.getInbound() == null || primaryNode.getInbound() == null) {
-            return node.getInbound();
-        }
-
-        Map<String, Object> backupInbound = toMap(node.getInbound());
-        Map<String, Object> primaryInbound = toMap(primaryNode.getInbound());
-        String protocol = Objects.toString(node.getProtocol(), "").trim().toLowerCase();
-
-        if ("vless".equals(protocol) || "vless-reality".equals(protocol)) {
-            Map<String, Object> backupSettings = ensureMap(backupInbound, "settings");
-            Map<String, Object> primarySettings = asMap(primaryInbound.get("settings"));
-            backupSettings.put("clients", mergeUserMaps(
-                    asMapList(backupSettings.get("clients")),
-                    asMapList(primarySettings == null ? null : primarySettings.get("clients")),
-                    "id"
-            ));
-            return JsonUtil.toJsonString(backupInbound);
-        }
-
-        if ("hysteria2".equals(protocol) || "socks".equals(protocol) || "shadowsocks".equals(protocol)) {
-            backupInbound.put("users", mergeUserMaps(
-                    asMapList(backupInbound.get("users")),
-                    asMapList(primaryInbound.get("users")),
-                    "name",
-                    "username",
-                    "password"
-            ));
-            return JsonUtil.toJsonString(backupInbound);
-        }
-
-        return node.getInbound();
     }
 
     private List<NodeClient> mergeClients(List<NodeClient> currentClients, List<NodeClient> primaryClients) {
@@ -308,6 +262,33 @@ public class DeploymentDataLoader {
             merged.put(client.id(), client);
         }
         return new ArrayList<>(merged.values());
+    }
+
+    private Map<Long, List<NodeClient>> buildAssociatedNodeClientsMap(List<Node> snapshotNodes,
+                                                                      Map<Long, List<NodeClient>> nodeClientsMap) {
+        if (snapshotNodes.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<Long, List<NodeClient>> mergedClientsByNodeId = new HashMap<>();
+        Map<String, List<NodeClient>> mergedClientsByGroup = new HashMap<>();
+        for (Node node : snapshotNodes) {
+            String nodeGroup = node.getNodeGroup() == null ? null : node.getNodeGroup().trim();
+            if (nodeGroup == null || nodeGroup.isBlank()) {
+                mergedClientsByNodeId.put(node.getId(), new ArrayList<>(nodeClientsMap.getOrDefault(node.getId(), Collections.emptyList())));
+                continue;
+            }
+
+            List<NodeClient> mergedClients = mergedClientsByGroup.computeIfAbsent(nodeGroup, group -> {
+                List<NodeClient> clients = new ArrayList<>();
+                snapshotNodes.stream()
+                        .filter(candidate -> group.equals(Objects.toString(candidate.getNodeGroup(), "").trim()))
+                        .forEach(candidate -> clients.addAll(nodeClientsMap.getOrDefault(candidate.getId(), Collections.emptyList())));
+                return mergeClients(Collections.emptyList(), clients);
+            });
+            mergedClientsByNodeId.put(node.getId(), mergedClients);
+        }
+        return mergedClientsByNodeId;
     }
 
     private List<Map<String, Object>> mergeUserMaps(List<Map<String, Object>> currentUsers,
@@ -331,39 +312,6 @@ public class DeploymentDataLoader {
             }
         }
         return JsonUtil.toJsonString(user);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> toMap(String json) {
-        Map<String, Object> map = JsonUtil.toObject(json, Map.class);
-        return map == null ? new LinkedHashMap<>() : map;
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> ensureMap(Map<String, Object> parent, String key) {
-        Object value = parent.get(key);
-        if (value instanceof Map<?, ?> map) {
-            return (Map<String, Object>) map;
-        }
-        Map<String, Object> newMap = new LinkedHashMap<>();
-        parent.put(key, newMap);
-        return newMap;
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> asMap(Object value) {
-        return value instanceof Map<?, ?> map ? (Map<String, Object>) map : null;
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> asMapList(Object value) {
-        if (!(value instanceof List<?> list)) {
-            return Collections.emptyList();
-        }
-        return list.stream()
-                .filter(Map.class::isInstance)
-                .map(item -> (Map<String, Object>) item)
-                .toList();
     }
 
     private Map<Long, List<NodeClient>> buildNodeClientsMap(List<Node> nodes) {

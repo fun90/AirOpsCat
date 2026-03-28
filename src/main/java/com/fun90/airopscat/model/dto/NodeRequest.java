@@ -9,7 +9,7 @@ import java.util.Map;
 public class NodeRequest {
     private Long id;
     private Long serverId;
-    private Long backupNodeId;
+    private String nodeGroup;
     private Long accessHostId;
     private Integer port;
     private String protocol;

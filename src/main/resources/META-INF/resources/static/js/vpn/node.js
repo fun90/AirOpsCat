@@ -1,6 +1,8 @@
 ﻿import { DataTable } from '/static/js/common/data-table.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
+import { createNodeDeployMethods } from '/static/js/vpn/node-deploy-methods.js';
+import { createNodeFormMethods } from '/static/js/vpn/node-form-methods.js';
 import { createRemoteSearchConfig } from '/static/js/common/tom-select-helper.js';
 
 const DEFAULT_NODE_FILTERS = Object.freeze({
@@ -22,13 +24,31 @@ const nodeTable = new DataTable({
         filters: { ...DEFAULT_NODE_FILTERS },
         servers: [],
         landingNodes: [],
-        backupNodeOptions: [],
-        editBackupNodeOptions: [],
+        nodeGroupOptions: [],
+        editNodeGroupOptions: [],
         nodeTypes: [],
         coreTypes: [],
         protocolTypes: [],
         availableTags: [],
         serverFilterSearch: null,
+        createNodeGroupSelect: null,
+        editNodeGroupSelect: null,
+        nodeGroupSyncHighlight: {
+            create: { protocol: false, port: false, inbound: false, outbound: false },
+            edit: { protocol: false, port: false, inbound: false, outbound: false }
+        },
+        nodeGroupSyncMessage: {
+            create: '',
+            edit: ''
+        },
+        nodeGroupConfigLockState: {
+            create: false,
+            edit: false
+        },
+        nodeGroupSyncTimers: {
+            create: null,
+            edit: null
+        },
         stats: {
             total: 0,
             active: 0,
@@ -37,7 +57,7 @@ const nodeTable = new DataTable({
         },
         newItem: {
             serverId: '',
-            backupNodeId: '',
+            nodeGroup: '',
             accessHostId: '',
             port: null,
             coreType: 'xray',
@@ -54,6 +74,8 @@ const nodeTable = new DataTable({
         },
         portCheckMessage: '',
         editPortCheckMessage: '',
+        portCheckTimer: null,
+        editPortCheckTimer: null,
         newNodeInbound: {
             protocol: 'vless'
         },
@@ -84,6 +106,7 @@ const nodeTable = new DataTable({
             this.fetchProtocolTypes();
             this.fetchAvailableTags();
             this.initializeSearchComponents();
+            this.initializeNodeGroupSelectHooks();
         },
 
         afterFetch() {
@@ -120,6 +143,24 @@ const nodeTable = new DataTable({
                     }
                 }));
             }, 100);
+        },
+
+        initializeNodeGroupSelectHooks() {
+            const createModal = document.getElementById('node-createModal');
+            if (createModal) {
+                createModal.addEventListener('shown.bs.modal', () => {
+                    this.initializeNodeGroupSelect(false);
+                });
+                createModal.addEventListener('hidden.bs.modal', () => this.destroyNodeGroupSelect(false));
+            }
+
+            const editModal = document.getElementById('node-editModal');
+            if (editModal) {
+                editModal.addEventListener('shown.bs.modal', () => {
+                    this.initializeNodeGroupSelect(true);
+                });
+                editModal.addEventListener('hidden.bs.modal', () => this.destroyNodeGroupSelect(true));
+            }
         },
 
         formatServerDisplayLabel(server) {
@@ -195,10 +236,8 @@ const nodeTable = new DataTable({
                         this.newItem.serverId = this.servers[0].id;
                     }
                     this.syncAccessHostSelection(this.newItem);
-                    this.fetchBackupNodeOptions(this.newItem);
                     if (this.editedItem) {
                         this.syncAccessHostSelection(this.editedItem);
-                        this.fetchBackupNodeOptions(this.editedItem, true);
                     }
                 })
                 .catch(error => {
@@ -206,116 +245,278 @@ const nodeTable = new DataTable({
                 });
         },
 
-        fetchBackupNodeOptions(item, isEdit = false) {
-            const optionKey = isEdit ? 'editBackupNodeOptions' : 'backupNodeOptions';
+        fetchNodeGroupOptions(item, isEdit = false, keyword = '') {
+            const optionKey = isEdit ? 'editNodeGroupOptions' : 'nodeGroupOptions';
             if (!item || item.type === '' || item.type === null || item.type === undefined || !item.coreType) {
                 this[optionKey] = [];
-                if (item) {
-                    item.backupNodeId = isEdit ? 0 : '';
-                }
+                this.refreshNodeGroupSelect(isEdit);
                 return;
             }
 
             const excludeId = isEdit ? (item.id || '') : '';
-            fetch(`/api/admin/nodes/backup-options?type=${encodeURIComponent(item.type)}&coreType=${encodeURIComponent(item.coreType)}&excludeId=${encodeURIComponent(excludeId)}`)
+            const serverId = item.serverId || '';
+            const query = keyword ? `&keyword=${encodeURIComponent(keyword)}` : '';
+            return fetch(`/api/admin/nodes/group-options?type=${encodeURIComponent(item.type)}&coreType=${encodeURIComponent(item.coreType)}&excludeId=${encodeURIComponent(excludeId)}&serverId=${encodeURIComponent(serverId)}${query}`)
                 .then(response => response.json())
                 .then(data => {
-                    this[optionKey] = data;
-                    const selectedValue = String(item.backupNodeId ?? '');
-                    const hasSelected = selectedValue !== '' && selectedValue !== '0';
-                    if (hasSelected && !data.some(node => String(node.id) === selectedValue)) {
-                        item.backupNodeId = isEdit ? 0 : '';
+                    this[optionKey] = Array.isArray(data) ? data : [];
+                    if (!item?.nodeGroup || !this[optionKey].some(option => option.value === item.nodeGroup)) {
+                        this.setNodeGroupConfigLocked(isEdit, false);
                     }
+                    this.refreshNodeGroupSelect(isEdit);
+                    return this[optionKey];
                 })
                 .catch(error => {
-                    console.error('Error fetching backup nodes:', error);
+                    console.error('Error fetching node groups:', error);
                     this[optionKey] = [];
+                    this.setNodeGroupConfigLocked(isEdit, false);
+                    this.refreshNodeGroupSelect(isEdit);
+                    return [];
                 });
         },
 
-        formatBackupNodeLabel(node) {
-            if (!node) {
-                return '';
-            }
-            const name = node.name
-                ? `${node.name}${node.no ? `-${node.no}` : ''}`
-                : `节点#${node.id}`;
-            const serverHost = node.serverHost || node.serverIp || '-';
-            const port = node.port || '-';
-            return `${name} (${serverHost}:${port})`;
+        getSelectableNodeGroups(isEdit = false) {
+            const optionKey = isEdit ? 'editNodeGroupOptions' : 'nodeGroupOptions';
+            return this[optionKey] || [];
         },
 
-        onBackupNodeChange(isEdit = false) {
+        getNodeGroupSelectId(isEdit = false) {
+            return isEdit ? 'node-group-select-edit' : 'node-group-select-create';
+        },
+
+        destroyNodeGroupSelect(isEdit = false) {
+            const instanceKey = isEdit ? 'editNodeGroupSelect' : 'createNodeGroupSelect';
+            if (this[instanceKey]) {
+                this[instanceKey].destroy();
+                this[instanceKey] = null;
+            }
+        },
+
+        buildNodeGroupSelectOptions(isEdit = false) {
+            const item = isEdit ? this.editedItem : this.newItem;
+            const options = this.getSelectableNodeGroups(isEdit).slice(0, 10).map(group => ({
+                value: group.value,
+                label: group.label
+            }));
+            if (item?.nodeGroup && !options.some(option => option.value === item.nodeGroup)) {
+                options.unshift({
+                    value: item.nodeGroup,
+                    label: item.nodeGroup
+                });
+            }
+            return options.slice(0, 10);
+        },
+
+        fetchNodeGroupConfig(item, isEdit = false) {
+            if (!item?.nodeGroup || item.type === '' || item.type === null || item.type === undefined || !item.coreType) {
+                return Promise.resolve({ exists: false });
+            }
+
+            const excludeId = isEdit ? (item.id || '') : '';
+            return fetch(`/api/admin/nodes/group-config?nodeGroup=${encodeURIComponent(item.nodeGroup)}&type=${encodeURIComponent(item.type)}&coreType=${encodeURIComponent(item.coreType)}&serverId=${encodeURIComponent(item.serverId || '')}&excludeId=${encodeURIComponent(excludeId)}`)
+                .then(response => response.json())
+                .catch(error => {
+                    console.error('Error fetching node group config:', error);
+                    return { exists: false };
+                });
+        },
+
+        applyNodeGroupConfig(item, config, isEdit = false) {
+            if (!item || !config?.exists || !config?.compatible) {
+                return;
+            }
+
+            const changedFields = [];
+            if (item.protocol !== config.protocol) {
+                item.protocol = config.protocol || '';
+                changedFields.push('protocol');
+            }
+            if (item.port !== config.port) {
+                item.port = config.port ?? null;
+                changedFields.push('port');
+            }
+
+            const normalizedOutId = config.outId ?? (item.type === 0 ? 0 : null);
+            if (item.outId !== normalizedOutId) {
+                item.outId = normalizedOutId;
+                changedFields.push('outbound');
+            }
+
+            const inboundConfig = config.inbound || {};
+            const inboundJson = JSON.stringify(inboundConfig, null, 2);
+            if (isEdit) {
+                if (this.editedNodeInboundJson !== inboundJson) {
+                    this.editedNodeInbound = inboundConfig;
+                    this.editedNodeInboundJson = inboundJson;
+                    changedFields.push('inbound');
+                }
+                this.checkEditPortAvailability();
+            } else {
+                if (this.newNodeInboundJson !== inboundJson) {
+                    this.newNodeInbound = inboundConfig;
+                    this.newNodeInboundJson = inboundJson;
+                    changedFields.push('inbound');
+                }
+                this.checkPortAvailability();
+            }
+
+            if (changedFields.length > 0) {
+                this.flashNodeGroupSyncFeedback(isEdit, changedFields, config.referenceNodeName);
+            }
+            this.setNodeGroupConfigLocked(isEdit, !!config.lockConfig);
+        },
+
+        handleNodeGroupChange(value, isEdit = false) {
             const item = isEdit ? this.editedItem : this.newItem;
             if (!item) {
                 return;
             }
 
-            const selectedValue = String(item.backupNodeId ?? '');
-            if (selectedValue !== '' && selectedValue !== '0') {
-                ToastUtils.show('Warning', '选择备用节点后，保存会覆盖该备用节点的协议、端口、入站和出站配置。', 'warning');
-            }
-
-            if (isEdit) {
-                this.checkEditPortAvailability();
+            item.nodeGroup = value || '';
+            this.clearNodeGroupSyncFeedback(isEdit);
+            this.setNodeGroupConfigLocked(isEdit, false);
+            if (!item.nodeGroup) {
                 return;
             }
-            this.checkPortAvailability();
+
+            const optionList = this.getSelectableNodeGroups(isEdit);
+            const isExistingGroup = optionList.some(option => option.value === item.nodeGroup);
+            if (!isExistingGroup) {
+                return;
+            }
+
+            this.fetchNodeGroupConfig(item, isEdit).then(config => {
+                if (config?.exists && config?.compatible) {
+                    this.applyNodeGroupConfig(item, config, isEdit);
+                    return;
+                }
+                this.setNodeGroupConfigLocked(isEdit, false);
+                if (config?.message) {
+                    ToastUtils.show('Warning', config.message, 'warning');
+                }
+            });
         },
 
-        fetchLandingNodes() {
-            fetch('/api/admin/nodes/landing')
-                .then(response => response.json())
-                .then(data => {
-                    this.landingNodes = data;
-                })
-                .catch(error => {
-                    console.error('Error fetching landing nodes:', error);
-                });
+        flashNodeGroupSyncFeedback(isEdit = false, changedFields = [], referenceNodeName = '') {
+            const mode = isEdit ? 'edit' : 'create';
+            const nextState = { protocol: false, port: false, inbound: false, outbound: false };
+            changedFields.forEach(field => {
+                if (Object.prototype.hasOwnProperty.call(nextState, field)) {
+                    nextState[field] = true;
+                }
+            });
+            this.nodeGroupSyncHighlight = {
+                ...this.nodeGroupSyncHighlight,
+                [mode]: nextState
+            };
+            this.nodeGroupSyncMessage = {
+                ...this.nodeGroupSyncMessage,
+                [mode]: referenceNodeName
+                    ? `已按节点组配置同步，来源节点：${referenceNodeName}`
+                    : '已按节点组配置同步'
+            };
+
+            if (this.nodeGroupSyncTimers[mode]) {
+                clearTimeout(this.nodeGroupSyncTimers[mode]);
+            }
+            this.nodeGroupSyncTimers[mode] = setTimeout(() => this.clearNodeGroupSyncFeedback(isEdit, true), 2200);
         },
 
-        fetchNodeTypes() {
-            fetch('/api/admin/nodes/types')
-                .then(response => response.json())
-                .then(data => {
-                    this.nodeTypes = data;
-                })
-                .catch(error => {
-                    console.error('Error fetching node types:', error);
-                });
+        clearNodeGroupSyncFeedback(isEdit = false, preserveMessage = false) {
+            const mode = isEdit ? 'edit' : 'create';
+            this.nodeGroupSyncHighlight = {
+                ...this.nodeGroupSyncHighlight,
+                [mode]: { protocol: false, port: false, inbound: false, outbound: false }
+            };
+            if (!preserveMessage) {
+                this.nodeGroupSyncMessage = {
+                    ...this.nodeGroupSyncMessage,
+                    [mode]: ''
+                };
+            }
+            if (this.nodeGroupSyncTimers[mode]) {
+                clearTimeout(this.nodeGroupSyncTimers[mode]);
+                this.nodeGroupSyncTimers[mode] = null;
+            }
         },
 
-        fetchCoreTypes() {
-            fetch('/api/admin/nodes/core-types')
-                .then(response => response.json())
-                .then(data => {
-                    this.coreTypes = data;
-                })
-                .catch(error => {
-                    console.error('Error fetching core types:', error);
-                });
+        isNodeGroupFieldHighlighted(isEdit = false, field) {
+            const mode = isEdit ? 'edit' : 'create';
+            return !!this.nodeGroupSyncHighlight?.[mode]?.[field];
         },
 
-        fetchProtocolTypes() {
-            fetch('/api/admin/nodes/protocols')
-                .then(response => response.json())
-                .then(data => {
-                    this.protocolTypes = data;
-                })
-                .catch(error => {
-                    console.error('Error fetching protocol types:', error);
-                });
+        setNodeGroupConfigLocked(isEdit = false, locked = false) {
+            const mode = isEdit ? 'edit' : 'create';
+            this.nodeGroupConfigLockState = {
+                ...this.nodeGroupConfigLockState,
+                [mode]: !!locked
+            };
         },
 
-        fetchAvailableTags() {
-            fetch('/api/admin/tags/enabled')
-                .then(response => response.json())
-                .then(data => {
-                    this.availableTags = data;
-                })
-                .catch(error => {
-                    console.error('Error fetching available tags:', error);
+        isNodeGroupConfigLocked(isEdit = false) {
+            const mode = isEdit ? 'edit' : 'create';
+            return !!this.nodeGroupConfigLockState?.[mode];
+        },
+
+        getNodeGroupFieldClass(isEdit = false, field) {
+            return {
+                'bg-blue-lt border border-blue rounded-3 p-2': this.isNodeGroupFieldHighlighted(isEdit, field)
+            };
+        },
+
+        initializeNodeGroupSelect(isEdit = false) {
+            const item = isEdit ? this.editedItem : this.newItem;
+            if (!item) {
+                return;
+            }
+
+            this.$nextTick(() => {
+                const selectElement = document.getElementById(this.getNodeGroupSelectId(isEdit));
+                if (!selectElement) {
+                    return;
+                }
+
+                this.destroyNodeGroupSelect(isEdit);
+                const instanceKey = isEdit ? 'editNodeGroupSelect' : 'createNodeGroupSelect';
+                this[instanceKey] = new TomSelect(selectElement, {
+                    valueField: 'value',
+                    labelField: 'label',
+                    searchField: ['label', 'value'],
+                    placeholder: '请输入或选择节点组',
+                    options: this.buildNodeGroupSelectOptions(isEdit),
+                    items: item.nodeGroup ? [item.nodeGroup] : [],
+                    maxItems: 1,
+                    maxOptions: 10,
+                    create: (input) => {
+                        const value = (input || '').trim();
+                        return value ? { value, label: value } : false;
+                    },
+                    openOnFocus: true,
+                    preload: false,
+                    load: (query, callback) => {
+                        this.fetchNodeGroupOptions(item, isEdit, query).then(options => callback(options)).catch(() => callback());
+                    },
+                    onChange: (value) => {
+                        this.handleNodeGroupChange(value, isEdit);
+                    }
                 });
+
+                this[instanceKey].refreshOptions(false);
+            });
+        },
+
+        refreshNodeGroupSelect(isEdit = false) {
+            const instanceKey = isEdit ? 'editNodeGroupSelect' : 'createNodeGroupSelect';
+            const item = isEdit ? this.editedItem : this.newItem;
+            if (!item || !this[instanceKey]) {
+                return;
+            }
+
+            const options = this.buildNodeGroupSelectOptions(isEdit);
+            this[instanceKey].clearOptions();
+            this[instanceKey].addOptions(options);
+            this[instanceKey].setValue(item.nodeGroup || '', true);
+            this[instanceKey].refreshOptions(false);
         },
 
         onFilterChange() {
@@ -426,214 +627,6 @@ const nodeTable = new DataTable({
             return disabled === 0 ? 'bg-success-lt' : 'bg-danger-lt';
         },
 
-        onTypeChange() {
-            if (this.newItem.type === 1) {
-                this.newItem.outId = null;
-            }
-            this.syncProtocolSelection(this.newItem, false);
-            this.fetchBackupNodeOptions(this.newItem);
-        },
-
-        onCoreTypeChange() {
-            this.syncProtocolSelection(this.newItem, false);
-            this.fetchBackupNodeOptions(this.newItem);
-        },
-
-        onEditTypeChange() {
-            if (this.editedItem.type === 1) {
-                this.editedItem.outId = 0;
-            }
-            this.syncProtocolSelection(this.editedItem, true);
-            this.fetchBackupNodeOptions(this.editedItem, true);
-        },
-
-        onEditCoreTypeChange() {
-            this.syncProtocolSelection(this.editedItem, true);
-            this.fetchBackupNodeOptions(this.editedItem, true);
-        },
-
-        onServerChange() {
-            this.syncAccessHostSelection(this.newItem);
-            this.checkPortAvailability();
-        },
-
-        onEditServerChange() {
-            this.syncAccessHostSelection(this.editedItem);
-            this.checkEditPortAvailability();
-        },
-
-        checkPortAvailability() {
-            if (!this.newItem.serverId || !this.newItem.port) {
-                this.portCheckMessage = '';
-                return;
-            }
-
-            const backupNodeQuery = this.newItem.backupNodeId ? `&backupNodeId=${this.newItem.backupNodeId}` : '';
-            fetch(`/api/admin/nodes/check-port?serverId=${this.newItem.serverId}&port=${this.newItem.port}${backupNodeQuery}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.available) {
-                        this.portCheckMessage = '端口可用';
-                    } else {
-                        this.portCheckMessage = '端口已被占用';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error checking port:', error);
-                    this.portCheckMessage = '检查端口失败';
-                });
-        },
-
-        checkEditPortAvailability() {
-            if (!this.editedItem.serverId || !this.editedItem.port || !this.editedItem.id) {
-                this.editPortCheckMessage = '';
-                return;
-            }
-
-            const backupNodeQuery = this.editedItem.backupNodeId && this.editedItem.backupNodeId !== 0
-                ? `&backupNodeId=${this.editedItem.backupNodeId}`
-                : '';
-            fetch(`/api/admin/nodes/check-port?serverId=${this.editedItem.serverId}&port=${this.editedItem.port}&nodeId=${this.editedItem.id}${backupNodeQuery}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.available) {
-                        this.editPortCheckMessage = '端口可用';
-                    } else {
-                        this.editPortCheckMessage = '端口已被占用';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error checking port:', error);
-                    this.editPortCheckMessage = '检查端口失败';
-                });
-        },
-
-        getAvailablePort() {
-            if (!this.newItem.serverId) {
-                ToastUtils.show('Warning', '请先选择服务器', 'warning');
-                return;
-            }
-
-            fetch(`/api/admin/nodes/available-port?serverId=${this.newItem.serverId}`)
-                .then(response => response.json())
-                .then(data => {
-                    this.newItem.port = data.port;
-                    this.checkPortAvailability();
-                })
-                .catch(error => {
-                    console.error('Error getting available port:', error);
-                    ToastUtils.show('Error', '获取可用端口失败', 'danger');
-                });
-        },
-
-        getEditAvailablePort() {
-            if (this.isBackupManagedNode(this.editedItem)) {
-                return;
-            }
-            if (!this.editedItem.serverId) {
-                ToastUtils.show('Warning', '请先选择服务器', 'warning');
-                return;
-            }
-
-            fetch(`/api/admin/nodes/available-port?serverId=${this.editedItem.serverId}`)
-                .then(response => response.json())
-                .then(data => {
-                    this.editedItem.port = data.port;
-                    this.checkEditPortAvailability();
-                })
-                .catch(error => {
-                    console.error('Error getting available port:', error);
-                    ToastUtils.show('Error', '获取可用端口失败', 'danger');
-                });
-        },
-
-        onProtocolChange() {
-            const coreType = this.getDefaultInboundCoreType(this.newItem);
-            fetch(`/api/admin/nodes/default-inbound?protocol=${this.newItem.protocol}&serverId=${encodeURIComponent(this.newItem.serverId || '')}&accessHostId=${encodeURIComponent(this.newItem.accessHostId || '')}&coreType=${encodeURIComponent(coreType)}`)
-                .then(response => response.json())
-                .then(data => {
-                    this.newNodeInbound = data.config;
-                    this.newNodeInboundJson = JSON.stringify(data.config, null, 2);
-                })
-                .catch(error => {
-                    console.error('Error getting default inbound config:', error);
-                });
-        },
-
-        onEditProtocolChange() {
-            if (this.isBackupManagedNode(this.editedItem)) {
-                return;
-            }
-            const coreType = this.getDefaultInboundCoreType(this.editedItem);
-            fetch(`/api/admin/nodes/default-inbound?protocol=${this.editedItem.protocol}&serverId=${encodeURIComponent(this.editedItem.serverId || '')}&accessHostId=${encodeURIComponent(this.editedItem.accessHostId || '')}&coreType=${encodeURIComponent(coreType)}`)
-                .then(response => response.json())
-                .then(data => {
-                    this.editedNodeInbound = data.config;
-                    this.editedNodeInboundJson = JSON.stringify(data.config, null, 2);
-                })
-                .catch(error => {
-                    console.error('Error getting default inbound config:', error);
-                });
-        },
-
-        getDefaultInboundCoreType(item) {
-            return item && item.coreType ? item.coreType : 'xray';
-        },
-
-        getAvailableProtocols(item) {
-            const coreType = this.getDefaultInboundCoreType(item);
-            return this.protocolTypes.filter(protocol => {
-                const matchedType = protocol.type === item.type;
-                const matchedCore = !protocol.coreTypes || protocol.coreTypes.includes(coreType);
-                return matchedType && matchedCore;
-            });
-        },
-
-        syncProtocolSelection(item, isEdit) {
-            if (!item) {
-                return;
-            }
-
-            const protocols = this.getAvailableProtocols(item);
-            if (protocols.length === 0) {
-                item.protocol = '';
-                if (isEdit) {
-                    this.editedNodeInbound = {};
-                    this.editedNodeInboundJson = '{}';
-                } else {
-                    this.newNodeInbound = {};
-                    this.newNodeInboundJson = '{}';
-                }
-                return;
-            }
-
-            if (!protocols.some(protocol => protocol.value === item.protocol)) {
-                item.protocol = protocols[0].value;
-            }
-
-            if (isEdit) {
-                this.onEditProtocolChange();
-            } else {
-                this.onProtocolChange();
-            }
-        },
-
-        generateUuid() {
-            this.newNodeInbound.uuid = this.uuidv4();
-        },
-
-        generateRandomPassword() {
-            const password = this.generateRandomString(16);
-
-            if (this.newNodeInbound.password !== undefined) {
-                this.newNodeInbound.password = password;
-            }
-
-            if (this.editedNodeInbound.password !== undefined) {
-                this.editedNodeInbound.password = password;
-            }
-        },
-
         viewNodeConfig(node) {
             this.editedNodeInboundJson = JSON.stringify(node.inbound || {}, null, 2);
             this.editedNodeRuleJson = JSON.stringify(node.rule || {}, null, 2);
@@ -642,278 +635,23 @@ const nodeTable = new DataTable({
             this.viewConfigModal.show();
         },
 
-        validateCreateForm() {
-            let isValid = true;
-            this.validationErrors = {};
-
-            if (!this.newItem.serverId) {
-                this.validationErrors.serverId = '请选择服务器';
-                isValid = false;
-            }
-
-            if (!this.newItem.port) {
-                this.validationErrors.port = '请输入端口';
-                isValid = false;
-            } else if (this.newItem.port < 1 || this.newItem.port > 65535) {
-                this.validationErrors.port = '端口范围应为 1-65535';
-                isValid = false;
-            }
-
-            if (!this.newItem.name) {
-                this.validationErrors.name = '请填写节点名称';
-                isValid = false;
-            }
-
-            if (!this.newItem.no) {
-                this.validationErrors.no = '请填写节点编号';
-                isValid = false;
-            }
-
-            if (this.newItem.type === null || this.newItem.type === undefined) {
-                this.validationErrors.type = '请选择节点类型';
-                isValid = false;
-            }
-
-            if (!this.newItem.coreType) {
-                this.validationErrors.coreType = '请选择内核类型';
-                isValid = false;
-            }
-
-            if (!this.newItem.protocol || !this.getAvailableProtocols(this.newItem).some(protocol => protocol.value === this.newItem.protocol)) {
-                this.validationErrors.protocol = '请选择可用协议';
-                isValid = false;
-            }
-
-            return isValid;
-        },
-
-        validateEditForm() {
-            let isValid = true;
-            this.validationErrors = {};
-
-            if (!this.editedItem.serverId) {
-                this.validationErrors.serverId = '请选择服务器';
-                isValid = false;
-            }
-
-            if (!this.editedItem.port) {
-                this.validationErrors.port = '请输入端口';
-                isValid = false;
-            } else if (this.editedItem.port < 1 || this.editedItem.port > 65535) {
-                this.validationErrors.port = '端口范围应为 1-65535';
-                isValid = false;
-            }
-
-            if (!this.editedItem.name) {
-                this.validationErrors.name = '请填写节点名称';
-                isValid = false;
-            }
-
-            if (!this.editedItem.no) {
-                this.validationErrors.no = '请填写节点编号';
-                isValid = false;
-            }
-
-            if (this.editedItem.type === null || this.editedItem.type === undefined) {
-                this.validationErrors.type = '请选择节点类型';
-                isValid = false;
-            }
-
-            if (!this.editedItem.coreType) {
-                this.validationErrors.coreType = '请选择内核类型';
-                isValid = false;
-            }
-
-            if (!this.editedItem.protocol || !this.getAvailableProtocols(this.editedItem).some(protocol => protocol.value === this.editedItem.protocol)) {
-                this.validationErrors.protocol = '请选择可用协议';
-                isValid = false;
-            }
-
-            return isValid;
-        },
-
-        isBackupManagedNode(item) {
-            return !!(item && item.usedAsBackupNode);
-        },
-
-        getBackupManagedNodeHint(item) {
-            if (!this.isBackupManagedNode(item)) {
-                return '';
-            }
-            const label = item.backupForNodeName
-                ? `${item.backupForNodeName}${item.backupForNodeId ? ` (#${item.backupForNodeId})` : ''}`
-                : `节点 #${item.backupForNodeId}`;
-            return `当前作为 ${label} 的备用节点，协议、端口、入站配置、出站配置需在主节点中维护。`;
-        },
-
-        prepareCreateData() {
-            try {
-                let inboundConfig = this.newNodeInbound;
-                if (this.newNodeInboundJson) {
-                    const jsonData = JSON.parse(this.newNodeInboundJson);
-                    inboundConfig = { ...inboundConfig, ...jsonData };
-                }
-
-                let ruleConfig = null;
-                if (this.newNodeRuleJson) {
-                    ruleConfig = JSON.parse(this.newNodeRuleJson);
-                }
-
-                return {
-                    serverId: this.newItem.serverId,
-                    backupNodeId: this.newItem.backupNodeId || null,
-                    accessHostId: this.newItem.accessHostId || null,
-                    port: this.newItem.port,
-                    coreType: this.newItem.coreType,
-                    protocol: this.newItem.protocol,
-                    type: this.newItem.type,
-                    level: this.newItem.level || 0,
-                    disabled: this.newItem.disabled ? 1 : 0,
-                    name: this.newItem.name || null,
-                    no: this.newItem.no || null,
-                    remark: this.newItem.remark || null,
-                    inbound: inboundConfig,
-                    outId: this.newItem.outId || null,
-                    rule: ruleConfig,
-                    tagIds: this.newItem.tagIds || []
-                };
-            } catch (e) {
-                console.error('Error parsing JSON:', e);
-                ToastUtils.show('Error', 'JSON 格式错误: ' + e.message, 'danger');
-                throw e;
-            }
-        },
-
-        prepareUpdateData() {
-            try {
-                if (this.editedNodeInboundJson) {
-                    this.editedNodeInbound = JSON.parse(this.editedNodeInboundJson);
-                }
-
-                let ruleConfig = null;
-                if (this.editedNodeRuleJson) {
-                    ruleConfig = JSON.parse(this.editedNodeRuleJson);
-                }
-
-                return {
-                    id: this.editedItem.id,
-                    serverId: this.editedItem.serverId,
-                    backupNodeId: this.editedItem.backupNodeId === 0 ? null : this.editedItem.backupNodeId,
-                    accessHostId: this.editedItem.accessHostId || null,
-                    port: this.editedItem.port,
-                    coreType: this.editedItem.coreType,
-                    protocol: this.editedItem.protocol,
-                    type: this.editedItem.type,
-                    level: this.editedItem.level || 0,
-                    disabled: this.editedItem.disabled,
-                    name: this.editedItem.name || null,
-                    no: this.editedItem.no || null,
-                    remark: this.editedItem.remark || null,
-                    inbound: this.editedNodeInbound,
-                    outId: this.editedItem.outId === 0 ? null : this.editedItem.outId,
-                    rule: ruleConfig,
-                    tagIds: this.editedItem.tagIds || []
-                };
-            } catch (e) {
-                console.error('Error parsing JSON:', e);
-                ToastUtils.show('Error', 'JSON 格式错误: ' + e.message, 'danger');
-                throw e;
-            }
-        },
-
-        resetCreateForm() {
-            this.fetchLandingNodes();
-            this.newItem = {
-                serverId: this.servers.length > 0 ? this.servers[0].id : '',
-                backupNodeId: '',
-                accessHostId: '',
-                port: null,
-                coreType: 'xray',
-                protocol: 'vless',
-                type: 0,
-                level: 0,
-                disabled: false,
-                name: null,
-                no: null,
-                remark: '',
-                inbound: null,
-                outId: null,
-                rule: null,
-                tagIds: []
-            };
-
-            this.newNodeInbound = {
-                protocol: 'vless'
-            };
-            this.onProtocolChange();
-
-            this.newNodeRuleJson = '{}';
-            this.portCheckMessage = '';
-            this.backupNodeOptions = [];
-            this.fetchBackupNodeOptions(this.newItem);
-        },
-
-        loadNodeTags(nodeId) {
-            fetch(`/api/admin/tags/nodes/${nodeId}`)
-                .then(response => response.json())
-                .then(data => {
-                    this.editedItem.tagIds = data.map(tag => tag.id);
-                })
-                .catch(error => {
-                    console.error('Error loading node tags:', error);
-                    this.editedItem.tagIds = [];
-                });
-        },
-
-        prepareEditForm(node) {
-            this.fetchLandingNodes();
-            this.editedNodeInbound = node.inbound || { protocol: 'vless' };
-            this.editedNodeInboundJson = JSON.stringify(node.inbound || {}, null, 2);
-            this.editedNodeRuleJson = JSON.stringify(node.rule || {}, null, 2);
-
-            this.editPortCheckMessage = '';
-            this.loadNodeTags(node.id);
-            this.fetchBackupNodeOptions({
-                id: node.id,
-                type: node.type,
-                coreType: node.coreType,
-                backupNodeId: node.backupNodeId || 0
-            }, true);
-
-            return {
-                id: node.id,
-                serverId: node.serverId,
-                backupNodeId: !node.backupNodeId ? 0 : node.backupNodeId,
-                usedAsBackupNode: !!node.usedAsBackupNode,
-                backupForNodeId: node.backupForNodeId || null,
-                backupForNodeName: node.backupForNodeName || '',
-                accessHostId: node.accessHostId || '',
-                port: node.port,
-                coreType: node.coreType,
-                protocol: node.protocol,
-                type: node.type,
-                level: node.level || 0,
-                disabled: node.disabled,
-                name: node.name || null,
-                no: node.no || null,
-                remark: node.remark || '',
-                inbound: node.inbound,
-                outId: !node.outId ? 0 : node.outId,
-                rule: node.rule,
-                tagIds: []
-            };
-        },
-
         getApiUrl() {
             return '/api/admin/nodes';
         },
 
         toggleSort(field) {
             if (this.filters.sortBy === field) {
-                this.filters.sortOrder = this.filters.sortOrder === 'asc' ? 'desc' : 'asc';
+                if (this.filters.sortOrder === 'desc') {
+                    this.filters.sortOrder = 'asc';
+                } else if (this.filters.sortOrder === 'asc') {
+                    this.filters.sortBy = '';
+                    this.filters.sortOrder = 'desc';
+                } else {
+                    this.filters.sortOrder = 'desc';
+                }
             } else {
                 this.filters.sortBy = field;
-                this.filters.sortOrder = 'asc';
+                this.filters.sortOrder = 'desc';
             }
             this.currentPage = 1;
             this.fetchRecords();
@@ -964,201 +702,8 @@ const nodeTable = new DataTable({
                 });
         },
 
-        openBatchDeployModal() {
-            this.batchDeployModal = new Modal(document.getElementById('batchDeployModal'));
-            this.batchDeployModal.show();
-        },
-
-        openCoreSwitchModal() {
-            if (!this.selectedNodeIds.length) {
-                ToastUtils.show('Warning', '请先勾选要切换的节点', 'warning');
-                return;
-            }
-
-            const selectedNodes = this.records.filter(node => this.selectedNodeIds.includes(node.id));
-            const hasXray = selectedNodes.some(node => node.coreType === 'xray');
-            const hasSingBox = selectedNodes.some(node => node.coreType === 'sing-box');
-            if (hasXray && hasSingBox) {
-                ToastUtils.show('Warning', '所选节点必须是同一种原内核', 'warning');
-                return;
-            }
-
-            const sourceCoreType = hasXray ? 'xray' : 'sing-box';
-            this.coreSwitchTarget = sourceCoreType === 'xray' ? 'sing-box' : 'xray';
-            const unsupportedNodes = selectedNodes.filter(node =>
-                !this.getAvailableProtocols({ type: node.type, coreType: this.coreSwitchTarget })
-                    .some(protocol => protocol.value === node.protocol)
-            );
-            if (unsupportedNodes.length > 0) {
-                const labels = unsupportedNodes
-                    .map(node => `${node.name || `节点#${node.id}`}(${node.protocol})`)
-                    .join('、');
-                ToastUtils.show('Warning', `以下节点协议不支持切换到 ${this.coreSwitchTarget}: ${labels}`, 'warning');
-                return;
-            }
-            this.coreSwitchRedeploy = true;
-            this.coreSwitchModal = new Modal(document.getElementById('node-coreSwitchModal'));
-            this.coreSwitchModal.show();
-        },
-
-        isNodeSelected(nodeId) {
-            return this.selectedNodeIds.includes(nodeId);
-        },
-
-        toggleNodeSelection(nodeId, checked) {
-            if (checked) {
-                if (!this.selectedNodeIds.includes(nodeId)) {
-                    this.selectedNodeIds.push(nodeId);
-                }
-                return;
-            }
-            this.selectedNodeIds = this.selectedNodeIds.filter(id => id !== nodeId);
-        },
-
-        isAllCurrentPageSelected() {
-            return this.records.length > 0 && this.records.every(node => this.selectedNodeIds.includes(node.id));
-        },
-
-        toggleSelectAllCurrentPage(checked) {
-            if (checked) {
-                const merged = new Set([...this.selectedNodeIds, ...this.records.map(node => node.id)]);
-                this.selectedNodeIds = Array.from(merged);
-                return;
-            }
-            const currentIds = new Set(this.records.map(node => node.id));
-            this.selectedNodeIds = this.selectedNodeIds.filter(id => !currentIds.has(id));
-        },
-
-        switchSelectedNodesCore() {
-            if (!this.selectedNodeIds.length) {
-                ToastUtils.show('Warning', '请先勾选要切换的节点', 'warning');
-                return;
-            }
-
-            this.switchingCore = true;
-            fetch('/api/admin/nodes/switch-core', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    nodeIds: this.selectedNodeIds,
-                    targetCoreType: this.coreSwitchTarget,
-                    redeploy: this.coreSwitchRedeploy
-                })
-            })
-                .then(async response => {
-                    if (!response.ok) {
-                        const error = await response.json().catch(() => ({ message: '切换内核失败' }));
-                        throw new Error(error.message || '切换内核失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    this.switchingCore = false;
-                    this.coreSwitchModal.hide();
-                    this.selectedNodeIds = [];
-                    this.fetchRecords();
-
-                    const deploymentSummary = data.redeployed
-                        ? `，重部署 ${data.deploymentResults ? data.deploymentResults.filter(result => result.success).length : 0} 项`
-                        : '';
-                    ToastUtils.show(
-                        'Success',
-                        `已切换 ${data.switchedCount} 个节点，跳过 ${data.unchangedCount} 个节点${deploymentSummary}`,
-                        'success'
-                    );
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    this.switchingCore = false;
-                    ToastUtils.show('Error', error.message || '切换内核失败', 'danger');
-                });
-        },
-
-        deploySelectedNodes() {
-            this.batchDeploying = true;
-
-            fetch('/api/admin/nodes/deploy-batch', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: '[]'
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('批量部署失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    const successCount = data.filter(result => result.success).length;
-                    const failureCount = data.length - successCount;
-
-                    this.batchDeploying = false;
-                    this.batchDeployModal.hide();
-
-                    if (failureCount === 0) {
-                        ToastUtils.show('Success', `成功部署 ${successCount} 个节点`, 'success');
-                    } else {
-                        ToastUtils.show('Warning', `成功: ${successCount}, 失败: ${failureCount}`, 'warning');
-                    }
-
-                    this.fetchRecords();
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    this.batchDeploying = false;
-                    ToastUtils.show('Error', '批量部署失败', 'danger');
-                });
-        },
-
-        deployNode(node, forcibly = false) {
-            if (this.deployingNodeIds.includes(node.id)) {
-                return;
-            }
-
-            this.deployingNodeIds.push(node.id);
-            const loadingToast = ToastUtils.loading(
-                forcibly ? '重新部署中' : '部署中',
-                `${node.name || `节点 #${node.id}`} 正在部署，请稍候...`
-            );
-
-            fetch(`/api/admin/nodes/${node.id}/${forcibly ? 'deployForcibly' : 'deploy'}`, {
-                method: 'POST'
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('部署节点失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        this.fetchRecords();
-                        ToastUtils.show('Success', data.message, 'success');
-                    } else {
-                        ToastUtils.show('Error', data.message, 'danger');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', '部署节点失败', 'danger');
-                })
-                .finally(() => {
-                    loadingToast.hide();
-                    this.deployingNodeIds = this.deployingNodeIds.filter(id => id !== node.id);
-                });
-        },
-
-        isNodeDeploying(nodeId) {
-            return this.deployingNodeIds.includes(nodeId);
-        },
-
-        getDeploymentStatusBadgeClass(deployed) {
-            return deployed === 1 ? 'bg-success-lt' : 'bg-warning-lt';
-        },
+        ...createNodeFormMethods(),
+        ...createNodeDeployMethods(),
 
         ...createResponsiveFilterMethods({
             createDefaultFilters: () => ({ ...DEFAULT_NODE_FILTERS }),

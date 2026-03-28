@@ -16,8 +16,18 @@
                     <i :class="getSortIcon('server')" :style="{ opacity: isSortActive('server') ? 1 : 0.45 }"></i>
                 </button>
             </th>
-            <th class="d-none d-xl-table-cell">备用节点</th>
-            <th class="d-none d-lg-table-cell">出站</th>
+            <th class="d-none d-xl-table-cell">
+                <button type="button" class="btn btn-link p-0 text-decoration-none" @click="toggleSort('nodeGroup')">
+                    节点组
+                    <i :class="getSortIcon('nodeGroup')" :style="{ opacity: isSortActive('nodeGroup') ? 1 : 0.45 }"></i>
+                </button>
+            </th>
+            <th class="d-none d-lg-table-cell">
+                <button type="button" class="btn btn-link p-0 text-decoration-none" @click="toggleSort('outbound')">
+                    出站
+                    <i :class="getSortIcon('outbound')" :style="{ opacity: isSortActive('outbound') ? 1 : 0.45 }"></i>
+                </button>
+            </th>
             <th>状态</th>
             <th class="w-1">操作</th>
         </tr>
@@ -57,11 +67,7 @@
             </div>
         </td>
         <td class="d-none d-xl-table-cell">
-            <div class="d-flex flex-column" v-if="node.backupNodeId">
-                <span class="fw-medium">{{ node.backupNodeName || ('节点 #' + node.backupNodeId) }}</span>
-                <span v-if="node.backupNodeServerIp" class="text-secondary small text-break">{{ node.backupNodeServerIp }}</span>
-                <span v-if="node.backupNodeServerHost" class="text-secondary small text-break">{{ node.backupNodeServerHost }}</span>
-            </div>
+            <span class="fw-medium" v-if="node.nodeGroup">{{ node.nodeGroup }}</span>
             <span v-else class="text-secondary">-</span>
         </td>
         <td class="d-none d-lg-table-cell">

@@ -10,6 +10,7 @@ import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.NodeType;
+import com.fun90.airopscat.service.NodeGroupService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentService;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.ServerHostService;
@@ -49,6 +50,9 @@ public class NodeController {
     
     @Inject
     TagService tagService;
+
+    @Inject
+    NodeGroupService nodeGroupService;
 
     @GET
     public Response getNodePage(
@@ -109,11 +113,23 @@ public class NodeController {
     }
 
     @GET
-    @Path("/backup-options")
-    public Response getBackupNodeOptions(@QueryParam("type") Integer type,
-                                         @QueryParam("coreType") String coreType,
-                                         @QueryParam("excludeId") Long excludeId) {
-        return Response.ok(nodeService.getBackupNodeOptions(type, coreType, excludeId)).build();
+    @Path("/group-options")
+    public Response getNodeGroupOptions(@QueryParam("type") Integer type,
+                                        @QueryParam("coreType") String coreType,
+                                        @QueryParam("excludeId") Long excludeId,
+                                        @QueryParam("serverId") Long serverId,
+                                        @QueryParam("keyword") String keyword) {
+        return Response.ok(nodeGroupService.getNodeGroupOptions(type, coreType, excludeId, serverId, keyword)).build();
+    }
+
+    @GET
+    @Path("/group-config")
+    public Response getNodeGroupConfig(@QueryParam("nodeGroup") String nodeGroup,
+                                       @QueryParam("type") Integer type,
+                                       @QueryParam("coreType") String coreType,
+                                       @QueryParam("serverId") Long serverId,
+                                       @QueryParam("excludeId") Long excludeId) {
+        return Response.ok(nodeGroupService.getNodeGroupConfig(nodeGroup, type, coreType, serverId, excludeId)).build();
     }
     
     @GET
@@ -161,38 +177,16 @@ public class NodeController {
     @Path("/check-port")
     public Response checkPortAvailability(
             @QueryParam("serverId") Long serverId,
-            @QueryParam("backupNodeId") Long backupNodeId,
             @QueryParam("port") Integer port,
             @QueryParam("nodeId") Long nodeId
     ) {
         Map<String, Object> response = new HashMap<>();
-        
-        // 检查主服务器端口
-        boolean mainServerAvailable = nodeService.isPortAvailable(serverId, port, nodeId);
-        response.put("mainServerAvailable", mainServerAvailable);
-        
-        // 检查备用节点端口
-        boolean backupNodeAvailable = nodeService.isBackupNodePortAvailable(backupNodeId, port, nodeId);
-        response.put("backupNodeAvailable", backupNodeAvailable);
-        
-        // 综合检查结果
-        boolean available = nodeService.isNodePortsAvailable(serverId, backupNodeId, port, nodeId);
+
+        boolean available = nodeService.isNodePortsAvailable(serverId, port, nodeId);
         response.put("available", available);
-        
-        // 如果不可用，提供详细信息
         if (!available) {
-            if (!mainServerAvailable) {
-                response.put("message", "端口在主服务器上已被占用");
-            } else {
-                Node backupNode = backupNodeId == null ? null : nodeService.getNodeById(backupNodeId);
-                if (backupNode != null && serverId.equals(backupNode.getServerId())) {
-                    response.put("message", "主节点和备用节点不能部署在同一服务器");
-                } else if (!backupNodeAvailable) {
-                    response.put("message", "端口在备用节点服务器上已被占用");
-                }
-            }
+            response.put("message", "端口在当前服务器上已被占用");
         }
-        
         return Response.ok(response).build();
     }
 
@@ -201,7 +195,7 @@ public class NodeController {
         try {
             // 使用 NodeConverter 转换请求为实体
             Node node = NodeConverter.fromRequest(request);
-            Node savedNode = nodeService.saveNode(node);
+            Node savedNode = nodeService.saveNode(node, request.getNodeGroup());
             
             // 处理标签关联
             if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
@@ -226,7 +220,7 @@ public class NodeController {
             if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
                 tagSet = request.getTagIds().stream().map(tid -> tagService.getTagById(tid)).collect(Collectors.toSet());
             }
-            Node updatedNode = nodeService.updateNode(node, tagSet);
+            Node updatedNode = nodeService.updateNode(node, request.getNodeGroup(), tagSet);
             
             // 处理标签关联
             if (request.getTagIds() != null) {
@@ -320,7 +314,6 @@ public class NodeController {
 
             // Copy basic properties manually
             nodeCopy.setServerId(existingNode.getServerId());
-            nodeCopy.setBackupNodeId(existingNode.getBackupNodeId());
             nodeCopy.setAccessHostId(existingNode.getAccessHostId());
             nodeCopy.setProtocol(existingNode.getProtocol());
             nodeCopy.setCoreType(existingNode.getCoreType());
@@ -352,7 +345,8 @@ public class NodeController {
             // Don't copy server/outNode references - they will be loaded by JPA automatically
 
             // Save the new node
-            Node savedNode = nodeService.saveNode(nodeCopy);
+            nodeCopy.setNodeGroup(null);
+            Node savedNode = nodeService.saveNode(nodeCopy, null);
             return Response.ok(savedNode).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
@@ -365,7 +359,7 @@ public class NodeController {
     @Path("/{id}/deploy")
     public Response deployNode(@PathParam("id") Long id) {
         List<DeploymentResult> results = nodeDeploymentService.deployNodes(Collections.singletonList(id));
-        return Response.ok(results.isEmpty() ? new DeploymentResult(id, null, false, "无需重复部署") : results.getFirst()).build();
+        return Response.ok(toSingleDeployResponse(id, results, "无需重复部署")).build();
     }
 
     @POST
@@ -376,7 +370,7 @@ public class NodeController {
             return Response.ok(new DeploymentResult(id, null, false, "节点不存在")).build();
         }
         List<DeploymentResult> results = nodeDeploymentService.deployNodesForcibly(Collections.singletonList(node));
-        return Response.ok(results.isEmpty() ? new DeploymentResult(id, null, false, "无需部署") : results.getFirst()).build();
+        return Response.ok(toSingleDeployResponse(id, results, "无需部署")).build();
     }
 
     @POST
@@ -400,5 +394,36 @@ public class NodeController {
             error.put("message", e.getMessage());
             return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
         }
+    }
+
+    private DeploymentResult toSingleDeployResponse(Long requestedNodeId, List<DeploymentResult> results, String emptyMessage) {
+        if (results == null || results.isEmpty()) {
+            return new DeploymentResult(requestedNodeId, null, false, emptyMessage);
+        }
+
+        DeploymentResult requestedNodeResult = results.stream()
+                .filter(result -> Objects.equals(result.getNodeId(), requestedNodeId))
+                .findFirst()
+                .orElse(results.getFirst());
+
+        if (results.size() == 1) {
+            return requestedNodeResult;
+        }
+
+        long successCount = results.stream().filter(DeploymentResult::isSuccess).count();
+        long failureCount = results.size() - successCount;
+        boolean overallSuccess = failureCount == 0 && requestedNodeResult.isSuccess();
+        String summary = String.format("节点组共部署 %d 个节点，成功 %d 个，失败 %d 个。", results.size(), successCount, failureCount);
+        String detailMessage = requestedNodeResult.getMessage();
+        String mergedMessage = detailMessage == null || detailMessage.isBlank()
+                ? summary
+                : detailMessage + "；" + summary;
+
+        return new DeploymentResult(
+                requestedNodeResult.getNodeId(),
+                requestedNodeResult.getServerId(),
+                overallSuccess,
+                mergedMessage
+        );
     }
 }

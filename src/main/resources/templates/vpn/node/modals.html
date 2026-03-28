@@ -78,19 +78,38 @@
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label required">端口</label>
-                                    <div class="input-group">
-                                        <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.port }" v-model="newItem.port" min="1" max="65535">
-                                        <button class="btn" type="button" @click="getAvailablePort">自动获取</button>
+                                    <div class="input-group has-validation">
+                                        <input type="number" class="form-control"
+                                               :class="{
+                                                   'is-invalid': validationErrors.port || (portCheckMessage && portCheckMessage !== '端口可用'),
+                                                   'is-valid': !validationErrors.port && portCheckMessage === '端口可用'
+                                               }"
+                                               @input="schedulePortAvailabilityCheck"
+                                               :disabled="isNodeGroupConfigLocked(false)"
+                                               v-model="newItem.port" min="1" max="65535">
+                                        <button class="btn" type="button" @click="getAvailablePort" :disabled="isNodeGroupConfigLocked(false)">自动获取</button>
                                     </div>
                                     <div class="invalid-feedback" v-if="validationErrors.port">{{ validationErrors.port }}</div>
-                                    <small class="form-hint" v-if="portCheckMessage">{{ portCheckMessage }}</small>
+                                    <small class="form-hint d-flex align-items-center gap-1"
+                                           v-else-if="portCheckMessage"
+                                           :class="portCheckMessage === '端口可用' ? 'text-success' : 'text-danger'">
+                                        <i class="ti"
+                                           :class="portCheckMessage === '端口可用' ? 'ti-circle-check' : 'ti-alert-circle'"></i>
+                                        <span>{{ portCheckMessage }}</span>
+                                    </small>
                                 </div>
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">接入 Host</label>
+                                    <label class="form-label">接入 Host
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p class='mb-0'>用于订阅和节点地址展示；留空时自动使用服务器主 host。</p>">?</span>
+                                    </label>
                                     <select class="form-select" v-model="newItem.accessHostId" @change="['vless', 'hysteria2'].includes(newItem.protocol) && onProtocolChange()">
                                         <option value="">使用服务器主 host</option>
                                         <option v-for="host in getServerHosts(newItem.serverId)" :key="host.id || host.host" :value="host.id || ''">
@@ -98,17 +117,24 @@
                                             <template v-if="host.isPrimary === 1"> (主)</template>
                                         </option>
                                     </select>
-                                    <small class="form-hint">用于订阅和节点地址展示；留空时自动使用服务器主 host。</small>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">备用节点</label>
-                                    <select class="form-select" v-model="newItem.backupNodeId" @change="onBackupNodeChange()">
-                                        <option value="">无</option>
-                                        <option v-for="node in backupNodeOptions" :key="node.id" :value="node.id">{{ formatBackupNodeLabel(node) }}</option>
-                                    </select>
-                                    <small class="form-hint">只能选择相同节点类型、内核类型的节点。保存时会覆盖备用节点的协议、端口、入站和出站配置。</small>
+                                    <label class="form-label">节点组
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p>节点组只能单选或直接输入。</p><p>输入的节点组存在则加入该组，并在保存时自动更新为组内已有配置。</p><p class='mb-0'>输入的节点组不存在则以当前配置创建新组。</p>">?</span>
+                                    </label>
+                                    <select id="node-group-select-create" class="form-select tom-select-hidden"></select>
+                                    <div class="alert alert-primary mt-2 mb-0 py-2 px-3" v-if="nodeGroupSyncMessage.create">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="ti ti-bolt text-primary"></i>
+                                            <span>{{ nodeGroupSyncMessage.create }}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -142,9 +168,9 @@
                     <div class="tab-pane" id="tabs-inbound">
                         <div class="row mt-3">
                             <div class="col-md-6">
-                                <div class="mb-3">
+                                <div class="mb-3" :class="getNodeGroupFieldClass(false, 'protocol')">
                                     <label class="form-label required">协议</label>
-                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="newItem.protocol" @change="onProtocolChange">
+                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="newItem.protocol" @change="onProtocolChange" :disabled="isNodeGroupConfigLocked(false)">
                                         <option v-for="protocol in getAvailableProtocols(newItem)" :key="protocol.value" :value="protocol.value">{{ protocol.label }}</option>
                                     </select>
                                     <div class="invalid-feedback" v-if="validationErrors.protocol">{{ validationErrors.protocol }}</div>
@@ -154,7 +180,7 @@
                                 <div class="mb-3">
                                     <label class="form-label">&nbsp;</label>
                                     <div>
-                                        <button type="button" class="btn btn-outline-primary" @click="onProtocolChange">
+                                        <button type="button" class="btn btn-outline-primary" @click="onProtocolChange" :disabled="isNodeGroupConfigLocked(false)">
                                             <i class="ti ti-refresh me-1"></i>重新生成配置
                                         </button>
                                     </div>
@@ -164,10 +190,15 @@
 
                         <div class="row mt-3">
                             <div class="col-md-12">
-                                <div class="mb-3">
-                                    <label class="form-label">高级配置 (JSON)</label>
-                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="newNodeInboundJson" placeholder='{"key": "value"}'></textarea>
-                                    <small class="form-hint">可以追加协议特有的其他配置参数</small>
+                                <div class="mb-3" :class="getNodeGroupFieldClass(false, 'inbound')">
+                                    <label class="form-label">高级配置 (JSON)
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p class='mb-0'>可以追加协议特有的其他配置参数。</p>">?</span>
+                                    </label>
+                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="newNodeInboundJson" placeholder='{"key": "value"}' :readonly="isNodeGroupConfigLocked(false)"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -175,14 +206,19 @@
                     <div class="tab-pane" id="tabs-outbound" v-if="newItem.type === 0">
                         <div class="row mt-3">
                             <div class="col-md-12">
-                                <div class="mb-3">
-                                    <label class="form-label">出站配置</label>
-                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="newItem.outId">
+                                <div class="mb-3" :class="getNodeGroupFieldClass(false, 'outbound')">
+                                    <label class="form-label">出站配置
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p class='mb-0'>用于配置节点的出口。</p>">?</span>
+                                    </label>
+                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="newItem.outId" :disabled="isNodeGroupConfigLocked(false)">
                                         <option value="null">直连</option>
                                         <option v-for="node in landingNodes" :key="node.id" :value="node.id">{{ node.name }}({{ node.serverHost }}:{{ node.port }})</option>
                                     </select>
                                     <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.outId }}</div>
-                                    <small class="form-hint">用于配置节点的出口</small>
                                 </div>
                             </div>
                         </div>
@@ -191,9 +227,14 @@
                         <div class="row mt-3">
                             <div class="col-md-12">
                                 <div class="mb-3">
-                                    <label class="form-label">规则配置 (JSON)</label>
+                                    <label class="form-label">规则配置 (JSON)
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p class='mb-0'>用于配置节点的路由规则。</p>">?</span>
+                                    </label>
                                     <textarea class="form-control font-monospace" v-model="newNodeRuleJson" rows="10" placeholder='{"key": "value"}'></textarea>
-                                    <small class="form-hint">用于配置节点的路由规则</small>
                                 </div>
                             </div>
                         </div>
@@ -233,9 +274,6 @@
                 </ul>
                 <div class="tab-content">
                     <div class="tab-pane active show" id="edit-tabs-basic">
-                        <div v-if="isBackupManagedNode(editedItem)" class="alert alert-warning mb-3 mt-3" role="alert">
-                            {{ getBackupManagedNodeHint(editedItem) }}
-                        </div>
                         <div class="row mt-3">
                             <div class="col-md-6">
                                 <div class="mb-3">
@@ -271,12 +309,17 @@
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
-                                    <label class="form-label required">内核类型</label>
+                                    <label class="form-label required">内核类型
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p class='mb-0'>节点不允许通过编辑修改内核类型，请使用切换内核功能。</p>">?</span>
+                                    </label>
                                     <select class="form-select" :class="{ 'is-invalid': validationErrors.coreType }" v-model="editedItem.coreType" @change="onEditCoreTypeChange" disabled>
                                         <option v-for="coreType in coreTypes" :key="coreType.value" :value="coreType.value">{{ coreType.label }}</option>
                                     </select>
                                     <div class="invalid-feedback" v-if="validationErrors.coreType">{{ validationErrors.coreType }}</div>
-                                    <small class="form-hint">节点不允许通过编辑修改内核类型，请使用切换内核功能。</small>
                                 </div>
                             </div>
                         </div>
@@ -293,19 +336,38 @@
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label required">端口</label>
-                                    <div class="input-group">
-                                        <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.port }" v-model="editedItem.port" min="1" max="65535" :disabled="isBackupManagedNode(editedItem)">
-                                        <button class="btn" type="button" @click="getEditAvailablePort" :disabled="isBackupManagedNode(editedItem)">自动获取</button>
+                                    <div class="input-group has-validation">
+                                        <input type="number" class="form-control"
+                                               :class="{
+                                                   'is-invalid': validationErrors.port || (editPortCheckMessage && editPortCheckMessage !== '端口可用'),
+                                                   'is-valid': !validationErrors.port && editPortCheckMessage === '端口可用'
+                                               }"
+                                               @input="scheduleEditPortAvailabilityCheck"
+                                               :disabled="isNodeGroupConfigLocked(true)"
+                                               v-model="editedItem.port" min="1" max="65535">
+                                        <button class="btn" type="button" @click="getEditAvailablePort" :disabled="isNodeGroupConfigLocked(true)">自动获取</button>
                                     </div>
                                     <div class="invalid-feedback" v-if="validationErrors.port">{{ validationErrors.port }}</div>
-                                    <small class="form-hint" v-if="editPortCheckMessage">{{ editPortCheckMessage }}</small>
+                                    <small class="form-hint d-flex align-items-center gap-1"
+                                           v-else-if="editPortCheckMessage"
+                                           :class="editPortCheckMessage === '端口可用' ? 'text-success' : 'text-danger'">
+                                        <i class="ti"
+                                           :class="editPortCheckMessage === '端口可用' ? 'ti-circle-check' : 'ti-alert-circle'"></i>
+                                        <span>{{ editPortCheckMessage }}</span>
+                                    </small>
                                 </div>
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">接入 Host</label>
+                                    <label class="form-label">接入 Host
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p class='mb-0'>用于订阅和节点地址展示；留空时自动使用服务器主 host。</p>">?</span>
+                                    </label>
                                     <select class="form-select" v-model="editedItem.accessHostId" @change="['vless', 'hysteria2'].includes(editedItem.protocol) && onEditProtocolChange">
                                         <option value="">使用服务器主 host</option>
                                         <option v-for="host in getServerHosts(editedItem.serverId)" :key="host.id || host.host" :value="host.id || ''">
@@ -313,17 +375,24 @@
                                             <template v-if="host.isPrimary === 1"> (主)</template>
                                         </option>
                                     </select>
-                                    <small class="form-hint">用于订阅和节点地址展示；留空时自动使用服务器主 host。</small>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">备用节点</label>
-                                    <select class="form-select" v-model="editedItem.backupNodeId" @change="onBackupNodeChange(true)">
-                                        <option :value="0">无</option>
-                                        <option v-for="node in editBackupNodeOptions" :key="node.id" :value="node.id">{{ formatBackupNodeLabel(node) }}</option>
-                                    </select>
-                                    <small class="form-hint">只能选择相同节点类型、内核类型的节点。保存时会覆盖备用节点的协议、端口、入站和出站配置。</small>
+                                    <label class="form-label">节点组
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p>节点组只能单选或直接输入。</p><p>输入的节点组存在则加入该组，并在保存时自动更新为组内已有配置。</p><p class='mb-0'>输入的节点组不存在则以当前配置创建新组。</p>">?</span>
+                                    </label>
+                                    <select id="node-group-select-edit" class="form-select tom-select-hidden"></select>
+                                    <div class="alert alert-primary mt-2 mb-0 py-2 px-3" v-if="nodeGroupSyncMessage.edit">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="ti ti-bolt text-primary"></i>
+                                            <span>{{ nodeGroupSyncMessage.edit }}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -356,15 +425,10 @@
                     </div>
                     <div class="tab-pane" id="edit-tabs-inbound">
                         <div class="row mt-3">
-                            <div v-if="isBackupManagedNode(editedItem)" class="col-md-12">
-                                <div class="alert alert-warning" role="alert">
-                                    {{ getBackupManagedNodeHint(editedItem) }}
-                                </div>
-                            </div>
                             <div class="col-md-6">
-                                <div class="mb-3">
+                                <div class="mb-3" :class="getNodeGroupFieldClass(true, 'protocol')">
                                     <label class="form-label required">协议</label>
-                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="editedItem.protocol" @change="onEditProtocolChange" :disabled="isBackupManagedNode(editedItem)">
+                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="editedItem.protocol" @change="onEditProtocolChange" :disabled="isNodeGroupConfigLocked(true)">
                                         <option v-for="protocol in getAvailableProtocols(editedItem)" :key="protocol.value" :value="protocol.value">{{ protocol.label }}</option>
                                     </select>
                                     <div class="invalid-feedback" v-if="validationErrors.protocol">{{ validationErrors.protocol }}</div>
@@ -374,10 +438,15 @@
 
                         <div class="row mt-3">
                             <div class="col-md-12">
-                                <div class="mb-3">
-                                    <label class="form-label">高级配置 (JSON)</label>
-                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="editedNodeInboundJson" placeholder='{"key": "value"}' :readonly="isBackupManagedNode(editedItem)"></textarea>
-                                    <small class="form-hint">可以追加协议特有的其他配置参数</small>
+                                <div class="mb-3" :class="getNodeGroupFieldClass(true, 'inbound')">
+                                    <label class="form-label">高级配置 (JSON)
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p class='mb-0'>可以追加协议特有的其他配置参数。</p>">?</span>
+                                    </label>
+                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="editedNodeInboundJson" placeholder='{"key": "value"}' :readonly="isNodeGroupConfigLocked(true)"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -385,14 +454,19 @@
                     <div class="tab-pane" id="edit-tabs-outbound" v-if="editedItem.type === 0">
                         <div class="row mt-3">
                             <div class="col-md-12">
-                                <div class="mb-3">
-                                    <label class="form-label">出站配置</label>
-                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="editedItem.outId" :disabled="isBackupManagedNode(editedItem)">
+                                <div class="mb-3" :class="getNodeGroupFieldClass(true, 'outbound')">
+                                    <label class="form-label">出站配置
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p class='mb-0'>用于配置节点的出口。</p>">?</span>
+                                    </label>
+                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="editedItem.outId" :disabled="isNodeGroupConfigLocked(true)">
                                         <option :value="0">直连</option>
                                         <option v-for="node in landingNodes" :key="node.id" :value="node.id">{{ node.name }}({{ node.serverHost }}:{{ node.port }})</option>
                                     </select>
                                     <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.outId }}</div>
-                                    <small class="form-hint">用于配置节点的出口</small>
                                 </div>
                             </div>
                         </div>
@@ -401,9 +475,14 @@
                         <div class="row mt-3">
                             <div class="col-md-12">
                                 <div class="mb-3">
-                                    <label class="form-label">规则配置 (JSON)</label>
+                                    <label class="form-label">规则配置 (JSON)
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p class='mb-0'>用于配置节点的路由规则。</p>">?</span>
+                                    </label>
                                     <textarea class="form-control font-monospace" v-model="editedNodeRuleJson" rows="10" placeholder='{"key": "value"}'></textarea>
-                                    <small class="form-hint">用于配置节点的路由规则</small>
                                 </div>
                             </div>
                         </div>

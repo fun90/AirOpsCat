@@ -21,9 +21,6 @@ public class Node {
     
     @Column(name = "server_id")
     private Long serverId;
-    
-    @Column(name = "backup_node_id")
-    private Long backupNodeId;
 
     @Column(name = "access_host_id")
     private Long accessHostId;
@@ -59,6 +56,9 @@ public class Node {
     private String name;
 
     private Integer no;
+
+    @Column(name = "node_group")
+    private String nodeGroup;
     
     private String remark;
     
@@ -66,10 +66,6 @@ public class Node {
     @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REFRESH})
     @JoinColumn(name = "server_id", insertable = false, updatable = false)
     private Server server;
-
-    @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REFRESH})
-    @JoinColumn(name = "backup_node_id", insertable = false, updatable = false)
-    private Node backupNode;
 
     @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REFRESH})
     @JoinColumn(name = "access_host_id", insertable = false, updatable = false)

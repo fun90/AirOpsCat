@@ -17,6 +17,7 @@ import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.model.dto.deployment.CoreDeploymentExecution;
 import com.fun90.airopscat.model.dto.deployment.DeploymentPreload;
+import com.fun90.airopscat.service.NodeGroupService;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.deployment.registry.CoreConfigBuilderRegistry;
@@ -49,6 +50,7 @@ public class NodeDeploymentService {
     private final ServerRepository serverRepository;
     private final TagRepository tagRepository;
     private final NodeService nodeService;
+    private final NodeGroupService nodeGroupService;
     private final CoreManagementService coreManagementService;
     private final DeploymentDataLoader dataLoader;
     private final CoreDeploymentExecutor deploymentExecutor;
@@ -67,7 +69,7 @@ public class NodeDeploymentService {
     @Transactional
     public List<DeploymentResult> deployNodes(List<Long> nodeIds) {
         try {
-            List<Node> undeployedNodes = expandWithBackupNodes(getUndeployedNodes(nodeIds));
+            List<Node> undeployedNodes = nodeGroupService.expandWithRelatedGroups(getUndeployedNodes(nodeIds));
             if (undeployedNodes.isEmpty()) {
                 log.info("No undeployed nodes found");
                 return Collections.emptyList();
@@ -82,11 +84,23 @@ public class NodeDeploymentService {
     @Transactional
     public List<DeploymentResult> deployNodesForcibly(List<Node> nodes) {
         try {
-            return processNodesByServer(expandWithBackupNodes(nodes));
+            return processNodesByServer(nodeGroupService.expandWithRelatedGroups(nodes));
         } catch (Exception e) {
             log.error("Force deploy nodes failed", e);
             throw new RuntimeException("节点部署失败: " + e.getMessage(), e);
         }
+    }
+
+    @Transactional
+    public List<DeploymentResult> deployAssociationGroupByNodeIds(List<Long> nodeIds) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Node> groupNodes = nodeGroupService.expandWithRelatedGroups(nodeRepository.findByIdIn(nodeIds));
+        if (groupNodes.isEmpty()) {
+            groupNodes = nodeRepository.findByIdIn(nodeIds);
+        }
+        return deployNodesForcibly(groupNodes);
     }
 
     @Transactional
@@ -104,6 +118,7 @@ public class NodeDeploymentService {
         if (nodes.size() != uniqueNodeIds.size()) {
             throw new EntityNotFoundException("存在无效的节点选择");
         }
+        validateAssociationGroupSelection(uniqueNodeIds);
 
         NodeCoreSwitchResponse response = new NodeCoreSwitchResponse();
         response.setTargetCoreType(normalizedTargetCoreType);
@@ -161,34 +176,27 @@ public class NodeDeploymentService {
         }
     }
 
+    private void validateAssociationGroupSelection(List<Long> selectedNodeIds) {
+        Set<Long> selectedIdSet = new LinkedHashSet<>(selectedNodeIds);
+        List<Node> selectedNodes = nodeRepository.findByIdIn(selectedNodeIds);
+        for (Node selectedNode : selectedNodes) {
+            String nodeGroup = nodeGroupService.normalizeNodeGroup(selectedNode.getNodeGroup());
+            if (nodeGroup == null) {
+                continue;
+            }
+            for (Node groupNode : nodeGroupService.findGroupNodes(nodeGroup)) {
+                if (!selectedIdSet.contains(groupNode.getId())) {
+                    throw new IllegalArgumentException("切换内核时必须同时选择同一节点组内的所有节点");
+                }
+            }
+        }
+    }
+
     private List<Node> getUndeployedNodes(List<Long> nodeIds) {
         if (nodeIds != null && !nodeIds.isEmpty()) {
             return nodeRepository.findByDeployedAndIdIn(0, nodeIds);
         }
         return nodeRepository.findByDeployed(0);
-    }
-
-    private List<Node> expandWithBackupNodes(List<Node> nodes) {
-        if (nodes == null || nodes.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        Map<Long, Node> expandedNodes = nodes.stream()
-                .filter(Objects::nonNull)
-                .collect(Collectors.toMap(Node::getId, node -> node, (left, right) -> left, LinkedHashMap::new));
-
-        List<Long> backupNodeIds = nodes.stream()
-                .map(Node::getBackupNodeId)
-                .filter(Objects::nonNull)
-                .filter(id -> !expandedNodes.containsKey(id))
-                .distinct()
-                .toList();
-        if (!backupNodeIds.isEmpty()) {
-            nodeRepository.findByIdIn(backupNodeIds)
-                    .forEach(node -> expandedNodes.putIfAbsent(node.getId(), node));
-        }
-
-        return new ArrayList<>(expandedNodes.values());
     }
 
     private List<DeploymentResult> processNodesByServer(List<Node> nodes) {
@@ -306,12 +314,6 @@ public class NodeDeploymentService {
         if (node.getServerId() != null) {
             affectedServerIds.add(node.getServerId());
         }
-        if (node.getBackupNodeId() != null) {
-            Node backupNode = nodeRepository.findById(node.getBackupNodeId());
-            if (backupNode != null && backupNode.getServerId() != null) {
-                affectedServerIds.add(backupNode.getServerId());
-            }
-        }
     }
 
     private void collectSourceCores(Node node, Map<Long, Set<String>> sourceCoresByServerId) {
@@ -320,14 +322,6 @@ public class NodeDeploymentService {
             sourceCoresByServerId
                     .computeIfAbsent(node.getServerId(), key -> new LinkedHashSet<>())
                     .add(sourceCoreType);
-        }
-        if (node.getBackupNodeId() != null) {
-            Node backupNode = nodeRepository.findById(node.getBackupNodeId());
-            if (backupNode != null && backupNode.getServerId() != null) {
-                sourceCoresByServerId
-                        .computeIfAbsent(backupNode.getServerId(), key -> new LinkedHashSet<>())
-                        .add(sourceCoreType);
-            }
         }
     }
 

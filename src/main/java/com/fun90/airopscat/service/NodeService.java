@@ -49,6 +49,9 @@ public class NodeService {
     @Inject
     DefaultInboundStrategyRegistry strategyRegistry;
 
+    @Inject
+    NodeGroupService nodeGroupService;
+
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Node> getNodePage(
             String search,
             String serverIds,
@@ -66,7 +69,7 @@ public class NodeService {
 
         if (search != null && !search.trim().isEmpty()) {
             String searchLike = "%" + search.toLowerCase() + "%";
-            query.append(" and (lower(name) like :search or lower(remark) like :search")
+            query.append(" and (lower(name) like :search or lower(remark) like :search or lower(nodeGroup) like :search")
                  .append(" or serverId in (select id from Server where lower(ip) like :search or lower(host) like :search"
                          + " or id in (select sh.serverId from ServerHost sh where lower(sh.host) like :search))")
                  .append(" or accessHostId in (select id from ServerHost where lower(host) like :search)")
@@ -133,6 +136,8 @@ public class NodeService {
         return switch (sortBy) {
             case "name" -> ascending ? Sort.by("name", "no").ascending() : Sort.by("name", "no").descending();
             case "server" -> ascending ? Sort.by("serverId").ascending() : Sort.by("serverId").descending();
+            case "nodeGroup" -> ascending ? Sort.by("nodeGroup", "name", "no").ascending() : Sort.by("nodeGroup", "name", "no").descending();
+            case "outbound" -> ascending ? Sort.by("outId", "name", "no").ascending() : Sort.by("outId", "name", "no").descending();
             default -> Sort.by("createTime").descending();
         };
     }
@@ -146,19 +151,14 @@ public class NodeService {
         if (node == null) {
             return null;
         }
-        return NodeConverter.toDto(node, nodeRepository.findFirstByBackupNodeId(id));
+        return NodeConverter.toDto(node);
     }
 
     public List<NodeDto> toNodeDtos(List<Node> nodes) {
         if (nodes == null || nodes.isEmpty()) {
             return List.of();
         }
-        List<Long> nodeIds = nodes.stream().map(Node::getId).filter(Objects::nonNull).toList();
-        Map<Long, Node> backupForNodeMap = nodeRepository.findByBackupNodeIdIn(nodeIds).stream()
-                .collect(Collectors.toMap(Node::getBackupNodeId, node -> node, (left, right) -> left));
-        return nodes.stream()
-                .map(node -> NodeConverter.toDto(node, backupForNodeMap.get(node.getId())))
-                .toList();
+        return nodes.stream().map(NodeConverter::toDto).toList();
     }
 
     public List<Node> getNodeByType(NodeType nodeType) {
@@ -189,39 +189,26 @@ public class NodeService {
         return !nodeRepository.existsByServerIdAndPortAndIdNot(serverId, port, nodeId);
     }
 
-    public boolean isBackupNodePortAvailable(Long backupNodeId, Integer port, Long nodeId) {
-        if (backupNodeId == null || port == null) {
+    public boolean isNodePortsAvailable(Long serverId, Integer port, Long nodeId) {
+        return isNodePortsAvailable(serverId, port, nodeId, List.of());
+    }
+
+    public boolean isNodePortsAvailable(Long serverId, Integer port, Long nodeId, List<Long> excludedIds) {
+        if (serverId == null || port == null) {
             return true;
         }
 
-        Node backupNode = loadNode(backupNodeId, "Backup node");
-        if (backupNode.getServerId() == null) {
-            return false;
+        List<Long> effectiveExcludedIds = new ArrayList<>();
+        if (excludedIds != null) {
+            effectiveExcludedIds.addAll(excludedIds.stream().filter(Objects::nonNull).toList());
         }
-
-        List<Long> excludedIds = new ArrayList<>();
-        excludedIds.add(backupNodeId);
         if (nodeId != null) {
-            excludedIds.add(nodeId);
+            effectiveExcludedIds.add(nodeId);
         }
-        return !nodeRepository.existsByServerIdAndPortAndIdNotIn(backupNode.getServerId(), port, excludedIds);
+        return !nodeRepository.existsByServerIdAndPortAndIdNotIn(serverId, port, effectiveExcludedIds);
     }
 
-    public boolean isNodePortsAvailable(Long serverId, Long backupNodeId, Integer port, Long nodeId) {
-        if (!isPortAvailable(serverId, port, nodeId)) {
-            return false;
-        }
-        if (backupNodeId == null) {
-            return true;
-        }
-        Node backupNode = loadNode(backupNodeId, "Backup node");
-        if (backupNode.getServerId() == null || Objects.equals(serverId, backupNode.getServerId())) {
-            return false;
-        }
-        return isBackupNodePortAvailable(backupNodeId, port, nodeId);
-    }
-
-    private void validateNodeServersAndPorts(Node node) {
+    private void validateNodeServersAndPorts(Node node, List<Node> groupNodes) {
         if (nodeRepository.existsByNameAndNoAndIdNot(node.getName(), node.getNo(), node.getId())) {
             throw new IllegalArgumentException("名称与编号重复：" + node.getName() + " " + node.getNo());
         }
@@ -240,45 +227,13 @@ public class NodeService {
             }
         }
 
-        validateBackupNode(node);
-
+        List<Long> excludedNodeIds = groupNodes == null ? List.of() : groupNodes.stream()
+                .map(Node::getId)
+                .filter(Objects::nonNull)
+                .toList();
         if (node.getServerId() != null && node.getPort() != null
-                && !isNodePortsAvailable(node.getServerId(), node.getBackupNodeId(), node.getPort(), node.getId())) {
-            if (!isPortAvailable(node.getServerId(), node.getPort(), node.getId())) {
-                throw new IllegalArgumentException("Port " + node.getPort() + " is already in use on the main server");
-            }
-            throw new IllegalArgumentException("Port " + node.getPort() + " is already in use on the backup node");
-        }
-    }
-
-    private void validateBackupNode(Node node) {
-        if (node.getBackupNodeId() == null) {
-            return;
-        }
-
-        if (node.getId() != null && node.getBackupNodeId().equals(node.getId())) {
-            throw new IllegalArgumentException("主节点和备用节点不能相同");
-        }
-
-        Node backupNode = loadNode(node.getBackupNodeId(), "Backup node");
-        if (backupNode.getServerId() == null) {
-            throw new IllegalArgumentException("备用节点缺少所属服务器");
-        }
-        if (Objects.equals(node.getServerId(), backupNode.getServerId())) {
-            throw new IllegalArgumentException("主节点和备用节点不能部署在同一服务器");
-        }
-        if (node.getType() != null && !Objects.equals(node.getType(), backupNode.getType())) {
-            throw new IllegalArgumentException("备用节点只能选择相同节点类型的节点");
-        }
-        if (node.getCoreType() != null && backupNode.getCoreType() != null
-                && !node.getCoreType().equalsIgnoreCase(backupNode.getCoreType())) {
-            throw new IllegalArgumentException("备用节点只能选择相同内核类型的节点");
-        }
-        if (backupNode.getBackupNodeId() != null && Objects.equals(backupNode.getBackupNodeId(), node.getId())) {
-            throw new IllegalArgumentException("不支持节点互相设置为备用节点");
-        }
-        if (nodeRepository.existsByBackupNodeIdAndIdNot(node.getBackupNodeId(), node.getId())) {
-            throw new IllegalArgumentException("该备用节点已被其他主节点占用");
+                && !isNodePortsAvailable(node.getServerId(), node.getPort(), node.getId(), excludedNodeIds)) {
+            throw new IllegalArgumentException("Port " + node.getPort() + " is already in use on the server");
         }
     }
 
@@ -312,27 +267,29 @@ public class NodeService {
     }
 
     @Transactional
-    public Node saveNode(Node node) {
+    public Node saveNode(Node node, String nodeGroup) {
         if (node.getDeployed() == null) {
             node.setDeployed(0);
         }
 
         normalizeAndValidateNodeProtocol(node);
-        validateNodeServersAndPorts(node);
+        node.setNodeGroup(nodeGroupService.normalizeNodeGroup(nodeGroup));
+        List<Node> groupNodes = nodeGroupService.validateNodeGroup(node);
+        nodeGroupService.alignNodeToGroupConfiguration(node, groupNodes);
+        validateNodeServersAndPorts(node, groupNodes);
 
         nodeRepository.persist(node);
-        syncBackupNodeConfiguration(node, null);
+        nodeGroupService.markGroupNodesUndeployed(node.getNodeGroup(), node.getId());
         return node;
     }
 
     @Transactional
-    public Node updateNode(Node node, Set<Tag> tagSet) {
+    public Node updateNode(Node node, String nodeGroup, Set<Tag> tagSet) {
         Node existingNode = nodeRepository.findById(node.getId());
         if (existingNode == null) {
             throw new EntityNotFoundException("Node not found");
         }
-
-        validateProtectedFieldsWhenUsedAsBackupNode(existingNode, node);
+        String previousNodeGroup = nodeGroupService.normalizeNodeGroup(existingNode.getNodeGroup());
 
         if (node.getCoreType() != null
                 && existingNode.getCoreType() != null
@@ -341,9 +298,10 @@ public class NodeService {
         }
 
         normalizeAndValidateNodeProtocol(node);
-        validateNodeServersAndPorts(node);
-
-        Long oldBackupNodeId = existingNode.getBackupNodeId();
+        node.setNodeGroup(nodeGroupService.normalizeNodeGroup(nodeGroup));
+        List<Node> groupNodes = nodeGroupService.validateNodeGroup(node);
+        nodeGroupService.alignNodeToGroupConfiguration(node, groupNodes);
+        validateNodeServersAndPorts(node, groupNodes);
         boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node, tagSet);
 
         copyNonNullProperties(node, existingNode);
@@ -358,12 +316,6 @@ public class NodeService {
             existingNode.setServer(server);
         }
 
-        if (existingNode.getBackupNodeId() != null) {
-            existingNode.setBackupNode(nodeRepository.findById(existingNode.getBackupNodeId()));
-        } else {
-            existingNode.setBackupNode(null);
-        }
-
         existingNode.setAccessHost(existingNode.getAccessHostId() != null
                 ? serverHostService.getHostById(existingNode.getAccessHostId())
                 : null);
@@ -375,7 +327,7 @@ public class NodeService {
             existingNode.setOutNode(null);
         }
 
-        syncBackupNodeConfiguration(existingNode, oldBackupNodeId);
+        nodeGroupService.markAffectedGroupNodesUndeployed(previousNodeGroup, existingNode.getNodeGroup(), existingNode.getId());
         return existingNode;
     }
 
@@ -397,10 +349,6 @@ public class NodeService {
         }
 
         if (!Objects.equals(newNode.getAccessHostId(), oldNode.getAccessHostId())) {
-            return true;
-        }
-
-        if (!Objects.equals(newNode.getBackupNodeId(), oldNode.getBackupNodeId())) {
             return true;
         }
 
@@ -426,6 +374,11 @@ public class NodeService {
             return true;
         }
 
+        if (!Objects.equals(nodeGroupService.normalizeNodeGroup(newNode.getNodeGroup()),
+                nodeGroupService.normalizeNodeGroup(oldNode.getNodeGroup()))) {
+            return true;
+        }
+
         if (newNode.getTags() != null && !newTagSet.equals(oldNode.getTags())) {
             return true;
         }
@@ -446,33 +399,11 @@ public class NodeService {
         if (src.getInbound() != null) target.setInbound(src.getInbound());
         if (src.getRule() != null) target.setRule(src.getRule());
         if (src.getLevel() != null) target.setLevel(src.getLevel());
+        target.setNodeGroup(src.getNodeGroup());
         if (src.getTags() != null) target.setTags(src.getTags());
         if (src.getDisabled() != null) target.setDisabled(src.getDisabled());
         if (src.getDeployed() != null) target.setDeployed(src.getDeployed());
         target.setOutId(src.getOutId());
-        target.setBackupNodeId(src.getBackupNodeId());
-    }
-
-    private void syncBackupNodeConfiguration(Node node, Long oldBackupNodeId) {
-        if (oldBackupNodeId != null && !Objects.equals(oldBackupNodeId, node.getBackupNodeId())) {
-            Node oldBackupNode = nodeRepository.findById(oldBackupNodeId);
-            if (oldBackupNode != null) {
-                oldBackupNode.setDeployed(0);
-            }
-        }
-
-        if (node.getBackupNodeId() == null) {
-            return;
-        }
-
-        Node backupNode = loadNode(node.getBackupNodeId(), "Backup node");
-        backupNode.setProtocol(node.getProtocol());
-        backupNode.setCoreType(node.getCoreType());
-        backupNode.setType(node.getType());
-        backupNode.setPort(node.getPort());
-        backupNode.setInbound(node.getInbound());
-        backupNode.setOutId(node.getOutId());
-        backupNode.setDeployed(0);
     }
 
     private Node loadNode(Long nodeId, String label) {
@@ -483,34 +414,8 @@ public class NodeService {
         return node;
     }
 
-    private void validateProtectedFieldsWhenUsedAsBackupNode(Node existingNode, Node updatedNode) {
-        Node backupForNode = nodeRepository.findFirstByBackupNodeId(existingNode.getId());
-        if (backupForNode == null) {
-            return;
-        }
-
-        boolean protocolChanged = updatedNode.getProtocol() != null
-                && !Objects.equals(updatedNode.getProtocol(), existingNode.getProtocol());
-        boolean portChanged = updatedNode.getPort() != null
-                && !Objects.equals(updatedNode.getPort(), existingNode.getPort());
-        boolean inboundChanged = updatedNode.getInbound() != null
-                && !Objects.equals(updatedNode.getInbound(), existingNode.getInbound());
-        boolean outChanged = !Objects.equals(updatedNode.getOutId(), existingNode.getOutId());
-
-        if (protocolChanged || portChanged || inboundChanged || outChanged) {
-            String backupForNodeName = backupForNode.getName() == null || backupForNode.getName().isBlank()
-                    ? "节点#" + backupForNode.getId()
-                    : backupForNode.getName();
-            throw new IllegalArgumentException("该节点当前作为 " + backupForNodeName
-                    + " 的备用节点，协议、端口、入站配置、出站配置需在主节点中维护");
-        }
-    }
-
     @Transactional
     public void deleteNode(Long id) {
-        if (nodeRepository.existsByBackupNodeId(id)) {
-            throw new IllegalArgumentException("该节点已被其他节点设置为备用节点，无法删除");
-        }
         nodeRepository.deleteById(id);
     }
 
@@ -559,38 +464,6 @@ public class NodeService {
                     return option;
                 })
                 .collect(Collectors.toList());
-    }
-
-    public List<Map<String, Object>> getBackupNodeOptions(Integer type, String coreType, Long excludeId) {
-        if (type == null || coreType == null || coreType.trim().isEmpty()) {
-            return List.of();
-        }
-
-        String normalizedCoreType = normalizeCoreTypeValue(coreType);
-        return nodeRepository.findByTypeAndCoreType(type, normalizedCoreType, excludeId).stream()
-                .map(this::toBackupNodeOption)
-                .toList();
-    }
-
-    private Map<String, Object> toBackupNodeOption(Node node) {
-        Map<String, Object> option = new LinkedHashMap<>();
-        option.put("id", node.getId());
-        option.put("name", node.getName());
-        option.put("no", node.getNo());
-        option.put("port", node.getPort());
-        option.put("protocol", node.getProtocol());
-        option.put("coreType", node.getCoreType());
-        option.put("type", node.getType());
-        if (node.getServer() != null) {
-            option.put("serverIp", node.getServer().getIp());
-            option.put("serverHost", serverHostService.resolvePrimaryHost(node.getServer()));
-        }
-        return option;
-    }
-
-    private String normalizeCoreTypeValue(String coreType) {
-        CoreType parsedCoreType = CoreType.fromValue(coreType);
-        return parsedCoreType == null ? coreType.trim().toLowerCase() : parsedCoreType.getValue();
     }
 
     public Integer getAvailablePort(Long serverId) {

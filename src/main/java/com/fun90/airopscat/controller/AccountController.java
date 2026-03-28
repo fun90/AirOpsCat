@@ -40,27 +40,23 @@ import java.util.stream.Stream;
 @Consumes(MediaType.APPLICATION_JSON)
 public class AccountController {
 
-    private final AccountService accountService;
-    private final UserService userService;
-    private final TagService tagService;
-    private final AccountOnlineIpService accountOnlineIpService;
-    private final TransactionService transactionService;
+    @Inject
+    private AccountService accountService;
+    @Inject
+    private UserService userService;
+    @Inject
+    private TagService tagService;
+    @Inject
+    private AccountOnlineIpService accountOnlineIpService;
+    @Inject
+    private TransactionService transactionService;
 
     @Inject
-    SecurityIdentity securityIdentity;
+    private SecurityIdentity securityIdentity;
     @Inject
-    SubscriptionService subscriptionService;
+    private SubscriptionService subscriptionService;
     @Inject
-    NodeDeploymentService nodeDeploymentService;
-
-    @Inject
-    public AccountController(AccountService accountService, UserService userService, TagService tagService, AccountOnlineIpService accountOnlineIpService, TransactionService transactionService) {
-        this.accountService = accountService;
-        this.userService = userService;
-        this.tagService = tagService;
-        this.accountOnlineIpService = accountOnlineIpService;
-        this.transactionService = transactionService;
-    }
+    private NodeDeploymentService nodeDeploymentService;
 
     @GET
     public Response getAccountPage(

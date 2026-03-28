@@ -16,6 +16,8 @@
 - `controller.NodeController`
 - `templates/vpn/node/*`
 - `static/js/vpn/node.js`
+- `static/js/vpn/node-form-methods.js`
+- `static/js/vpn/node-deploy-methods.js`
 
 ---
 
@@ -35,7 +37,8 @@
 - 启用 / 禁用节点
 - 获取服务器列表、落地节点列表、可用端口
 - 根据 `coreType + protocol` 生成默认 inbound 配置
-- 校验主节点服务器 / 备用节点服务器端口冲突
+- 节点组候选查询、组配置继承与锁定
+- 校验当前服务器端口冲突和节点组服务器冲突
 - 节点复制
 - 单节点部署、强制重部署、批量部署
 - xray / sing-box 内核切换
@@ -62,11 +65,14 @@
   - `src/main/resources/templates/vpn/node/modals.html`
 - 前端脚本：
   - `src/main/resources/META-INF/resources/static/js/vpn/node.js`
+  - `src/main/resources/META-INF/resources/static/js/vpn/node-form-methods.js`
+  - `src/main/resources/META-INF/resources/static/js/vpn/node-deploy-methods.js`
   - 复用基类：`src/main/resources/META-INF/resources/static/js/common/data-table.js`
 
 ### 3.2 后端核心
 
 - 业务服务：`src/main/java/com/fun90/airopscat/service/NodeService.java`
+- 节点组规则服务：`src/main/java/com/fun90/airopscat/service/NodeGroupService.java`
 - 部署服务：`src/main/java/com/fun90/airopscat/service/deployment/NodeDeploymentService.java`
 - 数据模型：
   - `src/main/java/com/fun90/airopscat/model/entity/Node.java`
@@ -97,7 +103,7 @@
 `Node` 实体里，真正决定节点行为的字段是：
 
 - `serverId`：主服务器
-- `backupNodeId`：备用节点
+- `nodeGroup`：节点组名称
 - `port`：节点端口
 - `protocol`：协议
 - `coreType`：内核类型，当前主线是 `xray` / `sing-box`
@@ -121,9 +127,10 @@
 - 创建时允许直接选择 `coreType`。
 - 编辑时禁止直接修改 `coreType`，必须通过“切换内核”功能。
 - 代理节点可以选择落地节点作为 `outId`。
-- 支持备用节点，保存主节点时会同步覆盖备用节点的协议、端口、入站、出站配置。
-- 备用节点只能选择相同节点类型、相同内核类型，且不能与主节点部署在同一服务器。
-- 部署主节点时要联动部署备用节点，并将主节点入站中的用户信息合并到备用节点入站配置中。
+- 支持节点组，加入已有组时会继承组内已有节点的协议、端口、入站、出站配置。
+- 节点组只能包含相同节点类型、相同内核类型、且不在同一服务器上的节点。
+- 输入一个新的节点组名时，当前节点作为组首节点保留可编辑配置。
+- 部署任一组内节点时会联动部署同组节点，并把组内有效用户集合合并到每个节点的部署快照里。
 - inbound / rule 允许用户直接编辑 JSON。
 - 节点复制时需要重新分配端口，避免冲突。
 - 禁用节点、编辑关键字段、切换内核后，节点会回到“未部署”状态。
@@ -174,7 +181,8 @@
 - `GET /api/admin/nodes/stats`
 - `GET /api/admin/nodes/available-port`
 - `GET /api/admin/nodes/default-inbound`
-- `GET /api/admin/nodes/backup-options`
+- `GET /api/admin/nodes/group-options`
+- `GET /api/admin/nodes/group-config`
 - `GET /api/admin/nodes/check-port`
 - `POST /api/admin/nodes`
 - `PUT /api/admin/nodes/{id}`
@@ -192,9 +200,14 @@
 
 ## 6. 后端关键约束
 
-### 6.1 `NodeService` 负责什么
+### 6.1 `NodeService` 与 `NodeGroupService` 的分工
 
-`NodeService` 是节点领域规则的第一入口，核心职责：
+当前代码已经把节点主流程和节点组规则拆开：
+
+- `NodeService`
+- `NodeGroupService`
+
+`NodeService` 核心职责：
 
 - 分页查询与筛选
 - 统计信息聚合
@@ -205,6 +218,15 @@
 - `protocol` 是否与 `nodeType + coreType` 匹配的校验
 - 创建 / 更新 / 删除 / 启停
 - 获取默认 inbound 配置
+
+`NodeGroupService` 核心职责：
+
+- `nodeGroup` 归一化
+- 节点组约束校验
+- 加入已有组时对齐协议、端口、入站、出站
+- 节点组候选项和配置查询
+- 节点组部署范围展开
+- 节点组变更后的同组节点 `deployed=0` 标记
 
 ### 6.2 协议支持矩阵
 
@@ -237,7 +259,7 @@
 - `type`
 - `coreType`
 - `serverId`
-- `backupNodeId`
+- `nodeGroup`
 - `inbound`
 - `rule`
 - `outId`
@@ -248,6 +270,19 @@
 这决定了 Codex 在实现新功能时，必须特别小心：
 
 不要只改 UI 和 DTO，而忘记部署状态重置。
+
+### 6.4 当前前端职责拆分
+
+节点页前端目前已经不是单文件巨石模式，而是：
+
+- `node.js`
+  - DataTable 入口、列表与筛选主胶水
+- `node-form-methods.js`
+  - 新建 / 编辑表单、节点组联动、端口与协议处理、表单校验
+- `node-deploy-methods.js`
+  - 单节点部署、批量部署、切换内核、勾选态管理
+
+后续如果继续扩展节点页，优先往对应方法模块里放，不要把所有行为重新堆回 `node.js`。
 
 ---
 

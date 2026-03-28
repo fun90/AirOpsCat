@@ -14,10 +14,6 @@ import java.util.Map;
 public class NodeConverter {
 
     public static NodeDto toDto(Node node) {
-        return toDto(node, null);
-    }
-
-    public static NodeDto toDto(Node node, Node backupForNode) {
         NodeDto dto = new NodeDto();
         
         // Manual property copying instead of BeanUtils
@@ -29,7 +25,6 @@ public class NodeConverter {
         dto.setProtocol(node.getProtocol());
         dto.setCoreType(node.getCoreType());
         dto.setServerId(node.getServerId());
-        dto.setBackupNodeId(node.getBackupNodeId());
         dto.setAccessHostId(node.getAccessHostId());
         dto.setOutId(node.getOutId());
         dto.setLevel(node.getLevel());
@@ -38,6 +33,7 @@ public class NodeConverter {
         dto.setRemark(node.getRemark());
         dto.setCreateTime(node.getCreateTime());
         dto.setUpdateTime(node.getUpdateTime());
+        dto.setNodeGroup(node.getNodeGroup());
 
         // 设置类型描述
         dto.setTypeDescription(node.getTypeDescription());
@@ -49,22 +45,6 @@ public class NodeConverter {
                 dto.setServerHost(resolveEffectiveHost(node.getAccessHost(), node.getServer()));
             }
             dto.setAccessHost(node.getAccessHost() != null ? node.getAccessHost().getHost() : null);
-            if (node.getBackupNode() != null) {
-                dto.setBackupNodeName(node.getBackupNode().getName());
-                if (node.getBackupNode().getServer() != null) {
-                    dto.setBackupNodeServerIp(node.getBackupNode().getServer().getIp());
-                    dto.setBackupNodeServerHost(resolveEffectiveHost(
-                            node.getBackupNode().getAccessHost(),
-                            node.getBackupNode().getServer()));
-                }
-            }
-            if (backupForNode != null) {
-                dto.setUsedAsBackupNode(true);
-                dto.setBackupForNodeId(backupForNode.getId());
-                dto.setBackupForNodeName(backupForNode.getName());
-            } else {
-                dto.setUsedAsBackupNode(false);
-            }
         } catch (org.hibernate.LazyInitializationException e) {
             // 当Hibernate session关闭时，优雅地处理懒加载异常
             log.debug("Server lazy loading failed for node {}, setting basic info only", node.getId());
@@ -123,7 +103,6 @@ public class NodeConverter {
             node.setId(request.getId());
         }
         node.setServerId(request.getServerId());
-        node.setBackupNodeId(request.getBackupNodeId());
         node.setAccessHostId(request.getAccessHostId());
         node.setPort(request.getPort());
         node.setProtocol(request.getProtocol());
@@ -138,6 +117,7 @@ public class NodeConverter {
         node.setDisabled(request.getDisabled());
         node.setName(request.getName());
         node.setNo(request.getNo());
+        node.setNodeGroup(request.getNodeGroup());
         node.setRemark(request.getRemark());
         
         return node;
