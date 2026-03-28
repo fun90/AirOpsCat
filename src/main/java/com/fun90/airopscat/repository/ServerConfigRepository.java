@@ -31,4 +31,8 @@ public class ServerConfigRepository implements PanacheRepository<ServerConfig> {
     public long countByConfigType(String configType) {
         return count("configType", configType);
     }
+
+    public long countEnabled() {
+        return count("(enabled is null or enabled <> 0)");
+    }
 }

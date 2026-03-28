@@ -7,6 +7,7 @@ import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.enums.CoreOperation;
+import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
@@ -54,7 +55,7 @@ public class ServerConfigService {
         }
         
         String query = conditions.isEmpty() ? "" : String.join(" and ", conditions);
-        Sort sort = Sort.by("createTime").descending();
+        Sort sort = Sort.by("updateTime").descending().and("id").descending();
         
         if (query.isEmpty()) {
             return serverConfigRepository.findAll(sort);
@@ -170,16 +171,11 @@ public class ServerConfigService {
      * 获取配置统计信息
      */
     public Map<String, Long> getServerConfigStats() {
-        Map<String, Long> stats = new HashMap<>();
+        Map<String, Long> stats = new LinkedHashMap<>();
         stats.put("total", serverConfigRepository.count());
-        
-        // 按配置类型统计
-        List<String> configTypes = serverConfigRepository.findDistinctConfigTypes();
-        for (String configType : configTypes) {
-            long count = serverConfigRepository.countByConfigType(configType);
-            stats.put(configType, count);
-        }
-        
+        stats.put("enabled", serverConfigRepository.countEnabled());
+        stats.put("xray", serverConfigRepository.countByConfigType(CoreType.XRAY.getValue()));
+        stats.put("singBox", serverConfigRepository.countByConfigType(CoreType.SING_BOX.getValue()));
         return stats;
     }
 

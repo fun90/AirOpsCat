@@ -13,9 +13,9 @@ const configTable = new DataTable({
         configTypes: [],
         stats: {
             total: 0,
+            enabled: 0,
             xray: 0,
-            hysteria: 0,
-            hysteria2: 0
+            singBox: 0
         },
         // Form data
         newItem: {
