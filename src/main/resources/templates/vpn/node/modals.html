@@ -617,3 +617,204 @@
         </div>
     </div>
 </div>
+
+<div class="modal modal-blur fade" id="node-deploymentHistoryModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    部署历史
+                    <span v-if="deploymentHistoryNode" class="text-secondary ms-2">
+                        {{ (deploymentHistoryNode.name && deploymentHistoryNode.no) ? deploymentHistoryNode.name + '-' + deploymentHistoryNode.no : ('节点 #' + deploymentHistoryNode.id) }}
+                    </span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div v-if="loadingDeploymentVersions" class="py-5 text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div v-else-if="deploymentVersions.length === 0" class="empty">
+                    <div class="empty-icon">
+                        <i class="ti ti-history fs-1 text-secondary"></i>
+                    </div>
+                    <p class="empty-title">还没有部署版本</p>
+                    <p class="empty-subtitle text-secondary">该节点尚未产生可查看的部署历史。</p>
+                </div>
+                <div v-else class="table-responsive">
+                    <table class="table table-vcenter">
+                        <thead>
+                        <tr>
+                            <th>版本</th>
+                            <th>配置摘要</th>
+                            <th>部署时间</th>
+                            <th>归档时间</th>
+                            <th class="w-1">操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="item in deploymentVersions" :key="item.version">
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge" :class="item.current ? 'bg-success-lt' : 'bg-secondary-lt'">v{{ item.version }}</span>
+                                    <span v-if="item.current" class="badge bg-azure-lt">当前</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex flex-column gap-1">
+                                    <div class="fw-medium">{{ item.coreType }} / {{ item.protocol }}</div>
+                                    <div class="text-secondary small">
+                                        {{ getDeploymentVersionTypeLabel(item.type) || '-' }} · 端口 {{ item.port || '-' }}
+                                        <span v-if="item.nodeGroup"> · 组 {{ item.nodeGroup }}</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ formatDate(item.deployedAt) || '-' }}</td>
+                            <td>{{ item.archivedAt ? formatDate(item.archivedAt) : '-' }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" type="button" @click="viewDeploymentVersion(item.version)">
+                                    详情
+                                </button>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal modal-blur fade" id="node-deploymentVersionDetailModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    版本详情
+                    <span v-if="deploymentVersionDetail" class="text-secondary ms-2">v{{ deploymentVersionDetail.version }}</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div v-if="loadingDeploymentVersionDetail" class="py-5 text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div v-else-if="deploymentVersionDetail && deploymentVersionDetail.snapshot" class="row g-3">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <div class="text-secondary small">状态</div>
+                                        <div class="mt-1">
+                                            <span class="badge" :class="deploymentVersionDetail.current ? 'bg-success-lt' : 'bg-secondary-lt'">
+                                                {{ deploymentVersionDetail.current ? '当前版本' : '历史版本' }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-secondary small">部署时间</div>
+                                        <div class="fw-medium mt-1">{{ deploymentVersionDetail ? (formatDate(deploymentVersionDetail.deployedAt) || '-') : '-' }}</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-secondary small">归档时间</div>
+                                        <div class="fw-medium mt-1">{{ deploymentVersionDetail && deploymentVersionDetail.archivedAt ? formatDate(deploymentVersionDetail.archivedAt) : '-' }}</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-secondary small">节点组</div>
+                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().nodeGroup || '-' }}</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-secondary small">服务器</div>
+                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().serverId || '-' }}</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-secondary small">接入 Host</div>
+                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().accessHostId || '-' }}</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-secondary small">内核 / 协议</div>
+                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().coreType || '-' }} / {{ getDeploymentVersionSnapshot().protocol || '-' }}</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-secondary small">端口 / 类型</div>
+                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().port || '-' }} / {{ getDeploymentVersionTypeLabel(getDeploymentVersionSnapshot().type) || '-' }}</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-secondary small">出站节点</div>
+                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().outId || '直连' }}</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-secondary small">级别</div>
+                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().level ?? '-' }}</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-secondary small">名称 / 编号</div>
+                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().name || '-' }} / {{ getDeploymentVersionSnapshot().no || '-' }}</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-secondary small">状态</div>
+                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().disabled === 1 ? '已禁用' : '已启用' }}</div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="text-secondary small mb-2">标签</div>
+                                        <div class="badges-list" v-if="getDeploymentVersionSnapshot().tagIds && getDeploymentVersionSnapshot().tagIds.length > 0">
+                                            <span class="badge bg-secondary-lt" v-for="tagId in getDeploymentVersionSnapshot().tagIds" :key="tagId">{{ getTagNameById(tagId) }}</span>
+                                        </div>
+                                        <div v-else class="text-secondary">无标签</div>
+                                    </div>
+                                    <div class="col-12" v-if="getDeploymentVersionSnapshot().remark">
+                                        <div class="text-secondary small mb-2">备注</div>
+                                        <div class="fw-medium">{{ getDeploymentVersionSnapshot().remark }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">入站配置</h3>
+                            </div>
+                            <div class="card-body">
+                                <pre class="mb-0">{{ JSON.stringify(getDeploymentVersionSnapshot().inbound || {}, null, 2) }}</pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">规则配置</h3>
+                            </div>
+                            <div class="card-body">
+                                <pre class="mb-0">{{ JSON.stringify(getDeploymentVersionSnapshot().rule || {}, null, 2) }}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div v-else class="empty">
+                    <div class="empty-icon">
+                        <i class="ti ti-file-search fs-1 text-secondary"></i>
+                    </div>
+                    <p class="empty-title">暂无版本详情</p>
+                    <p class="empty-subtitle text-secondary">请重新打开该版本详情。</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary"
+                        @click="restoreDeploymentVersion"
+                        :disabled="restoringDeploymentVersion || (deploymentVersionDetail && deploymentVersionDetail.current)">
+                    {{ restoringDeploymentVersion ? '还原中...' : '还原此版本' }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

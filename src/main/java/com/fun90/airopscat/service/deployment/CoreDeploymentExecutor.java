@@ -38,6 +38,7 @@ public class CoreDeploymentExecutor {
     private final ServerConfigRepository serverConfigRepository;
     private final NodeRepository nodeRepository;
     private final CoreConfigBuilderRegistry coreConfigBuilderRegistry;
+    private final NodeDeploymentVersionService nodeDeploymentVersionService;
 
     @ConfigProperty(name = "airopscat.deployment.skip-remote-config", defaultValue = "false")
     boolean skipRemoteConfigInCurrentEnv;
@@ -122,7 +123,15 @@ public class CoreDeploymentExecutor {
                     .collect(Collectors.toList());
         }
         saveServerConfig(execution.server(), execution.coreType(), execution.config());
-        return updateNodeDeploymentStatus(execution.nodes(), execution.server().getId());
+        List<DeploymentResult> results = updateNodeDeploymentStatus(execution.nodes(), execution.server().getId());
+        nodeDeploymentVersionService.recordSuccessfulDeployments(
+                results.stream()
+                        .filter(DeploymentResult::isSuccess)
+                        .map(result -> nodeRepository.findById(result.getNodeId()))
+                        .filter(Objects::nonNull)
+                        .toList()
+        );
+        return results;
     }
 
     private void saveServerConfig(Server server, String coreType, String config) {

@@ -339,7 +339,7 @@ public class NodeService {
         return existingNode;
     }
 
-    private boolean hasSubstantialChanges(Node oldNode, Node newNode, Set<Tag> newTagSet, boolean tagsUpdated) {
+    public boolean hasSubstantialChanges(Node oldNode, Node newNode, Set<Tag> newTagSet, boolean tagsUpdated) {
         return !buildSubstantialChangeSignature(oldNode, oldNode.getTags(), true).equals(
                 buildSubstantialChangeSignature(newNode, newTagSet, tagsUpdated));
     }
@@ -415,7 +415,7 @@ public class NodeService {
                 .collect(Collectors.joining(","));
     }
 
-    private String md5Hex(String source) {
+    public String md5Hex(String source) {
         try {
             MessageDigest messageDigest = MessageDigest.getInstance("MD5");
             byte[] digest = messageDigest.digest(source.getBytes(StandardCharsets.UTF_8));

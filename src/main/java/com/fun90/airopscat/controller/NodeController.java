@@ -4,6 +4,9 @@ import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.NodeCoreSwitchRequest;
 import com.fun90.airopscat.model.dto.NodeCoreSwitchResponse;
+import com.fun90.airopscat.model.dto.NodeDeploymentRestoreRequest;
+import com.fun90.airopscat.model.dto.NodeDeploymentVersionDetailDto;
+import com.fun90.airopscat.model.dto.NodeDeploymentVersionDto;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.dto.NodeRequest;
 import com.fun90.airopscat.model.entity.Node;
@@ -12,6 +15,7 @@ import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.service.NodeGroupService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentService;
+import com.fun90.airopscat.service.deployment.NodeDeploymentVersionService;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.ServerHostService;
 import com.fun90.airopscat.service.ServerService;
@@ -53,6 +57,9 @@ public class NodeController {
 
     @Inject
     NodeGroupService nodeGroupService;
+
+    @Inject
+    NodeDeploymentVersionService nodeDeploymentVersionService;
 
     @GET
     public Response getNodePage(
@@ -389,6 +396,55 @@ public class NodeController {
                     request == null ? null : request.getTargetCoreType(),
                     request != null && Boolean.TRUE.equals(request.getRedeploy()));
             return Response.ok(response).build();
+        } catch (IllegalArgumentException | EntityNotFoundException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
+        }
+    }
+
+    @GET
+    @Path("/{id}/deployment-versions")
+    public Response getDeploymentVersions(@PathParam("id") Long id) {
+        try {
+            List<NodeDeploymentVersionDto> versions = nodeDeploymentVersionService.listVersions(id);
+            return Response.ok(versions).build();
+        } catch (IllegalArgumentException | EntityNotFoundException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
+        }
+    }
+
+    @GET
+    @Path("/{id}/deployment-versions/{version}")
+    public Response getDeploymentVersionDetail(@PathParam("id") Long id, @PathParam("version") Integer version) {
+        try {
+            NodeDeploymentVersionDetailDto detail = nodeDeploymentVersionService.getVersionDetail(id, version);
+            return Response.ok(detail).build();
+        } catch (IllegalArgumentException | EntityNotFoundException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
+        }
+    }
+
+    @POST
+    @Path("/{id}/deployment-versions/{version}/restore")
+    public Response restoreDeploymentVersion(@PathParam("id") Long id,
+                                             @PathParam("version") Integer version,
+                                             NodeDeploymentRestoreRequest request) {
+        try {
+            Node restoredNode = nodeDeploymentVersionService.restoreVersion(id, version);
+            if (request != null && Boolean.TRUE.equals(request.getRedeploy())) {
+                nodeDeploymentService.deployNodesForcibly(Collections.singletonList(restoredNode));
+            }
+            return Response.ok(Map.of(
+                    "message", "版本还原成功",
+                    "nodeId", id,
+                    "version", version,
+                    "deployed", 0
+            )).build();
         } catch (IllegalArgumentException | EntityNotFoundException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());

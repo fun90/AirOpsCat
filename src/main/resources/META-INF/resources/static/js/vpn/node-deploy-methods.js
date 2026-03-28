@@ -2,6 +2,120 @@ import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 
 export function createNodeDeployMethods() {
     return {
+        openDeploymentHistory(node) {
+            if (!node || !node.id) {
+                return;
+            }
+
+            this.deploymentHistoryNode = node;
+            this.deploymentVersions = [];
+            this.deploymentVersionDetail = null;
+            this.loadingDeploymentVersions = true;
+            this.deploymentHistoryModal = new Modal(document.getElementById('node-deploymentHistoryModal'));
+            this.deploymentHistoryModal.show();
+
+            fetch(`/api/admin/nodes/${node.id}/deployment-versions`)
+                .then(async response => {
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({ message: '获取部署历史失败' }));
+                        throw new Error(error.message || '获取部署历史失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.deploymentVersions = Array.isArray(data) ? data : [];
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '获取部署历史失败', 'danger');
+                })
+                .finally(() => {
+                    this.loadingDeploymentVersions = false;
+                });
+        },
+
+        viewDeploymentVersion(version) {
+            if (!this.deploymentHistoryNode || !version) {
+                return;
+            }
+
+            this.loadingDeploymentVersionDetail = true;
+            this.deploymentVersionDetail = null;
+            fetch(`/api/admin/nodes/${this.deploymentHistoryNode.id}/deployment-versions/${version}`)
+                .then(async response => {
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({ message: '获取版本详情失败' }));
+                        throw new Error(error.message || '获取版本详情失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.deploymentVersionDetail = data;
+                    this.deploymentVersionDetailModal = new Modal(document.getElementById('node-deploymentVersionDetailModal'));
+                    this.deploymentVersionDetailModal.show();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '获取版本详情失败', 'danger');
+                })
+                .finally(() => {
+                    this.loadingDeploymentVersionDetail = false;
+                });
+        },
+
+        restoreDeploymentVersion() {
+            if (!this.deploymentHistoryNode || !this.deploymentVersionDetail) {
+                return;
+            }
+
+            this.restoringDeploymentVersion = true;
+            fetch(`/api/admin/nodes/${this.deploymentHistoryNode.id}/deployment-versions/${this.deploymentVersionDetail.version}/restore`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    redeploy: false
+                })
+            })
+                .then(async response => {
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({ message: '还原部署版本失败' }));
+                        throw new Error(error.message || '还原部署版本失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.fetchRecords();
+                    if (this.deploymentVersionDetailModal) {
+                        this.deploymentVersionDetailModal.hide();
+                    }
+                    ToastUtils.show('Success', data.message || '版本还原成功', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '还原部署版本失败', 'danger');
+                })
+                .finally(() => {
+                    this.restoringDeploymentVersion = false;
+                });
+        },
+
+        getDeploymentVersionTypeLabel(type) {
+            return this.getOptionLabel(this.nodeTypes, type);
+        },
+
+        getTagNameById(tagId) {
+            const tag = this.availableTags.find(item => String(item.id) === String(tagId));
+            return tag ? tag.name : `#${tagId}`;
+        },
+
+        getDeploymentVersionSnapshot() {
+            return this.deploymentVersionDetail && this.deploymentVersionDetail.snapshot
+                ? this.deploymentVersionDetail.snapshot
+                : {};
+        },
+
         openBatchDeployModal() {
             this.batchDeployModal = new Modal(document.getElementById('batchDeployModal'));
             this.batchDeployModal.show();

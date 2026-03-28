@@ -109,6 +109,9 @@
                         <a class="dropdown-item" href="#" @click.prevent="viewNodeConfig(node)">
                             <i class="ti ti-code"></i> 查看配置
                         </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openDeploymentHistory(node)">
+                            <i class="ti ti-versions"></i> 部署历史
+                        </a>
                         <a v-if="node.disabled === 1" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(node, false)">
                             <i class="ti ti-check"></i> 启用
                         </a>

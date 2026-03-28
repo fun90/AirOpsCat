@@ -40,6 +40,10 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.dto.NodeRequest.class,
     com.fun90.airopscat.model.dto.NodeCoreSwitchRequest.class,
     com.fun90.airopscat.model.dto.NodeCoreSwitchResponse.class,
+    com.fun90.airopscat.model.dto.NodeDeploymentRestoreRequest.class,
+    com.fun90.airopscat.model.dto.NodeDeploymentVersionDto.class,
+    com.fun90.airopscat.model.dto.NodeDeploymentVersionDetailDto.class,
+    com.fun90.airopscat.model.dto.NodeDeploymentVersionSnapshotDto.class,
     com.fun90.airopscat.model.dto.DomainDto.class,
 
     // Operation Result DTOs
@@ -77,6 +81,8 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.entity.ServerHost.class,
     com.fun90.airopscat.model.entity.ServerConfig.class,
     com.fun90.airopscat.model.entity.Node.class,
+    com.fun90.airopscat.model.entity.NodeDeployment.class,
+    com.fun90.airopscat.model.entity.NodeDeploymentHistory.class,
     com.fun90.airopscat.model.entity.Domain.class,
     com.fun90.airopscat.model.entity.Tag.class,
     com.fun90.airopscat.model.entity.Transaction.class,

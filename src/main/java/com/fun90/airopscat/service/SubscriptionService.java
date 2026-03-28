@@ -1,16 +1,23 @@
 package com.fun90.airopscat.service;
 
-import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.ApiResponseDto;
 import com.fun90.airopscat.model.dto.NodeDto;
+import com.fun90.airopscat.model.dto.NodeDeploymentVersionSnapshotDto;
 import com.fun90.airopscat.model.dto.SubscrptionDto;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.NodeDeployment;
+import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
+import com.fun90.airopscat.repository.NodeDeploymentRepository;
+import com.fun90.airopscat.repository.ServerHostRepository;
+import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.util.ConfigFileReader;
+import com.fun90.airopscat.util.JsonUtil;
 import com.fun90.airopscat.util.NodeObfuscator;
 import com.fun90.airopscat.util.TemplateUtil;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -28,6 +35,9 @@ public class SubscriptionService {
 
     private final AccountRepository accountRepository;
     private final AccountTrafficStatsRepository accountTrafficRepository;
+    private final NodeDeploymentRepository nodeDeploymentRepository;
+    private final ServerRepository serverRepository;
+    private final ServerHostRepository serverHostRepository;
     private final TagService tagService;
     private final TemplateUtil templateUtil;
     private final ConfigFileReader configFileReader;
@@ -37,12 +47,18 @@ public class SubscriptionService {
     public SubscriptionService(
             AccountRepository accountRepository,
             AccountTrafficStatsRepository accountTrafficRepository,
+            NodeDeploymentRepository nodeDeploymentRepository,
+            ServerRepository serverRepository,
+            ServerHostRepository serverHostRepository,
             TagService tagService,
             TemplateUtil templateUtil,
             ConfigFileReader configFileReader,
             @ConfigProperty(name = "airopscat.subscription.url") String subscriptionUrl) {
         this.accountRepository = accountRepository;
         this.accountTrafficRepository = accountTrafficRepository;
+        this.nodeDeploymentRepository = nodeDeploymentRepository;
+        this.serverRepository = serverRepository;
+        this.serverHostRepository = serverHostRepository;
         this.tagService = tagService;
         this.templateUtil = templateUtil;
         this.configFileReader = configFileReader;
@@ -84,22 +100,9 @@ public class SubscriptionService {
             return "错误: 账户已过期，请续费后重试";
         }
 
-        // 获取账户可用的节点
-        List<Node> availableNodes = tagService.getAvailableNodesByAccount(account.getId());
-
-        if (availableNodes.isEmpty()) {
-            return "错误: 当前账户没有可用的节点，请联系管理员";
-        }
-
-        // 过滤已部署且启用的节点
-        List<NodeDto> activeNodes = availableNodes.stream()
-                .filter(node -> node.getDisabled() == null || node.getDisabled() == 0)
-                .filter(node -> Objects.equals(node.getType(), NodeType.PROXY.getValue()))
-                .map(NodeConverter::toDto)
-                .collect(Collectors.toList());
-
+        List<NodeDto> activeNodes = loadAvailableSubscriptionNodes(account.getId());
         if (activeNodes.isEmpty()) {
-            return "错误: 当前没有可用的活跃节点，请稍后重试";
+            return "错误: 当前账户没有可用的节点，请联系管理员";
         }
 
         // 节点混淆
@@ -154,21 +157,9 @@ public class SubscriptionService {
             return ApiResponseDto.error("账户已过期，请续费后重试");
         }
 
-        // 获取账户可用的节点
-        List<Node> availableNodes = tagService.getAvailableNodesByAccount(account.getId());
-        if (availableNodes.isEmpty()) {
-            return ApiResponseDto.error("当前账户没有可用的节点，请联系管理员");
-        }
-
-        // 过滤启用的节点
-        List<NodeDto> activeNodes = availableNodes.stream()
-                .filter(node -> node.getDisabled() == null || node.getDisabled() == 0)
-                .filter(node -> Objects.equals(node.getType(), NodeType.PROXY.getValue()))
-                .map(NodeConverter::toDto)
-                .collect(Collectors.toList());
-
+        List<NodeDto> activeNodes = loadAvailableSubscriptionNodes(account.getId());
         if (activeNodes.isEmpty()) {
-            return ApiResponseDto.error("当前没有可用的活跃节点，请稍后重试");
+            return ApiResponseDto.error("当前账户没有可用的节点，请联系管理员");
         }
 
         // 节点混淆
@@ -246,5 +237,115 @@ public class SubscriptionService {
      */
     private String getTemplateContent(String templateName) {
         return configFileReader.readFileContent("config/subscription/" + templateName);
+    }
+
+    private List<NodeDto> loadAvailableSubscriptionNodes(Long accountId) {
+        List<Node> availableNodes = tagService.getAvailableNodesByAccount(accountId);
+        if (availableNodes.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Node> availableNodeMap = availableNodes.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(Node::getId, node -> node, (left, right) -> left, LinkedHashMap::new));
+        List<NodeDeployment> deployments = nodeDeploymentRepository.findByNodeIds(new ArrayList<>(availableNodeMap.keySet()));
+        if (deployments.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, NodeDeploymentVersionSnapshotDto> snapshotMap = new HashMap<>();
+        Set<Long> serverIds = new LinkedHashSet<>();
+        Set<Long> accessHostIds = new LinkedHashSet<>();
+        for (NodeDeployment deployment : deployments) {
+            NodeDeploymentVersionSnapshotDto snapshot = toDeploymentSnapshot(deployment);
+            if (snapshot == null || snapshot.getNodeId() == null) {
+                continue;
+            }
+            snapshotMap.put(snapshot.getNodeId(), snapshot);
+            if (snapshot.getServerId() != null) {
+                serverIds.add(snapshot.getServerId());
+            }
+            if (snapshot.getAccessHostId() != null) {
+                accessHostIds.add(snapshot.getAccessHostId());
+            }
+        }
+
+        Map<Long, Server> serverMap = serverRepository.findByIdIn(new ArrayList<>(serverIds)).stream()
+                .collect(Collectors.toMap(Server::getId, server -> server));
+        Map<Long, ServerHost> accessHostMap = accessHostIds.isEmpty()
+                ? Collections.emptyMap()
+                : serverHostRepository.list("id in ?1", new ArrayList<>(accessHostIds)).stream()
+                        .collect(Collectors.toMap(ServerHost::getId, host -> host));
+
+        List<NodeDto> nodes = new ArrayList<>();
+        for (Node availableNode : availableNodeMap.values()) {
+            NodeDeploymentVersionSnapshotDto snapshot = snapshotMap.get(availableNode.getId());
+            if (snapshot == null) {
+                continue;
+            }
+
+            NodeDto nodeDto = toSubscriptionNodeDto(
+                    snapshot,
+                    serverMap.get(snapshot.getServerId()),
+                    accessHostMap.get(snapshot.getAccessHostId())
+            );
+            if (nodeDto.getDisabled() != null && nodeDto.getDisabled() == 1) {
+                continue;
+            }
+            if (!Objects.equals(nodeDto.getType(), NodeType.PROXY.getValue())) {
+                continue;
+            }
+            nodes.add(nodeDto);
+        }
+        return nodes;
+    }
+
+    private NodeDeploymentVersionSnapshotDto toDeploymentSnapshot(NodeDeployment deployment) {
+        if (deployment == null || deployment.getSnapshotJson() == null || deployment.getSnapshotJson().isBlank()) {
+            return null;
+        }
+        return JsonUtil.toObject(deployment.getSnapshotJson(), NodeDeploymentVersionSnapshotDto.class);
+    }
+
+    private NodeDto toSubscriptionNodeDto(NodeDeploymentVersionSnapshotDto snapshot, Server server, ServerHost accessHost) {
+        NodeDto dto = new NodeDto();
+        dto.setId(snapshot.getNodeId());
+        dto.setServerId(snapshot.getServerId());
+        dto.setAccessHostId(snapshot.getAccessHostId());
+        dto.setNodeGroup(snapshot.getNodeGroup());
+        dto.setPort(snapshot.getPort());
+        dto.setProtocol(snapshot.getProtocol());
+        dto.setCoreType(snapshot.getCoreType());
+        dto.setType(snapshot.getType());
+        dto.setTypeDescription(dto.getTypeDesc());
+        dto.setInbound(snapshot.getInbound() != null ? new HashMap<>(snapshot.getInbound()) : new HashMap<>());
+        dto.setOutId(snapshot.getOutId());
+        dto.setRule(snapshot.getRule() != null ? new HashMap<>(snapshot.getRule()) : new HashMap<>());
+        dto.setLevel(snapshot.getLevel());
+        dto.setDeployed(1);
+        dto.setDisabled(snapshot.getDisabled());
+        dto.setName(snapshot.getName());
+        dto.setNo(snapshot.getNo());
+        dto.setRemark(snapshot.getRemark());
+        dto.setAccessHost(accessHost != null ? accessHost.getHost() : null);
+
+        if (server != null) {
+            dto.setServerIp(server.getIp());
+            dto.setServerHost(resolveEffectiveHost(accessHost, server));
+        }
+        return dto;
+    }
+
+    private String resolveEffectiveHost(ServerHost accessHost, Server server) {
+        if (accessHost != null && accessHost.getHost() != null && !accessHost.getHost().isBlank()) {
+            return accessHost.getHost();
+        }
+        if (server == null) {
+            return null;
+        }
+        if (server.getHost() != null && !server.getHost().isBlank()) {
+            return server.getHost();
+        }
+        return server.getIp();
     }
 }
