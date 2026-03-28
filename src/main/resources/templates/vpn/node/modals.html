@@ -198,7 +198,7 @@
                                               data-bs-html="true"
                                               data-bs-content="<p class='mb-0'>可以追加协议特有的其他配置参数。</p>">?</span>
                                     </label>
-                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="newNodeInboundJson" placeholder='{"key": "value"}' :readonly="isNodeGroupConfigLocked(false)"></textarea>
+                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="newNodeInboundJson" placeholder='{"key": "value"}' :readonly="isNodeGroupConfigLocked(false) ? true : null"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -446,7 +446,7 @@
                                               data-bs-html="true"
                                               data-bs-content="<p class='mb-0'>可以追加协议特有的其他配置参数。</p>">?</span>
                                     </label>
-                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="editedNodeInboundJson" placeholder='{"key": "value"}' :readonly="isNodeGroupConfigLocked(true)"></textarea>
+                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="editedNodeInboundJson" placeholder='{"key": "value"}' :readonly="isNodeGroupConfigLocked(true) ? true : null"></textarea>
                                 </div>
                             </div>
                         </div>
