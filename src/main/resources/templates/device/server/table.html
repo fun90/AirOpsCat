@@ -89,6 +89,9 @@
                         <a class="dropdown-item" href="#" @click.prevent="openTestConnectionModal(server)">
                             <i class="ti ti-plug-connected"></i> 测试连接
                         </a>
+                        <a v-if="server.external !== 1" class="dropdown-item" :href="'/console/device/server-monitor?serverId=' + server.id">
+                            <i class="ti ti-chart-line"></i> 监控
+                        </a>
                         <a v-if="server.external !== 1" class="dropdown-item" :href="'/console/device/server-install?serverId=' + server.id">
                             <i class="ti ti-server-cog"></i> 一键装机
                         </a>

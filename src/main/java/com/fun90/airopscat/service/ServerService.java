@@ -4,8 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.dto.ServerDto;
 import com.fun90.airopscat.model.dto.ServerHostDto;
-import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.model.enums.ServerAuthType;
 import com.fun90.airopscat.repository.ServerRepository;
 import io.quarkus.panache.common.Sort;
@@ -25,12 +25,15 @@ public class ServerService {
     private final ServerRepository serverRepository;
     private final ObjectMapper objectMapper;
     private final ServerHostService serverHostService;
+    private final ServerMonitorStatsService serverMonitorStatsService;
 
     @Inject
-    public ServerService(ServerRepository serverRepository, ObjectMapper objectMapper, ServerHostService serverHostService) {
+    public ServerService(ServerRepository serverRepository, ObjectMapper objectMapper,
+                         ServerHostService serverHostService, ServerMonitorStatsService serverMonitorStatsService) {
         this.serverRepository = serverRepository;
         this.objectMapper = objectMapper;
         this.serverHostService = serverHostService;
+        this.serverMonitorStatsService = serverMonitorStatsService;
     }
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Server> getServerPage(String search, String supplier, Boolean expired, Boolean disabled) {
@@ -171,6 +174,7 @@ public class ServerService {
         dto.setPrice(server.getPrice());
         dto.setMultiple(server.getMultiple());
         dto.setBandwidth(server.getBandwidth());
+        dto.setCpuCores(server.getCpuCores());
         dto.setExpireDate(server.getExpireDate());
         dto.setBandwidthDate(server.getBandwidthDate());
         dto.setDisabled(server.getDisabled());
@@ -239,6 +243,7 @@ public class ServerService {
         if (src.getAuth() != null) target.setAuth(src.getAuth());
         if (src.getSshPort() != null) target.setSshPort(src.getSshPort());
         if (src.getMultiple() != null) target.setMultiple(src.getMultiple());
+        if (src.getCpuCores() != null) target.setCpuCores(src.getCpuCores());
         if (src.getDisabled() != null) target.setDisabled(src.getDisabled());
         if (src.getExternal() != null) target.setExternal(src.getExternal());
         target.setHost(src.getHost());
@@ -267,6 +272,7 @@ public class ServerService {
         server.setPrice(dto.getPrice());
         server.setMultiple(dto.getMultiple());
         server.setBandwidth(dto.getBandwidth());
+        server.setCpuCores(dto.getCpuCores());
         server.setExpireDate(dto.getExpireDate());
         server.setBandwidthDate(dto.getBandwidthDate());
         server.setDisabled(dto.getDisabled());
@@ -307,6 +313,7 @@ public class ServerService {
 
     @Transactional
     public void deleteServer(Long id) {
+        serverMonitorStatsService.deleteByServerId(id);
         serverRepository.deleteById(id);
     }
 

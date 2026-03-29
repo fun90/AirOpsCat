@@ -1,0 +1,200 @@
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row g-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="w-100 d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+                            <div>
+                                <h3 class="card-title mb-1" v-if="summary"><span v-if="summary.serverName">{{ summary.serverName }}</span></h3>
+                                <div class="text-muted" v-if="summary">
+                                    <span>{{ summary.serverIp || '-' }}</span>
+                                    <span v-if="summary.serverHost"> · {{ summary.serverHost }}</span>
+                                </div>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <select class="form-select form-select-sm w-auto d-sm-none" v-model="selectedHours" @change="changeHours">
+                                    <option value="1">最近 1 小时</option>
+                                    <option value="6">最近 6 小时</option>
+                                    <option value="24">最近 24 小时</option>
+                                    <option value="168">最近 7 天</option>
+                                </select>
+                                <select class="form-select w-auto d-none d-sm-block" v-model="selectedHours" @change="changeHours">
+                                    <option value="1">最近 1 小时</option>
+                                    <option value="6">最近 6 小时</option>
+                                    <option value="24">最近 24 小时</option>
+                                    <option value="168">最近 7 天</option>
+                                </select>
+                                <button type="button" class="btn btn-sm btn-outline-primary d-sm-none" @click="refreshData" :disabled="loading">
+                                    <i class="ti ti-refresh"></i>
+                                    刷新
+                                </button>
+                                <button type="button" class="btn btn-outline-primary d-none d-sm-inline-flex" @click="refreshData" :disabled="loading">
+                                    <i class="ti ti-refresh"></i>
+                                    刷新
+                                </button>
+                                <a href="/console/device/server" class="btn btn-sm btn-outline-secondary d-sm-none">
+                                    <i class="ti ti-arrow-left"></i>
+                                    返回列表
+                                </a>
+                                <a href="/console/device/server" class="btn btn-outline-secondary d-none d-sm-inline-flex">
+                                    <i class="ti ti-arrow-left"></i>
+                                    返回列表
+                                </a>
+                                <button type="button" class="btn btn-sm btn-danger d-sm-none" @click="openClearModal" :disabled="clearing">
+                                    <i class="ti ti-trash"></i>
+                                    清空监控数据
+                                </button>
+                                <button type="button" class="btn btn-danger d-none d-sm-inline-flex" @click="openClearModal" :disabled="clearing">
+                                    <i class="ti ti-trash"></i>
+                                    清空监控数据
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body" v-if="serverIdError">
+                        <div class="alert alert-danger mb-0">
+                            未检测到有效的服务器 ID，请从服务器列表进入监控页面。
+                        </div>
+                    </div>
+
+                    <div class="card-body" v-else-if="loading && !summary">
+                        <div class="d-flex justify-content-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body" v-else>
+                        <div class="alert alert-warning" v-if="summary && !summary.dataAvailable">
+                            暂无监控数据，请等待下一次定时采集。
+                        </div>
+
+                        <div class="row g-3 mb-3" v-if="summary">
+                            <div class="col-6 col-lg-2">
+                                <div class="card">
+                                    <div class="card-body text-center">
+                                        <div class="text-muted small">CPU使用率</div>
+                                        <div class="h2 mb-0 text-primary">{{ formatPercent(summary.cpuUsage) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-lg-2">
+                                <div class="card">
+                                    <div class="card-body text-center">
+                                        <div class="text-muted small">内存使用率</div>
+                                        <div class="h2 mb-0 text-azure">{{ formatPercent(summary.memoryUsage) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-lg-2">
+                                <div class="card">
+                                    <div class="card-body text-center">
+                                        <div class="text-muted small">上传速率</div>
+                                        <div class="h2 mb-0 text-green">{{ formatBytesPerSecond(summary.networkTxRateBytes) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-lg-2">
+                                <div class="card">
+                                    <div class="card-body text-center">
+                                        <div class="text-muted small">下载速率</div>
+                                        <div class="h2 mb-0 text-orange">{{ formatBytesPerSecond(summary.networkRxRateBytes) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-lg-2">
+                                <div class="card">
+                                    <div class="card-body text-center">
+                                        <div class="text-muted small">累计上传</div>
+                                        <div class="h3 mb-0">{{ formatBytes(summary.networkTxBytes) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-lg-2">
+                                <div class="card">
+                                    <div class="card-body text-center">
+                                        <div class="text-muted small">累计下载</div>
+                                        <div class="h3 mb-0">{{ formatBytes(summary.networkRxBytes) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-3" v-if="summary && summary.dataAvailable">
+                            <div class="col-12 col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">CPU 使用率趋势</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between text-muted small mb-2">
+                                            <span>核数: {{ summary.cpuCores || 0 }} 核</span>
+                                        </div>
+                                        <div id="cpu-chart" style="height: 320px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">内存趋势</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between text-muted small mb-2">
+                                            <span>已用: {{ formatBytes(summary.memoryUsedBytes) }}</span>
+                                            <span>总量: {{ formatBytes(summary.memoryTotalBytes) }}</span>
+                                        </div>
+                                        <div id="memory-chart" style="height: 320px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">网络实时速率</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="network-rate-chart" style="height: 320px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">网络累计流量</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="network-total-chart" style="height: 320px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center text-muted small" v-if="summary">
+                            <span>采样间隔配置: 60 秒，可通过 `airopscat.server.monitor.interval` 调整</span>
+                            <span>最后采样时间: {{ formatDateTime(summary.sampleTime) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal modal-blur fade" id="server-monitor-clearModal" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+                <div class="modal-content">
+                    <div class="modal-body">
+                        <div class="modal-title">确定清空监控数据吗？</div>
+                        <div>清空后当前服务器的监控历史将无法恢复。</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-danger" @click="clearRecords" :disabled="clearing">确认清空</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

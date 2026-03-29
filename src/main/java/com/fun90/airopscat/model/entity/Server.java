@@ -50,6 +50,8 @@ public class Server {
     private BigDecimal multiple;
 
     private Integer bandwidth;
+
+    private Integer cpuCores;
     
     private Integer disabled;
 
