@@ -14,16 +14,16 @@
                             </div>
                             <div class="d-flex flex-wrap gap-2">
                                 <select class="form-select form-select-sm w-auto d-sm-none" v-model="selectedHours" @change="changeHours">
-                                    <option value="1">最近 1 小时</option>
-                                    <option value="6">最近 6 小时</option>
-                                    <option value="24">最近 24 小时</option>
-                                    <option value="168">最近 7 天</option>
+                                    <option value="1">近 1 小时</option>
+                                    <option value="6">近 6 小时</option>
+                                    <option value="24">近 24 小时</option>
+                                    <option value="168">近 7 天</option>
                                 </select>
                                 <select class="form-select w-auto d-none d-sm-block" v-model="selectedHours" @change="changeHours">
-                                    <option value="1">最近 1 小时</option>
-                                    <option value="6">最近 6 小时</option>
-                                    <option value="24">最近 24 小时</option>
-                                    <option value="168">最近 7 天</option>
+                                    <option value="1">近 1 小时</option>
+                                    <option value="6">近 6 小时</option>
+                                    <option value="24">近 24 小时</option>
+                                    <option value="168">近 7 天</option>
                                 </select>
                                 <button type="button" class="btn btn-sm btn-outline-primary d-sm-none" @click="refreshData" :disabled="loading">
                                     <i class="ti ti-refresh"></i>
@@ -80,52 +80,52 @@
                             暂无监控数据，请等待下一次定时采集。
                         </div>
 
-                        <div class="row g-3 mb-3" v-if="summary">
+                        <div class="row g-2 g-sm-3 mb-3" v-if="summary">
                             <div class="col-6 col-lg-2">
                                 <div class="card">
-                                    <div class="card-body text-center">
+                                    <div class="card-body text-center p-3 p-sm-4">
                                         <div class="text-muted small">CPU使用率</div>
-                                        <div class="h2 mb-0 text-primary">{{ formatPercent(summary.cpuUsage) }}</div>
+                                        <div class="h3 mb-0 text-primary">{{ formatPercent(summary.cpuUsage) }}</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-6 col-lg-2">
                                 <div class="card">
-                                    <div class="card-body text-center">
+                                    <div class="card-body text-center p-3 p-sm-4">
                                         <div class="text-muted small">内存使用率</div>
-                                        <div class="h2 mb-0 text-azure">{{ formatPercent(summary.memoryUsage) }}</div>
+                                        <div class="h3 mb-0 text-azure">{{ formatPercent(summary.memoryUsage) }}</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-6 col-lg-2">
                                 <div class="card">
-                                    <div class="card-body text-center">
+                                    <div class="card-body text-center p-3 p-sm-4">
                                         <div class="text-muted small">上传速率</div>
-                                        <div class="h2 mb-0 text-green">{{ formatBytesPerSecond(summary.networkTxRateBytes) }}</div>
+                                        <div class="h3 mb-0 text-green">{{ formatBytesPerSecond(summary.networkTxRateBytes) }}</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-6 col-lg-2">
                                 <div class="card">
-                                    <div class="card-body text-center">
+                                    <div class="card-body text-center p-3 p-sm-4">
                                         <div class="text-muted small">下载速率</div>
-                                        <div class="h2 mb-0 text-orange">{{ formatBytesPerSecond(summary.networkRxRateBytes) }}</div>
+                                        <div class="h3 mb-0 text-orange">{{ formatBytesPerSecond(summary.networkRxRateBytes) }}</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-6 col-lg-2">
                                 <div class="card">
-                                    <div class="card-body text-center">
+                                    <div class="card-body text-center p-3 p-sm-4">
                                         <div class="text-muted small">累计上传</div>
-                                        <div class="h3 mb-0">{{ formatBytes(summary.networkTxBytes) }}</div>
+                                        <div class="h4 mb-0">{{ formatBytes(summary.networkTxBytes) }}</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-6 col-lg-2">
                                 <div class="card">
-                                    <div class="card-body text-center">
+                                    <div class="card-body text-center p-3 p-sm-4">
                                         <div class="text-muted small">累计下载</div>
-                                        <div class="h3 mb-0">{{ formatBytes(summary.networkRxBytes) }}</div>
+                                        <div class="h4 mb-0">{{ formatBytes(summary.networkRxBytes) }}</div>
                                     </div>
                                 </div>
                             </div>
