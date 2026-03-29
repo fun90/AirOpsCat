@@ -37,6 +37,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.dto.ServerMonitorPointDto.class,
     com.fun90.airopscat.model.dto.ServerMonitorSummaryDto.class,
     com.fun90.airopscat.model.dto.ServerMonitorChartDto.class,
+    com.fun90.airopscat.model.dto.ServerMonitorTrafficCalibrationDto.class,
     com.fun90.airopscat.model.dto.ServerConfigDto.class,
     com.fun90.airopscat.model.dto.ServerConfigRequest.class,
     com.fun90.airopscat.model.dto.NodeDto.class,

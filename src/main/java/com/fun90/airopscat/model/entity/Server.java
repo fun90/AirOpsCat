@@ -52,6 +52,10 @@ public class Server {
     private Integer bandwidth;
 
     private Integer cpuCores;
+
+    private Long monitorRxAdjustmentBytes;
+
+    private Long monitorTxAdjustmentBytes;
     
     private Integer disabled;
 

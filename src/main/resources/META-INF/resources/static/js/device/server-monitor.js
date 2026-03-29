@@ -33,12 +33,18 @@ const serverMonitorApp = {
     summary: null,
     chartData: null,
     clearModal: null,
+    trafficCalibrationModal: null,
     cpuChart: null,
     memoryChart: null,
     networkRateChart: null,
     networkTotalChart: null,
     refreshTimer: null,
     themeObserver: null,
+    validationErrors: {},
+    trafficCalibration: {
+        uploadGb: '',
+        downloadGb: ''
+    },
 
     mounted() {
         const params = new URLSearchParams(window.location.search);
@@ -50,6 +56,7 @@ const serverMonitorApp = {
 
         this.serverId = Number(serverId);
         this.clearModal = new Modal(document.getElementById('server-monitor-clearModal'));
+        this.trafficCalibrationModal = new Modal(document.getElementById('server-monitor-trafficCalibrationModal'));
         this.refreshData();
         this.observeTheme();
         window.addEventListener('beforeunload', () => this.cleanup());
@@ -138,6 +145,20 @@ const serverMonitorApp = {
         }
     },
 
+    openTrafficCalibrationModal() {
+        if (!this.summary) {
+            return;
+        }
+        this.validationErrors = {};
+        this.trafficCalibration = {
+            uploadGb: this.bytesToGbValue(this.summary.networkTxBytes),
+            downloadGb: this.bytesToGbValue(this.summary.networkRxBytes)
+        };
+        if (this.trafficCalibrationModal) {
+            this.trafficCalibrationModal.show();
+        }
+    },
+
     async clearRecords() {
         if (!this.serverId) {
             return;
@@ -178,6 +199,70 @@ const serverMonitorApp = {
             ToastUtils.show('Error', error.message || '清空监控数据失败', 'danger');
         } finally {
             this.clearing = false;
+        }
+    },
+
+    validateTrafficCalibrationForm() {
+        let isValid = true;
+        this.validationErrors = {};
+
+        const uploadGb = parseFloat(this.trafficCalibration.uploadGb);
+        if (this.trafficCalibration.uploadGb === '' || Number.isNaN(uploadGb) || uploadGb < 0) {
+            this.validationErrors.trafficUploadGb = '请输入有效的累计上传流量';
+            isValid = false;
+        }
+
+        const downloadGb = parseFloat(this.trafficCalibration.downloadGb);
+        if (this.trafficCalibration.downloadGb === '' || Number.isNaN(downloadGb) || downloadGb < 0) {
+            this.validationErrors.trafficDownloadGb = '请输入有效的累计下载流量';
+            isValid = false;
+        }
+
+        return isValid;
+    },
+
+    async saveTrafficCalibration() {
+        if (!this.validateTrafficCalibrationForm()) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/admin/server-monitors/${this.serverId}/traffic-calibration`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    uploadGb: this.trafficCalibration.uploadGb,
+                    downloadGb: this.trafficCalibration.downloadGb
+                })
+            });
+
+            if (!response.ok) {
+                let errorMessage = '流量校准失败';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.message || errorMessage;
+                } catch (_) {
+                }
+                throw new Error(errorMessage);
+            }
+
+            this.summary = await response.json();
+            this.startAutoRefresh();
+            await this.fetchCharts();
+            this.$nextTick(() => {
+                if (this.summary?.dataAvailable) {
+                    this.renderCharts();
+                } else {
+                    this.destroyCharts();
+                }
+            });
+            this.trafficCalibrationModal.hide();
+            ToastUtils.show('Success', '累计流量校准成功', 'success');
+        } catch (error) {
+            console.error(error);
+            ToastUtils.show('Error', error.message || '流量校准失败', 'danger');
         }
     },
 
@@ -409,6 +494,11 @@ const serverMonitorApp = {
         return `${numericValue.toFixed(2)}%`;
     },
 
+    bytesToGbValue(bytes) {
+        const value = Number(bytes || 0) / (1024 * 1024 * 1024);
+        return Number.isFinite(value) ? value.toFixed(2) : '0.00';
+    },
+
     formatBytes(value) {
         const bytes = Number(value || 0);
         if (bytes <= 0) {
@@ -421,7 +511,8 @@ const serverMonitorApp = {
             size /= 1024;
             unitIndex++;
         }
-        return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
+        const decimals = unitIndex >= 3 ? 2 : (size >= 10 || unitIndex === 0 ? 0 : 2);
+        return `${size.toFixed(decimals)} ${units[unitIndex]}`;
     },
 
     formatBytesPerSecond(value) {

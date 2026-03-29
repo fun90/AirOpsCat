@@ -4,6 +4,7 @@ import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.ServerMonitorChartDto;
 import com.fun90.airopscat.model.dto.ServerMonitorPointDto;
 import com.fun90.airopscat.model.dto.ServerMonitorSummaryDto;
+import com.fun90.airopscat.model.dto.ServerMonitorTrafficCalibrationDto;
 import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerMonitorStats;
@@ -17,6 +18,7 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,12 +58,13 @@ public class ServerMonitorStatsService {
         stats.setMemoryTotalBytes(parseLong(metrics.get("memoryTotalBytes")));
         stats.setNetworkRxBytes(parseLong(metrics.get("networkRxBytes")));
         stats.setNetworkTxBytes(parseLong(metrics.get("networkTxBytes")));
+        stats.setSampleTime(now);
+        fillNetworkIncrement(stats);
         stats.setNetworkRxRateBytes(parseLong(metrics.get("networkRxRateBytes")));
         stats.setNetworkTxRateBytes(parseLong(metrics.get("networkTxRateBytes")));
-        stats.setSampleTime(now);
         serverMonitorStatsRepository.persist(stats);
 
-        return toSummaryDto(server, stats);
+        return toSummaryDto(server, stats, calculatePeriodTraffic(server, now));
     }
 
     @Transactional
@@ -69,24 +72,38 @@ public class ServerMonitorStatsService {
         Integer cpuCores = resolveCpuCores(server);
         ServerMonitorStats latest = serverMonitorStatsRepository.findLatestByServerId(server.getId());
         if (latest == null) {
+            LocalDateTime now = LocalDateTime.now();
+            PeriodTraffic currentTraffic = calculatePeriodTraffic(server, now);
             ServerMonitorSummaryDto dto = new ServerMonitorSummaryDto();
             dto.setServerId(server.getId());
             dto.setServerName(server.getName());
             dto.setServerIp(server.getIp());
             dto.setServerHost(serverHostService.resolvePrimaryHost(server));
             dto.setCpuCores(cpuCores);
+            dto.setNetworkRxBytes(currentTraffic.rxBytes());
+            dto.setNetworkTxBytes(currentTraffic.txBytes());
+            dto.setTrafficPeriodStart(resolveBandwidthPeriodStart(server, now));
+            dto.setTrafficPeriodEnd(resolveBandwidthPeriodEnd(server, now));
             dto.setDataAvailable(false);
             return dto;
         }
-        ServerMonitorSummaryDto dto = toSummaryDto(server, latest);
+        ServerMonitorSummaryDto dto = toSummaryDto(server, latest, calculatePeriodTraffic(server, latest.getSampleTime()));
         dto.setCpuCores(cpuCores);
         return dto;
     }
 
     public ServerMonitorChartDto getChartData(Server server, int hours) {
         int safeHours = Math.clamp(hours, 1, 24 * 7);
-        LocalDateTime startTime = LocalDateTime.now().minusHours(safeHours);
-        List<ServerMonitorStats> statsList = serverMonitorStatsRepository.findByServerIdAndSampleTimeAfter(server.getId(), startTime);
+        LocalDateTime endTime = LocalDateTime.now();
+        LocalDateTime startTime = endTime.minusHours(safeHours);
+        LocalDateTime periodStart = resolveBandwidthPeriodStart(server, endTime);
+        List<ServerMonitorStats> statsList = serverMonitorStatsRepository.findByServerIdAndSampleTimeBetween(server.getId(), startTime, endTime);
+        long baseRx = startTime.isBefore(periodStart)
+                ? 0L
+                : defaultLong(server.getMonitorRxAdjustmentBytes()) + defaultLong(serverMonitorStatsRepository.sumRxIncrement(server.getId(), periodStart, startTime));
+        long baseTx = startTime.isBefore(periodStart)
+                ? 0L
+                : defaultLong(server.getMonitorTxAdjustmentBytes()) + defaultLong(serverMonitorStatsRepository.sumTxIncrement(server.getId(), periodStart, startTime));
 
         ServerMonitorChartDto dto = new ServerMonitorChartDto();
         dto.setServerId(server.getId());
@@ -94,7 +111,54 @@ public class ServerMonitorStatsService {
         dto.setServerIp(server.getIp());
         dto.setServerHost(serverHostService.resolvePrimaryHost(server));
         dto.setHours(safeHours);
-        dto.setPoints(statsList.stream().map(this::toPointDto).toList());
+        dto.setPoints(toPointDtos(statsList, baseRx, baseTx, periodStart));
+        return dto;
+    }
+
+    @Transactional
+    public ServerMonitorSummaryDto calibrateCurrentPeriod(Server server, ServerMonitorTrafficCalibrationDto calibrationDto) {
+        Server managedServer = serverRepository.findById(server.getId());
+        if (managedServer == null) {
+            throw new IllegalArgumentException("服务器不存在: " + server.getId());
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        PeriodTraffic currentTraffic = calculatePeriodTraffic(managedServer, now);
+        long currentAdjustedTx = defaultLong(managedServer.getMonitorTxAdjustmentBytes());
+        long currentAdjustedRx = defaultLong(managedServer.getMonitorRxAdjustmentBytes());
+        long rawPeriodTx = Math.max(0L, currentTraffic.txBytes() - currentAdjustedTx);
+        long rawPeriodRx = Math.max(0L, currentTraffic.rxBytes() - currentAdjustedRx);
+        long targetTx = calibrationDto.getUploadGb()
+                .multiply(java.math.BigDecimal.valueOf(1024L * 1024L * 1024L))
+                .longValue();
+        long targetRx = calibrationDto.getDownloadGb()
+                .multiply(java.math.BigDecimal.valueOf(1024L * 1024L * 1024L))
+                .longValue();
+
+        managedServer.setMonitorTxAdjustmentBytes(targetTx - rawPeriodTx);
+        managedServer.setMonitorRxAdjustmentBytes(targetRx - rawPeriodRx);
+        serverRepository.getEntityManager().flush();
+
+        ServerMonitorStats latest = serverMonitorStatsRepository.findLatestByServerId(server.getId());
+        if (latest == null) {
+            ServerMonitorSummaryDto dto = new ServerMonitorSummaryDto();
+            dto.setServerId(managedServer.getId());
+            dto.setServerName(managedServer.getName());
+            dto.setServerIp(managedServer.getIp());
+            dto.setServerHost(serverHostService.resolvePrimaryHost(managedServer));
+            dto.setCpuCores(resolveCpuCores(managedServer));
+            dto.setNetworkTxBytes(targetTx);
+            dto.setNetworkRxBytes(targetRx);
+            dto.setTrafficPeriodStart(resolveBandwidthPeriodStart(managedServer, now));
+            dto.setTrafficPeriodEnd(resolveBandwidthPeriodEnd(managedServer, now));
+            dto.setDataAvailable(false);
+            return dto;
+        }
+
+        ServerMonitorSummaryDto dto = toSummaryDto(managedServer, latest, calculatePeriodTraffic(managedServer, now));
+        dto.setCpuCores(resolveCpuCores(managedServer));
+        dto.setTrafficPeriodStart(resolveBandwidthPeriodStart(managedServer, now));
+        dto.setTrafficPeriodEnd(resolveBandwidthPeriodEnd(managedServer, now));
         return dto;
     }
 
@@ -146,6 +210,50 @@ public class ServerMonitorStatsService {
         return result;
     }
 
+    private void fillNetworkIncrement(ServerMonitorStats stats) {
+        ServerMonitorStats previous = serverMonitorStatsRepository.findPreviousByServerId(stats.getServerId(), stats.getSampleTime());
+        if (previous == null) {
+            stats.setNetworkRxIncrementBytes(0L);
+            stats.setNetworkTxIncrementBytes(0L);
+            return;
+        }
+
+        long currentRx = defaultLong(stats.getNetworkRxBytes());
+        long currentTx = defaultLong(stats.getNetworkTxBytes());
+        long previousRx = defaultLong(previous.getNetworkRxBytes());
+        long previousTx = defaultLong(previous.getNetworkTxBytes());
+
+        stats.setNetworkRxIncrementBytes(currentRx >= previousRx ? currentRx - previousRx : currentRx);
+        stats.setNetworkTxIncrementBytes(currentTx >= previousTx ? currentTx - previousTx : currentTx);
+    }
+
+    private PeriodTraffic calculatePeriodTraffic(Server server, LocalDateTime sampleTime) {
+        LocalDateTime periodStart = resolveBandwidthPeriodStart(server, sampleTime);
+        long rx = defaultLong(server.getMonitorRxAdjustmentBytes())
+                + defaultLong(serverMonitorStatsRepository.sumRxIncrement(server.getId(), periodStart, sampleTime.plusNanos(1)));
+        long tx = defaultLong(server.getMonitorTxAdjustmentBytes())
+                + defaultLong(serverMonitorStatsRepository.sumTxIncrement(server.getId(), periodStart, sampleTime.plusNanos(1)));
+        return new PeriodTraffic(rx, tx);
+    }
+
+    private LocalDateTime resolveBandwidthPeriodStart(Server server, LocalDateTime referenceTime) {
+        int billingDay = server.getBandwidthDate() != null ? server.getBandwidthDate().getDayOfMonth() : 1;
+        LocalDateTime currentMonthStart = atBillingDay(YearMonth.from(referenceTime), billingDay);
+        if (!referenceTime.isBefore(currentMonthStart)) {
+            return currentMonthStart;
+        }
+        return atBillingDay(YearMonth.from(referenceTime.minusMonths(1)), billingDay);
+    }
+
+    private LocalDateTime resolveBandwidthPeriodEnd(Server server, LocalDateTime referenceTime) {
+        return resolveBandwidthPeriodStart(server, referenceTime).plusMonths(1).minusNanos(1);
+    }
+
+    private LocalDateTime atBillingDay(YearMonth yearMonth, int billingDay) {
+        int day = Math.min(Math.max(billingDay, 1), yearMonth.lengthOfMonth());
+        return yearMonth.atDay(day).atStartOfDay();
+    }
+
     private Integer resolveCpuCores(Server server) {
         if (server.getCpuCores() != null && server.getCpuCores() > 0) {
             return server.getCpuCores();
@@ -181,7 +289,7 @@ public class ServerMonitorStatsService {
         return "'" + value.replace("'", "'\"'\"'") + "'";
     }
 
-    private ServerMonitorSummaryDto toSummaryDto(Server server, ServerMonitorStats stats) {
+    private ServerMonitorSummaryDto toSummaryDto(Server server, ServerMonitorStats stats, PeriodTraffic periodTraffic) {
         ServerMonitorSummaryDto dto = new ServerMonitorSummaryDto();
         dto.setServerId(server.getId());
         dto.setServerName(server.getName());
@@ -192,23 +300,38 @@ public class ServerMonitorStatsService {
         dto.setMemoryUsage(stats.getMemoryUsage());
         dto.setMemoryUsedBytes(stats.getMemoryUsedBytes());
         dto.setMemoryTotalBytes(stats.getMemoryTotalBytes());
-        dto.setNetworkRxBytes(stats.getNetworkRxBytes());
-        dto.setNetworkTxBytes(stats.getNetworkTxBytes());
+        dto.setNetworkRxBytes(periodTraffic.rxBytes());
+        dto.setNetworkTxBytes(periodTraffic.txBytes());
         dto.setNetworkRxRateBytes(stats.getNetworkRxRateBytes());
         dto.setNetworkTxRateBytes(stats.getNetworkTxRateBytes());
+        dto.setTrafficPeriodStart(resolveBandwidthPeriodStart(server, stats.getSampleTime()));
+        dto.setTrafficPeriodEnd(resolveBandwidthPeriodEnd(server, stats.getSampleTime()));
         dto.setDataAvailable(true);
         return dto;
     }
 
-    private ServerMonitorPointDto toPointDto(ServerMonitorStats stats) {
+    private List<ServerMonitorPointDto> toPointDtos(List<ServerMonitorStats> statsList, long baseRx, long baseTx, LocalDateTime periodStart) {
+        long[] totals = {baseRx, baseTx};
+        return statsList.stream()
+                .map(stats -> {
+                    if (!stats.getSampleTime().isBefore(periodStart)) {
+                        totals[0] += defaultLong(stats.getNetworkRxIncrementBytes());
+                        totals[1] += defaultLong(stats.getNetworkTxIncrementBytes());
+                    }
+                    return toPointDto(stats, totals[0], totals[1]);
+                })
+                .toList();
+    }
+
+    private ServerMonitorPointDto toPointDto(ServerMonitorStats stats, long cumulativeRx, long cumulativeTx) {
         ServerMonitorPointDto dto = new ServerMonitorPointDto();
         dto.setSampleTime(stats.getSampleTime());
         dto.setCpuUsage(stats.getCpuUsage());
         dto.setMemoryUsage(stats.getMemoryUsage());
         dto.setMemoryUsedBytes(stats.getMemoryUsedBytes());
         dto.setMemoryTotalBytes(stats.getMemoryTotalBytes());
-        dto.setNetworkRxBytes(stats.getNetworkRxBytes());
-        dto.setNetworkTxBytes(stats.getNetworkTxBytes());
+        dto.setNetworkRxBytes(cumulativeRx);
+        dto.setNetworkTxBytes(cumulativeTx);
         dto.setNetworkRxRateBytes(stats.getNetworkRxRateBytes());
         dto.setNetworkTxRateBytes(stats.getNetworkTxRateBytes());
         return dto;
@@ -265,5 +388,12 @@ public class ServerMonitorStatsService {
             log.warn("解析监控整型指标失败: {}", value);
             return 0;
         }
+    }
+
+    private long defaultLong(Long value) {
+        return value == null ? 0L : value;
+    }
+
+    private record PeriodTraffic(long rxBytes, long txBytes) {
     }
 }
