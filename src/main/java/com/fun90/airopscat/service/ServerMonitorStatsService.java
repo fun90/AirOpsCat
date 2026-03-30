@@ -346,7 +346,7 @@ public class ServerMonitorStatsService {
             return false;
         }
 
-        long durationSeconds = durationMinutes * 60L;
+        long durationSeconds = durationMinutes * 60L + this.getMonitorRefreshSeconds() * 2;
         int requiredSampleCount = (int) Math.ceil(durationSeconds / (double) monitorRefreshSeconds) + 1;
         LocalDateTime windowStart = referenceTime.minusSeconds(durationSeconds);
         List<ServerMonitorStats> latestStats = serverMonitorStatsRepository.findLatestListByServerId(serverId, requiredSampleCount);
