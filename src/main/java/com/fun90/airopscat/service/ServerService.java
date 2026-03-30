@@ -26,14 +26,18 @@ public class ServerService {
     private final ObjectMapper objectMapper;
     private final ServerHostService serverHostService;
     private final ServerMonitorStatsService serverMonitorStatsService;
+    private final ServerTrafficStatsService serverTrafficStatsService;
 
     @Inject
     public ServerService(ServerRepository serverRepository, ObjectMapper objectMapper,
-                         ServerHostService serverHostService, ServerMonitorStatsService serverMonitorStatsService) {
+                         ServerHostService serverHostService,
+                         ServerMonitorStatsService serverMonitorStatsService,
+                         ServerTrafficStatsService serverTrafficStatsService) {
         this.serverRepository = serverRepository;
         this.objectMapper = objectMapper;
         this.serverHostService = serverHostService;
         this.serverMonitorStatsService = serverMonitorStatsService;
+        this.serverTrafficStatsService = serverTrafficStatsService;
     }
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Server> getServerPage(String search, String supplier, Boolean expired, Boolean disabled) {
@@ -314,6 +318,7 @@ public class ServerService {
     @Transactional
     public void deleteServer(Long id) {
         serverMonitorStatsService.deleteByServerId(id);
+        serverTrafficStatsService.deleteByServerId(id);
         serverRepository.deleteById(id);
     }
 

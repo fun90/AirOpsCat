@@ -311,6 +311,12 @@ public class AccountService {
 
     @Transactional
     public void deleteAccount(Long id) {
+        Account account = accountRepository.findById(id);
+        if (account == null) {
+            return;
+        }
+        accountOnlineIpService.deleteByAccountNo(account.getAccountNo());
+        accountTrafficStatsRepository.deleteByAccountId(id);
         accountRepository.deleteById(id);
     }
 

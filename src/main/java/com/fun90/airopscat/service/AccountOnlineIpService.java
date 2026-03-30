@@ -137,6 +137,14 @@ public class AccountOnlineIpService {
         return accountOnlineIpRepository.findMaxLastOnlineTimeByAccountNo(accountNo);
     }
 
+    @Transactional
+    public long deleteByAccountNo(String accountNo) {
+        if (accountNo == null || accountNo.isBlank()) {
+            return 0L;
+        }
+        return accountOnlineIpRepository.deleteByAccountNo(accountNo);
+    }
+
     /**
      * 清理过期的在线记录
      */

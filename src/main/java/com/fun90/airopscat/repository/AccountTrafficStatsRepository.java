@@ -55,4 +55,8 @@ public class AccountTrafficStatsRepository implements PanacheRepository<AccountT
     public List<AccountTrafficStats> findByAccountIdAndCurrentTime(Long accountId, LocalDateTime currentTime) {
         return find("accountId = ?1 and periodStart <= ?2 and periodEnd > ?2", accountId, currentTime).list();
     }
+
+    public long deleteByAccountId(Long accountId) {
+        return delete("accountId", accountId);
+    }
 }

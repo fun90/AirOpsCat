@@ -11,6 +11,7 @@ import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.ServerTrafficStatsService;
 import com.fun90.airopscat.service.TransactionService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentService;
+import com.fun90.airopscat.service.NodeService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -44,6 +45,9 @@ public class ServerController {
 
     @Inject
     NodeDeploymentService nodeDeploymentService;
+
+    @Inject
+    NodeService nodeService;
 
     @Inject
     com.fun90.airopscat.service.AccountOnlineIpService accountOnlineIpService;
@@ -261,6 +265,11 @@ public class ServerController {
         Server existingServer = serverService.getServerById(id);
         if (existingServer == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        if (!nodeService.getNodesByServer(id).isEmpty()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", "服务器下还有节点，不能删除"))
+                    .build();
         }
 
         serverService.deleteServer(id);

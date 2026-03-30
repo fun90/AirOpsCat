@@ -82,6 +82,11 @@ public class ServerTrafficStatsService {
         return stats;
     }
 
+    @Transactional
+    public long deleteByServerId(Long serverId) {
+        return serverTrafficStatsRepository.deleteByServerId(serverId);
+    }
+
     private Map<Long, ServerTrafficStats> getCurrentPeriodStatsMap(List<Long> serverIds, LocalDateTime now) {
         List<ServerTrafficStats> statsList = serverTrafficStatsRepository.findByServerIdsAndCurrentTime(serverIds, now);
         Map<Long, ServerTrafficStats> result = new HashMap<>();

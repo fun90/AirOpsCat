@@ -275,7 +275,14 @@ export class DataTable {
         })
           .then(response => {
             if (!response.ok) {
-              throw new Error('删除失败');
+              return response.json().then(data => {
+                throw new Error(data.message || '删除失败');
+              }).catch(error => {
+                if (error instanceof SyntaxError) {
+                  throw new Error('删除失败');
+                }
+                throw error;
+              });
             }
 
             // Refresh the data
@@ -287,7 +294,7 @@ export class DataTable {
           })
           .catch(error => {
             console.error('Error:', error);
-            ToastUtils.show('Error', '删除失败', 'danger');
+            ToastUtils.show('Error', error.message || '删除失败', 'danger');
           });
       },
 

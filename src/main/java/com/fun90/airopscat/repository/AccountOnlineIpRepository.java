@@ -67,6 +67,10 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
                 .orElse(null);
     }
 
+    public long deleteByAccountNo(String accountNo) {
+        return delete("accountNo", accountNo);
+    }
+
     /**
      * 删除过期的在线记录
      */

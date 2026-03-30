@@ -24,4 +24,8 @@ public class ServerTrafficStatsRepository implements PanacheRepository<ServerTra
     public ServerTrafficStats findLatestByServerId(Long serverId) {
         return find("serverId = ?1 order by periodEnd desc", serverId).firstResult();
     }
+
+    public long deleteByServerId(Long serverId) {
+        return delete("serverId", serverId);
+    }
 }
