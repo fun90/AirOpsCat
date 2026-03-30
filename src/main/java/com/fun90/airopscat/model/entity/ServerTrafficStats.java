@@ -28,6 +28,10 @@ public class ServerTrafficStats {
 
     private Long downloadBytes = 0L;
 
+    private Long monitorUploadAdjustmentBytes = 0L;
+
+    private Long monitorDownloadAdjustmentBytes = 0L;
+
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;

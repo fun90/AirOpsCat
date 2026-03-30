@@ -22,25 +22,10 @@ public class ServerTrafficStatsService {
 
     @Transactional
     public ServerTrafficStats saveOrUpdateTrafficStats(Long serverId, LocalDateTime bandwidthDate, long uploadBytes, long downloadBytes) {
-        LocalDateTime now = LocalDateTime.now();
-        List<ServerTrafficStats> existingStats = serverTrafficStatsRepository.findByServerIdAndCurrentTime(serverId, now);
-
-        if (!existingStats.isEmpty()) {
-            ServerTrafficStats stats = existingStats.getFirst();
-            stats.setUploadBytes(stats.getUploadBytes() + uploadBytes);
-            stats.setDownloadBytes(stats.getDownloadBytes() + downloadBytes);
-            return stats;
-        }
-
-        ServerTrafficStats newStats = new ServerTrafficStats();
-        newStats.setServerId(serverId);
-        LocalDateTime periodStart = TrafficPeriodUtils.resolveServerPeriodStart(now, bandwidthDate);
-        newStats.setPeriodStart(periodStart);
-        newStats.setPeriodEnd(TrafficPeriodUtils.resolveServerPeriodEnd(now, bandwidthDate));
-        newStats.setUploadBytes(uploadBytes);
-        newStats.setDownloadBytes(downloadBytes);
-        serverTrafficStatsRepository.persist(newStats);
-        return newStats;
+        ServerTrafficStats stats = getOrCreateCurrentPeriodStats(serverId, bandwidthDate, LocalDateTime.now());
+        stats.setUploadBytes(defaultLong(stats.getUploadBytes()) + uploadBytes);
+        stats.setDownloadBytes(defaultLong(stats.getDownloadBytes()) + downloadBytes);
+        return stats;
     }
 
     public void fillCurrentPeriodTraffic(List<ServerDto> serverDtos) {
@@ -82,6 +67,43 @@ public class ServerTrafficStatsService {
         return stats;
     }
 
+    public ServerTrafficStats getCurrentPeriodStats(Long serverId, LocalDateTime now) {
+        List<ServerTrafficStats> existingStats = serverTrafficStatsRepository.findByServerIdAndCurrentTime(serverId, now);
+        if (existingStats.isEmpty()) {
+            return null;
+        }
+        return existingStats.getFirst();
+    }
+
+    @Transactional
+    public ServerTrafficStats getOrCreateCurrentPeriodStats(Long serverId, LocalDateTime bandwidthDate, LocalDateTime now) {
+        LocalDateTime periodStart = TrafficPeriodUtils.resolveServerPeriodStart(now, bandwidthDate);
+        LocalDateTime periodEnd = TrafficPeriodUtils.resolveServerPeriodEnd(now, bandwidthDate);
+        ServerTrafficStats existing = serverTrafficStatsRepository.findByServerIdAndPeriod(serverId, periodStart, periodEnd);
+        if (existing != null) {
+            return existing;
+        }
+
+        ServerTrafficStats stats = new ServerTrafficStats();
+        stats.setServerId(serverId);
+        stats.setPeriodStart(periodStart);
+        stats.setPeriodEnd(periodEnd);
+        stats.setUploadBytes(0L);
+        stats.setDownloadBytes(0L);
+        stats.setMonitorUploadAdjustmentBytes(0L);
+        stats.setMonitorDownloadAdjustmentBytes(0L);
+        serverTrafficStatsRepository.persist(stats);
+        return stats;
+    }
+
+    @Transactional
+    public void calibrateCurrentPeriodMonitorTraffic(Long serverId, LocalDateTime bandwidthDate, LocalDateTime now,
+                                                     long uploadAdjustmentBytes, long downloadAdjustmentBytes) {
+        ServerTrafficStats stats = getOrCreateCurrentPeriodStats(serverId, bandwidthDate, now);
+        stats.setMonitorUploadAdjustmentBytes(uploadAdjustmentBytes);
+        stats.setMonitorDownloadAdjustmentBytes(downloadAdjustmentBytes);
+    }
+
     @Transactional
     public long deleteByServerId(Long serverId) {
         return serverTrafficStatsRepository.deleteByServerId(serverId);
@@ -97,6 +119,10 @@ public class ServerTrafficStatsService {
             }
         }
         return result;
+    }
+
+    private long defaultLong(Long value) {
+        return value == null ? 0L : value;
     }
 
 }

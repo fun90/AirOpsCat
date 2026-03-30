@@ -214,7 +214,7 @@
                     </div>
                     <div class="modal-body">
                         <div class="text-secondary small mb-3">
-                            校准当前流量周期的累计上传与累计下载。
+                            校准当前监控流量周期的累计上传与累计下载，不会影响节点流量统计。
                             <span v-if="summary && summary.trafficPeriodStart && summary.trafficPeriodEnd">
                                 周期：{{ formatDateTime(summary.trafficPeriodStart) }} - {{ formatDateTime(summary.trafficPeriodEnd) }}
                             </span>

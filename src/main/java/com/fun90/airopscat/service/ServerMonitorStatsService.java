@@ -8,6 +8,7 @@ import com.fun90.airopscat.model.dto.ServerMonitorTrafficCalibrationDto;
 import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerMonitorStats;
+import com.fun90.airopscat.model.entity.ServerTrafficStats;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.ServerMonitorStatsRepository;
 import com.fun90.airopscat.service.ssh.SshConnection;
@@ -41,6 +42,9 @@ public class ServerMonitorStatsService {
 
     @Inject
     ServerHostService serverHostService;
+
+    @Inject
+    ServerTrafficStatsService serverTrafficStatsService;
 
     @Transactional
     public ServerMonitorSummaryDto collectAndSave(Server server) {
@@ -97,13 +101,14 @@ public class ServerMonitorStatsService {
         LocalDateTime endTime = LocalDateTime.now();
         LocalDateTime startTime = endTime.minusHours(safeHours);
         LocalDateTime periodStart = resolveBandwidthPeriodStart(server, endTime);
+        MonitorTrafficAdjustment adjustment = getMonitorTrafficAdjustment(server, endTime);
         List<ServerMonitorStats> statsList = serverMonitorStatsRepository.findByServerIdAndSampleTimeBetween(server.getId(), startTime, endTime);
         long baseRx = startTime.isBefore(periodStart)
                 ? 0L
-                : defaultLong(server.getMonitorRxAdjustmentBytes()) + defaultLong(serverMonitorStatsRepository.sumRxIncrement(server.getId(), periodStart, startTime));
+                : adjustment.downloadBytes() + defaultLong(serverMonitorStatsRepository.sumRxIncrement(server.getId(), periodStart, startTime));
         long baseTx = startTime.isBefore(periodStart)
                 ? 0L
-                : defaultLong(server.getMonitorTxAdjustmentBytes()) + defaultLong(serverMonitorStatsRepository.sumTxIncrement(server.getId(), periodStart, startTime));
+                : adjustment.uploadBytes() + defaultLong(serverMonitorStatsRepository.sumTxIncrement(server.getId(), periodStart, startTime));
 
         ServerMonitorChartDto dto = new ServerMonitorChartDto();
         dto.setServerId(server.getId());
@@ -123,11 +128,9 @@ public class ServerMonitorStatsService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        PeriodTraffic currentTraffic = calculatePeriodTraffic(managedServer, now);
-        long currentAdjustedTx = defaultLong(managedServer.getMonitorTxAdjustmentBytes());
-        long currentAdjustedRx = defaultLong(managedServer.getMonitorRxAdjustmentBytes());
-        long rawPeriodTx = Math.max(0L, currentTraffic.txBytes() - currentAdjustedTx);
-        long rawPeriodRx = Math.max(0L, currentTraffic.rxBytes() - currentAdjustedRx);
+        RawPeriodTraffic rawPeriodTraffic = calculateRawPeriodTraffic(managedServer, now);
+        long rawPeriodTx = rawPeriodTraffic.uploadBytes();
+        long rawPeriodRx = rawPeriodTraffic.downloadBytes();
         long targetTx = calibrationDto.getUploadGb()
                 .multiply(java.math.BigDecimal.valueOf(1024L * 1024L * 1024L))
                 .longValue();
@@ -135,9 +138,13 @@ public class ServerMonitorStatsService {
                 .multiply(java.math.BigDecimal.valueOf(1024L * 1024L * 1024L))
                 .longValue();
 
-        managedServer.setMonitorTxAdjustmentBytes(targetTx - rawPeriodTx);
-        managedServer.setMonitorRxAdjustmentBytes(targetRx - rawPeriodRx);
-        serverRepository.getEntityManager().flush();
+        serverTrafficStatsService.calibrateCurrentPeriodMonitorTraffic(
+                managedServer.getId(),
+                managedServer.getBandwidthDate(),
+                now,
+                targetTx - rawPeriodTx,
+                targetRx - rawPeriodRx
+        );
 
         ServerMonitorStats latest = serverMonitorStatsRepository.findLatestByServerId(server.getId());
         if (latest == null) {
@@ -228,12 +235,29 @@ public class ServerMonitorStatsService {
     }
 
     private PeriodTraffic calculatePeriodTraffic(Server server, LocalDateTime sampleTime) {
-        LocalDateTime periodStart = resolveBandwidthPeriodStart(server, sampleTime);
-        long rx = defaultLong(server.getMonitorRxAdjustmentBytes())
-                + defaultLong(serverMonitorStatsRepository.sumRxIncrement(server.getId(), periodStart, sampleTime.plusNanos(1)));
-        long tx = defaultLong(server.getMonitorTxAdjustmentBytes())
-                + defaultLong(serverMonitorStatsRepository.sumTxIncrement(server.getId(), periodStart, sampleTime.plusNanos(1)));
+        MonitorTrafficAdjustment adjustment = getMonitorTrafficAdjustment(server, sampleTime);
+        RawPeriodTraffic rawPeriodTraffic = calculateRawPeriodTraffic(server, sampleTime);
+        long rx = adjustment.downloadBytes() + rawPeriodTraffic.downloadBytes();
+        long tx = adjustment.uploadBytes() + rawPeriodTraffic.uploadBytes();
         return new PeriodTraffic(rx, tx);
+    }
+
+    private RawPeriodTraffic calculateRawPeriodTraffic(Server server, LocalDateTime sampleTime) {
+        LocalDateTime periodStart = resolveBandwidthPeriodStart(server, sampleTime);
+        long downloadBytes = defaultLong(serverMonitorStatsRepository.sumRxIncrement(server.getId(), periodStart, sampleTime.plusNanos(1)));
+        long uploadBytes = defaultLong(serverMonitorStatsRepository.sumTxIncrement(server.getId(), periodStart, sampleTime.plusNanos(1)));
+        return new RawPeriodTraffic(downloadBytes, uploadBytes);
+    }
+
+    private MonitorTrafficAdjustment getMonitorTrafficAdjustment(Server server, LocalDateTime sampleTime) {
+        ServerTrafficStats stats = serverTrafficStatsService.getCurrentPeriodStats(server.getId(), sampleTime);
+        if (stats == null) {
+            return new MonitorTrafficAdjustment(0L, 0L);
+        }
+        return new MonitorTrafficAdjustment(
+                defaultLong(stats.getMonitorDownloadAdjustmentBytes()),
+                defaultLong(stats.getMonitorUploadAdjustmentBytes())
+        );
     }
 
     private LocalDateTime resolveBandwidthPeriodStart(Server server, LocalDateTime referenceTime) {
@@ -385,5 +409,11 @@ public class ServerMonitorStatsService {
     }
 
     private record PeriodTraffic(long rxBytes, long txBytes) {
+    }
+
+    private record RawPeriodTraffic(long downloadBytes, long uploadBytes) {
+    }
+
+    private record MonitorTrafficAdjustment(long downloadBytes, long uploadBytes) {
     }
 }

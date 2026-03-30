@@ -14,6 +14,10 @@ public class ServerTrafficStatsRepository implements PanacheRepository<ServerTra
         return find("serverId = ?1 and periodStart <= ?2 and periodEnd > ?2", serverId, currentTime).list();
     }
 
+    public ServerTrafficStats findByServerIdAndPeriod(Long serverId, LocalDateTime periodStart, LocalDateTime periodEnd) {
+        return find("serverId = ?1 and periodStart = ?2 and periodEnd = ?3", serverId, periodStart, periodEnd).firstResult();
+    }
+
     public List<ServerTrafficStats> findByServerIdsAndCurrentTime(List<Long> serverIds, LocalDateTime currentTime) {
         if (serverIds == null || serverIds.isEmpty()) {
             return List.of();
