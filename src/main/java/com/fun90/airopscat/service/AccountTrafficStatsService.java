@@ -2,8 +2,8 @@ package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.AccountTrafficStatsDto;
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
-import com.fun90.airopscat.model.enums.PeriodType;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
+import com.fun90.airopscat.util.TrafficPeriodUtils;
 import com.fun90.airopscat.repository.UserRepository;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -14,9 +14,7 @@ import jakarta.persistence.Query;
 import jakarta.persistence.TypedQuery;
 import jakarta.transaction.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
@@ -226,26 +224,13 @@ public class AccountTrafficStatsService {
         AccountTrafficStats newStats = new AccountTrafficStats();
         newStats.setUserId(userId);
         newStats.setAccountId(accountId);
-        LocalDate expireDate = toDate.toLocalDate();
-        if (PeriodType.MONTHLY.name().equals(periodType)) {
-            newStats.setPeriodStart(expireDate.minusMonths(1).atStartOfDay());
-            newStats.setPeriodEnd(expireDate.atTime(LocalTime.MAX));
-        } else {
-            newStats.setPeriodStart(expireDate.minusYears(1).atStartOfDay());
-            newStats.setPeriodEnd(expireDate.atTime(LocalTime.MAX));
-        }
-        newStats.setPeriodEnd(calculatePeriodEnd(currentTime, periodType));
+        LocalDateTime periodStart = TrafficPeriodUtils.resolveAccountPeriodStart(currentTime, toDate, periodType);
+        newStats.setPeriodStart(periodStart);
+        newStats.setPeriodEnd(TrafficPeriodUtils.resolvePeriodEnd(periodStart, periodType));
         newStats.setUploadBytes(uploadBytes);
         newStats.setDownloadBytes(downloadBytes);
         accountTrafficStatsRepository.persist(newStats);
         return newStats;
-    }
-
-    private LocalDateTime calculatePeriodEnd(LocalDateTime periodStart, String periodType) {
-        if ("YEARLY".equalsIgnoreCase(periodType)) {
-            return periodStart.plusYears(1).minusNanos(1);
-        }
-        return periodStart.plusMonths(1).minusNanos(1);
     }
 
     public String formatBytes(long bytes) {

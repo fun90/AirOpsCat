@@ -3,8 +3,8 @@ package com.fun90.airopscat.model.dto;
 import lombok.Data;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +22,7 @@ public class ServerDto {
     private List<ServerHostDto> hosts;
     private String name;
     private LocalDate expireDate;
-    private LocalDate bandwidthDate;
+    private LocalDateTime bandwidthDate;
     private String supplier;
     private BigDecimal price;
     private BigDecimal multiple;

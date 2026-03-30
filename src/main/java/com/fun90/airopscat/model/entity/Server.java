@@ -8,8 +8,8 @@ import lombok.Data;
 import org.hibernate.annotations.DynamicUpdate;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Data
 @Entity
@@ -41,7 +41,7 @@ public class Server {
     @Column(name = "expire_date")
     private LocalDate expireDate;
 
-    private LocalDate bandwidthDate;
+    private LocalDateTime bandwidthDate;
     
     private String supplier;
     

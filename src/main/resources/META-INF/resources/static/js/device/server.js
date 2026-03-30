@@ -363,7 +363,7 @@ const serverTable = new DataTable({
                 hosts: this.parseHostsText(this.hostsText),
                 name: this.newItem.name || null,
                 expireDate: this.newItem.expireDate || null,
-                bandwidthDate: this.newItem.bandwidthDate || null,
+                bandwidthDate: this.normalizeDateTimeLocalValue(this.newItem.bandwidthDate),
                 supplier: this.newItem.supplier || null,
                 price: this.newItem.price || null,
                 multiple: this.newItem.multiple || 1,
@@ -404,7 +404,7 @@ const serverTable = new DataTable({
                 hosts: this.parseHostsText(this.editHostsText),
                 name: this.editedItem.name || null,
                 expireDate: this.editedItem.expireDate || null,
-                bandwidthDate: this.editedItem.bandwidthDate || null,
+                bandwidthDate: this.normalizeDateTimeLocalValue(this.editedItem.bandwidthDate),
                 supplier: this.editedItem.supplier || null,
                 price: this.editedItem.price || null,
                 multiple: this.editedItem.multiple || 1,
@@ -450,13 +450,6 @@ const serverTable = new DataTable({
         },
 
         prepareEditForm(server) {
-            // Format dates for input
-            const formatDateForInput = (dateString) => {
-                if (!dateString) return '';
-                const date = new Date(dateString);
-                return date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-            };
-
             // Set JSON configs
             this.editTransitConfigJson = server.transitConfig ?
                 JSON.stringify(server.transitConfig, null, 2) : '';
@@ -474,8 +467,8 @@ const serverTable = new DataTable({
                 host: server.primaryHost || server.host || '',
                 hosts: server.hosts || [],
                 name: server.name || '',
-                expireDate: formatDateForInput(server.expireDate),
-                bandwidthDate: formatDateForInput(server.bandwidthDate),
+                expireDate: this.formatDateInput(server.expireDate),
+                bandwidthDate: this.formatDateTimeLocalInput(server.bandwidthDate),
                 supplier: server.supplier || '',
                 price: server.price,
                 multiple: server.multiple || 1,
@@ -710,35 +703,69 @@ const serverTable = new DataTable({
         inferTrafficPeriod(server) {
             if (server.trafficPeriodStart && server.trafficPeriodEnd) {
                 return {
-                    start: this.formatDateInput(server.trafficPeriodStart),
-                    end: this.formatDateInput(server.trafficPeriodEnd)
+                    start: this.formatDateTimeLocalInput(server.trafficPeriodStart),
+                    end: this.formatDateTimeLocalInput(server.trafficPeriodEnd)
                 };
             }
 
             const today = new Date();
-            const billingDay = server.bandwidthDate
-                ? new Date(server.bandwidthDate).getDate()
+            const billingDate = this.parseDateValue(server.bandwidthDate);
+            const billingDay = billingDate
+                ? billingDate.getDate()
                 : today.getDate();
+            const billingHours = billingDate ? billingDate.getHours() : 0;
+            const billingMinutes = billingDate ? billingDate.getMinutes() : 0;
+            const billingSeconds = billingDate ? billingDate.getSeconds() : 0;
 
-            let start = new Date(today.getFullYear(), today.getMonth(), billingDay);
+            let start = new Date(today.getFullYear(), today.getMonth(), billingDay, billingHours, billingMinutes, billingSeconds);
             if (start > today) {
-                start = new Date(today.getFullYear(), today.getMonth() - 1, billingDay);
+                start = new Date(today.getFullYear(), today.getMonth() - 1, billingDay, billingHours, billingMinutes, billingSeconds);
             }
-            const end = new Date(start.getFullYear(), start.getMonth() + 1, start.getDate() - 1);
+            const end = new Date(start.getFullYear(), start.getMonth() + 1, start.getDate(), start.getHours(), start.getMinutes(), start.getSeconds());
+            end.setMilliseconds(end.getMilliseconds() - 1);
 
             return {
-                start: this.formatDateInput(start),
-                end: this.formatDateInput(end)
+                start: this.formatDateTimeLocalInput(start),
+                end: this.formatDateTimeLocalInput(end)
             };
         },
 
         formatDateInput(dateValue) {
-            if (!dateValue) return '';
-            const date = new Date(dateValue);
+            const date = this.parseDateValue(dateValue);
+            if (!date) return '';
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
+        },
+
+        formatDateTimeLocalInput(dateValue) {
+            const date = this.parseDateValue(dateValue);
+            if (!date) return '';
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+        },
+
+        normalizeDateTimeLocalValue(value) {
+            if (!value) return null;
+            return value.length === 16 ? `${value}:00` : value;
+        },
+
+        parseDateValue(dateValue) {
+            if (!dateValue) return null;
+            if (dateValue instanceof Date) {
+                return Number.isNaN(dateValue.getTime()) ? null : dateValue;
+            }
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+                return new Date(`${dateValue}T00:00:00`);
+            }
+            const date = new Date(dateValue);
+            return Number.isNaN(date.getTime()) ? null : date;
         },
 
         bytesToGbValue(bytes) {
@@ -763,18 +790,18 @@ const serverTable = new DataTable({
             }
 
             if (!this.trafficCalibration.periodStartDate) {
-                this.validationErrors.trafficPeriodStartDate = '请选择周期开始日期';
+                this.validationErrors.trafficPeriodStartDate = '请选择周期开始时间';
                 isValid = false;
             }
 
             if (!this.trafficCalibration.periodEndDate) {
-                this.validationErrors.trafficPeriodEndDate = '请选择周期结束日期';
+                this.validationErrors.trafficPeriodEndDate = '请选择周期结束时间';
                 isValid = false;
             }
 
             if (this.trafficCalibration.periodStartDate && this.trafficCalibration.periodEndDate
                 && this.trafficCalibration.periodEndDate < this.trafficCalibration.periodStartDate) {
-                this.validationErrors.trafficPeriodEndDate = '周期结束日期不能早于开始日期';
+                this.validationErrors.trafficPeriodEndDate = '周期结束时间不能早于开始时间';
                 isValid = false;
             }
 

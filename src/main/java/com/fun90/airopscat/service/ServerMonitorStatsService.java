@@ -12,13 +12,13 @@ import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.ServerMonitorStatsRepository;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
+import com.fun90.airopscat.util.TrafficPeriodUtils;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
-import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -237,21 +237,11 @@ public class ServerMonitorStatsService {
     }
 
     private LocalDateTime resolveBandwidthPeriodStart(Server server, LocalDateTime referenceTime) {
-        int billingDay = server.getBandwidthDate() != null ? server.getBandwidthDate().getDayOfMonth() : 1;
-        LocalDateTime currentMonthStart = atBillingDay(YearMonth.from(referenceTime), billingDay);
-        if (!referenceTime.isBefore(currentMonthStart)) {
-            return currentMonthStart;
-        }
-        return atBillingDay(YearMonth.from(referenceTime.minusMonths(1)), billingDay);
+        return TrafficPeriodUtils.resolveServerPeriodStart(referenceTime, server.getBandwidthDate());
     }
 
     private LocalDateTime resolveBandwidthPeriodEnd(Server server, LocalDateTime referenceTime) {
-        return resolveBandwidthPeriodStart(server, referenceTime).plusMonths(1).minusNanos(1);
-    }
-
-    private LocalDateTime atBillingDay(YearMonth yearMonth, int billingDay) {
-        int day = Math.min(Math.max(billingDay, 1), yearMonth.lengthOfMonth());
-        return yearMonth.atDay(day).atStartOfDay();
+        return TrafficPeriodUtils.resolvePeriodEnd(resolveBandwidthPeriodStart(server, referenceTime), null);
     }
 
     private Integer resolveCpuCores(Server server) {

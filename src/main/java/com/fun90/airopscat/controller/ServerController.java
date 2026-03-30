@@ -214,7 +214,7 @@ public class ServerController {
         }
         if (calibrationDto.getPeriodEndDate().isBefore(calibrationDto.getPeriodStartDate())) {
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("message", "流量统计周期结束日期不能早于开始日期"))
+                    .entity(Map.of("message", "流量统计周期结束时间不能早于开始时间"))
                     .build();
         }
 

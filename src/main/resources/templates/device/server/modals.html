@@ -76,8 +76,9 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">流量日期</label>
-                                    <input type="date" class="form-control" v-model="newItem.bandwidthDate">
+                                    <label class="form-label">流量重置时间</label>
+                                    <input type="datetime-local" step="1" class="form-control" v-model="newItem.bandwidthDate">
+                                    <small class="form-hint">留空时按每月 1 日 00:00:00 计算；旧数据未带时间时默认按 00:00:00 兼容。</small>
                                 </div>
                             </div>
                         </div>
@@ -260,8 +261,8 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">流量日期</label>
-                                    <input type="date" class="form-control" v-model="editedItem.bandwidthDate">
+                                    <label class="form-label">流量重置时间</label>
+                                    <input type="datetime-local" step="1" class="form-control" v-model="editedItem.bandwidthDate">
                                 </div>
                             </div>
                         </div>
@@ -564,7 +565,7 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label required">周期开始</label>
-                            <input type="date" class="form-control"
+                            <input type="datetime-local" step="1" class="form-control"
                                    :class="{ 'is-invalid': validationErrors.trafficPeriodStartDate }"
                                    v-model="trafficCalibration.periodStartDate">
                             <div class="invalid-feedback" v-if="validationErrors.trafficPeriodStartDate">{{ validationErrors.trafficPeriodStartDate }}</div>
@@ -573,7 +574,7 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label required">周期结束</label>
-                            <input type="date" class="form-control"
+                            <input type="datetime-local" step="1" class="form-control"
                                    :class="{ 'is-invalid': validationErrors.trafficPeriodEndDate }"
                                    v-model="trafficCalibration.periodEndDate">
                             <div class="invalid-feedback" v-if="validationErrors.trafficPeriodEndDate">{{ validationErrors.trafficPeriodEndDate }}</div>
@@ -581,7 +582,7 @@
                     </div>
                 </div>
                 <div class="form-hint">
-                    校准会直接覆盖当前周期的服务器流量统计值。
+                    校准会直接覆盖当前周期的服务器流量统计值，周期时间支持精确到秒。
                 </div>
             </div>
             <div class="modal-footer">

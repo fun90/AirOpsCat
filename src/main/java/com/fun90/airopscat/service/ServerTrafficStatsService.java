@@ -3,6 +3,7 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.ServerDto;
 import com.fun90.airopscat.model.entity.ServerTrafficStats;
 import com.fun90.airopscat.repository.ServerTrafficStatsRepository;
+import com.fun90.airopscat.util.TrafficPeriodUtils;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -21,7 +22,7 @@ public class ServerTrafficStatsService {
     ServerTrafficStatsRepository serverTrafficStatsRepository;
 
     @Transactional
-    public ServerTrafficStats saveOrUpdateTrafficStats(Long serverId, LocalDate bandwidthDate, long uploadBytes, long downloadBytes) {
+    public ServerTrafficStats saveOrUpdateTrafficStats(Long serverId, LocalDateTime bandwidthDate, long uploadBytes, long downloadBytes) {
         LocalDateTime now = LocalDateTime.now();
         List<ServerTrafficStats> existingStats = serverTrafficStatsRepository.findByServerIdAndCurrentTime(serverId, now);
 
@@ -34,9 +35,9 @@ public class ServerTrafficStatsService {
 
         ServerTrafficStats newStats = new ServerTrafficStats();
         newStats.setServerId(serverId);
-        LocalDateTime periodStart = calculatePeriodStart(now.toLocalDate().withDayOfMonth(bandwidthDate.getDayOfMonth()));
+        LocalDateTime periodStart = TrafficPeriodUtils.resolveServerPeriodStart(now, bandwidthDate);
         newStats.setPeriodStart(periodStart);
-        newStats.setPeriodEnd(calculatePeriodEnd(periodStart));
+        newStats.setPeriodEnd(TrafficPeriodUtils.resolvePeriodEnd(periodStart, null));
         newStats.setUploadBytes(uploadBytes);
         newStats.setDownloadBytes(downloadBytes);
         serverTrafficStatsRepository.persist(newStats);
@@ -68,7 +69,7 @@ public class ServerTrafficStatsService {
     }
 
     @Transactional
-    public ServerTrafficStats calibrateTrafficStats(Long serverId, LocalDate periodStartDate, LocalDate periodEndDate,
+    public ServerTrafficStats calibrateTrafficStats(Long serverId, LocalDateTime periodStartDate, LocalDateTime periodEndDate,
                                                     long uploadBytes, long downloadBytes) {
         LocalDateTime now = LocalDateTime.now();
         List<ServerTrafficStats> existingStats = serverTrafficStatsRepository.findByServerIdAndCurrentTime(serverId, now);
@@ -76,16 +77,16 @@ public class ServerTrafficStatsService {
         ServerTrafficStats stats;
         if (!existingStats.isEmpty()) {
             stats = existingStats.getFirst();
-            stats.setPeriodStart(periodStartDate.atStartOfDay());
-            stats.setPeriodEnd(periodEndDate.atStartOfDay());
+            stats.setPeriodStart(periodStartDate);
+            stats.setPeriodEnd(periodEndDate);
             stats.setUploadBytes(uploadBytes);
             stats.setDownloadBytes(downloadBytes);
             return stats;
         }
         stats = new ServerTrafficStats();
         stats.setServerId(serverId);
-        stats.setPeriodStart(periodStartDate.atStartOfDay());
-        stats.setPeriodEnd(periodEndDate.plusDays(1).atStartOfDay().minusNanos(1));
+        stats.setPeriodStart(periodStartDate);
+        stats.setPeriodEnd(periodEndDate);
         stats.setUploadBytes(uploadBytes);
         stats.setDownloadBytes(downloadBytes);
         serverTrafficStatsRepository.persist(stats);
@@ -104,11 +105,4 @@ public class ServerTrafficStatsService {
         return result;
     }
 
-    private LocalDateTime calculatePeriodStart(LocalDate start) {
-        return start.atStartOfDay();
-    }
-
-    private LocalDateTime calculatePeriodEnd(LocalDateTime periodStart) {
-        return periodStart.toLocalDate().plusMonths(1).atStartOfDay().minusNanos(1);
-    }
 }
