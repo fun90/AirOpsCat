@@ -18,7 +18,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -27,7 +29,6 @@ import java.util.Map;
 @Slf4j
 @ApplicationScoped
 public class ServerMonitorStatsService {
-
     private static final String REMOTE_COLLECTOR_PATH = "/usr/local/bin/airopscat-server-monitor-collect";
     private static final String COLLECTOR_MISSING_MARKER = "__AIROPSCAT_MONITOR_COLLECTOR_MISSING__=1";
 
@@ -45,6 +46,12 @@ public class ServerMonitorStatsService {
 
     @Inject
     ServerTrafficStatsService serverTrafficStatsService;
+
+    @ConfigProperty(name = "airopscat.server.monitor.refresh-minutes", defaultValue = "1")
+    int monitorRefreshMinutes;
+
+    @ConfigProperty(name = "airopscat.server.monitor.alert.max-missing-samples", defaultValue = "5")
+    int maxMissingSamples;
 
     @Transactional
     public ServerMonitorSummaryDto collectAndSave(Server server) {
@@ -118,6 +125,33 @@ public class ServerMonitorStatsService {
         dto.setHours(safeHours);
         dto.setPoints(toPointDtos(statsList, baseRx, baseTx, periodStart));
         return dto;
+    }
+
+    public boolean isCpuUsageHighForDuration(Long serverId, LocalDateTime referenceTime,
+                                             double threshold, int durationMinutes) {
+        return hasContinuousUsageThresholdExceeded(
+                serverId,
+                referenceTime,
+                threshold,
+                durationMinutes,
+                ServerMonitorStats::getCpuUsage
+        );
+    }
+
+    public boolean isMemoryUsageHighForDuration(Long serverId, LocalDateTime referenceTime,
+                                                double threshold, int durationMinutes) {
+        return hasContinuousUsageThresholdExceeded(
+                serverId,
+                referenceTime,
+                threshold,
+                durationMinutes,
+                ServerMonitorStats::getMemoryUsage
+        );
+    }
+
+    public long getCurrentPeriodTotalTrafficBytes(Server server, LocalDateTime sampleTime) {
+        PeriodTraffic periodTraffic = calculatePeriodTraffic(server, sampleTime);
+        return periodTraffic.rxBytes() + periodTraffic.txBytes();
     }
 
     @Transactional
@@ -301,6 +335,52 @@ public class ServerMonitorStatsService {
 
     private String quoteShell(String value) {
         return "'" + value.replace("'", "'\"'\"'") + "'";
+    }
+
+    private boolean hasContinuousUsageThresholdExceeded(Long serverId, LocalDateTime referenceTime,
+                                                        double threshold, int durationMinutes,
+                                                        java.util.function.Function<ServerMonitorStats, Double> usageExtractor) {
+        long monitorRefreshSeconds = getMonitorRefreshSeconds();
+        if (serverId == null || referenceTime == null || durationMinutes <= 0 || monitorRefreshSeconds <= 0) {
+            return false;
+        }
+
+        long durationSeconds = durationMinutes * 60L;
+        int requiredSampleCount = (int) Math.ceil(durationSeconds / (double) monitorRefreshSeconds) + 1;
+        LocalDateTime windowStart = referenceTime.minusSeconds(durationSeconds);
+        int toleratedMissingSamples = Math.max(maxMissingSamples, 0);
+        List<ServerMonitorStats> latestStats = serverMonitorStatsRepository.findLatestListByServerId(
+                serverId, requiredSampleCount + toleratedMissingSamples + 1);
+        if (latestStats.isEmpty()) {
+            return false;
+        }
+
+        ServerMonitorStats latest = latestStats.getFirst();
+        if (latest.getSampleTime() == null
+                || latest.getSampleTime().isBefore(referenceTime.minusSeconds(monitorRefreshSeconds * 2L))) {
+            return false;
+        }
+
+        List<ServerMonitorStats> effectiveStats = latestStats.stream()
+                .filter(stats -> stats.getSampleTime() != null)
+                .filter(stats -> !stats.getSampleTime().isBefore(windowStart))
+                .toList();
+        if (effectiveStats.isEmpty()) {
+            return false;
+        }
+
+        for (ServerMonitorStats stats : effectiveStats) {
+            Double usage = usageExtractor.apply(stats);
+            if (usage == null || usage < threshold) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private long getMonitorRefreshSeconds() {
+        return Math.max(1, monitorRefreshMinutes) * 60L;
     }
 
     private ServerMonitorSummaryDto toSummaryDto(Server server, ServerMonitorStats stats, PeriodTraffic periodTraffic) {

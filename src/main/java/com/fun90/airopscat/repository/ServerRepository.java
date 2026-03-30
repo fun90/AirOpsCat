@@ -26,6 +26,12 @@ public class ServerRepository implements PanacheRepository<Server> {
         return find("(disabled = 0 or disabled is null) and expireDate = ?1", date).list();
     }
 
+    public List<Server> findMonitorableServers(LocalDate date) {
+        return find("(disabled = 0 or disabled is null) " +
+                "and (external = 0 or external is null) " +
+                "and (expireDate is null or expireDate >= ?1)", date).list();
+    }
+
 
     public long countActiveServers(LocalDate now) {
         return count("disabled = 0 and (expireDate is null or expireDate > ?1)", now);

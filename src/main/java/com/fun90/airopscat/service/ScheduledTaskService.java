@@ -19,7 +19,10 @@ import com.fun90.airopscat.service.traffic.TrafficStatsCollector;
 import com.fun90.airopscat.service.traffic.UserTrafficStats;
 import com.fun90.airopscat.service.traffic.registry.TrafficStatsCollectorRegistry;
 import io.quarkus.scheduler.Scheduled;
+import io.quarkus.scheduler.Scheduler;
+import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.transaction.Transactional;
@@ -40,6 +43,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @ApplicationScoped
 public class ScheduledTaskService {
+    private static final String SERVER_MONITOR_COLLECT_JOB_ID = "server-monitor-collect";
 
     @Inject
     AccountRepository accountRepository;
@@ -81,8 +85,14 @@ public class ScheduledTaskService {
     @Named("blockingTaskExecutor")
     ExecutorService blockingTaskExecutor;
 
+    @Inject
+    Scheduler scheduler;
+
     @ConfigProperty(name = "airopscat.server.monitor.enabled", defaultValue = "true")
     boolean serverMonitorEnabled;
+
+    @ConfigProperty(name = "airopscat.server.monitor.refresh-minutes", defaultValue = "1")
+    long serverMonitorRefreshMinutes;
 
     /**
      * 每天凌晨5点执行的任务
@@ -256,12 +266,36 @@ public class ScheduledTaskService {
     }
 
     /**
-     * 定时采集服务器监控指标
+     * 服务器监控高负载提醒
      */
     @Scheduled(
-            cron = "{airopscat.server.monitor.cron:0 */5 * * * ?}",
+            cron = "{airopscat.server.monitor.alert.cron:0 */5 * * * ?}",
             concurrentExecution = Scheduled.ConcurrentExecution.SKIP
     )
+    public void notifyServerMonitorLoad() {
+        if (!serverMonitorEnabled) {
+            log.debug("服务器监控采集已禁用，跳过本次监控提醒");
+            return;
+        }
+        monitorNotificationService.notify("server-monitor-load");
+    }
+
+    void scheduleServerMonitorCollection(@Observes StartupEvent event) {
+        long refreshMinutes = Math.max(1L, serverMonitorRefreshMinutes);
+        String cron = "0 */" + refreshMinutes + " * * * ?";
+        scheduler.unscheduleJob(SERVER_MONITOR_COLLECT_JOB_ID);
+        scheduler.newJob(SERVER_MONITOR_COLLECT_JOB_ID)
+                .setCron(cron)
+                .setTimeZone("Asia/Shanghai")
+                .setConcurrentExecution(Scheduled.ConcurrentExecution.SKIP)
+                .setTask(execution -> collectServerMonitorStats())
+                .schedule();
+        log.info("服务器监控采集调度已注册，refreshMinutes={}, cron={}", refreshMinutes, cron);
+    }
+
+    /**
+     * 定时采集服务器监控指标
+     */
     public void collectServerMonitorStats() {
         if (!serverMonitorEnabled) {
             log.debug("服务器监控采集已禁用，跳过本次任务");
@@ -271,33 +305,17 @@ public class ScheduledTaskService {
         log.info("开始执行定时任务：采集服务器监控指标");
 
         try {
-            List<Server> servers = serverRepository.findAll().list();
+            List<Server> servers = serverRepository.findMonitorableServers(LocalDateTime.now().toLocalDate());
             if (servers.isEmpty()) {
                 log.info("没有找到服务器，跳过监控采集");
                 return;
             }
-
-            LocalDateTime now = LocalDateTime.now();
-            List<Server> targetServers = new ArrayList<>();
             int skippedCount = 0;
-
-            for (Server server : servers) {
-                if (!shouldCollectServerMonitor(server, now)) {
-                    skippedCount++;
-                    continue;
-                }
-                targetServers.add(server);
-            }
-
-            if (targetServers.isEmpty()) {
-                log.info("没有需要采集的服务器，跳过监控采集");
-                return;
-            }
 
             int successCount = 0;
             int failureCount = 0;
 
-            List<CompletableFuture<MonitorCollectResult>> futures = targetServers.stream()
+            List<CompletableFuture<MonitorCollectResult>> futures = servers.stream()
                     .map(server -> CompletableFuture.supplyAsync(
                             () -> collectServerMonitorSnapshot(server),
                             blockingTaskExecutor))
@@ -439,19 +457,6 @@ public class ScheduledTaskService {
         }
 
         return sshConfig;
-    }
-
-    private boolean shouldCollectServerMonitor(Server server, LocalDateTime now) {
-        if (server == null) {
-            return false;
-        }
-        if (server.getDisabled() != null && server.getDisabled() == 1) {
-            return false;
-        }
-        if (server.getExternal() != null && server.getExternal() == 1) {
-            return false;
-        }
-        return server.getExpireDate() == null || !now.toLocalDate().isAfter(server.getExpireDate());
     }
 
     /**
