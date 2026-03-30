@@ -2,6 +2,7 @@ package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.BackupFileDto;
 import io.quarkus.scheduler.Scheduled;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -21,6 +22,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.concurrent.CompletableFuture;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,7 +118,7 @@ public class DatabaseBackupService {
             Process process = processBuilder.start();
 
             StringBuilder errorBuffer = new StringBuilder();
-            Thread errorThread = startErrorReader(process.getErrorStream(), errorBuffer);
+            CompletableFuture<Void> errorReader = startErrorReader(process.getErrorStream(), errorBuffer);
 
             try (InputStream inputStream = process.getInputStream();
                  GZIPOutputStream gzipOutputStream = new GZIPOutputStream(Files.newOutputStream(tempFile))) {
@@ -124,7 +126,7 @@ public class DatabaseBackupService {
             }
 
             int exitCode = process.waitFor();
-            errorThread.join();
+            errorReader.join();
 
             if (exitCode != 0) {
                 Files.deleteIfExists(tempFile);
@@ -208,7 +210,7 @@ public class DatabaseBackupService {
             Process process = processBuilder.start();
 
             StringBuilder errorBuffer = new StringBuilder();
-            Thread errorThread = startErrorReader(process.getErrorStream(), errorBuffer);
+            CompletableFuture<Void> errorReader = startErrorReader(process.getErrorStream(), errorBuffer);
 
             try (InputStream fileInputStream = Files.newInputStream(backupFile);
                  GZIPInputStream gzipInputStream = new GZIPInputStream(fileInputStream);
@@ -217,7 +219,7 @@ public class DatabaseBackupService {
             }
 
             int exitCode = process.waitFor();
-            errorThread.join();
+            errorReader.join();
 
             if (exitCode != 0) {
                 throw new IllegalStateException("mysql exited with code " + exitCode + ": " + errorBuffer);
@@ -398,8 +400,8 @@ public class DatabaseBackupService {
         }
     }
 
-    private Thread startErrorReader(InputStream errorStream, StringBuilder errorBuffer) {
-        Thread thread = new Thread(() -> {
+    private CompletableFuture<Void> startErrorReader(InputStream errorStream, StringBuilder errorBuffer) {
+        return CompletableFuture.runAsync(() -> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(errorStream))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
@@ -411,10 +413,7 @@ public class DatabaseBackupService {
             } catch (IOException e) {
                 log.warn("Failed to read mysqldump error stream", e);
             }
-        }, "db-backup-stderr-reader");
-        thread.setDaemon(true);
-        thread.start();
-        return thread;
+        }, Infrastructure.getDefaultExecutor());
     }
 
     private record DatabaseConnectionInfo(String host, int port, String database) {

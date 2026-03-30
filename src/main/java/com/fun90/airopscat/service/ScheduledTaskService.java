@@ -19,6 +19,7 @@ import com.fun90.airopscat.service.traffic.TrafficStatsCollector;
 import com.fun90.airopscat.service.traffic.UserTrafficStats;
 import com.fun90.airopscat.service.traffic.registry.TrafficStatsCollectorRegistry;
 import io.quarkus.scheduler.Scheduled;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -29,8 +30,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 /**
@@ -290,34 +289,29 @@ public class ScheduledTaskService {
                 return;
             }
 
-            int poolSize = Math.min(targetServers.size(), Math.max(2, Runtime.getRuntime().availableProcessors()));
-            ExecutorService executorService = Executors.newFixedThreadPool(poolSize);
-
             int successCount = 0;
             int failureCount = 0;
 
-            try {
-                List<CompletableFuture<MonitorCollectResult>> futures = targetServers.stream()
-                        .map(server -> CompletableFuture.supplyAsync(() -> collectServerMonitorSnapshot(server), executorService))
-                        .toList();
+            List<CompletableFuture<MonitorCollectResult>> futures = targetServers.stream()
+                    .map(server -> CompletableFuture.supplyAsync(
+                            () -> collectServerMonitorSnapshot(server),
+                            Infrastructure.getDefaultExecutor()))
+                    .toList();
 
-                for (CompletableFuture<MonitorCollectResult> future : futures) {
-                    try {
-                        MonitorCollectResult result = future.join();
-                        if (result == MonitorCollectResult.SUCCESS) {
-                            successCount++;
-                        } else if (result == MonitorCollectResult.SKIPPED) {
-                            skippedCount++;
-                        } else {
-                            failureCount++;
-                        }
-                    } catch (Exception e) {
+            for (CompletableFuture<MonitorCollectResult> future : futures) {
+                try {
+                    MonitorCollectResult result = future.join();
+                    if (result == MonitorCollectResult.SUCCESS) {
+                        successCount++;
+                    } else if (result == MonitorCollectResult.SKIPPED) {
+                        skippedCount++;
+                    } else {
                         failureCount++;
-                        log.error("等待服务器监控采集结果时发生错误: {}", e.getMessage(), e);
                     }
+                } catch (Exception e) {
+                    failureCount++;
+                    log.error("等待服务器监控采集结果时发生错误: {}", e.getMessage(), e);
                 }
-            } finally {
-                executorService.shutdown();
             }
 
             log.info("服务器监控采集完成 - 成功: {}, 跳过: {}, 失败: {}", successCount, skippedCount, failureCount);

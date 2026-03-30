@@ -22,6 +22,7 @@ import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.deployment.registry.CoreConfigBuilderRegistry;
 import com.fun90.airopscat.util.JsonUtil;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -207,7 +208,8 @@ public class NodeDeploymentService {
                 .filter(ctx -> !ctx.nodes().isEmpty())
                 .filter(ctx -> ctx.server().getDisabled() != 1)
                 .map(ctx -> CompletableFuture.supplyAsync(
-                        withContextClassLoader(contextClassLoader, () -> deploymentExecutor.executeForServer(ctx))))
+                        withContextClassLoader(contextClassLoader, () -> deploymentExecutor.executeForServer(ctx)),
+                        Infrastructure.getDefaultExecutor()))
                 .toList();
 
         List<DeploymentResult> results = new ArrayList<>();

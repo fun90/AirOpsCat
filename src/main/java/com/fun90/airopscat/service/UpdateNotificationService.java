@@ -5,6 +5,7 @@ import com.fun90.airopscat.config.AppConstants;
 import com.fun90.airopscat.model.dto.GitHubReleaseDto;
 import com.fun90.airopscat.util.VersionUtil;
 import io.quarkus.runtime.StartupEvent;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
@@ -32,7 +33,7 @@ public class UpdateNotificationService {
 
     void onStart(@Observes StartupEvent event) {
         // 异步执行版本检查，避免阻塞应用启动
-        CompletableFuture.runAsync(this::checkForUpdates)
+        CompletableFuture.runAsync(this::checkForUpdates, Infrastructure.getDefaultExecutor())
                 .exceptionally(throwable -> {
                     log.warn("版本检查失败: {}", throwable.getMessage());
                     return null;
