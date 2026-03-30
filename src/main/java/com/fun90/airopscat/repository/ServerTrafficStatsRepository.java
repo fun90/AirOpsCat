@@ -11,14 +11,14 @@ import java.util.List;
 public class ServerTrafficStatsRepository implements PanacheRepository<ServerTrafficStats> {
 
     public List<ServerTrafficStats> findByServerIdAndCurrentTime(Long serverId, LocalDateTime currentTime) {
-        return find("serverId = ?1 and ?2 between periodStart and periodEnd", serverId, currentTime).list();
+        return find("serverId = ?1 and periodStart <= ?2 and periodEnd > ?2", serverId, currentTime).list();
     }
 
     public List<ServerTrafficStats> findByServerIdsAndCurrentTime(List<Long> serverIds, LocalDateTime currentTime) {
         if (serverIds == null || serverIds.isEmpty()) {
             return List.of();
         }
-        return find("serverId in ?1 and ?2 between periodStart and periodEnd", serverIds, currentTime).list();
+        return find("serverId in ?1 and periodStart <= ?2 and periodEnd > ?2", serverIds, currentTime).list();
     }
 
     public ServerTrafficStats findLatestByServerId(Long serverId) {

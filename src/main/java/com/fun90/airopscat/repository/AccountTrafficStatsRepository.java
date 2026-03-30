@@ -13,13 +13,13 @@ import java.util.Map;
 public class AccountTrafficStatsRepository implements PanacheRepository<AccountTrafficStats> {
 
     public Long sumUploadBytesByAccountId(Long accountId) {
-        return find("select sum(uploadBytes) from AccountTrafficStats where accountId = ?1 and ?2 between periodStart and periodEnd", accountId, LocalDateTime.now())
+        return find("select sum(uploadBytes) from AccountTrafficStats where accountId = ?1 and periodStart <= ?2 and periodEnd > ?2", accountId, LocalDateTime.now())
                 .project(Long.class)
                 .firstResult();
     }
 
     public Long sumDownloadBytesByAccountId(Long accountId) {
-        return find("select sum(downloadBytes) from AccountTrafficStats where accountId = ?1 and ?2 between periodStart and periodEnd", accountId, LocalDateTime.now())
+        return find("select sum(downloadBytes) from AccountTrafficStats where accountId = ?1 and periodStart <= ?2 and periodEnd > ?2", accountId, LocalDateTime.now())
                 .project(Long.class)
                 .firstResult();
     }
@@ -33,7 +33,7 @@ public class AccountTrafficStatsRepository implements PanacheRepository<AccountT
         List<Object[]> rows = getEntityManager().createQuery(
                 "select ats.accountId, sum(ats.downloadBytes) + sum(ats.uploadBytes) " +
                         "from AccountTrafficStats ats " +
-                        "where ats.accountId in ?1 and ?2 between ats.periodStart and ats.periodEnd " +
+                        "where ats.accountId in ?1 and ats.periodStart <= ?2 and ats.periodEnd > ?2 " +
                         "group by ats.accountId",
                 Object[].class)
             .setParameter(1, accountIds)
@@ -53,6 +53,6 @@ public class AccountTrafficStatsRepository implements PanacheRepository<AccountT
      * @return 匹配的流量统计记录列表
      */
     public List<AccountTrafficStats> findByAccountIdAndCurrentTime(Long accountId, LocalDateTime currentTime) {
-        return find("accountId = ?1 and ?2 between periodStart and periodEnd", accountId, currentTime).list();
+        return find("accountId = ?1 and periodStart <= ?2 and periodEnd > ?2", accountId, currentTime).list();
     }
 }

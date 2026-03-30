@@ -35,18 +35,18 @@ public final class TrafficPeriodUtils {
 
     private static PeriodBounds resolveMonthlyPeriod(LocalDateTime referenceTime, LocalDateTime resetTime) {
         LocalDateTime currentMonthReset = atResetTime(YearMonth.from(referenceTime), resetTime);
-        LocalDateTime periodEnd = referenceTime.isBefore(currentMonthReset)
-                ? currentMonthReset.minusNanos(1)
-                : atResetTime(YearMonth.from(referenceTime.plusMonths(1)), resetTime).minusNanos(1);
-        return new PeriodBounds(periodEnd.minusMonths(1).plusNanos(1), periodEnd);
+        if (referenceTime.isBefore(currentMonthReset)) {
+            return new PeriodBounds(atResetTime(YearMonth.from(referenceTime.minusMonths(1)), resetTime), currentMonthReset);
+        }
+        return new PeriodBounds(currentMonthReset, atResetTime(YearMonth.from(referenceTime.plusMonths(1)), resetTime));
     }
 
     private static PeriodBounds resolveYearlyPeriod(LocalDateTime referenceTime, LocalDateTime resetTime) {
         LocalDateTime currentYearReset = atResetTime(referenceTime.getYear(), resetTime);
-        LocalDateTime periodEnd = referenceTime.isBefore(currentYearReset)
-                ? currentYearReset.minusNanos(1)
-                : atResetTime(referenceTime.getYear() + 1, resetTime).minusNanos(1);
-        return new PeriodBounds(periodEnd.minusYears(1).plusNanos(1), periodEnd);
+        if (referenceTime.isBefore(currentYearReset)) {
+            return new PeriodBounds(atResetTime(referenceTime.getYear() - 1, resetTime), currentYearReset);
+        }
+        return new PeriodBounds(currentYearReset, atResetTime(referenceTime.getYear() + 1, resetTime));
     }
 
     private static LocalDateTime atResetTime(YearMonth yearMonth, LocalDateTime resetTime) {
