@@ -337,12 +337,14 @@ export class DataTable {
         })
           .then(response => {
             if (!response.ok) {
-              if (response.status === 400) {
-                return response.json().then(data => {
-                  throw new Error(data.message || 'Validation error');
-                });
-              }
-              throw new Error('响应失败');
+              return response.json().then(data => {
+                throw new Error(data.message || '创建失败');
+              }).catch(error => {
+                if (error instanceof SyntaxError) {
+                  throw new Error('创建失败');
+                }
+                throw error;
+              });
             }
             return response.json();
           })
