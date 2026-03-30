@@ -100,6 +100,7 @@ public class ServerMonitorStatsService {
         return dto;
     }
 
+    @Transactional
     public ServerMonitorChartDto getChartData(Server server, int hours) {
         int safeHours = Math.clamp(hours, 1, 24 * 7);
         LocalDateTime endTime = LocalDateTime.now();
@@ -124,6 +125,7 @@ public class ServerMonitorStatsService {
         return dto;
     }
 
+    @Transactional
     public boolean isCpuUsageHighForDuration(Long serverId, LocalDateTime referenceTime,
                                              double threshold, int durationMinutes) {
         return hasContinuousUsageThresholdExceeded(
@@ -135,6 +137,7 @@ public class ServerMonitorStatsService {
         );
     }
 
+    @Transactional
     public boolean isMemoryUsageHighForDuration(Long serverId, LocalDateTime referenceTime,
                                                 double threshold, int durationMinutes) {
         return hasContinuousUsageThresholdExceeded(
@@ -146,6 +149,7 @@ public class ServerMonitorStatsService {
         );
     }
 
+    @Transactional
     public long getCurrentPeriodTotalTrafficBytes(Server server, LocalDateTime sampleTime) {
         PeriodTraffic periodTraffic = calculatePeriodTraffic(server, sampleTime);
         return periodTraffic.rxBytes() + periodTraffic.txBytes();
