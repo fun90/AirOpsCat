@@ -5,15 +5,16 @@ import com.fun90.airopscat.config.AppConstants;
 import com.fun90.airopscat.model.dto.GitHubReleaseDto;
 import com.fun90.airopscat.util.VersionUtil;
 import io.quarkus.runtime.StartupEvent;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -31,9 +32,13 @@ public class UpdateNotificationService {
     @ConfigProperty(name = "quarkus.application.version", defaultValue = "dev")
     String appVersion;
 
+    @Inject
+    @Named("blockingTaskExecutor")
+    ExecutorService blockingTaskExecutor;
+
     void onStart(@Observes StartupEvent event) {
         // 异步执行版本检查，避免阻塞应用启动
-        CompletableFuture.runAsync(this::checkForUpdates, Infrastructure.getDefaultExecutor())
+        CompletableFuture.runAsync(this::checkForUpdates, blockingTaskExecutor)
                 .exceptionally(throwable -> {
                     log.warn("版本检查失败: {}", throwable.getMessage());
                     return null;

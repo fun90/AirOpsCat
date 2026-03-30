@@ -19,9 +19,9 @@ import com.fun90.airopscat.service.traffic.TrafficStatsCollector;
 import com.fun90.airopscat.service.traffic.UserTrafficStats;
 import com.fun90.airopscat.service.traffic.registry.TrafficStatsCollectorRegistry;
 import io.quarkus.scheduler.Scheduled;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -30,6 +30,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 /**
@@ -75,6 +76,10 @@ public class ScheduledTaskService {
 
     @Inject
     TrafficStatsCollectorRegistry trafficStatsCollectorRegistry;
+
+    @Inject
+    @Named("blockingTaskExecutor")
+    ExecutorService blockingTaskExecutor;
 
     @ConfigProperty(name = "airopscat.server.monitor.enabled", defaultValue = "true")
     boolean serverMonitorEnabled;
@@ -295,7 +300,7 @@ public class ScheduledTaskService {
             List<CompletableFuture<MonitorCollectResult>> futures = targetServers.stream()
                     .map(server -> CompletableFuture.supplyAsync(
                             () -> collectServerMonitorSnapshot(server),
-                            Infrastructure.getDefaultExecutor()))
+                            blockingTaskExecutor))
                     .toList();
 
             for (CompletableFuture<MonitorCollectResult> future : futures) {

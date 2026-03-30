@@ -22,11 +22,11 @@ import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.deployment.registry.CoreConfigBuilderRegistry;
 import com.fun90.airopscat.util.JsonUtil;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -39,12 +39,12 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Slf4j
 @ApplicationScoped
-@RequiredArgsConstructor
 public class NodeDeploymentService {
 
     private final NodeRepository nodeRepository;
@@ -56,6 +56,30 @@ public class NodeDeploymentService {
     private final DeploymentDataLoader dataLoader;
     private final CoreDeploymentExecutor deploymentExecutor;
     private final CoreConfigBuilderRegistry coreConfigBuilderRegistry;
+    private final ExecutorService blockingTaskExecutor;
+
+    @Inject
+    public NodeDeploymentService(NodeRepository nodeRepository,
+                                 ServerRepository serverRepository,
+                                 TagRepository tagRepository,
+                                 NodeService nodeService,
+                                 NodeGroupService nodeGroupService,
+                                 CoreManagementService coreManagementService,
+                                 DeploymentDataLoader dataLoader,
+                                 CoreDeploymentExecutor deploymentExecutor,
+                                 CoreConfigBuilderRegistry coreConfigBuilderRegistry,
+                                 @Named("blockingTaskExecutor") ExecutorService blockingTaskExecutor) {
+        this.nodeRepository = nodeRepository;
+        this.serverRepository = serverRepository;
+        this.tagRepository = tagRepository;
+        this.nodeService = nodeService;
+        this.nodeGroupService = nodeGroupService;
+        this.coreManagementService = coreManagementService;
+        this.dataLoader = dataLoader;
+        this.deploymentExecutor = deploymentExecutor;
+        this.coreConfigBuilderRegistry = coreConfigBuilderRegistry;
+        this.blockingTaskExecutor = blockingTaskExecutor;
+    }
 
     @Transactional
     public List<DeploymentResult> deployByAccountIds(List<Long> accountIdList) {
@@ -209,7 +233,7 @@ public class NodeDeploymentService {
                 .filter(ctx -> ctx.server().getDisabled() != 1)
                 .map(ctx -> CompletableFuture.supplyAsync(
                         withContextClassLoader(contextClassLoader, () -> deploymentExecutor.executeForServer(ctx)),
-                        Infrastructure.getDefaultExecutor()))
+                        blockingTaskExecutor))
                 .toList();
 
         List<DeploymentResult> results = new ArrayList<>();

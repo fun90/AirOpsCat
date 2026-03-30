@@ -2,8 +2,9 @@ package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.BackupFileDto;
 import io.quarkus.scheduler.Scheduled;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
@@ -23,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +57,10 @@ public class DatabaseBackupService {
 
     @ConfigProperty(name = "airopscat.backup.retention-days", defaultValue = "30")
     int retentionDays;
+
+    @Inject
+    @Named("blockingTaskExecutor")
+    ExecutorService blockingTaskExecutor;
 
     @Scheduled(cron = "{airopscat.backup.cron:0 0 6 * * ?}", timeZone = "Asia/Shanghai")
     public void scheduledBackup() {
@@ -413,7 +419,7 @@ public class DatabaseBackupService {
             } catch (IOException e) {
                 log.warn("Failed to read mysqldump error stream", e);
             }
-        }, Infrastructure.getDefaultExecutor());
+        }, blockingTaskExecutor);
     }
 
     private record DatabaseConnectionInfo(String host, int port, String database) {
