@@ -685,6 +685,11 @@ const serverTable = new DataTable({
         },
 
         openTrafficCalibrationModal(server) {
+            if (!server.trafficStatsId) {
+                ToastUtils.show('Warning', '当前没有可校准的流量统计记录', 'warning');
+                return;
+            }
+
             this.selectedItem = server;
             this.validationErrors = {};
 
@@ -813,7 +818,7 @@ const serverTable = new DataTable({
                 return;
             }
 
-            fetch(`/api/admin/servers/${this.selectedItem.id}/traffic-calibration`, {
+            fetch(`/api/admin/servers/${this.selectedItem.trafficStatsId}/traffic-calibration`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

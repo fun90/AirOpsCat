@@ -187,11 +187,6 @@ public class ServerController {
     @PUT
     @Path("/{id}/traffic-calibration")
     public Response calibrateTraffic(@PathParam("id") Long id, ServerTrafficCalibrationDto calibrationDto) {
-        Server existingServer = serverService.getServerById(id);
-        if (existingServer == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-
         if (calibrationDto == null) {
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(Map.of("message", "请求数据不能为空"))
@@ -218,6 +213,13 @@ public class ServerController {
                     .build();
         }
 
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        if (now.isBefore(calibrationDto.getPeriodStartDate()) || now.isAfter(calibrationDto.getPeriodEndDate())) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", "当前时间必须在流量统计周期内"))
+                    .build();
+        }
+
         long uploadBytes = calibrationDto.getUploadGb()
                 .multiply(BigDecimal.valueOf(1024L * 1024L * 1024L))
                 .longValue();
@@ -232,8 +234,19 @@ public class ServerController {
                 uploadBytes,
                 downloadBytes
         );
+        if (stats == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(Map.of("message", "当前流量统计记录不存在"))
+                    .build();
+        }
+
+        Server existingServer = serverService.getServerById(stats.getServerId());
+        if (existingServer == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
 
         ServerDto dto = serverService.convertToDto(existingServer);
+        dto.setTrafficStatsId(stats.getId());
         dto.setTrafficUploadBytes(stats.getUploadBytes());
         dto.setTrafficDownloadBytes(stats.getDownloadBytes());
         dto.setTrafficTotalBytes(stats.getUploadBytes() + stats.getDownloadBytes());

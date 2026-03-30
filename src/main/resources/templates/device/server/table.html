@@ -52,8 +52,9 @@
         </td>
         <td>
             <div v-if="server.trafficTotalBytes != null"
-                 :title="'周期: ' + formatDateTime(server.trafficPeriodStart) + ' - ' + formatDateTime(server.trafficPeriodEnd) + '\n上行: ' + formatBytes(server.trafficUploadBytes) + '\n下行: ' + formatBytes(server.trafficDownloadBytes)"
+                 :data-bs-title="'周期: ' + formatMonthDay(server.trafficPeriodStart) + ' - ' + formatMonthDay(server.trafficPeriodEnd) + '<br>上行: ' + formatBytes(server.trafficUploadBytes) + '<br>下行: ' + formatBytes(server.trafficDownloadBytes)"
                  data-bs-toggle="tooltip"
+                 data-bs-html="true"
                  data-bs-placement="top"
                  style="cursor: pointer;">
                 {{ formatBytes(server.trafficTotalBytes) }}

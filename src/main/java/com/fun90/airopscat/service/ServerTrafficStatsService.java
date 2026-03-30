@@ -8,7 +8,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -60,6 +59,7 @@ public class ServerTrafficStatsService {
             if (stats == null) {
                 continue;
             }
+            dto.setTrafficStatsId(stats.getId());
             dto.setTrafficUploadBytes(stats.getUploadBytes());
             dto.setTrafficDownloadBytes(stats.getDownloadBytes());
             dto.setTrafficTotalBytes(stats.getUploadBytes() + stats.getDownloadBytes());
@@ -69,27 +69,16 @@ public class ServerTrafficStatsService {
     }
 
     @Transactional
-    public ServerTrafficStats calibrateTrafficStats(Long serverId, LocalDateTime periodStartDate, LocalDateTime periodEndDate,
+    public ServerTrafficStats calibrateTrafficStats(Long trafficStatsId, LocalDateTime periodStartDate, LocalDateTime periodEndDate,
                                                     long uploadBytes, long downloadBytes) {
-        LocalDateTime now = LocalDateTime.now();
-        List<ServerTrafficStats> existingStats = serverTrafficStatsRepository.findByServerIdAndCurrentTime(serverId, now);
-
-        ServerTrafficStats stats;
-        if (!existingStats.isEmpty()) {
-            stats = existingStats.getFirst();
-            stats.setPeriodStart(periodStartDate);
-            stats.setPeriodEnd(periodEndDate);
-            stats.setUploadBytes(uploadBytes);
-            stats.setDownloadBytes(downloadBytes);
-            return stats;
+        ServerTrafficStats stats = serverTrafficStatsRepository.findById(trafficStatsId);
+        if (stats == null) {
+            return null;
         }
-        stats = new ServerTrafficStats();
-        stats.setServerId(serverId);
         stats.setPeriodStart(periodStartDate);
         stats.setPeriodEnd(periodEndDate);
         stats.setUploadBytes(uploadBytes);
         stats.setDownloadBytes(downloadBytes);
-        serverTrafficStatsRepository.persist(stats);
         return stats;
     }
 
