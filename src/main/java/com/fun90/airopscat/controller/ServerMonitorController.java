@@ -26,8 +26,8 @@ public class ServerMonitorController {
     @Inject
     ServerMonitorStatsService serverMonitorStatsService;
 
-    @ConfigProperty(name = "airopscat.server.monitor.refresh-seconds", defaultValue = "300")
-    long monitorRefreshSeconds;
+    @ConfigProperty(name = "airopscat.server.monitor.refresh-minutes", defaultValue = "1")
+    long monitorRefreshMinutes;
 
     @GET
     @Path("/{serverId}/summary")
@@ -38,7 +38,7 @@ public class ServerMonitorController {
             return guardResponse;
         }
         var summary = serverMonitorStatsService.getLatestSummary(server);
-        summary.setMonitorIntervalSeconds(Math.max(1L, monitorRefreshSeconds));
+        summary.setMonitorIntervalSeconds(Math.max(1L, monitorRefreshMinutes) * 60L);
         return Response.ok(summary).build();
     }
 
@@ -96,7 +96,7 @@ public class ServerMonitorController {
         }
 
         var summary = serverMonitorStatsService.calibrateCurrentPeriod(server, calibrationDto);
-        summary.setMonitorIntervalSeconds(Math.max(1L, monitorRefreshSeconds));
+        summary.setMonitorIntervalSeconds(Math.max(1L, monitorRefreshMinutes) * 60L);
         return Response.ok(summary).build();
     }
 
