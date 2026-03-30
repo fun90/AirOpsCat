@@ -12,37 +12,41 @@ public final class TrafficPeriodUtils {
     }
 
     public static LocalDateTime resolveServerPeriodStart(LocalDateTime referenceTime, LocalDateTime resetTime) {
-        return resolveMonthlyPeriodStart(referenceTime, resetTime);
+        return resolveMonthlyPeriod(referenceTime, resetTime).start();
+    }
+
+    public static LocalDateTime resolveServerPeriodEnd(LocalDateTime referenceTime, LocalDateTime resetTime) {
+        return resolveMonthlyPeriod(referenceTime, resetTime).end();
     }
 
     public static LocalDateTime resolveAccountPeriodStart(LocalDateTime referenceTime, LocalDateTime resetTime, String periodType) {
         if (PeriodType.YEARLY.name().equalsIgnoreCase(periodType)) {
-            return resolveYearlyPeriodStart(referenceTime, resetTime);
+            return resolveYearlyPeriod(referenceTime, resetTime).start();
         }
-        return resolveMonthlyPeriodStart(referenceTime, resetTime);
+        return resolveMonthlyPeriod(referenceTime, resetTime).start();
     }
 
-    public static LocalDateTime resolvePeriodEnd(LocalDateTime periodStart, String periodType) {
+    public static LocalDateTime resolveAccountPeriodEnd(LocalDateTime referenceTime, LocalDateTime resetTime, String periodType) {
         if (PeriodType.YEARLY.name().equalsIgnoreCase(periodType)) {
-            return periodStart.plusYears(1).minusNanos(1);
+            return resolveYearlyPeriod(referenceTime, resetTime).end();
         }
-        return periodStart.plusMonths(1).minusNanos(1);
+        return resolveMonthlyPeriod(referenceTime, resetTime).end();
     }
 
-    private static LocalDateTime resolveMonthlyPeriodStart(LocalDateTime referenceTime, LocalDateTime resetTime) {
+    private static PeriodBounds resolveMonthlyPeriod(LocalDateTime referenceTime, LocalDateTime resetTime) {
         LocalDateTime currentMonthReset = atResetTime(YearMonth.from(referenceTime), resetTime);
-        if (!referenceTime.isBefore(currentMonthReset)) {
-            return currentMonthReset;
-        }
-        return atResetTime(YearMonth.from(referenceTime.minusMonths(1)), resetTime);
+        LocalDateTime periodEnd = referenceTime.isBefore(currentMonthReset)
+                ? currentMonthReset.minusNanos(1)
+                : atResetTime(YearMonth.from(referenceTime.plusMonths(1)), resetTime).minusNanos(1);
+        return new PeriodBounds(periodEnd.minusMonths(1).plusNanos(1), periodEnd);
     }
 
-    private static LocalDateTime resolveYearlyPeriodStart(LocalDateTime referenceTime, LocalDateTime resetTime) {
+    private static PeriodBounds resolveYearlyPeriod(LocalDateTime referenceTime, LocalDateTime resetTime) {
         LocalDateTime currentYearReset = atResetTime(referenceTime.getYear(), resetTime);
-        if (!referenceTime.isBefore(currentYearReset)) {
-            return currentYearReset;
-        }
-        return atResetTime(referenceTime.getYear() - 1, resetTime);
+        LocalDateTime periodEnd = referenceTime.isBefore(currentYearReset)
+                ? currentYearReset.minusNanos(1)
+                : atResetTime(referenceTime.getYear() + 1, resetTime).minusNanos(1);
+        return new PeriodBounds(periodEnd.minusYears(1).plusNanos(1), periodEnd);
     }
 
     private static LocalDateTime atResetTime(YearMonth yearMonth, LocalDateTime resetTime) {
@@ -59,5 +63,8 @@ public final class TrafficPeriodUtils {
 
     private static LocalTime resolveResetTimeOfDay(LocalDateTime resetTime) {
         return resetTime != null ? resetTime.toLocalTime() : LocalTime.MIDNIGHT;
+    }
+
+    private record PeriodBounds(LocalDateTime start, LocalDateTime end) {
     }
 }

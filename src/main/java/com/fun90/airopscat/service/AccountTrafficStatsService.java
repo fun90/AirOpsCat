@@ -226,7 +226,7 @@ public class AccountTrafficStatsService {
         newStats.setAccountId(accountId);
         LocalDateTime periodStart = TrafficPeriodUtils.resolveAccountPeriodStart(currentTime, toDate, periodType);
         newStats.setPeriodStart(periodStart);
-        newStats.setPeriodEnd(TrafficPeriodUtils.resolvePeriodEnd(periodStart, periodType));
+        newStats.setPeriodEnd(TrafficPeriodUtils.resolveAccountPeriodEnd(currentTime, toDate, periodType));
         newStats.setUploadBytes(uploadBytes);
         newStats.setDownloadBytes(downloadBytes);
         accountTrafficStatsRepository.persist(newStats);

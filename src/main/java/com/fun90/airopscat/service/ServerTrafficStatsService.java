@@ -36,7 +36,7 @@ public class ServerTrafficStatsService {
         newStats.setServerId(serverId);
         LocalDateTime periodStart = TrafficPeriodUtils.resolveServerPeriodStart(now, bandwidthDate);
         newStats.setPeriodStart(periodStart);
-        newStats.setPeriodEnd(TrafficPeriodUtils.resolvePeriodEnd(periodStart, null));
+        newStats.setPeriodEnd(TrafficPeriodUtils.resolveServerPeriodEnd(now, bandwidthDate));
         newStats.setUploadBytes(uploadBytes);
         newStats.setDownloadBytes(downloadBytes);
         serverTrafficStatsRepository.persist(newStats);

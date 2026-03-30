@@ -241,7 +241,7 @@ public class ServerMonitorStatsService {
     }
 
     private LocalDateTime resolveBandwidthPeriodEnd(Server server, LocalDateTime referenceTime) {
-        return TrafficPeriodUtils.resolvePeriodEnd(resolveBandwidthPeriodStart(server, referenceTime), null);
+        return TrafficPeriodUtils.resolveServerPeriodEnd(referenceTime, server.getBandwidthDate());
     }
 
     private Integer resolveCpuCores(Server server) {
