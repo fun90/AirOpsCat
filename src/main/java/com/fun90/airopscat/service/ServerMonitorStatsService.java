@@ -50,9 +50,6 @@ public class ServerMonitorStatsService {
     @ConfigProperty(name = "airopscat.server.monitor.refresh-minutes", defaultValue = "1")
     int monitorRefreshMinutes;
 
-    @ConfigProperty(name = "airopscat.server.monitor.alert.max-missing-samples", defaultValue = "5")
-    int maxMissingSamples;
-
     @Transactional
     public ServerMonitorSummaryDto collectAndSave(Server server) {
         LocalDateTime now = LocalDateTime.now();
@@ -348,10 +345,8 @@ public class ServerMonitorStatsService {
         long durationSeconds = durationMinutes * 60L;
         int requiredSampleCount = (int) Math.ceil(durationSeconds / (double) monitorRefreshSeconds) + 1;
         LocalDateTime windowStart = referenceTime.minusSeconds(durationSeconds);
-        int toleratedMissingSamples = Math.max(maxMissingSamples, 0);
-        List<ServerMonitorStats> latestStats = serverMonitorStatsRepository.findLatestListByServerId(
-                serverId, requiredSampleCount + toleratedMissingSamples + 1);
-        if (latestStats.isEmpty()) {
+        List<ServerMonitorStats> latestStats = serverMonitorStatsRepository.findLatestListByServerId(serverId, requiredSampleCount);
+        if (latestStats.size() < requiredSampleCount) {
             return false;
         }
 
