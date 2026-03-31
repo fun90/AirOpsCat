@@ -1,0 +1,102 @@
+<table class="table table-selectable card-table table-vcenter">
+    <thead>
+    <tr>
+        <th class="w-1">
+            <input class="form-check-input" type="checkbox" :checked="isAllDnsRecordsSelected()" @change="toggleSelectAllDnsRecords($event.target.checked)">
+        </th>
+        <th>
+            <button type="button" class="btn btn-link p-0 text-decoration-none" @click="toggleDnsRecordSort('type')">
+                记录
+                <i :class="getDnsRecordSortIcon('type')" :style="{ opacity: sortBy === 'type' ? 1 : 0.45 }"></i>
+            </button>
+        </th>
+        <th>
+            <button type="button" class="btn btn-link p-0 text-decoration-none" @click="toggleDnsRecordSort('content')">
+                内容
+                <i :class="getDnsRecordSortIcon('content')" :style="{ opacity: sortBy === 'content' ? 1 : 0.45 }"></i>
+            </button>
+        </th>
+        <th class="d-none d-lg-table-cell">配置</th>
+        <th>状态</th>
+        <th class="w-1">操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="record in records" :key="record.id">
+        <td>
+            <input class="form-check-input" type="checkbox" :checked="isDnsRecordSelected(record.id)" @change="toggleDnsRecordSelection(record.id, $event.target.checked)">
+        </td>
+        <td>
+            <div class="d-flex flex-column gap-1">
+                <div class="d-flex align-items-center gap-2 min-w-0">
+                    <span class="badge bg-blue-lt flex-shrink-0">{{ record.type }}</span>
+                    <div class="fw-medium text-truncate flex-grow-1" :title="record.name">{{ record.name }}</div>
+                </div>
+                <div class="text-secondary small d-flex align-items-center flex-wrap gap-2">
+                    <span>#{{ record.id }}</span>
+                    <span>{{ record.fullName || '-' }}</span>
+                </div>
+                <div v-if="record.remark" class="text-secondary small text-break">
+                    {{ record.remark }}
+                </div>
+            </div>
+        </td>
+        <td>
+            <div class="d-flex flex-column">
+                <span class="fw-medium text-break">{{ record.content }}</span>
+                <span class="text-secondary small d-lg-none">
+                    TTL {{ record.ttl || '-' }}
+                    <span v-if="record.priority !== null && record.priority !== undefined"> · 优先级 {{ record.priority }}</span>
+                    <span> · {{ record.proxied ? '代理开启' : '仅 DNS' }}</span>
+                </span>
+            </div>
+        </td>
+        <td class="d-none d-lg-table-cell">
+            <div class="d-flex flex-column">
+                <span>TTL {{ record.ttl || '-' }}</span>
+                <span class="text-secondary small">
+                    优先级 {{ record.priority !== null && record.priority !== undefined ? record.priority : '-' }}
+                </span>
+                <span class="text-secondary small">{{ record.proxied ? '代理开启' : '仅 DNS' }}</span>
+            </div>
+        </td>
+        <td>
+            <div class="d-flex flex-column gap-2">
+                <div class="badges-list">
+                    <span class="badge" :class="getDnsRecordStatusBadgeClass(record)">
+                        {{ getDnsRecordStatusDescription(record) }}
+                    </span>
+                    <span class="badge" :class="record.proxied ? 'bg-azure-lt text-azure' : 'bg-secondary-lt text-secondary'">
+                        {{ record.proxied ? '代理' : 'DNS Only' }}
+                    </span>
+                </div>
+                <div class="text-secondary small">
+                    最近同步 {{ formatDnsDateTime(record.lastSyncTime) || '-' }}
+                </div>
+            </div>
+        </td>
+        <td>
+            <div class="btn-list flex-nowrap justify-content-end">
+                <button class="btn btn-sm btn-outline-primary" type="button" @click="openDnsRecordEditModal(record)">
+                    <i class="ti ti-edit"></i> 编辑
+                </button>
+                <button class="btn btn-sm btn-outline-danger" type="button" @click="deleteDnsRecord(record)">
+                    <i class="ti ti-trash"></i> 删除
+                </button>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="6" class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="6" class="text-center py-5">
+            <div class="text-secondary">暂无本地 DNS 记录。</div>
+        </td>
+    </tr>
+    </tbody>
+</table>

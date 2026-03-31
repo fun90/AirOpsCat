@@ -1,0 +1,14 @@
+<div class="col-auto">
+    <select class="form-select" v-model="filters.providerType" @change="fetchRecords">
+        <option value="">全部服务商</option>
+        <option value="CLOUDFLARE">Cloudflare</option>
+    </select>
+</div>
+
+<div class="col-auto">
+    <select class="form-select" v-model="filters.status" @change="fetchRecords">
+        <option value="">全部状态</option>
+        <option value="ENABLED">启用</option>
+        <option value="DISABLED">禁用</option>
+    </select>
+</div>

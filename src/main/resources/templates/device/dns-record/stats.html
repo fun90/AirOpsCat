@@ -1,0 +1,28 @@
+<div class="card-body border-bottom">
+    <div class="row g-2">
+        <div class="col-3">
+            <div class="text-center">
+                <div class="text-primary fw-bold h4 mb-0">{{ dnsRecordStats.total || 0 }}</div>
+                <div class="text-muted small">总记录</div>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="text-center">
+                <div class="text-success fw-bold h4 mb-0">{{ dnsRecordStats.synced || 0 }}</div>
+                <div class="text-muted small">已同步</div>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="text-center">
+                <div class="text-warning fw-bold h4 mb-0">{{ dnsRecordStats.pending || 0 }}</div>
+                <div class="text-muted small">待变更</div>
+            </div>
+        </div>
+        <div class="col-3">
+            <div class="text-center">
+                <div class="text-info fw-bold h4 mb-0">{{ dnsRecordStats.proxied || 0 }}</div>
+                <div class="text-muted small">代理开启</div>
+            </div>
+        </div>
+    </div>
+</div>

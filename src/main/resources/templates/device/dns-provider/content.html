@@ -1,0 +1,28 @@
+<div class="page-body">
+    <div class="container-xl">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-actions">
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="text" class="form-control" placeholder="搜索名称或备注..." v-model="searchQuery" @input="searchDebounced">
+                            </div>
+                            {#include device/dns-provider/filters /}
+                        </div>
+                    </div>
+                </div>
+
+                {#include device/dns-provider/stats /}
+
+                <div class="table-responsive">
+                    {#include device/dns-provider/table /}
+                </div>
+
+                {#include pagination-controls /}
+            </div>
+        </div>
+
+        {#include device/dns-provider/modals /}
+    </div>
+</div>

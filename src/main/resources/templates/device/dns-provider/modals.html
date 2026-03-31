@@ -1,0 +1,152 @@
+<div class="modal modal-blur fade" id="dns-provider-createModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">添加 DNS 服务商</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label required">显示名称</label>
+                    <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.displayName }" v-model="newItem.displayName" placeholder="例如：Cloudflare 主账号">
+                    <div class="invalid-feedback" v-if="validationErrors.displayName">{{ validationErrors.displayName }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">服务商类型</label>
+                    <select class="form-select" v-model="newItem.providerType">
+                        <option value="CLOUDFLARE">Cloudflare</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">API Token</label>
+                    <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.apiToken }" v-model="newItem.apiToken" placeholder="请输入 Cloudflare API Token">
+                    <div class="invalid-feedback" v-if="validationErrors.apiToken">{{ validationErrors.apiToken }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Account ID</label>
+                    <input type="text" class="form-control" v-model="newItem.accountId" placeholder="可选，用于备注账号归属">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" v-model="newItem.remark" rows="3" placeholder="可选"></textarea>
+                </div>
+                <div class="mb-0">
+                    <label class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" v-model="newItem.enabled">
+                        <span class="form-check-label">创建后立即启用</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" @click="createItem">创建</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal modal-blur fade" id="dns-provider-editModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑 DNS 服务商</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label required">显示名称</label>
+                    <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.displayName }" v-model="editedItem.displayName" placeholder="例如：Cloudflare 主账号">
+                    <div class="invalid-feedback" v-if="validationErrors.displayName">{{ validationErrors.displayName }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">服务商类型</label>
+                    <select class="form-select" v-model="editedItem.providerType">
+                        <option value="CLOUDFLARE">Cloudflare</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">API Token</label>
+                    <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.apiToken }" v-model="editedItem.apiToken" placeholder="留空表示保留当前 Token">
+                    <div class="invalid-feedback" v-if="validationErrors.apiToken">{{ validationErrors.apiToken }}</div>
+                    <div class="form-hint">当前：{{ editedItem.apiTokenMasked || '未配置' }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Account ID</label>
+                    <input type="text" class="form-control" v-model="editedItem.accountId" placeholder="可选，用于备注账号归属">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" v-model="editedItem.remark" rows="3" placeholder="可选"></textarea>
+                </div>
+                <div class="mb-0">
+                    <label class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" :checked="editedItem.status === 'ENABLED'" @change="editedItem.status = $event.target.checked ? 'ENABLED' : 'DISABLED'">
+                        <span class="form-check-label">启用该服务商</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" @click="updateItem">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal modal-blur fade" id="dns-provider-boundDomainsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">绑定域名</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div v-if="selectedItem" class="mb-3">
+                    <div class="fw-medium">{{ selectedItem.displayName }}</div>
+                    <div class="text-secondary small">{{ selectedItem.providerType }}</div>
+                </div>
+                <div class="table-responsive" v-if="boundDomains.length > 0">
+                    <table class="table table-sm">
+                        <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>域名</th>
+                            <th>到期时间</th>
+                            <th>备注</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="domain in boundDomains" :key="domain.id">
+                            <td v-text="domain.id"></td>
+                            <td v-text="domain.domain"></td>
+                            <td v-text="formatDateTime(domain.expireDate) || '-'"></td>
+                            <td v-text="domain.remark || '-'"></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div v-else class="text-center py-4 text-muted">
+                    暂无绑定域名
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal modal-blur fade" id="dns-provider-deleteModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="modal-title">确定删除吗?</div>
+                <div>若服务商仍绑定域名，删除会被拒绝。</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" @click="deleteItem">确认</button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -126,3 +126,43 @@
         </div>
     </div>
 </div>
+
+<div class="modal modal-blur fade" id="dnsBindingModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">绑定 DNS 服务商</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">当前域名</label>
+                    <input type="text" class="form-control" :value="selectedItem ? selectedItem.domain : ''" disabled>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">DNS服务商</label>
+                    <select class="form-select" :class="{ 'is-invalid': validationErrors.dnsProviderConfigId }" v-model="dnsBindingData.dnsProviderConfigId">
+                        <option value="">请选择 DNS 服务商</option>
+                        <option v-for="provider in dnsProviders" :key="provider.id" :value="String(provider.id)">
+                            {{ provider.displayName }} ({{ provider.providerType }})
+                        </option>
+                    </select>
+                    <div class="invalid-feedback" v-if="validationErrors.dnsProviderConfigId">{{ validationErrors.dnsProviderConfigId }}</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">Zone ID</label>
+                    <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.zoneId }" v-model="dnsBindingData.zoneId" placeholder="请输入 Cloudflare Zone ID">
+                    <div class="invalid-feedback" v-if="validationErrors.zoneId">{{ validationErrors.zoneId }}</div>
+                    <div class="form-hint">Cloudflare 首期按域名单独保存 Zone ID。</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button v-if="selectedItem && selectedItem.dnsProviderConfigId" type="button" class="btn btn-outline-danger me-auto" @click="unbindDnsProvider">
+                    解除绑定
+                </button>
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" @click="saveDnsBinding">保存</button>
+            </div>
+        </div>
+    </div>
+</div>

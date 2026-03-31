@@ -1,5 +1,9 @@
 package com.fun90.airopscat.model.entity;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fun90.airopscat.model.enums.DnsProviderType;
+import com.fun90.airopscat.model.enums.DnsSyncStatus;
+import com.fun90.airopscat.util.RawJsonDeserializer;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.DynamicUpdate;
@@ -25,6 +29,24 @@ public class Domain {
     private BigDecimal price;
     
     private String supplier;
+
+    @Column(name = "dns_provider_config_id")
+    private Long dnsProviderConfigId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "dns_provider_type")
+    private DnsProviderType dnsProviderType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "dns_sync_status")
+    private DnsSyncStatus dnsSyncStatus;
+
+    @Column(name = "dns_last_sync_time")
+    private LocalDateTime dnsLastSyncTime;
+
+    @JsonDeserialize(using = RawJsonDeserializer.class)
+    @Column(name = "dns_binding_extension_json", columnDefinition = "json")
+    private String dnsBindingExtensionJson;
     
     private String remark;
     

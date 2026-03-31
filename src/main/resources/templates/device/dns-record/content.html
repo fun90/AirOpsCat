@@ -1,0 +1,108 @@
+<div class="page-body">
+    <div class="container-xl">
+        <style>
+            .dns-record-hover-dropdown:hover .dropdown-menu {
+                display: block;
+                margin-top: 0;
+            }
+        </style>
+        <div class="col-12" v-if="domainIdError">
+            <div class="card">
+                <div class="card-body">
+                    <div class="alert alert-danger mb-0">
+                        未检测到有效的域名 ID，请从域名列表进入 DNS 记录页面。
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12" v-else>
+            <div class="card">
+                <div class="card-table">
+                    <div class="card-header">
+                        <div class="row g-3 w-100 align-items-center">
+                            <div class="col-12 col-lg">
+                                <h3 class="card-title mb-1">DNS 记录工作区</h3>
+                                <div class="text-secondary small">
+                                    <span v-if="domain">{{ domain.domain }}</span>
+                                    <span v-if="domain && domain.dnsProviderName"> · {{ domain.dnsProviderName }}</span>
+                                    <span v-if="domain && domain.dnsZoneId"> · {{ domain.dnsZoneId }}</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-auto">
+                                <div class="row g-2 align-items-center justify-content-lg-end">
+                                    <div class="col-12 col-lg-auto">
+                                        <div class="d-flex gap-2">
+                                            <div class="input-group input-group-flat">
+                                                <span class="input-group-text">
+                                                    <i class="ti ti-search"></i>
+                                                </span>
+                                                <input type="text" class="form-control" placeholder="搜索名称、内容、类型..." v-model="searchQuery" @input="searchDebounced">
+                                            </div>
+                                            {#include device/dns-record/filter-fields /}
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <div class="btn-list flex-nowrap">
+                                            <div class="dropdown position-static dns-record-hover-dropdown">
+                                                <button class="btn dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                                                    <i class="ti ti-stack-2"></i>
+                                                    批量操作
+                                                </button>
+                                                <div class="dropdown-menu dropdown-menu-end">
+                                                    <a class="dropdown-item" href="#" @click.prevent="openDnsRecordBatchCreateModal">
+                                                        <i class="ti ti-plus"></i> 批量添加
+                                                    </a>
+                                                    <a class="dropdown-item" href="#" :class="{ disabled: !selectedRecordIds.length }" @click.prevent="openDnsRecordBatchUpdateModal">
+                                                        <i class="ti ti-edit-circle"></i> 批量修改
+                                                    </a>
+                                                    <a class="dropdown-item text-danger" href="#" :class="{ disabled: !selectedRecordIds.length }" @click.prevent="batchDeleteDnsRecords">
+                                                        <i class="ti ti-trash"></i> 批量删除
+                                                    </a>
+                                                </div>
+                                            </div>
+                                            <button v-if="dnsPushing" class="btn btn-muted" type="button" disabled>
+                                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                                推送中
+                                            </button>
+                                            <button v-else class="btn" type="button" @click="pushDnsRecords">
+                                                <i class="ti ti-upload"></i>
+                                                推送
+                                            </button>
+                                            <a v-if="domain" :href="'/console/device/domain?domainId=' + domain.id" class="btn">
+                                                <i class="ti ti-arrow-left"></i>
+                                                返回
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                {#include fragments/common/filter-active-tags
+                                    hasActiveFiltersExpr='hasActiveFilters()'
+                                    activeTagsExpr='getActiveFilterTags()'
+                                    wrapperClass='mt-0'
+                                    containerClass='d-flex flex-wrap gap-2'
+                                    tagClass='badge bg-azure-lt text-azure border-0 d-inline-flex align-items-center gap-1'
+                                    clearClass='badge bg-secondary-lt text-secondary border-0'
+                                    clearMethod='clearFilterTag'
+                                    resetMethod='resetFilters'
+                                    clearLabel='清空筛选' /}
+                            </div>
+                        </div>
+                    </div>
+
+                    {#include device/dns-record/stats /}
+
+                    <div class="table-responsive">
+                        {#include device/dns-record/table /}
+                    </div>
+
+                    {#include pagination-controls /}
+                </div>
+            </div>
+        </div>
+
+        {#include device/dns-record/modals /}
+    </div>
+</div>

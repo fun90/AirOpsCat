@@ -14,6 +14,14 @@ const domainTable = new DataTable({
             expiryFrom: '',
             expiryTo: ''
         },
+        dnsProviders: [],
+        dnsBindingData: {
+            dnsProviderConfigId: '',
+            zoneId: ''
+        },
+        pullingDomainIds: [],
+        pushingDomainIds: [],
+        dnsBindingModal: null,
         paymentMethods: [],
         renewData: {
             expiryDate: '',
@@ -28,17 +36,13 @@ const domainTable = new DataTable({
         }
     },
     methods: {
-        // Initialize with default expiry date for new domains
         initialize() {
             this.fetchPaymentMethods();
+            this.fetchDnsProviders();
 
-            // Get one year from now for default expiration date
             const today = new Date();
-            today.setFullYear(today.getFullYear() + 1); // Add one year
-            const oneYearFromNow = today.toISOString().split('T')[0];
-
-            // Set default expiry date
-            this.newItem.expireDate = oneYearFromNow;
+            today.setFullYear(today.getFullYear() + 1);
+            this.newItem.expireDate = today.toISOString().split('T')[0];
         },
 
         fetchPaymentMethods() {
@@ -52,43 +56,78 @@ const domainTable = new DataTable({
                 });
         },
 
-        // Domain status methods
+        fetchDnsProviders() {
+            fetch('/api/admin/dns-provider-configs/enabled')
+                .then(response => response.json())
+                .then(data => {
+                    this.dnsProviders = data || [];
+                })
+                .catch(error => {
+                    console.error('Error fetching dns providers:', error);
+                    this.dnsProviders = [];
+                });
+        },
+
         getDomainStatus(daysUntilExpiration) {
             if (daysUntilExpiration === undefined || daysUntilExpiration === null) {
-                return "未设置到期日";
+                return '未设置到期日';
             }
-
             if (daysUntilExpiration < 0) {
-                return "已过期 " + Math.abs(daysUntilExpiration) + " 天";
-            } else if (daysUntilExpiration === 0) {
-                return "今天到期";
-            } else if (daysUntilExpiration <= 30) {
-                return "即将到期 " + daysUntilExpiration + " 天";
-            } else {
-                return "正常 (还有 " + daysUntilExpiration + " 天)";
+                return `已过期 ${Math.abs(daysUntilExpiration)} 天`;
             }
+            if (daysUntilExpiration === 0) {
+                return '今天到期';
+            }
+            if (daysUntilExpiration <= 30) {
+                return `即将到期 ${daysUntilExpiration} 天`;
+            }
+            return `正常 (还有 ${daysUntilExpiration} 天)`;
         },
 
         getStatusBadgeClass(daysUntilExpiration) {
             if (daysUntilExpiration === undefined || daysUntilExpiration === null) {
-                return "bg-secondary-lt";
+                return 'bg-secondary-lt';
             }
-
             if (daysUntilExpiration < 0) {
-                return "bg-danger-lt";
-            } else if (daysUntilExpiration <= 30) {
-                return "bg-warning-lt";
-            } else {
-                return "bg-success-lt";
+                return 'bg-danger-lt';
             }
+            if (daysUntilExpiration <= 30) {
+                return 'bg-warning-lt';
+            }
+            return 'bg-success-lt';
         },
 
-        // Form validation and preparation
+        getDnsSyncDescription(domain) {
+            if (!domain.dnsProviderConfigId) return '未绑定';
+            if (domain.dnsSyncStatus === 'SYNCED') return '已同步';
+            if (domain.dnsSyncStatus === 'NOT_SYNCED') return '未同步';
+            if (domain.dnsSyncStatus === 'PULLING') return '拉取中';
+            if (domain.dnsSyncStatus === 'PUSHING') return '推送中';
+            if (domain.dnsSyncStatus === 'SYNC_FAILED') return '同步失败';
+            return '未初始化';
+        },
+
+        getDnsSyncBadgeClass(domain) {
+            if (!domain.dnsProviderConfigId) return 'bg-secondary-lt';
+            if (domain.dnsSyncStatus === 'SYNCED') return 'bg-success-lt';
+            if (domain.dnsSyncStatus === 'NOT_SYNCED') return 'bg-warning-lt';
+            if (domain.dnsSyncStatus === 'PULLING' || domain.dnsSyncStatus === 'PUSHING') return 'bg-info-lt';
+            if (domain.dnsSyncStatus === 'SYNC_FAILED') return 'bg-danger-lt';
+            return 'bg-secondary-lt';
+        },
+
+        isDnsPulling(domainId) {
+            return this.pullingDomainIds.includes(domainId);
+        },
+
+        isDnsPushing(domainId) {
+            return this.pushingDomainIds.includes(domainId);
+        },
+
         validateCreateForm() {
             let isValid = true;
             this.validationErrors = {};
 
-            // Domain validation
             if (!this.newItem.domain || !this.newItem.domain.trim()) {
                 this.validationErrors.domain = '域名不能为空';
                 isValid = false;
@@ -96,7 +135,6 @@ const domainTable = new DataTable({
                 this.validationErrors.domain = '请输入有效的域名';
                 isValid = false;
             }
-
             return isValid;
         },
 
@@ -104,7 +142,6 @@ const domainTable = new DataTable({
             let isValid = true;
             this.validationErrors = {};
 
-            // Domain validation
             if (!this.editedItem.domain || !this.editedItem.domain.trim()) {
                 this.validationErrors.domain = '域名不能为空';
                 isValid = false;
@@ -112,7 +149,6 @@ const domainTable = new DataTable({
                 this.validationErrors.domain = '请输入有效的域名';
                 isValid = false;
             }
-
             return isValid;
         },
 
@@ -135,25 +171,21 @@ const domainTable = new DataTable({
         },
 
         resetCreateForm() {
-            // Get one year from now for default expiration date
             const today = new Date();
-            today.setFullYear(today.getFullYear() + 1); // Add one year
-            const oneYearFromNow = today.toISOString().split('T')[0];
-
+            today.setFullYear(today.getFullYear() + 1);
             this.newItem = {
                 domain: '',
-                expireDate: oneYearFromNow,
+                expireDate: today.toISOString().split('T')[0],
                 price: '',
                 remark: ''
             };
         },
 
         prepareEditForm(domain) {
-            // Format date for date input
             const formatDateForInput = (dateString) => {
                 if (!dateString) return '';
                 const date = new Date(dateString);
-                return date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+                return date.toISOString().split('T')[0];
             };
 
             return {
@@ -165,7 +197,165 @@ const domainTable = new DataTable({
             };
         },
 
-        // Renew domain methods
+        navigateToDnsRecords(domain) {
+            window.location.href = `/console/device/dns-record?domainId=${domain.id}`;
+        },
+
+        openDnsBindingModal(domain) {
+            this.selectedItem = domain;
+            this.validationErrors = {};
+            this.dnsBindingData = {
+                dnsProviderConfigId: domain.dnsProviderConfigId ? String(domain.dnsProviderConfigId) : '',
+                zoneId: domain.dnsZoneId || ''
+            };
+            this.dnsBindingModal = new Modal(document.getElementById('dnsBindingModal'));
+            this.dnsBindingModal.show();
+        },
+
+        validateDnsBindingForm() {
+            let isValid = true;
+            this.validationErrors = {};
+
+            if (!this.dnsBindingData.dnsProviderConfigId) {
+                this.validationErrors.dnsProviderConfigId = '请选择 DNS 服务商';
+                isValid = false;
+            }
+            if (!this.dnsBindingData.zoneId || !this.dnsBindingData.zoneId.trim()) {
+                this.validationErrors.zoneId = 'Zone ID 不能为空';
+                isValid = false;
+            }
+            return isValid;
+        },
+
+        saveDnsBinding() {
+            if (!this.selectedItem || !this.validateDnsBindingForm()) {
+                return;
+            }
+
+            fetch(`/api/admin/domains/${this.selectedItem.id}/dns-provider`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    dnsProviderConfigId: Number(this.dnsBindingData.dnsProviderConfigId),
+                    zoneId: this.dnsBindingData.zoneId.trim()
+                })
+            })
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data.message || '保存 DNS 绑定失败');
+                    }
+                    return data;
+                })
+                .then(() => {
+                    this.fetchRecords();
+                    this.dnsBindingModal.hide();
+                    ToastUtils.show('Success', 'DNS 服务商绑定已更新', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '保存 DNS 绑定失败', 'danger');
+                });
+        },
+
+        unbindDnsProvider() {
+            if (!this.selectedItem) {
+                return;
+            }
+
+            if (!confirm('确定要解除当前域名的 DNS 服务商绑定吗？本地 DNS 记录快照也会被清空。')) {
+                return;
+            }
+
+            fetch(`/api/admin/domains/${this.selectedItem.id}/dns-provider`, {
+                method: 'DELETE'
+            })
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data.message || '解除绑定失败');
+                    }
+                    return data;
+                })
+                .then(() => {
+                    this.fetchRecords();
+                    this.dnsBindingModal.hide();
+                    ToastUtils.show('Success', 'DNS 服务商绑定已解除', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '解除绑定失败', 'danger');
+                });
+        },
+
+        pullDnsRecords(domain) {
+            if (this.isDnsPulling(domain.id) || this.isDnsPushing(domain.id)) {
+                return;
+            }
+            this.pullingDomainIds.push(domain.id);
+            const loadingToast = ToastUtils.loading(
+                '拉取中',
+                `${domain.domain} 的 DNS 记录正在拉取，请稍候...`
+            );
+            fetch(`/api/admin/domains/${domain.id}/dns-records/pull`, {
+                method: 'POST'
+            })
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data.message || '拉取 DNS 记录失败');
+                    }
+                    return data;
+                })
+                .then(data => {
+                    this.fetchRecords();
+                    ToastUtils.show('Success', data.message || `成功拉取 ${data.pulledRecordCount || 0} 条 DNS 记录`, 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '拉取 DNS 记录失败', 'danger');
+                })
+                .finally(() => {
+                    loadingToast.hide();
+                    this.pullingDomainIds = this.pullingDomainIds.filter(id => id !== domain.id);
+                });
+        },
+
+        pushDnsRecords(domain) {
+            if (this.isDnsPulling(domain.id) || this.isDnsPushing(domain.id)) {
+                return;
+            }
+            this.pushingDomainIds.push(domain.id);
+            const loadingToast = ToastUtils.loading(
+                '推送中',
+                `${domain.domain} 的 DNS 变更正在推送，请稍候...`
+            );
+            fetch(`/api/admin/domains/${domain.id}/dns-records/push`, {
+                method: 'POST'
+            })
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data.message || '推送 DNS 记录失败');
+                    }
+                    return data;
+                })
+                .then(data => {
+                    this.fetchRecords();
+                    ToastUtils.show('Success', data.message || `成功推送 ${data.pushedRecordCount || 0} 条 DNS 记录`, 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '推送 DNS 记录失败', 'danger');
+                })
+                .finally(() => {
+                    loadingToast.hide();
+                    this.pushingDomainIds = this.pushingDomainIds.filter(id => id !== domain.id);
+                });
+        },
+
         openRenewDomainModal(domain) {
             this.selectedItem = domain;
 
@@ -271,12 +461,10 @@ const domainTable = new DataTable({
                 });
         },
 
-        // URLs for API calls
         getApiUrl() {
             return '/api/admin/domains';
         }
     }
 });
 
-// Initialize the Vue app
 domainTable.createApp('#app');

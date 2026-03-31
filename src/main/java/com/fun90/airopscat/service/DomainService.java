@@ -1,7 +1,10 @@
 package com.fun90.airopscat.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.dto.DomainDto;
 import com.fun90.airopscat.model.entity.Domain;
+import com.fun90.airopscat.model.entity.DnsProviderConfig;
+import com.fun90.airopscat.repository.DnsProviderConfigRepository;
 import com.fun90.airopscat.repository.DomainRepository;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -21,10 +24,16 @@ import java.util.Map;
 public class DomainService {
 
     private final DomainRepository domainRepository;
+    private final DnsProviderConfigRepository dnsProviderConfigRepository;
+    private final ObjectMapper objectMapper;
 
     @Inject
-    public DomainService(DomainRepository domainRepository) {
+    public DomainService(DomainRepository domainRepository,
+                         DnsProviderConfigRepository dnsProviderConfigRepository,
+                         ObjectMapper objectMapper) {
         this.domainRepository = domainRepository;
+        this.dnsProviderConfigRepository = dnsProviderConfigRepository;
+        this.objectMapper = objectMapper;
     }
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Domain> getDomainPage(String search, LocalDate expiryFrom, LocalDate expiryTo) {
@@ -98,6 +107,18 @@ public class DomainService {
         dto.setCreateTime(domain.getCreateTime());
         dto.setUpdateTime(domain.getUpdateTime());
         dto.setRemark(domain.getRemark());
+        dto.setDnsProviderConfigId(domain.getDnsProviderConfigId());
+        dto.setDnsProviderType(domain.getDnsProviderType());
+        dto.setDnsSyncStatus(domain.getDnsSyncStatus());
+        dto.setDnsLastSyncTime(domain.getDnsLastSyncTime());
+        dto.setDnsZoneId(extractZoneId(domain));
+
+        if (domain.getDnsProviderConfigId() != null) {
+            DnsProviderConfig dnsProviderConfig = dnsProviderConfigRepository.findById(domain.getDnsProviderConfigId());
+            if (dnsProviderConfig != null) {
+                dto.setDnsProviderName(dnsProviderConfig.getDisplayName());
+            }
+        }
         
         // Calculate days until expiration
         if (domain.getExpireDate() != null) {
@@ -151,6 +172,20 @@ public class DomainService {
 
         domain.setExpireDate(newExpiryDate);
         return domain;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String extractZoneId(Domain domain) {
+        if (domain.getDnsBindingExtensionJson() == null || domain.getDnsBindingExtensionJson().isBlank()) {
+            return null;
+        }
+        try {
+            Map<String, Object> map = objectMapper.readValue(domain.getDnsBindingExtensionJson(), Map.class);
+            Object zoneId = map.get("zoneId");
+            return zoneId == null ? null : String.valueOf(zoneId);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
 }

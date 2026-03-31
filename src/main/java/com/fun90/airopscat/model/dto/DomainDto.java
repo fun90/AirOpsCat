@@ -1,5 +1,7 @@
 package com.fun90.airopscat.model.dto;
 
+import com.fun90.airopscat.model.enums.DnsProviderType;
+import com.fun90.airopscat.model.enums.DnsSyncStatus;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -17,4 +19,10 @@ public class DomainDto {
     private Long daysUntilExpiration; // 到期剩余天数
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+    private Long dnsProviderConfigId;
+    private String dnsProviderName;
+    private DnsProviderType dnsProviderType;
+    private DnsSyncStatus dnsSyncStatus;
+    private LocalDateTime dnsLastSyncTime;
+    private String dnsZoneId;
 }

@@ -1,0 +1,86 @@
+<table class="table table-selectable card-table table-vcenter text-nowrap datatable">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>名称</th>
+        <th>服务商</th>
+        <th>Token</th>
+        <th>Account ID</th>
+        <th>状态</th>
+        <th>最近检测</th>
+        <th>绑定域名</th>
+        <th>创建时间</th>
+        <th class="w-1">操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="provider in records" :key="provider.id">
+        <td v-text="provider.id"></td>
+        <td>
+            <div class="fw-medium" v-text="provider.displayName"></div>
+        </td>
+        <td v-text="provider.providerType"></td>
+        <td v-text="provider.apiTokenMasked || '未配置'"></td>
+        <td v-text="provider.accountId || '-'"></td>
+        <td>
+            <span class="badge" :class="getStatusBadgeClass(provider)">
+                {{ getStatusDescription(provider) }}
+            </span>
+        </td>
+        <td>
+            <div>
+                <span class="badge" :class="getCheckBadgeClass(provider)">
+                    {{ getCheckDescription(provider) }}
+                </span>
+            </div>
+            <div class="text-secondary small" v-text="formatDateTime(provider.lastCheckTime) || '-'"></div>
+        </td>
+        <td>
+            <a href="#" @click.prevent="openBoundDomainsModal(provider)">
+                {{ provider.usedDomainCount || 0 }}
+            </a>
+        </td>
+        <td v-text="formatDateTime(provider.createTime)"></td>
+        <td>
+            <div class="btn-list flex-nowrap">
+                <div class="dropdown position-static">
+                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                        操作
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="#" @click.prevent="openEditModal(provider)">
+                            <i class="ti ti-edit"></i> 编辑
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="testConnection(provider)">
+                            <i class="ti ti-plug-connected"></i> 测试连接
+                        </a>
+                        <a class="dropdown-item" href="#" @click.prevent="openBoundDomainsModal(provider)">
+                            <i class="ti ti-world"></i> 查看域名
+                        </a>
+                        <a v-if="provider.status === 'ENABLED'" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(provider, true)">
+                            <i class="ti ti-ban"></i> 禁用
+                        </a>
+                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(provider, false)">
+                            <i class="ti ti-check"></i> 启用
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(provider)">
+                            <i class="ti ti-trash"></i> 删除
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+    <tr v-if="loading">
+        <td colspan="10" class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </td>
+    </tr>
+    <tr v-else-if="records.length === 0">
+        <td colspan="10" class="text-center py-3">没有查到数据.</td>
+    </tr>
+    </tbody>
+</table>

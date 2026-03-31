@@ -1,0 +1,28 @@
+<div class="card-body border-bottom">
+    <div class="row g-2">
+        <div class="col-6 col-lg-3">
+            <div class="text-center">
+                <div class="text-primary fw-bold h4 mb-0">{{ stats.total || 0 }}</div>
+                <div class="text-muted small">总服务商</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="text-center">
+                <div class="text-success fw-bold h4 mb-0">{{ stats.enabled || 0 }}</div>
+                <div class="text-muted small">已启用</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="text-center">
+                <div class="text-danger fw-bold h4 mb-0">{{ stats.disabled || 0 }}</div>
+                <div class="text-muted small">已禁用</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="text-center">
+                <div class="text-info fw-bold h4 mb-0">{{ stats.cloudflare || 0 }}</div>
+                <div class="text-muted small">Cloudflare</div>
+            </div>
+        </div>
+    </div>
+</div>

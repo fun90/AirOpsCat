@@ -1,0 +1,6 @@
+<div class="col-auto">
+    <select class="form-select" v-model="filters.type" @change="onDnsRecordFilterChange">
+        <option value="">全部类型</option>
+        <option v-for="recordType in dnsRecordTypes" :key="recordType" :value="recordType">{{ recordType }}</option>
+    </select>
+</div>

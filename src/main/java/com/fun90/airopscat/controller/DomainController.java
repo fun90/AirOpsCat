@@ -1,11 +1,18 @@
 package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.DomainDto;
+import com.fun90.airopscat.model.dto.DomainDnsProviderBindingDto;
+import com.fun90.airopscat.model.dto.DomainDnsProviderBindingRequest;
+import com.fun90.airopscat.model.dto.DomainDnsPullResponse;
+import com.fun90.airopscat.model.dto.DomainDnsPushResponse;
 import com.fun90.airopscat.model.entity.Domain;
 import com.fun90.airopscat.model.entity.Transaction;
 import com.fun90.airopscat.model.enums.PaymentMethod;
 import com.fun90.airopscat.model.enums.TransactionType;
 import com.fun90.airopscat.service.DomainService;
+import com.fun90.airopscat.service.DomainDnsBindingService;
+import com.fun90.airopscat.service.DomainDnsPullService;
+import com.fun90.airopscat.service.DomainDnsPushService;
 import com.fun90.airopscat.service.TransactionService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
@@ -34,6 +41,15 @@ public class DomainController {
 
     @Inject
     TransactionService transactionService;
+
+    @Inject
+    DomainDnsBindingService domainDnsBindingService;
+
+    @Inject
+    DomainDnsPullService domainDnsPullService;
+
+    @Inject
+    DomainDnsPushService domainDnsPushService;
 
     @GET
     public Response getDomainPage(
@@ -74,7 +90,7 @@ public class DomainController {
     public Response getDomainById(@PathParam("id") Long id) {
         Domain domain = domainService.getDomainById(id);
         if (domain != null) {
-            return Response.ok(domain).build();
+            return Response.ok(domainService.convertToDto(domain)).build();
         }
         return Response.status(Response.Status.NOT_FOUND).build();
     }
@@ -183,5 +199,66 @@ public class DomainController {
         }
 
         return Response.ok(domainService.convertToDto(domain)).build();
+    }
+
+    @GET
+    @Path("/{id}/dns-provider")
+    public Response getDnsProviderBinding(@PathParam("id") Long id) {
+        try {
+            DomainDnsProviderBindingDto dto = domainDnsBindingService.getBinding(id);
+            return Response.ok(dto).build();
+        } catch (jakarta.persistence.EntityNotFoundException e) {
+            return Response.status(Response.Status.NOT_FOUND).entity(Map.of("message", e.getMessage())).build();
+        }
+    }
+
+    @PUT
+    @Path("/{id}/dns-provider")
+    public Response bindDnsProvider(@PathParam("id") Long id, DomainDnsProviderBindingRequest request) {
+        try {
+            DomainDnsProviderBindingDto dto = domainDnsBindingService.bind(id, request);
+            return Response.ok(dto).build();
+        } catch (jakarta.persistence.EntityNotFoundException e) {
+            return Response.status(Response.Status.NOT_FOUND).entity(Map.of("message", e.getMessage())).build();
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("message", e.getMessage())).build();
+        }
+    }
+
+    @DELETE
+    @Path("/{id}/dns-provider")
+    public Response unbindDnsProvider(@PathParam("id") Long id) {
+        try {
+            domainDnsBindingService.unbind(id);
+            return Response.ok().build();
+        } catch (jakarta.persistence.EntityNotFoundException e) {
+            return Response.status(Response.Status.NOT_FOUND).entity(Map.of("message", e.getMessage())).build();
+        }
+    }
+
+    @POST
+    @Path("/{id}/dns-records/pull")
+    public Response pullDnsRecords(@PathParam("id") Long id) {
+        try {
+            DomainDnsPullResponse response = domainDnsPullService.pull(id);
+            return Response.ok(response).build();
+        } catch (jakarta.persistence.EntityNotFoundException e) {
+            return Response.status(Response.Status.NOT_FOUND).entity(Map.of("message", e.getMessage())).build();
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("message", e.getMessage())).build();
+        }
+    }
+
+    @POST
+    @Path("/{id}/dns-records/push")
+    public Response pushDnsRecords(@PathParam("id") Long id) {
+        try {
+            DomainDnsPushResponse response = domainDnsPushService.push(id);
+            return Response.ok(response).build();
+        } catch (jakarta.persistence.EntityNotFoundException e) {
+            return Response.status(Response.Status.NOT_FOUND).entity(Map.of("message", e.getMessage())).build();
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("message", e.getMessage())).build();
+        }
     }
 }

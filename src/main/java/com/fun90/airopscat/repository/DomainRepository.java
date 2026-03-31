@@ -11,6 +11,14 @@ import java.util.List;
 @ApplicationScoped
 public class DomainRepository implements PanacheRepository<Domain> {
 
+    public List<Domain> findByDnsProviderConfigId(Long dnsProviderConfigId) {
+        return find("dnsProviderConfigId", dnsProviderConfigId).list();
+    }
+
+    public long countByDnsProviderConfigId(Long dnsProviderConfigId) {
+        return count("dnsProviderConfigId", dnsProviderConfigId);
+    }
+
     public List<Domain> findExpiringDomains(LocalDate date) {
         return find("expireDate <= ?1", date).list();
     }
