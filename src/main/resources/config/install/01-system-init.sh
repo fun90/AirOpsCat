@@ -156,12 +156,31 @@ EOF
   chmod 0755 "${target_path}"
 }
 
+init_optimize() {
+  swapoff /swapfile
+  rm /swapfile
+
+  log "创建 2G swap 文件"
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+
+  log "写入 fstab 持久化"
+  grep -qxF '/swapfile none swap sw 0 0' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+  log "调整 swappiness（低内存服务器建议 10~20）"
+  sed -i '/^vm\.swappiness\s*=\s*/d' /etc/sysctl.conf && echo 'vm.swappiness=15' >> /etc/sysctl.conf
+  sysctl -p
+}
+
 main() {
   require_root
   log "当前服务器变量: server_ip=${server_ip:-}, server_host=${server_host:-}"
   set_timezone
   install_packages
   install_monitor_collector
+  init_optimize
   log "系统初始化完成"
 }
 
