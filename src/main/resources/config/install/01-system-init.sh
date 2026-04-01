@@ -157,8 +157,11 @@ EOF
 }
 
 init_optimize() {
-  swapoff /swapfile
-  rm /swapfile
+  # 关闭并删除已有 swapfile（若存在）
+  if [ -f /swapfile ]; then
+    swapoff /swapfile 2>/dev/null || true
+    rm /swapfile
+  fi
 
   log "创建 2G swap 文件"
   fallocate -l 2G /swapfile
@@ -167,7 +170,7 @@ init_optimize() {
   swapon /swapfile
 
   log "写入 fstab 持久化"
-  grep -qxF '/swapfile none swap sw 0 0' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  sed -i '\|^/swapfile\s|d' /etc/fstab && echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
   log "调整 swappiness（低内存服务器建议 10~20）"
   sed -i '/^vm\.swappiness\s*=\s*/d' /etc/sysctl.conf && echo 'vm.swappiness=15' >> /etc/sysctl.conf
