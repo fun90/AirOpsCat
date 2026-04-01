@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class ServerController {
-    
+
     @Inject
     ServerService serverService;
 
@@ -63,7 +63,7 @@ public class ServerController {
     ) {
         PanacheQuery<Server> serverQuery = serverService.getServerPage(search, supplier, expired, disabled);
         serverQuery.page(Page.of(page - 1, size));
-        
+
         // Convert to DTOs
         List<ServerDto> serverDtos = serverQuery.list().stream()
                 .map(server -> serverService.convertToDto(server))
@@ -84,12 +84,11 @@ public class ServerController {
         response.put("pages", serverQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
-        
+
         // Add statistics
         response.put("stats", serverService.getServersStats());
         response.put("supplierStats", serverService.getServersBySupplier());
         response.put("totalCost", serverService.getTotalServerCost());
-        response.put("totalEffectiveCost", serverService.getTotalEffectiveServerCost());
 
         return Response.ok(response).build();
     }
@@ -132,19 +131,19 @@ public class ServerController {
         }
         return Response.ok(accountOnlineIpService.getOnlineAccountsByServerIp(server.getIp())).build();
     }
-    
+
     @GET
     @Path("/suppliers")
     public Response getServersBySupplier() {
         return Response.ok(serverService.getServersBySupplier()).build();
     }
-    
+
     @GET
     @Path("/auth-types")
     public Response getAuthTypes() {
         return Response.ok(serverService.getAuthTypeOptions()).build();
     }
-    
+
     @GET
     @Path("/stats")
     public Response getServersStats() {
@@ -152,19 +151,18 @@ public class ServerController {
         stats.putAll(serverService.getServersStats());
         stats.put("supplierStats", serverService.getServersBySupplier());
         stats.put("totalCost", serverService.getTotalServerCost());
-        stats.put("totalEffectiveCost", serverService.getTotalEffectiveServerCost());
         return Response.ok(stats).build();
     }
-    
+
     @POST
     @Path("/test-connection")
     public Response testConnection(ServerDto server) {
         boolean success = serverService.testConnection(server);
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("success", success);
         response.put("message", success ? "连接成功" : "连接失败");
-        
+
         return Response.ok(response).build();
     }
 
@@ -301,11 +299,11 @@ public class ServerController {
         }
         return Response.status(Response.Status.NOT_FOUND).build();
     }
-    
+
     @PATCH
     @Path("/{id}/renew")
     public Response renewServer(
-            @PathParam("id") Long id, 
+            @PathParam("id") Long id,
             @QueryParam("expiryDate") String expiryDateStr,
             @QueryParam("amount") BigDecimal amount,
             @QueryParam("paymentMethod") String paymentMethod

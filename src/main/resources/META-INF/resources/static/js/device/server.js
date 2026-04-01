@@ -22,7 +22,6 @@ const serverTable = new DataTable({
         filters: { ...DEFAULT_SERVER_FILTERS },
         supplierStats: {},
         totalCost: 0,
-        totalEffectiveCost: 0,
         authTypes: [],
         paymentMethods: [],
         testingConnection: false,
@@ -517,9 +516,6 @@ const serverTable = new DataTable({
             }
             if (data.totalCost !== undefined) {
                 this.totalCost = data.totalCost;
-            }
-            if (data.totalEffectiveCost !== undefined) {
-                this.totalEffectiveCost = data.totalEffectiveCost;
             }
         },
 

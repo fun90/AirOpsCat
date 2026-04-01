@@ -43,19 +43,19 @@ public class ServerService {
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Server> getServerPage(String search, String supplier, Boolean expired, Boolean disabled) {
         // Create sort by createTime descending
         Sort sort = Sort.by("createTime").descending();
-        
+
         // Build query string
         Map<String, Object> params = new HashMap<>();
-        
+
         List<String> conditions = new ArrayList<>();
-        
+
         // Search condition
         if (search != null && !search.trim().isEmpty()) {
             conditions.add("(lower(ip) like :search or lower(host) like :search or lower(name) like :search or lower(supplier) like :search"
                     + " or id in (select sh.serverId from ServerHost sh where lower(sh.host) like :search))");
             params.put("search", "%" + search.toLowerCase() + "%");
         }
-        
+
         // Supplier filter
         if (supplier != null && !supplier.trim().isEmpty()) {
             if ("__UNKNOWN__".equals(supplier)) {
@@ -65,7 +65,7 @@ public class ServerService {
                 params.put("supplier", supplier);
             }
         }
-        
+
         // Expired filter
         if (expired != null) {
             LocalDate now = LocalDate.now();
@@ -77,15 +77,15 @@ public class ServerService {
                 params.put("now", now);
             }
         }
-        
+
         // Disabled filter
         if (disabled != null) {
             conditions.add("disabled = :disabled");
             params.put("disabled", disabled ? 1 : 0);
         }
-        
+
         String query = conditions.isEmpty() ? "" : String.join(" and ", conditions);
-        
+
         if (query.isEmpty()) {
             return serverRepository.findAll(sort);
         } else {
@@ -116,21 +116,21 @@ public class ServerService {
     public Map<String, Long> getServersStats() {
         LocalDate now = LocalDate.now();
         LocalDate inOneMonth = now.plusMonths(1);
-        
+
         Map<String, Long> stats = new HashMap<>();
         stats.put("total", serverRepository.count());
         stats.put("active", serverRepository.countActiveServers(now));
         stats.put("expired", serverRepository.countExpiredServers(now));
         stats.put("disabled", serverRepository.countDisabledServers());
         stats.put("expiringSoon", serverRepository.countExpiringInOneMonth(now, inOneMonth));
-        
+
         return stats;
     }
-    
+
     public Map<String, Long> getServersBySupplier() {
         List<Object[]> supplierCounts = serverRepository.countBySupplier();
         Map<String, Long> result = new HashMap<>();
-        
+
         for (Object[] row : supplierCounts) {
             String supplier = (String) row[0];
             if (supplier == null || supplier.trim().isEmpty()) {
@@ -139,30 +139,18 @@ public class ServerService {
             Long count = ((Number) row[1]).longValue();
             result.put(supplier, count);
         }
-        
+
         return result;
     }
-    
+
     public BigDecimal getTotalServerCost() {
         BigDecimal total = serverRepository.getTotalServerCost();
         return total != null ? total : BigDecimal.ZERO;
     }
-    
-    public BigDecimal getTotalEffectiveServerCost() {
-        // 计算考虑倍率的总成本
-        List<Server> allServers = serverRepository.listAll();
-        return allServers.stream()
-                .map(server -> {
-                    BigDecimal price = server.getPrice() != null ? server.getPrice() : BigDecimal.ZERO;
-                    BigDecimal multiple = server.getMultiple() != null ? server.getMultiple() : BigDecimal.ONE;
-                    return price.multiply(multiple);
-                })
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
 
     public ServerDto convertToDto(Server server) {
         ServerDto dto = new ServerDto();
-        
+
         // Copy properties manually
         dto.setId(server.getId());
         dto.setIp(server.getIp());
@@ -194,7 +182,7 @@ public class ServerService {
             if (server.getTransitConfig() != null && !server.getTransitConfig().trim().isEmpty()) {
                 dto.setTransitConfig(objectMapper.readValue(server.getTransitConfig(), Map.class));
             }
-            
+
             if (server.getCoreConfig() != null && !server.getCoreConfig().trim().isEmpty()) {
                 dto.setCoreConfig(objectMapper.readValue(server.getCoreConfig(), Map.class));
             }
@@ -202,7 +190,7 @@ public class ServerService {
             // Log the error but continue
             System.err.println("Error parsing JSON config: " + e.getMessage());
         }
-        
+
         return dto;
     }
 
@@ -213,7 +201,7 @@ public class ServerService {
         if (server.getDisabled() == null) {
             server.setDisabled(0);
         }
-        
+
         if (server.getSshPort() == null) {
             server.setSshPort(22); // 默认SSH端口
         }
@@ -332,23 +320,23 @@ public class ServerService {
         }
         return null;
     }
-    
+
     @Transactional
     public Server renewServer(Long id, LocalDate newExpiryDate) {
         Server server = serverRepository.findById(id);
         if (server == null) {
             throw new EntityNotFoundException("Server not found");
         }
-        
+
         server.setExpireDate(newExpiryDate);
         if (server.getDisabled() == 1) {
             server.setDisabled(0); // Reactivate server if disabled
         }
-        
+
         // No need to call save/persist for updates in Panache
         return server;
     }
-    
+
     public List<Map<String, String>> getAuthTypeOptions() {
         return Arrays.stream(ServerAuthType.values())
                 .map(type -> {
@@ -367,7 +355,7 @@ public class ServerService {
         try {
             // 模拟连接延迟
             Thread.sleep(1000);
-            
+
             // 简单的模拟逻辑，返回true表示连接成功
             return true;
         } catch (Exception e) {
