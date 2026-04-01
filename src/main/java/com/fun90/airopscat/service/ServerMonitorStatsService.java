@@ -50,6 +50,9 @@ public class ServerMonitorStatsService {
     @ConfigProperty(name = "airopscat.server.monitor.refresh-minutes", defaultValue = "1")
     int monitorRefreshMinutes;
 
+    @ConfigProperty(name = "airopscat.server.monitor.retention-days", defaultValue = "30")
+    int monitorRetentionDays;
+
     @Transactional
     public ServerMonitorSummaryDto collectAndSave(Server server) {
         LocalDateTime now = LocalDateTime.now();
@@ -207,6 +210,13 @@ public class ServerMonitorStatsService {
     @Transactional
     public long deleteByServerId(Long serverId) {
         return serverMonitorStatsRepository.deleteByServerId(serverId);
+    }
+
+    @Transactional
+    public long cleanupExpiredStats() {
+        int retentionDays = Math.max(monitorRetentionDays, 1);
+        LocalDateTime cutoffTime = LocalDateTime.now().minusDays(retentionDays);
+        return serverMonitorStatsRepository.deleteBySampleTimeBefore(cutoffTime);
     }
 
     private Map<String, String> executeRemoteCollection(Server server) {

@@ -59,4 +59,9 @@ public class ServerMonitorStatsRepository implements PanacheRepository<ServerMon
     public long deleteByServerId(Long serverId) {
         return delete("serverId", serverId);
     }
+
+    @Transactional
+    public long deleteBySampleTimeBefore(LocalDateTime cutoffTime) {
+        return delete("sampleTime < ?1", cutoffTime);
+    }
 }
