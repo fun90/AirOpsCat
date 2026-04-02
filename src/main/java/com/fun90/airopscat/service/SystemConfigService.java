@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
 public class SystemConfigService {
@@ -34,6 +35,7 @@ public class SystemConfigService {
 
     private final Map<String, ConfigGroupDefinition> groupDefinitions;
     private final Map<String, ConfigItemDefinition> itemDefinitions;
+    private final Map<String, Optional<String>> resolvedValueCache;
 
     @Inject
     public SystemConfigService(SystemConfigRepository systemConfigRepository, Config config) {
@@ -41,6 +43,7 @@ public class SystemConfigService {
         this.config = config;
         this.groupDefinitions = buildGroupDefinitions();
         this.itemDefinitions = indexItemDefinitions(groupDefinitions);
+        this.resolvedValueCache = new ConcurrentHashMap<>();
     }
 
     public List<SystemConfigGroupDto> getConfigGroups() {
@@ -104,6 +107,7 @@ public class SystemConfigService {
     private void cleanupExcludedConfigs() {
         for (String configKey : EXCLUDED_CONFIG_KEYS) {
             systemConfigRepository.delete("configKey", configKey);
+            evictResolvedValueCache(configKey);
         }
     }
 
@@ -125,6 +129,7 @@ public class SystemConfigService {
         if (entity.getId() == null) {
             systemConfigRepository.persist(entity);
         }
+        cacheResolvedValue(definition.key(), normalizedValue);
     }
 
     private void initializeDefaultConfig(String groupKey, ConfigItemDefinition definition) {
@@ -137,9 +142,17 @@ public class SystemConfigService {
         entity.setGroupKey(groupKey);
         entity.setConfigValue(normalizeValue(definition.defaultValue(), definition.inputType()));
         systemConfigRepository.persist(entity);
+        cacheResolvedValue(definition.key(), entity.getConfigValue());
     }
 
     private String getResolvedValue(ConfigItemDefinition definition) {
+        return resolvedValueCache.computeIfAbsent(
+                definition.key(),
+                key -> Optional.ofNullable(resolveValue(definition))
+        ).orElse(null);
+    }
+
+    private String resolveValue(ConfigItemDefinition definition) {
         Optional<SystemConfig> stored = systemConfigRepository.findOptionalByConfigKey(definition.key());
         if (stored.isPresent()) {
             return normalizeValue(stored.get().getConfigValue(), definition.inputType());
@@ -149,6 +162,14 @@ public class SystemConfigService {
                 config.getOptionalValue(definition.key(), String.class).orElse(definition.defaultValue()),
                 definition.inputType()
         );
+    }
+
+    private void cacheResolvedValue(String key, String value) {
+        resolvedValueCache.put(key, Optional.ofNullable(value));
+    }
+
+    private void evictResolvedValueCache(String key) {
+        resolvedValueCache.remove(key);
     }
 
     private SystemConfigGroupDto toGroupDto(ConfigGroupDefinition definition) {
