@@ -2,8 +2,10 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.ApiResponseDto;
 import com.fun90.airopscat.model.dto.BarkConfigTestRequest;
+import com.fun90.airopscat.model.dto.ScheduledTaskDto;
 import com.fun90.airopscat.model.dto.SystemConfigGroupDto;
 import com.fun90.airopscat.model.dto.SystemConfigUpdateRequest;
+import com.fun90.airopscat.scheduler.ProgrammaticTaskManager;
 import com.fun90.airopscat.service.BarkService;
 import com.fun90.airopscat.service.SystemConfigService;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -32,6 +34,9 @@ public class SystemConfigController {
     @Inject
     BarkService barkService;
 
+    @Inject
+    ProgrammaticTaskManager programmaticTaskManager;
+
     @GET
     public Response getGroups() {
         List<SystemConfigGroupDto> groups = systemConfigService.getConfigGroups();
@@ -48,7 +53,21 @@ public class SystemConfigController {
     @Path("/{groupKey}")
     public Response saveGroup(@PathParam("groupKey") String groupKey, SystemConfigUpdateRequest request) {
         SystemConfigGroupDto group = systemConfigService.saveGroup(groupKey, request);
+        programmaticTaskManager.reloadTasksByGroup(groupKey);
         return Response.ok(ApiResponseDto.success(group)).build();
+    }
+
+    @GET
+    @Path("/tasks")
+    public Response getTasks() {
+        return Response.ok(ApiResponseDto.success(programmaticTaskManager.listTasks())).build();
+    }
+
+    @POST
+    @Path("/tasks/{taskKey}/run")
+    public Response runTask(@PathParam("taskKey") String taskKey) {
+        ScheduledTaskDto task = programmaticTaskManager.runTask(taskKey);
+        return Response.ok(ApiResponseDto.success(task)).build();
     }
 
     @POST

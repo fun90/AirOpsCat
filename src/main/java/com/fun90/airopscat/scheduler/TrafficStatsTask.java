@@ -14,7 +14,6 @@ import com.fun90.airopscat.service.ssh.SshConnectionService;
 import com.fun90.airopscat.service.traffic.TrafficStatsCollector;
 import com.fun90.airopscat.service.traffic.UserTrafficStats;
 import com.fun90.airopscat.service.traffic.registry.TrafficStatsCollectorRegistry;
-import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -56,7 +55,6 @@ public class TrafficStatsTask {
     @Inject
     BarkService barkService;
 
-    @Scheduled(every = "15m")
     public void collectUserTrafficStats() {
         log.info("开始执行定时任务：收集用户流量统计");
 

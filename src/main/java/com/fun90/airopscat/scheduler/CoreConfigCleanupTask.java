@@ -9,7 +9,6 @@ import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.BarkService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
-import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -43,7 +42,6 @@ public class CoreConfigCleanupTask {
     @Inject
     BarkService barkService;
 
-    @Scheduled(cron = "0 0 8 * * ?", timeZone = "Asia/Shanghai")
     public void cleanupOldCoreConfigBackupFiles() {
         log.info("开始执行定时任务：清理内核配置旧备份文件");
 

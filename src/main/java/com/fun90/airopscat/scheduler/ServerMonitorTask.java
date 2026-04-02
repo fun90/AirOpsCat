@@ -4,11 +4,7 @@ import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.ServerMonitorStatsService;
 import com.fun90.airopscat.service.SystemConfigService;
-import io.quarkus.runtime.StartupEvent;
-import io.quarkus.scheduler.Scheduled;
-import io.quarkus.scheduler.Scheduler;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
@@ -22,8 +18,6 @@ import java.util.concurrent.ExecutorService;
 @ApplicationScoped
 public class ServerMonitorTask {
 
-    private static final String SERVER_MONITOR_COLLECT_JOB_ID = "server-monitor-collect";
-
     @Inject
     ServerRepository serverRepository;
 
@@ -35,23 +29,7 @@ public class ServerMonitorTask {
     ExecutorService blockingTaskExecutor;
 
     @Inject
-    Scheduler scheduler;
-
-    @Inject
     SystemConfigService systemConfigService;
-
-    void scheduleServerMonitorCollection(@Observes StartupEvent event) {
-        long refreshMinutes = getRefreshMinutes();
-        String cron = "0 */" + refreshMinutes + " * * * ?";
-        scheduler.unscheduleJob(SERVER_MONITOR_COLLECT_JOB_ID);
-        scheduler.newJob(SERVER_MONITOR_COLLECT_JOB_ID)
-                .setCron(cron)
-                .setTimeZone("Asia/Shanghai")
-                .setConcurrentExecution(Scheduled.ConcurrentExecution.SKIP)
-                .setTask(execution -> collectServerMonitorStats())
-                .schedule();
-        log.info("服务器监控采集调度已注册，refreshMinutes={}, cron={}", refreshMinutes, cron);
-    }
 
     public void collectServerMonitorStats() {
         if (!systemConfigService.getBooleanValue("airopscat.server.monitor.enabled", true)) {
@@ -111,11 +89,6 @@ public class ServerMonitorTask {
             return MonitorCollectResult.FAILED;
         }
     }
-
-    private long getRefreshMinutes() {
-        return Math.max(1L, systemConfigService.getLongValue("airopscat.server.monitor.refresh-minutes", 1L));
-    }
-
     private enum MonitorCollectResult {
         SUCCESS,
         SKIPPED,

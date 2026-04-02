@@ -7,7 +7,6 @@ import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.BarkService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentService;
-import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -33,7 +32,6 @@ public class AccountExpirationTask {
     @Inject
     BarkService barkService;
 
-    @Scheduled(cron = "{airopscat.server.monitor.cron:0 0 5 * * ?}", timeZone = "Asia/Shanghai")
     @Transactional
     public void checkExpiredAccountsAndRedeployNodes() {
         log.info("开始执行定时任务：检查过期账号并重新部署节点");

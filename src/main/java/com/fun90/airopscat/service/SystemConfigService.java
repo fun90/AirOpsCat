@@ -267,10 +267,11 @@ public class SystemConfigService {
                 false,
                 item("airopscat.online.check-minutes", "在线检测分钟数", "在线账号检测时间窗口。", INPUT_NUMBER, true, false, false, true, "5", "5"),
                 item("airopscat.server.monitor.enabled", "启用监控", "是否启用服务器监控和负载告警。", INPUT_CHECKBOX, false, false, false, true, "", "true"),
-                item("airopscat.server.monitor.refresh-minutes", "采集间隔分钟数", "服务器监控采集间隔，保存后建议重启服务。", INPUT_NUMBER, true, false, true, true, "1", "1"),
+                item("airopscat.server.monitor.refresh-minutes", "采集间隔分钟数", "服务器监控采集间隔。", INPUT_NUMBER, true, false, false, true, "1", "1"),
                 item("airopscat.server.monitor.retention-days", "监控保留天数", "服务器监控数据保留天数。", INPUT_NUMBER, true, false, false, true, "30", "30"),
-                item("airopscat.server.monitor.cleanup.cron", "监控清理 Cron", "监控历史清理调度表达式，保存后需重启服务生效。", INPUT_TEXT, true, false, true, true, "0 0 3 * * ?", "0 0 3 * * ?"),
-                item("airopscat.server.monitor.alert.cron", "监控告警 Cron", "监控告警调度表达式，保存后需重启服务生效。", INPUT_TEXT, true, false, true, true, "0 */5 * * * ?", "0 */5 * * * ?"),
+                item("airopscat.server.monitor.cleanup.cron", "监控清理 Cron", "监控历史清理调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 3 * * ?", "0 0 3 * * ?"),
+                item("airopscat.server.monitor.alert.cron", "监控告警 Cron", "监控告警调度表达式。", INPUT_TEXT, true, false, false, true, "0 */5 * * * ?", "0 */5 * * * ?"),
+                item("airopscat.server.traffic.notify.cron", "流量阈值提醒 Cron", "服务器流量阈值提醒调度表达式。", INPUT_TEXT, true, false, false, true, "0 10 10 * * ?", "0 10 10 * * ?"),
                 item("airopscat.server.monitor.alert.cpu-threshold", "CPU 告警阈值", "支持 0-1 或 0-100 写法。", INPUT_NUMBER, true, false, false, true, "0.9", "0.9"),
                 item("airopscat.server.monitor.alert.memory-threshold", "内存告警阈值", "支持 0-1 或 0-100 写法。", INPUT_NUMBER, true, false, false, true, "0.95", "0.95"),
                 item("airopscat.server.monitor.alert.traffic-threshold", "流量告警阈值", "支持 0-1 或 0-100 写法。", INPUT_NUMBER, true, false, false, true, "0.85", "0.85"),
@@ -284,10 +285,22 @@ public class SystemConfigService {
                 70,
                 false,
                 item("airopscat.backup.dir", "备份目录", "数据库备份文件存储目录。", INPUT_TEXT, true, false, false, true, "./backup", "./backup"),
-                item("airopscat.backup.cron", "备份 Cron", "自动备份调度表达式，保存后需重启服务生效。", INPUT_TEXT, true, false, true, true, "0 0 6 * * ?", "0 0 6 * * ?"),
-                item("airopscat.backup.cleanup.cron", "备份清理 Cron", "备份清理调度表达式，保存后需重启服务生效。", INPUT_TEXT, true, false, true, true, "0 30 6 * * ?", "0 30 6 * * ?"),
+                item("airopscat.backup.cron", "备份 Cron", "自动备份调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 6 * * ?", "0 0 6 * * ?"),
+                item("airopscat.backup.cleanup.cron", "备份清理 Cron", "备份清理调度表达式。", INPUT_TEXT, true, false, false, true, "0 30 6 * * ?", "0 30 6 * * ?"),
                 item("airopscat.backup.retention-days", "备份保留天数", "自动清理时保留的备份天数。", INPUT_NUMBER, true, false, false, true, "30", "30"),
                 item("airopscat.backup.mysqldump-path", "mysqldump 路径", "数据库备份工具路径。", INPUT_TEXT, true, false, false, true, "mysqldump", "mysqldump")
+        ));
+
+        groups.put("scheduled", group(
+                "scheduled",
+                "定时任务",
+                "统一管理通用定时任务的调度表达式。",
+                80,
+                false,
+                item("airopscat.account.expiration.cron", "过期账号处理 Cron", "检查过期账号并重新部署关联节点。", INPUT_TEXT, true, false, false, true, "0 0 5 * * ?", "0 0 5 * * ?"),
+                item("airopscat.expiration.notify.cron", "资源到期提醒 Cron", "账号、服务器、域名到期提醒调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 10 * * ?", "0 0 10 * * ?"),
+                item("airopscat.traffic.stats.cron", "流量统计采集 Cron", "采集账号和服务器流量统计的调度表达式。", INPUT_TEXT, true, false, false, true, "0 */15 * * * ?", "0 */15 * * * ?"),
+                item("airopscat.core.config.cleanup.cron", "内核配置清理 Cron", "清理内核配置旧备份文件的调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 8 * * ?", "0 0 8 * * ?")
         ));
 
         return groups;

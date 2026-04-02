@@ -1,7 +1,6 @@
 package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.BackupFileDto;
-import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
@@ -56,7 +55,6 @@ public class DatabaseBackupService {
     @Inject
     SystemConfigService systemConfigService;
 
-    @Scheduled(cron = "{airopscat.backup.cron:0 0 6 * * ?}", timeZone = "Asia/Shanghai")
     public void scheduledBackup() {
         try {
             BackupFileDto backupFile = createBackup();
@@ -66,7 +64,6 @@ public class DatabaseBackupService {
         }
     }
 
-    @Scheduled(cron = "{airopscat.backup.cleanup.cron:0 30 6 * * ?}", timeZone = "Asia/Shanghai")
     public void cleanupExpiredBackups() {
         int retentionDays = getRetentionDays();
         if (retentionDays < 1) {

@@ -1,7 +1,6 @@
 package com.fun90.airopscat.scheduler;
 
 import com.fun90.airopscat.service.ServerMonitorStatsService;
-import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +16,6 @@ public class ServerMonitorStatsCleanupTask {
     @ConfigProperty(name = "airopscat.server.monitor.retention-days", defaultValue = "30")
     int monitorRetentionDays;
 
-    @Scheduled(cron = "{airopscat.server.monitor.cleanup.cron:0 0 3 * * ?}", timeZone = "Asia/Shanghai")
     public void cleanupExpiredServerMonitorStats() {
         log.info("开始执行定时任务：清理过期服务器监控数据");
 

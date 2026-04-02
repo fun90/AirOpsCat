@@ -32,6 +32,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.dto.SystemConfigGroupDto.class,
     com.fun90.airopscat.model.dto.SystemConfigUpdateRequest.class,
     com.fun90.airopscat.model.dto.BarkConfigTestRequest.class,
+    com.fun90.airopscat.model.dto.ScheduledTaskDto.class,
 
     // Account and User Related DTOs
     com.fun90.airopscat.model.dto.AccountDto.class,
