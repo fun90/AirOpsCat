@@ -4,6 +4,7 @@ import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.NodeCoreSwitchRequest;
 import com.fun90.airopscat.model.dto.NodeCoreSwitchResponse;
+import com.fun90.airopscat.model.dto.NodeBatchTagUpdateRequest;
 import com.fun90.airopscat.model.dto.NodeDeploymentRestoreRequest;
 import com.fun90.airopscat.model.dto.NodeDeploymentVersionDetailDto;
 import com.fun90.airopscat.model.dto.NodeDeploymentVersionDto;
@@ -393,6 +394,25 @@ public class NodeController {
                     request == null ? null : request.getTargetCoreType(),
                     request != null && Boolean.TRUE.equals(request.getRedeploy()));
             return Response.ok(response).build();
+        } catch (IllegalArgumentException | EntityNotFoundException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
+        }
+    }
+
+    @POST
+    @Path("/batch-tags")
+    public Response batchUpdateNodeTags(NodeBatchTagUpdateRequest request) {
+        try {
+            Map<String, Integer> result = nodeService.batchUpdateNodeTags(
+                    request == null ? null : request.getNodeIds(),
+                    request == null ? null : request.getTagIds());
+            return Response.ok(Map.of(
+                    "message", "批量调整节点标签成功",
+                    "updatedCount", result.getOrDefault("updatedCount", 0),
+                    "unchangedCount", result.getOrDefault("unchangedCount", 0)
+            )).build();
         } catch (IllegalArgumentException | EntityNotFoundException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());

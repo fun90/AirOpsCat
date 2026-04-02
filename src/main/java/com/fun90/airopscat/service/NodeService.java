@@ -393,6 +393,67 @@ public class NodeService {
         return existingNode;
     }
 
+    @Transactional
+    public Map<String, Integer> batchUpdateNodeTags(List<Long> nodeIds, List<Long> tagIds) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            throw new IllegalArgumentException("请选择要调整标签的节点");
+        }
+
+        List<Long> uniqueNodeIds = nodeIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (uniqueNodeIds.isEmpty()) {
+            throw new IllegalArgumentException("请选择要调整标签的节点");
+        }
+
+        List<Node> nodes = nodeRepository.findByIdIn(uniqueNodeIds);
+        if (nodes.size() != uniqueNodeIds.size()) {
+            throw new EntityNotFoundException("部分节点不存在，无法批量调整标签");
+        }
+
+        List<Long> normalizedTagIds = tagIds == null
+                ? List.of()
+                : tagIds.stream().filter(Objects::nonNull).distinct().toList();
+        List<Tag> resolvedTags = normalizedTagIds.isEmpty()
+                ? List.of()
+                : tagRepository.list("id in ?1", normalizedTagIds);
+        if (resolvedTags.size() != normalizedTagIds.size()) {
+            throw new EntityNotFoundException("部分标签不存在，无法批量调整");
+        }
+
+        Map<Long, Tag> tagMap = resolvedTags.stream()
+                .collect(Collectors.toMap(Tag::getId, tag -> tag));
+        LinkedHashSet<Tag> updatedTags = normalizedTagIds.stream()
+                .map(tagMap::get)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        int updatedCount = 0;
+        int unchangedCount = 0;
+        for (Node node : nodes) {
+            Set<Long> currentTagIds = node.getTags() == null
+                    ? Set.of()
+                    : node.getTags().stream()
+                    .map(Tag::getId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+
+            if (currentTagIds.equals(new LinkedHashSet<>(normalizedTagIds))) {
+                unchangedCount++;
+                continue;
+            }
+
+            node.setTags(new LinkedHashSet<>(updatedTags));
+            node.setDeployed(0);
+            updatedCount++;
+        }
+
+        Map<String, Integer> result = new HashMap<>();
+        result.put("updatedCount", updatedCount);
+        result.put("unchangedCount", unchangedCount);
+        return result;
+    }
+
     public boolean hasSubstantialChanges(Node oldNode, Node newNode, Set<Tag> newTagSet, boolean tagsUpdated) {
         return !buildSubstantialChangeSignature(oldNode, oldNode.getTags(), true).equals(
                 buildSubstantialChangeSignature(newNode, newTagSet, tagsUpdated));
