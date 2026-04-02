@@ -12,12 +12,14 @@ import com.fun90.airopscat.repository.NodeDeploymentRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.NodeService;
+import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.TagService;
 import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,9 +28,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+@Slf4j
 @ApplicationScoped
 @RequiredArgsConstructor
 public class NodeDeploymentVersionService {
+
+    private static final int DEFAULT_HISTORY_RETENTION_DAYS = 90;
+    private static final int DEFAULT_HISTORY_KEEP_LATEST_PER_NODE = 20;
+    private static final int DEFAULT_HISTORY_CLEANUP_BATCH_SIZE = 500;
 
     private final NodeDeploymentRepository nodeDeploymentRepository;
     private final NodeDeploymentHistoryRepository nodeDeploymentHistoryRepository;
@@ -36,6 +43,7 @@ public class NodeDeploymentVersionService {
     private final TagRepository tagRepository;
     private final TagService tagService;
     private final NodeService nodeService;
+    private final SystemConfigService systemConfigService;
 
     @Transactional
     public void recordSuccessfulDeployments(List<Node> nodes) {
@@ -115,6 +123,31 @@ public class NodeDeploymentVersionService {
         return deployedNodes.size();
     }
 
+    @Transactional
+    public long cleanupExpiredHistory() {
+        int retentionDays = getHistoryRetentionDays();
+        int keepLatestPerNode = getHistoryKeepLatestPerNode();
+        int batchSize = getHistoryCleanupBatchSize();
+        LocalDateTime cutoffTime = LocalDateTime.now().minusDays(retentionDays);
+        long totalDeleted = 0L;
+        int rounds = 0;
+
+        while (true) {
+            int deleted = deleteExpiredHistoryBatch(cutoffTime, keepLatestPerNode, batchSize);
+            if (deleted <= 0) {
+                break;
+            }
+            totalDeleted += deleted;
+            rounds++;
+            if (deleted < batchSize) {
+                break;
+            }
+        }
+
+        logCleanupSummary(retentionDays, keepLatestPerNode, batchSize, cutoffTime, rounds, totalDeleted);
+        return totalDeleted;
+    }
+
     private void upsertCurrentVersion(Node node) {
         List<Tag> currentTags = tagRepository.findByNodeId(node.getId());
         NodeDeploymentVersionSnapshotDto snapshot = toSnapshotDto(node, currentTags);
@@ -161,6 +194,35 @@ public class NodeDeploymentVersionService {
         history.setDeployedAt(currentDeployment.getDeployedAt());
         history.setArchivedAt(LocalDateTime.now());
         nodeDeploymentHistoryRepository.persist(history);
+    }
+
+    int deleteExpiredHistoryBatch(LocalDateTime cutoffTime, int keepLatestPerNode, int batchSize) {
+        return nodeDeploymentHistoryRepository.deleteExpiredHistoryBatch(cutoffTime, keepLatestPerNode, batchSize);
+    }
+
+    int getHistoryRetentionDays() {
+        return Math.max(systemConfigService.getIntValue(
+                "airopscat.node.deployment.history.retention-days", DEFAULT_HISTORY_RETENTION_DAYS), 1);
+    }
+
+    int getHistoryKeepLatestPerNode() {
+        return Math.max(systemConfigService.getIntValue(
+                "airopscat.node.deployment.history.keep-latest-per-node", DEFAULT_HISTORY_KEEP_LATEST_PER_NODE), 0);
+    }
+
+    int getHistoryCleanupBatchSize() {
+        return Math.max(systemConfigService.getIntValue(
+                "airopscat.node.deployment.history.cleanup.batch-size", DEFAULT_HISTORY_CLEANUP_BATCH_SIZE), 1);
+    }
+
+    void logCleanupSummary(int retentionDays,
+                           int keepLatestPerNode,
+                           int batchSize,
+                           LocalDateTime cutoffTime,
+                           int rounds,
+                           long totalDeleted) {
+        log.info("节点部署历史清理完成，保留天数: {}, 每节点保留版本数: {}, 截止时间: {}, 批大小: {}, 批次数: {}, 删除总数: {}",
+                retentionDays, keepLatestPerNode, cutoffTime, batchSize, rounds, totalDeleted);
     }
 
     private void fillCurrentDeployment(NodeDeployment deployment,
