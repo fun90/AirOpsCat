@@ -178,7 +178,9 @@
             <!-- END PAGE HEADER -->
 
             <!-- BEGIN PAGE BODY -->
-            {#include page-content /}
+            {#insert page-body}
+            {pageContent}
+            {/insert}
             <!-- END PAGE BODY -->
 
             <!-- 页脚 -->

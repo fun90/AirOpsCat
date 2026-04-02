@@ -18,6 +18,8 @@ import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.net.URI;
+import java.util.HashMap;
+import java.util.Map;
 
 @ApplicationScoped
 @Path("/")
@@ -98,31 +100,28 @@ public class HomeController {
             return notFound.instance().render();
         }
 
-        String pageContent = contentTemplate.instance()
-                .data("appName", appName)
-                .data("moduleTitle", page.moduleTitle())
-                .data("pageTitle", page.title())
-                .data("pageSecondaryTitle", page.secondaryTitle())
-                .data("uri", page.uri())
-                .data("showAddButton", page.showAddButton())
-                .data("buttonText", page.buttonText())
-                .data("modalIdPrefix", page.modalIdPrefix())
-                .render();
+        String pageContent = contentTemplate.instance().data(buildTemplateData(page)).render();
 
-        return layout.data("appName", appName)
-                .data("appVersion", appVersion)
-                .data("currentModuleKey", page.moduleKey())
-                .data("menuGroups", pageRegistry.getMenuGroups())
-                .data("moduleTitle", page.moduleTitle())
-                .data("pageTitle", page.title())
-                .data("pageSecondaryTitle", page.secondaryTitle())
-                .data("uri", page.uri())
-                .data("showAddButton", page.showAddButton())
-                .data("requiresTomSelect", page.requiresTomSelect())
-                .data("requiresCharts", page.requiresCharts())
-                .data("buttonText", page.buttonText())
-                .data("modalIdPrefix", page.modalIdPrefix())
+        return layout.data(buildTemplateData(page))
                 .data("pageContent", new RawString(pageContent))
                 .render();
+    }
+
+    private Map<String, Object> buildTemplateData(ConsolePage page) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("appName", appName);
+        data.put("appVersion", appVersion);
+        data.put("currentModuleKey", page.moduleKey());
+        data.put("menuGroups", pageRegistry.getMenuGroups());
+        data.put("moduleTitle", page.moduleTitle());
+        data.put("pageTitle", page.title());
+        data.put("pageSecondaryTitle", page.secondaryTitle());
+        data.put("uri", page.uri());
+        data.put("showAddButton", page.showAddButton());
+        data.put("requiresTomSelect", page.requiresTomSelect());
+        data.put("requiresCharts", page.requiresCharts());
+        data.put("buttonText", page.buttonText());
+        data.put("modalIdPrefix", page.modalIdPrefix());
+        return data;
     }
 }
