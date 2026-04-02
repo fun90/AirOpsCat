@@ -69,6 +69,68 @@ public class AccountTrafficStatsService {
 
     public Map<String, Object> getStatsListPage(String search, LocalDateTime startDate, LocalDateTime endDate,
                                                 int page, int size, String sortBy, String sortDirection) {
+        TrafficStatsQueryContext queryContext = buildQueryContext(search, startDate, endDate);
+        String totalBytesExpr = "(coalesce(ats.uploadBytes, 0) + coalesce(ats.downloadBytes, 0))";
+        String orderClause = buildOrderClause(sortBy, sortDirection, totalBytesExpr);
+
+        String selectQuery = "select new com.fun90.airopscat.model.dto.AccountTrafficStatsDto(" +
+                "ats.id, ats.userId, a.remark, ats.accountId, ats.periodStart, ats.periodEnd, " +
+                "coalesce(ats.uploadBytes, 0), coalesce(ats.downloadBytes, 0), " +
+                totalBytesExpr + ") " +
+                queryContext.fromClause() +
+                queryContext.whereClause() + orderClause;
+
+        TypedQuery<AccountTrafficStatsDto> listQuery = entityManager.createQuery(selectQuery, AccountTrafficStatsDto.class);
+        applyParams(listQuery, queryContext.params());
+        listQuery.setFirstResult(Math.max(page - 1, 0) * size);
+        listQuery.setMaxResults(size);
+        List<AccountTrafficStatsDto> records = listQuery.getResultList();
+
+        String countQueryString = "select count(ats.id) " + queryContext.fromClause() + queryContext.whereClause();
+        TypedQuery<Long> countQuery = entityManager.createQuery(countQueryString, Long.class);
+        applyParams(countQuery, queryContext.params());
+        long total = countQuery.getSingleResult();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("records", records);
+        response.put("total", total);
+        response.put("pages", total == 0 ? 0 : (int) Math.ceil((double) total / size));
+        response.put("current", page);
+        response.put("size", size);
+        return response;
+    }
+
+    public Map<String, Object> getStatsSummary(String search, LocalDateTime startDate, LocalDateTime endDate) {
+        TrafficStatsQueryContext queryContext = buildQueryContext(search, startDate, endDate);
+        String summaryQueryString = "select coalesce(sum(ats.uploadBytes), 0), coalesce(sum(ats.downloadBytes), 0) "
+                + queryContext.fromClause() + queryContext.whereClause();
+        TypedQuery<Object[]> summaryQuery = entityManager.createQuery(summaryQueryString, Object[].class);
+        applyParams(summaryQuery, queryContext.params());
+        Object[] summary = summaryQuery.getSingleResult();
+        long totalUpload = summary[0] == null ? 0L : ((Number) summary[0]).longValue();
+        long totalDownload = summary[1] == null ? 0L : ((Number) summary[1]).longValue();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("totalUpload", totalUpload);
+        response.put("totalDownload", totalDownload);
+        response.put("totalUploadFormatted", formatBytes(totalUpload));
+        response.put("totalDownloadFormatted", formatBytes(totalDownload));
+        return response;
+    }
+
+    private String buildOrderClause(String sortBy, String sortDirection, String totalBytesExpr) {
+        String direction = "asc".equalsIgnoreCase(sortDirection) ? "asc" : "desc";
+        if ("totalBytes".equalsIgnoreCase(sortBy)) {
+            return " order by " + totalBytesExpr + " " + direction + ", ats.id desc";
+        }
+        return " order by ats.id desc";
+    }
+
+    private void applyParams(Query query, Map<String, Object> params) {
+        params.forEach(query::setParameter);
+    }
+
+    private TrafficStatsQueryContext buildQueryContext(String search, LocalDateTime startDate, LocalDateTime endDate) {
         StringBuilder whereClause = new StringBuilder(" where 1=1");
         Map<String, Object> params = new HashMap<>();
 
@@ -87,59 +149,11 @@ public class AccountTrafficStatsService {
             params.put("endDate", endDate);
         }
 
-        String totalBytesExpr = "(coalesce(ats.uploadBytes, 0) + coalesce(ats.downloadBytes, 0))";
-        String orderClause = buildOrderClause(sortBy, sortDirection, totalBytesExpr);
-
-        String selectQuery = "select new com.fun90.airopscat.model.dto.AccountTrafficStatsDto(" +
-                "ats.id, ats.userId, a.remark, ats.accountId, ats.periodStart, ats.periodEnd, " +
-                "coalesce(ats.uploadBytes, 0), coalesce(ats.downloadBytes, 0), " +
-                totalBytesExpr + ") " +
-                "from AccountTrafficStats ats left join Account a on a.id = ats.accountId" +
-                whereClause + orderClause;
-
-        TypedQuery<AccountTrafficStatsDto> listQuery = entityManager.createQuery(selectQuery, AccountTrafficStatsDto.class);
-        applyParams(listQuery, params);
-        listQuery.setFirstResult(Math.max(page - 1, 0) * size);
-        listQuery.setMaxResults(size);
-        List<AccountTrafficStatsDto> records = listQuery.getResultList();
-
-        String countQueryString = "select count(ats.id) from AccountTrafficStats ats left join Account a on a.id = ats.accountId"
-                + whereClause;
-        TypedQuery<Long> countQuery = entityManager.createQuery(countQueryString, Long.class);
-        applyParams(countQuery, params);
-        long total = countQuery.getSingleResult();
-
-        String summaryQueryString = "select coalesce(sum(ats.uploadBytes), 0), coalesce(sum(ats.downloadBytes), 0) " +
-                "from AccountTrafficStats ats left join Account a on a.id = ats.accountId" + whereClause;
-        TypedQuery<Object[]> summaryQuery = entityManager.createQuery(summaryQueryString, Object[].class);
-        applyParams(summaryQuery, params);
-        Object[] summary = summaryQuery.getSingleResult();
-        long totalUpload = summary[0] == null ? 0L : ((Number) summary[0]).longValue();
-        long totalDownload = summary[1] == null ? 0L : ((Number) summary[1]).longValue();
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("records", records);
-        response.put("total", total);
-        response.put("pages", total == 0 ? 0 : (int) Math.ceil((double) total / size));
-        response.put("current", page);
-        response.put("size", size);
-        response.put("totalUpload", totalUpload);
-        response.put("totalDownload", totalDownload);
-        response.put("totalUploadFormatted", formatBytes(totalUpload));
-        response.put("totalDownloadFormatted", formatBytes(totalDownload));
-        return response;
-    }
-
-    private String buildOrderClause(String sortBy, String sortDirection, String totalBytesExpr) {
-        String direction = "asc".equalsIgnoreCase(sortDirection) ? "asc" : "desc";
-        if ("totalBytes".equalsIgnoreCase(sortBy)) {
-            return " order by " + totalBytesExpr + " " + direction + ", ats.id desc";
-        }
-        return " order by ats.id desc";
-    }
-
-    private void applyParams(Query query, Map<String, Object> params) {
-        params.forEach(query::setParameter);
+        return new TrafficStatsQueryContext(
+                "from AccountTrafficStats ats left join Account a on a.id = ats.accountId",
+                whereClause.toString(),
+                params
+        );
     }
 
     public LocalDateTime parseDateTime(String value) {
@@ -243,5 +257,8 @@ public class AccountTrafficStatsService {
         } else {
             return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
         }
+    }
+
+    private record TrafficStatsQueryContext(String fromClause, String whereClause, Map<String, Object> params) {
     }
 }

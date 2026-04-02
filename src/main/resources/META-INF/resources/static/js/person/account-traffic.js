@@ -108,10 +108,6 @@ const trafficStatsTable = new DataTable({
                     this.endIndex = this.totalItems === 0 ? 0 : Math.min(this.startIndex + this.pageSize - 1, this.totalItems);
                     this.totalPages = data.pages || 0;
                     this.currentPage = data.current || 1;
-                    this.totalUpload = data.totalUpload || 0;
-                    this.totalDownload = data.totalDownload || 0;
-                    this.totalUploadFormatted = data.totalUploadFormatted || '0 B';
-                    this.totalDownloadFormatted = data.totalDownloadFormatted || '0 B';
                     this.loading = false;
                 })
                 .catch(error => {
@@ -119,6 +115,44 @@ const trafficStatsTable = new DataTable({
                     ToastUtils.show('Error', 'Failed to load traffic stats.', 'danger');
                     this.loading = false;
                 });
+        },
+
+        getStatsUrl() {
+            const params = new URLSearchParams();
+
+            if (this.searchQuery) {
+                params.append('search', this.searchQuery);
+            }
+
+            if (this.filters.startDate) {
+                params.append('startDate', `${this.filters.startDate}T00:00:00`);
+            }
+
+            if (this.filters.endDate) {
+                params.append('endDate', `${this.filters.endDate}T23:59:59`);
+            }
+
+            const queryString = params.toString();
+            return queryString ? `/api/admin/traffic-stats/stats?${queryString}` : '/api/admin/traffic-stats/stats';
+        },
+
+        applyStatsData(data) {
+            this.totalUpload = data.totalUpload || 0;
+            this.totalDownload = data.totalDownload || 0;
+            this.totalUploadFormatted = data.totalUploadFormatted || '0 B';
+            this.totalDownloadFormatted = data.totalDownloadFormatted || '0 B';
+        },
+
+        searchDebounced() {
+            if (this.searchTimeout) {
+                clearTimeout(this.searchTimeout);
+            }
+
+            this.searchTimeout = setTimeout(() => {
+                this.currentPage = 1;
+                this.fetchRecords();
+                this.refreshStats();
+            }, 500);
         },
 
         toggleSort(field) {
@@ -259,6 +293,11 @@ const trafficStatsTable = new DataTable({
 
         ...createResponsiveFilterMethods({
             createDefaultFilters: () => createDefaultTrafficFilters(),
+            applyFilters() {
+                this.currentPage = 1;
+                this.fetchRecords();
+                this.refreshStats();
+            },
             onReset() {
                 this.sortBy = DEFAULT_SORT_BY;
                 this.sortDirection = DEFAULT_SORT_DIRECTION;

@@ -619,6 +619,7 @@ quarkus.datasource.jdbc.url=jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${
 #### 已处理内容
 
 - 已为节点、服务器、账户、用户、标签、交易、路由规则、服务器配置、DNS 提供商配置、域名列表接口完成分页与统计分离
+- 已为账户流量统计列表完成分页接口与汇总统计接口分离，翻页时不再重复执行总上传/总下载汇总
 - 服务器列表的在线账号统计已改为按当前页服务器 IP 批量聚合，不再拉全量在线记录再内存分组
 - 前端高频列表页已改为分页请求只拉列表数据
 - 前端列表页已接入独立 `/stats` 请求，首屏加载与写操作后刷新统计
@@ -827,8 +828,11 @@ quarkus.datasource.jdbc.url=jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${
 - [ServerConfigController](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/controller/ServerConfigController.java) 已移除分页接口统计字段，统计改走 `/api/admin/server-configs/stats`
 - [DnsProviderConfigController](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/controller/DnsProviderConfigController.java) 已移除分页接口统计字段，统计改走 `/api/admin/dns-provider-configs/stats`
 - [DomainController](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/controller/DomainController.java) 已移除分页接口统计字段，统计改走 `/api/admin/domains/stats`
+- [AccountTrafficStatsController](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/controller/AccountTrafficStatsController.java) 已将账户流量统计分页接口与统计接口分离，统计改走 `/api/admin/traffic-stats/stats`
+- [AccountTrafficStatsService](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/AccountTrafficStatsService.java) 已拆分分页查询与总上传/总下载汇总查询，避免翻页重复聚合明细表
 - [data-table.js](/Users/xiong/code/me/AirOpsCat/src/main/resources/META-INF/resources/static/js/common/data-table.js) 已支持列表/统计分离请求
-- 用户、标签、账户、节点、服务器、域名、交易、路由规则、服务器配置、DNS 提供商页面已完成前端联调
+- [account-traffic.js](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/resources/META-INF/resources/static/js/person/account-traffic.js) 已改为首屏、筛选变化和写操作后独立刷新统计，翻页仅请求分页数据
+- 用户、标签、账户、节点、服务器、域名、交易、路由规则、服务器配置、DNS 提供商、账户流量统计页面已完成前端联调
 - 前后端已统一为分页接口不返回统计，统计由独立 `/stats` 接口承担
 
 ### Task Group 3：MySQL 索引补齐 [已处理]

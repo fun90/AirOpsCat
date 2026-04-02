@@ -48,6 +48,17 @@ public class AccountTrafficStatsController {
     }
 
     @GET
+    @Path("/stats")
+    public Response getStatsSummary(@QueryParam("search") String search,
+                                    @QueryParam("startDate") String startDateStr,
+                                    @QueryParam("endDate") String endDateStr) {
+        LocalDateTime startDate = trafficStatsService.parseDateTime(startDateStr);
+        LocalDateTime endDate = trafficStatsService.parseDateTime(endDateStr);
+        Map<String, Object> response = trafficStatsService.getStatsSummary(search, startDate, endDate);
+        return Response.ok(response).build();
+    }
+
+    @GET
     @Path("/{id}")
     public Response getStatsById(@PathParam("id") Long id) {
         AccountTrafficStats stats = trafficStatsService.getStatsById(id);
