@@ -257,7 +257,7 @@
                 <quarkus.native.march>compatibility</quarkus.native.march>
                 <quarkus.native.resources.excludes>**.md,**/LICENSE*,**/NOTICE*</quarkus.native.resources.excludes>
                 <!-- 内存和性能优化 -->
-                <quarkus.native.additional-build-args>-H:+RemoveUnusedSymbols,-H:+ReportExceptionStackTraces,-H:-UseServiceLoaderFeature,-H:+StaticExecutableWithDynamicLibC</quarkus.native.additional-build-args>
+                <quarkus.native.additional-build-args>-H:+RemoveUnusedSymbols,-H:+ReportExceptionStackTraces,-H:-UseServiceLoaderFeature</quarkus.native.additional-build-args>
             </properties>
         </profile>
     </profiles>
