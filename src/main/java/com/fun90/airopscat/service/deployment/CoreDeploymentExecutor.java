@@ -14,6 +14,8 @@ import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.deployment.registry.CoreConfigBuilderRegistry;
 import com.fun90.airopscat.service.SystemConfigService;
+import com.fun90.airopscat.service.ssh.SshConnection;
+import com.fun90.airopscat.service.ssh.SshConnectionService;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +42,7 @@ public class CoreDeploymentExecutor {
     private final CoreConfigBuilderRegistry coreConfigBuilderRegistry;
     private final NodeDeploymentVersionService nodeDeploymentVersionService;
     private final SystemConfigService systemConfigService;
+    private final SshConnectionService sshConnectionService;
 
     public List<CoreDeploymentExecution> executeForServer(DeploymentServerContext ctx) {
         Server server = ctx.server();
@@ -49,25 +52,38 @@ public class CoreDeploymentExecutor {
                 .collect(Collectors.groupingBy(node -> node.getCoreType().trim().toLowerCase()));
 
         List<CoreDeploymentExecution> results = new ArrayList<>();
-        for (Map.Entry<String, List<Node>> entry : nodesByCoreType.entrySet()) {
-            results.add(executeConfigBuilder(ctx, entry.getKey(), entry.getValue()));
+        long startTime = System.nanoTime();
+        if (!shouldDeployRemotely(server)) {
+            for (Map.Entry<String, List<Node>> entry : nodesByCoreType.entrySet()) {
+                results.add(executeConfigBuilder(ctx, entry.getKey(), entry.getValue(), null));
+            }
+            logServerDeploymentSummary(server, nodesByCoreType.size(), results, startTime);
+            return results;
         }
+
+        try (SshConnection connection = createConnection(server)) {
+            for (Map.Entry<String, List<Node>> entry : nodesByCoreType.entrySet()) {
+                results.add(executeConfigBuilder(ctx, entry.getKey(), entry.getValue(), connection));
+            }
+        } catch (Exception e) {
+            log.error("Create deployment SSH connection failed for server {}", server.getName(), e);
+            for (Map.Entry<String, List<Node>> entry : nodesByCoreType.entrySet()) {
+                results.add(CoreDeploymentExecution.failure(server, entry.getKey(), entry.getValue(), e.getMessage()));
+            }
+        }
+        logServerDeploymentSummary(server, nodesByCoreType.size(), results, startTime);
         return results;
     }
 
     private CoreDeploymentExecution executeConfigBuilder(DeploymentServerContext ctx,
                                                          String coreType,
-                                                         List<Node> nodes) {
+                                                         List<Node> nodes,
+                                                         SshConnection connection) {
         Server server = ctx.server();
         try {
-            String config = coreConfigBuilderRegistry.getStrategy(coreType).build(ctx, nodes);
-            if (server.getExternal() == null || server.getExternal() == 0) {
-                if (systemConfigService.getBooleanValue("airopscat.deployment.skip-remote-config", false)) {
-                    log.info("Skip remote config deployment in current environment, server={}({}), core={}",
-                            server.getName(), server.getId(), coreType);
-                } else {
-                    deployToServer(server, coreType, config);
-                }
+            String config = buildConfig(ctx, coreType, nodes);
+            if (connection != null) {
+                deployToServer(connection, server, coreType, config);
             }
             return CoreDeploymentExecution.success(server, coreType, nodes, config);
         } catch (UnsupportedOperationException | IllegalArgumentException e) {
@@ -78,12 +94,15 @@ public class CoreDeploymentExecutor {
         }
     }
 
-    private void deployToServer(Server server, String coreType, String config) {
-        SshConfig sshConfig = buildSshConfig(server);
+    String buildConfig(DeploymentServerContext ctx, String coreType, List<Node> nodes) {
+        return coreConfigBuilderRegistry.getStrategy(coreType).build(ctx, nodes);
+    }
 
-        List<CoreManagementResult> results = coreManagementService.executeOperations(
+    private void deployToServer(SshConnection connection, Server server, String coreType, String config) {
+        List<CoreManagementResult> results = executeOperations(
                 coreType,
-                sshConfig,
+                connection,
+                server,
                 new CoreManagementService.OperationRequest(CoreOperation.CONFIG, config),
                 new CoreManagementService.OperationRequest(CoreOperation.RESTART)
         );
@@ -96,6 +115,40 @@ public class CoreDeploymentExecutor {
         if (restartResult == null || !restartResult.isSuccess()) {
             throw new RuntimeException("服务重启失败: " + (restartResult != null ? restartResult.getMessage() : "未知错误"));
         }
+    }
+
+    SshConnection createConnection(Server server) {
+        return sshConnectionService.createConnection(buildSshConfig(server));
+    }
+
+    List<CoreManagementResult> executeOperations(String coreType,
+                                                 SshConnection connection,
+                                                 Server server,
+                                                 CoreManagementService.OperationRequest... requests) {
+        return coreManagementService.executeOperations(coreType, connection, server.getIp(), requests);
+    }
+
+    boolean shouldDeployRemotely(Server server) {
+        if (server.getExternal() != null && server.getExternal() == 1) {
+            return false;
+        }
+        if (systemConfigService.getBooleanValue("airopscat.deployment.skip-remote-config", false)) {
+            log.info("Skip remote config deployment in current environment, server={}({})",
+                    server.getName(), server.getId());
+            return false;
+        }
+        return true;
+    }
+
+    private void logServerDeploymentSummary(Server server,
+                                            int coreCount,
+                                            List<CoreDeploymentExecution> results,
+                                            long startTime) {
+        long successCount = results.stream().filter(CoreDeploymentExecution::success).count();
+        long failureCount = results.size() - successCount;
+        long elapsedMillis = (System.nanoTime() - startTime) / 1_000_000;
+        log.info("节点部署服务器批次完成: server={}({}), coreCount={}, success={}, failure={}, elapsedMs={}",
+                server.getName(), server.getId(), coreCount, successCount, failureCount, elapsedMillis);
     }
 
     private SshConfig buildSshConfig(Server server) {

@@ -22,6 +22,8 @@ import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.deployment.registry.CoreConfigBuilderRegistry;
+import com.fun90.airopscat.service.ssh.SshConnection;
+import com.fun90.airopscat.service.ssh.SshConnectionService;
 import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -58,6 +60,7 @@ public class NodeDeploymentService {
     private final DeploymentDataLoader dataLoader;
     private final CoreDeploymentExecutor deploymentExecutor;
     private final CoreConfigBuilderRegistry coreConfigBuilderRegistry;
+    private final SshConnectionService sshConnectionService;
     private final ExecutorService blockingTaskExecutor;
 
     @Inject
@@ -71,6 +74,7 @@ public class NodeDeploymentService {
                                  DeploymentDataLoader dataLoader,
                                  CoreDeploymentExecutor deploymentExecutor,
                                  CoreConfigBuilderRegistry coreConfigBuilderRegistry,
+                                 SshConnectionService sshConnectionService,
                                  @Named("deploymentTaskExecutor") ExecutorService blockingTaskExecutor) {
         this.nodeRepository = nodeRepository;
         this.serverRepository = serverRepository;
@@ -82,6 +86,7 @@ public class NodeDeploymentService {
         this.dataLoader = dataLoader;
         this.deploymentExecutor = deploymentExecutor;
         this.coreConfigBuilderRegistry = coreConfigBuilderRegistry;
+        this.sshConnectionService = sshConnectionService;
         this.blockingTaskExecutor = blockingTaskExecutor;
     }
 
@@ -381,28 +386,48 @@ public class NodeDeploymentService {
         }
     }
 
-    private void stopSourceCoresBeforeRedeploy(Map<Long, Set<String>> sourceCoresByServerId) {
+    void stopSourceCoresBeforeRedeploy(Map<Long, Set<String>> sourceCoresByServerId) {
         for (Map.Entry<Long, Set<String>> entry : sourceCoresByServerId.entrySet()) {
-            Server server = serverRepository.findById(entry.getKey());
+            Server server = loadServer(entry.getKey());
             if (server == null || (server.getExternal() != null && server.getExternal() == 1)) {
                 continue;
             }
 
-            SshConfig sshConfig = buildSshConfig(server);
-            for (String coreType : entry.getValue()) {
-                List<CoreManagementResult> results = coreManagementService.executeOperations(
-                        coreType,
-                        sshConfig,
-                        new CoreManagementService.OperationRequest(CoreOperation.STOP)
-                );
-                CoreManagementResult stopResult = results.isEmpty() ? null : results.getFirst();
-                if (stopResult == null || !stopResult.isSuccess()) {
-                    throw new RuntimeException("停止原内核失败: serverId=" + server.getId()
-                            + ", coreType=" + coreType
-                            + ", message=" + (stopResult != null ? stopResult.getMessage() : "未知错误"));
+            try (SshConnection connection = createConnection(server)) {
+                for (String coreType : entry.getValue()) {
+                    List<CoreManagementResult> results = executeOperations(
+                            coreType,
+                            connection,
+                            server,
+                            new CoreManagementService.OperationRequest(CoreOperation.STOP)
+                    );
+                    CoreManagementResult stopResult = results.isEmpty() ? null : results.getFirst();
+                    if (stopResult == null || !stopResult.isSuccess()) {
+                        throw new RuntimeException("停止原内核失败: serverId=" + server.getId()
+                                + ", coreType=" + coreType
+                                + ", message=" + (stopResult != null ? stopResult.getMessage() : "未知错误"));
+                    }
                 }
+            } catch (Exception e) {
+                throw new RuntimeException("建立 SSH 连接失败: serverId=" + server.getId()
+                        + ", message=" + e.getMessage(), e);
             }
         }
+    }
+
+    Server loadServer(Long serverId) {
+        return serverRepository.findById(serverId);
+    }
+
+    SshConnection createConnection(Server server) {
+        return sshConnectionService.createConnection(buildSshConfig(server));
+    }
+
+    List<CoreManagementResult> executeOperations(String coreType,
+                                                 SshConnection connection,
+                                                 Server server,
+                                                 CoreManagementService.OperationRequest... requests) {
+        return coreManagementService.executeOperations(coreType, connection, server.getIp(), requests);
     }
 
     private SshConfig buildSshConfig(Server server) {
