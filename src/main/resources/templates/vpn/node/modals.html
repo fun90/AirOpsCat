@@ -631,7 +631,7 @@
                     保存后会将所选节点的标签整体替换为下面勾选的结果，并将这些节点标记为未部署。
                 </div>
                 <div class="row">
-                    <div v-for="tag in availableTags" :key="`batch-tag-${tag.id}`" class="col-md-6 mb-2">
+                    <div v-for="tag in availableTags" :key="tag.id" class="col-md-6 mb-2">
                         <label class="form-check">
                             <input type="checkbox" class="form-check-input" :value="tag.id" v-model="batchTagForm.tagIds">
                             <span class="form-check-label d-flex align-items-center">
