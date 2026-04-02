@@ -307,8 +307,15 @@
                         <div v-if="editedItem.authType === 'PASSWORD'">
                             <div class="mb-3">
                                 <label class="form-label required">密码</label>
-                                <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="editedItem.auth">
-                                <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                <div class="input-group input-group-flat">
+                                    <input :type="editPasswordVisible ? 'text' : 'password'" class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="editedItem.auth">
+                                    <span class="input-group-text">
+                                        <a href="javascript:void(0)" class="link-secondary" @click="toggleEditPasswordVisibility" :title="editPasswordVisible ? '隐藏密码' : '显示密码'">
+                                            <i class="ti" :class="editPasswordVisible ? 'ti-eye-off' : 'ti-eye'"></i>
+                                        </a>
+                                    </span>
+                                </div>
+                                <div class="invalid-feedback d-block" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
                             </div>
                         </div>
                         <div v-else-if="editedItem.authType === 'KEY'">

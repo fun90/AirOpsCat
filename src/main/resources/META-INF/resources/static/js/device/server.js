@@ -48,6 +48,7 @@ const serverTable = new DataTable({
         coreConfigJson: '',
         editTransitConfigJson: '',
         editCoreConfigJson: '',
+        editPasswordVisible: false,
         onlineAccounts: [],
         onlineAccountsLoading: false,
         onlineAccountsModal: null,
@@ -455,6 +456,7 @@ const serverTable = new DataTable({
             this.editCoreConfigJson = server.coreConfig ?
                 JSON.stringify(server.coreConfig, null, 2) : '';
             this.editHostsText = this.serializeHosts(server.hosts, server.host);
+            this.editPasswordVisible = false;
 
             return {
                 id: server.id,
@@ -478,6 +480,10 @@ const serverTable = new DataTable({
                 transitConfig: server.transitConfig,
                 coreConfig: server.coreConfig
             };
+        },
+
+        toggleEditPasswordVisibility() {
+            this.editPasswordVisible = !this.editPasswordVisible;
         },
 
         parseHostsText(text) {
