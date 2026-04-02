@@ -19,6 +19,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @ApplicationScoped
@@ -40,6 +42,7 @@ public class ProgrammaticTaskManager {
     private final ServerMonitorTask serverMonitorTask;
 
     private final Map<String, TaskDefinition> taskDefinitions;
+    private final Set<String> pausedTaskKeys;
 
     @Inject
     public ProgrammaticTaskManager(Scheduler scheduler,
@@ -61,6 +64,7 @@ public class ProgrammaticTaskManager {
         this.serverMonitorStatsCleanupTask = serverMonitorStatsCleanupTask;
         this.serverMonitorTask = serverMonitorTask;
         this.taskDefinitions = buildTaskDefinitions();
+        this.pausedTaskKeys = ConcurrentHashMap.newKeySet();
     }
 
     void onStart(@Observes StartupEvent event) {
@@ -91,8 +95,29 @@ public class ProgrammaticTaskManager {
         return toDto(definition);
     }
 
+    public ScheduledTaskDto pauseTask(String taskKey) {
+        TaskDefinition definition = requireTaskDefinition(taskKey);
+        pausedTaskKeys.add(definition.taskKey());
+        scheduler.unscheduleJob(definition.identity());
+        log.info("定时任务已暂停: {}", definition.taskName());
+        return toDto(definition);
+    }
+
+    public ScheduledTaskDto resumeTask(String taskKey) {
+        TaskDefinition definition = requireTaskDefinition(taskKey);
+        pausedTaskKeys.remove(definition.taskKey());
+        scheduleTask(definition);
+        log.info("定时任务已恢复: {}", definition.taskName());
+        return toDto(definition);
+    }
+
     private void scheduleTask(TaskDefinition definition) {
         scheduler.unscheduleJob(definition.identity());
+
+        if (pausedTaskKeys.contains(definition.taskKey())) {
+            log.info("定时任务保持暂停状态: {}", definition.taskName());
+            return;
+        }
 
         String cron = resolveCron(definition);
         Scheduler.JobDefinition jobDefinition = scheduler.newJob(definition.identity())
@@ -118,6 +143,7 @@ public class ProgrammaticTaskManager {
                 .groupTitle(definition.groupTitle())
                 .scheduleType(definition.scheduleType())
                 .scheduleValue(resolveScheduleValue(definition))
+                .paused(pausedTaskKeys.contains(definition.taskKey()))
                 .scheduled(trigger != null)
                 .overdue(trigger != null && trigger.isOverdue())
                 .previousFireTime(toLocalDateTime(trigger == null ? null : trigger.getPreviousFireTime()))

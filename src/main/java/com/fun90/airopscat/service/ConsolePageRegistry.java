@@ -65,7 +65,10 @@ public class ConsolePageRegistry {
             Map.entry("/system/config", page("system", "系统", 50, "system", "系统配置", 15,
                     "可视化维护 Bark 和后续系统参数", "/system/config", "system/config/content",
                     true, false, "", DEFAULT_MODAL_PREFIX)),
-            Map.entry("/system/backup", page("system", "系统", 50, "system", "数据备份", 20,
+            Map.entry("/system/scheduled-task", page("system", "系统", 50, "system", "定时任务", 20,
+                    "查看任务调度状态，并支持暂停、恢复和手动执行", "/system/scheduled-task", "system/scheduled-task/content",
+                    true, false, "", DEFAULT_MODAL_PREFIX)),
+            Map.entry("/system/backup", page("system", "系统", 50, "system", "数据备份", 30,
                     "查看和管理系统数据备份文件", "/system/backup", "system/backup/content",
                     true, false, "", "backup-"))
     );

@@ -71,6 +71,20 @@ public class SystemConfigController {
     }
 
     @POST
+    @Path("/tasks/{taskKey}/pause")
+    public Response pauseTask(@PathParam("taskKey") String taskKey) {
+        ScheduledTaskDto task = programmaticTaskManager.pauseTask(taskKey);
+        return Response.ok(ApiResponseDto.success(task)).build();
+    }
+
+    @POST
+    @Path("/tasks/{taskKey}/resume")
+    public Response resumeTask(@PathParam("taskKey") String taskKey) {
+        ScheduledTaskDto task = programmaticTaskManager.resumeTask(taskKey);
+        return Response.ok(ApiResponseDto.success(task)).build();
+    }
+
+    @POST
     @Path("/bark/test")
     public Response testBark(BarkConfigTestRequest request) {
         String title = request.getTitle() == null || request.getTitle().isBlank()

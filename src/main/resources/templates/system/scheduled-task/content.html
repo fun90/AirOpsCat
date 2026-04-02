@@ -1,0 +1,134 @@
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row g-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 w-100">
+                            <div>
+                                <h3 class="card-title mb-1">定时任务</h3>
+                                <div class="text-secondary small">集中查看调度状态，支持暂停、恢复和手动执行。</div>
+                            </div>
+                            <div class="btn-list">
+                                <button class="btn btn-outline-primary"
+                                        type="button"
+                                        @click="loadTasks()"
+                                        :disabled="tasksLoading || togglingTask || runningTask">
+                                    <span v-if="tasksLoading"
+                                          class="spinner-border spinner-border-sm me-1"
+                                          role="status"
+                                          aria-hidden="true"></span>
+                                    刷新状态
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body" v-if="tasksLoading">
+                        <div class="placeholder-glow">
+                            <span class="placeholder col-12 mb-2"></span>
+                            <span class="placeholder col-10 mb-2"></span>
+                            <span class="placeholder col-8"></span>
+                        </div>
+                    </div>
+
+                    <div v-else>
+                        <div class="card-body border-bottom">
+                            <div class="row g-3">
+                                <div class="col-6 col-lg-3">
+                                    <div class="text-secondary small">任务总数</div>
+                                    <div class="h3 m-0">{{ tasks.length }}</div>
+                                </div>
+                                <div class="col-6 col-lg-3">
+                                    <div class="text-secondary small">运行中</div>
+                                    <div class="h3 m-0">{{ scheduledTaskCount }}</div>
+                                </div>
+                                <div class="col-6 col-lg-3">
+                                    <div class="text-secondary small">已暂停</div>
+                                    <div class="h3 m-0">{{ pausedTaskCount }}</div>
+                                </div>
+                                <div class="col-6 col-lg-3">
+                                    <div class="text-secondary small">异常延迟</div>
+                                    <div class="h3 m-0">{{ overdueTaskCount }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-vcenter card-table">
+                                <thead>
+                                <tr>
+                                    <th>任务</th>
+                                    <th>分组</th>
+                                    <th>调度</th>
+                                    <th>上次触发</th>
+                                    <th>下次触发</th>
+                                    <th>状态</th>
+                                    <th class="text-end">操作</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr v-for="task in tasks" :key="task.taskKey">
+                                    <td>
+                                        <div class="fw-medium">{{ task.taskName }}</div>
+                                        <div class="text-secondary small text-wrap">{{ task.description }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary-lt">{{ task.groupTitle }}</span>
+                                    </td>
+                                    <td>
+                                        <code>{{ task.scheduleValue }}</code>
+                                    </td>
+                                    <td>{{ formatDateTime(task.previousFireTime) }}</td>
+                                    <td>{{ formatDateTime(task.nextFireTime) }}</td>
+                                    <td>
+                                        <span class="badge bg-secondary-lt" v-if="task.paused">已暂停</span>
+                                        <span class="badge bg-success-lt" v-else-if="task.scheduled && !task.overdue">正常</span>
+                                        <span class="badge bg-warning-lt" v-else-if="task.scheduled">延迟</span>
+                                        <span class="badge bg-secondary-lt" v-else>未注册</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="btn-list justify-content-end flex-nowrap">
+                                            <button class="btn btn-outline-secondary btn-sm"
+                                                    type="button"
+                                                    @click="toggleTask(task)"
+                                                    :disabled="togglingTask === task.taskKey || runningTask === task.taskKey">
+                                                <span v-if="togglingTask === task.taskKey"
+                                                      class="spinner-border spinner-border-sm me-1"
+                                                      role="status"
+                                                      aria-hidden="true"></span>
+                                                <i v-else class="ti me-1" :class="task.paused ? 'ti-player-play' : 'ti-player-pause'"></i>
+                                                {{ task.paused ? '恢复调度' : '暂停调度' }}
+                                            </button>
+                                            <button class="btn btn-outline-primary btn-sm"
+                                                    type="button"
+                                                    @click="runTask(task.taskKey)"
+                                                    :disabled="runningTask === task.taskKey || togglingTask === task.taskKey">
+                                                <span v-if="runningTask === task.taskKey"
+                                                      class="spinner-border spinner-border-sm me-1"
+                                                      role="status"
+                                                      aria-hidden="true"></span>
+                                                立即执行
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="empty py-5" v-if="!tasks.length">
+                            <div class="empty-icon">
+                                <i class="ti ti-clock-off icon"></i>
+                            </div>
+                            <p class="empty-title">暂无定时任务</p>
+                            <p class="empty-subtitle text-secondary">
+                                当前还没有可展示的调度任务。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

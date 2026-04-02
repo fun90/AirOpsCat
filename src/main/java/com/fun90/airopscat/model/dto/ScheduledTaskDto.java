@@ -19,6 +19,7 @@ public class ScheduledTaskDto {
     private String groupTitle;
     private String scheduleType;
     private String scheduleValue;
+    private boolean paused;
     private boolean scheduled;
     private boolean overdue;
     private LocalDateTime previousFireTime;
