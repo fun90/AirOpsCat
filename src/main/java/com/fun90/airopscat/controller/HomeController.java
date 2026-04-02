@@ -3,7 +3,6 @@ package com.fun90.airopscat.controller;
 import com.fun90.airopscat.model.vo.ConsolePage;
 import com.fun90.airopscat.service.ConsolePageRegistry;
 import io.quarkus.qute.Engine;
-import io.quarkus.qute.RawString;
 import io.quarkus.qute.Template;
 import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.RolesAllowed;
@@ -30,9 +29,6 @@ public class HomeController {
 
     @ConfigProperty(name = "quarkus.application.version", defaultValue = "dev")
     String appVersion;
-
-    @Inject
-    Template layout;
 
     @Inject
     Template notFound;
@@ -95,16 +91,11 @@ public class HomeController {
     }
 
     private String renderPage(ConsolePage page) {
-        Template contentTemplate = engine.getTemplate(page.contentTemplate());
-        if (contentTemplate == null) {
+        Template pageTemplate = engine.getTemplate(page.contentTemplate());
+        if (pageTemplate == null) {
             return notFound.instance().render();
         }
-
-        String pageContent = contentTemplate.instance().data(buildTemplateData(page)).render();
-
-        return layout.data(buildTemplateData(page))
-                .data("pageContent", new RawString(pageContent))
-                .render();
+        return pageTemplate.instance().data(buildTemplateData(page)).render();
     }
 
     private Map<String, Object> buildTemplateData(ConsolePage page) {
