@@ -1245,6 +1245,17 @@ JDBC URL 可评估补充：
 - SSH 连接池化或跨任务复用
 - 其他 SSH 使用场景复用同一套动态转发能力
 
+### Task Group 7.2：节点部署 SSH 连接复用 [已处理]
+
+- [CoreManagementService.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/core/CoreManagementService.java) 已新增基于现有 `SshConnection` 的 `executeOperations(...)` 重载，支持在同一个连接中顺序执行多步内核操作
+- [CoreDeploymentExecutor.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/deployment/CoreDeploymentExecutor.java) 已改为在单台服务器的一次部署执行中只建立 1 个 SSH 连接，并在该连接上顺序完成多个 core 的配置上传与重启
+- [NodeDeploymentService.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/deployment/NodeDeploymentService.java) 已将切核重部署前的 `STOP` 阶段改为按服务器复用单个 SSH 连接，避免同轮重复建连
+- [CoreDeploymentExecutorTest.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/test/java/com/fun90/airopscat/service/deployment/CoreDeploymentExecutorTest.java)、[NodeDeploymentServiceTest.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/test/java/com/fun90/airopscat/service/deployment/NodeDeploymentServiceTest.java) 已覆盖“同一服务器多 core / 多 source core 只创建一次 SSH 连接”场景
+- 本轮未处理：
+- 跨任务 SSH 连接池化
+- 其他 SSH 场景的统一复用抽象
+- 部署链路的跨服务器并发调优
+
 ### Task Group 8：Qute 与前端资源收口优化 [部分处理]
 
 - [ConsolePageRegistry.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/ConsolePageRegistry.java) 已将 `menuGroups` 改为启动期预计算缓存，避免每次控制台请求重复执行分组和排序
