@@ -61,8 +61,10 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
             return List.of();
         }
 
+        MonitorAlertThresholds thresholds = loadThresholds();
+
         List<CompletableFuture<List<String>>> futures = servers.stream()
-                .map(server -> CompletableFuture.supplyAsync(() -> checkServer(server, now), blockingTaskExecutor))
+                .map(server -> CompletableFuture.supplyAsync(() -> checkServer(server, now, thresholds), blockingTaskExecutor))
                 .toList();
 
         if (futures.isEmpty()) {
@@ -87,7 +89,7 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
         return String.join("\n", items);
     }
 
-    private List<String> checkServer(Server server, LocalDateTime now) {
+    private List<String> checkServer(Server server, LocalDateTime now, MonitorAlertThresholds thresholds) {
         List<String> items = new ArrayList<>();
         try {
             Long serverId = server.getId();
@@ -95,9 +97,9 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
                 return items;
             }
 
-            int continuousMinutes = getContinuousMinutes();
+            int continuousMinutes = thresholds.continuousMinutes();
 
-            double cpuThresholdPercent = normalizePercentThreshold(getCpuThreshold());
+            double cpuThresholdPercent = normalizePercentThreshold(thresholds.cpuThreshold());
             boolean cpuHigh = serverMonitorStatsService.isCpuUsageHighForDuration(
                     serverId, now, cpuThresholdPercent, continuousMinutes);
             updateAlertState(serverId, CPU_ALERT_KEY, cpuHigh);
@@ -105,7 +107,7 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
                 items.add(buildUsageAlert(server, "CPU", cpuThresholdPercent, continuousMinutes));
             }
 
-            double memoryThresholdPercent = normalizePercentThreshold(getMemoryThreshold());
+            double memoryThresholdPercent = normalizePercentThreshold(thresholds.memoryThreshold());
             boolean memoryHigh = serverMonitorStatsService.isMemoryUsageHighForDuration(
                     serverId, now, memoryThresholdPercent, continuousMinutes);
             updateAlertState(serverId, MEMORY_ALERT_KEY, memoryHigh);
@@ -116,7 +118,7 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
             long totalTrafficBytes = serverMonitorStatsService.getCurrentPeriodTotalTrafficBytes(server, now);
             long limitBytes = server.getBandwidth() == null ? 0L : server.getBandwidth().longValue() * BYTES_PER_GB;
             double currentTrafficRatio = limitBytes <= 0 ? 0D : totalTrafficBytes / (double) limitBytes;
-            boolean trafficHigh = currentTrafficRatio >= normalizeThreshold(getTrafficThreshold());
+            boolean trafficHigh = currentTrafficRatio >= normalizeThreshold(thresholds.trafficThreshold());
             updateAlertState(serverId, TRAFFIC_ALERT_KEY, trafficHigh);
             if (trafficHigh && activateAlert(serverId, TRAFFIC_ALERT_KEY)) {
                 items.add(buildTrafficAlert(server, currentTrafficRatio, totalTrafficBytes));
@@ -127,6 +129,15 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
         }
 
         return items;
+    }
+
+    private MonitorAlertThresholds loadThresholds() {
+        return new MonitorAlertThresholds(
+                getCpuThreshold(),
+                getMemoryThreshold(),
+                getTrafficThreshold(),
+                getContinuousMinutes()
+        );
     }
 
     private void clearServerAlerts(Long serverId) {
@@ -226,5 +237,11 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
 
     private int getContinuousMinutes() {
         return Math.max(1, systemConfigService.getIntValue("airopscat.server.monitor.alert.continuous-minutes", 30));
+    }
+
+    private record MonitorAlertThresholds(double cpuThreshold,
+                                          double memoryThreshold,
+                                          double trafficThreshold,
+                                          int continuousMinutes) {
     }
 }
