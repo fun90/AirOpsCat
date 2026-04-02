@@ -62,6 +62,9 @@ public class ConsolePageRegistry {
             Map.entry("/system/tag", page("system", "系统", 50, "system", "标签管理", 10,
                     "添加标签、编辑标签、查看标签", "/system/tag", "system/tag/content",
                     true, true, "添加标签", "tag-")),
+            Map.entry("/system/config", page("system", "系统", 50, "system", "系统配置", 15,
+                    "可视化维护 Bark 和后续系统参数", "/system/config", "system/config/content",
+                    true, false, "", DEFAULT_MODAL_PREFIX)),
             Map.entry("/system/backup", page("system", "系统", 50, "system", "数据备份", 20,
                     "查看和管理系统数据备份文件", "/system/backup", "system/backup/content",
                     true, false, "", "backup-"))

@@ -28,6 +28,10 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     // Other DTO Classes
     ApiResponseDto.class,
     BarkNotificationDto.class,
+    com.fun90.airopscat.model.dto.SystemConfigItemDto.class,
+    com.fun90.airopscat.model.dto.SystemConfigGroupDto.class,
+    com.fun90.airopscat.model.dto.SystemConfigUpdateRequest.class,
+    com.fun90.airopscat.model.dto.BarkConfigTestRequest.class,
 
     // Account and User Related DTOs
     com.fun90.airopscat.model.dto.AccountDto.class,
@@ -114,6 +118,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.entity.Tag.class,
     com.fun90.airopscat.model.entity.Transaction.class,
     com.fun90.airopscat.model.entity.RouteRule.class,
+    com.fun90.airopscat.model.entity.SystemConfig.class,
 
     // Time-related classes (Java standard classes are automatically registered)
     java.time.LocalDateTime.class,

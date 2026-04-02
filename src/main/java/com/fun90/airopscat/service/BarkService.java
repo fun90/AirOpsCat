@@ -8,57 +8,40 @@ import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.WebTarget;
+import jakarta.ws.rs.core.Form;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Map;
 
-/**
- * Bark通知服务
- * 用于通过HTTP请求发送通知到Bark服务器
- * 支持GET和POST两种请求方式<br>
- * <a href="https://github.com/Finb/Bark">参考Bark官方文档</a>
- */
 @Slf4j
 @ApplicationScoped
 public class BarkService {
 
-    /**
-     * -- GETTER --
-     *  获取Bark URL
-     *
-     * @return Bark URL
-     */
-    @Getter
-    @ConfigProperty(name = "airopscat.bark.url", defaultValue = "")
-    String barkUrl;
-
-    /**
-     * -- GETTER --
-     *  获取设备密钥
-     *
-     * @return 设备密钥
-     */
-    @Getter
-    @ConfigProperty(name = "airopscat.bark.device-key", defaultValue = "")
-    String deviceKey;
-
     @Inject
     ObjectMapper objectMapper;
 
+    @Inject
+    SystemConfigService systemConfigService;
+
     private final Client client = ClientBuilder.newClient();
 
-    /**
-     * 发送简单通知
-     *
-     * @param title 通知标题
-     * @param body  通知内容
-     * @return 是否发送成功
-     */
+    public String getBarkUrl() {
+        return resolveBarkConfig(null).barkUrl();
+    }
+
+    public String getDeviceKey() {
+        return resolveBarkConfig(null).deviceKey();
+    }
+
     public boolean sendNotification(String title, String body) {
         return sendNotification(BarkNotificationDto.builder()
                 .title(title)
@@ -66,215 +49,321 @@ public class BarkService {
                 .build());
     }
 
-    /**
-     * 发送通知
-     *
-     * @param notification 通知对象
-     * @return 是否发送成功
-     */
     public boolean sendNotification(BarkNotificationDto notification) {
-        if (!isBarkConfigured()) {
-            log.warn("Bark URL未配置，跳过通知发送");
-            return false;
-        }
-
-        try {
-            // 设置设备密钥
-            if (notification.getDeviceKey() == null) {
-                notification.setDeviceKey(deviceKey);
-            }
-
-            // 使用POST请求方式，符合Bark官方API规范
-            URI requestUri = URI.create(barkUrl + "/" + notification.getDeviceKey());
-            
-            // 创建请求实体，发送JSON数据
-            String jsonBody = objectMapper.writeValueAsString(notification);
-            
-            log.info("Bark POST请求URL: {}, 请求体: {}", requestUri, jsonBody);
-            
-            // 发送POST请求
-            WebTarget target = client.target(requestUri);
-            Response response = target.request(MediaType.APPLICATION_JSON)
-                    .post(Entity.json(jsonBody));
-            
-            String responseBody = response.readEntity(String.class);
-            log.info("Bark响应: {}", responseBody);
-            
-            if (response.getStatus() >= 200 && response.getStatus() < 300) {
-                log.info("Bark通知发送成功: {}", notification.getTitle());
-                response.close();
-                return true;
-            } else {
-                log.error("Bark通知发送失败，状态码: {}", response.getStatus());
-                response.close();
-                return false;
-            }
-            
-        } catch (Exception e) {
-            log.error("发送Bark通知时发生异常: {}", e.getMessage(), e);
-            return false;
-        }
+        return sendNotificationInternal(notification, null);
     }
 
-    /**
-     * 发送系统通知
-     *
-     * @param title   通知标题
-     * @param body    通知内容
-     * @param level   通知级别
-     * @return 是否发送成功
-     */
+    public boolean sendNotificationWithOverrides(String title, String body, Map<String, String> overrides) {
+        return sendNotificationInternal(BarkNotificationDto.builder()
+                .title(title)
+                .body(body)
+                .build(), overrides);
+    }
+
     public boolean sendSystemNotification(String title, String body, String level) {
+        BarkResolvedConfig config = resolveBarkConfig(null);
         return sendNotification(BarkNotificationDto.builder()
                 .title(title)
                 .body(body)
                 .level(level)
-                .group("AirOpsCat")
-                .sound("system")
+                .group(config.defaultGroup())
+                .sound(config.defaultSound())
+                .icon(config.defaultIcon())
                 .build());
     }
 
-    /**
-     * 发送警告通知
-     *
-     * @param title 通知标题
-     * @param body  通知内容
-     * @return 是否发送成功
-     */
     public boolean sendWarningNotification(String title, String body) {
         return sendSystemNotification(title, body, "timeSensitive");
     }
 
-    /**
-     * 发送错误通知
-     *
-     * @param title 通知标题
-     * @param body  通知内容
-     * @return 是否发送成功
-     */
     public boolean sendErrorNotification(String title, String body) {
         return sendSystemNotification(title, body, "active");
     }
 
-    /**
-     * 发送信息通知
-     *
-     * @param title 通知标题
-     * @param body  通知内容
-     * @return 是否发送成功
-     */
     public boolean sendInfoNotification(String title, String body) {
         return sendSystemNotification(title, body, "passive");
     }
 
-    /**
-     * 检查Bark是否已配置
-     *
-     * @return 是否已配置
-     */
     public boolean isBarkConfigured() {
-        return barkUrl != null && !barkUrl.trim().isEmpty() && 
-               deviceKey != null && !deviceKey.trim().isEmpty();
+        return isBarkConfigured(resolveBarkConfig(null));
     }
 
-    /**
-     * 发送GET请求通知（备用方法）
-     *
-     * @param notification 通知对象
-     * @return 是否发送成功
-     */
     public boolean sendNotificationGet(BarkNotificationDto notification) {
-        if (!isBarkConfigured()) {
-            log.warn("Bark URL未配置，跳过通知发送");
+        BarkResolvedConfig config = resolveBarkConfig(null);
+        if (!isBarkConfigured(config)) {
+            log.warn("Bark is not configured, skipping notification");
+            return false;
+        }
+
+        BarkNotificationDto request = prepareNotification(notification, config);
+        if (request == null) {
+            log.warn("Bark notification payload is empty, skipping notification");
             return false;
         }
 
         try {
-            // 设置设备密钥
-            if (notification.getDeviceKey() == null) {
-                notification.setDeviceKey(deviceKey);
-            }
+            URI requestUri = buildRequestUri(request, config);
+            log.info("Bark GET request URL: {}", requestUri);
 
-            // 构建GET请求URI
-            URI requestUri = buildRequestUri(notification);
-            
-            log.info("Bark GET请求URL: {}", requestUri);
-            
-            // 发送GET请求
             WebTarget target = client.target(requestUri);
-            Response response = target.request(MediaType.APPLICATION_JSON)
-                    .get();
-            
-            String responseBody = response.readEntity(String.class);
-            log.info("Bark响应: {}", responseBody);
-            
-            if (response.getStatus() >= 200 && response.getStatus() < 300) {
-                log.info("Bark通知发送成功: {}", notification.getTitle());
-                response.close();
-                return true;
-            } else {
-                log.error("Bark通知发送失败，状态码: {}", response.getStatus());
-                response.close();
+            Response response = target.request(MediaType.APPLICATION_JSON).get();
+            try {
+                String responseBody = response.readEntity(String.class);
+                log.info("Bark GET response: {}", responseBody);
+
+                if (response.getStatus() >= 200 && response.getStatus() < 300) {
+                    log.info("Bark GET notification sent successfully: {}", request.getTitle());
+                    return true;
+                }
+
+                log.error("Bark GET notification failed, status: {}", response.getStatus());
                 return false;
+            } finally {
+                response.close();
             }
-            
         } catch (Exception e) {
-            log.error("发送Bark通知时发生异常: {}", e.getMessage(), e);
+            log.error("Failed to send Bark GET notification: {}", e.getMessage(), e);
             return false;
         }
     }
 
-    /**
-     * 构建GET请求URI
-     * 根据Bark官方URL结构: /:key/:body 或 /:key/:title/:body
-     *
-     * @param notification 通知对象
-     * @return 请求URI
-     */
-    private URI buildRequestUri(BarkNotificationDto notification) {
-        String key = notification.getDeviceKey();
-        String title = notification.getTitle();
-        String body = notification.getBody();
-        
-        // 使用UriBuilder避免双重编码
-        UriBuilder builder = UriBuilder.fromUri(barkUrl)
-                .path(key);
-        
-        // 根据Bark官方URL结构构建路径
-        if (title != null && !title.trim().isEmpty()) {
-            builder.path(title);
+    private boolean sendNotificationInternal(BarkNotificationDto notification, Map<String, String> overrides) {
+        BarkResolvedConfig config = resolveBarkConfig(overrides);
+        if (!isBarkConfigured(config)) {
+            log.warn("Bark is not configured, skipping notification");
+            return false;
         }
-        builder.path(body);
 
-        // 添加可选参数作为查询参数
-        if (notification.getIcon() != null) {
+        BarkNotificationDto request = prepareNotification(notification, config);
+        if (request == null) {
+            log.warn("Bark notification payload is empty, skipping notification");
+            return false;
+        }
+
+        try {
+            return shouldUseEncryptedPush(config)
+                    ? sendEncryptedNotification(request, config)
+                    : sendPlainNotification(request, config);
+        } catch (Exception e) {
+            log.error("Failed to send Bark notification: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+
+    private boolean sendPlainNotification(BarkNotificationDto notification, BarkResolvedConfig config) throws Exception {
+        URI requestUri = URI.create(config.barkUrl() + "/" + notification.getDeviceKey());
+        String jsonBody = objectMapper.writeValueAsString(notification);
+
+        log.info("Sending Bark JSON notification to {}", requestUri);
+
+        WebTarget target = client.target(requestUri);
+        Response response = target.request(MediaType.APPLICATION_JSON)
+                .post(Entity.entity(jsonBody, MediaType.APPLICATION_JSON_TYPE));
+        try {
+            String responseBody = response.readEntity(String.class);
+            log.info("Bark response: {}", responseBody);
+
+            if (response.getStatus() >= 200 && response.getStatus() < 300) {
+                log.info("Bark notification sent successfully: {}", notification.getTitle());
+                return true;
+            }
+
+            log.error("Bark notification failed, status: {}", response.getStatus());
+            return false;
+        } finally {
+            response.close();
+        }
+    }
+
+    private boolean sendEncryptedNotification(BarkNotificationDto notification, BarkResolvedConfig config) throws Exception {
+        validateEncryptionConfig(config);
+
+        URI requestUri = URI.create(config.barkUrl() + "/" + notification.getDeviceKey());
+        String payload = objectMapper.writeValueAsString(notification);
+        String ciphertext = encryptPayload(payload, config);
+
+        Form form = new Form()
+                .param("ciphertext", ciphertext)
+                .param("iv", config.encryptionIv());
+
+        log.info("Sending encrypted Bark notification to {}", requestUri);
+
+        WebTarget target = client.target(requestUri);
+        Response response = target.request(MediaType.APPLICATION_JSON)
+                .post(Entity.entity(form, MediaType.APPLICATION_FORM_URLENCODED_TYPE));
+        try {
+            String responseBody = response.readEntity(String.class);
+            log.info("Bark encrypted response: {}", responseBody);
+
+            if (response.getStatus() >= 200 && response.getStatus() < 300) {
+                log.info("Encrypted Bark notification sent successfully: {}", notification.getTitle());
+                return true;
+            }
+
+            log.error("Encrypted Bark notification failed, status: {}", response.getStatus());
+            return false;
+        } finally {
+            response.close();
+        }
+    }
+
+    private BarkNotificationDto prepareNotification(BarkNotificationDto notification, BarkResolvedConfig config) {
+        if (notification == null || !hasText(notification.getBody()) && !hasText(notification.getTitle())) {
+            return null;
+        }
+
+        return BarkNotificationDto.builder()
+                .deviceKey(hasText(notification.getDeviceKey()) ? notification.getDeviceKey() : config.deviceKey())
+                .title(notification.getTitle())
+                .body(notification.getBody())
+                .icon(firstNonBlank(notification.getIcon(), config.defaultIcon()))
+                .sound(firstNonBlank(notification.getSound(), config.defaultSound()))
+                .url(notification.getUrl())
+                .group(firstNonBlank(notification.getGroup(), config.defaultGroup()))
+                .autoCopy(notification.getAutoCopy())
+                .copy(notification.getCopy())
+                .level(notification.getLevel())
+                .badge(notification.getBadge())
+                .isArchive(notification.getIsArchive())
+                .category(notification.getCategory())
+                .threadId(notification.getThreadId())
+                .priority(notification.getPriority())
+                .timeout(notification.getTimeout())
+                .actionable(notification.getActionable())
+                .actions(notification.getActions())
+                .build();
+    }
+
+    private boolean shouldUseEncryptedPush(BarkResolvedConfig config) {
+        return config.encryptionEnabled()
+                || hasText(config.encryptionKey())
+                || hasText(config.encryptionIv());
+    }
+
+    private void validateEncryptionConfig(BarkResolvedConfig config) {
+        if (!hasText(config.encryptionKey()) || !hasText(config.encryptionIv())) {
+            throw new IllegalStateException("Bark encryption requires both key and iv");
+        }
+
+        int keyLength = config.encryptionKey().getBytes(StandardCharsets.UTF_8).length;
+        int ivLength = config.encryptionIv().getBytes(StandardCharsets.UTF_8).length;
+        if (keyLength != 32 || ivLength != 16) {
+            throw new IllegalStateException("Bark encryption requires a 32-byte key and 16-byte iv");
+        }
+    }
+
+    private String encryptPayload(String payload, BarkResolvedConfig config) throws Exception {
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        SecretKeySpec secretKeySpec = new SecretKeySpec(
+                config.encryptionKey().getBytes(StandardCharsets.UTF_8),
+                "AES"
+        );
+        IvParameterSpec ivParameterSpec = new IvParameterSpec(
+                config.encryptionIv().getBytes(StandardCharsets.UTF_8)
+        );
+        cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, ivParameterSpec);
+        byte[] encrypted = cipher.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(encrypted);
+    }
+
+    private URI buildRequestUri(BarkNotificationDto notification, BarkResolvedConfig config) {
+        UriBuilder builder = UriBuilder.fromUri(config.barkUrl())
+                .path(notification.getDeviceKey());
+
+        if (hasText(notification.getTitle())) {
+            builder.path(notification.getTitle());
+        }
+        builder.path(notification.getBody());
+
+        if (hasText(notification.getIcon())) {
             builder.queryParam("icon", notification.getIcon());
         }
-        if (notification.getSound() != null) {
+        if (hasText(notification.getSound())) {
             builder.queryParam("sound", notification.getSound());
         }
-        if (notification.getUrl() != null) {
+        if (hasText(notification.getUrl())) {
             builder.queryParam("url", notification.getUrl());
         }
-        if (notification.getGroup() != null) {
+        if (hasText(notification.getGroup())) {
             builder.queryParam("group", notification.getGroup());
         }
-        if (notification.getAutoCopy() != null && notification.getAutoCopy()) {
+        if (Boolean.TRUE.equals(notification.getAutoCopy())) {
             builder.queryParam("autoCopy", "1");
         }
-        if (notification.getCopy() != null) {
+        if (hasText(notification.getCopy())) {
             builder.queryParam("copy", notification.getCopy());
         }
-        if (notification.getLevel() != null) {
+        if (hasText(notification.getLevel())) {
             builder.queryParam("level", notification.getLevel());
         }
         if (notification.getBadge() != null) {
             builder.queryParam("badge", notification.getBadge());
         }
-        if (notification.getIsArchive() != null && notification.getIsArchive()) {
+        if (Boolean.TRUE.equals(notification.getIsArchive())) {
             builder.queryParam("isArchive", "1");
         }
 
         return builder.build();
+    }
+
+    private BarkResolvedConfig resolveBarkConfig(Map<String, String> overrides) {
+        return new BarkResolvedConfig(
+                resolveValue("airopscat.bark.url", overrides),
+                resolveValue("airopscat.bark.device-key", overrides),
+                Boolean.parseBoolean(resolveValue("airopscat.bark.encrypt-enabled", overrides)),
+                resolveValue("airopscat.bark.encrypt-key", overrides),
+                resolveValue("airopscat.bark.encrypt-iv", overrides),
+                resolveValue("airopscat.bark.default-group", overrides),
+                resolveValue("airopscat.bark.default-sound", overrides),
+                resolveValue("airopscat.bark.default-icon", overrides)
+        );
+    }
+
+    private String resolveValue(String key, Map<String, String> overrides) {
+        if (overrides != null && overrides.containsKey(key)) {
+            return normalize(overrides.get(key));
+        }
+
+        String value = systemConfigService.getResolvedValue(key);
+        if (hasText(value) || isBooleanText(value)) {
+            return value;
+        }
+        return null;
+    }
+
+    private boolean isBarkConfigured(BarkResolvedConfig config) {
+        return hasText(config.barkUrl()) && hasText(config.deviceKey());
+    }
+
+    private String firstNonBlank(String preferred, String fallback) {
+        return hasText(preferred) ? preferred : fallback;
+    }
+
+    private boolean isBooleanText(String value) {
+        return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
+    }
+
+    private String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private record BarkResolvedConfig(
+            String barkUrl,
+            String deviceKey,
+            boolean encryptionEnabled,
+            String encryptionKey,
+            String encryptionIv,
+            String defaultGroup,
+            String defaultSound,
+            String defaultIcon
+    ) {
     }
 }

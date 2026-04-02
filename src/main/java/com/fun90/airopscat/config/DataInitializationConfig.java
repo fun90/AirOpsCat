@@ -4,6 +4,7 @@ import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.UserRepository;
+import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentVersionService;
 import com.fun90.airopscat.service.ServerHostService;
 import io.quarkus.elytron.security.common.BcryptUtil;
@@ -33,6 +34,9 @@ public class DataInitializationConfig {
     @Inject
     NodeDeploymentVersionService nodeDeploymentVersionService;
 
+    @Inject
+    SystemConfigService systemConfigService;
+
     /**
      * 使用BCrypt编码密码，与Quarkus Security兼容
      */
@@ -42,6 +46,7 @@ public class DataInitializationConfig {
 
     @Transactional
     public void onStart(@Observes StartupEvent event) {
+        initializeSystemConfigs();
         initializeNodeCoreType();
         initializeServerHosts();
         initializeLegacyNodeDeployments();
@@ -110,5 +115,9 @@ public class DataInitializationConfig {
         if (initializedCount > 0) {
             log.info("Initialized node_deployment data for {} legacy deployed nodes", initializedCount);
         }
+    }
+
+    private void initializeSystemConfigs() {
+        systemConfigService.initializeDefaultConfigs();
     }
 }
