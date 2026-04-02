@@ -734,7 +734,7 @@ quarkus.datasource.jdbc.url=jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${
 - 大表膨胀得到控制
 - 统计页不再直接压明细表
 
-### Step 8：再处理模板和前端静态资源
+### Step 8：再处理模板和前端静态资源 [部分处理]
 
 #### 要做什么
 
@@ -1037,6 +1037,18 @@ JDBC URL 可评估补充：
 - 页面首屏和切页更流畅
 - 静态资源加载体积下降
 
+#### 当前进度
+
+- 已处理：
+- [ConsolePageRegistry.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/ConsolePageRegistry.java) 已将控制台菜单分组改为启动时预计算并复用，不再按请求重复组装
+- [ConsolePage.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/model/vo/ConsolePage.java) 已补充页面级可选资源标记，用于布局按需加载
+- [HomeController.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/controller/HomeController.java) 已向布局模板传递 `requiresTomSelect`、`requiresCharts` 页面元数据
+- [layout.html](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/resources/templates/layout.html) 已改为按需加载 `tom-select` 的 CSS/JS，并移除全局远程 `Inter` 字体请求
+- 待继续处理：
+- Qute 布局与内容页的双次渲染结构优化
+- 图表资源、增强控件的更细粒度按页或按模块收口
+- 静态资源版本号与缓存策略配置
+
 ## 5.3 建议排期
 
 ### 第 1 周
@@ -1199,6 +1211,17 @@ JDBC URL 可评估补充：
 - 本轮未处理：
 - 预聚合汇总表设计与落地
 - 页面查询切换到汇总表
+
+### Task Group 8：Qute 与前端资源收口优化 [部分处理]
+
+- [ConsolePageRegistry.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/ConsolePageRegistry.java) 已将 `menuGroups` 改为启动期预计算缓存，避免每次控制台请求重复执行分组和排序
+- [ConsolePage.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/model/vo/ConsolePage.java) 已为页面增加 `requiresTomSelect`、`requiresCharts` 标记，支持布局按需决策资源加载
+- [HomeController.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/controller/HomeController.java) 已将页面可选资源标记注入布局上下文
+- [layout.html](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/resources/templates/layout.html) 已将 `tom-select` CSS/JS 改为按需加载，并移除全局远程字体依赖
+- 本轮未处理：
+- Qute 双次渲染链路优化
+- 更细粒度的图表资源按需收口
+- 静态资源缓存策略与版本化
 
 ## 7. 建议先落地的文档化交付物
 
