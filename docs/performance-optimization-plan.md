@@ -1044,8 +1044,9 @@ JDBC URL 可评估补充：
 - [ConsolePage.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/model/vo/ConsolePage.java) 已补充页面级可选资源标记，用于布局按需加载
 - [HomeController.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/controller/HomeController.java) 已向布局模板传递 `requiresTomSelect`、`requiresCharts` 页面元数据
 - [layout.html](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/resources/templates/layout.html) 已改为按需加载 `tom-select` 的 CSS/JS，并移除全局远程 `Inter` 字体请求
+- [HomeController.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/controller/HomeController.java) 已移除 `RawString` 拼接与内容模板预渲染，控制台页面改为单次 Qute 渲染
+- 控制台已注册页面已切换到 `page.html` 包装模板，通过布局插槽 include 原有 `content.html`
 - 待继续处理：
-- Qute 布局与内容页的双次渲染结构优化
 - 图表资源、增强控件的更细粒度按页或按模块收口
 - 静态资源版本号与缓存策略配置
 
@@ -1218,8 +1219,10 @@ JDBC URL 可评估补充：
 - [ConsolePage.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/model/vo/ConsolePage.java) 已为页面增加 `requiresTomSelect`、`requiresCharts` 标记，支持布局按需决策资源加载
 - [HomeController.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/controller/HomeController.java) 已将页面可选资源标记注入布局上下文
 - [layout.html](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/resources/templates/layout.html) 已将 `tom-select` CSS/JS 改为按需加载，并移除全局远程字体依赖
+- [HomeController.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/controller/HomeController.java) 已切换为单次渲染页面包装模板，不再先渲染 `content.html` 再注入布局
+- `src/main/resources/templates/*/page.html` 已为控制台注册页面提供统一包装模板，布局通过 `page-body` 插槽直接 include 原有内容模板
+- [page-content.html](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/resources/templates/page-content.html) 已移除，旧的 `pageContent` 注入链路已下线
 - 本轮未处理：
-- Qute 双次渲染链路优化
 - 更细粒度的图表资源按需收口
 - 静态资源缓存策略与版本化
 
