@@ -235,15 +235,6 @@ public class SystemConfigService {
                 item("airopscat.bark.default-icon", "默认图标", "未指定 icon 时使用。", INPUT_URL, false, false, false, true, "https://static.example.com/icon.png", "")
         ));
 
-        groups.put("core", group(
-                "core",
-                "核心运行",
-                "核心运行参数和部署行为配置。",
-                30,
-                false,
-                item("airopscat.ssh.provider", "SSH 实现", "SSH 连接实现，保存后需重启服务生效。", INPUT_TEXT, true, false, true, true, "jsch", "jsch")
-        ));
-
         groups.put("open", group(
                 "open",
                 "开放接口",
