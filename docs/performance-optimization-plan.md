@@ -295,7 +295,7 @@
 - 降低控制台页面渲染 CPU 消耗
 - 对首屏和高并发访问更友好
 
-### 3.8 第二优先级：优化 SSH / gRPC / 流量采集链路
+### 3.8 第二优先级：优化 SSH / gRPC / 流量采集链路 [已处理]
 
 #### 当前信号
 
@@ -1230,6 +1230,20 @@ JDBC URL 可评估补充：
 - 本轮未处理：
 - 预聚合汇总表设计与落地
 - 页面查询切换到汇总表
+
+### Task Group 7.1：SSH / gRPC / 流量采集链路优化 [已处理]
+
+- [SshLocalPortForward.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/ssh/SshLocalPortForward.java) 已新增可关闭的 SSH 本地端口转发句柄，支持按次生命周期释放转发资源
+- [SshConnection.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/ssh/SshConnection.java)、[JschConnection.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/ssh/impl/JschConnection.java) 已补充 `openLocalPortForward(...)`，支持自动分配本地端口并幂等关闭
+- [SingBoxGrpcQueryClient.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/traffic/impl/SingBoxGrpcQueryClient.java) 已改为基于动态 `ManagedChannel` 发起 sing-box gRPC 查询，并在每次查询后关闭 channel 与端口转发
+- [SingBoxTrafficStatsCollector.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/traffic/impl/SingBoxTrafficStatsCollector.java) 已移除固定本地端口和全局 `@GrpcClient("sing-box")` 依赖，改为通过动态查询客户端执行带重试的统计请求
+- [TrafficStatsTask.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/scheduler/TrafficStatsTask.java) 已改为按服务器聚合 `ServerConfig` 后复用单个 SSH 连接，并补充服务器级与任务级摘要日志
+- [application.properties](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/resources/application.properties) 已新增 `airopscat.sing-box.grpc.timeout-seconds` 与 `airopscat.sing-box.grpc.max-retries`，并移除固定端口式 sing-box gRPC 客户端配置
+- [SingBoxGrpcQueryClientTest.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/test/java/com/fun90/airopscat/service/traffic/impl/SingBoxGrpcQueryClientTest.java)、[TrafficStatsTaskTest.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/test/java/com/fun90/airopscat/scheduler/TrafficStatsTaskTest.java) 已覆盖重试释放行为与“同一服务器多配置只创建一次 SSH 连接”场景
+- 本轮未处理：
+- 跨服务器并发采集
+- SSH 连接池化或跨任务复用
+- 其他 SSH 使用场景复用同一套动态转发能力
 
 ### Task Group 8：Qute 与前端资源收口优化 [部分处理]
 
