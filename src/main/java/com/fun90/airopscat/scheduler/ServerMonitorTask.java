@@ -26,8 +26,8 @@ public class ServerMonitorTask {
     ServerMonitorStatsService serverMonitorStatsService;
 
     @Inject
-    @Named("blockingTaskExecutor")
-    ExecutorService blockingTaskExecutor;
+    @Named("monitorTaskExecutor")
+    ExecutorService monitorTaskExecutor;
 
     @Inject
     SystemConfigService systemConfigService;
@@ -39,7 +39,7 @@ public class ServerMonitorTask {
         }
 
         log.info("开始执行定时任务：采集服务器监控指标，线程池状态: {}",
-                BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
+                BlockingTaskExecutorConfig.describeExecutor(monitorTaskExecutor));
 
         try {
             List<Server> servers = serverRepository.findMonitorableServers(LocalDateTime.now().toLocalDate());
@@ -52,35 +52,54 @@ public class ServerMonitorTask {
             int successCount = 0;
             int failureCount = 0;
 
-            List<CompletableFuture<MonitorCollectResult>> futures = servers.stream()
-                    .map(server -> CompletableFuture.supplyAsync(
-                            () -> collectServerMonitorSnapshot(server),
-                            blockingTaskExecutor))
-                    .toList();
+            int maxParallelServers = getMaxParallelServers();
+            int batchCount = calculateBatchCount(servers.size(), maxParallelServers);
+            for (int startIndex = 0; startIndex < servers.size(); startIndex += maxParallelServers) {
+                int endIndex = Math.min(startIndex + maxParallelServers, servers.size());
+                List<Server> batch = servers.subList(startIndex, endIndex);
+                int currentBatch = (startIndex / maxParallelServers) + 1;
+                log.info("服务器监控采集批次开始，总服务器数: {}, 当前批次: {}/{}, 批大小: {}, 线程池状态: {}",
+                        servers.size(), currentBatch, batchCount, batch.size(),
+                        BlockingTaskExecutorConfig.describeExecutor(monitorTaskExecutor));
 
-            for (CompletableFuture<MonitorCollectResult> future : futures) {
-                try {
-                    MonitorCollectResult result = future.join();
-                    if (result == MonitorCollectResult.SUCCESS) {
-                        successCount++;
-                    } else if (result == MonitorCollectResult.SKIPPED) {
-                        skippedCount++;
-                    } else {
+                List<CompletableFuture<MonitorCollectResult>> futures = batch.stream()
+                        .map(server -> CompletableFuture.supplyAsync(
+                                () -> collectServerMonitorSnapshot(server),
+                                monitorTaskExecutor))
+                        .toList();
+
+                for (CompletableFuture<MonitorCollectResult> future : futures) {
+                    try {
+                        MonitorCollectResult result = future.join();
+                        if (result == MonitorCollectResult.SUCCESS) {
+                            successCount++;
+                        } else if (result == MonitorCollectResult.SKIPPED) {
+                            skippedCount++;
+                        } else {
+                            failureCount++;
+                        }
+                    } catch (Exception e) {
                         failureCount++;
+                        log.error("等待服务器监控采集结果时发生错误: {}", e.getMessage(), e);
                     }
-                } catch (Exception e) {
-                    failureCount++;
-                    log.error("等待服务器监控采集结果时发生错误: {}", e.getMessage(), e);
                 }
             }
 
-            log.info("服务器监控采集完成，服务器数: {}, 成功: {}, 跳过: {}, 失败: {}, 线程池状态: {}",
-                    servers.size(), successCount, skippedCount, failureCount,
-                    BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
+            log.info("服务器监控采集完成，服务器数: {}, 最大并发: {}, 批次数: {}, 成功: {}, 跳过: {}, 失败: {}, 线程池状态: {}",
+                    servers.size(), maxParallelServers, batchCount, successCount, skippedCount, failureCount,
+                    BlockingTaskExecutorConfig.describeExecutor(monitorTaskExecutor));
         } catch (Exception e) {
             log.error("执行服务器监控采集任务时发生错误，线程池状态: {}",
-                    BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor), e);
+                    BlockingTaskExecutorConfig.describeExecutor(monitorTaskExecutor), e);
         }
+    }
+
+    private int getMaxParallelServers() {
+        return Math.max(systemConfigService.getIntValue("airopscat.server.monitor.max-parallel-servers", 10), 1);
+    }
+
+    private int calculateBatchCount(int totalCount, int batchSize) {
+        return totalCount == 0 ? 0 : (int) Math.ceil((double) totalCount / batchSize);
     }
 
     private MonitorCollectResult collectServerMonitorSnapshot(Server server) {

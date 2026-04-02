@@ -50,21 +50,21 @@ public class DatabaseBackupService {
     String password;
 
     @Inject
-    @Named("blockingTaskExecutor")
-    ExecutorService blockingTaskExecutor;
+    @Named("backupTaskExecutor")
+    ExecutorService backupTaskExecutor;
 
     @Inject
     SystemConfigService systemConfigService;
 
     public void scheduledBackup() {
-        log.info("开始执行数据库备份任务，线程池状态: {}", BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
+        log.info("开始执行数据库备份任务，线程池状态: {}", BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor));
         try {
             BackupFileDto backupFile = createBackup();
             log.info("数据库备份完成: {}, 线程池状态: {}",
-                    backupFile.getFileName(), BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
+                    backupFile.getFileName(), BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor));
         } catch (Exception e) {
             log.error("执行定时数据库备份失败，线程池状态: {}",
-                    BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor), e);
+                    BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor), e);
         }
     }
 
@@ -76,7 +76,7 @@ public class DatabaseBackupService {
         }
 
         log.info("开始执行备份清理任务，保留天数: {}, 线程池状态: {}",
-                retentionDays, BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
+                retentionDays, BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor));
 
         LocalDateTime cutoff = LocalDateTime.now(SHANGHAI_ZONE).minusDays(retentionDays);
         int deletedCount = 0;
@@ -101,14 +101,14 @@ public class DatabaseBackupService {
 
             if (deletedCount > 0) {
                 log.info("备份清理完成，已删除 {} 个过期备份文件，保留天数: {}, 线程池状态: {}",
-                        deletedCount, retentionDays, BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
+                        deletedCount, retentionDays, BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor));
             } else {
                 log.info("备份清理完成，没有需要删除的过期备份文件，保留天数: {}, 线程池状态: {}",
-                        retentionDays, BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
+                        retentionDays, BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor));
             }
         } catch (Exception e) {
             log.error("执行备份清理失败，线程池状态: {}",
-                    BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor), e);
+                    BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor), e);
         }
     }
 
@@ -424,7 +424,7 @@ public class DatabaseBackupService {
             } catch (IOException e) {
                 log.warn("Failed to read mysqldump error stream", e);
             }
-        }, blockingTaskExecutor);
+        }, backupTaskExecutor);
     }
 
     private String getBackupDir() {

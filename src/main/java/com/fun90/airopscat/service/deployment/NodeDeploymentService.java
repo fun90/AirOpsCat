@@ -19,6 +19,7 @@ import com.fun90.airopscat.model.dto.deployment.CoreDeploymentExecution;
 import com.fun90.airopscat.model.dto.deployment.DeploymentPreload;
 import com.fun90.airopscat.service.NodeGroupService;
 import com.fun90.airopscat.service.NodeService;
+import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.deployment.registry.CoreConfigBuilderRegistry;
 import com.fun90.airopscat.util.JsonUtil;
@@ -53,6 +54,7 @@ public class NodeDeploymentService {
     private final NodeService nodeService;
     private final NodeGroupService nodeGroupService;
     private final CoreManagementService coreManagementService;
+    private final SystemConfigService systemConfigService;
     private final DeploymentDataLoader dataLoader;
     private final CoreDeploymentExecutor deploymentExecutor;
     private final CoreConfigBuilderRegistry coreConfigBuilderRegistry;
@@ -65,16 +67,18 @@ public class NodeDeploymentService {
                                  NodeService nodeService,
                                  NodeGroupService nodeGroupService,
                                  CoreManagementService coreManagementService,
+                                 SystemConfigService systemConfigService,
                                  DeploymentDataLoader dataLoader,
                                  CoreDeploymentExecutor deploymentExecutor,
                                  CoreConfigBuilderRegistry coreConfigBuilderRegistry,
-                                 @Named("blockingTaskExecutor") ExecutorService blockingTaskExecutor) {
+                                 @Named("deploymentTaskExecutor") ExecutorService blockingTaskExecutor) {
         this.nodeRepository = nodeRepository;
         this.serverRepository = serverRepository;
         this.tagRepository = tagRepository;
         this.nodeService = nodeService;
         this.nodeGroupService = nodeGroupService;
         this.coreManagementService = coreManagementService;
+        this.systemConfigService = systemConfigService;
         this.dataLoader = dataLoader;
         this.deploymentExecutor = deploymentExecutor;
         this.coreConfigBuilderRegistry = coreConfigBuilderRegistry;
@@ -227,22 +231,48 @@ public class NodeDeploymentService {
     private List<DeploymentResult> processNodesByServer(List<Node> nodes) {
         DeploymentPreload preload = dataLoader.load(nodes);
         ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-
-        List<CompletableFuture<List<CoreDeploymentExecution>>> futures = preload.serverContexts().values().stream()
+        List<DeploymentServerContext> serverContexts = preload.serverContexts().values().stream()
                 .filter(ctx -> !ctx.nodes().isEmpty())
                 .filter(ctx -> ctx.server().getDisabled() != 1)
-                .map(ctx -> CompletableFuture.supplyAsync(
-                        withContextClassLoader(contextClassLoader, () -> deploymentExecutor.executeForServer(ctx)),
-                        blockingTaskExecutor))
                 .toList();
+        if (serverContexts.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        int maxParallelServers = getMaxParallelServers();
+        int batchCount = calculateBatchCount(serverContexts.size(), maxParallelServers);
 
         List<DeploymentResult> results = new ArrayList<>();
-        for (CompletableFuture<List<CoreDeploymentExecution>> future : futures) {
-            for (CoreDeploymentExecution execution : future.join()) {
-                results.addAll(deploymentExecutor.persist(execution));
+        for (int startIndex = 0; startIndex < serverContexts.size(); startIndex += maxParallelServers) {
+            int endIndex = Math.min(startIndex + maxParallelServers, serverContexts.size());
+            List<DeploymentServerContext> batch = serverContexts.subList(startIndex, endIndex);
+            int currentBatch = (startIndex / maxParallelServers) + 1;
+            log.info("节点部署批次开始，总服务器数: {}, 当前批次: {}/{}, 批大小: {}",
+                    serverContexts.size(), currentBatch, batchCount, batch.size());
+
+            List<CompletableFuture<List<CoreDeploymentExecution>>> futures = batch.stream()
+                    .map(ctx -> CompletableFuture.supplyAsync(
+                            withContextClassLoader(contextClassLoader, () -> deploymentExecutor.executeForServer(ctx)),
+                            blockingTaskExecutor))
+                    .toList();
+
+            for (CompletableFuture<List<CoreDeploymentExecution>> future : futures) {
+                for (CoreDeploymentExecution execution : future.join()) {
+                    results.addAll(deploymentExecutor.persist(execution));
+                }
             }
         }
+        log.info("节点部署批处理完成，总服务器数: {}, 最大并发服务器数: {}, 批次数: {}",
+                serverContexts.size(), maxParallelServers, batchCount);
         return results;
+    }
+
+    private int getMaxParallelServers() {
+        return Math.max(systemConfigService.getIntValue("airopscat.deployment.max-parallel-servers", 4), 1);
+    }
+
+    private int calculateBatchCount(int totalCount, int batchSize) {
+        return totalCount == 0 ? 0 : (int) Math.ceil((double) totalCount / batchSize);
     }
 
     private <T> Supplier<T> withContextClassLoader(ClassLoader contextClassLoader, Supplier<T> supplier) {

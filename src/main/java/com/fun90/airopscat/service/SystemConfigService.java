@@ -250,13 +250,25 @@ public class SystemConfigService {
         groups.put("thread", group(
                 "thread",
                 "线程池",
-                "阻塞任务线程池参数，保存后需重启服务生效。",
+                "后台任务线程池参数，保存后需重启服务生效。",
                 20,
                 false,
                 item("airopscat.thread.blocking.core-size", "核心线程数", "阻塞任务线程池核心线程数，建议按服务器规模和后台任务并发量调整。", INPUT_NUMBER, true, false, true, true, "4", "4"),
                 item("airopscat.thread.blocking.max-size", "最大线程数", "阻塞任务线程池最大线程数，建议与数据库连接池和机器核数一起评估。", INPUT_NUMBER, true, false, true, true, "16", "16"),
                 item("airopscat.thread.blocking.queue-capacity", "队列容量", "阻塞任务等待队列容量，过小会导致任务回退到调用线程执行。", INPUT_NUMBER, true, false, true, true, "128", "128"),
-                item("airopscat.thread.blocking.keep-alive-seconds", "线程保活秒数", "非核心线程空闲保活时长，当前阶段保持 60 秒。", INPUT_NUMBER, true, false, true, true, "60", "60")
+                item("airopscat.thread.blocking.keep-alive-seconds", "线程保活秒数", "通用阻塞线程池非核心线程空闲保活时长，当前阶段保持 60 秒。", INPUT_NUMBER, true, false, true, true, "60", "60"),
+                item("airopscat.thread.deployment.core-size", "部署核心线程数", "部署线程池核心线程数，适用于 SSH 下发和节点部署。", INPUT_NUMBER, true, false, true, true, "2", "2"),
+                item("airopscat.thread.deployment.max-size", "部署最大线程数", "部署线程池最大线程数。", INPUT_NUMBER, true, false, true, true, "8", "8"),
+                item("airopscat.thread.deployment.queue-capacity", "部署队列容量", "部署线程池等待队列容量。", INPUT_NUMBER, true, false, true, true, "32", "32"),
+                item("airopscat.thread.deployment.keep-alive-seconds", "部署保活秒数", "部署线程池非核心线程保活时长。", INPUT_NUMBER, true, false, true, true, "60", "60"),
+                item("airopscat.thread.monitor.core-size", "监控核心线程数", "监控线程池核心线程数，适用于监控采集与监控提醒。", INPUT_NUMBER, true, false, true, true, "4", "4"),
+                item("airopscat.thread.monitor.max-size", "监控最大线程数", "监控线程池最大线程数。", INPUT_NUMBER, true, false, true, true, "16", "16"),
+                item("airopscat.thread.monitor.queue-capacity", "监控队列容量", "监控线程池等待队列容量。", INPUT_NUMBER, true, false, true, true, "128", "128"),
+                item("airopscat.thread.monitor.keep-alive-seconds", "监控保活秒数", "监控线程池非核心线程保活时长。", INPUT_NUMBER, true, false, true, true, "60", "60"),
+                item("airopscat.thread.backup.core-size", "备份核心线程数", "备份线程池核心线程数，适用于备份和恢复。", INPUT_NUMBER, true, false, true, true, "1", "1"),
+                item("airopscat.thread.backup.max-size", "备份最大线程数", "备份线程池最大线程数。", INPUT_NUMBER, true, false, true, true, "2", "2"),
+                item("airopscat.thread.backup.queue-capacity", "备份队列容量", "备份线程池等待队列容量。", INPUT_NUMBER, true, false, true, true, "8", "8"),
+                item("airopscat.thread.backup.keep-alive-seconds", "备份保活秒数", "备份线程池非核心线程保活时长。", INPUT_NUMBER, true, false, true, true, "60", "60")
         ));
 
         groups.put("core", group(
@@ -289,7 +301,8 @@ public class SystemConfigService {
                 50,
                 false,
                 item("airopscat.config.templates.dir", "模板目录", "订阅和核心配置模板目录。", INPUT_TEXT, true, false, false, true, "./config", "./config"),
-                item("airopscat.install.remote-work-dir", "远端工作目录", "一键安装脚本在服务器上的工作目录。", INPUT_TEXT, true, false, false, true, "/tmp/airopscat-installer", "/tmp/airopscat-installer")
+                item("airopscat.install.remote-work-dir", "远端工作目录", "一键安装脚本在服务器上的工作目录。", INPUT_TEXT, true, false, false, true, "/tmp/airopscat-installer", "/tmp/airopscat-installer"),
+                item("airopscat.deployment.max-parallel-servers", "部署并发服务器数", "单轮节点部署最多并发处理的服务器数。", INPUT_NUMBER, true, false, false, true, "4", "4")
         ));
 
         groups.put("monitor", group(
@@ -302,6 +315,7 @@ public class SystemConfigService {
                 item("airopscat.account.online.cleanup.batch-size", "在线清理批大小", "在线记录清理单批删除数量。", INPUT_NUMBER, true, false, false, true, "1000", "1000"),
                 item("airopscat.server.monitor.enabled", "启用监控", "是否启用服务器监控和负载告警。", INPUT_CHECKBOX, false, false, false, true, "", "true"),
                 item("airopscat.server.monitor.refresh-minutes", "采集间隔分钟数", "服务器监控采集间隔。", INPUT_NUMBER, true, false, false, true, "2", "2"),
+                item("airopscat.server.monitor.max-parallel-servers", "监控并发服务器数", "单轮监控采集和提醒最多并发处理的服务器数。", INPUT_NUMBER, true, false, false, true, "10", "10"),
                 item("airopscat.server.monitor.retention-days", "监控保留天数", "服务器监控数据保留天数。", INPUT_NUMBER, true, false, false, true, "30", "30"),
                 item("airopscat.server.monitor.cleanup.batch-size", "监控清理批大小", "监控历史清理单批删除数量。", INPUT_NUMBER, true, false, false, true, "1000", "1000"),
                 item("airopscat.server.monitor.cleanup.cron", "监控清理 Cron", "监控历史清理调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 3 * * ?", "0 0 3 * * ?"),

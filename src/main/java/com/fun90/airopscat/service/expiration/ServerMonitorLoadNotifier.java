@@ -37,8 +37,8 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
     ServerMonitorStatsService serverMonitorStatsService;
 
     @Inject
-    @Named("blockingTaskExecutor")
-    ExecutorService blockingTaskExecutor;
+    @Named("monitorTaskExecutor")
+    ExecutorService monitorTaskExecutor;
 
     @Inject
     SystemConfigService systemConfigService;
@@ -62,23 +62,36 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
         }
 
         MonitorAlertThresholds thresholds = loadThresholds();
-
-        List<CompletableFuture<List<String>>> futures = servers.stream()
-                .map(server -> CompletableFuture.supplyAsync(() -> checkServer(server, now, thresholds), blockingTaskExecutor))
-                .toList();
-
-        if (futures.isEmpty()) {
-            return List.of();
-        }
-
         List<String> items = new ArrayList<>();
-        for (CompletableFuture<List<String>> future : futures) {
-            List<String> serverItems = future.join();
-            if (serverItems != null && !serverItems.isEmpty()) {
-                items.addAll(serverItems);
+        int maxParallelServers = getMaxParallelServers();
+        int batchCount = calculateBatchCount(servers.size(), maxParallelServers);
+        for (int startIndex = 0; startIndex < servers.size(); startIndex += maxParallelServers) {
+            int endIndex = Math.min(startIndex + maxParallelServers, servers.size());
+            List<Server> batch = servers.subList(startIndex, endIndex);
+            int currentBatch = (startIndex / maxParallelServers) + 1;
+            log.info("服务器监控提醒批次开始，总服务器数: {}, 当前批次: {}/{}, 批大小: {}",
+                    servers.size(), currentBatch, batchCount, batch.size());
+
+            List<CompletableFuture<List<String>>> futures = batch.stream()
+                    .map(server -> CompletableFuture.supplyAsync(() -> checkServer(server, now, thresholds), monitorTaskExecutor))
+                    .toList();
+
+            for (CompletableFuture<List<String>> future : futures) {
+                List<String> serverItems = future.join();
+                if (serverItems != null && !serverItems.isEmpty()) {
+                    items.addAll(serverItems);
+                }
             }
         }
         return items;
+    }
+
+    private int getMaxParallelServers() {
+        return Math.max(systemConfigService.getIntValue("airopscat.server.monitor.max-parallel-servers", 10), 1);
+    }
+
+    private int calculateBatchCount(int totalCount, int batchSize) {
+        return totalCount == 0 ? 0 : (int) Math.ceil((double) totalCount / batchSize);
     }
 
     @Override
