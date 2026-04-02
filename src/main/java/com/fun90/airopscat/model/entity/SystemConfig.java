@@ -1,8 +1,6 @@
 package com.fun90.airopscat.model.entity;
 
-import com.fun90.airopscat.config.CryptoConverter;
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -32,7 +30,6 @@ public class SystemConfig {
     private String configKey;
 
     @Lob
-    @Convert(converter = CryptoConverter.class)
     private String configValue;
 
     @Column(nullable = false, length = 64)

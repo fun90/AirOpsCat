@@ -5,6 +5,7 @@ import com.fun90.airopscat.model.dto.SystemConfigItemDto;
 import com.fun90.airopscat.model.dto.SystemConfigUpdateRequest;
 import com.fun90.airopscat.model.entity.SystemConfig;
 import com.fun90.airopscat.repository.SystemConfigRepository;
+import com.fun90.airopscat.util.CryptoUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -15,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
@@ -27,10 +27,8 @@ public class SystemConfigService {
     private static final String INPUT_NUMBER = "number";
     private static final String INPUT_CHECKBOX = "checkbox";
 
-    private static final String CONFIG_CRYPTO_SECRET_KEY = "airopscat.crypto.secret-key";
-    private static final Set<String> EXCLUDED_CONFIG_KEYS = Set.of(CONFIG_CRYPTO_SECRET_KEY);
-
     private final SystemConfigRepository systemConfigRepository;
+    private final CryptoUtil cryptoUtil;
     private final Config config;
 
     private final Map<String, ConfigGroupDefinition> groupDefinitions;
@@ -38,8 +36,9 @@ public class SystemConfigService {
     private final Map<String, Optional<String>> resolvedValueCache;
 
     @Inject
-    public SystemConfigService(SystemConfigRepository systemConfigRepository, Config config) {
+    public SystemConfigService(SystemConfigRepository systemConfigRepository, CryptoUtil cryptoUtil, Config config) {
         this.systemConfigRepository = systemConfigRepository;
+        this.cryptoUtil = cryptoUtil;
         this.config = config;
         this.groupDefinitions = buildGroupDefinitions();
         this.itemDefinitions = indexItemDefinitions(groupDefinitions);
@@ -59,8 +58,6 @@ public class SystemConfigService {
 
     @Transactional
     public void initializeDefaultConfigs() {
-        cleanupExcludedConfigs();
-
         for (ConfigGroupDefinition groupDefinition : groupDefinitions.values()) {
             for (ConfigItemDefinition itemDefinition : groupDefinition.items().values()) {
                 initializeDefaultConfig(groupDefinition.groupKey(), itemDefinition);
@@ -104,13 +101,6 @@ public class SystemConfigService {
         return toGroupDto(groupDefinition);
     }
 
-    private void cleanupExcludedConfigs() {
-        for (String configKey : EXCLUDED_CONFIG_KEYS) {
-            systemConfigRepository.delete("configKey", configKey);
-            evictResolvedValueCache(configKey);
-        }
-    }
-
     private void saveSingleValue(String groupKey, ConfigItemDefinition definition, String rawValue) {
         if (!definition.editable()) {
             return;
@@ -125,7 +115,7 @@ public class SystemConfigService {
         SystemConfig entity = optional.orElseGet(SystemConfig::new);
         entity.setConfigKey(definition.key());
         entity.setGroupKey(groupKey);
-        entity.setConfigValue(normalizedValue);
+        entity.setConfigValue(toStoredValue(normalizedValue, definition.storageEncrypted()));
         if (entity.getId() == null) {
             systemConfigRepository.persist(entity);
         }
@@ -140,9 +130,10 @@ public class SystemConfigService {
         SystemConfig entity = new SystemConfig();
         entity.setConfigKey(definition.key());
         entity.setGroupKey(groupKey);
-        entity.setConfigValue(normalizeValue(definition.defaultValue(), definition.inputType()));
+        String normalizedValue = normalizeValue(definition.defaultValue(), definition.inputType());
+        entity.setConfigValue(toStoredValue(normalizedValue, definition.storageEncrypted()));
         systemConfigRepository.persist(entity);
-        cacheResolvedValue(definition.key(), entity.getConfigValue());
+        cacheResolvedValue(definition.key(), normalizedValue);
     }
 
     private String getResolvedValue(ConfigItemDefinition definition) {
@@ -155,7 +146,7 @@ public class SystemConfigService {
     private String resolveValue(ConfigItemDefinition definition) {
         Optional<SystemConfig> stored = systemConfigRepository.findOptionalByConfigKey(definition.key());
         if (stored.isPresent()) {
-            return normalizeValue(stored.get().getConfigValue(), definition.inputType());
+            return normalizeValue(fromStoredValue(stored.get().getConfigValue(), definition.storageEncrypted()), definition.inputType());
         }
 
         return normalizeValue(
@@ -168,8 +159,18 @@ public class SystemConfigService {
         resolvedValueCache.put(key, Optional.ofNullable(value));
     }
 
-    private void evictResolvedValueCache(String key) {
-        resolvedValueCache.remove(key);
+    private String toStoredValue(String value, boolean storageEncrypted) {
+        if (!storageEncrypted || !hasText(value)) {
+            return value;
+        }
+        return cryptoUtil.encrypt(value);
+    }
+
+    private String fromStoredValue(String value, boolean storageEncrypted) {
+        if (!storageEncrypted || !hasText(value)) {
+            return value;
+        }
+        return cryptoUtil.decrypt(value);
     }
 
     private SystemConfigGroupDto toGroupDto(ConfigGroupDefinition definition) {
@@ -183,6 +184,7 @@ public class SystemConfigService {
                         .sensitive(itemDefinition.sensitive())
                         .restartRequired(itemDefinition.restartRequired())
                         .editable(itemDefinition.editable())
+                        .storageEncrypted(itemDefinition.storageEncrypted())
                         .placeholder(itemDefinition.placeholder())
                         .value(getResolvedValue(itemDefinition))
                         .build())
@@ -224,10 +226,10 @@ public class SystemConfigService {
                 10,
                 true,
                 item("airopscat.bark.url", "Bark 地址", "Bark 服务地址。", INPUT_URL, true, false, false, true, "https://push.example.com", ""),
-                item("airopscat.bark.device-key", "设备 Key", "推送目标设备的 Bark Key。", INPUT_PASSWORD, true, true, false, true, "请输入 Bark 设备 Key", ""),
+                item("airopscat.bark.device-key", "设备 Key", "推送目标设备的 Bark Key。", INPUT_PASSWORD, true, true, false, true, "请输入 Bark 设备 Key", "", true),
                 item("airopscat.bark.encrypt-enabled", "启用加密", "按 Bark 加密协议发送 ciphertext 和 iv。", INPUT_CHECKBOX, false, false, false, true, "", "false"),
-                item("airopscat.bark.encrypt-key", "AES Key", "启用加密时必须为 32 字节。", INPUT_PASSWORD, false, true, false, true, "32字节 AES Key", ""),
-                item("airopscat.bark.encrypt-iv", "AES IV", "启用加密时必须为 16 字节。", INPUT_PASSWORD, false, true, false, true, "16字节 AES IV", ""),
+                item("airopscat.bark.encrypt-key", "AES Key", "启用加密时必须为 32 字节。", INPUT_PASSWORD, false, true, false, true, "32字节 AES Key", "", true),
+                item("airopscat.bark.encrypt-iv", "AES IV", "启用加密时必须为 16 字节。", INPUT_PASSWORD, false, true, false, true, "16字节 AES IV", "", true),
                 item("airopscat.bark.default-group", "默认分组", "未指定 group 时使用。", INPUT_TEXT, false, false, false, true, "AirOpsCat", "AirOpsCat"),
                 item("airopscat.bark.default-sound", "默认铃声", "未指定 sound 时使用。", INPUT_TEXT, false, false, false, true, "system", "system"),
                 item("airopscat.bark.default-icon", "默认图标", "未指定 icon 时使用。", INPUT_URL, false, false, false, true, "https://static.example.com/icon.png", "")
@@ -251,9 +253,7 @@ public class SystemConfigService {
                 "核心运行参数和部署行为配置。",
                 30,
                 false,
-                item("airopscat.ssh.provider", "SSH 实现", "SSH 连接实现，保存后需重启服务生效。", INPUT_TEXT, true, false, true, true, "jsch", "jsch"),
-                item("airopscat.sing-box.grpc.local-port", "sing-box gRPC 端口", "本地 sing-box gRPC 端口，保存后需重启服务生效。", INPUT_NUMBER, true, false, true, true, "11011", "11011"),
-                item("airopscat.deployment.skip-remote-config", "跳过远端配置下发", "部署时是否跳过远端配置写入。", INPUT_CHECKBOX, false, false, false, true, "", "false")
+                item("airopscat.ssh.provider", "SSH 实现", "SSH 连接实现，保存后需重启服务生效。", INPUT_TEXT, true, false, true, true, "jsch", "jsch")
         ));
 
         groups.put("open", group(
@@ -265,9 +265,9 @@ public class SystemConfigService {
                 item("airopscat.subscription.url", "订阅地址", "生成订阅和客户端配置时使用。", INPUT_URL, true, false, false, true, "http://localhost:8080/subscribe", "http://localhost:8080/subscribe"),
                 item("airopscat.docs.url", "文档地址", "控制台展示的文档入口地址。", INPUT_URL, false, false, false, true, "https://docs.xxx.com", "https://docs.xxx.com"),
                 item("airopscat.domain", "系统域名", "安装脚本和对外地址使用的域名。", INPUT_TEXT, false, false, false, true, "yourdomain.com", "yourdomain.com"),
-                item("airopscat.api.token", "接口 Token", "开放接口和安装脚本使用的 Token。", INPUT_PASSWORD, false, true, false, true, "your_api_token_here", "your_api_token_here"),
-                item("airopscat.apple.id", "Apple ID", "开放接口返回的 Apple ID。", INPUT_TEXT, false, true, false, true, "your_apple_id_here", "your_apple_id_here"),
-                item("airopscat.apple.pwd", "Apple 密码", "开放接口返回的 Apple 密码。", INPUT_PASSWORD, false, true, false, true, "your_apple_pwd_here", "your_apple_pwd_here")
+                item("airopscat.api.token", "接口 Token", "开放接口和安装脚本使用的 Token。", INPUT_PASSWORD, false, true, false, true, "your_api_token_here", "your_api_token_here", true),
+                item("airopscat.apple.id", "Apple ID", "开放接口返回的 Apple ID。", INPUT_TEXT, false, true, false, true, "your_apple_id_here", "your_apple_id_here", true),
+                item("airopscat.apple.pwd", "Apple 密码", "开放接口返回的 Apple 密码。", INPUT_PASSWORD, false, true, false, true, "your_apple_pwd_here", "your_apple_pwd_here", true)
         ));
 
         groups.put("template", group(
@@ -288,7 +288,7 @@ public class SystemConfigService {
                 false,
                 item("airopscat.online.check-minutes", "在线检测分钟数", "在线账号检测时间窗口。", INPUT_NUMBER, true, false, false, true, "5", "5"),
                 item("airopscat.server.monitor.enabled", "启用监控", "是否启用服务器监控和负载告警。", INPUT_CHECKBOX, false, false, false, true, "", "true"),
-                item("airopscat.server.monitor.refresh-minutes", "采集间隔分钟数", "服务器监控采集间隔。", INPUT_NUMBER, true, false, false, true, "1", "1"),
+                item("airopscat.server.monitor.refresh-minutes", "采集间隔分钟数", "服务器监控采集间隔。", INPUT_NUMBER, true, false, false, true, "2", "2"),
                 item("airopscat.server.monitor.retention-days", "监控保留天数", "服务器监控数据保留天数。", INPUT_NUMBER, true, false, false, true, "30", "30"),
                 item("airopscat.server.monitor.cleanup.cron", "监控清理 Cron", "监控历史清理调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 3 * * ?", "0 0 3 * * ?"),
                 item("airopscat.server.monitor.alert.cron", "监控告警 Cron", "监控告警调度表达式。", INPUT_TEXT, true, false, false, true, "0 */5 * * * ?", "0 */5 * * * ?"),
@@ -296,7 +296,7 @@ public class SystemConfigService {
                 item("airopscat.server.monitor.alert.cpu-threshold", "CPU 告警阈值", "支持 0-1 或 0-100 写法。", INPUT_NUMBER, true, false, false, true, "0.9", "0.9"),
                 item("airopscat.server.monitor.alert.memory-threshold", "内存告警阈值", "支持 0-1 或 0-100 写法。", INPUT_NUMBER, true, false, false, true, "0.95", "0.95"),
                 item("airopscat.server.monitor.alert.traffic-threshold", "流量告警阈值", "支持 0-1 或 0-100 写法。", INPUT_NUMBER, true, false, false, true, "0.85", "0.85"),
-                item("airopscat.server.monitor.alert.continuous-minutes", "持续告警分钟数", "达到阈值后持续多久才触发告警。", INPUT_NUMBER, true, false, false, true, "30", "30")
+                item("airopscat.server.monitor.alert.continuous-minutes", "阈值持续分钟数", "达到阈值后持续多久才触发告警。", INPUT_NUMBER, true, false, false, true, "30", "30")
         ));
 
         groups.put("backup", group(
@@ -350,6 +350,20 @@ public class SystemConfigService {
                                       boolean editable,
                                       String placeholder,
                                       String defaultValue) {
+        return item(key, label, description, inputType, required, sensitive, restartRequired, editable, placeholder, defaultValue, false);
+    }
+
+    private ConfigItemDefinition item(String key,
+                                      String label,
+                                      String description,
+                                      String inputType,
+                                      boolean required,
+                                      boolean sensitive,
+                                      boolean restartRequired,
+                                      boolean editable,
+                                      String placeholder,
+                                      String defaultValue,
+                                      boolean storageEncrypted) {
         return new ConfigItemDefinition(
                 key,
                 label,
@@ -360,7 +374,8 @@ public class SystemConfigService {
                 restartRequired,
                 editable,
                 placeholder,
-                defaultValue
+                defaultValue,
+                storageEncrypted
         );
     }
 
@@ -443,7 +458,8 @@ public class SystemConfigService {
             boolean restartRequired,
             boolean editable,
             String placeholder,
-            String defaultValue
+            String defaultValue,
+            boolean storageEncrypted
     ) {
     }
 }

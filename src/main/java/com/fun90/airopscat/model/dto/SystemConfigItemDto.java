@@ -18,6 +18,7 @@ public class SystemConfigItemDto {
     private boolean sensitive;
     private boolean restartRequired;
     private boolean editable;
+    private boolean storageEncrypted;
     private String placeholder;
     private String value;
 }

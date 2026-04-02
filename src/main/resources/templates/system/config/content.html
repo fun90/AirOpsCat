@@ -69,7 +69,7 @@
                         </div>
                     </div>
 
-                    <div class="card mt-4" v-if="filteredGroups.length">
+                    <div class="card mt-4 d-none d-xl-block" v-if="filteredGroups.length">
                         <div class="card-header">
                             <div>
                                 <h3 class="card-title">分组导航</h3>
@@ -186,6 +186,7 @@
                                                             <div class="d-flex flex-wrap justify-content-end gap-1">
                                                                 <span v-if="item.restartRequired" class="badge bg-orange-lt">重启生效</span>
                                                                 <span v-if="item.required" class="badge bg-blue-lt">必填</span>
+                                                                <span v-if="item.storageEncrypted" class="badge bg-indigo-lt">加密存储</span>
                                                                 <span v-if="!item.editable" class="badge bg-secondary-lt">只读</span>
                                                             </div>
                                                         </div>
