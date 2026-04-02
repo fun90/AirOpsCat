@@ -19,59 +19,60 @@ public class ConsolePageRegistry {
     private final Map<String, ConsolePage> pages = Map.ofEntries(
             Map.entry("/person/user", page("person", "人员", 10, "person", "用户管理", 10,
                     "添加用户、编辑用户、查看用户", "/person/user", "person/user/content",
-                    true, true, "添加用户", "user-")),
+                    true, false, false, true, "添加用户", "user-")),
             Map.entry("/person/account", page("person", "人员", 10, "person", "账户管理", 20,
                     "添加账户、编辑账户、查看账户详情列表", "/person/account", "person/account/content",
-                    true, true, "添加账户", "account-")),
+                    true, true, false, true, "添加账户", "account-")),
             Map.entry("/person/account-traffic", page("person", "人员", 10, "person", "账户流量", 30,
                     "查看流量统计", "/person/account-traffic", "person/account-traffic/content",
-                    true, true, "", DEFAULT_MODAL_PREFIX)),
+                    true, true, false, true, "", DEFAULT_MODAL_PREFIX)),
             Map.entry("/person/user-panel", page("person", "人员", 10, "person", "用户面板", 40,
                     "查看您的账户信息和客户端配置", "/person/user-panel", "person/user-panel/content",
-                    true, true, "", DEFAULT_MODAL_PREFIX)),
+                    true, false, false, true, "", DEFAULT_MODAL_PREFIX)),
             Map.entry("/device/domain", page("device", "设备", 20, "device", "域名", 10,
                     "添加域名、编辑域名、查看域名", "/device/domain", "device/domain/content",
-                    true, true, "添加域名", "domain-")),
+                    true, false, false, true, "添加域名", "domain-")),
             Map.entry("/device/dns-provider", page("device", "设备", 20, "device", "DNS服务商", 15,
                     "管理 DNS 服务商配置和连接测试", "/device/dns-provider", "device/dns-provider/content",
-                    true, true, "添加服务商", "dns-provider-")),
+                    true, false, false, true, "添加服务商", "dns-provider-")),
             Map.entry("/device/dns-record", page("device", "设备", 20, "device", "DNS记录", 16,
                     "按域名管理本地 DNS 记录工作区", "/device/dns-record", "device/dns-record/content",
-                    false, true, "添加记录", "dns-record-")),
+                    false, false, false, true, "添加记录", "dns-record-")),
             Map.entry("/device/server", page("device", "设备", 20, "device", "服务器", 20,
                     "添加服务器、编辑服务器、查看服务器", "/device/server", "device/server/content",
-                    true, true, "添加服务器", "server-")),
+                    true, false, false, true, "添加服务器", "server-")),
             Map.entry("/device/server-monitor", page("device", "设备", 20, "device", "服务器监控", 25,
                     "查看服务器 CPU、内存和网络监控图表", "/device/server-monitor", "device/server-monitor/content",
-                    false, false, "", DEFAULT_MODAL_PREFIX)),
+                    false, false, true, false, "", DEFAULT_MODAL_PREFIX)),
             Map.entry("/device/server-install", page("device", "设备", 20, "device", "一键装机", 30,
                     "选择装机脚本，按顺序执行并查看每一步的结果", "/device/server-install", "device/server-install/content",
-                    true, false, "", DEFAULT_MODAL_PREFIX)),
+                    true, false, false, false, "", DEFAULT_MODAL_PREFIX)),
             Map.entry("/vpn/node", page("vpn", "代理", 30, "vpn", "节点管理", 10,
                     "添加、编辑、部署节点，查看节点", "/vpn/node", "vpn/node/content",
-                    true, true, "添加节点", "node-")),
+                    true, true, false, true, "添加节点", "node-")),
             Map.entry("/vpn/route-rule", page("vpn", "代理", 30, "vpn", "路由规则", 20,
                     "为 xray、sing-box 管理路由规则", "/vpn/route-rule", "vpn/route-rule/content",
-                    true, true, "添加规则", "route-rule-")),
+                    true, false, false, true, "添加规则", "route-rule-")),
             Map.entry("/vpn/server-config", page("vpn", "代理", 30, "vpn", "配置管理", 30,
                     "查看服务器上对应的配置", "/vpn/server-config", "vpn/server-config/content",
-                    true, true, "添加配置", "serverConfig-")),
+                    true, false, false, true, "添加配置", "serverConfig-")),
             Map.entry("/money/transactions", page("money", "财务", 40, "money", "交易流水", 10,
                     "查看收入、支出等流水", "/money/transactions", "money/transactions/content",
-                    true, true, "", DEFAULT_MODAL_PREFIX)),
+                    true, true, true, true, "", DEFAULT_MODAL_PREFIX)),
             Map.entry("/system/tag", page("system", "系统", 50, "system", "标签管理", 10,
                     "添加标签、编辑标签、查看标签", "/system/tag", "system/tag/content",
-                    true, true, "添加标签", "tag-")),
+                    true, false, false, true, "添加标签", "tag-")),
             Map.entry("/system/config", page("system", "系统", 50, "system", "系统配置", 15,
                     "可视化维护 Bark 和后续系统参数", "/system/config", "system/config/content",
-                    true, false, "", DEFAULT_MODAL_PREFIX)),
+                    true, false, false, false, "", DEFAULT_MODAL_PREFIX)),
             Map.entry("/system/scheduled-task", page("system", "系统", 50, "system", "定时任务", 20,
                     "查看任务调度状态，并支持暂停、恢复和手动执行", "/system/scheduled-task", "system/scheduled-task/content",
-                    true, false, "", DEFAULT_MODAL_PREFIX)),
+                    true, false, false, false, "", DEFAULT_MODAL_PREFIX)),
             Map.entry("/system/backup", page("system", "系统", 50, "system", "数据备份", 30,
                     "查看和管理系统数据备份文件", "/system/backup", "system/backup/content",
-                    true, false, "", "backup-"))
+                    true, false, false, false, "", "backup-"))
     );
+    private final List<ConsoleMenuGroup> menuGroups = buildMenuGroups();
 
     public ConsolePage getPage(String uri) {
         return pages.get(uri);
@@ -82,6 +83,10 @@ public class ConsolePageRegistry {
     }
 
     public List<ConsoleMenuGroup> getMenuGroups() {
+        return menuGroups;
+    }
+
+    private List<ConsoleMenuGroup> buildMenuGroups() {
         Map<String, List<ConsolePage>> groupedPages = pages.values().stream()
                 .filter(ConsolePage::showInMenu)
                 .sorted(Comparator.comparingInt(ConsolePage::moduleOrder)
@@ -109,7 +114,8 @@ public class ConsolePageRegistry {
 
     private static ConsolePage page(String moduleKey, String moduleTitle, int moduleOrder, String moduleIconKey,
                                     String title, int menuOrder, String secondaryTitle, String uri,
-                                    String contentTemplate, boolean showInMenu, boolean showAddButton,
+                                    String contentTemplate, boolean showInMenu, boolean requiresTomSelect,
+                                    boolean requiresCharts, boolean showAddButton,
                                     String buttonText, String modalIdPrefix) {
         return new ConsolePage(
                 moduleKey,
@@ -123,6 +129,8 @@ public class ConsolePageRegistry {
                 uri,
                 contentTemplate,
                 showInMenu,
+                requiresTomSelect,
+                requiresCharts,
                 showAddButton,
                 buttonText,
                 modalIdPrefix

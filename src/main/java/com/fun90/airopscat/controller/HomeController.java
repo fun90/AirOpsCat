@@ -118,6 +118,8 @@ public class HomeController {
                 .data("pageSecondaryTitle", page.secondaryTitle())
                 .data("uri", page.uri())
                 .data("showAddButton", page.showAddButton())
+                .data("requiresTomSelect", page.requiresTomSelect())
+                .data("requiresCharts", page.requiresCharts())
                 .data("buttonText", page.buttonText())
                 .data("modalIdPrefix", page.modalIdPrefix())
                 .data("pageContent", new RawString(pageContent))

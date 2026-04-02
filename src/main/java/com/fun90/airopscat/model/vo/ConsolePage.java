@@ -12,6 +12,8 @@ public record ConsolePage(
         String uri,
         String contentTemplate,
         boolean showInMenu,
+        boolean requiresTomSelect,
+        boolean requiresCharts,
         boolean showAddButton,
         String buttonText,
         String modalIdPrefix
@@ -30,6 +32,8 @@ public record ConsolePage(
                 uri,
                 contentTemplate,
                 showInMenu,
+                requiresTomSelect,
+                requiresCharts,
                 showAddButton,
                 buttonText,
                 modalIdPrefix
