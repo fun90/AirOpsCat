@@ -35,41 +35,40 @@ public class CoreManagementService {
                                                         SshConfig sshConfig,
                                                         OperationRequest... requests) {
         try {
-            CoreManagementStrategy strategy = strategyRegistry.getStrategy(coreType);
-
             try (SshConnection connection = sshConnectionService.createConnection(sshConfig)) {
-                List<CoreManagementResult> results = new ArrayList<>(requests.length);
-                for (OperationRequest request : requests) {
-                    if (!results.isEmpty() && !results.getLast().isSuccess()) {
-                        results.add(buildFailureResult(coreType, request.operation(), sshConfig,
-                                "操作未执行: 前序操作失败"));
-                        continue;
-                    }
-                    CoreManagementResult result = executeOperationInternal(
-                            strategy, request.operation(), connection, request.params());
-                    if (result == null) {
-                        result = buildFailureResult(coreType, request.operation(), sshConfig, "暂不支持该操作");
-                    } else {
-                        enrichResult(result, coreType, request.operation(), sshConfig);
-                    }
-                    results.add(result);
-                }
-                return results;
+                return executeOperations(coreType, connection, sshConfig.getHost(), requests);
             }
 
         } catch (Exception e) {
-            String operations = List.of(requests).stream()
-                    .map(request -> request.operation().name())
-                    .reduce((left, right) -> left + "," + right)
-                    .orElse("UNKNOWN");
-            log.error("执行内核操作失败 [{}:{}]: {}", coreType, operations, e.getMessage());
+            return buildExecutionFailureResults(coreType, sshConfig.getHost(), requests, e);
+        }
+    }
 
+    public List<CoreManagementResult> executeOperations(String coreType,
+                                                        SshConnection connection,
+                                                        String serverAddress,
+                                                        OperationRequest... requests) {
+        try {
+            CoreManagementStrategy strategy = strategyRegistry.getStrategy(coreType);
             List<CoreManagementResult> results = new ArrayList<>(requests.length);
             for (OperationRequest request : requests) {
-                results.add(buildFailureResult(coreType, request.operation(), sshConfig,
-                        "操作执行失败: " + e.getMessage()));
+                if (!results.isEmpty() && !results.getLast().isSuccess()) {
+                    results.add(buildFailureResult(coreType, request.operation(), serverAddress,
+                            "操作未执行: 前序操作失败"));
+                    continue;
+                }
+                CoreManagementResult result = executeOperationInternal(
+                        strategy, request.operation(), connection, request.params());
+                if (result == null) {
+                    result = buildFailureResult(coreType, request.operation(), serverAddress, "暂不支持该操作");
+                } else {
+                    enrichResult(result, coreType, request.operation(), serverAddress);
+                }
+                results.add(result);
             }
             return results;
+        } catch (Exception e) {
+            return buildExecutionFailureResults(coreType, serverAddress, requests, e);
         }
     }
 
@@ -97,14 +96,14 @@ public class CoreManagementService {
     private void enrichResult(CoreManagementResult result,
                               String coreType,
                               CoreOperation operation,
-                              SshConfig sshConfig) {
+                              String serverAddress) {
         if (result.getOperation() == null) {
             result.setOperation(operation.name());
         }
         if (result.getCoreType() == null) {
             result.setCoreType(coreType);
         }
-        result.setServerAddress(sshConfig.getHost());
+        result.setServerAddress(serverAddress);
         if (result.getOperationTime() == null) {
             result.setOperationTime(LocalDateTime.now());
         }
@@ -112,7 +111,7 @@ public class CoreManagementService {
 
     private CoreManagementResult buildFailureResult(String coreType,
                                                     CoreOperation operation,
-                                                    SshConfig sshConfig,
+                                                    String serverAddress,
                                                     String message) {
         CoreManagementResult result = new CoreManagementResult();
         result.setSuccess(false);
@@ -120,8 +119,26 @@ public class CoreManagementService {
         result.setOperationTime(LocalDateTime.now());
         result.setOperation(operation.name());
         result.setCoreType(coreType);
-        result.setServerAddress(sshConfig.getHost());
+        result.setServerAddress(serverAddress);
         return result;
+    }
+
+    private List<CoreManagementResult> buildExecutionFailureResults(String coreType,
+                                                                    String serverAddress,
+                                                                    OperationRequest[] requests,
+                                                                    Exception e) {
+        String operations = List.of(requests).stream()
+                .map(request -> request.operation().name())
+                .reduce((left, right) -> left + "," + right)
+                .orElse("UNKNOWN");
+        log.error("执行内核操作失败 [{}:{}]: {}", coreType, operations, e.getMessage());
+
+        List<CoreManagementResult> results = new ArrayList<>(requests.length);
+        for (OperationRequest request : requests) {
+            results.add(buildFailureResult(coreType, request.operation(), serverAddress,
+                    "操作执行失败: " + e.getMessage()));
+        }
+        return results;
     }
 
     public record OperationRequest(CoreOperation operation, Object... params) {
