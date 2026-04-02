@@ -37,7 +37,6 @@ const configTable = new DataTable({
         initialize() {
             this.fetchServers();
             this.fetchConfigTypes();
-            this.fetchStats();
         },
 
         // Fetch data methods
@@ -68,15 +67,8 @@ const configTable = new DataTable({
                 });
         },
 
-        fetchStats() {
-            fetch('/api/admin/server-configs/stats')
-                .then(response => response.json())
-                .then(data => {
-                    this.stats = data;
-                })
-                .catch(error => {
-                    console.error('Error fetching stats:', error);
-                });
+        getStatsUrl() {
+            return '/api/admin/server-configs/stats';
         },
 
         // Get Badge classes

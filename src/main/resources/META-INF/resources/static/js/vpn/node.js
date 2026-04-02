@@ -647,6 +647,10 @@ const nodeTable = new DataTable({
             return '/api/admin/nodes';
         },
 
+        getStatsUrl() {
+            return '/api/admin/nodes/stats';
+        },
+
         toggleSort(field) {
             if (this.filters.sortBy === field) {
                 if (this.filters.sortOrder === 'desc') {

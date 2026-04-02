@@ -12,7 +12,18 @@ import java.util.Set;
 
 @Data
 @Entity
-@Table(name = "node")
+@Table(
+        name = "node",
+        indexes = {
+                @Index(name = "idx_node_server_id", columnList = "server_id"),
+                @Index(name = "idx_node_access_host_id", columnList = "access_host_id"),
+                @Index(name = "idx_node_out_id", columnList = "out_id"),
+                @Index(name = "idx_node_node_group", columnList = "node_group"),
+                @Index(name = "idx_node_type_core_type", columnList = "type,core_type"),
+                @Index(name = "idx_node_deployed_id", columnList = "deployed,id"),
+                @Index(name = "idx_node_server_port", columnList = "server_id,port")
+        }
+)
 @DynamicUpdate
 public class Node {
     @Id

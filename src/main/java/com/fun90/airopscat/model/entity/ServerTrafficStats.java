@@ -8,7 +8,13 @@ import java.time.LocalDateTime;
 
 @Data
 @Entity
-@Table(name = "server_traffic_stats")
+@Table(
+        name = "server_traffic_stats",
+        indexes = {
+                @Index(name = "idx_server_traffic_server_period", columnList = "server_id,period_start,period_end"),
+                @Index(name = "idx_server_traffic_server_end", columnList = "server_id,period_end")
+        }
+)
 @DynamicUpdate
 public class ServerTrafficStats {
     @Id

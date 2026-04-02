@@ -13,7 +13,14 @@ import java.time.LocalDate;
 
 @Data
 @Entity
-@Table(name = "server")
+@Table(
+        name = "server",
+        indexes = {
+                @Index(name = "idx_server_expire_date", columnList = "expire_date"),
+                @Index(name = "idx_server_supplier", columnList = "supplier"),
+                @Index(name = "idx_server_state_expire", columnList = "disabled,external,expire_date")
+        }
+)
 @DynamicUpdate
 public class Server {
     @Id

@@ -81,9 +81,6 @@ public class AccountController {
         response.put("current", page);
         response.put("size", size);
 
-        // Add statistics
-        response.put("stats", accountService.getAccountsStats());
-
         return Response.ok(response).build();
     }
 

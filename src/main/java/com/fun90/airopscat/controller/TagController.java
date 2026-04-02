@@ -55,9 +55,6 @@ public class TagController {
         response.put("pages", tagQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
-        
-        // Add statistics
-        response.put("stats", tagService.getTagsStats());
 
         return Response.ok(response).build();
     }

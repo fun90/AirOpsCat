@@ -74,6 +74,10 @@ const routeRuleTable = new DataTable({
                 });
         },
 
+        getStatsUrl() {
+            return '/api/admin/route-rules/stats';
+        },
+
         onCreateCoreTypeChange() {
             this.newItem.outboundNodeId = '';
             this.fetchLandingNodes(this.newItem.coreType);

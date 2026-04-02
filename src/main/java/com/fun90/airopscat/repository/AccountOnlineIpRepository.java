@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -35,6 +36,10 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
      */
     public List<AccountOnlineIp> findByNodeIp(String nodeIp) {
         return find("nodeIp = ?1 order by lastOnlineTime desc", nodeIp).list();
+    }
+
+    public List<AccountOnlineIp> findByNodeIpAndLastOnlineTimeAfter(String nodeIp, LocalDateTime afterTime) {
+        return find("nodeIp = ?1 and lastOnlineTime > ?2 order by lastOnlineTime desc", nodeIp, afterTime).list();
     }
 
     /**
@@ -69,6 +74,27 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
 
     public long deleteByAccountNo(String accountNo) {
         return delete("accountNo", accountNo);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Long> countByNodeIpsAndLastOnlineTimeAfter(List<String> nodeIps, LocalDateTime afterTime) {
+        if (nodeIps == null || nodeIps.isEmpty()) {
+            return Map.of();
+        }
+
+        List<Object[]> rows = getEntityManager()
+                .createQuery("SELECT a.nodeIp, COUNT(a) FROM AccountOnlineIp a WHERE a.nodeIp IN :nodeIps AND a.lastOnlineTime > :afterTime GROUP BY a.nodeIp")
+                .setParameter("nodeIps", nodeIps)
+                .setParameter("afterTime", afterTime)
+                .getResultList();
+
+        Map<String, Long> result = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] != null) {
+                result.put((String) row[0], ((Number) row[1]).longValue());
+            }
+        }
+        return result;
     }
 
     /**

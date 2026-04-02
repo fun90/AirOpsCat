@@ -45,7 +45,6 @@ public class UserController {
         response.put("pages", userQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
-        response.put("stats", userService.getUserStats());
 
         return Response.ok(response).build();
     }

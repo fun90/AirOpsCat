@@ -232,6 +232,10 @@ const tagTable = new DataTable({
             return '/api/admin/tags';
         },
 
+        getStatsUrl() {
+            return '/api/admin/tags/stats';
+        },
+
         getToggleStatusUrl(item, action) {
             return `/api/admin/tags/${item.id}/${action}`;
         }

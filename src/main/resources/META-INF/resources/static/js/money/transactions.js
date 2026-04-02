@@ -134,6 +134,10 @@ const transactionTable = new DataTable({
             // Additional processing after data fetch if needed
         },
 
+        getStatsUrl() {
+            return '/api/admin/transactions/stats';
+        },
+
         // Format currency
         formatCurrency(value) {
             if (value === null || value === undefined) return "0.00";

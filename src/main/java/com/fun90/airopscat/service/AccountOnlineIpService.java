@@ -94,13 +94,8 @@ public class AccountOnlineIpService {
         LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(getCheckMinutes());
 
         // 获取所有记录，然后过滤出在时间窗口内的记录
-        List<AccountOnlineIp> allRecords = accountOnlineIpRepository.findByNodeIp(nodeIp);
-        List<AccountOnlineIp> validRecords = allRecords.stream()
-                .filter(record -> record.getLastOnlineTime() != null &&
-                        record.getLastOnlineTime().isAfter(checkStartTime))
-                .collect(Collectors.toList());
-
-        return convertToDtoList(validRecords);
+        List<AccountOnlineIp> records = accountOnlineIpRepository.findByNodeIpAndLastOnlineTimeAfter(nodeIp, checkStartTime);
+        return convertToDtoList(records);
     }
 
     /**
@@ -120,6 +115,11 @@ public class AccountOnlineIpService {
         // 直接查询在时间窗口内的记录
         List<AccountOnlineIp> records = accountOnlineIpRepository.findByLastOnlineTimeAfter(checkStartTime);
         return convertToDtoList(records);
+    }
+
+    public Map<String, Long> countOnlineRecordsByNodeIps(List<String> nodeIps) {
+        LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(getCheckMinutes());
+        return accountOnlineIpRepository.countByNodeIpsAndLastOnlineTimeAfter(nodeIps, checkStartTime);
     }
 
     /**

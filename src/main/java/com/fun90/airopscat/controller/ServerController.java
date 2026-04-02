@@ -70,12 +70,12 @@ public class ServerController {
                 .collect(Collectors.toList());
         serverTrafficStatsService.fillCurrentPeriodTraffic(serverDtos);
 
-        // Fill online account count (batch query to avoid N+1)
-        Map<String, Long> onlineCountByIp = accountOnlineIpService.getAllOnlineRecords().stream()
-                .collect(Collectors.groupingBy(
-                        com.fun90.airopscat.model.dto.AccountOnlineIpDto::getNodeIp,
-                        Collectors.counting()
-                ));
+        List<String> serverIps = serverDtos.stream()
+                .map(ServerDto::getIp)
+                .filter(ip -> ip != null && !ip.isBlank())
+                .distinct()
+                .toList();
+        Map<String, Long> onlineCountByIp = accountOnlineIpService.countOnlineRecordsByNodeIps(serverIps);
         serverDtos.forEach(dto -> dto.setOnlineAccountCount(onlineCountByIp.getOrDefault(dto.getIp(), 0L).intValue()));
 
         Map<String, Object> response = new HashMap<>();
@@ -84,11 +84,6 @@ public class ServerController {
         response.put("pages", serverQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
-
-        // Add statistics
-        response.put("stats", serverService.getServersStats());
-        response.put("supplierStats", serverService.getServersBySupplier());
-        response.put("totalCost", serverService.getTotalServerCost());
 
         return Response.ok(response).build();
     }

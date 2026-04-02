@@ -210,6 +210,10 @@ const userTable = new DataTable({
             return '/api/admin/users';
         },
 
+        getStatsUrl() {
+            return '/api/admin/users/stats';
+        },
+
         getToggleStatusUrl(item, action) {
             return `/api/admin/users/${item.id}/${action}`;
         },

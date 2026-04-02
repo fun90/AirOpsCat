@@ -49,7 +49,6 @@ public class DnsProviderConfigController {
         response.put("pages", query.pageCount());
         response.put("current", page);
         response.put("size", size);
-        response.put("stats", dnsProviderConfigService.getStats());
         return Response.ok(response).build();
     }
 

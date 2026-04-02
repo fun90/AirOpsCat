@@ -764,6 +764,10 @@ const accountTable = new DataTable({
             return '/api/admin/accounts';
         },
 
+        getStatsUrl() {
+            return '/api/admin/accounts/stats';
+        },
+
         getToggleStatusUrl(item, action) {
             return `/api/admin/accounts/${item.id}/${action}`;
         },

@@ -86,9 +86,6 @@ public class NodeController {
         response.put("pages", nodeQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
-        
-        // Add statistics
-        response.put("stats", nodeService.getNodesStats());
 
         return Response.ok(response).build();
     }

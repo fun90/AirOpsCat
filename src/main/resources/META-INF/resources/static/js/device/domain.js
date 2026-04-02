@@ -463,6 +463,10 @@ const domainTable = new DataTable({
 
         getApiUrl() {
             return '/api/admin/domains';
+        },
+
+        getStatsUrl() {
+            return '/api/admin/domains/stats';
         }
     }
 });

@@ -58,9 +58,6 @@ public class TransactionController {
         response.put("pages", transactionQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
-        
-        // Add statistics
-        response.put("stats", transactionService.getTransactionStats());
 
         return Response.ok(response).build();
     }

@@ -137,10 +137,6 @@ const serverTable = new DataTable({
                     this.totalPages = data.pages || 0;
                     this.currentPage = data.current || 1;
 
-                    if (data.stats) {
-                        this.stats = data.stats;
-                    }
-
                     this.loading = false;
 
                     this.$nextTick(() => {
@@ -523,6 +519,16 @@ const serverTable = new DataTable({
             if (data.totalCost !== undefined) {
                 this.totalCost = data.totalCost;
             }
+        },
+
+        getStatsUrl() {
+            return '/api/admin/servers/stats';
+        },
+
+        applyStatsData(data) {
+            this.stats = data || this.stats;
+            this.supplierStats = data?.supplierStats || {};
+            this.totalCost = data?.totalCost ?? 0;
         },
 
         // Test connection functionality

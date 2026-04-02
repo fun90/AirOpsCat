@@ -76,11 +76,6 @@ public class DomainController {
         response.put("pages", domainQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
-        
-        // Add statistics
-        response.put("expiredCount", domainService.countExpiredDomains());
-        response.put("expiringCount", domainService.countExpiringInOneMonth());
-        response.put("totalCost", domainService.getTotalDomainCost());
 
         return Response.ok(response).build();
     }

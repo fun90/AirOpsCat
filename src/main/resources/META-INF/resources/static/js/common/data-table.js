@@ -60,6 +60,7 @@ export class DataTable {
       mounted() {
         // Initialize data when the component is mounted
         this.fetchRecords();
+        this.fetchStats();
 
         // Call any additional initialization methods
         if (typeof this.initialize === 'function') {
@@ -109,11 +110,6 @@ export class DataTable {
             this.totalPages = data.pages || 0;
             this.currentPage = data.current || 1;
 
-            // Update stats if available
-            if (data.stats) {
-              this.stats = data.stats;
-            }
-
             this.loading = false;
 
             // Initialize tooltips after data is loaded
@@ -144,6 +140,39 @@ export class DataTable {
             ToastUtils.show('Error', `Failed to load ${this.entityName || 'records'}.`, 'danger');
             this.loading = false;
           });
+      },
+
+      fetchStats() {
+        const statsUrl = typeof this.getStatsUrl === 'function' ? this.getStatsUrl() : null;
+        if (!statsUrl) {
+          return Promise.resolve(null);
+        }
+
+        return fetch(statsUrl)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Network response was not ok');
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (typeof this.applyStatsData === 'function') {
+              this.applyStatsData(data);
+            } else if (data && data.stats) {
+              this.stats = data.stats;
+            } else if (data !== undefined && this.stats !== undefined) {
+              this.stats = data;
+            }
+            return data;
+          })
+          .catch(error => {
+            console.error(`Error fetching ${this.entityName || 'records'} stats:`, error);
+            return null;
+          });
+      },
+
+      refreshStats() {
+        return this.fetchStats();
       },
 
       // Search methods
@@ -287,6 +316,7 @@ export class DataTable {
 
             // Refresh the data
             this.fetchRecords();
+            this.refreshStats();
             ToastUtils.show('Success', '删除成功', 'success');
 
             // Hide modal
@@ -350,6 +380,7 @@ export class DataTable {
           })
           .then(data => {
             this.fetchRecords(); // Refresh the list
+            this.refreshStats();
             this.createModal.hide();
             ToastUtils.show('Success', '创建成功', 'success');
 
@@ -424,6 +455,7 @@ export class DataTable {
             }
 
             this.fetchRecords();
+            this.refreshStats();
 
             this.editModal.hide();
             ToastUtils.show('Success', '更新成功', 'success');
@@ -466,6 +498,8 @@ export class DataTable {
                 this.records[index].disabled = data.disabled;
               }
             }
+            this.fetchRecords();
+            this.refreshStats();
 
             ToastUtils.show('Success', '更新状态成功', 'success');
           })

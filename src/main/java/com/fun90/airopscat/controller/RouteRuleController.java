@@ -56,7 +56,6 @@ public class RouteRuleController {
         response.put("pages", query.pageCount());
         response.put("current", page);
         response.put("size", size);
-        response.put("stats", routeRuleService.getRouteRuleStats());
         return Response.ok(response).build();
     }
 

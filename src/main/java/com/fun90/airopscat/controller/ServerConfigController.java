@@ -59,9 +59,6 @@ public class ServerConfigController {
         response.put("pages", configQuery.pageCount());
         response.put("current", page);
         response.put("size", size);
-        
-        // Add statistics
-        response.put("stats", serverConfigService.getServerConfigStats());
 
         return Response.ok(response).build();
     }

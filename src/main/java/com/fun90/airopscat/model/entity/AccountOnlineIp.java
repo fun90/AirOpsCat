@@ -8,8 +8,15 @@ import java.time.LocalDateTime;
 
 @Data
 @Entity
-@Table(name = "account_online_ip", 
-       uniqueConstraints = {@UniqueConstraint(columnNames = {"account_no", "client_ip", "node_ip"})})
+@Table(
+        name = "account_online_ip",
+        uniqueConstraints = {@UniqueConstraint(columnNames = {"account_no", "client_ip", "node_ip"})},
+        indexes = {
+                @Index(name = "idx_account_online_account_time", columnList = "account_no,last_online_time"),
+                @Index(name = "idx_account_online_node_time", columnList = "node_ip,last_online_time"),
+                @Index(name = "idx_account_online_last_time", columnList = "last_online_time")
+        }
+)
 @DynamicUpdate
 public class AccountOnlineIp {
     @Id

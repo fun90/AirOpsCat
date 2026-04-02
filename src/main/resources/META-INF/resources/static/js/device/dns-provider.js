@@ -131,6 +131,10 @@ const dnsProviderTable = new DataTable({
             return '/api/admin/dns-provider-configs';
         },
 
+        getStatsUrl() {
+            return '/api/admin/dns-provider-configs/stats';
+        },
+
         getToggleStatusUrl(item, action) {
             return `/api/admin/dns-provider-configs/${item.id}/${action}`;
         },
