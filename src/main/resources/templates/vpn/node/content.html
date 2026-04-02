@@ -32,14 +32,42 @@
                                     </div>
                                     <div class="col-auto">
                                         <div class="btn-list flex-nowrap">
-                                            <button class="btn" type="button" @click="openBatchDeployModal">
-                                                <i class="ti ti-rocket"></i>
-                                                批量部署
-                                            </button>
-                                            <button class="btn" type="button" @click="openCoreSwitchModal" :disabled="selectedNodeIds.length === 0">
-                                                <i class="ti ti-cpu"></i>
-                                                切换内核
-                                            </button>
+                                            <div class="btn-group"
+                                                 @mouseenter="openBatchActionsDropdown"
+                                                 @mouseleave="scheduleCloseBatchActionsDropdown">
+                                                <button id="node-batch-actions-toggle"
+                                                        class="btn dropdown-toggle"
+                                                        type="button"
+                                                        data-bs-toggle="dropdown"
+                                                        data-bs-auto-close="true"
+                                                        @focus="openBatchActionsDropdown">
+                                                    <i class="ti ti-layout-grid-add"></i>
+                                                    批量操作
+                                                    <span v-if="selectedNodeIds.length > 0" class="badge bg-primary text-white ms-1">{{ selectedNodeIds.length }}</span>
+                                                </button>
+                                                <div class="dropdown-menu dropdown-menu-end"
+                                                     @mouseenter="cancelCloseBatchActionsDropdown"
+                                                     @mouseleave="scheduleCloseBatchActionsDropdown">
+                                                    <a class="dropdown-item" href="#" @click.prevent="openBatchDeployModal">
+                                                        <i class="ti ti-rocket"></i>
+                                                        批量部署
+                                                    </a>
+                                                    <a class="dropdown-item"
+                                                       :class="{ disabled: selectedNodeIds.length === 0 }"
+                                                       href="#"
+                                                       @click.prevent="selectedNodeIds.length && openCoreSwitchModal()">
+                                                        <i class="ti ti-cpu"></i>
+                                                        切换内核
+                                                    </a>
+                                                    <a class="dropdown-item"
+                                                       :class="{ disabled: selectedNodeIds.length === 0 }"
+                                                       href="#"
+                                                       @click.prevent="selectedNodeIds.length && openBatchTagModal()">
+                                                        <i class="ti ti-tags"></i>
+                                                        调整标签
+                                                    </a>
+                                                </div>
+                                            </div>
                                             <button class="btn" type="button" @click="fetchRecords">
                                                 <i class="ti ti-refresh"></i>
                                                 刷新

@@ -618,6 +618,41 @@
     </div>
 </div>
 
+<div class="modal modal-blur fade" id="node-batchTagModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">批量调整节点标签</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>已选择 <strong>{{ selectedNodeIds.length }}</strong> 个当前页节点。</p>
+                <div class="alert alert-warning" role="alert">
+                    保存后会将所选节点的标签整体替换为下面勾选的结果，并将这些节点标记为未部署。
+                </div>
+                <div class="row">
+                    <div v-for="tag in availableTags" :key="`batch-tag-${tag.id}`" class="col-md-6 mb-2">
+                        <label class="form-check">
+                            <input type="checkbox" class="form-check-input" :value="tag.id" v-model="batchTagForm.tagIds">
+                            <span class="form-check-label d-flex align-items-center">
+                                <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
+                                {{ tag.name }}
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                <div v-if="batchTagUpdating" class="progress mt-3">
+                    <div class="progress-bar progress-bar-indeterminate bg-primary"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" @click="submitBatchTagUpdate" :disabled="batchTagUpdating">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal modal-blur fade" id="node-deploymentHistoryModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
         <div class="modal-content">

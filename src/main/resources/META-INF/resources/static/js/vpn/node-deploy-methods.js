@@ -121,6 +121,28 @@ export function createNodeDeployMethods() {
             this.batchDeployModal.show();
         },
 
+        openBatchTagModal() {
+            if (!this.selectedNodeIds.length) {
+                ToastUtils.show('Warning', '请先勾选要调整标签的节点', 'warning');
+                return;
+            }
+
+            const selectedNodes = this.records.filter(node => this.selectedNodeIds.includes(node.id));
+            const normalizedTagSets = selectedNodes.map(node => {
+                const tags = Array.isArray(node.tags) ? node.tags : Array.from(node.tags || []);
+                return tags
+                    .map(tag => Number(tag.id))
+                    .filter(tagId => !Number.isNaN(tagId))
+                    .sort((left, right) => left - right);
+            });
+            const hasSameTagSet = normalizedTagSets.every(tagIds =>
+                JSON.stringify(tagIds) === JSON.stringify(normalizedTagSets[0] || [])
+            );
+            this.batchTagForm.tagIds = hasSameTagSet ? [...(normalizedTagSets[0] || [])] : [];
+            this.batchTagModal = new Modal(document.getElementById('node-batchTagModal'));
+            this.batchTagModal.show();
+        },
+
         openCoreSwitchModal() {
             if (!this.selectedNodeIds.length) {
                 ToastUtils.show('Warning', '请先勾选要切换的节点', 'warning');
@@ -225,6 +247,49 @@ export function createNodeDeployMethods() {
                     console.error('Error:', error);
                     this.switchingCore = false;
                     ToastUtils.show('Error', error.message || '切换内核失败', 'danger');
+                });
+        },
+
+        submitBatchTagUpdate() {
+            if (!this.selectedNodeIds.length) {
+                ToastUtils.show('Warning', '请先勾选要调整标签的节点', 'warning');
+                return;
+            }
+
+            this.batchTagUpdating = true;
+            fetch('/api/admin/nodes/batch-tags', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    nodeIds: this.selectedNodeIds,
+                    tagIds: this.batchTagForm.tagIds
+                })
+            })
+                .then(async response => {
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({ message: '批量调整标签失败' }));
+                        throw new Error(error.message || '批量调整标签失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.batchTagUpdating = false;
+                    if (this.batchTagModal) {
+                        this.batchTagModal.hide();
+                    }
+                    this.fetchRecords();
+                    ToastUtils.show(
+                        'Success',
+                        `已更新 ${data.updatedCount || 0} 个节点标签，跳过 ${data.unchangedCount || 0} 个节点`,
+                        'success'
+                    );
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    this.batchTagUpdating = false;
+                    ToastUtils.show('Error', error.message || '批量调整标签失败', 'danger');
                 });
         },
 

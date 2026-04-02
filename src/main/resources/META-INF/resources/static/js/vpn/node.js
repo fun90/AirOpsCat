@@ -1,5 +1,5 @@
 ﻿import { DataTable } from '/static/js/common/data-table.js';
-import { Modal } from '/static/tabler/js/tabler.esm.min.js';
+import { Dropdown, Modal } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
 import { createNodeDeployMethods } from '/static/js/vpn/node-deploy-methods.js';
 import { createNodeFormMethods } from '/static/js/vpn/node-form-methods.js';
@@ -90,6 +90,9 @@ const nodeTable = new DataTable({
         viewConfigModal: null,
         batchDeployModal: null,
         coreSwitchModal: null,
+        batchTagModal: null,
+        batchActionDropdown: null,
+        batchActionDropdownCloseTimer: null,
         deploymentHistoryModal: null,
         deploymentVersionDetailModal: null,
         deploymentHistoryNode: null,
@@ -99,10 +102,14 @@ const nodeTable = new DataTable({
         loadingDeploymentVersionDetail: false,
         restoringDeploymentVersion: false,
         selectedNodeIds: [],
+        batchTagForm: {
+            tagIds: []
+        },
         coreSwitchTarget: 'sing-box',
         coreSwitchRedeploy: true,
         switchingCore: false,
         batchDeploying: false,
+        batchTagUpdating: false,
         deployingNodeIds: []
     },
     methods: {
@@ -120,6 +127,36 @@ const nodeTable = new DataTable({
         afterFetch() {
             const currentIds = new Set(this.records.map(record => record.id));
             this.selectedNodeIds = this.selectedNodeIds.filter(id => currentIds.has(id));
+        },
+
+        openBatchActionsDropdown() {
+            const toggle = document.getElementById('node-batch-actions-toggle');
+            if (!toggle) {
+                return;
+            }
+
+            this.cancelCloseBatchActionsDropdown();
+            if (!this.batchActionDropdown) {
+                this.batchActionDropdown = new Dropdown(toggle);
+            }
+            this.batchActionDropdown.show();
+        },
+
+        scheduleCloseBatchActionsDropdown() {
+            this.cancelCloseBatchActionsDropdown();
+            this.batchActionDropdownCloseTimer = setTimeout(() => {
+                if (this.batchActionDropdown) {
+                    this.batchActionDropdown.hide();
+                }
+                this.batchActionDropdownCloseTimer = null;
+            }, 120);
+        },
+
+        cancelCloseBatchActionsDropdown() {
+            if (this.batchActionDropdownCloseTimer) {
+                clearTimeout(this.batchActionDropdownCloseTimer);
+                this.batchActionDropdownCloseTimer = null;
+            }
         },
 
         initializeSearchComponents() {
