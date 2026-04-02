@@ -253,7 +253,7 @@ public class ProgrammaticTaskManager {
                 SCHEDULE_TYPE_CRON,
                 "airopscat.server.monitor.cleanup.cron",
                 0L,
-                null,
+                Scheduled.ConcurrentExecution.SKIP,
                 serverMonitorStatsCleanupTask::cleanupExpiredServerMonitorStats
         ));
         definitions.put("server-monitor-alert", task(

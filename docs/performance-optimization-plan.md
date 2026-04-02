@@ -698,7 +698,7 @@ quarkus.datasource.jdbc.url=jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${
 - 避免后台任务高峰影响前台请求
 - 调度稳定性明显提升
 
-### Step 6：重构热点搜索 SQL
+### Step 6：重构热点搜索 SQL [已处理]
 
 #### 要做什么
 
@@ -716,7 +716,7 @@ quarkus.datasource.jdbc.url=jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${
 
 - 数据量增长后列表页退化速度明显减缓
 
-### Step 7：给统计与历史表做预聚合和归档
+### Step 7：给统计与历史表做预聚合和归档 [部分处理]
 
 #### 要做什么
 
@@ -947,7 +947,7 @@ JDBC URL 可评估补充：
 - 队列堆积显著减少
 - 后台任务互相阻塞情况下降
 
-### Task Group 6：热点搜索 SQL 重构
+### Task Group 6：热点搜索 SQL 重构 [已处理]
 
 #### 涉及类
 
@@ -972,7 +972,14 @@ JDBC URL 可评估补充：
 - 热点列表页 `EXPLAIN` 更稳定
 - 搜索性能提升且功能不回退
 
-### Task Group 7：统计预聚合与历史归档
+#### 已处理内容
+
+- [NodeService](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/NodeService.java) 已将节点搜索改为“节点字段优先 + 预查服务器/接入 Host ID”模式，减少 `lower(...)` 与关联子查询扩散
+- [ServerService](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/ServerService.java) 已将服务器搜索改为“精确/前缀优先，必要字段 contains 兜底”，并将 `ServerHost` 搜索收敛为预查服务器 ID
+- [AccountService](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/AccountService.java) 已将账户搜索改为账号/UUID 精确或前缀优先，并通过预查用户 ID 代替 `user.email`、`user.nickName` 的列函数模糊查询
+- [ServerRepository](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/repository/ServerRepository.java)、[ServerHostRepository](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/repository/ServerHostRepository.java)、[UserRepository](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/repository/UserRepository.java) 已补充关键词预查辅助方法，用于收敛主查询范围
+
+### Task Group 7：统计预聚合与历史归档 [部分处理]
 
 #### 涉及范围
 
@@ -998,6 +1005,17 @@ JDBC URL 可评估补充：
 
 - 历史表增长速度可控
 - 统计页对明细表压力下降
+
+#### 已处理内容
+
+- [AccountOnlineIpRepository](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/repository/AccountOnlineIpRepository.java) 已将在线记录清理改为 MySQL `LIMIT` 批量删除
+- [AccountOnlineIpService](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/AccountOnlineIpService.java) 已改为循环批处理清理，并移除 SQLite 遗留的 `database is locked` 判断
+- [ServerMonitorStatsRepository](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/repository/ServerMonitorStatsRepository.java) 已增加监控历史批量删除方法
+- [ServerMonitorStatsService](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/ServerMonitorStatsService.java) 已改为按批循环清理监控历史，并输出批次数和删除总数
+- [SystemConfigService.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/SystemConfigService.java) 已补充在线记录和监控历史清理批大小配置
+- 待继续处理：
+- 统计预聚合汇总表
+- 首页和统计页逐步切换到汇总查询
 
 ### Task Group 8：Qute 与前端资源收口优化
 
@@ -1156,6 +1174,25 @@ JDBC URL 可评估补充：
 - 本轮未处理：
 - 按任务类型拆分 `deploymentTaskExecutor`、`monitorTaskExecutor`、`backupTaskExecutor`
 - 大批量任务分批执行策略
+
+### Task Group 6：热点搜索 SQL 重构 [已处理]
+
+- [NodeService](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/NodeService.java) 已将节点列表搜索改为精确/前缀优先，并通过预查 `serverId`、`accessHostId` 缩小主查询范围
+- [ServerService](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/ServerService.java) 已将服务器列表搜索改为精确/前缀优先，并通过预查 `ServerHost` 命中的服务器 ID 代替关联模糊子查询
+- [AccountService](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/AccountService.java) 已将账户列表搜索改为账号/UUID 精确或前缀优先，并预查匹配用户 ID
+- [ServerRepository](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/repository/ServerRepository.java)、[ServerHostRepository](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/repository/ServerHostRepository.java)、[UserRepository](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/repository/UserRepository.java) 已补充关键词搜索预查方法，减少主查询里的 `lower(...)` 和扩散子查询
+
+### Task Group 7：统计预聚合与历史归档 [部分处理]
+
+- [AccountOnlineIpRepository](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/repository/AccountOnlineIpRepository.java) 已改为按批删除过期在线记录
+- [AccountOnlineIpService](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/AccountOnlineIpService.java) 已输出在线记录批处理清理日志，并移除 SQLite 遗留异常文案
+- [ServerMonitorStatsRepository](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/repository/ServerMonitorStatsRepository.java) 已增加按批删除监控历史记录能力
+- [ServerMonitorStatsService](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/ServerMonitorStatsService.java) 已改为监控历史批处理清理
+- [ProgrammaticTaskManager.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/scheduler/ProgrammaticTaskManager.java) 已为 `server-monitor-cleanup` 补齐 `Scheduled.ConcurrentExecution.SKIP`
+- [SystemConfigService.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/SystemConfigService.java) 已补充 `airopscat.account.online.cleanup.batch-size` 与 `airopscat.server.monitor.cleanup.batch-size`
+- 本轮未处理：
+- 预聚合汇总表设计与落地
+- 页面查询切换到汇总表
 
 ## 7. 建议先落地的文档化交付物
 
