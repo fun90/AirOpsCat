@@ -81,7 +81,7 @@ public class BarkService {
     }
 
     public boolean sendInfoNotification(String title, String body) {
-        return sendSystemNotification(title, body, "passive");
+        return sendSystemNotification(title, body, null);
     }
 
     public boolean isBarkConfigured() {
