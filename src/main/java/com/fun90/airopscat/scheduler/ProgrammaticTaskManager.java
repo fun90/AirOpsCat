@@ -72,10 +72,18 @@ public class ProgrammaticTaskManager {
     }
 
     public void reloadAllTasks() {
+        if (!scheduler.isStarted()) {
+            log.warn("Scheduler 尚未启动，跳过定时任务注册");
+            return;
+        }
         taskDefinitions.values().forEach(this::scheduleTask);
     }
 
     public void reloadTasksByGroup(String groupKey) {
+        if (!scheduler.isStarted()) {
+            log.warn("Scheduler 尚未启动，跳过分组定时任务重载: {}", groupKey);
+            return;
+        }
         taskDefinitions.values().stream()
                 .filter(definition -> Objects.equals(definition.groupKey(), groupKey))
                 .forEach(this::scheduleTask);
@@ -97,6 +105,9 @@ public class ProgrammaticTaskManager {
 
     public ScheduledTaskDto pauseTask(String taskKey) {
         TaskDefinition definition = requireTaskDefinition(taskKey);
+        if (!scheduler.isStarted()) {
+            throw new IllegalStateException("Scheduler 尚未启动，无法暂停定时任务");
+        }
         pausedTaskKeys.add(definition.taskKey());
         scheduler.unscheduleJob(definition.identity());
         log.info("定时任务已暂停: {}", definition.taskName());
@@ -105,6 +116,9 @@ public class ProgrammaticTaskManager {
 
     public ScheduledTaskDto resumeTask(String taskKey) {
         TaskDefinition definition = requireTaskDefinition(taskKey);
+        if (!scheduler.isStarted()) {
+            throw new IllegalStateException("Scheduler 尚未启动，无法恢复定时任务");
+        }
         pausedTaskKeys.remove(definition.taskKey());
         scheduleTask(definition);
         log.info("定时任务已恢复: {}", definition.taskName());
@@ -134,7 +148,7 @@ public class ProgrammaticTaskManager {
     }
 
     private ScheduledTaskDto toDto(TaskDefinition definition) {
-        Trigger trigger = scheduler.getScheduledJob(definition.identity());
+        Trigger trigger = scheduler.isStarted() ? scheduler.getScheduledJob(definition.identity()) : null;
         return ScheduledTaskDto.builder()
                 .taskKey(definition.taskKey())
                 .taskName(definition.taskName())
