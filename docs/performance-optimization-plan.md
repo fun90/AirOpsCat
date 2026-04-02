@@ -1256,6 +1256,18 @@ JDBC URL 可评估补充：
 - 其他 SSH 场景的统一复用抽象
 - 部署链路的跨服务器并发调优
 
+### Task Group 7.3：历史表膨胀控制 [已处理]
+
+- [NodeDeploymentHistoryRepository.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/repository/NodeDeploymentHistoryRepository.java)、[NodeDeploymentVersionService.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/deployment/NodeDeploymentVersionService.java) 已补充按 `archived_at` 和“每节点保底版本数”双条件的部署历史批处理清理能力
+- [AccountTrafficStatsRepository.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/repository/AccountTrafficStatsRepository.java)、[AccountTrafficStatsService.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/AccountTrafficStatsService.java) 已补充按 `period_end` 分批清理账户流量明细能力
+- [ServerTrafficStatsRepository.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/repository/ServerTrafficStatsRepository.java)、[ServerTrafficStatsService.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/ServerTrafficStatsService.java) 已补充按 `period_end` 分批清理服务器流量明细能力
+- [NodeDeploymentHistoryCleanupTask.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/scheduler/NodeDeploymentHistoryCleanupTask.java)、[AccountTrafficStatsCleanupTask.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/scheduler/AccountTrafficStatsCleanupTask.java)、[ServerTrafficStatsCleanupTask.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/scheduler/ServerTrafficStatsCleanupTask.java) 已接入定时任务调度，并统一使用 `Scheduled.ConcurrentExecution.SKIP`
+- [SystemConfigService.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/SystemConfigService.java) 已新增历史清理分组及部署历史、账户流量、服务器流量的保留天数、批大小与 Cron 配置项
+- [NodeDeploymentVersionServiceTest.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/test/java/com/fun90/airopscat/service/deployment/NodeDeploymentVersionServiceTest.java)、[AccountTrafficStatsServiceTest.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/test/java/com/fun90/airopscat/service/AccountTrafficStatsServiceTest.java)、[ServerTrafficStatsServiceTest.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/test/java/com/fun90/airopscat/service/ServerTrafficStatsServiceTest.java) 已覆盖批量循环清理行为
+- 本轮未处理：
+- 流量明细聚合到日表或月表
+- 历史归档到独立冷表或分层存储
+
 ### Task Group 8：Qute 与前端资源收口优化 [部分处理]
 
 - [ConsolePageRegistry.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/ConsolePageRegistry.java) 已将 `menuGroups` 改为启动期预计算缓存，避免每次控制台请求重复执行分组和排序
