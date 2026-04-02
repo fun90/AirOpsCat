@@ -12,8 +12,8 @@ import com.fun90.airopscat.service.traffic.AbstractV2RayApiTrafficStatsCollector
 import com.fun90.airopscat.service.traffic.UserTrafficStats;
 import io.quarkus.grpc.GrpcClient;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.Collections;
 import java.util.List;
@@ -31,7 +31,7 @@ public class SingBoxTrafficStatsCollector extends AbstractV2RayApiTrafficStatsCo
     @GrpcClient("sing-box")
     StatsServiceGrpc.StatsServiceBlockingStub statsServiceClient;
 
-    @ConfigProperty(name = "airopscat.sing-box.grpc.local-port", defaultValue = "101")
+    @ConfigProperty(name = "airopscat.sing-box.grpc.local-port", defaultValue = "11011")
     int localGrpcPort;
 
     @Override
