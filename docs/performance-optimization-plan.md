@@ -1171,9 +1171,15 @@ JDBC URL 可评估补充：
 - [ProgrammaticTaskManager.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/scheduler/ProgrammaticTaskManager.java) 已为 `backup-create`、`backup-cleanup`、`server-traffic-notify`、`account-expiration`、`resource-expiration-notify`、`traffic-stats-collect`、`core-config-cleanup` 补齐 `Scheduled.ConcurrentExecution.SKIP`
 - [ServerMonitorTask.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/scheduler/ServerMonitorTask.java) 已增加监控采集前后线程池摘要日志
 - [DatabaseBackupService.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/DatabaseBackupService.java) 已增加备份与清理任务的线程池摘要日志
+- [BlockingTaskExecutorConfig.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/config/BlockingTaskExecutorConfig.java) 已新增 `deploymentTaskExecutor`、`monitorTaskExecutor`、`backupTaskExecutor`，并为不同线程池使用独立线程名前缀
+- [NodeDeploymentService.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/deployment/NodeDeploymentService.java) 已切换到 `deploymentTaskExecutor`，并支持按服务器批次限流部署
+- [ServerMonitorTask.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/scheduler/ServerMonitorTask.java) 已切换到 `monitorTaskExecutor`，并按批处理监控采集
+- [ServerMonitorLoadNotifier.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/expiration/ServerMonitorLoadNotifier.java) 已切换到 `monitorTaskExecutor`，并复用监控并发上限配置
+- [DatabaseBackupService.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/DatabaseBackupService.java) 已切换到 `backupTaskExecutor`
+- [SystemConfigService.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/SystemConfigService.java) 已补充部署/监控/备份线程池参数与并发服务器数配置
 - 本轮未处理：
-- 按任务类型拆分 `deploymentTaskExecutor`、`monitorTaskExecutor`、`backupTaskExecutor`
-- 大批量任务分批执行策略
+- 更细粒度的任务配额与动态限流
+- 任务执行耗时周报
 
 ### Task Group 6：热点搜索 SQL 重构 [已处理]
 
