@@ -1,41 +1,104 @@
 <div class="page-body">
     <div class="container-xl">
         <div class="row g-4">
-            <div class="col-12 col-xl-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">系统配置</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <div class="text-secondary small">配置分组</div>
-                            <div class="h2 m-0">{{ groups.length }}</div>
+            <div class="col-12 col-xl-4 col-xxl-3">
+                <div class="position-sticky" style="top: 1rem;">
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h3 class="card-title">系统配置</h3>
+                                <div class="text-secondary small">把长页面拆成可跳转、可折叠、可搜索的配置中心</div>
+                            </div>
                         </div>
-                        <div>
-                            <div class="text-secondary small">配置项数量</div>
-                            <div class="h2 m-0">{{ totalItems }}</div>
-                        </div>
-                    </div>
-                </div>
+                        <div class="card-body d-flex flex-column gap-3">
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <div class="text-secondary small">配置分组</div>
+                                    <div class="h2 m-0">{{ groups.length }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-secondary small">配置项数量</div>
+                                    <div class="h2 m-0">{{ totalItems }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-secondary small">当前显示</div>
+                                    <div class="h3 m-0">{{ filteredItemCount }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-secondary small">未保存分组</div>
+                                    <div class="h3 m-0">{{ dirtyGroupsCount }}</div>
+                                </div>
+                            </div>
 
-                <div class="card mt-4" v-if="groups.length">
-                    <div class="card-header">
-                        <h3 class="card-title">分组导航</h3>
+                            <div class="progress progress-sm">
+                                <div class="progress-bar bg-primary" :style="{ width: totalItems ? ((filteredItemCount / totalItems) * 100) + '%' : '0%' }"></div>
+                            </div>
+
+                            <label class="form-label mb-0">搜索配置</label>
+                            <div class="input-icon">
+                                <span class="input-icon-addon">
+                                    <i class="ti ti-search"></i>
+                                </span>
+                                <input class="form-control"
+                                       type="text"
+                                       placeholder="按分组名、字段名、说明筛选"
+                                       :value="searchQuery"
+                                       @input="searchQuery = $event.target.value">
+                            </div>
+
+                            <div class="d-flex flex-wrap gap-2">
+                                <button class="btn btn-outline-secondary btn-sm"
+                                        type="button"
+                                        @click="expandAllVisible()"
+                                        :disabled="!filteredGroups.length">
+                                    展开当前结果
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm"
+                                        type="button"
+                                        @click="collapseAllVisible()"
+                                        :disabled="!filteredGroups.length || !!normalizedSearchQuery">
+                                    收起当前结果
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm"
+                                        type="button"
+                                        @click="clearSearch()"
+                                        :disabled="!searchQuery">
+                                    清空筛选
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="list-group list-group-flush">
-                        <button type="button"
-                                class="list-group-item list-group-item-action"
-                                v-for="group in groups"
-                                :key="group.groupKey"
-                                @click="scrollToGroup(group.groupKey)">
-                            <div class="fw-medium">{{ group.title }}</div>
-                            <div class="text-secondary small">{{ group.description }}</div>
-                        </button>
+
+                    <div class="card mt-4" v-if="filteredGroups.length">
+                        <div class="card-header">
+                            <div>
+                                <h3 class="card-title">分组导航</h3>
+                                <div class="text-secondary small">点击后自动展开并滚动到对应配置组</div>
+                            </div>
+                        </div>
+                        <div class="list-group list-group-flush">
+                            <button type="button"
+                                    class="list-group-item list-group-item-action"
+                                    v-for="group in filteredGroups"
+                                    :key="group.groupKey"
+                                    @click="scrollToGroup(group.groupKey)">
+                                <div class="d-flex align-items-start justify-content-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="fw-medium text-truncate">{{ group.title }}</div>
+                                        <div class="text-secondary small text-wrap">{{ group.description }}</div>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="badge bg-primary-lt">{{ getVisibleItemCount(group) }}</div>
+                                        <div class="badge bg-warning-lt mt-1" v-if="isGroupDirty(group.groupKey)">未保存</div>
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="col-12 col-xl-8">
+            <div class="col-12 col-xl-8 col-xxl-9">
                 <div class="card" v-if="loading">
                     <div class="card-body">
                         <div class="placeholder-glow">
@@ -46,91 +109,156 @@
                     </div>
                 </div>
 
-                <template v-for="group in groups" :key="group.groupKey">
-                    <div class="card mb-4" :id="'group-' + group.groupKey">
-                        <div class="card-header">
+                <div class="card mb-4" v-else>
+                    <div class="card-body">
+                        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
                             <div>
-                                <h3 class="card-title">{{ group.title }}</h3>
-                                <div class="text-secondary small">{{ group.description }}</div>
+                                <div class="fw-medium">配置列表</div>
+                                <div class="text-secondary small">
+                                    默认折叠展示，保留每组单独保存；搜索时会自动展开命中的分组。
+                                </div>
                             </div>
-                            <div class="card-actions d-flex gap-2">
-                                <button class="btn btn-outline-secondary btn-sm"
-                                        type="button"
-                                        @click="resetGroup(group.groupKey)"
-                                        :disabled="savingGroup === group.groupKey">
-                                    重置
-                                </button>
-                                <button class="btn btn-primary btn-sm"
-                                        type="button"
-                                        @click="saveGroup(group.groupKey)"
-                                        :disabled="savingGroup === group.groupKey">
-                                    <span v-if="savingGroup === group.groupKey"
-                                          class="spinner-border spinner-border-sm me-1"
-                                          role="status"
-                                          aria-hidden="true"></span>
-                                    保存
-                                </button>
+                            <div class="d-flex flex-wrap gap-2">
+                                <span class="badge bg-primary-lt">显示 {{ filteredGroups.length }} / {{ groups.length }} 组</span>
+                                <span class="badge bg-success-lt" v-if="!dirtyGroupsCount">全部已保存</span>
+                                <span class="badge bg-warning-lt" v-else>{{ dirtyGroupsCount }} 组待保存</span>
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <div class="card-body">
-                            <div class="row g-3">
-                                <div class="col-12" v-for="item in group.items" :key="item.key">
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        <label class="form-label fw-medium mb-0">{{ item.label }}</label>
-                                        <span v-if="item.restartRequired" class="badge bg-orange-lt">重启生效</span>
-                                        <span v-if="item.required" class="badge bg-blue-lt">必填</span>
-                                        <span v-if="!item.editable" class="badge bg-secondary-lt">只读</span>
+                <div class="empty" v-if="!loading && !filteredGroups.length">
+                    <div class="empty-icon">
+                        <i class="ti ti-search-off icon"></i>
+                    </div>
+                    <p class="empty-title">没有找到匹配的配置项</p>
+                    <p class="empty-subtitle text-secondary">
+                        可以试试分组名称、配置标签或说明关键字。
+                    </p>
+                    <div class="empty-action">
+                        <button class="btn btn-primary" type="button" @click="clearSearch()">
+                            清空筛选
+                        </button>
+                    </div>
+                </div>
+
+                <div class="accordion accordion-tabs" v-if="!loading && filteredGroups.length">
+                    <div class="accordion-item mb-3"
+                         v-for="group in filteredGroups"
+                         :key="group.groupKey"
+                         :id="'group-' + group.groupKey">
+                        <button class="accordion-header accordion-button"
+                                type="button"
+                                :class="{ collapsed: !isGroupExpanded(group.groupKey) }"
+                                @click="toggleGroup(group.groupKey)">
+                            <span class="avatar avatar-sm bg-primary-lt">
+                                <i class="ti ti-adjustments-horizontal"></i>
+                            </span>
+                            <span class="flex-fill text-start min-w-0">
+                                <span class="d-flex flex-wrap align-items-center gap-2">
+                                    <span class="fw-medium">{{ group.title }}</span>
+                                    <span class="badge bg-primary-lt">{{ getVisibleItemCount(group) }} / {{ group.items.length }}</span>
+                                    <span class="badge bg-warning-lt" v-if="isGroupDirty(group.groupKey)">未保存</span>
+                                    <span class="badge bg-orange-lt" v-if="group.testSupported">支持测试</span>
+                                </span>
+                                <span class="d-block text-secondary small text-wrap mt-1">{{ group.description }}</span>
+                            </span>
+                            <span class="accordion-button-toggle">
+                                <i class="ti ti-chevron-down"></i>
+                            </span>
+                        </button>
+
+                        <div class="accordion-collapse collapse" :class="{ show: isGroupExpanded(group.groupKey) }">
+                            <div class="accordion-body p-0">
+                                <div class="card border-0 shadow-none mb-0">
+                                    <div class="card-body">
+                                        <div class="row g-3">
+                                            <div class="col-12 col-xxl-6"
+                                                 v-for="item in group.visibleItems"
+                                                 :key="item.key">
+                                                <div class="card card-sm h-100">
+                                                    <div class="card-body d-flex flex-column gap-2">
+                                                        <div class="d-flex align-items-start justify-content-between gap-3">
+                                                            <div class="min-w-0">
+                                                                <label class="form-label fw-medium mb-1">{{ item.label }}</label>
+                                                                <div class="text-secondary small text-wrap">{{ item.description }}</div>
+                                                            </div>
+                                                            <div class="d-flex flex-wrap justify-content-end gap-1">
+                                                                <span v-if="item.restartRequired" class="badge bg-orange-lt">重启生效</span>
+                                                                <span v-if="item.required" class="badge bg-blue-lt">必填</span>
+                                                                <span v-if="!item.editable" class="badge bg-secondary-lt">只读</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="form-check form-switch mt-auto" v-if="item.inputType === 'checkbox'">
+                                                            <input class="form-check-input"
+                                                                   type="checkbox"
+                                                                   :checked="toBoolean(getCurrentValue(group.groupKey, item.key))"
+                                                                   :disabled="!item.editable"
+                                                                   @change="updateCheckbox(group.groupKey, item.key, $event)">
+                                                            <span class="form-check-label">启用</span>
+                                                        </div>
+
+                                                        <div class="input-group mt-auto" v-else>
+                                                            <input class="form-control"
+                                                                   :type="resolveInputType(item)"
+                                                                   :placeholder="item.placeholder || ''"
+                                                                   :value="getCurrentValue(group.groupKey, item.key)"
+                                                                   :disabled="!item.editable"
+                                                                   @input="updateField(group.groupKey, item.key, $event.target.value)">
+                                                            <button v-if="item.sensitive"
+                                                                    class="btn btn-outline-secondary"
+                                                                    type="button"
+                                                                    :disabled="!item.editable"
+                                                                    @click="toggleSensitive(item.key)">
+                                                                {{ showSensitive[item.key] ? '隐藏' : '显示' }}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div v-if="item.inputType === 'checkbox'" class="form-check form-switch">
-                                        <input class="form-check-input"
-                                               type="checkbox"
-                                               :checked="toBoolean(item.value)"
-                                               :disabled="!item.editable"
-                                               @change="updateCheckbox(group.groupKey, item.key, $event)">
-                                        <span class="form-check-label">启用</span>
+                                    <div class="card-footer d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                                        <span class="text-secondary small">
+                                            {{ isGroupDirty(group.groupKey) ? '有未保存修改，请保存后再离开该分组。' : '当前分组已保存。' }}
+                                        </span>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <button class="btn btn-outline-secondary btn-sm"
+                                                    type="button"
+                                                    @click="resetGroup(group.groupKey)"
+                                                    :disabled="savingGroup === group.groupKey">
+                                                重置
+                                            </button>
+                                            <button v-if="group.testSupported"
+                                                    class="btn btn-outline-primary btn-sm"
+                                                    type="button"
+                                                    @click="testGroup(group.groupKey)"
+                                                    :disabled="testingGroup === group.groupKey">
+                                                <span v-if="testingGroup === group.groupKey"
+                                                      class="spinner-border spinner-border-sm me-1"
+                                                      role="status"
+                                                      aria-hidden="true"></span>
+                                                发送测试
+                                            </button>
+                                            <button class="btn btn-primary btn-sm"
+                                                    type="button"
+                                                    @click="saveGroup(group.groupKey)"
+                                                    :disabled="savingGroup === group.groupKey">
+                                                <span v-if="savingGroup === group.groupKey"
+                                                      class="spinner-border spinner-border-sm me-1"
+                                                      role="status"
+                                                      aria-hidden="true"></span>
+                                                保存本组
+                                            </button>
+                                        </div>
                                     </div>
-
-                                    <div v-else class="input-group">
-                                        <input class="form-control"
-                                               :type="resolveInputType(item)"
-                                               :placeholder="item.placeholder || ''"
-                                               :value="item.value || ''"
-                                               :disabled="!item.editable"
-                                               @input="updateField(group.groupKey, item.key, $event.target.value)">
-                                        <button v-if="item.sensitive"
-                                                class="btn btn-outline-secondary"
-                                                type="button"
-                                                :disabled="!item.editable"
-                                                @click="toggleSensitive(item.key)">
-                                            {{ showSensitive[item.key] ? '隐藏' : '显示' }}
-                                        </button>
-                                    </div>
-
-                                    <div class="form-hint">{{ item.description }}</div>
                                 </div>
                             </div>
                         </div>
-
-                        <div class="card-footer d-flex justify-content-between align-items-center">
-                            <span class="text-secondary small">
-                                {{ isGroupDirty(group.groupKey) ? '有未保存修改' : '已保存' }}
-                            </span>
-                            <button v-if="group.testSupported"
-                                    class="btn btn-outline-primary btn-sm"
-                                    type="button"
-                                    @click="testGroup(group.groupKey)"
-                                    :disabled="testingGroup === group.groupKey">
-                                <span v-if="testingGroup === group.groupKey"
-                                      class="spinner-border spinner-border-sm me-1"
-                                      role="status"
-                                      aria-hidden="true"></span>
-                                发送测试
-                            </button>
-                        </div>
                     </div>
-                </template>
+                </div>
             </div>
         </div>
     </div>

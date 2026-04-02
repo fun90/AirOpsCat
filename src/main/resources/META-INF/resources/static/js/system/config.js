@@ -6,9 +6,42 @@ const systemConfigApp = PetiteVue.createApp({
     originalGroups: {},
     currentValues: {},
     showSensitive: {},
+    expandedGroups: {},
+    searchQuery: '',
 
     get totalItems() {
         return this.groups.reduce((sum, group) => sum + (group.items?.length || 0), 0);
+    },
+
+    get normalizedSearchQuery() {
+        return this.normalizeText(this.searchQuery);
+    },
+
+    get filteredGroups() {
+        const query = this.normalizedSearchQuery;
+        return (this.groups || []).reduce((result, group) => {
+            const items = group.items || [];
+            const matchAllItems = !query || this.matchesGroup(group, query);
+            const visibleItems = matchAllItems
+                ? items
+                : items.filter(item => this.matchesItem(item, query));
+
+            if (visibleItems.length) {
+                result.push({
+                    ...group,
+                    visibleItems
+                });
+            }
+            return result;
+        }, []);
+    },
+
+    get filteredItemCount() {
+        return this.filteredGroups.reduce((sum, group) => sum + this.getVisibleItemCount(group), 0);
+    },
+
+    get dirtyGroupsCount() {
+        return (this.groups || []).filter(group => this.isGroupDirty(group.groupKey)).length;
     },
 
     mounted() {
@@ -37,10 +70,12 @@ const systemConfigApp = PetiteVue.createApp({
     syncGroupState(groups) {
         this.originalGroups = {};
         this.currentValues = {};
+        const nextExpandedGroups = {};
 
         (groups || []).forEach(group => {
             this.originalGroups[group.groupKey] = {};
             this.currentValues[group.groupKey] = {};
+            nextExpandedGroups[group.groupKey] = this.expandedGroups[group.groupKey] ?? false;
 
             (group.items || []).forEach(item => {
                 const normalizedValue = item.inputType === 'checkbox'
@@ -50,6 +85,12 @@ const systemConfigApp = PetiteVue.createApp({
                 this.currentValues[group.groupKey][item.key] = normalizedValue;
             });
         });
+
+        if (!(groups || []).every(group => this.expandedGroups[group.groupKey] !== undefined) && groups?.length) {
+            nextExpandedGroups[groups[0].groupKey] = true;
+        }
+
+        this.expandedGroups = nextExpandedGroups;
     },
 
     updateField(groupKey, itemKey, value) {
@@ -58,6 +99,10 @@ const systemConfigApp = PetiteVue.createApp({
 
     updateCheckbox(groupKey, itemKey, event) {
         this.currentValues[groupKey][itemKey] = String(event.target.checked);
+    },
+
+    getCurrentValue(groupKey, itemKey) {
+        return this.currentValues[groupKey]?.[itemKey] || '';
     },
 
     toBoolean(value) {
@@ -79,6 +124,66 @@ const systemConfigApp = PetiteVue.createApp({
 
     toggleSensitive(itemKey) {
         this.showSensitive[itemKey] = !this.showSensitive[itemKey];
+    },
+
+    normalizeText(value) {
+        return String(value || '').trim().toLowerCase();
+    },
+
+    matchesGroup(group, query) {
+        const haystack = [
+            group.groupKey,
+            group.title,
+            group.description
+        ].map(value => this.normalizeText(value)).join(' ');
+        return haystack.includes(query);
+    },
+
+    matchesItem(item, query) {
+        const haystack = [
+            item.key,
+            item.label,
+            item.description,
+            item.placeholder
+        ].map(value => this.normalizeText(value)).join(' ');
+        return haystack.includes(query);
+    },
+
+    getVisibleItemCount(group) {
+        return group.visibleItems?.length || group.items?.length || 0;
+    },
+
+    isGroupExpanded(groupKey) {
+        if (this.normalizedSearchQuery) {
+            return true;
+        }
+        return !!this.expandedGroups[groupKey];
+    },
+
+    toggleGroup(groupKey) {
+        if (this.normalizedSearchQuery) {
+            return;
+        }
+        this.expandedGroups[groupKey] = !this.expandedGroups[groupKey];
+    },
+
+    expandAllVisible() {
+        this.filteredGroups.forEach(group => {
+            this.expandedGroups[group.groupKey] = true;
+        });
+    },
+
+    collapseAllVisible() {
+        if (this.normalizedSearchQuery) {
+            return;
+        }
+        this.filteredGroups.forEach(group => {
+            this.expandedGroups[group.groupKey] = false;
+        });
+    },
+
+    clearSearch() {
+        this.searchQuery = '';
     },
 
     isGroupDirty(groupKey) {
@@ -157,6 +262,7 @@ const systemConfigApp = PetiteVue.createApp({
     },
 
     scrollToGroup(groupKey) {
+        this.expandedGroups[groupKey] = true;
         const element = document.getElementById(`group-${groupKey}`);
         if (element) {
             element.scrollIntoView({ behavior: 'smooth', block: 'start' });
