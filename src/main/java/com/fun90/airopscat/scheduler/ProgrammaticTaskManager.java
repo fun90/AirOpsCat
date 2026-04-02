@@ -40,6 +40,9 @@ public class ProgrammaticTaskManager {
     private final CoreConfigCleanupTask coreConfigCleanupTask;
     private final ServerMonitorStatsCleanupTask serverMonitorStatsCleanupTask;
     private final ServerMonitorTask serverMonitorTask;
+    private final NodeDeploymentHistoryCleanupTask nodeDeploymentHistoryCleanupTask;
+    private final AccountTrafficStatsCleanupTask accountTrafficStatsCleanupTask;
+    private final ServerTrafficStatsCleanupTask serverTrafficStatsCleanupTask;
 
     private final Map<String, TaskDefinition> taskDefinitions;
     private final Set<String> pausedTaskKeys;
@@ -53,7 +56,10 @@ public class ProgrammaticTaskManager {
                                    TrafficStatsTask trafficStatsTask,
                                    CoreConfigCleanupTask coreConfigCleanupTask,
                                    ServerMonitorStatsCleanupTask serverMonitorStatsCleanupTask,
-                                   ServerMonitorTask serverMonitorTask) {
+                                   ServerMonitorTask serverMonitorTask,
+                                   NodeDeploymentHistoryCleanupTask nodeDeploymentHistoryCleanupTask,
+                                   AccountTrafficStatsCleanupTask accountTrafficStatsCleanupTask,
+                                   ServerTrafficStatsCleanupTask serverTrafficStatsCleanupTask) {
         this.scheduler = scheduler;
         this.systemConfigService = systemConfigService;
         this.databaseBackupService = databaseBackupService;
@@ -63,6 +69,9 @@ public class ProgrammaticTaskManager {
         this.coreConfigCleanupTask = coreConfigCleanupTask;
         this.serverMonitorStatsCleanupTask = serverMonitorStatsCleanupTask;
         this.serverMonitorTask = serverMonitorTask;
+        this.nodeDeploymentHistoryCleanupTask = nodeDeploymentHistoryCleanupTask;
+        this.accountTrafficStatsCleanupTask = accountTrafficStatsCleanupTask;
+        this.serverTrafficStatsCleanupTask = serverTrafficStatsCleanupTask;
         this.taskDefinitions = buildTaskDefinitions();
         this.pausedTaskKeys = ConcurrentHashMap.newKeySet();
     }
@@ -339,6 +348,48 @@ public class ProgrammaticTaskManager {
                 0L,
                 Scheduled.ConcurrentExecution.SKIP,
                 coreConfigCleanupTask::cleanupOldCoreConfigBackupFiles
+        ));
+        definitions.put("node-deployment-history-cleanup", task(
+                "node-deployment-history-cleanup",
+                "node-deployment-history-cleanup",
+                "部署历史清理",
+                "按保留策略清理过期节点部署历史。",
+                "scheduled",
+                "定时任务",
+                110,
+                SCHEDULE_TYPE_CRON,
+                "airopscat.node.deployment.history.cleanup.cron",
+                0L,
+                Scheduled.ConcurrentExecution.SKIP,
+                nodeDeploymentHistoryCleanupTask::cleanupExpiredHistory
+        ));
+        definitions.put("account-traffic-cleanup", task(
+                "account-traffic-cleanup",
+                "account-traffic-cleanup",
+                "账户流量清理",
+                "按保留策略清理过期账户流量明细。",
+                "scheduled",
+                "定时任务",
+                120,
+                SCHEDULE_TYPE_CRON,
+                "airopscat.account.traffic.cleanup.cron",
+                0L,
+                Scheduled.ConcurrentExecution.SKIP,
+                accountTrafficStatsCleanupTask::cleanupExpiredStats
+        ));
+        definitions.put("server-traffic-cleanup", task(
+                "server-traffic-cleanup",
+                "server-traffic-cleanup",
+                "服务器流量清理",
+                "按保留策略清理过期服务器流量明细。",
+                "scheduled",
+                "定时任务",
+                130,
+                SCHEDULE_TYPE_CRON,
+                "airopscat.server.traffic.cleanup.cron",
+                0L,
+                Scheduled.ConcurrentExecution.SKIP,
+                serverTrafficStatsCleanupTask::cleanupExpiredStats
         ));
 
         return definitions;

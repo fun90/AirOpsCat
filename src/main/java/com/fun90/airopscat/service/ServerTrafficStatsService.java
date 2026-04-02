@@ -7,6 +7,7 @@ import com.fun90.airopscat.util.TrafficPeriodUtils;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -14,11 +15,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+@Slf4j
 @ApplicationScoped
 public class ServerTrafficStatsService {
 
+    private static final int DEFAULT_RETENTION_DAYS = 180;
+    private static final int DEFAULT_CLEANUP_BATCH_SIZE = 1000;
+
     @Inject
     ServerTrafficStatsRepository serverTrafficStatsRepository;
+
+    @Inject
+    SystemConfigService systemConfigService;
 
     @Transactional
     public ServerTrafficStats saveOrUpdateTrafficStats(Long serverId, LocalDateTime bandwidthDate, long uploadBytes, long downloadBytes) {
@@ -123,6 +131,48 @@ public class ServerTrafficStatsService {
 
     private long defaultLong(Long value) {
         return value == null ? 0L : value;
+    }
+
+    @Transactional
+    public long cleanupExpiredStats() {
+        int retentionDays = getRetentionDays();
+        int batchSize = getCleanupBatchSize();
+        LocalDateTime cutoffTime = LocalDateTime.now().minusDays(retentionDays);
+        long totalDeleted = 0L;
+        int rounds = 0;
+
+        while (true) {
+            int deleted = deleteExpiredStatsBatch(cutoffTime, batchSize);
+            if (deleted <= 0) {
+                break;
+            }
+            totalDeleted += deleted;
+            rounds++;
+            if (deleted < batchSize) {
+                break;
+            }
+        }
+
+        logCleanupSummary(retentionDays, batchSize, cutoffTime, rounds, totalDeleted);
+        return totalDeleted;
+    }
+
+    int getRetentionDays() {
+        return Math.max(systemConfigService.getIntValue("airopscat.server.traffic.retention-days", DEFAULT_RETENTION_DAYS), 1);
+    }
+
+    int getCleanupBatchSize() {
+        return Math.max(systemConfigService.getIntValue("airopscat.server.traffic.cleanup.batch-size",
+                DEFAULT_CLEANUP_BATCH_SIZE), 1);
+    }
+
+    int deleteExpiredStatsBatch(LocalDateTime cutoffTime, int batchSize) {
+        return serverTrafficStatsRepository.deleteExpiredStatsBatch(cutoffTime, batchSize);
+    }
+
+    void logCleanupSummary(int retentionDays, int batchSize, LocalDateTime cutoffTime, int rounds, long totalDeleted) {
+        log.info("服务器流量统计清理完成，保留天数: {}, 截止时间: {}, 批大小: {}, 批次数: {}, 删除总数: {}",
+                retentionDays, cutoffTime, batchSize, rounds, totalDeleted);
     }
 
 }

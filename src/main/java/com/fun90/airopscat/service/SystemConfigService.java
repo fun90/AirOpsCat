@@ -291,6 +291,21 @@ public class SystemConfigService {
                 item("airopscat.server.monitor.alert.continuous-minutes", "阈值持续分钟数", "达到阈值后持续多久才触发告警。", INPUT_NUMBER, true, false, false, true, "30", "30")
         ));
 
+        groups.put("history", group(
+                "history",
+                "历史清理",
+                "历史明细表的保留策略与批处理参数。",
+                65,
+                false,
+                item("airopscat.node.deployment.history.retention-days", "部署历史保留天数", "节点部署历史明细保留天数。", INPUT_NUMBER, true, false, false, true, "90", "90"),
+                item("airopscat.node.deployment.history.keep-latest-per-node", "部署历史保底版本数", "每个节点至少保留的最近历史版本数。", INPUT_NUMBER, true, false, false, true, "20", "20"),
+                item("airopscat.node.deployment.history.cleanup.batch-size", "部署历史清理批大小", "节点部署历史单批删除数量。", INPUT_NUMBER, true, false, false, true, "500", "500"),
+                item("airopscat.account.traffic.retention-days", "账户流量保留天数", "账户流量明细保留天数。", INPUT_NUMBER, true, false, false, true, "180", "180"),
+                item("airopscat.account.traffic.cleanup.batch-size", "账户流量清理批大小", "账户流量明细单批删除数量。", INPUT_NUMBER, true, false, false, true, "1000", "1000"),
+                item("airopscat.server.traffic.retention-days", "服务器流量保留天数", "服务器流量明细保留天数。", INPUT_NUMBER, true, false, false, true, "180", "180"),
+                item("airopscat.server.traffic.cleanup.batch-size", "服务器流量清理批大小", "服务器流量明细单批删除数量。", INPUT_NUMBER, true, false, false, true, "1000", "1000")
+        ));
+
         groups.put("backup", group(
                 "backup",
                 "数据库备份",
@@ -313,6 +328,9 @@ public class SystemConfigService {
                 item("airopscat.account.expiration.cron", "过期账号处理 Cron", "检查过期账号并重新部署关联节点。", INPUT_TEXT, true, false, false, true, "0 0 5 * * ?", "0 0 5 * * ?"),
                 item("airopscat.expiration.notify.cron", "资源到期提醒 Cron", "账号、服务器、域名到期提醒调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 10 * * ?", "0 0 10 * * ?"),
                 item("airopscat.traffic.stats.cron", "流量统计采集 Cron", "采集账号和服务器流量统计的调度表达式。", INPUT_TEXT, true, false, false, true, "0 */15 * * * ?", "0 */15 * * * ?"),
+                item("airopscat.node.deployment.history.cleanup.cron", "部署历史清理 Cron", "清理过期节点部署历史的调度表达式。", INPUT_TEXT, true, false, false, true, "0 20 3 * * ?", "0 20 3 * * ?"),
+                item("airopscat.account.traffic.cleanup.cron", "账户流量清理 Cron", "清理过期账户流量明细的调度表达式。", INPUT_TEXT, true, false, false, true, "0 40 3 * * ?", "0 40 3 * * ?"),
+                item("airopscat.server.traffic.cleanup.cron", "服务器流量清理 Cron", "清理过期服务器流量明细的调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 4 * * ?", "0 0 4 * * ?"),
                 item("airopscat.core.config.cleanup.cron", "内核配置清理 Cron", "清理内核配置旧备份文件的调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 8 * * ?", "0 0 8 * * ?")
         ));
 

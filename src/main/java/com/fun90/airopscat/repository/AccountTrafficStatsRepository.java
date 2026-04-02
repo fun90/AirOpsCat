@@ -3,6 +3,7 @@ package com.fun90.airopscat.repository;
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -58,5 +59,24 @@ public class AccountTrafficStatsRepository implements PanacheRepository<AccountT
 
     public long deleteByAccountId(Long accountId) {
         return delete("accountId", accountId);
+    }
+
+    @Transactional
+    public int deleteExpiredStatsBatch(LocalDateTime cutoffTime, int batchSize) {
+        return getEntityManager().createNativeQuery("""
+                        DELETE FROM account_traffic_stats
+                        WHERE id IN (
+                            SELECT id FROM (
+                                SELECT id
+                                FROM account_traffic_stats
+                                WHERE period_end < ?1
+                                ORDER BY period_end ASC, id ASC
+                                LIMIT ?2
+                            ) delete_candidates
+                        )
+                        """)
+                .setParameter(1, cutoffTime)
+                .setParameter(2, Math.max(batchSize, 1))
+                .executeUpdate();
     }
 }

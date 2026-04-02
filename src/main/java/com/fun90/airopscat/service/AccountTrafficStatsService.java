@@ -13,6 +13,7 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.Query;
 import jakarta.persistence.TypedQuery;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -21,20 +22,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @ApplicationScoped
 public class AccountTrafficStatsService {
+
+    private static final int DEFAULT_RETENTION_DAYS = 180;
+    private static final int DEFAULT_CLEANUP_BATCH_SIZE = 1000;
 
     private final AccountTrafficStatsRepository accountTrafficStatsRepository;
     private final UserRepository userRepository;
     private final EntityManager entityManager;
+    private final SystemConfigService systemConfigService;
 
     @Inject
     public AccountTrafficStatsService(AccountTrafficStatsRepository accountTrafficStatsRepository,
                                       UserRepository userRepository,
-                                      EntityManager entityManager) {
+                                      EntityManager entityManager,
+                                      SystemConfigService systemConfigService) {
         this.accountTrafficStatsRepository = accountTrafficStatsRepository;
         this.userRepository = userRepository;
         this.entityManager = entityManager;
+        this.systemConfigService = systemConfigService;
     }
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<AccountTrafficStats> getStatsPage(Long userId,
@@ -245,6 +253,48 @@ public class AccountTrafficStatsService {
         newStats.setDownloadBytes(downloadBytes);
         accountTrafficStatsRepository.persist(newStats);
         return newStats;
+    }
+
+    @Transactional
+    public long cleanupExpiredStats() {
+        int retentionDays = getRetentionDays();
+        int batchSize = getCleanupBatchSize();
+        LocalDateTime cutoffTime = LocalDateTime.now().minusDays(retentionDays);
+        long totalDeleted = 0L;
+        int rounds = 0;
+
+        while (true) {
+            int deleted = deleteExpiredStatsBatch(cutoffTime, batchSize);
+            if (deleted <= 0) {
+                break;
+            }
+            totalDeleted += deleted;
+            rounds++;
+            if (deleted < batchSize) {
+                break;
+            }
+        }
+
+        logCleanupSummary(retentionDays, batchSize, cutoffTime, rounds, totalDeleted);
+        return totalDeleted;
+    }
+
+    int getRetentionDays() {
+        return Math.max(systemConfigService.getIntValue("airopscat.account.traffic.retention-days", DEFAULT_RETENTION_DAYS), 1);
+    }
+
+    int getCleanupBatchSize() {
+        return Math.max(systemConfigService.getIntValue("airopscat.account.traffic.cleanup.batch-size",
+                DEFAULT_CLEANUP_BATCH_SIZE), 1);
+    }
+
+    int deleteExpiredStatsBatch(LocalDateTime cutoffTime, int batchSize) {
+        return accountTrafficStatsRepository.deleteExpiredStatsBatch(cutoffTime, batchSize);
+    }
+
+    void logCleanupSummary(int retentionDays, int batchSize, LocalDateTime cutoffTime, int rounds, long totalDeleted) {
+        log.info("账户流量统计清理完成，保留天数: {}, 截止时间: {}, 批大小: {}, 批次数: {}, 删除总数: {}",
+                retentionDays, cutoffTime, batchSize, rounds, totalDeleted);
     }
 
     public String formatBytes(long bytes) {

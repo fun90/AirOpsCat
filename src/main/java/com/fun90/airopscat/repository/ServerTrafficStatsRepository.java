@@ -3,6 +3,7 @@ package com.fun90.airopscat.repository;
 import com.fun90.airopscat.model.entity.ServerTrafficStats;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,5 +32,24 @@ public class ServerTrafficStatsRepository implements PanacheRepository<ServerTra
 
     public long deleteByServerId(Long serverId) {
         return delete("serverId", serverId);
+    }
+
+    @Transactional
+    public int deleteExpiredStatsBatch(LocalDateTime cutoffTime, int batchSize) {
+        return getEntityManager().createNativeQuery("""
+                        DELETE FROM server_traffic_stats
+                        WHERE id IN (
+                            SELECT id FROM (
+                                SELECT id
+                                FROM server_traffic_stats
+                                WHERE period_end < ?1
+                                ORDER BY period_end ASC, id ASC
+                                LIMIT ?2
+                            ) delete_candidates
+                        )
+                        """)
+                .setParameter(1, cutoffTime)
+                .setParameter(2, Math.max(batchSize, 1))
+                .executeUpdate();
     }
 }
