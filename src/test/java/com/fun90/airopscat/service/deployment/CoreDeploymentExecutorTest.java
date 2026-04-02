@@ -77,7 +77,7 @@ class CoreDeploymentExecutorTest {
         final Set<Integer> connectionIdentities = new java.util.LinkedHashSet<>();
 
         TestableCoreDeploymentExecutor(boolean shouldDeployRemotely) {
-            super(null, null, null, null, null, null, null);
+            super(null, null, null, null, null, null);
             this.shouldDeployRemotely = shouldDeployRemotely;
         }
 
