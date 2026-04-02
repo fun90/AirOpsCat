@@ -16,5 +16,6 @@ public class SystemConfigGroupDto {
     private String title;
     private String description;
     private boolean testSupported;
+    private int sortOrder;
     private List<SystemConfigItemDto> items;
 }

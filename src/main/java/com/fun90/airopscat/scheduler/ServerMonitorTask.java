@@ -3,15 +3,15 @@ package com.fun90.airopscat.scheduler;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.ServerMonitorStatsService;
+import com.fun90.airopscat.service.SystemConfigService;
+import io.quarkus.runtime.StartupEvent;
 import io.quarkus.scheduler.Scheduled;
 import io.quarkus.scheduler.Scheduler;
-import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 @Slf4j
 @ApplicationScoped
 public class ServerMonitorTask {
+
     private static final String SERVER_MONITOR_COLLECT_JOB_ID = "server-monitor-collect";
 
     @Inject
@@ -36,14 +37,11 @@ public class ServerMonitorTask {
     @Inject
     Scheduler scheduler;
 
-    @ConfigProperty(name = "airopscat.server.monitor.enabled", defaultValue = "true")
-    boolean serverMonitorEnabled;
-
-    @ConfigProperty(name = "airopscat.server.monitor.refresh-minutes", defaultValue = "1")
-    long serverMonitorRefreshMinutes;
+    @Inject
+    SystemConfigService systemConfigService;
 
     void scheduleServerMonitorCollection(@Observes StartupEvent event) {
-        long refreshMinutes = Math.max(1L, serverMonitorRefreshMinutes);
+        long refreshMinutes = getRefreshMinutes();
         String cron = "0 */" + refreshMinutes + " * * * ?";
         scheduler.unscheduleJob(SERVER_MONITOR_COLLECT_JOB_ID);
         scheduler.newJob(SERVER_MONITOR_COLLECT_JOB_ID)
@@ -56,7 +54,7 @@ public class ServerMonitorTask {
     }
 
     public void collectServerMonitorStats() {
-        if (!serverMonitorEnabled) {
+        if (!systemConfigService.getBooleanValue("airopscat.server.monitor.enabled", true)) {
             log.debug("服务器监控采集已禁用，跳过本次任务");
             return;
         }
@@ -96,7 +94,7 @@ public class ServerMonitorTask {
                 }
             }
 
-            log.info("服务器监控采集完成 - 成功: {}, 跳过: {}, 失败: {}", successCount, skippedCount, failureCount);
+            log.info("服务器监控采集完成，成功: {}, 跳过: {}, 失败: {}", successCount, skippedCount, failureCount);
         } catch (Exception e) {
             log.error("执行服务器监控采集任务时发生错误", e);
         }
@@ -112,6 +110,10 @@ public class ServerMonitorTask {
                     server.getId(), server.getIp(), e.getMessage(), e);
             return MonitorCollectResult.FAILED;
         }
+    }
+
+    private long getRefreshMinutes() {
+        return Math.max(1L, systemConfigService.getLongValue("airopscat.server.monitor.refresh-minutes", 1L));
     }
 
     private enum MonitorCollectResult {

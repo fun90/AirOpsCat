@@ -1,5 +1,6 @@
 package com.fun90.airopscat.util;
 
+import com.fun90.airopscat.service.SystemConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.Config;
 
@@ -23,6 +24,9 @@ public class ConfigFileReader {
 
     @Inject
     Config config;
+
+    @Inject
+    SystemConfigService systemConfigService;
 
     // 缓存已读取的配置文件内容，避免重复读取，使用线程安全的ConcurrentHashMap
     private final Map<String, String> fileContentCache = new ConcurrentHashMap<>();
@@ -76,9 +80,12 @@ public class ConfigFileReader {
     private String readFromExternalDirectory(String path) {
         try {
             // 获取外部模板目录配置
-            String templatesDir = config
-                .getOptionalValue("airopscat.config.templates.dir", String.class)
-                .orElse("./config");
+            String templatesDir = systemConfigService.getResolvedValue("airopscat.config.templates.dir");
+            if (templatesDir == null || templatesDir.isBlank()) {
+                templatesDir = config
+                        .getOptionalValue("airopscat.config.templates.dir", String.class)
+                        .orElse("./config");
+            }
 
             // 构建完整的外部文件路径
             Path externalFilePath;

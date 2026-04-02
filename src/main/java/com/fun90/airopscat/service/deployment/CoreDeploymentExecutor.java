@@ -13,7 +13,7 @@ import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.deployment.registry.CoreConfigBuilderRegistry;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
+import com.fun90.airopscat.service.SystemConfigService;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,9 +39,7 @@ public class CoreDeploymentExecutor {
     private final NodeRepository nodeRepository;
     private final CoreConfigBuilderRegistry coreConfigBuilderRegistry;
     private final NodeDeploymentVersionService nodeDeploymentVersionService;
-
-    @ConfigProperty(name = "airopscat.deployment.skip-remote-config", defaultValue = "false")
-    boolean skipRemoteConfigInCurrentEnv;
+    private final SystemConfigService systemConfigService;
 
     public List<CoreDeploymentExecution> executeForServer(DeploymentServerContext ctx) {
         Server server = ctx.server();
@@ -64,7 +62,7 @@ public class CoreDeploymentExecutor {
         try {
             String config = coreConfigBuilderRegistry.getStrategy(coreType).build(ctx, nodes);
             if (server.getExternal() == null || server.getExternal() == 0) {
-                if (skipRemoteConfigInCurrentEnv) {
+                if (systemConfigService.getBooleanValue("airopscat.deployment.skip-remote-config", false)) {
                     log.info("Skip remote config deployment in current environment, server={}({}), core={}",
                             server.getName(), server.getId(), coreType);
                 } else {

@@ -3,11 +3,11 @@ package com.fun90.airopscat.service.expiration;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.ServerMonitorStatsService;
+import com.fun90.airopscat.service.SystemConfigService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -40,17 +40,8 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
     @Named("blockingTaskExecutor")
     ExecutorService blockingTaskExecutor;
 
-    @ConfigProperty(name = "airopscat.server.monitor.alert.cpu-threshold", defaultValue = "0.9")
-    double cpuThreshold;
-
-    @ConfigProperty(name = "airopscat.server.monitor.alert.memory-threshold", defaultValue = "0.95")
-    double memoryThreshold;
-
-    @ConfigProperty(name = "airopscat.server.monitor.alert.traffic-threshold", defaultValue = "0.85")
-    double trafficThreshold;
-
-    @ConfigProperty(name = "airopscat.server.monitor.alert.continuous-minutes", defaultValue = "30")
-    int continuousMinutes;
+    @Inject
+    SystemConfigService systemConfigService;
 
     @Override
     public String getType() {
@@ -104,7 +95,9 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
                 return items;
             }
 
-            double cpuThresholdPercent = normalizePercentThreshold(cpuThreshold);
+            int continuousMinutes = getContinuousMinutes();
+
+            double cpuThresholdPercent = normalizePercentThreshold(getCpuThreshold());
             boolean cpuHigh = serverMonitorStatsService.isCpuUsageHighForDuration(
                     serverId, now, cpuThresholdPercent, continuousMinutes);
             updateAlertState(serverId, CPU_ALERT_KEY, cpuHigh);
@@ -112,7 +105,7 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
                 items.add(buildUsageAlert(server, "CPU", cpuThresholdPercent, continuousMinutes));
             }
 
-            double memoryThresholdPercent = normalizePercentThreshold(memoryThreshold);
+            double memoryThresholdPercent = normalizePercentThreshold(getMemoryThreshold());
             boolean memoryHigh = serverMonitorStatsService.isMemoryUsageHighForDuration(
                     serverId, now, memoryThresholdPercent, continuousMinutes);
             updateAlertState(serverId, MEMORY_ALERT_KEY, memoryHigh);
@@ -123,7 +116,7 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
             long totalTrafficBytes = serverMonitorStatsService.getCurrentPeriodTotalTrafficBytes(server, now);
             long limitBytes = server.getBandwidth() == null ? 0L : server.getBandwidth().longValue() * BYTES_PER_GB;
             double currentTrafficRatio = limitBytes <= 0 ? 0D : totalTrafficBytes / (double) limitBytes;
-            boolean trafficHigh = currentTrafficRatio >= normalizeThreshold(trafficThreshold);
+            boolean trafficHigh = currentTrafficRatio >= normalizeThreshold(getTrafficThreshold());
             updateAlertState(serverId, TRAFFIC_ALERT_KEY, trafficHigh);
             if (trafficHigh && activateAlert(serverId, TRAFFIC_ALERT_KEY)) {
                 items.add(buildTrafficAlert(server, currentTrafficRatio, totalTrafficBytes));
@@ -217,5 +210,21 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
         }
         double tb = gb / 1024.0;
         return String.format(Locale.ROOT, "%.2f TB", tb);
+    }
+
+    private double getCpuThreshold() {
+        return systemConfigService.getDoubleValue("airopscat.server.monitor.alert.cpu-threshold", 0.9D);
+    }
+
+    private double getMemoryThreshold() {
+        return systemConfigService.getDoubleValue("airopscat.server.monitor.alert.memory-threshold", 0.95D);
+    }
+
+    private double getTrafficThreshold() {
+        return systemConfigService.getDoubleValue("airopscat.server.monitor.alert.traffic-threshold", 0.85D);
+    }
+
+    private int getContinuousMinutes() {
+        return Math.max(1, systemConfigService.getIntValue("airopscat.server.monitor.alert.continuous-minutes", 30));
     }
 }

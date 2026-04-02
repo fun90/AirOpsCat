@@ -49,18 +49,12 @@ public class DatabaseBackupService {
     @ConfigProperty(name = "quarkus.datasource.password")
     String password;
 
-    @ConfigProperty(name = "airopscat.backup.dir", defaultValue = "./backup")
-    String backupDir;
-
-    @ConfigProperty(name = "airopscat.backup.mysqldump-path", defaultValue = "mysqldump")
-    String mysqldumpPath;
-
-    @ConfigProperty(name = "airopscat.backup.retention-days", defaultValue = "30")
-    int retentionDays;
-
     @Inject
     @Named("blockingTaskExecutor")
     ExecutorService blockingTaskExecutor;
+
+    @Inject
+    SystemConfigService systemConfigService;
 
     @Scheduled(cron = "{airopscat.backup.cron:0 0 6 * * ?}", timeZone = "Asia/Shanghai")
     public void scheduledBackup() {
@@ -74,6 +68,7 @@ public class DatabaseBackupService {
 
     @Scheduled(cron = "{airopscat.backup.cleanup.cron:0 30 6 * * ?}", timeZone = "Asia/Shanghai")
     public void cleanupExpiredBackups() {
+        int retentionDays = getRetentionDays();
         if (retentionDays < 1) {
             log.warn("Skip cleanup because backup retention days is less than 1: {}", retentionDays);
             return;
@@ -281,7 +276,7 @@ public class DatabaseBackupService {
 
     private List<String> buildDumpCommand(DatabaseConnectionInfo connectionInfo) {
         List<String> command = new ArrayList<>();
-        command.add(mysqldumpPath);
+        command.add(getMysqldumpPath());
         command.add("--host=" + connectionInfo.host());
         command.add("--port=" + connectionInfo.port());
         command.add("--user=" + username);
@@ -308,6 +303,7 @@ public class DatabaseBackupService {
     }
 
     private String resolveMysqlExecutable() {
+        String mysqldumpPath = getMysqldumpPath();
         String trimmed = mysqldumpPath == null ? "" : mysqldumpPath.trim();
         if (trimmed.isEmpty()) {
             return "mysql";
@@ -371,7 +367,7 @@ public class DatabaseBackupService {
 
     private Path ensureBackupDirectory() {
         try {
-            Path path = Paths.get(backupDir);
+            Path path = Paths.get(getBackupDir());
             if (!path.isAbsolute()) {
                 path = Paths.get("").toAbsolutePath().resolve(path).normalize();
             }
@@ -420,6 +416,18 @@ public class DatabaseBackupService {
                 log.warn("Failed to read mysqldump error stream", e);
             }
         }, blockingTaskExecutor);
+    }
+
+    private String getBackupDir() {
+        return systemConfigService.getResolvedValue("airopscat.backup.dir");
+    }
+
+    private String getMysqldumpPath() {
+        return systemConfigService.getResolvedValue("airopscat.backup.mysqldump-path");
+    }
+
+    private int getRetentionDays() {
+        return systemConfigService.getIntValue("airopscat.backup.retention-days", 30);
     }
 
     private record DatabaseConnectionInfo(String host, int port, String database) {

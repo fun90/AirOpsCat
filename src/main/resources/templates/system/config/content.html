@@ -4,26 +4,23 @@
             <div class="col-12 col-xl-4">
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">配置中心</h3>
+                        <h3 class="card-title">系统配置</h3>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
                             <div class="text-secondary small">配置分组</div>
                             <div class="h2 m-0">{{ groups.length }}</div>
                         </div>
-                        <div class="mb-3">
+                        <div>
                             <div class="text-secondary small">配置项数量</div>
                             <div class="h2 m-0">{{ totalItems }}</div>
-                        </div>
-                        <div class="alert alert-info mb-0">
-                            已保存的配置会写入数据库，并在运行时覆盖 `application.properties` 中的默认值。
                         </div>
                     </div>
                 </div>
 
                 <div class="card mt-4" v-if="groups.length">
                     <div class="card-header">
-                        <h3 class="card-title">配置导航</h3>
+                        <h3 class="card-title">分组导航</h3>
                     </div>
                     <div class="list-group list-group-flush">
                         <button type="button"
@@ -57,24 +54,40 @@
                                 <div class="text-secondary small">{{ group.description }}</div>
                             </div>
                             <div class="card-actions d-flex gap-2">
-                                <button class="btn btn-outline-secondary btn-sm" type="button" @click="resetGroup(group.groupKey)" :disabled="savingGroup === group.groupKey">
+                                <button class="btn btn-outline-secondary btn-sm"
+                                        type="button"
+                                        @click="resetGroup(group.groupKey)"
+                                        :disabled="savingGroup === group.groupKey">
                                     重置
                                 </button>
-                                <button class="btn btn-primary btn-sm" type="button" @click="saveGroup(group.groupKey)" :disabled="savingGroup === group.groupKey">
-                                    <span v-if="savingGroup === group.groupKey" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                <button class="btn btn-primary btn-sm"
+                                        type="button"
+                                        @click="saveGroup(group.groupKey)"
+                                        :disabled="savingGroup === group.groupKey">
+                                    <span v-if="savingGroup === group.groupKey"
+                                          class="spinner-border spinner-border-sm me-1"
+                                          role="status"
+                                          aria-hidden="true"></span>
                                     保存
                                 </button>
                             </div>
                         </div>
+
                         <div class="card-body">
                             <div class="row g-3">
                                 <div class="col-12" v-for="item in group.items" :key="item.key">
-                                    <label class="form-label fw-medium">{{ item.label }}</label>
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <label class="form-label fw-medium mb-0">{{ item.label }}</label>
+                                        <span v-if="item.restartRequired" class="badge bg-orange-lt">重启生效</span>
+                                        <span v-if="item.required" class="badge bg-blue-lt">必填</span>
+                                        <span v-if="!item.editable" class="badge bg-secondary-lt">只读</span>
+                                    </div>
 
                                     <div v-if="item.inputType === 'checkbox'" class="form-check form-switch">
                                         <input class="form-check-input"
                                                type="checkbox"
                                                :checked="toBoolean(item.value)"
+                                               :disabled="!item.editable"
                                                @change="updateCheckbox(group.groupKey, item.key, $event)">
                                         <span class="form-check-label">启用</span>
                                     </div>
@@ -84,10 +97,12 @@
                                                :type="resolveInputType(item)"
                                                :placeholder="item.placeholder || ''"
                                                :value="item.value || ''"
+                                               :disabled="!item.editable"
                                                @input="updateField(group.groupKey, item.key, $event.target.value)">
                                         <button v-if="item.sensitive"
                                                 class="btn btn-outline-secondary"
                                                 type="button"
+                                                :disabled="!item.editable"
                                                 @click="toggleSensitive(item.key)">
                                             {{ showSensitive[item.key] ? '隐藏' : '显示' }}
                                         </button>
@@ -97,6 +112,7 @@
                                 </div>
                             </div>
                         </div>
+
                         <div class="card-footer d-flex justify-content-between align-items-center">
                             <span class="text-secondary small">
                                 {{ isGroupDirty(group.groupKey) ? '有未保存修改' : '已保存' }}
@@ -106,7 +122,10 @@
                                     type="button"
                                     @click="testGroup(group.groupKey)"
                                     :disabled="testingGroup === group.groupKey">
-                                <span v-if="testingGroup === group.groupKey" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                <span v-if="testingGroup === group.groupKey"
+                                      class="spinner-border spinner-border-sm me-1"
+                                      role="status"
+                                      aria-hidden="true"></span>
                                 发送测试
                             </button>
                         </div>

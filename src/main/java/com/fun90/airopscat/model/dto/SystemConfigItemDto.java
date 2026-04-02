@@ -16,6 +16,8 @@ public class SystemConfigItemDto {
     private String inputType;
     private boolean required;
     private boolean sensitive;
+    private boolean restartRequired;
+    private boolean editable;
     private String placeholder;
     private String value;
 }

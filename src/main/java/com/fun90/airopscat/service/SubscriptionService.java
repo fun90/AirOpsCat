@@ -22,7 +22,6 @@ import com.fun90.airopscat.util.NodeObfuscator;
 import com.fun90.airopscat.util.TemplateUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -41,7 +40,7 @@ public class SubscriptionService {
     private final TagService tagService;
     private final TemplateUtil templateUtil;
     private final ConfigFileReader configFileReader;
-    private final String subscriptionUrl;
+    private final SystemConfigService systemConfigService;
 
     @Inject
     public SubscriptionService(
@@ -53,7 +52,7 @@ public class SubscriptionService {
             TagService tagService,
             TemplateUtil templateUtil,
             ConfigFileReader configFileReader,
-            @ConfigProperty(name = "airopscat.subscription.url") String subscriptionUrl) {
+            SystemConfigService systemConfigService) {
         this.accountRepository = accountRepository;
         this.accountTrafficRepository = accountTrafficRepository;
         this.nodeDeploymentRepository = nodeDeploymentRepository;
@@ -62,7 +61,7 @@ public class SubscriptionService {
         this.tagService = tagService;
         this.templateUtil = templateUtil;
         this.configFileReader = configFileReader;
-        this.subscriptionUrl = subscriptionUrl;
+        this.systemConfigService = systemConfigService;
     }
 
     /**
@@ -113,7 +112,7 @@ public class SubscriptionService {
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("account", account);
         templateData.put("nodes", activeNodes);
-        templateData.put("subscriptionUrl", subscriptionUrl);
+        templateData.put("subscriptionUrl", getSubscriptionUrl());
         templateData.put("timestamp", System.currentTimeMillis());
 
         String templateName = "nodes/" + appType + ".html";
@@ -194,7 +193,7 @@ public class SubscriptionService {
         templateData.put("nodes", nodes);
         templateData.put("osName", osName);
         templateData.put("appName", appName);
-        templateData.put("subscriptionUrl", subscriptionUrl);
+        templateData.put("subscriptionUrl", getSubscriptionUrl());
         templateData.put("timestamp", System.currentTimeMillis());
         templateData.putAll(params);
 
@@ -208,11 +207,15 @@ public class SubscriptionService {
         if (account == null || account.getUuid() == null) {
             return null;
         }
-        String url = subscriptionUrl + "/config/" + account.getAuthCode() + "/" + osName + "/" + appName + "/";
+        String url = getSubscriptionUrl() + "/config/" + account.getAuthCode() + "/" + osName + "/" + appName + "/";
         if ("shadowrocket".equalsIgnoreCase(appName)) {
             url += URLEncoder.encode(account.getRemark(), StandardCharsets.UTF_8) + "/";
         }
         return url;
+    }
+
+    private String getSubscriptionUrl() {
+        return systemConfigService.getResolvedValue("airopscat.subscription.url");
     }
 
     /**

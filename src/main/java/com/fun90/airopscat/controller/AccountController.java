@@ -13,6 +13,7 @@ import com.fun90.airopscat.model.enums.TransactionType;
 import com.fun90.airopscat.service.AccountOnlineIpService;
 import com.fun90.airopscat.service.AccountService;
 import com.fun90.airopscat.service.SubscriptionService;
+import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.TagService;
 import com.fun90.airopscat.service.TransactionService;
 import com.fun90.airopscat.service.UserService;
@@ -25,7 +26,6 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -404,14 +404,13 @@ public class AccountController {
 class ConfigController {
 
     @Inject
-    @ConfigProperty(name = "airopscat.docs.url", defaultValue = "https://docs.xxx.com")
-    String docsUrl;
+    SystemConfigService systemConfigService;
 
     @GET
     @Path("/docs")
     public Response getDocsConfig() {
         Map<String, String> config = new HashMap<>();
-        config.put("url", docsUrl);
+        config.put("url", systemConfigService.getResolvedValue("airopscat.docs.url"));
         return Response.ok(config).build();
     }
 }

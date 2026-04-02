@@ -12,7 +12,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,17 +26,17 @@ public class AccountOnlineIpService {
     private final AccountOnlineIpRepository accountOnlineIpRepository;
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
-    
-    @ConfigProperty(name = "airopscat.online.check-minutes", defaultValue = "5")
-    int checkMinutes;
+    private final SystemConfigService systemConfigService;
 
     @Inject
-    public AccountOnlineIpService(AccountOnlineIpRepository accountOnlineIpRepository, 
+    public AccountOnlineIpService(AccountOnlineIpRepository accountOnlineIpRepository,
                                  AccountRepository accountRepository,
-                                 UserRepository userRepository) {
+                                 UserRepository userRepository,
+                                 SystemConfigService systemConfigService) {
         this.accountOnlineIpRepository = accountOnlineIpRepository;
         this.accountRepository = accountRepository;
         this.userRepository = userRepository;
+        this.systemConfigService = systemConfigService;
     }
 
     /**
@@ -51,7 +50,7 @@ public class AccountOnlineIpService {
         String accountNo = request.getAccountNo();
         String clientIp = request.getClientIp();
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime offlineThresholdTime = now.minusMinutes(checkMinutes);
+        LocalDateTime offlineThresholdTime = now.minusMinutes(getCheckMinutes());
         
         try {
             accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, nodeIp, now, now, now, now, offlineThresholdTime);
@@ -80,7 +79,7 @@ public class AccountOnlineIpService {
      */
     public List<AccountOnlineIpDto> getOnlineRecordsByAccountNo(String accountNo) {
         // 计算检查时间范围（当前时间往前推checkMinutes分钟）
-        LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(checkMinutes);
+        LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(getCheckMinutes());
         
         // 直接查询在时间窗口内的记录
         List<AccountOnlineIp> records = accountOnlineIpRepository.findByAccountNoAndLastOnlineTimeAfter(accountNo, checkStartTime);
@@ -92,7 +91,7 @@ public class AccountOnlineIpService {
      */
     public List<AccountOnlineIpDto> getOnlineRecordsByNodeIp(String nodeIp) {
         // 计算检查时间范围（当前时间往前推checkMinutes分钟）
-        LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(checkMinutes);
+        LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(getCheckMinutes());
 
         // 获取所有记录，然后过滤出在时间窗口内的记录
         List<AccountOnlineIp> allRecords = accountOnlineIpRepository.findByNodeIp(nodeIp);
@@ -116,7 +115,7 @@ public class AccountOnlineIpService {
      */
     public List<AccountOnlineIpDto> getAllOnlineRecords() {
         // 计算检查时间范围（当前时间往前推checkMinutes分钟）
-        LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(checkMinutes);
+        LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(getCheckMinutes());
         
         // 直接查询在时间窗口内的记录
         List<AccountOnlineIp> records = accountOnlineIpRepository.findByLastOnlineTimeAfter(checkStartTime);
@@ -150,7 +149,7 @@ public class AccountOnlineIpService {
      */
     @Transactional
     public void cleanupExpiredRecords() {
-        LocalDateTime expireTime = LocalDateTime.now().minusMinutes(checkMinutes * 2L); // 清理超过2倍检查时间的记录
+        LocalDateTime expireTime = LocalDateTime.now().minusMinutes(getCheckMinutes() * 2L); // 清理超过2倍检查时间的记录
         
         // 使用重试机制处理数据库锁定问题
         int maxRetries = 3;
@@ -273,5 +272,9 @@ public class AccountOnlineIpService {
         
         return userRepository.list("id in ?1", userIds).stream()
                 .collect(Collectors.toMap(User::getId, user -> user));
+    }
+
+    private int getCheckMinutes() {
+        return Math.max(1, systemConfigService.getIntValue("airopscat.online.check-minutes", 5));
     }
 } 

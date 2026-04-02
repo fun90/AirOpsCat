@@ -7,6 +7,7 @@ import com.fun90.airopscat.model.dto.install.ServerInstallStepResultDto;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.service.ServerHostService;
 import com.fun90.airopscat.service.ServerService;
+import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -37,15 +38,6 @@ public class ServerInstallService {
     @ConfigProperty(name = "airopscat.install.scripts.dir", defaultValue = "./config/install")
     String installScriptsDir;
 
-    @ConfigProperty(name = "airopscat.install.remote-work-dir", defaultValue = "/tmp/airopscat-installer")
-    String remoteWorkDir;
-
-    @ConfigProperty(name = "airopscat.domain", defaultValue = "")
-    String airopscatDomain;
-
-    @ConfigProperty(name = "airopscat.api.token", defaultValue = "")
-    String airopscatApiToken;
-
     @Inject
     ServerService serverService;
 
@@ -54,6 +46,9 @@ public class ServerInstallService {
 
     @Inject
     SshConnectionService sshConnectionService;
+
+    @Inject
+    SystemConfigService systemConfigService;
 
     public List<InstallScriptDto> listScripts() {
         Path dir = Path.of(installScriptsDir).normalize();
@@ -96,6 +91,7 @@ public class ServerInstallService {
         String scriptContent = readScriptContent(scriptName).replace("\r\n", "\n");
 
         try (SshConnection connection = sshConnectionService.createConnection(buildSshConfig(server))) {
+            String remoteWorkDir = getRemoteWorkDir();
             connection.executeCommand("mkdir -p " + quoteShell(remoteWorkDir));
 
             String remoteScriptPath = remoteWorkDir + "/" + scriptName;
@@ -210,11 +206,23 @@ public class ServerInstallService {
         return "AIROPSCAT_STEP_NAME=" + quoteShell(stepTitle)
                 + "; server_ip=" + quoteShell(defaultString(server.getIp()))
                 + "; server_host=" + quoteShell(defaultString(serverHostService.resolvePrimaryHost(server)))
-                + "; airopscat_domain=" + quoteShell(defaultString(airopscatDomain))
-                + "; airopscat_api_token=" + quoteShell(defaultString(airopscatApiToken))
+                + "; airopscat_domain=" + quoteShell(defaultString(getDomain()))
+                + "; airopscat_api_token=" + quoteShell(defaultString(getApiToken()))
                 + "; declare -a server_hosts=" + toBashArray(hosts)
                 + "; export AIROPSCAT_STEP_NAME server_ip server_host airopscat_domain airopscat_api_token"
                 + "; source " + quoteShell(remoteScriptPath);
+    }
+
+    private String getRemoteWorkDir() {
+        return systemConfigService.getResolvedValue("airopscat.install.remote-work-dir");
+    }
+
+    private String getDomain() {
+        return systemConfigService.getResolvedValue("airopscat.domain");
+    }
+
+    private String getApiToken() {
+        return systemConfigService.getResolvedValue("airopscat.api.token");
     }
 
     private String toBashArray(List<String> values) {

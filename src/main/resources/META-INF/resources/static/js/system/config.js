@@ -25,26 +25,31 @@ const systemConfigApp = PetiteVue.createApp({
             }
 
             this.groups = payload.data || [];
-            this.originalGroups = {};
-            this.currentValues = {};
-
-            this.groups.forEach(group => {
-                this.originalGroups[group.groupKey] = {};
-                this.currentValues[group.groupKey] = {};
-                (group.items || []).forEach(item => {
-                    const normalizedValue = item.inputType === 'checkbox'
-                        ? String(item.value === 'true')
-                        : (item.value || '');
-                    this.originalGroups[group.groupKey][item.key] = normalizedValue;
-                    this.currentValues[group.groupKey][item.key] = normalizedValue;
-                });
-            });
+            this.syncGroupState(this.groups);
         } catch (error) {
             console.error(error);
             ToastUtils.show('Error', error.message || '加载系统配置失败', 'danger');
         } finally {
             this.loading = false;
         }
+    },
+
+    syncGroupState(groups) {
+        this.originalGroups = {};
+        this.currentValues = {};
+
+        (groups || []).forEach(group => {
+            this.originalGroups[group.groupKey] = {};
+            this.currentValues[group.groupKey] = {};
+
+            (group.items || []).forEach(item => {
+                const normalizedValue = item.inputType === 'checkbox'
+                    ? String(item.value === 'true')
+                    : (item.value || '');
+                this.originalGroups[group.groupKey][item.key] = normalizedValue;
+                this.currentValues[group.groupKey][item.key] = normalizedValue;
+            });
+        });
     },
 
     updateField(groupKey, itemKey, value) {
@@ -60,10 +65,16 @@ const systemConfigApp = PetiteVue.createApp({
     },
 
     resolveInputType(item) {
-        if (!item.sensitive) {
-            return item.inputType || 'text';
+        if (item.sensitive) {
+            return this.showSensitive[item.key] ? 'text' : 'password';
         }
-        return this.showSensitive[item.key] ? 'text' : 'password';
+        if (item.inputType === 'number') {
+            return 'number';
+        }
+        if (item.inputType === 'url') {
+            return 'url';
+        }
+        return 'text';
     },
 
     toggleSensitive(itemKey) {
@@ -102,17 +113,8 @@ const systemConfigApp = PetiteVue.createApp({
             }
 
             const savedGroup = payload.data;
-            this.originalGroups[groupKey] = {};
-            this.currentValues[groupKey] = {};
-            (savedGroup.items || []).forEach(item => {
-                const normalizedValue = item.inputType === 'checkbox'
-                    ? String(item.value === 'true')
-                    : (item.value || '');
-                this.originalGroups[groupKey][item.key] = normalizedValue;
-                this.currentValues[groupKey][item.key] = normalizedValue;
-            });
-
             this.groups = this.groups.map(group => group.groupKey === groupKey ? savedGroup : group);
+            this.syncGroupState(this.groups);
             ToastUtils.show('Success', '配置保存成功', 'success');
         } catch (error) {
             console.error(error);
@@ -142,13 +144,13 @@ const systemConfigApp = PetiteVue.createApp({
             });
             const payload = await response.json();
             if (!response.ok || !payload.success) {
-                throw new Error(payload.message || 'Bark测试失败');
+                throw new Error(payload.message || 'Bark 测试失败');
             }
 
-            ToastUtils.show('Success', 'Bark测试通知已发送', 'success');
+            ToastUtils.show('Success', 'Bark 测试通知已发送', 'success');
         } catch (error) {
             console.error(error);
-            ToastUtils.show('Error', error.message || 'Bark测试失败', 'danger');
+            ToastUtils.show('Error', error.message || 'Bark 测试失败', 'danger');
         } finally {
             this.testingGroup = null;
         }

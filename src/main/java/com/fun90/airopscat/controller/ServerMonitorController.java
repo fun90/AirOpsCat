@@ -4,12 +4,21 @@ import com.fun90.airopscat.model.dto.ServerMonitorTrafficCalibrationDto;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.service.ServerMonitorStatsService;
 import com.fun90.airopscat.service.ServerService;
+import com.fun90.airopscat.service.SystemConfigService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.*;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -26,8 +35,8 @@ public class ServerMonitorController {
     @Inject
     ServerMonitorStatsService serverMonitorStatsService;
 
-    @ConfigProperty(name = "airopscat.server.monitor.refresh-minutes", defaultValue = "1")
-    long monitorRefreshMinutes;
+    @Inject
+    SystemConfigService systemConfigService;
 
     @GET
     @Path("/{serverId}/summary")
@@ -37,8 +46,9 @@ public class ServerMonitorController {
         if (guardResponse != null) {
             return guardResponse;
         }
+
         var summary = serverMonitorStatsService.getLatestSummary(server);
-        summary.setMonitorIntervalSeconds(Math.max(1L, monitorRefreshMinutes) * 60L);
+        summary.setMonitorIntervalSeconds(Math.max(1L, getRefreshMinutes()) * 60L);
         return Response.ok(summary).build();
     }
 
@@ -72,7 +82,8 @@ public class ServerMonitorController {
 
     @PUT
     @Path("/{serverId}/traffic-calibration")
-    public Response calibrateTraffic(@PathParam("serverId") Long serverId, ServerMonitorTrafficCalibrationDto calibrationDto) {
+    public Response calibrateTraffic(@PathParam("serverId") Long serverId,
+                                     ServerMonitorTrafficCalibrationDto calibrationDto) {
         Server server = serverService.getServerById(serverId);
         Response guardResponse = guardMonitorServer(server);
         if (guardResponse != null) {
@@ -96,7 +107,7 @@ public class ServerMonitorController {
         }
 
         var summary = serverMonitorStatsService.calibrateCurrentPeriod(server, calibrationDto);
-        summary.setMonitorIntervalSeconds(Math.max(1L, monitorRefreshMinutes) * 60L);
+        summary.setMonitorIntervalSeconds(Math.max(1L, getRefreshMinutes()) * 60L);
         return Response.ok(summary).build();
     }
 
@@ -110,5 +121,9 @@ public class ServerMonitorController {
                     .build();
         }
         return null;
+    }
+
+    private long getRefreshMinutes() {
+        return systemConfigService.getLongValue("airopscat.server.monitor.refresh-minutes", 1L);
     }
 }

@@ -18,7 +18,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -47,11 +46,8 @@ public class ServerMonitorStatsService {
     @Inject
     ServerTrafficStatsService serverTrafficStatsService;
 
-    @ConfigProperty(name = "airopscat.server.monitor.refresh-minutes", defaultValue = "1")
-    int monitorRefreshMinutes;
-
-    @ConfigProperty(name = "airopscat.server.monitor.retention-days", defaultValue = "30")
-    int monitorRetentionDays;
+    @Inject
+    SystemConfigService systemConfigService;
 
     @Transactional
     public ServerMonitorSummaryDto collectAndSave(Server server) {
@@ -214,7 +210,7 @@ public class ServerMonitorStatsService {
 
     @Transactional
     public long cleanupExpiredStats() {
-        int retentionDays = Math.max(monitorRetentionDays, 1);
+        int retentionDays = Math.max(systemConfigService.getIntValue("airopscat.server.monitor.retention-days", 30), 1);
         LocalDateTime cutoffTime = LocalDateTime.now().minusDays(retentionDays);
         return serverMonitorStatsRepository.deleteBySampleTimeBefore(cutoffTime);
     }
@@ -389,7 +385,7 @@ public class ServerMonitorStatsService {
     }
 
     private long getMonitorRefreshSeconds() {
-        return Math.max(1, monitorRefreshMinutes) * 60L;
+        return Math.max(1, systemConfigService.getIntValue("airopscat.server.monitor.refresh-minutes", 1)) * 60L;
     }
 
     private ServerMonitorSummaryDto toSummaryDto(Server server, ServerMonitorStats stats, PeriodTraffic periodTraffic) {

@@ -64,7 +64,7 @@ public class SystemConfigController {
         boolean success = barkService.sendNotificationWithOverrides(title, body, request.getValues());
         if (!success) {
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ApiResponseDto.error("Bark测试通知发送失败"))
+                    .entity(ApiResponseDto.error("Bark 测试通知发送失败"))
                     .build();
         }
         return Response.ok(ApiResponseDto.success("ok")).build();

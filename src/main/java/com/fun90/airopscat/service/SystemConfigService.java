@@ -15,9 +15,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 @ApplicationScoped
 public class SystemConfigService {
+
+    private static final String INPUT_TEXT = "text";
+    private static final String INPUT_PASSWORD = "password";
+    private static final String INPUT_URL = "url";
+    private static final String INPUT_NUMBER = "number";
+    private static final String INPUT_CHECKBOX = "checkbox";
+
+    private static final String CONFIG_CRYPTO_SECRET_KEY = "airopscat.crypto.secret-key";
+    private static final Set<String> EXCLUDED_CONFIG_KEYS = Set.of(CONFIG_CRYPTO_SECRET_KEY);
 
     private final SystemConfigRepository systemConfigRepository;
     private final Config config;
@@ -35,17 +45,19 @@ public class SystemConfigService {
 
     public List<SystemConfigGroupDto> getConfigGroups() {
         return groupDefinitions.values().stream()
+                .sorted((left, right) -> Integer.compare(left.sortOrder(), right.sortOrder()))
                 .map(this::toGroupDto)
                 .toList();
     }
 
     public SystemConfigGroupDto getConfigGroup(String groupKey) {
-        ConfigGroupDefinition definition = requireGroupDefinition(groupKey);
-        return toGroupDto(definition);
+        return toGroupDto(requireGroupDefinition(groupKey));
     }
 
     @Transactional
     public void initializeDefaultConfigs() {
+        cleanupExcludedConfigs();
+
         for (ConfigGroupDefinition groupDefinition : groupDefinitions.values()) {
             for (ConfigItemDefinition itemDefinition : groupDefinition.items().values()) {
                 initializeDefaultConfig(groupDefinition.groupKey(), itemDefinition);
@@ -58,33 +70,60 @@ public class SystemConfigService {
         return getResolvedValue(definition);
     }
 
+    public int getIntValue(String key, int defaultValue) {
+        return parseInteger(getResolvedValue(key), defaultValue);
+    }
+
+    public long getLongValue(String key, long defaultValue) {
+        return parseLong(getResolvedValue(key), defaultValue);
+    }
+
+    public double getDoubleValue(String key, double defaultValue) {
+        return parseDouble(getResolvedValue(key), defaultValue);
+    }
+
+    public boolean getBooleanValue(String key, boolean defaultValue) {
+        String value = getResolvedValue(key);
+        return value == null ? defaultValue : Boolean.parseBoolean(value);
+    }
+
     @Transactional
     public SystemConfigGroupDto saveGroup(String groupKey, SystemConfigUpdateRequest request) {
-        ConfigGroupDefinition definition = requireGroupDefinition(groupKey);
+        ConfigGroupDefinition groupDefinition = requireGroupDefinition(groupKey);
         Map<String, String> values = request == null || request.getValues() == null
                 ? Map.of()
                 : request.getValues();
 
-        for (ConfigItemDefinition itemDefinition : definition.items().values()) {
-            saveSingleValue(definition.groupKey(), itemDefinition, values.get(itemDefinition.key()));
+        for (ConfigItemDefinition itemDefinition : groupDefinition.items().values()) {
+            saveSingleValue(groupDefinition.groupKey(), itemDefinition, values.get(itemDefinition.key()));
         }
 
-        return toGroupDto(definition);
+        return toGroupDto(groupDefinition);
+    }
+
+    private void cleanupExcludedConfigs() {
+        for (String configKey : EXCLUDED_CONFIG_KEYS) {
+            systemConfigRepository.delete("configKey", configKey);
+        }
     }
 
     private void saveSingleValue(String groupKey, ConfigItemDefinition definition, String rawValue) {
+        if (!definition.editable()) {
+            return;
+        }
+
         String normalizedValue = normalizeValue(rawValue, definition.inputType());
         if (definition.required() && !hasText(normalizedValue) && !isBooleanInput(definition.inputType())) {
             throw new IllegalArgumentException(definition.label() + "不能为空");
         }
 
         Optional<SystemConfig> optional = systemConfigRepository.findOptionalByConfigKey(definition.key());
-        SystemConfig configEntity = optional.orElseGet(SystemConfig::new);
-        configEntity.setConfigKey(definition.key());
-        configEntity.setGroupKey(groupKey);
-        configEntity.setConfigValue(normalizedValue);
-        if (configEntity.getId() == null) {
-            systemConfigRepository.persist(configEntity);
+        SystemConfig entity = optional.orElseGet(SystemConfig::new);
+        entity.setConfigKey(definition.key());
+        entity.setGroupKey(groupKey);
+        entity.setConfigValue(normalizedValue);
+        if (entity.getId() == null) {
+            systemConfigRepository.persist(entity);
         }
     }
 
@@ -93,12 +132,11 @@ public class SystemConfigService {
             return;
         }
 
-        String defaultValue = normalizeValue(definition.defaultValue(), definition.inputType());
-        SystemConfig configEntity = new SystemConfig();
-        configEntity.setConfigKey(definition.key());
-        configEntity.setGroupKey(groupKey);
-        configEntity.setConfigValue(defaultValue);
-        systemConfigRepository.persist(configEntity);
+        SystemConfig entity = new SystemConfig();
+        entity.setConfigKey(definition.key());
+        entity.setGroupKey(groupKey);
+        entity.setConfigValue(normalizeValue(definition.defaultValue(), definition.inputType()));
+        systemConfigRepository.persist(entity);
     }
 
     private String getResolvedValue(ConfigItemDefinition definition) {
@@ -106,6 +144,7 @@ public class SystemConfigService {
         if (stored.isPresent()) {
             return normalizeValue(stored.get().getConfigValue(), definition.inputType());
         }
+
         return normalizeValue(
                 config.getOptionalValue(definition.key(), String.class).orElse(definition.defaultValue()),
                 definition.inputType()
@@ -121,6 +160,8 @@ public class SystemConfigService {
                         .inputType(itemDefinition.inputType())
                         .required(itemDefinition.required())
                         .sensitive(itemDefinition.sensitive())
+                        .restartRequired(itemDefinition.restartRequired())
+                        .editable(itemDefinition.editable())
                         .placeholder(itemDefinition.placeholder())
                         .value(getResolvedValue(itemDefinition))
                         .build())
@@ -131,6 +172,7 @@ public class SystemConfigService {
                 .title(definition.title())
                 .description(definition.description())
                 .testSupported(definition.testSupported())
+                .sortOrder(definition.sortOrder())
                 .items(items)
                 .build();
     }
@@ -152,97 +194,140 @@ public class SystemConfigService {
     }
 
     private Map<String, ConfigGroupDefinition> buildGroupDefinitions() {
-        Map<String, ConfigItemDefinition> barkItems = new LinkedHashMap<>();
-        barkItems.put("airopscat.bark.url", new ConfigItemDefinition(
-                "airopscat.bark.url",
-                "Bark 地址",
-                "Bark 服务地址，例如 https://push.example.com",
-                "url",
+        Map<String, ConfigGroupDefinition> groups = new LinkedHashMap<>();
+
+        groups.put("bark", group(
+                "bark",
+                "Bark 通知",
+                "维护 Bark 地址、加密参数和默认通知选项。",
+                10,
                 true,
-                false,
-                "https://push.example.com",
-                ""
-        ));
-        barkItems.put("airopscat.bark.device-key", new ConfigItemDefinition(
-                "airopscat.bark.device-key",
-                "设备 Key",
-                "推送目标设备的 Bark Key",
-                "password",
-                true,
-                true,
-                "请输入 Bark 设备 Key",
-                ""
-        ));
-        barkItems.put("airopscat.bark.encrypt-enabled", new ConfigItemDefinition(
-                "airopscat.bark.encrypt-enabled",
-                "启用加密",
-                "启用后会按 Bark 加密协议发送 ciphertext 和 iv",
-                "checkbox",
-                false,
-                false,
-                "",
-                "false"
-        ));
-        barkItems.put("airopscat.bark.encrypt-key", new ConfigItemDefinition(
-                "airopscat.bark.encrypt-key",
-                "AES Key",
-                "启用加密时必须为 32 字节",
-                "password",
-                false,
-                true,
-                "32字节 AES Key",
-                ""
-        ));
-        barkItems.put("airopscat.bark.encrypt-iv", new ConfigItemDefinition(
-                "airopscat.bark.encrypt-iv",
-                "AES IV",
-                "启用加密时必须为 16 字节",
-                "password",
-                false,
-                true,
-                "16字节 AES IV",
-                ""
-        ));
-        barkItems.put("airopscat.bark.default-group", new ConfigItemDefinition(
-                "airopscat.bark.default-group",
-                "默认分组",
-                "调用方未指定 group 时使用",
-                "text",
-                false,
-                false,
-                "AirOpsCat",
-                "AirOpsCat"
-        ));
-        barkItems.put("airopscat.bark.default-sound", new ConfigItemDefinition(
-                "airopscat.bark.default-sound",
-                "默认铃声",
-                "调用方未指定 sound 时使用",
-                "text",
-                false,
-                false,
-                "system",
-                "system"
-        ));
-        barkItems.put("airopscat.bark.default-icon", new ConfigItemDefinition(
-                "airopscat.bark.default-icon",
-                "默认图标",
-                "调用方未指定 icon 时使用",
-                "url",
-                false,
-                false,
-                "https://static.example.com/icon.png",
-                ""
+                item("airopscat.bark.url", "Bark 地址", "Bark 服务地址。", INPUT_URL, true, false, false, true, "https://push.example.com", ""),
+                item("airopscat.bark.device-key", "设备 Key", "推送目标设备的 Bark Key。", INPUT_PASSWORD, true, true, false, true, "请输入 Bark 设备 Key", ""),
+                item("airopscat.bark.encrypt-enabled", "启用加密", "按 Bark 加密协议发送 ciphertext 和 iv。", INPUT_CHECKBOX, false, false, false, true, "", "false"),
+                item("airopscat.bark.encrypt-key", "AES Key", "启用加密时必须为 32 字节。", INPUT_PASSWORD, false, true, false, true, "32字节 AES Key", ""),
+                item("airopscat.bark.encrypt-iv", "AES IV", "启用加密时必须为 16 字节。", INPUT_PASSWORD, false, true, false, true, "16字节 AES IV", ""),
+                item("airopscat.bark.default-group", "默认分组", "未指定 group 时使用。", INPUT_TEXT, false, false, false, true, "AirOpsCat", "AirOpsCat"),
+                item("airopscat.bark.default-sound", "默认铃声", "未指定 sound 时使用。", INPUT_TEXT, false, false, false, true, "system", "system"),
+                item("airopscat.bark.default-icon", "默认图标", "未指定 icon 时使用。", INPUT_URL, false, false, false, true, "https://static.example.com/icon.png", "")
         ));
 
-        Map<String, ConfigGroupDefinition> groups = new LinkedHashMap<>();
-        groups.put("bark", new ConfigGroupDefinition(
-                "bark",
-                "Bark 推送",
-                "维护 Bark 地址、加密参数和默认通知属性",
-                true,
-                barkItems
+        groups.put("thread", group(
+                "thread",
+                "线程池",
+                "阻塞任务线程池参数，保存后需重启服务生效。",
+                20,
+                false,
+                item("airopscat.thread.blocking.core-size", "核心线程数", "阻塞任务线程池核心线程数。", INPUT_NUMBER, true, false, true, true, "2", "2"),
+                item("airopscat.thread.blocking.max-size", "最大线程数", "阻塞任务线程池最大线程数。", INPUT_NUMBER, true, false, true, true, "8", "8"),
+                item("airopscat.thread.blocking.queue-capacity", "队列容量", "阻塞任务队列容量。", INPUT_NUMBER, true, false, true, true, "64", "64"),
+                item("airopscat.thread.blocking.keep-alive-seconds", "线程保活秒数", "非核心线程空闲保活时长。", INPUT_NUMBER, true, false, true, true, "60", "60")
         ));
+
+        groups.put("core", group(
+                "core",
+                "核心运行",
+                "核心运行参数和部署行为配置。",
+                30,
+                false,
+                item("airopscat.ssh.provider", "SSH 实现", "SSH 连接实现，保存后需重启服务生效。", INPUT_TEXT, true, false, true, true, "jsch", "jsch"),
+                item("airopscat.sing-box.grpc.local-port", "sing-box gRPC 端口", "本地 sing-box gRPC 端口，保存后需重启服务生效。", INPUT_NUMBER, true, false, true, true, "11011", "11011"),
+                item("airopscat.deployment.skip-remote-config", "跳过远端配置下发", "部署时是否跳过远端配置写入。", INPUT_CHECKBOX, false, false, false, true, "", "false")
+        ));
+
+        groups.put("open", group(
+                "open",
+                "开放接口",
+                "订阅地址、对外文档和开放接口相关配置。",
+                40,
+                false,
+                item("airopscat.subscription.url", "订阅地址", "生成订阅和客户端配置时使用。", INPUT_URL, true, false, false, true, "http://localhost:8080/subscribe", "http://localhost:8080/subscribe"),
+                item("airopscat.docs.url", "文档地址", "控制台展示的文档入口地址。", INPUT_URL, false, false, false, true, "https://docs.xxx.com", "https://docs.xxx.com"),
+                item("airopscat.domain", "系统域名", "安装脚本和对外地址使用的域名。", INPUT_TEXT, false, false, false, true, "yourdomain.com", "yourdomain.com"),
+                item("airopscat.api.token", "接口 Token", "开放接口和安装脚本使用的 Token。", INPUT_PASSWORD, false, true, false, true, "your_api_token_here", "your_api_token_here"),
+                item("airopscat.apple.id", "Apple ID", "开放接口返回的 Apple ID。", INPUT_TEXT, false, true, false, true, "your_apple_id_here", "your_apple_id_here"),
+                item("airopscat.apple.pwd", "Apple 密码", "开放接口返回的 Apple 密码。", INPUT_PASSWORD, false, true, false, true, "your_apple_pwd_here", "your_apple_pwd_here")
+        ));
+
+        groups.put("template", group(
+                "template",
+                "模板与安装",
+                "模板目录和安装脚本运行参数。",
+                50,
+                false,
+                item("airopscat.config.templates.dir", "模板目录", "订阅和核心配置模板目录。", INPUT_TEXT, true, false, false, true, "./config", "./config"),
+                item("airopscat.install.remote-work-dir", "远端工作目录", "一键安装脚本在服务器上的工作目录。", INPUT_TEXT, true, false, false, true, "/tmp/airopscat-installer", "/tmp/airopscat-installer")
+        ));
+
+        groups.put("monitor", group(
+                "monitor",
+                "监控与在线状态",
+                "在线检测、监控采集和告警相关参数。",
+                60,
+                false,
+                item("airopscat.online.check-minutes", "在线检测分钟数", "在线账号检测时间窗口。", INPUT_NUMBER, true, false, false, true, "5", "5"),
+                item("airopscat.server.monitor.enabled", "启用监控", "是否启用服务器监控和负载告警。", INPUT_CHECKBOX, false, false, false, true, "", "true"),
+                item("airopscat.server.monitor.refresh-minutes", "采集间隔分钟数", "服务器监控采集间隔，保存后建议重启服务。", INPUT_NUMBER, true, false, true, true, "1", "1"),
+                item("airopscat.server.monitor.retention-days", "监控保留天数", "服务器监控数据保留天数。", INPUT_NUMBER, true, false, false, true, "30", "30"),
+                item("airopscat.server.monitor.cleanup.cron", "监控清理 Cron", "监控历史清理调度表达式，保存后需重启服务生效。", INPUT_TEXT, true, false, true, true, "0 0 3 * * ?", "0 0 3 * * ?"),
+                item("airopscat.server.monitor.alert.cron", "监控告警 Cron", "监控告警调度表达式，保存后需重启服务生效。", INPUT_TEXT, true, false, true, true, "0 */5 * * * ?", "0 */5 * * * ?"),
+                item("airopscat.server.monitor.alert.cpu-threshold", "CPU 告警阈值", "支持 0-1 或 0-100 写法。", INPUT_NUMBER, true, false, false, true, "0.9", "0.9"),
+                item("airopscat.server.monitor.alert.memory-threshold", "内存告警阈值", "支持 0-1 或 0-100 写法。", INPUT_NUMBER, true, false, false, true, "0.95", "0.95"),
+                item("airopscat.server.monitor.alert.traffic-threshold", "流量告警阈值", "支持 0-1 或 0-100 写法。", INPUT_NUMBER, true, false, false, true, "0.85", "0.85"),
+                item("airopscat.server.monitor.alert.continuous-minutes", "持续告警分钟数", "达到阈值后持续多久才触发告警。", INPUT_NUMBER, true, false, false, true, "30", "30")
+        ));
+
+        groups.put("backup", group(
+                "backup",
+                "数据库备份",
+                "备份路径、调度和保留策略配置。",
+                70,
+                false,
+                item("airopscat.backup.dir", "备份目录", "数据库备份文件存储目录。", INPUT_TEXT, true, false, false, true, "./backup", "./backup"),
+                item("airopscat.backup.cron", "备份 Cron", "自动备份调度表达式，保存后需重启服务生效。", INPUT_TEXT, true, false, true, true, "0 0 6 * * ?", "0 0 6 * * ?"),
+                item("airopscat.backup.cleanup.cron", "备份清理 Cron", "备份清理调度表达式，保存后需重启服务生效。", INPUT_TEXT, true, false, true, true, "0 30 6 * * ?", "0 30 6 * * ?"),
+                item("airopscat.backup.retention-days", "备份保留天数", "自动清理时保留的备份天数。", INPUT_NUMBER, true, false, false, true, "30", "30"),
+                item("airopscat.backup.mysqldump-path", "mysqldump 路径", "数据库备份工具路径。", INPUT_TEXT, true, false, false, true, "mysqldump", "mysqldump")
+        ));
+
         return groups;
+    }
+
+    private ConfigGroupDefinition group(String groupKey,
+                                        String title,
+                                        String description,
+                                        int sortOrder,
+                                        boolean testSupported,
+                                        ConfigItemDefinition... items) {
+        Map<String, ConfigItemDefinition> itemMap = new LinkedHashMap<>();
+        for (ConfigItemDefinition item : items) {
+            itemMap.put(item.key(), item);
+        }
+        return new ConfigGroupDefinition(groupKey, title, description, sortOrder, testSupported, itemMap);
+    }
+
+    private ConfigItemDefinition item(String key,
+                                      String label,
+                                      String description,
+                                      String inputType,
+                                      boolean required,
+                                      boolean sensitive,
+                                      boolean restartRequired,
+                                      boolean editable,
+                                      String placeholder,
+                                      String defaultValue) {
+        return new ConfigItemDefinition(
+                key,
+                label,
+                description,
+                inputType,
+                required,
+                sensitive,
+                restartRequired,
+                editable,
+                placeholder,
+                defaultValue
+        );
     }
 
     private Map<String, ConfigItemDefinition> indexItemDefinitions(Map<String, ConfigGroupDefinition> groups) {
@@ -264,17 +349,51 @@ public class SystemConfigService {
     }
 
     private boolean isBooleanInput(String inputType) {
-        return Objects.equals("checkbox", inputType);
+        return Objects.equals(INPUT_CHECKBOX, inputType);
     }
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
     }
 
+    private int parseInteger(String value, int defaultValue) {
+        if (!hasText(value)) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    private long parseLong(String value, long defaultValue) {
+        if (!hasText(value)) {
+            return defaultValue;
+        }
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    private double parseDouble(String value, double defaultValue) {
+        if (!hasText(value)) {
+            return defaultValue;
+        }
+        try {
+            return Double.parseDouble(value.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
     private record ConfigGroupDefinition(
             String groupKey,
             String title,
             String description,
+            int sortOrder,
             boolean testSupported,
             Map<String, ConfigItemDefinition> items
     ) {
@@ -287,6 +406,8 @@ public class SystemConfigService {
             String inputType,
             boolean required,
             boolean sensitive,
+            boolean restartRequired,
+            boolean editable,
             String placeholder,
             String defaultValue
     ) {
