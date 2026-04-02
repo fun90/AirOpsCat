@@ -211,7 +211,7 @@ public class ProgrammaticTaskManager {
                 SCHEDULE_TYPE_CRON,
                 "airopscat.backup.cron",
                 0L,
-                null,
+                Scheduled.ConcurrentExecution.SKIP,
                 databaseBackupService::scheduledBackup
         ));
         definitions.put("backup-cleanup", task(
@@ -225,7 +225,7 @@ public class ProgrammaticTaskManager {
                 SCHEDULE_TYPE_CRON,
                 "airopscat.backup.cleanup.cron",
                 0L,
-                null,
+                Scheduled.ConcurrentExecution.SKIP,
                 databaseBackupService::cleanupExpiredBackups
         ));
         definitions.put("server-monitor-collect", task(
@@ -281,7 +281,7 @@ public class ProgrammaticTaskManager {
                 SCHEDULE_TYPE_CRON,
                 "airopscat.server.traffic.notify.cron",
                 0L,
-                null,
+                Scheduled.ConcurrentExecution.SKIP,
                 resourceNotificationTask::notifyServerTrafficThreshold
         ));
         definitions.put("account-expiration", task(
@@ -295,7 +295,7 @@ public class ProgrammaticTaskManager {
                 SCHEDULE_TYPE_CRON,
                 "airopscat.account.expiration.cron",
                 0L,
-                null,
+                Scheduled.ConcurrentExecution.SKIP,
                 accountExpirationTask::checkExpiredAccountsAndRedeployNodes
         ));
         definitions.put("resource-expiration-notify", task(
@@ -309,7 +309,7 @@ public class ProgrammaticTaskManager {
                 SCHEDULE_TYPE_CRON,
                 "airopscat.expiration.notify.cron",
                 0L,
-                null,
+                Scheduled.ConcurrentExecution.SKIP,
                 resourceNotificationTask::notifyExpiringResourcesToday
         ));
         definitions.put("traffic-stats-collect", task(
@@ -323,7 +323,7 @@ public class ProgrammaticTaskManager {
                 SCHEDULE_TYPE_CRON,
                 "airopscat.traffic.stats.cron",
                 0L,
-                null,
+                Scheduled.ConcurrentExecution.SKIP,
                 trafficStatsTask::collectUserTrafficStats
         ));
         definitions.put("core-config-cleanup", task(
@@ -337,7 +337,7 @@ public class ProgrammaticTaskManager {
                 SCHEDULE_TYPE_CRON,
                 "airopscat.core.config.cleanup.cron",
                 0L,
-                null,
+                Scheduled.ConcurrentExecution.SKIP,
                 coreConfigCleanupTask::cleanupOldCoreConfigBackupFiles
         ));
 

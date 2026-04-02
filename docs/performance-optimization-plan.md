@@ -1146,6 +1146,17 @@ JDBC URL 可评估补充：
 - 生产环境 `max_connections`
 - 慢 SQL 与连接池等待时间
 
+### Task Group 5：调度任务与阻塞线程池治理 [已处理]
+
+- [BlockingTaskExecutorConfig.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/config/BlockingTaskExecutorConfig.java) 已将线程池默认值调整为 `core-size=4`、`max-size=16`、`queue-capacity=128`、`keep-alive-seconds=60`
+- [BlockingTaskExecutorConfig.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/config/BlockingTaskExecutorConfig.java) 已补充线程池运行态摘要方法，供后台任务统一输出日志
+- [ProgrammaticTaskManager.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/scheduler/ProgrammaticTaskManager.java) 已为 `backup-create`、`backup-cleanup`、`server-traffic-notify`、`account-expiration`、`resource-expiration-notify`、`traffic-stats-collect`、`core-config-cleanup` 补齐 `Scheduled.ConcurrentExecution.SKIP`
+- [ServerMonitorTask.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/scheduler/ServerMonitorTask.java) 已增加监控采集前后线程池摘要日志
+- [DatabaseBackupService.java](/Users/xiong/code/me/AirOpsCat/src/main/java/com/fun90/airopscat/service/DatabaseBackupService.java) 已增加备份与清理任务的线程池摘要日志
+- 本轮未处理：
+- 按任务类型拆分 `deploymentTaskExecutor`、`monitorTaskExecutor`、`backupTaskExecutor`
+- 大批量任务分批执行策略
+
 ## 7. 建议先落地的文档化交付物
 
 为了让优化推进更顺畅，建议紧接着补两份内部材料：

@@ -1,5 +1,6 @@
 package com.fun90.airopscat.scheduler;
 
+import com.fun90.airopscat.config.BlockingTaskExecutorConfig;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.ServerMonitorStatsService;
@@ -37,12 +38,13 @@ public class ServerMonitorTask {
             return;
         }
 
-        log.info("开始执行定时任务：采集服务器监控指标");
+        log.info("开始执行定时任务：采集服务器监控指标，线程池状态: {}",
+                BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
 
         try {
             List<Server> servers = serverRepository.findMonitorableServers(LocalDateTime.now().toLocalDate());
             if (servers.isEmpty()) {
-                log.info("没有找到服务器，跳过监控采集");
+                log.info("没有找到可监控服务器，跳过监控采集");
                 return;
             }
 
@@ -72,9 +74,12 @@ public class ServerMonitorTask {
                 }
             }
 
-            log.info("服务器监控采集完成，成功: {}, 跳过: {}, 失败: {}", successCount, skippedCount, failureCount);
+            log.info("服务器监控采集完成，服务器数: {}, 成功: {}, 跳过: {}, 失败: {}, 线程池状态: {}",
+                    servers.size(), successCount, skippedCount, failureCount,
+                    BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
         } catch (Exception e) {
-            log.error("执行服务器监控采集任务时发生错误", e);
+            log.error("执行服务器监控采集任务时发生错误，线程池状态: {}",
+                    BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor), e);
         }
     }
 
@@ -89,6 +94,7 @@ public class ServerMonitorTask {
             return MonitorCollectResult.FAILED;
         }
     }
+
     private enum MonitorCollectResult {
         SUCCESS,
         SKIPPED,

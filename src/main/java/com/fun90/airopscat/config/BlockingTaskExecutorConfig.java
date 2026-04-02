@@ -16,13 +16,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 @ApplicationScoped
 public class BlockingTaskExecutorConfig {
 
-    @ConfigProperty(name = "airopscat.thread.blocking.core-size", defaultValue = "2")
+    @ConfigProperty(name = "airopscat.thread.blocking.core-size", defaultValue = "4")
     int corePoolSize;
 
-    @ConfigProperty(name = "airopscat.thread.blocking.max-size", defaultValue = "8")
+    @ConfigProperty(name = "airopscat.thread.blocking.max-size", defaultValue = "16")
     int maxPoolSize;
 
-    @ConfigProperty(name = "airopscat.thread.blocking.queue-capacity", defaultValue = "64")
+    @ConfigProperty(name = "airopscat.thread.blocking.queue-capacity", defaultValue = "128")
     int queueCapacity;
 
     @ConfigProperty(name = "airopscat.thread.blocking.keep-alive-seconds", defaultValue = "60")
@@ -51,6 +51,16 @@ public class BlockingTaskExecutorConfig {
 
     public void shutdown(@Disposes @Named("blockingTaskExecutor") ExecutorService executorService) {
         executorService.shutdown();
+    }
+
+    public static String describeExecutor(ExecutorService executorService) {
+        if (!(executorService instanceof ThreadPoolExecutor executor)) {
+            return "executorType=" + executorService.getClass().getSimpleName();
+        }
+        return "poolSize=" + executor.getPoolSize()
+                + ", active=" + executor.getActiveCount()
+                + ", queued=" + executor.getQueue().size()
+                + ", completed=" + executor.getCompletedTaskCount();
     }
 
     private static class BlockingTaskThreadFactory implements ThreadFactory {

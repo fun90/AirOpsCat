@@ -1,5 +1,6 @@
 package com.fun90.airopscat.service;
 
+import com.fun90.airopscat.config.BlockingTaskExecutorConfig;
 import com.fun90.airopscat.model.dto.BackupFileDto;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -56,11 +57,14 @@ public class DatabaseBackupService {
     SystemConfigService systemConfigService;
 
     public void scheduledBackup() {
+        log.info("开始执行数据库备份任务，线程池状态: {}", BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
         try {
             BackupFileDto backupFile = createBackup();
-            log.info("Database backup created successfully: {}", backupFile.getFileName());
+            log.info("数据库备份完成: {}, 线程池状态: {}",
+                    backupFile.getFileName(), BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
         } catch (Exception e) {
-            log.error("Failed to create scheduled database backup", e);
+            log.error("执行定时数据库备份失败，线程池状态: {}",
+                    BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor), e);
         }
     }
 
@@ -70,6 +74,9 @@ public class DatabaseBackupService {
             log.warn("Skip cleanup because backup retention days is less than 1: {}", retentionDays);
             return;
         }
+
+        log.info("开始执行备份清理任务，保留天数: {}, 线程池状态: {}",
+                retentionDays, BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
 
         LocalDateTime cutoff = LocalDateTime.now(SHANGHAI_ZONE).minusDays(retentionDays);
         int deletedCount = 0;
@@ -93,10 +100,15 @@ public class DatabaseBackupService {
             }
 
             if (deletedCount > 0) {
-                log.info("Cleaned up {} expired backup files older than {} days", deletedCount, retentionDays);
+                log.info("备份清理完成，已删除 {} 个过期备份文件，保留天数: {}, 线程池状态: {}",
+                        deletedCount, retentionDays, BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
+            } else {
+                log.info("备份清理完成，没有需要删除的过期备份文件，保留天数: {}, 线程池状态: {}",
+                        retentionDays, BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor));
             }
         } catch (Exception e) {
-            log.error("Failed to cleanup expired backup files", e);
+            log.error("执行备份清理失败，线程池状态: {}",
+                    BlockingTaskExecutorConfig.describeExecutor(blockingTaskExecutor), e);
         }
     }
 
