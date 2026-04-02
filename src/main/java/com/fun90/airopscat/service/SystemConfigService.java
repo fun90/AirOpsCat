@@ -231,7 +231,7 @@ public class SystemConfigService {
                 item("airopscat.bark.encrypt-key", "AES Key", "启用加密时必须为 32 字节。", INPUT_PASSWORD, false, true, false, true, "32字节 AES Key", "", true),
                 item("airopscat.bark.encrypt-iv", "AES IV", "启用加密时必须为 16 字节。", INPUT_PASSWORD, false, true, false, true, "16字节 AES IV", "", true),
                 item("airopscat.bark.default-group", "默认分组", "未指定 group 时使用。", INPUT_TEXT, false, false, false, true, "AirOpsCat", "AirOpsCat"),
-                item("airopscat.bark.default-sound", "默认铃声", "未指定 sound 时使用。", INPUT_TEXT, false, false, false, true, "system", "system"),
+                item("airopscat.bark.default-sound", "默认铃声", "未指定 sound 时使用。", INPUT_TEXT, false, false, false, true, "healthnotification", "healthnotification"),
                 item("airopscat.bark.default-icon", "默认图标", "未指定 icon 时使用。", INPUT_URL, false, false, false, true, "https://static.example.com/icon.png", "")
         ));
 
@@ -245,6 +245,18 @@ public class SystemConfigService {
                 item("airopscat.thread.blocking.max-size", "最大线程数", "阻塞任务线程池最大线程数。", INPUT_NUMBER, true, false, true, true, "8", "8"),
                 item("airopscat.thread.blocking.queue-capacity", "队列容量", "阻塞任务队列容量。", INPUT_NUMBER, true, false, true, true, "64", "64"),
                 item("airopscat.thread.blocking.keep-alive-seconds", "线程保活秒数", "非核心线程空闲保活时长。", INPUT_NUMBER, true, false, true, true, "60", "60")
+        ));
+
+        groups.put("thread", group(
+                "thread",
+                "线程池",
+                "阻塞任务线程池参数，保存后需重启服务生效。",
+                20,
+                false,
+                item("airopscat.thread.blocking.core-size", "核心线程数", "阻塞任务线程池核心线程数，建议按服务器规模和后台任务并发量调整。", INPUT_NUMBER, true, false, true, true, "4", "4"),
+                item("airopscat.thread.blocking.max-size", "最大线程数", "阻塞任务线程池最大线程数，建议与数据库连接池和机器核数一起评估。", INPUT_NUMBER, true, false, true, true, "16", "16"),
+                item("airopscat.thread.blocking.queue-capacity", "队列容量", "阻塞任务等待队列容量，过小会导致任务回退到调用线程执行。", INPUT_NUMBER, true, false, true, true, "128", "128"),
+                item("airopscat.thread.blocking.keep-alive-seconds", "线程保活秒数", "非核心线程空闲保活时长，当前阶段保持 60 秒。", INPUT_NUMBER, true, false, true, true, "60", "60")
         ));
 
         groups.put("core", group(
