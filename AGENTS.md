@@ -272,6 +272,11 @@ The current codebase includes scheduled jobs for:
 - Check `git status` before editing; the working tree may already contain user changes
 - Do not revert unrelated modifications
 - Prefer `rg` for codebase search
+- Keep code style consistent with the surrounding project and follow existing naming, layering, and implementation patterns
+- Prefer reusing existing methods, services, helpers, and UI patterns before introducing new implementations
+- For frontend work, use existing Tabler UI components and project conventions; do not add custom styles unless the user explicitly asks for them
+- If Chinese text appears garbled, stop to identify and fix the encoding issue instead of working around it
+- When reading project files or inspecting project structure, prefer IDEA MCP tools before falling back to shell-based file reads
 - Native-image compatibility is mandatory for reflection-based JSON usage
 - When adding or modifying a class, you MUST register it in `JsonReflectionConfiguration` if it matches any of these cases:
 - It is used as a Qute template parameter
