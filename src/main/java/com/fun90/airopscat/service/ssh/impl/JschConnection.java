@@ -3,6 +3,7 @@ package com.fun90.airopscat.service.ssh.impl;
 import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.service.ssh.SshConnection;
+import com.fun90.airopscat.service.ssh.SshLocalPortForward;
 import com.jcraft.jsch.*;
 import lombok.extern.slf4j.Slf4j;
 
@@ -12,6 +13,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * JSch SSH连接实现 - 简化版
@@ -135,6 +137,45 @@ public class JschConnection implements SshConnection {
             throw new IOException(String.format("建立本地端口转发失败: %d -> %s:%d",
                     localPort, remoteHost, remotePort), e);
         }
+    }
+
+    @Override
+    public SshLocalPortForward openLocalPortForward(int preferredLocalPort, String remoteHost, int remotePort) throws IOException {
+        ensureConnected();
+        Session currentSession = session;
+        int actualLocalPort = forwardLocalPort(preferredLocalPort, remoteHost, remotePort);
+        AtomicBoolean closed = new AtomicBoolean(false);
+        return new SshLocalPortForward() {
+            @Override
+            public int localPort() {
+                return actualLocalPort;
+            }
+
+            @Override
+            public String remoteHost() {
+                return remoteHost;
+            }
+
+            @Override
+            public int remotePort() {
+                return remotePort;
+            }
+
+            @Override
+            public void close() throws IOException {
+                if (!closed.compareAndSet(false, true)) {
+                    return;
+                }
+                if (currentSession == null || !currentSession.isConnected()) {
+                    return;
+                }
+                try {
+                    currentSession.delPortForwardingL(actualLocalPort);
+                } catch (JSchException e) {
+                    throw new IOException("关闭本地端口转发失败: " + actualLocalPort, e);
+                }
+            }
+        };
     }
 
     @Override
