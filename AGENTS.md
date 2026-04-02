@@ -277,6 +277,7 @@ The current codebase includes scheduled jobs for:
 - For frontend work, use existing Tabler UI components and project conventions; do not add custom styles unless the user explicitly asks for them
 - If Chinese text appears garbled, stop to identify and fix the encoding issue instead of working around it
 - When reading project files or inspecting project structure, prefer IDEA MCP tools before falling back to shell-based file reads
+- When the user says there is a debugging error or asks to debug a failure, proactively use IDEA MCP to read the current console/error logs, locate the issue, and continue through to a fix when feasible without waiting for the user to paste logs
 - Native-image compatibility is mandatory for reflection-based JSON usage
 - When adding or modifying a class, you MUST register it in `JsonReflectionConfiguration` if it matches any of these cases:
 - It is used as a Qute template parameter
