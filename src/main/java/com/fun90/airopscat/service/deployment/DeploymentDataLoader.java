@@ -81,7 +81,7 @@ public class DeploymentDataLoader {
     public DeploymentServerContext loadForServer(Long serverId) {
         Server server = serverRepository.findById(serverId);
         if (server == null) {
-            throw new IllegalArgumentException("鏈嶅姟鍣ㄤ笉瀛樺湪, serverId: " + serverId);
+            throw new IllegalArgumentException("服务器不存在, serverId: " + serverId);
         }
 
         List<Long> targetServerIds = List.of(serverId);
@@ -188,7 +188,7 @@ public class DeploymentDataLoader {
     private void ensureServersExist(List<Long> targetServerIds, Map<Long, Server> serverMap) {
         for (Long serverId : targetServerIds) {
             if (!serverMap.containsKey(serverId)) {
-                throw new IllegalArgumentException("鏈嶅姟鍣ㄤ笉瀛樺湪, serverId: " + serverId);
+                throw new IllegalArgumentException("服务器不存在, serverId: " + serverId);
             }
         }
     }
@@ -226,7 +226,7 @@ public class DeploymentDataLoader {
         for (Node node : snapshotNodes) {
             Node outNode = outNodeMap.get(node.getOutId());
             if (outNode != null && !serverMap.containsKey(outNode.getServerId())) {
-                throw new IllegalArgumentException("鍑虹珯鏈嶅姟鍣ㄤ笉瀛樺湪: " + outNode.getServerId());
+                throw new IllegalArgumentException("出站服务器不存在: " + outNode.getServerId());
             }
 
             Server server = node.getServerId() == null ? null : serverMap.get(node.getServerId());
