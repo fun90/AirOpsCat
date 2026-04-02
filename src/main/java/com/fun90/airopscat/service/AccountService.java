@@ -19,6 +19,7 @@ import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.Locale;
 
 @ApplicationScoped
 public class AccountService {
@@ -49,14 +50,7 @@ public class AccountService {
         
         // Search condition
         if (search != null && !search.trim().isEmpty()) {
-            String condition = "(lower(accountNo) like :search or lower(remark) like :search or lower(user.email) like :search or lower(user.nickName) like :search";
-            if (isUUID(search)) {
-                condition += " or lower(user.uuid) like :search)";
-            } else {
-                condition += ")";
-            }
-            conditions.add(condition);
-            params.put("search", "%" + search.toLowerCase() + "%");
+            appendSearchConditions(conditions, params, search);
         }
         
         // UserId filter
@@ -117,7 +111,7 @@ public class AccountService {
                     break;
             }
         }
-        
+
         String query = conditions.isEmpty() ? "" : String.join(" and ", conditions);
         
         if (query.isEmpty()) {
@@ -125,6 +119,43 @@ public class AccountService {
         } else {
             return accountRepository.find(query, sort, params);
         }
+    }
+
+    private void appendSearchConditions(List<String> conditions, Map<String, Object> params, String search) {
+        String keyword = normalizeKeyword(search);
+        if (keyword == null) {
+            return;
+        }
+
+        List<String> searchConditions = new ArrayList<>();
+        searchConditions.add("accountNo = :searchExact");
+        searchConditions.add("accountNo like :searchPrefix");
+        searchConditions.add("remark like :searchContains");
+        searchConditions.add("uuid = :searchExact");
+        searchConditions.add("uuid like :searchPrefix");
+
+        List<Long> matchedUserIds = userRepository.findIdsByKeyword(keyword, 200);
+        if (!matchedUserIds.isEmpty()) {
+            searchConditions.add("userId in :matchedUserIds");
+            params.put("matchedUserIds", matchedUserIds);
+        }
+
+        if (isUUID(keyword)) {
+            searchConditions.add("uuid like :searchContains");
+        }
+
+        conditions.add("(" + String.join(" or ", searchConditions) + ")");
+        params.put("searchExact", keyword);
+        params.put("searchPrefix", keyword + "%");
+        params.put("searchContains", "%" + keyword + "%");
+    }
+
+    private String normalizeKeyword(String search) {
+        if (search == null) {
+            return null;
+        }
+        String keyword = search.trim();
+        return keyword.isEmpty() ? null : keyword.toLowerCase(Locale.ROOT);
     }
 
     private boolean isUUID(String uuidString) {

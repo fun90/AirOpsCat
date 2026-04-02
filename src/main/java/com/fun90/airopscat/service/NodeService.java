@@ -12,6 +12,7 @@ import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.ProtocolType;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
+import com.fun90.airopscat.repository.ServerHostRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.inbound.registry.DefaultInboundStrategyRegistry;
 import com.fun90.airopscat.service.inbound.strategy.DefaultInboundStrategy;
@@ -28,11 +29,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HexFormat;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Locale;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.TreeMap;
@@ -47,6 +48,9 @@ public class NodeService {
 
     @Inject
     ServerRepository serverRepository;
+
+    @Inject
+    ServerHostRepository serverHostRepository;
 
     @Inject
     ServerHostService serverHostService;
@@ -76,13 +80,7 @@ public class NodeService {
         Map<String, Object> params = new HashMap<>();
 
         if (search != null && !search.trim().isEmpty()) {
-            String searchLike = "%" + search.toLowerCase() + "%";
-            query.append(" and (lower(name) like :search or lower(remark) like :search or lower(nodeGroup) like :search")
-                 .append(" or serverId in (select id from Server where lower(ip) like :search or lower(host) like :search"
-                         + " or id in (select sh.serverId from ServerHost sh where lower(sh.host) like :search))")
-                 .append(" or accessHostId in (select id from ServerHost where lower(host) like :search)")
-                 .append(")");
-            params.put("search", searchLike);
+            appendSearchConditions(query, params, search);
         }
 
         if (serverIds != null && !serverIds.trim().isEmpty()) {
@@ -132,6 +130,62 @@ public class NodeService {
 
         Sort sort = buildSort(sortBy, sortOrder);
         return nodeRepository.find(query.toString(), sort, params);
+    }
+
+    private void appendSearchConditions(StringBuilder query, Map<String, Object> params, String search) {
+        String keyword = normalizeSearchKeyword(search);
+        if (keyword == null) {
+            return;
+        }
+
+        List<String> searchConditions = new ArrayList<>();
+        String prefix = keyword + "%";
+        String contains = "%" + keyword + "%";
+
+        searchConditions.add("name = :searchExact");
+        searchConditions.add("name like :searchPrefix");
+        searchConditions.add("nodeGroup = :searchExact");
+        searchConditions.add("nodeGroup like :searchPrefix");
+        searchConditions.add("remark like :searchContains");
+
+        List<Long> matchedServerIds = mergeIds(
+                serverRepository.findIdsByKeyword(keyword, 200),
+                serverHostRepository.findServerIdsByKeyword(keyword, 200)
+        );
+        if (!matchedServerIds.isEmpty()) {
+            searchConditions.add("serverId in :matchedServerIds");
+            params.put("matchedServerIds", matchedServerIds);
+        }
+
+        List<Long> matchedAccessHostIds = serverHostRepository.findIdsByKeyword(keyword, 200);
+        if (!matchedAccessHostIds.isEmpty()) {
+            searchConditions.add("accessHostId in :matchedAccessHostIds");
+            params.put("matchedAccessHostIds", matchedAccessHostIds);
+        }
+
+        query.append(" and (").append(String.join(" or ", searchConditions)).append(")");
+        params.put("searchExact", keyword);
+        params.put("searchPrefix", prefix);
+        params.put("searchContains", contains);
+    }
+
+    private String normalizeSearchKeyword(String search) {
+        if (search == null) {
+            return null;
+        }
+        String keyword = search.trim();
+        return keyword.isEmpty() ? null : keyword.toLowerCase(Locale.ROOT);
+    }
+
+    private List<Long> mergeIds(List<Long> first, List<Long> second) {
+        LinkedHashSet<Long> merged = new LinkedHashSet<>();
+        if (first != null) {
+            merged.addAll(first);
+        }
+        if (second != null) {
+            merged.addAll(second);
+        }
+        return new ArrayList<>(merged);
     }
 
     private Sort buildSort(String sortBy, String sortOrder) {

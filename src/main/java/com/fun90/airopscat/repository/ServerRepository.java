@@ -7,6 +7,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 
 @ApplicationScoped
 public class ServerRepository implements PanacheRepository<Server> {
@@ -20,6 +21,31 @@ public class ServerRepository implements PanacheRepository<Server> {
             return List.of();
         }
         return find("id in ?1", ids).list();
+    }
+
+    public List<Long> findIdsByKeyword(String keyword, int limit) {
+        String normalizedKeyword = normalizeKeyword(keyword);
+        if (normalizedKeyword == null) {
+            return List.of();
+        }
+
+        String exact = normalizedKeyword;
+        String prefix = normalizedKeyword + "%";
+        String contains = "%" + normalizedKeyword + "%";
+        int safeLimit = Math.max(limit, 1);
+
+        return getEntityManager().createQuery(
+                        "select s.id from Server s " +
+                                "where s.ip = :exact or s.host = :exact or s.name = :exact or s.supplier = :exact " +
+                                "or s.ip like :prefix or s.host like :prefix or s.name like :prefix or s.supplier like :prefix " +
+                                "or s.name like :contains or s.supplier like :contains " +
+                                "order by s.createTime desc",
+                        Long.class)
+                .setParameter("exact", exact)
+                .setParameter("prefix", prefix)
+                .setParameter("contains", contains)
+                .setMaxResults(safeLimit)
+                .getResultList();
     }
 
     public List<Server> findExpiringOnDate(LocalDate date) {
@@ -59,5 +85,13 @@ public class ServerRepository implements PanacheRepository<Server> {
         return getEntityManager()
                 .createQuery("select s.supplier, count(s) from Server s group by s.supplier", Object[].class)
                 .getResultList();
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String normalized = keyword.trim();
+        return normalized.isEmpty() ? null : normalized.toLowerCase(Locale.ROOT);
     }
 }

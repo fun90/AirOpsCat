@@ -6,6 +6,7 @@ import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
+import java.util.Locale;
 
 @ApplicationScoped
 public class ServerHostRepository implements PanacheRepository<ServerHost> {
@@ -25,6 +26,52 @@ public class ServerHostRepository implements PanacheRepository<ServerHost> {
         return find("serverId = ?1 and isPrimary = 1", Sort.by("sort").ascending().and("id").ascending(), serverId).firstResult();
     }
 
+    public List<Long> findServerIdsByKeyword(String keyword, int limit) {
+        String normalizedKeyword = normalizeKeyword(keyword);
+        if (normalizedKeyword == null) {
+            return List.of();
+        }
+
+        String exact = normalizedKeyword;
+        String prefix = normalizedKeyword + "%";
+        String contains = "%" + normalizedKeyword + "%";
+        int safeLimit = Math.max(limit, 1);
+
+        return getEntityManager().createQuery(
+                        "select distinct sh.serverId from ServerHost sh " +
+                                "where sh.host = :exact or sh.host like :prefix or sh.host like :contains " +
+                                "order by sh.serverId asc",
+                        Long.class)
+                .setParameter("exact", exact)
+                .setParameter("prefix", prefix)
+                .setParameter("contains", contains)
+                .setMaxResults(safeLimit)
+                .getResultList();
+    }
+
+    public List<Long> findIdsByKeyword(String keyword, int limit) {
+        String normalizedKeyword = normalizeKeyword(keyword);
+        if (normalizedKeyword == null) {
+            return List.of();
+        }
+
+        String exact = normalizedKeyword;
+        String prefix = normalizedKeyword + "%";
+        String contains = "%" + normalizedKeyword + "%";
+        int safeLimit = Math.max(limit, 1);
+
+        return getEntityManager().createQuery(
+                        "select sh.id from ServerHost sh " +
+                                "where sh.host = :exact or sh.host like :prefix or sh.host like :contains " +
+                                "order by sh.id asc",
+                        Long.class)
+                .setParameter("exact", exact)
+                .setParameter("prefix", prefix)
+                .setParameter("contains", contains)
+                .setMaxResults(safeLimit)
+                .getResultList();
+    }
+
     public long deleteByServerId(Long serverId) {
         return delete("serverId", serverId);
     }
@@ -34,5 +81,13 @@ public class ServerHostRepository implements PanacheRepository<ServerHost> {
             return 0;
         }
         return delete("id in ?1", ids);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String normalized = keyword.trim();
+        return normalized.isEmpty() ? null : normalized.toLowerCase(Locale.ROOT);
     }
 }

@@ -6,6 +6,7 @@ import com.fun90.airopscat.model.dto.ServerDto;
 import com.fun90.airopscat.model.dto.ServerHostDto;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerHost;
+import com.fun90.airopscat.repository.ServerHostRepository;
 import com.fun90.airopscat.model.enums.ServerAuthType;
 import com.fun90.airopscat.repository.ServerRepository;
 import io.quarkus.panache.common.Sort;
@@ -23,17 +24,21 @@ import java.util.stream.Collectors;
 public class ServerService {
 
     private final ServerRepository serverRepository;
+    private final ServerHostRepository serverHostRepository;
     private final ObjectMapper objectMapper;
     private final ServerHostService serverHostService;
     private final ServerMonitorStatsService serverMonitorStatsService;
     private final ServerTrafficStatsService serverTrafficStatsService;
 
     @Inject
-    public ServerService(ServerRepository serverRepository, ObjectMapper objectMapper,
+    public ServerService(ServerRepository serverRepository,
+                         ServerHostRepository serverHostRepository,
+                         ObjectMapper objectMapper,
                          ServerHostService serverHostService,
                          ServerMonitorStatsService serverMonitorStatsService,
                          ServerTrafficStatsService serverTrafficStatsService) {
         this.serverRepository = serverRepository;
+        this.serverHostRepository = serverHostRepository;
         this.objectMapper = objectMapper;
         this.serverHostService = serverHostService;
         this.serverMonitorStatsService = serverMonitorStatsService;
@@ -51,9 +56,7 @@ public class ServerService {
 
         // Search condition
         if (search != null && !search.trim().isEmpty()) {
-            conditions.add("(lower(ip) like :search or lower(host) like :search or lower(name) like :search or lower(supplier) like :search"
-                    + " or id in (select sh.serverId from ServerHost sh where lower(sh.host) like :search))");
-            params.put("search", "%" + search.toLowerCase() + "%");
+            appendSearchConditions(conditions, params, search);
         }
 
         // Supplier filter
@@ -91,6 +94,44 @@ public class ServerService {
         } else {
             return serverRepository.find(query, sort, params);
         }
+    }
+
+    private void appendSearchConditions(List<String> conditions, Map<String, Object> params, String search) {
+        String keyword = normalizeKeyword(search);
+        if (keyword == null) {
+            return;
+        }
+
+        List<String> searchConditions = new ArrayList<>();
+        searchConditions.add("ip = :searchExact");
+        searchConditions.add("host = :searchExact");
+        searchConditions.add("name = :searchExact");
+        searchConditions.add("supplier = :searchExact");
+        searchConditions.add("ip like :searchPrefix");
+        searchConditions.add("host like :searchPrefix");
+        searchConditions.add("name like :searchPrefix");
+        searchConditions.add("supplier like :searchPrefix");
+        searchConditions.add("name like :searchContains");
+        searchConditions.add("supplier like :searchContains");
+
+        List<Long> matchedHostServerIds = serverHostRepository.findServerIdsByKeyword(keyword, 200);
+        if (!matchedHostServerIds.isEmpty()) {
+            searchConditions.add("id in :matchedHostServerIds");
+            params.put("matchedHostServerIds", matchedHostServerIds);
+        }
+
+        conditions.add("(" + String.join(" or ", searchConditions) + ")");
+        params.put("searchExact", keyword);
+        params.put("searchPrefix", keyword + "%");
+        params.put("searchContains", "%" + keyword + "%");
+    }
+
+    private String normalizeKeyword(String search) {
+        if (search == null) {
+            return null;
+        }
+        String keyword = search.trim();
+        return keyword.isEmpty() ? null : keyword.toLowerCase(Locale.ROOT);
     }
 
     public List<Server> getAllActiveServers() {
