@@ -57,11 +57,13 @@ public class DatabaseBackupService {
     SystemConfigService systemConfigService;
 
     public void scheduledBackup() {
+        long startedAt = System.nanoTime();
         log.info("开始执行数据库备份任务，线程池状态: {}", BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor));
         try {
             BackupFileDto backupFile = createBackup();
-            log.info("数据库备份完成: {}, 线程池状态: {}",
-                    backupFile.getFileName(), BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor));
+            log.info("数据库备份完成: {}, 耗时: {} ms, 线程池状态: {}",
+                    backupFile.getFileName(), elapsedMillis(startedAt),
+                    BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor));
         } catch (Exception e) {
             log.error("执行定时数据库备份失败，线程池状态: {}",
                     BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor), e);
@@ -80,6 +82,7 @@ public class DatabaseBackupService {
 
         LocalDateTime cutoff = LocalDateTime.now(SHANGHAI_ZONE).minusDays(retentionDays);
         int deletedCount = 0;
+        long startedAt = System.nanoTime();
 
         try {
             Path backupDirectory = ensureBackupDirectory();
@@ -100,11 +103,13 @@ public class DatabaseBackupService {
             }
 
             if (deletedCount > 0) {
-                log.info("备份清理完成，已删除 {} 个过期备份文件，保留天数: {}, 线程池状态: {}",
-                        deletedCount, retentionDays, BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor));
+                log.info("备份清理完成，已删除 {} 个过期备份文件，保留天数: {}, 耗时: {} ms, 线程池状态: {}",
+                        deletedCount, retentionDays, elapsedMillis(startedAt),
+                        BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor));
             } else {
-                log.info("备份清理完成，没有需要删除的过期备份文件，保留天数: {}, 线程池状态: {}",
-                        retentionDays, BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor));
+                log.info("备份清理完成，没有需要删除的过期备份文件，保留天数: {}, 耗时: {} ms, 线程池状态: {}",
+                        retentionDays, elapsedMillis(startedAt),
+                        BlockingTaskExecutorConfig.describeExecutor(backupTaskExecutor));
             }
         } catch (Exception e) {
             log.error("执行备份清理失败，线程池状态: {}",
@@ -437,6 +442,10 @@ public class DatabaseBackupService {
 
     private int getRetentionDays() {
         return systemConfigService.getIntValue("airopscat.backup.retention-days", 30);
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return (System.nanoTime() - startedAt) / 1_000_000;
     }
 
     private record DatabaseConnectionInfo(String host, int port, String database) {

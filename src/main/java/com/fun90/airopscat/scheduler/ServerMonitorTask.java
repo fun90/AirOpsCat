@@ -33,6 +33,7 @@ public class ServerMonitorTask {
     SystemConfigService systemConfigService;
 
     public void collectServerMonitorStats() {
+        long startedAt = System.nanoTime();
         if (!systemConfigService.getBooleanValue("airopscat.server.monitor.enabled", true)) {
             log.debug("服务器监控采集已禁用，跳过本次任务");
             return;
@@ -58,7 +59,7 @@ public class ServerMonitorTask {
                 int endIndex = Math.min(startIndex + maxParallelServers, servers.size());
                 List<Server> batch = servers.subList(startIndex, endIndex);
                 int currentBatch = (startIndex / maxParallelServers) + 1;
-                log.info("服务器监控采集批次开始，总服务器数: {}, 当前批次: {}/{}, 批大小: {}, 线程池状态: {}",
+                log.debug("服务器监控采集批次开始，总服务器数: {}, 当前批次: {}/{}, 批大小: {}, 线程池状态: {}",
                         servers.size(), currentBatch, batchCount, batch.size(),
                         BlockingTaskExecutorConfig.describeExecutor(monitorTaskExecutor));
 
@@ -85,8 +86,9 @@ public class ServerMonitorTask {
                 }
             }
 
-            log.info("服务器监控采集完成，服务器数: {}, 最大并发: {}, 批次数: {}, 成功: {}, 跳过: {}, 失败: {}, 线程池状态: {}",
+            log.info("服务器监控采集完成，服务器数: {}, 最大并发: {}, 批次数: {}, 成功: {}, 跳过: {}, 失败: {}, 耗时: {} ms, 线程池状态: {}",
                     servers.size(), maxParallelServers, batchCount, successCount, skippedCount, failureCount,
+                    elapsedMillis(startedAt),
                     BlockingTaskExecutorConfig.describeExecutor(monitorTaskExecutor));
         } catch (Exception e) {
             log.error("执行服务器监控采集任务时发生错误，线程池状态: {}",
@@ -118,5 +120,9 @@ public class ServerMonitorTask {
         SUCCESS,
         SKIPPED,
         FAILED
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return (System.nanoTime() - startedAt) / 1_000_000;
     }
 }

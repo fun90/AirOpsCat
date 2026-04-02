@@ -150,6 +150,7 @@ public class AccountOnlineIpService {
      */
     @Transactional
     public long cleanupExpiredRecords() {
+        long startedAt = System.nanoTime();
         LocalDateTime expireTime = LocalDateTime.now().minusMinutes(getCheckMinutes() * 2L); // 清理超过2倍检查时间的记录
         int batchSize = getCleanupBatchSize();
         long totalDeleted = 0L;
@@ -167,12 +168,12 @@ public class AccountOnlineIpService {
                     break;
                 }
             }
-            log.info("在线记录清理完成，截止时间: {}, 批大小: {}, 批次数: {}, 删除总数: {}",
-                    expireTime, batchSize, rounds, totalDeleted);
+            log.info("在线记录清理完成，截止时间: {}, 批大小: {}, 批次数: {}, 删除总数: {}, 耗时: {} ms",
+                    expireTime, batchSize, rounds, totalDeleted, elapsedMillis(startedAt));
             return totalDeleted;
         } catch (Exception e) {
-            log.error("清理在线记录失败，截止时间: {}, 批大小: {}, 已删除: {}",
-                    expireTime, batchSize, totalDeleted, e);
+            log.error("清理在线记录失败，截止时间: {}, 批大小: {}, 已删除: {}, 耗时: {} ms",
+                    expireTime, batchSize, totalDeleted, elapsedMillis(startedAt), e);
             throw new RuntimeException("Failed to cleanup expired records", e);
         }
     }
@@ -272,5 +273,9 @@ public class AccountOnlineIpService {
 
     private int getCheckMinutes() {
         return Math.max(1, systemConfigService.getIntValue("airopscat.online.check-minutes", 5));
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return (System.nanoTime() - startedAt) / 1_000_000;
     }
 } 

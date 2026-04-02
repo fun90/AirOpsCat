@@ -334,7 +334,7 @@
 - 改善首屏时间
 - 降低后台控制台切页卡顿
 
-### 3.10 第三优先级：生产环境日志降噪
+### 3.10 第三优先级：生产环境日志降噪 [已处理]
 
 #### 当前信号
 
@@ -1169,6 +1169,20 @@ JDBC URL 可评估补充：
 - 涉及新增 DTO、缓存对象、页面参数时，仍需按仓库约束检查是否需要同步更新 `JsonReflectionConfiguration`
 
 ## 6. 本轮实施更新
+
+### Task Group 4.2：生产环境日志降噪 [已处理]
+
+- [application.properties](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/resources/application.properties) 已将默认环境的 `quarkus.log.category."com.fun90.airopscat".level` 从 `DEBUG` 调整为 `INFO`
+- [application.properties](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/resources/application.properties) 已补充 `%dev.quarkus.log.category."com.fun90.airopscat".level=DEBUG`，保留开发环境排障日志
+- [application-native.properties](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/resources/application-native.properties) 继续保持业务日志默认 `INFO`，与主配置语义一致
+- [TrafficStatsTask.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/scheduler/TrafficStatsTask.java) 已将逐服务器跳过信息和无数据明细收口到 `DEBUG`，并补充任务级成功/跳过/失败/耗时摘要
+- [ServerMonitorTask.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/scheduler/ServerMonitorTask.java) 已将批次级运行日志降为 `DEBUG`，保留任务完成摘要为 `INFO`
+- [DatabaseBackupService.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/DatabaseBackupService.java) 已为备份与清理任务补充耗时摘要日志
+- [AccountOnlineIpService.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/java/com/fun90/airopscat/service/AccountOnlineIpService.java) 已为在线记录清理日志补充耗时摘要，维持异常日志可见性
+- 本轮未处理：
+- 慢 SQL 基线采集与接口耗时看板
+- 静态资源缓存版本化
+- 其他非核心高频任务的日志进一步降噪
 
 ### Task Group 4：连接池与 JDBC 参数优化 [已处理]
 
