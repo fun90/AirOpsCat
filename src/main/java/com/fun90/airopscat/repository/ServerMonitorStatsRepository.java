@@ -64,4 +64,13 @@ public class ServerMonitorStatsRepository implements PanacheRepository<ServerMon
     public long deleteBySampleTimeBefore(LocalDateTime cutoffTime) {
         return delete("sampleTime < ?1", cutoffTime);
     }
+
+    @Transactional
+    public int deleteBySampleTimeBeforeBatch(LocalDateTime cutoffTime, int batchSize) {
+        return getEntityManager().createNativeQuery(
+                        "DELETE FROM server_monitor_stats WHERE sample_time < ?1 ORDER BY sample_time LIMIT ?2")
+                .setParameter(1, cutoffTime)
+                .setParameter(2, Math.max(batchSize, 1))
+                .executeUpdate();
+    }
 }

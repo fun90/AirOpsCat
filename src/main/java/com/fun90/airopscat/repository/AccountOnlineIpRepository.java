@@ -101,8 +101,12 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
      * 删除过期的在线记录
      */
     @Transactional
-    public void deleteExpiredRecords(LocalDateTime expireTime) {
-        delete("lastOnlineTime < ?1", expireTime);
+    public int deleteExpiredRecordsBatch(LocalDateTime expireTime, int batchSize) {
+        return getEntityManager().createNativeQuery(
+                        "DELETE FROM account_online_ip WHERE last_online_time < ?1 ORDER BY last_online_time LIMIT ?2")
+                .setParameter(1, expireTime)
+                .setParameter(2, Math.max(batchSize, 1))
+                .executeUpdate();
     }
     
     /**

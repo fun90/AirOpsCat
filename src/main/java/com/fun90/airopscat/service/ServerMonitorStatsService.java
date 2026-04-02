@@ -30,6 +30,7 @@ import java.util.Map;
 public class ServerMonitorStatsService {
     private static final String REMOTE_COLLECTOR_PATH = "/usr/local/bin/airopscat-server-monitor-collect";
     private static final String COLLECTOR_MISSING_MARKER = "__AIROPSCAT_MONITOR_COLLECTOR_MISSING__=1";
+    private static final int DEFAULT_CLEANUP_BATCH_SIZE = 1000;
 
     @Inject
     ServerMonitorStatsRepository serverMonitorStatsRepository;
@@ -212,7 +213,27 @@ public class ServerMonitorStatsService {
     public long cleanupExpiredStats() {
         int retentionDays = Math.max(systemConfigService.getIntValue("airopscat.server.monitor.retention-days", 30), 1);
         LocalDateTime cutoffTime = LocalDateTime.now().minusDays(retentionDays);
-        return serverMonitorStatsRepository.deleteBySampleTimeBefore(cutoffTime);
+        int batchSize = Math.max(
+                systemConfigService.getIntValue("airopscat.server.monitor.cleanup.batch-size", DEFAULT_CLEANUP_BATCH_SIZE),
+                1);
+        long totalDeleted = 0L;
+        int rounds = 0;
+
+        while (true) {
+            int deleted = serverMonitorStatsRepository.deleteBySampleTimeBeforeBatch(cutoffTime, batchSize);
+            if (deleted <= 0) {
+                break;
+            }
+            totalDeleted += deleted;
+            rounds++;
+            if (deleted < batchSize) {
+                break;
+            }
+        }
+
+        log.info("服务器监控历史清理完成，保留天数: {}, 截止时间: {}, 批大小: {}, 批次数: {}, 删除总数: {}",
+                retentionDays, cutoffTime, batchSize, rounds, totalDeleted);
+        return totalDeleted;
     }
 
     private Map<String, String> executeRemoteCollection(Server server) {

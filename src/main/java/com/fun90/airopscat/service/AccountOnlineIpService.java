@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 @Slf4j
 public class AccountOnlineIpService {
+    private static final int DEFAULT_CLEANUP_BATCH_SIZE = 1000;
 
     private final AccountOnlineIpRepository accountOnlineIpRepository;
     private final AccountRepository accountRepository;
@@ -148,41 +149,31 @@ public class AccountOnlineIpService {
      * 清理过期的在线记录
      */
     @Transactional
-    public void cleanupExpiredRecords() {
+    public long cleanupExpiredRecords() {
         LocalDateTime expireTime = LocalDateTime.now().minusMinutes(getCheckMinutes() * 2L); // 清理超过2倍检查时间的记录
-        
-        // 使用重试机制处理数据库锁定问题
-        int maxRetries = 3;
-        int retryCount = 0;
-        
-        while (true) {
-            try {
-                accountOnlineIpRepository.deleteExpiredRecords(expireTime);
-                log.info("Successfully cleaned up expired online records before {}", expireTime);
-                return; // 成功则退出
-            } catch (Exception e) {
-                retryCount++;
-                if (e.getMessage() != null && e.getMessage().contains("database is locked")) {
-                    if (retryCount < maxRetries) {
-                        log.warn("Database locked when cleaning up expired records, retrying ({}/{})", 
-                                retryCount, maxRetries);
-                        // 等待一段时间后重试
-                        try {
-                            Thread.sleep(200L * retryCount); // 递增等待时间
-                        } catch (InterruptedException ie) {
-                            Thread.currentThread().interrupt();
-                            throw new RuntimeException("Cleanup expired records interrupted", ie);
-                        }
-                    } else {
-                        log.error("Failed to cleanup expired records after {} retries", maxRetries);
-                        throw new RuntimeException("Failed to cleanup expired records after " + maxRetries + " retries", e);
-                    }
-                } else {
-                    // 非数据库锁定错误，直接抛出
-                    log.error("Unexpected error when cleaning up expired records: {}", e.getMessage());
-                    throw e;
+        int batchSize = getCleanupBatchSize();
+        long totalDeleted = 0L;
+        int rounds = 0;
+
+        try {
+            while (true) {
+                int deleted = accountOnlineIpRepository.deleteExpiredRecordsBatch(expireTime, batchSize);
+                if (deleted <= 0) {
+                    break;
+                }
+                totalDeleted += deleted;
+                rounds++;
+                if (deleted < batchSize) {
+                    break;
                 }
             }
+            log.info("在线记录清理完成，截止时间: {}, 批大小: {}, 批次数: {}, 删除总数: {}",
+                    expireTime, batchSize, rounds, totalDeleted);
+            return totalDeleted;
+        } catch (Exception e) {
+            log.error("清理在线记录失败，截止时间: {}, 批大小: {}, 已删除: {}",
+                    expireTime, batchSize, totalDeleted, e);
+            throw new RuntimeException("Failed to cleanup expired records", e);
         }
     }
     
@@ -227,6 +218,11 @@ public class AccountOnlineIpService {
         }
 
         return dto;
+    }
+
+    private int getCleanupBatchSize() {
+        return Math.max(systemConfigService.getIntValue("airopscat.account.online.cleanup.batch-size",
+                DEFAULT_CLEANUP_BATCH_SIZE), 1);
     }
 
     private LocalDateTime resolveSessionStartTime(AccountOnlineIp record) {
