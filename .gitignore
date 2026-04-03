@@ -48,4 +48,3 @@ admin.db-wal
 admin.db-shm
 logs/
 backup/
-.claude/
