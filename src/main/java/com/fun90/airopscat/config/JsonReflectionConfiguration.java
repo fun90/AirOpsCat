@@ -13,6 +13,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.enums.PeriodType.class,
     com.fun90.airopscat.model.enums.ProtocolType.class,
     com.fun90.airopscat.model.enums.NodeType.class,
+    com.fun90.airopscat.model.enums.NodeBatchTagUpdateMode.class,
     com.fun90.airopscat.model.enums.CoreType.class,
     com.fun90.airopscat.model.enums.CoreOperation.class,
     com.fun90.airopscat.model.enums.ServerAuthType.class,

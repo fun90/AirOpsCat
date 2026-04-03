@@ -8,6 +8,7 @@ import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.CoreType;
+import com.fun90.airopscat.model.enums.NodeBatchTagUpdateMode;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.ProtocolType;
 import com.fun90.airopscat.repository.NodeRepository;
@@ -452,6 +453,89 @@ public class NodeService {
         result.put("updatedCount", updatedCount);
         result.put("unchangedCount", unchangedCount);
         return result;
+    }
+
+    @Transactional
+    public Map<String, Integer> batchUpdateNodeTags(List<Long> nodeIds,
+                                                    List<Long> tagIds,
+                                                    NodeBatchTagUpdateMode mode) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            throw new IllegalArgumentException("请选择要调整标签的节点");
+        }
+
+        List<Long> uniqueNodeIds = nodeIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (uniqueNodeIds.isEmpty()) {
+            throw new IllegalArgumentException("请选择要调整标签的节点");
+        }
+
+        List<Node> nodes = nodeRepository.findByIdIn(uniqueNodeIds);
+        if (nodes.size() != uniqueNodeIds.size()) {
+            throw new EntityNotFoundException("部分节点不存在，无法批量调整标签");
+        }
+
+        NodeBatchTagUpdateMode normalizedMode = mode == null ? NodeBatchTagUpdateMode.REPLACE : mode;
+        List<Long> normalizedTagIds = tagIds == null
+                ? List.of()
+                : tagIds.stream().filter(Objects::nonNull).distinct().toList();
+        List<Tag> resolvedTags = normalizedTagIds.isEmpty()
+                ? List.of()
+                : tagRepository.list("id in ?1", normalizedTagIds);
+        if (resolvedTags.size() != normalizedTagIds.size()) {
+            throw new EntityNotFoundException("部分标签不存在，无法批量调整");
+        }
+
+        Map<Long, Tag> tagMap = resolvedTags.stream()
+                .collect(Collectors.toMap(Tag::getId, tag -> tag));
+        LinkedHashSet<Long> selectedTagIds = new LinkedHashSet<>(normalizedTagIds);
+
+        int updatedCount = 0;
+        int unchangedCount = 0;
+        for (Node node : nodes) {
+            LinkedHashSet<Long> currentTagIds = extractNodeTagIds(node);
+            LinkedHashSet<Long> targetTagIds = resolveTargetTagIds(currentTagIds, selectedTagIds, normalizedMode);
+
+            if (currentTagIds.equals(targetTagIds)) {
+                unchangedCount++;
+                continue;
+            }
+
+            LinkedHashSet<Tag> targetTags = targetTagIds.stream()
+                    .map(tagMap::get)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            node.setTags(targetTags);
+            node.setDeployed(0);
+            updatedCount++;
+        }
+
+        Map<String, Integer> result = new HashMap<>();
+        result.put("updatedCount", updatedCount);
+        result.put("unchangedCount", unchangedCount);
+        return result;
+    }
+
+    private LinkedHashSet<Long> extractNodeTagIds(Node node) {
+        if (node.getTags() == null) {
+            return new LinkedHashSet<>();
+        }
+        return node.getTags().stream()
+                .map(Tag::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private LinkedHashSet<Long> resolveTargetTagIds(LinkedHashSet<Long> currentTagIds,
+                                                    LinkedHashSet<Long> selectedTagIds,
+                                                    NodeBatchTagUpdateMode mode) {
+        if (mode == NodeBatchTagUpdateMode.APPEND) {
+            LinkedHashSet<Long> targetTagIds = new LinkedHashSet<>(currentTagIds);
+            targetTagIds.addAll(selectedTagIds);
+            return targetTagIds;
+        }
+        return new LinkedHashSet<>(selectedTagIds);
     }
 
     public boolean hasSubstantialChanges(Node oldNode, Node newNode, Set<Tag> newTagSet, boolean tagsUpdated) {

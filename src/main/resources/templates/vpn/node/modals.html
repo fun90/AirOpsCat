@@ -627,8 +627,21 @@
             </div>
             <div class="modal-body">
                 <p>已选择 <strong>{{ selectedNodeIds.length }}</strong> 个当前页节点。</p>
+                <div class="mb-3">
+                    <label class="form-label">调整方式</label>
+                    <div class="form-selectgroup">
+                        <label class="form-selectgroup-item">
+                            <input type="radio" class="form-selectgroup-input" value="REPLACE" v-model="batchTagForm.mode">
+                            <span class="form-selectgroup-label">覆盖</span>
+                        </label>
+                        <label class="form-selectgroup-item">
+                            <input type="radio" class="form-selectgroup-input" value="APPEND" v-model="batchTagForm.mode">
+                            <span class="form-selectgroup-label">新增</span>
+                        </label>
+                    </div>
+                </div>
                 <div class="alert alert-warning" role="alert">
-                    保存后会将所选节点的标签整体替换为下面勾选的结果，并将这些节点标记为未部署。
+                    {{ getBatchTagModeDescription() }}
                 </div>
                 <div class="row">
                     <div v-for="tag in availableTags" :key="tag.id" class="col-md-6 mb-2">

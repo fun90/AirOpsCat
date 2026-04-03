@@ -2,6 +2,26 @@
 
 This file provides guidance to Codex when working in this repository.
 
+## Language Rules（非常关键）
+
+- 所有输出必须使用中文（简体中文）
+- 包括：
+    - OpenSpec 内容（proposal / spec / tasks）
+    - 代码注释
+    - 解释说明
+    - review 内容
+- 不允许使用英文作为主要语言（除非是代码或专有名词）
+
+## OpenSpec Rules
+
+- 所有 OpenSpec 文档必须使用中文描述
+- spec.md / proposal.md / tasks.md 必须为中文
+- 变量名可以英文，但说明必须中文
+
+## Enforcement
+
+- 如果生成内容不是中文，必须自动重写为中文
+
 ## Project Overview
 
 AirOpsCat is a Quarkus `3.24.4` application built with Java `21`. It is a server and proxy management system for proxy service providers, with support for account management, server management, node deployment, subscription generation, scheduled tasks, and push notifications.

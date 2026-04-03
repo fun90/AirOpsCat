@@ -138,9 +138,21 @@ export function createNodeDeployMethods() {
             const hasSameTagSet = normalizedTagSets.every(tagIds =>
                 JSON.stringify(tagIds) === JSON.stringify(normalizedTagSets[0] || [])
             );
+            this.batchTagForm.mode = 'REPLACE';
             this.batchTagForm.tagIds = hasSameTagSet ? [...(normalizedTagSets[0] || [])] : [];
             this.batchTagModal = new Modal(document.getElementById('node-batchTagModal'));
             this.batchTagModal.show();
+        },
+
+        getBatchTagModeDescription() {
+            if (this.batchTagForm.mode === 'APPEND') {
+                return '保存后会在所选节点现有标签的基础上新增下面勾选的标签；已有标签会保留，实际变更的节点会被标记为未部署。';
+            }
+            return '保存后会将所选节点的标签整体替换为下面勾选的结果，并将这些节点标记为未部署。';
+        },
+
+        getBatchTagModeActionLabel() {
+            return this.batchTagForm.mode === 'APPEND' ? '新增' : '覆盖';
         },
 
         openCoreSwitchModal() {
@@ -264,7 +276,8 @@ export function createNodeDeployMethods() {
                 },
                 body: JSON.stringify({
                     nodeIds: this.selectedNodeIds,
-                    tagIds: this.batchTagForm.tagIds
+                    tagIds: this.batchTagForm.tagIds,
+                    mode: this.batchTagForm.mode
                 })
             })
                 .then(async response => {
@@ -282,7 +295,7 @@ export function createNodeDeployMethods() {
                     this.fetchRecords();
                     ToastUtils.show(
                         'Success',
-                        `已更新 ${data.updatedCount || 0} 个节点标签，跳过 ${data.unchangedCount || 0} 个节点`,
+                        `已${this.getBatchTagModeActionLabel()} ${data.updatedCount || 0} 个节点标签，跳过 ${data.unchangedCount || 0} 个节点`,
                         'success'
                     );
                 })

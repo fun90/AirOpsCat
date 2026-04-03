@@ -407,7 +407,8 @@ public class NodeController {
         try {
             Map<String, Integer> result = nodeService.batchUpdateNodeTags(
                     request == null ? null : request.getNodeIds(),
-                    request == null ? null : request.getTagIds());
+                    request == null ? null : request.getTagIds(),
+                    request == null ? null : request.resolveMode());
             return Response.ok(Map.of(
                     "message", "批量调整节点标签成功",
                     "updatedCount", result.getOrDefault("updatedCount", 0),

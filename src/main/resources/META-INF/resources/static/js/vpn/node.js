@@ -103,6 +103,7 @@ const nodeTable = new DataTable({
         restoringDeploymentVersion: false,
         selectedNodeIds: [],
         batchTagForm: {
+            mode: 'REPLACE',
             tagIds: []
         },
         coreSwitchTarget: 'sing-box',
