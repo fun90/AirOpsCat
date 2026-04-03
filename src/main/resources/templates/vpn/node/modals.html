@@ -626,22 +626,26 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p>已选择 <strong>{{ selectedNodeIds.length }}</strong> 个当前页节点。</p>
                 <div class="mb-3">
-                    <label class="form-label">调整方式</label>
-                    <div class="form-selectgroup">
-                        <label class="form-selectgroup-item">
-                            <input type="radio" class="form-selectgroup-input" value="REPLACE" v-model="batchTagForm.mode">
-                            <span class="form-selectgroup-label">覆盖</span>
-                        </label>
-                        <label class="form-selectgroup-item">
-                            <input type="radio" class="form-selectgroup-input" value="APPEND" v-model="batchTagForm.mode">
-                            <span class="form-selectgroup-label">新增</span>
-                        </label>
+                    <div class="border rounded-3 p-3">
+                        <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                            <div>
+                                <div class="fw-medium">当前模式：{{ batchTagForm.mode === 'APPEND' ? '新增' : '覆盖' }}</div>
+                                <div class="text-secondary small">已选择 {{ selectedNodeIds.length }} 个当前页节点。</div>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="small" :class="batchTagForm.mode === 'REPLACE' ? 'fw-bold text-body' : 'text-secondary'">覆盖</span>
+                                <label class="form-check form-switch m-0">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           :checked="batchTagForm.mode === 'APPEND'"
+                                           @change="batchTagForm.mode = $event.target.checked ? 'APPEND' : 'REPLACE'">
+                                    <span class="form-check-label visually-hidden">切换调整方式</span>
+                                </label>
+                                <span class="small" :class="batchTagForm.mode === 'APPEND' ? 'fw-bold text-body' : 'text-secondary'">新增</span>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="alert alert-warning" role="alert">
-                    {{ getBatchTagModeDescription() }}
                 </div>
                 <div class="row">
                     <div v-for="tag in availableTags" :key="tag.id" class="col-md-6 mb-2">
