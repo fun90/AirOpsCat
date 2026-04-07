@@ -206,6 +206,7 @@ public class ServerInstallService {
         return "AIROPSCAT_STEP_NAME=" + quoteShell(stepTitle)
                 + "; server_ip=" + quoteShell(defaultString(server.getIp()))
                 + "; server_host=" + quoteShell(defaultString(serverHostService.resolvePrimaryHost(server)))
+                + "; server_ssh_port=" + quoteShell(server.getSshPort() + "")
                 + "; airopscat_domain=" + quoteShell(defaultString(getDomain()))
                 + "; airopscat_api_token=" + quoteShell(defaultString(getApiToken()))
                 + "; declare -a server_hosts=" + toBashArray(hosts)
