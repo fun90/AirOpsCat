@@ -32,7 +32,7 @@ install_packages() {
   apt-get update
 
   log "安装基础软件包: cron vim wget"
-  apt-get install -y cron vim wget
+  apt-get install -y cron vim wget htop
 }
 
 install_monitor_collector() {
