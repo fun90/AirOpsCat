@@ -171,10 +171,6 @@ init_optimize() {
 
   log "写入 fstab 持久化"
   sed -i '\|^/swapfile\s|d' /etc/fstab && echo '/swapfile none swap sw 0 0' >> /etc/fstab
-
-  log "调整 swappiness（低内存服务器建议 10~20）"
-  sed -i '/^vm\.swappiness\s*=\s*/d' /etc/sysctl.conf && echo 'vm.swappiness=15' >> /etc/sysctl.conf
-  sysctl -p
 }
 
 main() {
