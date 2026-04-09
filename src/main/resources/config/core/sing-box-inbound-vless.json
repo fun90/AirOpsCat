@@ -3,7 +3,6 @@
   "users": [],
   "tls": {
     "enabled": true,
-    "server_name": "{serverName}",
     "certificate_path": "/usr/local/etc/certs/fullchain.cer",
     "key_path": "/usr/local/etc/certs/private.key",
     "min_version": "1.2",
