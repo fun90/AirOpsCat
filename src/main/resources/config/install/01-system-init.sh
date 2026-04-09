@@ -44,10 +44,17 @@ install_monitor_collector() {
 
   cat > "${target_path}" <<'EOF'
 #!/usr/bin/env bash
+# 采集策略：将上次采集的 CPU 和网络计数器持久化到状态文件，
+# 本次采集时读取差值并除以实际间隔秒数计算速率，无需 sleep。
 set -euo pipefail
 
+STATE_FILE="/var/run/airopscat-monitor-state"
+
 read_cpu_values() {
-  awk '/^cpu / {print $2" "$3" "$4" "$5" "$6" "$7" "$8}' /proc/stat
+  # 字段顺序: user nice system idle iowait irq softirq steal
+  # steal($9) 是虚拟机被宿主机抢占的时间，htop 将其计为 busy，必须读入
+  # guest/guest_nice($10/$11) 已包含在 user/nice 内，不重复读取
+  awk '/^cpu / {print $2" "$3" "$4" "$5" "$6" "$7" "$8" "$9}' /proc/stat
 }
 
 read_network_totals() {
@@ -87,8 +94,10 @@ calc_cpu_usage() {
     (( total_after += item ))
   done
 
-  local idle_before="${before_parts[3]:-0}"
-  local idle_after="${after_parts[3]:-0}"
+  # idle_total = idle(3) + iowait(4)
+  # iowait 是等待 IO 完成，CPU 实际空闲，htop 不将其计为 busy，与此保持一致
+  local idle_before=$(( ${before_parts[3]:-0} + ${before_parts[4]:-0} ))
+  local idle_after=$(( ${after_parts[3]:-0}  + ${after_parts[4]:-0} ))
   local delta_total=$(( total_after - total_before ))
   local delta_idle=$(( idle_after - idle_before ))
 
@@ -124,53 +133,66 @@ read_memory_stats() {
   }' /proc/meminfo
 }
 
-cpu_before="$(read_cpu_values)"
-read -r rx_before tx_before <<< "$(read_network_totals)"
-sleep 1
-cpu_after="$(read_cpu_values)"
-read -r rx_after tx_after <<< "$(read_network_totals)"
+# 读取当前快照
+now=$(date +%s)
+cpu_now="$(read_cpu_values)"
+read -r rx_now tx_now <<< "$(read_network_totals)"
 read -r memory_used memory_total memory_usage <<< "$(read_memory_stats)"
-cpu_usage="$(calc_cpu_usage "${cpu_before}" "${cpu_after}")"
 
-rx_rate=$(( rx_after - rx_before ))
-tx_rate=$(( tx_after - tx_before ))
+# 解析状态文件（若存在），计算差值速率
+cpu_usage="0.00"
+rx_rate=0
+tx_rate=0
 
-if (( rx_rate < 0 )); then
-  rx_rate=0
+if [[ -f "${STATE_FILE}" ]]; then
+  prev_time=0
+  prev_cpu=""
+  prev_rx=0
+  prev_tx=0
+
+  while IFS='=' read -r key value; do
+    case "${key}" in
+      prev_time) prev_time="${value}" ;;
+      prev_cpu)  prev_cpu="${value}" ;;
+      prev_rx)   prev_rx="${value}" ;;
+      prev_tx)   prev_tx="${value}" ;;
+    esac
+  done < "${STATE_FILE}"
+
+  elapsed=$(( now - prev_time ))
+
+  if (( elapsed > 0 && prev_time > 0 )); then
+    cpu_usage="$(calc_cpu_usage "${prev_cpu}" "${cpu_now}")"
+
+    # 处理计数器回绕（重启后归零）：回绕时速率视为 0
+    if (( rx_now >= prev_rx )); then
+      rx_rate=$(( (rx_now - prev_rx) / elapsed ))
+    fi
+    if (( tx_now >= prev_tx )); then
+      tx_rate=$(( (tx_now - prev_tx) / elapsed ))
+    fi
+  fi
 fi
 
-if (( tx_rate < 0 )); then
-  tx_rate=0
-fi
+# 将当前快照写入状态文件供下次采集使用
+{
+  printf "prev_time=%s\n" "${now}"
+  printf "prev_cpu=%s\n"  "${cpu_now}"
+  printf "prev_rx=%s\n"   "${rx_now}"
+  printf "prev_tx=%s\n"   "${tx_now}"
+} > "${STATE_FILE}"
 
-printf "cpuUsage=%s\n" "${cpu_usage}"
-printf "memoryUsage=%s\n" "${memory_usage}"
-printf "memoryUsedBytes=%s\n" "${memory_used}"
-printf "memoryTotalBytes=%s\n" "${memory_total}"
-printf "networkRxBytes=%s\n" "${rx_after}"
-printf "networkTxBytes=%s\n" "${tx_after}"
+printf "cpuUsage=%s\n"           "${cpu_usage}"
+printf "memoryUsage=%s\n"        "${memory_usage}"
+printf "memoryUsedBytes=%s\n"    "${memory_used}"
+printf "memoryTotalBytes=%s\n"   "${memory_total}"
+printf "networkRxBytes=%s\n"     "${rx_now}"
+printf "networkTxBytes=%s\n"     "${tx_now}"
 printf "networkRxRateBytes=%s\n" "${rx_rate}"
 printf "networkTxRateBytes=%s\n" "${tx_rate}"
 EOF
 
   chmod 0755 "${target_path}"
-}
-
-init_optimize() {
-  # 关闭并删除已有 swapfile（若存在）
-  if [ -f /swapfile ]; then
-    swapoff /swapfile 2>/dev/null || true
-    rm /swapfile
-  fi
-
-  log "创建 2G swap 文件"
-  fallocate -l 2G /swapfile
-  chmod 600 /swapfile
-  mkswap /swapfile
-  swapon /swapfile
-
-  log "写入 fstab 持久化"
-  sed -i '\|^/swapfile\s|d' /etc/fstab && echo '/swapfile none swap sw 0 0' >> /etc/fstab
 }
 
 main() {
@@ -179,7 +201,6 @@ main() {
   set_timezone
   install_packages
   install_monitor_collector
-  init_optimize
   log "系统初始化完成"
 }
 

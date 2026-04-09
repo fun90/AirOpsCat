@@ -43,6 +43,13 @@
     "auto_detect_interface": true,
     "rules": [
       {
+        "action": "sniff"
+      },
+      {
+        "action": "resolve",
+        "strategy": "prefer_ipv4"
+      },
+      {
         "port": 53,
         "action": "hijack-dns"
       },
