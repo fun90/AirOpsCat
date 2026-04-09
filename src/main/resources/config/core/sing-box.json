@@ -46,6 +46,10 @@
         "action": "sniff"
       },
       {
+        "domain": [ "bam.nr-data.net" ],
+        "action": "reject"
+      },
+      {
         "action": "resolve",
         "strategy": "prefer_ipv4"
       },
