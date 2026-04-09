@@ -203,8 +203,8 @@ rules:
   - RULE-SET,myproxy,代理
   - RULE-SET,private,DIRECT
   - RULE-SET,lancidr,DIRECT
-  - RULE-SET,Apple,DIRECT
-  - RULE-SET,Microsoft,代理
+  - RULE-SET,Apple,Apple
+  - RULE-SET,Microsoft,Microsoft
   - RULE-SET,ChinaIPs_IP,DIRECT
   - RULE-SET,China_Domain,DIRECT
   - GEOIP,LAN,DIRECT
