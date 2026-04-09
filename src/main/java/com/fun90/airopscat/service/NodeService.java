@@ -363,7 +363,6 @@ public class NodeService {
         normalizeAndValidateNodeProtocol(node);
         node.setNodeGroup(nodeGroupService.normalizeNodeGroup(nodeGroup));
         List<Node> groupNodes = nodeGroupService.validateNodeGroup(node);
-        nodeGroupService.alignNodeToGroupConfiguration(node, groupNodes);
         validateNodeServersAndPorts(node, groupNodes);
         boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node, tagSet, tagsUpdated);
 
@@ -390,6 +389,7 @@ public class NodeService {
             existingNode.setOutNode(null);
         }
 
+        nodeGroupService.syncPeerNodesToReference(existingNode, groupNodes);
         nodeGroupService.markAffectedGroupNodesUndeployed(previousNodeGroup, existingNode.getNodeGroup(), existingNode.getId());
         return existingNode;
     }

@@ -343,9 +343,8 @@
                                                    'is-valid': !validationErrors.port && editPortCheckMessage === '端口可用'
                                                }"
                                                @input="scheduleEditPortAvailabilityCheck"
-                                               :disabled="isNodeGroupConfigLocked(true)"
                                                v-model="editedItem.port" min="1" max="65535">
-                                        <button class="btn" type="button" @click="getEditAvailablePort" :disabled="isNodeGroupConfigLocked(true)">自动获取</button>
+                                        <button class="btn" type="button" @click="getEditAvailablePort">自动获取</button>
                                     </div>
                                     <div class="invalid-feedback" v-if="validationErrors.port">{{ validationErrors.port }}</div>
                                     <small class="form-hint d-flex align-items-center gap-1"
@@ -424,11 +423,17 @@
                         </div>
                     </div>
                     <div class="tab-pane" id="edit-tabs-inbound">
+                        <div class="alert alert-info mt-3 mb-0 py-2 px-3" v-if="isNodeGroupConfigLocked(true) && editedItem.nodeGroup">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="ti ti-info-circle text-info"></i>
+                                <span>保存时，协议、端口、入站和出站设置将同步到节点组「{{ editedItem.nodeGroup }}」内的其他节点。</span>
+                            </div>
+                        </div>
                         <div class="row mt-3">
                             <div class="col-md-6">
                                 <div class="mb-3" :class="getNodeGroupFieldClass(true, 'protocol')">
                                     <label class="form-label required">协议</label>
-                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="editedItem.protocol" @change="onEditProtocolChange" :disabled="isNodeGroupConfigLocked(true)">
+                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="editedItem.protocol" @change="onEditProtocolChange">
                                         <option v-for="protocol in getAvailableProtocols(editedItem)" :key="protocol.value" :value="protocol.value">{{ protocol.label }}</option>
                                     </select>
                                     <div class="invalid-feedback" v-if="validationErrors.protocol">{{ validationErrors.protocol }}</div>
@@ -446,7 +451,7 @@
                                               data-bs-html="true"
                                               data-bs-content="<p class='mb-0'>可以追加协议特有的其他配置参数。</p>">?</span>
                                     </label>
-                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="editedNodeInboundJson" placeholder='{"key": "value"}' :readonly="isNodeGroupConfigLocked(true) ? true : null"></textarea>
+                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="editedNodeInboundJson" placeholder='{"key": "value"}'></textarea>
                                 </div>
                             </div>
                         </div>
@@ -462,7 +467,7 @@
                                               data-bs-html="true"
                                               data-bs-content="<p class='mb-0'>用于配置节点的出口。</p>">?</span>
                                     </label>
-                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="editedItem.outId" :disabled="isNodeGroupConfigLocked(true)">
+                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="editedItem.outId">
                                         <option :value="0">直连</option>
                                         <option v-for="node in landingNodes" :key="node.id" :value="node.id">{{ node.name }}({{ node.serverHost }}:{{ node.port }})</option>
                                     </select>

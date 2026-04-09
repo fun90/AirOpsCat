@@ -124,6 +124,19 @@ public class NodeGroupService {
                 .forEach(node -> node.setDeployed(0));
     }
 
+    public void syncPeerNodesToReference(Node referenceNode, List<Node> peerNodes) {
+        if (referenceNode == null || peerNodes == null || peerNodes.isEmpty()) {
+            return;
+        }
+        for (Node peer : peerNodes) {
+            peer.setProtocol(referenceNode.getProtocol());
+            peer.setPort(referenceNode.getPort());
+            peer.setInbound(normalizeJson(referenceNode.getInbound()));
+            peer.setOutId(normalizeNullableLong(referenceNode.getOutId()));
+            peer.setDeployed(0);
+        }
+    }
+
     public List<Map<String, Object>> getNodeGroupOptions(Integer type, String coreType, Long excludeId, Long serverId, String keyword) {
         if (type == null || coreType == null || coreType.trim().isEmpty()) {
             return List.of();
