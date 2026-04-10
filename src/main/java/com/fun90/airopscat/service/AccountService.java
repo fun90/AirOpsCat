@@ -472,7 +472,7 @@ public class AccountService {
         CompletableFuture.runAsync(() -> {
             boolean activated = requestContextController.activate();
             try {
-                for (Server server : findRelatedServers(account.getId())) {
+                for (Server server : rateLimitService.findEnabledSingBoxServers()) {
                     rateLimitService.applyAccountRateLimit(server, account);
                 }
             } catch (Exception e) {
@@ -483,47 +483,6 @@ public class AccountService {
                 }
             }
         }, executorService);
-    }
-
-    private List<Server> findRelatedServers(Long accountId) {
-        if (accountId == null) {
-            return List.of();
-        }
-
-        List<Node> directNodes = tagRepository.findNodesByAccountIds(List.of(accountId));
-        Set<String> nodeGroups = directNodes.stream()
-                .map(Node::getNodeGroup)
-                .filter(Objects::nonNull)
-                .filter(group -> !group.isBlank())
-                .collect(java.util.stream.Collectors.toSet());
-        List<Node> groupNodes = nodeGroups.isEmpty()
-                ? Collections.emptyList()
-                : nodeRepository.findByNodeGroupIn(new ArrayList<>(nodeGroups));
-
-        Map<Long, Server> serverMap = new LinkedHashMap<>();
-        for (Node node : directNodes) {
-            putServer(serverMap, node.getServer());
-            if (node.getServerId() != null) {
-                putServer(serverMap, serverRepository.findById(node.getServerId()));
-            }
-        }
-        for (Node node : groupNodes) {
-            putServer(serverMap, node.getServer());
-            if (node.getServerId() != null) {
-                putServer(serverMap, serverRepository.findById(node.getServerId()));
-            }
-        }
-        return new ArrayList<>(serverMap.values());
-    }
-
-    private void putServer(Map<Long, Server> serverMap, Server server) {
-        if (server == null || server.getId() == null) {
-            return;
-        }
-        if (server.getDisabled() != null && server.getDisabled() == 1) {
-            return;
-        }
-        serverMap.putIfAbsent(server.getId(), server);
     }
 
 }

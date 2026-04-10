@@ -1,11 +1,10 @@
 package com.fun90.airopscat.service.ratelimit;
 
 import com.fun90.airopscat.model.entity.Account;
-import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
-import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.ServerRepository;
-import com.fun90.airopscat.repository.TagRepository;
+import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.scheduler.ScheduledSupport;
 import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.ssh.SshConnection;
@@ -19,12 +18,9 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -43,10 +39,10 @@ public class RateLimitService {
     ServerRepository serverRepository;
 
     @Inject
-    NodeRepository nodeRepository;
+    AccountRepository accountRepository;
 
     @Inject
-    TagRepository tagRepository;
+    ServerConfigRepository serverConfigRepository;
 
     @Inject
     SshConnectionService sshConnectionService;
@@ -135,34 +131,12 @@ public class RateLimitService {
         }
         initServer(server);
 
-        List<Node> directNodes = nodeRepository.findByServerId(server.getId());
-        Set<String> nodeGroups = directNodes.stream()
-                .map(Node::getNodeGroup)
-                .filter(Objects::nonNull)
-                .filter(group -> !group.isBlank())
-                .collect(LinkedHashSet::new, Set::add, Set::addAll);
-        List<Node> groupNodes = nodeGroups.isEmpty()
-                ? List.of()
-                : nodeRepository.findByNodeGroupIn(new ArrayList<>(nodeGroups));
-
-        Set<Long> nodeIds = new LinkedHashSet<>();
-        directNodes.forEach(node -> nodeIds.add(node.getId()));
-        groupNodes.forEach(node -> nodeIds.add(node.getId()));
-        if (nodeIds.isEmpty()) {
-            return;
-        }
-
-        Map<Long, List<Long>> nodeTagIdsMap = tagRepository.findTagIdsByNodeIds(new ArrayList<>(nodeIds));
-        List<Long> allTagIds = nodeTagIdsMap.values().stream()
-                .flatMap(List::stream)
-                .distinct()
-                .toList();
-        if (allTagIds.isEmpty()) {
+        if (!isEnabledSingBoxServer(server.getId())) {
             return;
         }
 
         Map<Long, Account> accountMap = new LinkedHashMap<>();
-        for (Account account : tagRepository.findActiveAccountsByTagIds(allTagIds, LocalDateTime.now())) {
+        for (Account account : accountRepository.findActiveRateLimitedAccounts(LocalDateTime.now())) {
             if (account.getId() != null) {
                 accountMap.put(account.getId(), account);
             }
@@ -182,7 +156,9 @@ public class RateLimitService {
         }
 
         List<Server> servers = serverRepository.findMonitorableServers(LocalDate.now());
+        Set<Long> singBoxServerIds = findEnabledSingBoxServerIds();
         CompletableFuture<?>[] futures = servers.stream()
+                .filter(server -> singBoxServerIds.contains(server.getId()))
                 .map(server -> CompletableFuture.runAsync(() -> {
                     runWithRequestContext(() -> {
                         try {
@@ -244,6 +220,24 @@ public class RateLimitService {
             return null;
         }
         return classMinor;
+    }
+
+    public List<Server> findEnabledSingBoxServers() {
+        Set<Long> singBoxServerIds = findEnabledSingBoxServerIds();
+        if (singBoxServerIds.isEmpty()) {
+            return List.of();
+        }
+        return serverRepository.findMonitorableServers(LocalDate.now()).stream()
+                .filter(server -> singBoxServerIds.contains(server.getId()))
+                .toList();
+    }
+
+    private Set<Long> findEnabledSingBoxServerIds() {
+        return serverConfigRepository.findEnabledServerIdsByConfigTypes(List.of("sing-box", "singbox"));
+    }
+
+    private boolean isEnabledSingBoxServer(Long serverId) {
+        return serverId != null && findEnabledSingBoxServerIds().contains(serverId);
     }
 
     @FunctionalInterface

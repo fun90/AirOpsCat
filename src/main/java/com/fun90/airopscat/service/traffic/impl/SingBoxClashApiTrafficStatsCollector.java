@@ -5,7 +5,6 @@ import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.repository.AccountRepository;
-import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.singbox.ServerConnectionSnapshot;
 import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnection;
 import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnectionsResponse;
@@ -36,9 +35,6 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 @SupportedCores(value = {"sing-box", "singbox"}, priority = 1, description = "Sing-box Clash API 流量统计采集策略")
 public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollector {
-
-    @Inject
-    TagRepository tagRepository;
 
     @Inject
     AccountRepository accountRepository;
@@ -112,7 +108,6 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
      */
     private Map<String, long[]> computeTrafficDelta(Long serverId, ServerConnectionSnapshot prev, List<ClashConnection> connections) {
         Map<String, long[]> accountTrafficDelta = new LinkedHashMap<>();
-        Map<String, long[]> fallbackTagTrafficDelta = new LinkedHashMap<>();
         Map<String, Account> exactAccountMap = buildExactTrafficAccountMap(connections);
 
         for (ClashConnection conn : connections) {
@@ -153,27 +148,14 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
                 if (exactAccount != null) {
                     accountTrafficDelta.merge(exactAccount.getAccountNo(), new long[]{deltaUpload, deltaDownload},
                             (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]});
-                    continue;
                 }
-
-                if (connectionResolver.extractAuthUser(conn) != null) {
-                    log.debug("serverId={} 未找到 authUser 对应的活跃账号，跳过精确记账, authUser={}", serverId, connectionResolver.extractAuthUser(conn));
-                    continue;
+                else {
+                    String authUser = connectionResolver.extractAuthUser(conn);
+                    if (authUser != null) {
+                        log.debug("serverId={} 未找到 authUser 对应的活跃账号，跳过精确记账, authUser={}", serverId, authUser);
+                    }
                 }
-
-                String inboundTag = connectionResolver.extractInboundTag(conn.metadata().type());
-                if (inboundTag == null) {
-                    continue;
-                }
-                fallbackTagTrafficDelta.merge(inboundTag, new long[]{deltaUpload, deltaDownload},
-                        (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]});
             }
-        }
-
-        if (!fallbackTagTrafficDelta.isEmpty()) {
-            mapTagTrafficToAccounts(serverId, fallbackTagTrafficDelta).forEach((accountNo, stats) ->
-                    accountTrafficDelta.merge(accountNo, new long[]{stats.uploadBytes(), stats.downloadBytes()},
-                            (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]}));
         }
 
         return accountTrafficDelta;
@@ -204,85 +186,6 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
         return accountRepository.findByAccountNos(authUsers).stream()
                 .filter(Account::isActive)
                 .collect(Collectors.toMap(Account::getAccountNo, account -> account, (left, right) -> left, LinkedHashMap::new));
-    }
-
-    private Map<String, UserTrafficStats> mapTagTrafficToAccounts(Long serverId, Map<String, long[]> tagTrafficDelta) {
-        Map<Long, long[]> nodeIdTrafficMap = new LinkedHashMap<>();
-        for (Map.Entry<String, long[]> entry : tagTrafficDelta.entrySet()) {
-            Long nodeId = connectionResolver.extractNodeIdFromTag(entry.getKey());
-            if (nodeId == null) {
-                log.debug("无法从 inbound tag 解析 nodeId: {}", entry.getKey());
-                continue;
-            }
-            nodeIdTrafficMap.put(nodeId, entry.getValue());
-        }
-
-        if (nodeIdTrafficMap.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-        List<Long> nodeIds = new ArrayList<>(nodeIdTrafficMap.keySet());
-        Map<Long, List<Long>> nodeTagIdsMap = tagRepository.findTagIdsByNodeIds(nodeIds);
-
-        List<Long> allTagIds = nodeTagIdsMap.values().stream()
-                .flatMap(List::stream)
-                .distinct()
-                .toList();
-
-        if (allTagIds.isEmpty()) {
-            log.debug("serverId={} 的节点没有关联的 tag，跳过流量统计", serverId);
-            return Collections.emptyMap();
-        }
-
-        Map<Long, List<Long>> tagAccountIdsMap = tagRepository.findAccountIdsByTagIds(allTagIds);
-        List<Long> allAccountIds = tagAccountIdsMap.values().stream()
-                .flatMap(List::stream)
-                .distinct()
-                .toList();
-
-        if (allAccountIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        List<Account> activeAccounts = tagRepository.findActiveAccountsByTagIds(allTagIds, now);
-        Map<Long, Account> accountById = activeAccounts.stream()
-                .collect(Collectors.toMap(Account::getId, a -> a, (a, b) -> a));
-
-        Map<Long, List<String>> nodeAccountNosMap = new LinkedHashMap<>();
-        for (Map.Entry<Long, List<Long>> entry : nodeTagIdsMap.entrySet()) {
-            Long nodeId = entry.getKey();
-            for (Long tagId : entry.getValue()) {
-                for (Long accountId : tagAccountIdsMap.getOrDefault(tagId, Collections.emptyList())) {
-                    Account account = accountById.get(accountId);
-                    if (account != null) {
-                        nodeAccountNosMap.computeIfAbsent(nodeId, k -> new ArrayList<>())
-                                .add(account.getAccountNo());
-                    }
-                }
-            }
-        }
-
-        Map<String, long[]> accountTrafficMap = new LinkedHashMap<>();
-        for (Map.Entry<Long, long[]> entry : nodeIdTrafficMap.entrySet()) {
-            Long nodeId = entry.getKey();
-            long[] traffic = entry.getValue();
-            List<String> accountNos = nodeAccountNosMap.getOrDefault(nodeId, Collections.emptyList());
-            if (accountNos.isEmpty()) {
-                log.debug("节点 {} 没有关联的活跃账号，跳过流量统计", nodeId);
-                continue;
-            }
-            for (String accountNo : accountNos) {
-                accountTrafficMap.merge(accountNo, new long[]{traffic[0], traffic[1]},
-                        (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]});
-            }
-        }
-
-        Map<String, UserTrafficStats> result = new LinkedHashMap<>();
-        for (Map.Entry<String, long[]> entry : accountTrafficMap.entrySet()) {
-            result.put(entry.getKey(), new UserTrafficStats(entry.getValue()[0], entry.getValue()[1]));
-        }
-        return result;
     }
 
     private Map<String, UserTrafficStats> toUserTrafficStats(Map<String, long[]> accountTrafficMap) {

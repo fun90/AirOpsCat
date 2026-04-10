@@ -4,7 +4,6 @@ import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.ServerRepository;
-import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.scheduler.ScheduledSupport;
 import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnection;
@@ -25,7 +24,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -35,9 +33,6 @@ import java.util.stream.Collectors;
 public class ConntrackMarkService {
 
     private final ConcurrentHashMap<Long, Set<String>> markedConnections = new ConcurrentHashMap<>();
-
-    @Inject
-    TagRepository tagRepository;
 
     @Inject
     AccountRepository accountRepository;
@@ -142,35 +137,6 @@ public class ConntrackMarkService {
     }
 
     private Account resolveRateLimitAccount(ClashConnection connection, Map<String, Account> exactAccountMap) {
-        Optional<Account> exactAccount = connectionResolver.resolveExactAccount(connection, exactAccountMap);
-        if (exactAccount.isPresent()) {
-            return exactAccount.get();
-        }
-        if (connectionResolver.extractAuthUser(connection) != null) {
-            return null;
-        }
-        return resolveSingleAccountByNode(connection);
-    }
-
-    private Account resolveSingleAccountByNode(ClashConnection connection) {
-        Long nodeId = connectionResolver.extractNodeIdFromConnection(connection);
-        if (nodeId == null) {
-            return null;
-        }
-
-        Map<Long, List<Long>> nodeTagIdsMap = tagRepository.findTagIdsByNodeIds(List.of(nodeId));
-        List<Long> tagIds = nodeTagIdsMap.get(nodeId);
-        if (tagIds == null || tagIds.isEmpty()) {
-            return null;
-        }
-
-        List<Account> accounts = tagRepository.findActiveAccountsByTagIds(tagIds, LocalDateTime.now()).stream()
-                .filter(account -> account.getSpeed() != null && account.getSpeed() > 0)
-                .toList();
-        if (accounts.size() != 1) {
-            log.debug("节点 {} 对应账号数量不是 1，跳过 conntrack 打标, count={}", nodeId, accounts.size());
-            return null;
-        }
-        return accounts.getFirst();
+        return connectionResolver.resolveExactAccount(connection, exactAccountMap).orElse(null);
     }
 }

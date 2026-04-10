@@ -16,6 +16,10 @@ public class AccountRepository implements PanacheRepository<Account> {
     public List<Account> findByAccountNos(Set<String> accountNos) {
         return find("accountNo in ?1", accountNos).list();
     }
+
+    public List<Account> findActiveRateLimitedAccounts(LocalDateTime now) {
+        return find("disabled = 0 and speed is not null and speed > 0 and (toDate is null or toDate > ?1)", now).list();
+    }
     
     public Optional<Account> findByAuthCode(String authCode) {
         return find("authCode", authCode).firstResultOptional();
