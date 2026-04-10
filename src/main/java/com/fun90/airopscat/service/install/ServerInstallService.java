@@ -12,7 +12,6 @@ import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -35,9 +34,6 @@ public class ServerInstallService {
     private static final Pattern TITLE_PATTERN = Pattern.compile("^#\\s*@title\\s*:\\s*(.+)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern DESCRIPTION_PATTERN = Pattern.compile("^#\\s*@description\\s*:\\s*(.+)$", Pattern.CASE_INSENSITIVE);
 
-    @ConfigProperty(name = "airopscat.install.scripts.dir", defaultValue = "./config/install")
-    String installScriptsDir;
-
     @Inject
     ServerService serverService;
 
@@ -51,7 +47,7 @@ public class ServerInstallService {
     SystemConfigService systemConfigService;
 
     public List<InstallScriptDto> listScripts() {
-        Path dir = Path.of(installScriptsDir).normalize();
+        Path dir = Path.of(systemConfigService.getResolvedValue("airopscat.install.scripts.dir")).normalize();
         if (!Files.exists(dir) || !Files.isDirectory(dir)) {
             return List.of();
         }
@@ -126,7 +122,7 @@ public class ServerInstallService {
     }
 
     private String readScriptContent(String scriptName) {
-        Path file = Path.of(installScriptsDir, scriptName).normalize();
+        Path file = Path.of(systemConfigService.getResolvedValue("airopscat.install.scripts.dir"), scriptName).normalize();
         if (!Files.exists(file) || !Files.isRegularFile(file)) {
             throw new IllegalArgumentException("装机脚本不存在: " + scriptName);
         }

@@ -4,9 +4,9 @@ import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerTrafficStats;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.ServerTrafficStatsRepository;
+import com.fun90.airopscat.service.SystemConfigService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,8 +25,8 @@ public class ServerTrafficThresholdNotifier implements MonitorNotifier {
     @Inject
     ServerTrafficStatsRepository serverTrafficStatsRepository;
 
-    @ConfigProperty(name = "airopscat.server.traffic.threshold", defaultValue = "0.9")
-    double threshold;
+    @Inject
+    SystemConfigService systemConfigService;
 
     @Override
     public String getType() {
@@ -46,7 +46,7 @@ public class ServerTrafficThresholdNotifier implements MonitorNotifier {
         }
 
         Map<Long, ServerTrafficStats> statsMap = loadCurrentStats(servers);
-        double effectiveThreshold = normalizeThreshold(threshold);
+        double effectiveThreshold = normalizeThreshold(systemConfigService.getDoubleValue("airopscat.server.monitor.alert.traffic-threshold", 0.9));
 
         return servers.stream()
                 .filter(server -> server.getDisabled() == null || server.getDisabled() == 0)

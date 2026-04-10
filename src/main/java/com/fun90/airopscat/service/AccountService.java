@@ -13,7 +13,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
@@ -23,9 +22,6 @@ import java.util.Locale;
 
 @ApplicationScoped
 public class AccountService {
-
-    @ConfigProperty(name = "airopscat.account.multiplier", defaultValue = "1")
-    Integer accountMultiplier;
 
     @Inject
     AccountRepository accountRepository;
@@ -38,6 +34,9 @@ public class AccountService {
     
     @Inject
     AccountOnlineIpService accountOnlineIpService;
+
+    @Inject
+    SystemConfigService systemConfigService;
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Account> getAccountPage(String search, Long userId, String status, String onlineStatus) {
         // Create sort by createTime descending
@@ -177,8 +176,8 @@ public class AccountService {
         LocalDateTime inOneWeek = now.plusWeeks(1);
         
         Map<String, Long> stats = new HashMap<>();
-        stats.put("total", accountRepository.count() * accountMultiplier);
-        stats.put("active", accountRepository.countActiveAccounts(now) * accountMultiplier);
+        stats.put("total", accountRepository.count() * systemConfigService.getIntValue("airopscat.account.multiplier", 1));
+        stats.put("active", accountRepository.countActiveAccounts(now) * systemConfigService.getIntValue("airopscat.account.multiplier", 1));
         stats.put("expired", accountRepository.countExpiredAccounts(now));
         stats.put("disabled", accountRepository.countDisabledAccounts());
         stats.put("expiringSoon", accountRepository.countExpiringInOneWeek(now, inOneWeek));
@@ -188,7 +187,7 @@ public class AccountService {
                 .map(AccountOnlineIpDto::getAccountNo)
                 .distinct()
                 .count();
-        stats.put("onlineUsers", onlineUsers * accountMultiplier);
+        stats.put("onlineUsers", onlineUsers * systemConfigService.getIntValue("airopscat.account.multiplier", 1));
         
         return stats;
     }

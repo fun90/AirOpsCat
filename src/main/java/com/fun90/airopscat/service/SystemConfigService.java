@@ -249,6 +249,15 @@ public class SystemConfigService {
                 item("airopscat.apple.pwd", "Apple 密码", "开放接口返回的 Apple 密码。", INPUT_PASSWORD, false, true, false, true, "your_apple_pwd_here", "your_apple_pwd_here", true)
         ));
 
+        groups.put("account", group(
+                "account",
+                "账号设置",
+                "账号统计展示相关参数。",
+                45,
+                false,
+                item("airopscat.account.multiplier", "账号倍数", "账号总数和在线数等统计数值的展示倍率，设为 1 时不放大。", INPUT_NUMBER, true, false, false, true, "1", "1")
+        ));
+
         groups.put("template", group(
                 "template",
                 "模板与安装",
@@ -256,6 +265,7 @@ public class SystemConfigService {
                 50,
                 false,
                 item("airopscat.config.templates.dir", "模板目录", "订阅和核心配置模板目录。", INPUT_TEXT, true, false, false, true, "./config", "./config"),
+                item("airopscat.install.scripts.dir", "安装脚本目录", "一键安装脚本的本地存放目录。", INPUT_TEXT, true, false, false, true, "./config/install", "./config/install"),
                 item("airopscat.install.remote-work-dir", "远端工作目录", "一键安装脚本在服务器上的工作目录。", INPUT_TEXT, true, false, false, true, "/tmp/airopscat-installer", "/tmp/airopscat-installer"),
                 item("airopscat.deployment.max-parallel-servers", "部署并发服务器数", "单轮节点部署最多并发处理的服务器数。", INPUT_NUMBER, true, false, false, true, "4", "4")
         ));
