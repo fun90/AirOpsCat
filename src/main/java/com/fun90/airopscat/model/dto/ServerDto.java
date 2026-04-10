@@ -27,7 +27,6 @@ public class ServerDto {
     private BigDecimal price;
     private BigDecimal multiple;
     private Integer bandwidth;
-    private String nic;
     private Integer cpuCores;
     private Integer disabled;
     private Integer external;

@@ -701,7 +701,7 @@ const accountTable = new DataTable({
                 uuid: '',
                 authCode: '',
                 maxOnlineIps: 0,
-                speed: 0,
+                speed: 2048,
                 bandwidth: 0,
                 disabled: false,
                 remark: '',

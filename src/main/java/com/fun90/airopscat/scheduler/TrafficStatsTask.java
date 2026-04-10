@@ -239,7 +239,7 @@ public class TrafficStatsTask {
 
                 try {
                     long adjustedUpload = multiple.multiply(new BigDecimal(trafficStats.uploadBytes())).longValue();
-                    long adjustedDownload = multiple.multiply(new BigDecimal(trafficStats.downloadBytes())).longValue();
+                    long adjustedDownload = trafficStats.downloadBytes();
                     totalUploadBytes += adjustedUpload;
                     totalDownloadBytes += adjustedDownload;
 

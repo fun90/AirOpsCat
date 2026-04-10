@@ -58,9 +58,6 @@ public class Server {
 
     private Integer bandwidth;
 
-    @Column(name = "nic")
-    private String nic;
-
     private Integer cpuCores;
     
     private Integer disabled;
