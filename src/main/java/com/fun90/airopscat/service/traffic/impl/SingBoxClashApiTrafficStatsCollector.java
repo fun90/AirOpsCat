@@ -1,22 +1,19 @@
 package com.fun90.airopscat.service.traffic.impl;
 
 import com.fun90.airopscat.annotation.SupportedCores;
-import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.entity.Account;
-import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
-import com.fun90.airopscat.repository.AccountRepository;
-import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.TagRepository;
+import com.fun90.airopscat.service.singbox.SingBoxClashApiClient;
+import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnection;
+import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnectionsResponse;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.traffic.TrafficStatsCollector;
 import com.fun90.airopscat.service.traffic.UserTrafficStats;
-import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -25,7 +22,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -36,17 +32,11 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
 
     private static final String NODE_TAG_PREFIX = "node_";
 
-    @ConfigProperty(name = "airopscat.sing-box.clash-api.port", defaultValue = "19191")
-    int clashApiPort;
-
     @Inject
-    NodeRepository nodeRepository;
+    SingBoxClashApiClient clashApiClient;
 
     @Inject
     TagRepository tagRepository;
-
-    @Inject
-    AccountRepository accountRepository;
 
     /**
      * 记录上次采集时每个连接的流量快照，用于增量计算
@@ -57,34 +47,18 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
     @Override
     public Map<String, UserTrafficStats> collectUserTrafficStats(SshConnection connection, Server server, ServerConfig serverConfig) {
         try {
-            String command = String.format("curl -s http://127.0.0.1:%d/connections", clashApiPort);
-            CommandResult result = connection.executeCommand(command);
-            if (!result.isSuccess()) {
-                log.error("执行 clash API 命令失败, serverId={}, stderr={}", server.getId(), result.getStderr());
-                return Collections.emptyMap();
-            }
-
-            String output = result.getStdout();
-            if (output == null || output.isBlank()) {
-                log.debug("clash API 返回空结果, serverId={}", server.getId());
-                return Collections.emptyMap();
-            }
-
-            ClashConnectionsResponse response = JsonUtil.toObject(output, ClashConnectionsResponse.class);
+            ClashConnectionsResponse response = clashApiClient.queryConnections(connection);
             if (response == null || response.connections() == null || response.connections().isEmpty()) {
                 log.debug("clash API 没有活跃连接, serverId={}", server.getId());
                 previousSnapshots.remove(server.getId());
                 return Collections.emptyMap();
             }
 
-            // 计算每个 inbound tag 的增量流量
             Map<String, long[]> tagTrafficDelta = computeTagTrafficDelta(server.getId(), response.connections());
-
             if (tagTrafficDelta.isEmpty()) {
                 return Collections.emptyMap();
             }
 
-            // 将 inbound tag 映射到账号
             return mapTagTrafficToAccounts(server.getId(), tagTrafficDelta);
 
         } catch (Exception e) {
@@ -140,7 +114,6 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
      * inbound tag 格式：node_{nodeId}，通过 tag→node→account 关系查找账号
      */
     private Map<String, UserTrafficStats> mapTagTrafficToAccounts(Long serverId, Map<String, long[]> tagTrafficDelta) {
-        // 从 inbound tag 提取 node ID
         Map<Long, long[]> nodeIdTrafficMap = new LinkedHashMap<>();
         for (Map.Entry<String, long[]> entry : tagTrafficDelta.entrySet()) {
             Long nodeId = extractNodeId(entry.getKey());
@@ -155,7 +128,6 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
             return Collections.emptyMap();
         }
 
-        // 查询 node → tag → account 映射
         List<Long> nodeIds = new ArrayList<>(nodeIdTrafficMap.keySet());
         Map<Long, List<Long>> nodeTagIdsMap = tagRepository.findTagIdsByNodeIds(nodeIds);
 
@@ -184,7 +156,6 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
         Map<Long, Account> accountById = activeAccounts.stream()
                 .collect(Collectors.toMap(Account::getId, a -> a, (a, b) -> a));
 
-        // 构造 nodeId → accountNos 映射
         Map<Long, List<String>> nodeAccountNosMap = new LinkedHashMap<>();
         for (Map.Entry<Long, List<Long>> entry : nodeTagIdsMap.entrySet()) {
             Long nodeId = entry.getKey();
@@ -199,7 +170,6 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
             }
         }
 
-        // 汇总每个账号的流量
         Map<String, long[]> accountTrafficMap = new LinkedHashMap<>();
         for (Map.Entry<Long, long[]> entry : nodeIdTrafficMap.entrySet()) {
             Long nodeId = entry.getKey();
@@ -250,36 +220,4 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
             return null;
         }
     }
-
-    // DTO records for JSON deserialization
-
-    record ClashConnectionsResponse(
-            List<ClashConnection> connections,
-            Long downloadTotal,
-            Long uploadTotal,
-            Long memory
-    ) {}
-
-    record ClashConnection(
-            String id,
-            Long upload,
-            Long download,
-            ClashConnectionMetadata metadata,
-            List<String> chains,
-            String rule,
-            String rulePayload,
-            String start
-    ) {}
-
-    record ClashConnectionMetadata(
-            String type,
-            String network,
-            String host,
-            String sourceIP,
-            String sourcePort,
-            String destinationIP,
-            String destinationPort,
-            String dnsMode,
-            String processPath
-    ) {}
 }
