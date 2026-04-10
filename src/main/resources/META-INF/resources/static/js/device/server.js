@@ -67,6 +67,7 @@ const serverTable = new DataTable({
                 price: '',
                 multiple: 1,
                 bandwidth: '',
+                nic: '',
                 disabled: false,
                 external: false,
                 remark: '',

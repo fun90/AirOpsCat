@@ -3,6 +3,9 @@ package com.fun90.airopscat.scheduler;
 import com.fun90.airopscat.model.dto.ScheduledTaskDto;
 import com.fun90.airopscat.service.DatabaseBackupService;
 import com.fun90.airopscat.service.SystemConfigService;
+import com.fun90.airopscat.service.ratelimit.ConntrackMarkService;
+import com.fun90.airopscat.service.ratelimit.RateLimitService;
+import com.fun90.airopscat.service.singbox.SingBoxConnectionCacheService;
 import io.quarkus.runtime.StartupEvent;
 import io.quarkus.scheduler.Scheduled;
 import io.quarkus.scheduler.Scheduler;
@@ -36,7 +39,9 @@ public class ProgrammaticTaskManager {
     private final DatabaseBackupService databaseBackupService;
     private final AccountExpirationTask accountExpirationTask;
     private final ResourceNotificationTask resourceNotificationTask;
-    private final TrafficStatsTask trafficStatsTask;
+    private final SingBoxConnectionCacheService singBoxConnectionCacheService;
+    private final ConntrackMarkService conntrackMarkService;
+    private final RateLimitService rateLimitService;
     private final CoreConfigCleanupTask coreConfigCleanupTask;
     private final ServerMonitorStatsCleanupTask serverMonitorStatsCleanupTask;
     private final ServerMonitorTask serverMonitorTask;
@@ -53,7 +58,9 @@ public class ProgrammaticTaskManager {
                                    DatabaseBackupService databaseBackupService,
                                    AccountExpirationTask accountExpirationTask,
                                    ResourceNotificationTask resourceNotificationTask,
-                                   TrafficStatsTask trafficStatsTask,
+                                   SingBoxConnectionCacheService singBoxConnectionCacheService,
+                                   ConntrackMarkService conntrackMarkService,
+                                   RateLimitService rateLimitService,
                                    CoreConfigCleanupTask coreConfigCleanupTask,
                                    ServerMonitorStatsCleanupTask serverMonitorStatsCleanupTask,
                                    ServerMonitorTask serverMonitorTask,
@@ -65,7 +72,9 @@ public class ProgrammaticTaskManager {
         this.databaseBackupService = databaseBackupService;
         this.accountExpirationTask = accountExpirationTask;
         this.resourceNotificationTask = resourceNotificationTask;
-        this.trafficStatsTask = trafficStatsTask;
+        this.singBoxConnectionCacheService = singBoxConnectionCacheService;
+        this.conntrackMarkService = conntrackMarkService;
+        this.rateLimitService = rateLimitService;
         this.coreConfigCleanupTask = coreConfigCleanupTask;
         this.serverMonitorStatsCleanupTask = serverMonitorStatsCleanupTask;
         this.serverMonitorTask = serverMonitorTask;
@@ -321,19 +330,47 @@ public class ProgrammaticTaskManager {
                 Scheduled.ConcurrentExecution.SKIP,
                 resourceNotificationTask::notifyExpiringResourcesToday
         ));
-        definitions.put("traffic-stats-collect", task(
-                "traffic-stats-collect",
-                "traffic-stats-collect",
-                "流量统计采集",
-                "采集账号和服务器流量统计数据。",
+        definitions.put("singbox-connection-fetch", task(
+                "singbox-connection-fetch",
+                "singbox-connection-fetch",
+                "Sing-box 连接采集",
+                "采集 sing-box 活跃连接并触发流量统计。",
                 "scheduled",
                 "定时任务",
                 90,
                 SCHEDULE_TYPE_CRON,
-                "airopscat.traffic.stats.cron",
+                "airopscat.singbox.connection.fetch-cron",
                 0L,
                 Scheduled.ConcurrentExecution.SKIP,
-                trafficStatsTask::collectUserTrafficStats
+                singBoxConnectionCacheService::refreshAll
+        ));
+        definitions.put("ratelimit-conntrack-mark", task(
+                "ratelimit-conntrack-mark",
+                "ratelimit-conntrack-mark",
+                "限速连接标记",
+                "根据活跃连接为 conntrack 连接打标，供 tc 规则限速使用。",
+                "scheduled",
+                "定时任务",
+                95,
+                SCHEDULE_TYPE_CRON,
+                "airopscat.singbox.connection.fetch-cron",
+                0L,
+                Scheduled.ConcurrentExecution.SKIP,
+                conntrackMarkService::markAll
+        ));
+        definitions.put("ratelimit-tc-sync", task(
+                "ratelimit-tc-sync",
+                "ratelimit-tc-sync",
+                "限速规则同步",
+                "全量同步服务器上的 tc 限速规则。",
+                "scheduled",
+                "定时任务",
+                100,
+                SCHEDULE_TYPE_CRON,
+                "airopscat.ratelimit.sync-cron",
+                0L,
+                Scheduled.ConcurrentExecution.SKIP,
+                rateLimitService::syncAll
         ));
         definitions.put("core-config-cleanup", task(
                 "core-config-cleanup",
@@ -342,7 +379,7 @@ public class ProgrammaticTaskManager {
                 "清理服务器上的旧内核配置备份文件。",
                 "scheduled",
                 "定时任务",
-                100,
+                110,
                 SCHEDULE_TYPE_CRON,
                 "airopscat.core.config.cleanup.cron",
                 0L,
@@ -356,7 +393,7 @@ public class ProgrammaticTaskManager {
                 "按保留策略清理过期节点部署历史。",
                 "scheduled",
                 "定时任务",
-                110,
+                120,
                 SCHEDULE_TYPE_CRON,
                 "airopscat.node.deployment.history.cleanup.cron",
                 0L,
@@ -370,7 +407,7 @@ public class ProgrammaticTaskManager {
                 "按保留策略清理过期账户流量明细。",
                 "scheduled",
                 "定时任务",
-                120,
+                130,
                 SCHEDULE_TYPE_CRON,
                 "airopscat.account.traffic.cleanup.cron",
                 0L,
@@ -384,7 +421,7 @@ public class ProgrammaticTaskManager {
                 "按保留策略清理过期服务器流量明细。",
                 "scheduled",
                 "定时任务",
-                130,
+                140,
                 SCHEDULE_TYPE_CRON,
                 "airopscat.server.traffic.cleanup.cron",
                 0L,

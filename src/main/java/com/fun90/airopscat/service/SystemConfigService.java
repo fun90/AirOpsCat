@@ -9,15 +9,18 @@ import com.fun90.airopscat.util.CryptoUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.Config;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Slf4j
 @ApplicationScoped
 public class SystemConfigService {
 
@@ -63,6 +66,7 @@ public class SystemConfigService {
                 initializeDefaultConfig(groupDefinition.groupKey(), itemDefinition);
             }
         }
+        cleanupObsoleteConfigs();
     }
 
     public String getResolvedValue(String key) {
@@ -255,7 +259,8 @@ public class SystemConfigService {
                 "账号统计展示相关参数。",
                 45,
                 false,
-                item("airopscat.account.multiplier", "账号倍数", "账号总数和在线数等统计数值的展示倍率，设为 1 时不放大。", INPUT_NUMBER, true, false, false, true, "1", "1")
+                item("airopscat.account.multiplier", "账号倍数", "账号总数和在线数等统计数值的展示倍率，设为 1 时不放大。", INPUT_NUMBER, true, false, false, true, "1", "1"),
+                item("airopscat.ratelimit.enabled", "启用限速", "全局限速开关，关闭后所有账号限速规则不生效。", INPUT_CHECKBOX, false, false, false, true, "", "false")
         ));
 
         groups.put("template", group(
@@ -328,7 +333,8 @@ public class SystemConfigService {
                 false,
                 item("airopscat.account.expiration.cron", "过期账号处理 Cron", "检查过期账号并重新部署关联节点。", INPUT_TEXT, true, false, false, true, "0 0 5 * * ?", "0 0 5 * * ?"),
                 item("airopscat.expiration.notify.cron", "资源到期提醒 Cron", "账号、服务器、域名到期提醒调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 10 * * ?", "0 0 10 * * ?"),
-                item("airopscat.traffic.stats.cron", "流量统计采集 Cron", "采集账号和服务器流量统计的调度表达式。", INPUT_TEXT, true, false, false, true, "0 */15 * * * ?", "0 */15 * * * ?"),
+                item("airopscat.singbox.connection.fetch-cron", "Sing-box 连接采集 Cron", "定期从所有 sing-box 服务器拉取活跃连接列表，采集完成后立即触发流量统计，默认每 5 秒一次。", INPUT_TEXT, true, false, false, true, "0/5 * * * * ?", "0/5 * * * * ?"),
+                item("airopscat.ratelimit.sync-cron", "限速规则同步 Cron", "全量同步 tc HTB 规则的 Cron 表达式，防止服务器重启后规则丢失，默认每小时执行。", INPUT_TEXT, true, false, false, true, "0 0 * * * ?", "0 0/1 * * * ?"),
                 item("airopscat.node.deployment.history.cleanup.cron", "部署历史清理 Cron", "清理过期节点部署历史的调度表达式。", INPUT_TEXT, true, false, false, true, "0 20 3 * * ?", "0 20 3 * * ?"),
                 item("airopscat.account.traffic.cleanup.cron", "账户流量清理 Cron", "清理过期账户流量明细的调度表达式。", INPUT_TEXT, true, false, false, true, "0 40 3 * * ?", "0 40 3 * * ?"),
                 item("airopscat.server.traffic.cleanup.cron", "服务器流量清理 Cron", "清理过期服务器流量明细的调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 4 * * ?", "0 0 4 * * ?"),
@@ -394,6 +400,17 @@ public class SystemConfigService {
         Map<String, ConfigItemDefinition> result = new LinkedHashMap<>();
         groups.values().forEach(group -> group.items().forEach(result::put));
         return result;
+    }
+
+    private void cleanupObsoleteConfigs() {
+        LinkedHashSet<String> definedKeys = new LinkedHashSet<>(itemDefinitions.keySet());
+        for (SystemConfig systemConfig : systemConfigRepository.listAll()) {
+            if (!definedKeys.contains(systemConfig.getConfigKey())) {
+                log.info("删除过时系统配置项: {}", systemConfig.getConfigKey());
+                systemConfigRepository.delete("configKey", systemConfig.getConfigKey());
+                resolvedValueCache.remove(systemConfig.getConfigKey());
+            }
+        }
     }
 
     private String normalizeValue(String value, String inputType) {

@@ -13,11 +13,13 @@ import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.deployment.registry.CoreConfigBuilderRegistry;
+import com.fun90.airopscat.service.ratelimit.RateLimitService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
 import jakarta.enterprise.context.control.ActivateRequestContext;
 import jakarta.enterprise.context.ApplicationScoped;
-import lombok.RequiredArgsConstructor;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
@@ -26,11 +28,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 @Slf4j
 @ApplicationScoped
-@RequiredArgsConstructor
 public class CoreDeploymentExecutor {
 
     private static final String CORE_TYPE_XRAY = "xray";
@@ -43,6 +46,27 @@ public class CoreDeploymentExecutor {
     private final CoreConfigBuilderRegistry coreConfigBuilderRegistry;
     private final NodeDeploymentVersionService nodeDeploymentVersionService;
     private final SshConnectionService sshConnectionService;
+    private final RateLimitService rateLimitService;
+    private final ExecutorService executorService;
+
+    @Inject
+    public CoreDeploymentExecutor(CoreManagementService coreManagementService,
+                                  ServerConfigRepository serverConfigRepository,
+                                  NodeRepository nodeRepository,
+                                  CoreConfigBuilderRegistry coreConfigBuilderRegistry,
+                                  NodeDeploymentVersionService nodeDeploymentVersionService,
+                                  SshConnectionService sshConnectionService,
+                                  RateLimitService rateLimitService,
+                                  @Named("deploymentTaskExecutor") ExecutorService executorService) {
+        this.coreManagementService = coreManagementService;
+        this.serverConfigRepository = serverConfigRepository;
+        this.nodeRepository = nodeRepository;
+        this.coreConfigBuilderRegistry = coreConfigBuilderRegistry;
+        this.nodeDeploymentVersionService = nodeDeploymentVersionService;
+        this.sshConnectionService = sshConnectionService;
+        this.rateLimitService = rateLimitService;
+        this.executorService = executorService;
+    }
 
     @ConfigProperty(name = "airopscat.deployment.skip-remote-config", defaultValue = "false")
     boolean skipRemoteConfig;
@@ -118,6 +142,19 @@ public class CoreDeploymentExecutor {
         CoreManagementResult restartResult = results.get(1);
         if (restartResult == null || !restartResult.isSuccess()) {
             throw new RuntimeException("服务重启失败: " + (restartResult != null ? restartResult.getMessage() : "未知错误"));
+        }
+
+        if (CORE_TYPE_SING_BOX.equalsIgnoreCase(coreType)) {
+            CompletableFuture.runAsync(() -> {
+                try {
+                    if (rateLimitService.isEnabled()) {
+                        rateLimitService.initServer(server);
+                        rateLimitService.syncServer(server);
+                    }
+                } catch (Exception e) {
+                    log.warn("初始化服务器 {} 限速规则失败，可由定时任务恢复", server.getId(), e);
+                }
+            }, executorService);
         }
     }
 

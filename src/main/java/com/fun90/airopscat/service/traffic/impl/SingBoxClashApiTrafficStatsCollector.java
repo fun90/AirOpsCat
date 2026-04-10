@@ -6,9 +6,9 @@ import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.singbox.ServerConnectionSnapshot;
-import com.fun90.airopscat.service.singbox.SingBoxClashApiClient;
 import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnection;
 import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnectionsResponse;
+import com.fun90.airopscat.service.singbox.SingBoxConnectionCacheService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.traffic.TrafficStatsCollector;
 import com.fun90.airopscat.service.traffic.UserTrafficStats;
@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -36,10 +37,10 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
     private static final String NODE_TAG_PREFIX = "node_";
 
     @Inject
-    SingBoxClashApiClient clashApiClient;
+    TagRepository tagRepository;
 
     @Inject
-    TagRepository tagRepository;
+    SingBoxConnectionCacheService connectionCacheService;
 
     /**
      * 每台服务器的采集快照：上次采集时间 + 各连接流量基线
@@ -50,7 +51,13 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
     @Override
     public Map<String, UserTrafficStats> collectUserTrafficStats(SshConnection connection, Server server, ServerConfig serverConfig) {
         try {
-            ClashConnectionsResponse response = clashApiClient.queryConnections(connection);
+            Optional<ClashConnectionsResponse> responseOptional = connectionCacheService.get(server.getId());
+            if (responseOptional.isEmpty()) {
+                log.debug("sing-box 连接缓存尚未就绪, serverId={}", server.getId());
+                return Collections.emptyMap();
+            }
+
+            ClashConnectionsResponse response = responseOptional.get();
             if (response == null || response.connections() == null || response.connections().isEmpty()) {
                 log.debug("clash API 没有活跃连接, serverId={}", server.getId());
                 serverSnapshots.remove(server.getId());

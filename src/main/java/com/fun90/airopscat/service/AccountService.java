@@ -3,23 +3,35 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.AccountDto;
 import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
 import com.fun90.airopscat.model.entity.Account;
+import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.model.enums.PeriodType;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
+import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.ServerRepository;
+import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.repository.UserRepository;
+import com.fun90.airopscat.service.ratelimit.RateLimitService;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.context.control.RequestContextController;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 
+@Slf4j
 @ApplicationScoped
 public class AccountService {
 
@@ -37,6 +49,25 @@ public class AccountService {
 
     @Inject
     SystemConfigService systemConfigService;
+
+    @Inject
+    TagRepository tagRepository;
+
+    @Inject
+    NodeRepository nodeRepository;
+
+    @Inject
+    ServerRepository serverRepository;
+
+    @Inject
+    RateLimitService rateLimitService;
+
+    @Inject
+    @Named("blockingTaskExecutor")
+    ExecutorService executorService;
+
+    @Inject
+    RequestContextController requestContextController;
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Account> getAccountPage(String search, Long userId, String status, String onlineStatus) {
         // Create sort by createTime descending
@@ -319,6 +350,7 @@ public class AccountService {
         }
         
         accountRepository.persist(account);
+        triggerRateLimitRefreshIfNeeded(account);
         return account;
     }
 
@@ -329,10 +361,16 @@ public class AccountService {
             throw new EntityNotFoundException("Account not found");
         }
 
+        Integer oldSpeed = existingAccount.getSpeed();
+
         // 使用工具方法复制非null属性
         copyNonNullProperties(account, existingAccount);
 
         accountRepository.persist(existingAccount);
+
+        if (account.getSpeed() != null && !Objects.equals(oldSpeed, existingAccount.getSpeed())) {
+            triggerRateLimitRefresh(existingAccount);
+        }
 
         // No need to call save/persist for updates in Panache
         return existingAccount;
@@ -422,6 +460,70 @@ public class AccountService {
                 // 忽略无法访问的字段
             }
         }
+    }
+
+    private void triggerRateLimitRefreshIfNeeded(Account account) {
+        if (account.getSpeed() != null && account.getSpeed() > 0) {
+            triggerRateLimitRefresh(account);
+        }
+    }
+
+    private void triggerRateLimitRefresh(Account account) {
+        CompletableFuture.runAsync(() -> {
+            boolean activated = requestContextController.activate();
+            try {
+                for (Server server : findRelatedServers(account.getId())) {
+                    rateLimitService.applyAccountRateLimit(server, account);
+                }
+            } catch (Exception e) {
+                log.error("更新账号 {} 限速规则失败", account.getId(), e);
+            } finally {
+                if (activated) {
+                    requestContextController.deactivate();
+                }
+            }
+        }, executorService);
+    }
+
+    private List<Server> findRelatedServers(Long accountId) {
+        if (accountId == null) {
+            return List.of();
+        }
+
+        List<Node> directNodes = tagRepository.findNodesByAccountIds(List.of(accountId));
+        Set<String> nodeGroups = directNodes.stream()
+                .map(Node::getNodeGroup)
+                .filter(Objects::nonNull)
+                .filter(group -> !group.isBlank())
+                .collect(java.util.stream.Collectors.toSet());
+        List<Node> groupNodes = nodeGroups.isEmpty()
+                ? Collections.emptyList()
+                : nodeRepository.findByNodeGroupIn(new ArrayList<>(nodeGroups));
+
+        Map<Long, Server> serverMap = new LinkedHashMap<>();
+        for (Node node : directNodes) {
+            putServer(serverMap, node.getServer());
+            if (node.getServerId() != null) {
+                putServer(serverMap, serverRepository.findById(node.getServerId()));
+            }
+        }
+        for (Node node : groupNodes) {
+            putServer(serverMap, node.getServer());
+            if (node.getServerId() != null) {
+                putServer(serverMap, serverRepository.findById(node.getServerId()));
+            }
+        }
+        return new ArrayList<>(serverMap.values());
+    }
+
+    private void putServer(Map<Long, Server> serverMap, Server server) {
+        if (server == null || server.getId() == null) {
+            return;
+        }
+        if (server.getDisabled() != null && server.getDisabled() == 1) {
+            return;
+        }
+        serverMap.putIfAbsent(server.getId(), server);
     }
 
 }

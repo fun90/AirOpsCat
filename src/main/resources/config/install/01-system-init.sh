@@ -31,8 +31,8 @@ install_packages() {
   log "更新 APT 软件包索引"
   apt-get update
 
-  log "安装基础软件包: cron vim wget"
-  apt-get install -y cron vim wget htop
+  log "安装基础软件包: cron vim wget htop conntrack"
+  apt-get install -y cron vim wget htop conntrack
 }
 
 install_monitor_collector() {

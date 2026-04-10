@@ -43,9 +43,12 @@ public class Account {
     
     @Column(name = "max_online_ips")
     private Integer maxOnlineIps;
-    
+
+    /**
+     * 账号限速（KB/s），0 或 null 表示不限速
+     */
     private Integer speed;
-    
+
     private Integer bandwidth;
     
     private Integer disabled = 0;

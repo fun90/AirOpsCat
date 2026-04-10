@@ -207,6 +207,7 @@ public class ServerService {
         dto.setPrice(server.getPrice());
         dto.setMultiple(server.getMultiple());
         dto.setBandwidth(server.getBandwidth());
+        dto.setNic(server.getNic());
         dto.setCpuCores(server.getCpuCores());
         dto.setExpireDate(server.getExpireDate());
         dto.setBandwidthDate(server.getBandwidthDate());
@@ -284,6 +285,7 @@ public class ServerService {
         target.setSupplier(src.getSupplier());
         target.setPrice(src.getPrice());
         target.setBandwidth(src.getBandwidth());
+        target.setNic(src.getNic());
         target.setExpireDate(src.getExpireDate());
         target.setBandwidthDate(src.getBandwidthDate());
         target.setRemark(src.getRemark());
@@ -305,6 +307,7 @@ public class ServerService {
         server.setPrice(dto.getPrice());
         server.setMultiple(dto.getMultiple());
         server.setBandwidth(dto.getBandwidth());
+        server.setNic(dto.getNic());
         server.setCpuCores(dto.getCpuCores());
         server.setExpireDate(dto.getExpireDate());
         server.setBandwidthDate(dto.getBandwidthDate());

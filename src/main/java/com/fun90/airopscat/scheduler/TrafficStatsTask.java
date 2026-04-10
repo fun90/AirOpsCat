@@ -9,11 +9,8 @@ import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.AccountTrafficStatsService;
 import com.fun90.airopscat.service.BarkService;
 import com.fun90.airopscat.service.ServerTrafficStatsService;
-import com.fun90.airopscat.service.ssh.SshConnection;
-import com.fun90.airopscat.service.ssh.SshConnectionService;
-import com.fun90.airopscat.service.traffic.TrafficStatsCollector;
 import com.fun90.airopscat.service.traffic.UserTrafficStats;
-import com.fun90.airopscat.service.traffic.registry.TrafficStatsCollectorRegistry;
+import com.fun90.airopscat.service.traffic.impl.SingBoxClashApiTrafficStatsCollector;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +27,9 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class TrafficStatsTask {
 
+    private static final String CORE_TYPE_SING_BOX = "sing-box";
+    private static final String CORE_TYPE_SINGBOX = "singbox";
+
     @Inject
     ServerConfigRepository serverConfigRepository;
 
@@ -40,16 +40,10 @@ public class TrafficStatsTask {
     AccountRepository accountRepository;
 
     @Inject
-    SshConnectionService sshConnectionService;
-
-    @Inject
     AccountTrafficStatsService accountTrafficStatsService;
 
     @Inject
     ServerTrafficStatsService serverTrafficStatsService;
-
-    @Inject
-    TrafficStatsCollectorRegistry trafficStatsCollectorRegistry;
 
     @Inject
     ScheduledSupport scheduledSupport;
@@ -57,165 +51,102 @@ public class TrafficStatsTask {
     @Inject
     BarkService barkService;
 
-    public void collectUserTrafficStats() {
+    @Inject
+    SingBoxClashApiTrafficStatsCollector singBoxCollector;
+
+    public void collectForAllServers() {
         long startedAt = System.nanoTime();
-        log.info("开始执行定时任务：收集用户流量统计");
+        log.info("开始执行 sing-box 流量统计采集");
 
         try {
-            List<ServerConfig> serverConfigs = loadServerConfigs();
+            List<ServerConfig> serverConfigs = loadEnabledSingBoxConfigs();
             if (serverConfigs.isEmpty()) {
-                log.info("用户流量统计任务结束，没有找到可用的内核配置，耗时: {} ms",
-                        elapsedMillis(startedAt));
+                log.info("未找到启用的 sing-box 配置，跳过流量统计，耗时: {} ms", elapsedMillis(startedAt));
                 return;
             }
 
-            log.info("找到 {} 个内核配置，支持的流量采集器: {}", serverConfigs.size(),
-                    getRegisteredCollectorTypes());
-
             LocalDateTime now = LocalDateTime.now();
-            int successCount = 0;
-            int skippedCount = 0;
-            int failureCount = 0;
-            int processedServerCount = 0;
-
             Map<Long, List<ServerConfig>> serverConfigsByServerId = new LinkedHashMap<>();
             for (ServerConfig serverConfig : serverConfigs) {
                 if (serverConfig.getServerId() == null) {
-                    log.debug("配置 {} 未关联服务器，跳过流量统计", serverConfig.getId());
-                    skippedCount++;
                     continue;
                 }
                 serverConfigsByServerId.computeIfAbsent(serverConfig.getServerId(), ignored -> new ArrayList<>())
                         .add(serverConfig);
             }
 
+            int successCount = 0;
+            int skippedCount = 0;
+            int failureCount = 0;
+            int processedServerCount = 0;
+
             for (Map.Entry<Long, List<ServerConfig>> entry : serverConfigsByServerId.entrySet()) {
                 try {
-                    ServerTrafficCollectSummary summary = collectServerTrafficForServer(entry.getKey(), entry.getValue(), now);
+                    Server server = loadServer(entry.getKey());
+                    if (scheduledSupport.isInvalidServer(server, now.toLocalDate())) {
+                        logInvalidServer(entry.getKey(), server, now);
+                        skippedCount += entry.getValue().size();
+                        continue;
+                    }
+
+                    TrafficCollectResult result = collectServerTrafficStats(server, entry.getValue());
                     processedServerCount++;
-                    TrafficCollectResult result = summary.result();
                     successCount += result.successCount();
                     skippedCount += result.skippedCount();
                     failureCount += result.failureCount();
-                    log.info("服务器流量统计处理完成，serverId={}, serverName={}, 配置数: {}, 成功: {}, 跳过: {}, 失败: {}, 耗时: {} ms",
-                            summary.serverId(), summary.serverName(), summary.configCount(),
-                            result.successCount(), result.skippedCount(), result.failureCount(), summary.elapsedMillis());
                 } catch (Exception e) {
-                    log.error("按服务器处理流量统计时发生错误, serverId={}", entry.getKey(), e);
-                    failureCount++;
+                    log.error("采集服务器流量统计失败, serverId={}", entry.getKey(), e);
+                    failureCount += entry.getValue().size();
                 }
             }
 
-            log.info("流量统计收集完成 - 服务器数: {}, 配置数: {}, 成功: {}, 跳过: {}, 失败: {}, 耗时: {} ms",
+            log.info("sing-box 流量统计收集完成 - 服务器数: {}, 配置数: {}, 成功: {}, 跳过: {}, 失败: {}, 耗时: {} ms",
                     processedServerCount, serverConfigs.size(), successCount, skippedCount, failureCount,
                     elapsedMillis(startedAt));
 
             if (failureCount > 0) {
-                sendWarningNotification("AirOpsCat 流量统计",
+                barkService.sendWarningNotification("AirOpsCat 流量统计",
                         String.format("流量统计收集完成，成功: %d, 跳过: %d, 失败: %d",
                                 successCount, skippedCount, failureCount));
             }
         } catch (Exception e) {
-            log.error("执行流量统计任务时发生错误", e);
-            sendErrorNotification("AirOpsCat 流量统计失败", "执行流量统计任务时发生错误: " + e.getMessage());
+            log.error("执行 sing-box 流量统计任务时发生错误", e);
+            barkService.sendErrorNotification("AirOpsCat 流量统计失败", "执行流量统计任务时发生错误: " + e.getMessage());
         } finally {
-            log.info("流量统计任务执行完成，耗时: {} ms", elapsedMillis(startedAt));
+            log.info("sing-box 流量统计任务执行完成，耗时: {} ms", elapsedMillis(startedAt));
         }
     }
 
-    List<ServerConfig> loadServerConfigs() {
-        return serverConfigRepository.findAll().list();
+    List<ServerConfig> loadEnabledSingBoxConfigs() {
+        return serverConfigRepository.findAll().list().stream()
+                .filter(this::isEnabledSingBoxConfig)
+                .toList();
     }
 
     Server loadServer(Long serverId) {
         return serverRepository.findById(serverId);
     }
 
-    boolean isSupportedConfigType(String configType) {
-        return getRegisteredCollectorTypes().contains(configType);
-    }
-
-    TrafficStatsCollector getCollector(String configType) {
-        return trafficStatsCollectorRegistry.getStrategy(configType);
-    }
-
-    java.util.Set<String> getRegisteredCollectorTypes() {
-        return trafficStatsCollectorRegistry.getRegisteredTypes();
-    }
-
-    SshConnection createConnection(Server server) {
-        return sshConnectionService.createConnection(scheduledSupport.buildSshConfig(server));
-    }
-
-    void sendWarningNotification(String title, String body) {
-        barkService.sendWarningNotification(title, body);
-    }
-
-    void sendErrorNotification(String title, String body) {
-        barkService.sendErrorNotification(title, body);
-    }
-
-    private ServerTrafficCollectSummary collectServerTrafficForServer(Long serverId, List<ServerConfig> serverConfigs, LocalDateTime now) {
-        long startedAt = System.nanoTime();
-        int skippedCount = 0;
-        List<ServerConfig> eligibleConfigs = new ArrayList<>();
-
-        for (ServerConfig serverConfig : serverConfigs) {
-            String configType = normalizeConfigType(serverConfig.getConfigType());
-            if (configType == null) {
-                log.debug("配置 {} 未设置 configType，跳过流量统计", serverConfig.getId());
-                skippedCount++;
-                continue;
-            }
-            if (serverConfig.getEnabled() != null && serverConfig.getEnabled() == 0) {
-                log.debug("配置 {} 已禁用，跳过流量统计", serverConfig.getId());
-                skippedCount++;
-                continue;
-            }
-            if (!isSupportedConfigType(configType)) {
-                log.debug("配置 {} 的内核 {} 暂无流量采集器，跳过", serverConfig.getId(), configType);
-                skippedCount++;
-                continue;
-            }
-            eligibleConfigs.add(serverConfig);
+    private boolean isEnabledSingBoxConfig(ServerConfig serverConfig) {
+        if (serverConfig == null || serverConfig.getServerId() == null) {
+            return false;
         }
-
-        Server server = loadServer(serverId);
-        if (scheduledSupport.isInvalidServer(server, now.toLocalDate())) {
-            logInvalidServer(serverId, server, now);
-            return new ServerTrafficCollectSummary(serverId, server == null ? null : server.getName(),
-                    serverConfigs.size(), new TrafficCollectResult(0, skippedCount + eligibleConfigs.size(), 0),
-                    elapsedMillis(startedAt));
+        if (serverConfig.getEnabled() != null && serverConfig.getEnabled() == 0) {
+            return false;
         }
-
-        if (eligibleConfigs.isEmpty()) {
-            return new ServerTrafficCollectSummary(serverId, server.getName(), serverConfigs.size(),
-                    new TrafficCollectResult(0, skippedCount, 0), elapsedMillis(startedAt));
-        }
-
-        try (SshConnection connection = createConnection(server)) {
-            TrafficCollectResult result = collectServerTrafficStats(connection, server, eligibleConfigs);
-            return new ServerTrafficCollectSummary(serverId, server.getName(), serverConfigs.size(),
-                    result.merge(new TrafficCollectResult(0, skippedCount, 0)), elapsedMillis(startedAt));
-        } catch (Exception e) {
-            log.error("创建 SSH 连接或收集服务器流量统计失败, serverId={}, serverName={}",
-                    server.getId(), server.getName(), e);
-            return new ServerTrafficCollectSummary(serverId, server.getName(), serverConfigs.size(),
-                    new TrafficCollectResult(0, skippedCount, eligibleConfigs.size()), elapsedMillis(startedAt));
-        }
+        String configType = normalizeConfigType(serverConfig.getConfigType());
+        return CORE_TYPE_SING_BOX.equals(configType) || CORE_TYPE_SINGBOX.equals(configType);
     }
 
-    TrafficCollectResult collectServerTrafficStats(SshConnection connection, Server server, List<ServerConfig> serverConfigs) {
+    TrafficCollectResult collectServerTrafficStats(Server server, List<ServerConfig> serverConfigs) {
         int successCount = 0;
         int skippedCount = 0;
         int failureCount = 0;
 
         for (ServerConfig serverConfig : serverConfigs) {
-            String configType = normalizeConfigType(serverConfig.getConfigType());
-            TrafficStatsCollector collector = getCollector(configType);
-            Map<String, UserTrafficStats> allTrafficStats = collector.collectUserTrafficStats(connection, server, serverConfig);
+            Map<String, UserTrafficStats> allTrafficStats = singBoxCollector.collectUserTrafficStats(null, server, serverConfig);
             if (allTrafficStats.isEmpty()) {
-                log.debug("服务器 {} 的 {} 内核没有流量统计数据", server.getId(), configType);
+                log.debug("服务器 {} 的 sing-box 配置没有流量统计数据", server.getId());
                 skippedCount++;
                 continue;
             }
@@ -232,7 +163,6 @@ public class TrafficStatsTask {
                 String accountNo = entry.getKey();
                 UserTrafficStats trafficStats = entry.getValue();
                 if (trafficStats == null) {
-                    log.debug("服务器 {} 上的用户 {} 没有流量数据", server.getName(), accountNo);
                     skippedCount++;
                     continue;
                 }
@@ -259,10 +189,6 @@ public class TrafficStatsTask {
                             adjustedDownload
                     );
                     successCount++;
-
-                    log.debug("处理服务器 {} 上的用户 {} 流量统计: 上传 {} 字节, 下载 {} 字节, core={}",
-                            server.getName(), accountNo, trafficStats.uploadBytes(), trafficStats.downloadBytes(),
-                            configType);
                 } catch (Exception e) {
                     log.error("处理用户 {} 流量统计失败: {}", accountNo, e.getMessage(), e);
                     failureCount++;
@@ -306,16 +232,5 @@ public class TrafficStatsTask {
     }
 
     record TrafficCollectResult(int successCount, int skippedCount, int failureCount) {
-        TrafficCollectResult merge(TrafficCollectResult other) {
-            return new TrafficCollectResult(
-                    successCount + other.successCount,
-                    skippedCount + other.skippedCount,
-                    failureCount + other.failureCount
-            );
-        }
-    }
-
-    private record ServerTrafficCollectSummary(Long serverId, String serverName, int configCount,
-                                               TrafficCollectResult result, long elapsedMillis) {
     }
 }
