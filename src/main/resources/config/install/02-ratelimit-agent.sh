@@ -21,8 +21,8 @@ install_packages() {
   log "更新 APT 软件包索引"
   apt-get update
 
-  log "安装限速代理依赖: python3 curl conntrack iproute2 iptables ethtool"
-  apt-get install -y python3 curl conntrack iproute2 iptables ethtool
+  log "安装限速代理依赖: python3 curl conntrack iproute2 iptables"
+  apt-get install -y python3 curl conntrack iproute2 iptables
 }
 
 install_agent_files() {
@@ -41,14 +41,12 @@ AIROPSCAT_RATELIMIT_NIC=
 AIROPSCAT_CLASH_API_PORT=19191
 AIROPSCAT_RATELIMIT_INTERVAL=1
 AIROPSCAT_RATELIMIT_ROOT_RATE=10000mbit
-AIROPSCAT_RATELIMIT_DISABLE_OFFLOAD=true
 EOF
 
   cat > /usr/local/bin/airopscat-ratelimit-agent <<'EOF'
 #!/usr/bin/env python3
 import json
 import os
-import ipaddress
 import subprocess
 import sys
 import time
@@ -61,7 +59,6 @@ DEFAULT_NIC_ENV = "AIROPSCAT_RATELIMIT_NIC"
 CLASH_API_PORT = os.getenv("AIROPSCAT_CLASH_API_PORT", "19191")
 POLL_INTERVAL = max(1, int(os.getenv("AIROPSCAT_RATELIMIT_INTERVAL", "1")))
 ROOT_RATE = os.getenv("AIROPSCAT_RATELIMIT_ROOT_RATE", "10000mbit")
-DISABLE_OFFLOAD = os.getenv("AIROPSCAT_RATELIMIT_DISABLE_OFFLOAD", "true").strip().lower() not in {"0", "false", "no", "off"}
 MAX_MARK_ID = 65533
 RESERVED_DEFAULT_CLASS_MINOR = 9999
 
@@ -104,13 +101,6 @@ def detect_nic():
     result = run("ip route show default | awk 'NR==1 {for (i=1; i<=NF; i++) if ($i == \"dev\") {print $(i+1); exit}}'")
     nic = result.stdout.strip()
     return nic or "eth0"
-
-
-def detect_ip_family(ip):
-    try:
-        return "ipv6" if ipaddress.ip_address(ip).version == 6 else "ipv4"
-    except ValueError:
-        return None
 
 
 def resolve_class_minor(mark_id):
@@ -170,29 +160,7 @@ def allocate_marks(accounts, state):
     return next_mapping
 
 
-def ensure_restore_mark_rule(binary, chain):
-    run(
-        f"{binary} -t mangle -C {chain} -j CONNMARK --restore-mark 2>/dev/null "
-        f"|| {binary} -t mangle -I {chain} -j CONNMARK --restore-mark"
-    )
-
-
-def ensure_offload_disabled(nic, state):
-    if not DISABLE_OFFLOAD:
-        return
-    if state.get("offloadNic") == nic:
-        return
-
-    result = run(f"ethtool -K {nic} gro off gso off tso off 2>/dev/null")
-    if result.returncode == 0:
-        state["offloadNic"] = nic
-    else:
-        stderr = (result.stderr or "").strip()
-        if stderr:
-            log(f"关闭网卡 offload 失败: nic={nic}, stderr={stderr}")
-
-
-def ensure_base_rules(nic, state):
+def ensure_base_rules(nic):
     result = run(f"tc qdisc show dev {nic}")
     if "htb" not in result.stdout:
         run(f"tc qdisc del dev {nic} root 2>/dev/null || true")
@@ -200,11 +168,8 @@ def ensure_base_rules(nic, state):
         run(f"tc class add dev {nic} parent 1: classid 1:1 htb rate {ROOT_RATE}")
         run(f"tc class add dev {nic} parent 1:1 classid 1:9999 htb rate {ROOT_RATE}")
 
-    ensure_offload_disabled(nic, state)
-    ensure_restore_mark_rule("iptables", "PREROUTING")
-    ensure_restore_mark_rule("iptables", "OUTPUT")
-    ensure_restore_mark_rule("ip6tables", "PREROUTING")
-    ensure_restore_mark_rule("ip6tables", "OUTPUT")
+    run("iptables -t mangle -C PREROUTING -j CONNMARK --restore-mark 2>/dev/null || iptables -t mangle -I PREROUTING -j CONNMARK --restore-mark")
+    run("iptables -t mangle -C OUTPUT -j CONNMARK --restore-mark 2>/dev/null || iptables -t mangle -I OUTPUT -j CONNMARK --restore-mark")
 
 
 def list_existing_class_minors(nic):
@@ -312,18 +277,12 @@ def mark_connections(accounts, mark_mapping):
         if not source_ip or not source_port.isdigit():
             continue
 
-        family = detect_ip_family(source_ip)
-        if family is None:
-            continue
-
         protocol = "tcp" if str(metadata.get("network") or "").lower() == "tcp" else "udp"
         mark_id = mark_mapping.get(account_no)
         if mark_id is None:
             continue
 
-        result = run(
-            f"conntrack -U -f {family} -p {protocol} --src {source_ip} --sport {source_port} --mark {mark_id}"
-        )
+        result = run(f"conntrack -U -p {protocol} --src {source_ip} --sport {source_port} --mark {mark_id}")
         if result.returncode != 0 and result.stderr:
             stderr = result.stderr.strip()
             if "0 flow entries have been updated" not in stderr:
@@ -338,7 +297,7 @@ def main():
         try:
             nic = detect_nic()
             accounts = load_accounts()
-            ensure_base_rules(nic, state)
+            ensure_base_rules(nic)
             mark_mapping = allocate_marks(accounts, state)
             sync_tc_profiles(nic, accounts, mark_mapping, state)
             save_state(state)
