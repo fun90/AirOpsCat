@@ -20,6 +20,9 @@ import jakarta.enterprise.context.control.RequestContextController;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.transaction.Status;
+import jakarta.transaction.Synchronization;
+import jakarta.transaction.TransactionSynchronizationRegistry;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
@@ -68,6 +71,9 @@ public class AccountService {
 
     @Inject
     RequestContextController requestContextController;
+
+    @Inject
+    TransactionSynchronizationRegistry transactionSynchronizationRegistry;
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Account> getAccountPage(String search, Long userId, String status, String onlineStatus) {
         // Create sort by createTime descending
@@ -460,18 +466,31 @@ public class AccountService {
     }
 
     private void triggerRateLimitSync() {
-        CompletableFuture.runAsync(() -> {
-            boolean activated = requestContextController.activate();
-            try {
-                rateLimitService.syncAll();
-            } catch (Exception e) {
-                log.error("同步限速配置文件失败", e);
-            } finally {
-                if (activated) {
-                    requestContextController.deactivate();
-                }
+        transactionSynchronizationRegistry.registerInterposedSynchronization(new Synchronization() {
+            @Override
+            public void beforeCompletion() {
+                // no-op
             }
-        }, executorService);
+
+            @Override
+            public void afterCompletion(int status) {
+                if (status != Status.STATUS_COMMITTED) {
+                    return;
+                }
+                CompletableFuture.runAsync(() -> {
+                    boolean activated = requestContextController.activate();
+                    try {
+                        rateLimitService.syncAll();
+                    } catch (Exception e) {
+                        log.error("同步限速配置文件失败", e);
+                    } finally {
+                        if (activated) {
+                            requestContextController.deactivate();
+                        }
+                    }
+                }, executorService);
+            }
+        });
     }
 
 }
