@@ -7,6 +7,13 @@
   "experimental": {
     "clash_api": {
       "external_controller": "127.0.0.1:19191"
+    },
+    "v2ray_api": {
+      "listen": "127.0.0.1:101",
+      "stats": {
+        "enabled": true{#if hasStatsUsers},
+        "users": {statsUsers}{/if}
+      }
     }
   },
   "dns": {

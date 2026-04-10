@@ -3,7 +3,6 @@ package com.fun90.airopscat.scheduler;
 import com.fun90.airopscat.model.dto.ScheduledTaskDto;
 import com.fun90.airopscat.service.DatabaseBackupService;
 import com.fun90.airopscat.service.SystemConfigService;
-import com.fun90.airopscat.service.singbox.SingBoxConnectionCacheService;
 import io.quarkus.runtime.StartupEvent;
 import io.quarkus.scheduler.Scheduled;
 import io.quarkus.scheduler.Scheduler;
@@ -37,7 +36,7 @@ public class ProgrammaticTaskManager {
     private final DatabaseBackupService databaseBackupService;
     private final AccountExpirationTask accountExpirationTask;
     private final ResourceNotificationTask resourceNotificationTask;
-    private final SingBoxConnectionCacheService singBoxConnectionCacheService;
+    private final TrafficStatsTask trafficStatsTask;
     private final CoreConfigCleanupTask coreConfigCleanupTask;
     private final ServerMonitorStatsCleanupTask serverMonitorStatsCleanupTask;
     private final ServerMonitorTask serverMonitorTask;
@@ -54,7 +53,7 @@ public class ProgrammaticTaskManager {
                                    DatabaseBackupService databaseBackupService,
                                    AccountExpirationTask accountExpirationTask,
                                    ResourceNotificationTask resourceNotificationTask,
-                                   SingBoxConnectionCacheService singBoxConnectionCacheService,
+                                   TrafficStatsTask trafficStatsTask,
                                    CoreConfigCleanupTask coreConfigCleanupTask,
                                    ServerMonitorStatsCleanupTask serverMonitorStatsCleanupTask,
                                    ServerMonitorTask serverMonitorTask,
@@ -66,7 +65,7 @@ public class ProgrammaticTaskManager {
         this.databaseBackupService = databaseBackupService;
         this.accountExpirationTask = accountExpirationTask;
         this.resourceNotificationTask = resourceNotificationTask;
-        this.singBoxConnectionCacheService = singBoxConnectionCacheService;
+        this.trafficStatsTask = trafficStatsTask;
         this.coreConfigCleanupTask = coreConfigCleanupTask;
         this.serverMonitorStatsCleanupTask = serverMonitorStatsCleanupTask;
         this.serverMonitorTask = serverMonitorTask;
@@ -322,19 +321,19 @@ public class ProgrammaticTaskManager {
                 Scheduled.ConcurrentExecution.SKIP,
                 resourceNotificationTask::notifyExpiringResourcesToday
         ));
-        definitions.put("singbox-connection-fetch", task(
-                "singbox-connection-fetch",
-                "singbox-connection-fetch",
-                "Sing-box 连接采集",
-                "采集 sing-box 活跃连接并触发流量统计。",
+        definitions.put("traffic-stats-collect", task(
+                "traffic-stats-collect",
+                "traffic-stats-collect",
+                "流量统计采集",
+                "采集账号和服务器流量统计数据。",
                 "scheduled",
                 "定时任务",
                 90,
                 SCHEDULE_TYPE_CRON,
-                "airopscat.singbox.connection.fetch-cron",
+                "airopscat.traffic.stats.cron",
                 0L,
                 Scheduled.ConcurrentExecution.SKIP,
-                singBoxConnectionCacheService::refreshAll
+                trafficStatsTask::collectUserTrafficStats
         ));
         definitions.put("core-config-cleanup", task(
                 "core-config-cleanup",

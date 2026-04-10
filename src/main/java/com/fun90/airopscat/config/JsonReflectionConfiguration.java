@@ -123,10 +123,6 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.entity.RouteRule.class,
     com.fun90.airopscat.model.entity.SystemConfig.class,
 
-    com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnectionMetadata.class,
-    com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnection.class,
-    com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnectionsResponse.class,
-
     // MySQL JDBC classes loaded reflectively in native mode
     com.mysql.cj.PerConnectionLRUFactory.class,
 
