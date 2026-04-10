@@ -5,6 +5,7 @@ import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.repository.TagRepository;
+import com.fun90.airopscat.service.singbox.ServerConnectionSnapshot;
 import com.fun90.airopscat.service.singbox.SingBoxClashApiClient;
 import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnection;
 import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnectionsResponse;
@@ -44,7 +45,7 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
      * 每台服务器的采集快照：上次采集时间 + 各连接流量基线
      * key: serverId
      */
-    private final ConcurrentHashMap<Long, ServerTrafficSnapshot> serverSnapshots = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, ServerConnectionSnapshot> serverSnapshots = new ConcurrentHashMap<>();
 
     @Override
     public Map<String, UserTrafficStats> collectUserTrafficStats(SshConnection connection, Server server, ServerConfig serverConfig) {
@@ -57,7 +58,7 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
             }
 
             Instant pollTime = Instant.now();
-            ServerTrafficSnapshot prev = serverSnapshots.get(server.getId());
+            ServerConnectionSnapshot prev = serverSnapshots.get(server.getId());
 
             Map<String, long[]> tagTrafficDelta = computeTagTrafficDelta(prev, response.connections());
 
@@ -95,7 +96,7 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
      *   <li>连接 start ≤ lastPollTime 且无快照（重启后第一次看到）：跳过，避免重复计费</li>
      * </ul>
      */
-    private Map<String, long[]> computeTagTrafficDelta(ServerTrafficSnapshot prev, List<ClashConnection> connections) {
+    private Map<String, long[]> computeTagTrafficDelta(ServerConnectionSnapshot prev, List<ClashConnection> connections) {
         Map<String, long[]> tagTrafficDelta = new LinkedHashMap<>();
 
         for (ClashConnection conn : connections) {
@@ -144,7 +145,7 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
         return tagTrafficDelta;
     }
 
-    private ServerTrafficSnapshot buildSnapshot(Instant pollTime, List<ClashConnection> connections) {
+    private ServerConnectionSnapshot buildSnapshot(Instant pollTime, List<ClashConnection> connections) {
         Map<String, long[]> snapshot = new HashMap<>();
         for (ClashConnection conn : connections) {
             if (conn.id() == null) {
@@ -154,7 +155,7 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
             long download = conn.download() != null ? conn.download() : 0L;
             snapshot.put(conn.id(), new long[]{upload, download});
         }
-        return new ServerTrafficSnapshot(pollTime, snapshot);
+        return new ServerConnectionSnapshot(pollTime, snapshot);
     }
 
     /**
@@ -281,11 +282,4 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
         }
     }
 
-    /**
-     * 每台服务器的采集快照
-     *
-     * @param lastPollTime  本次采集时间，下次采集用于判断新旧连接
-     * @param connections   本次所有活跃连接的流量基线，key=connectionId，value=[upload, download]
-     */
-    private record ServerTrafficSnapshot(Instant lastPollTime, Map<String, long[]> connections) {}
 }
