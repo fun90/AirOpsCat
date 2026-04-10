@@ -1,7 +1,10 @@
 package com.fun90.airopscat.service.ratelimit;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
@@ -21,6 +24,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +46,9 @@ public class RateLimitService {
 
     @Inject
     ServerConfigRepository serverConfigRepository;
+
+    @Inject
+    ObjectMapper objectMapper;
 
     @Inject
     SshConnectionService sshConnectionService;
@@ -71,7 +78,7 @@ public class RateLimitService {
             return;
         }
 
-        syncProfileToServer(server, buildRateLimitProfileJson());
+        syncProfileToServer(server, buildRateLimitProfileJson(server));
     }
 
     public void syncAll() {
@@ -81,14 +88,13 @@ public class RateLimitService {
         }
 
         List<Server> servers = findEnabledSingBoxServers();
-        String profileJson = buildRateLimitProfileJson();
         Set<Long> singBoxServerIds = findEnabledSingBoxServerIds();
         CompletableFuture<?>[] futures = servers.stream()
                 .filter(server -> singBoxServerIds.contains(server.getId()))
                 .map(server -> CompletableFuture.runAsync(() -> {
                     runWithRequestContext(() -> {
                         try {
-                            syncProfileToServer(server, profileJson);
+                            syncProfileToServer(server, buildRateLimitProfileJson(server));
                         } catch (Exception e) {
                             log.error("同步服务器限速配置失败, serverId={}", server.getId(), e);
                         }
@@ -135,19 +141,25 @@ public class RateLimitService {
         }
     }
 
-    private String buildRateLimitProfileJson() {
-        List<Map<String, Object>> accounts = new ArrayList<>();
+    private String buildRateLimitProfileJson(Server server) {
+        Set<String> accountNos = extractServerAccountNos(server);
+        Map<String, Account> accountMap = new LinkedHashMap<>();
         for (Account account : accountRepository.findActiveRateLimitedAccounts(LocalDateTime.now())) {
             if (account.getAccountNo() == null || account.getAccountNo().isBlank()) {
                 continue;
             }
-            Integer speed = account.getSpeed();
-            if (speed == null || speed <= 0) {
+            accountMap.put(account.getAccountNo(), account);
+        }
+
+        List<Map<String, Object>> accounts = new ArrayList<>();
+        for (String accountNo : accountNos) {
+            Account account = accountMap.get(accountNo);
+            if (account == null) {
                 continue;
             }
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("accountNo", account.getAccountNo());
-            item.put("speed", speed);
+            item.put("speed", account.getSpeed());
             accounts.add(item);
         }
 
@@ -155,6 +167,37 @@ public class RateLimitService {
         profile.put("updatedAt", LocalDateTime.now());
         profile.put("accounts", accounts);
         return JsonUtil.toJsonString(profile);
+    }
+
+    private Set<String> extractServerAccountNos(Server server) {
+        if (server == null || server.getId() == null) {
+            return Set.of();
+        }
+
+        Set<String> accountNos = new LinkedHashSet<>();
+        for (ServerConfig serverConfig : serverConfigRepository.findByServerId(server.getId())) {
+            if (!isEnabledSingBoxConfig(serverConfig) || serverConfig.getConfig() == null || serverConfig.getConfig().isBlank()) {
+                continue;
+            }
+            try {
+                JsonNode root = objectMapper.readTree(serverConfig.getConfig());
+                for (JsonNode inbound : root.path("inbounds")) {
+                    JsonNode users = inbound.path("users");
+                    if (!users.isArray()) {
+                        continue;
+                    }
+                    for (JsonNode user : users) {
+                        String accountNo = user.path("name").asText(null);
+                        if (accountNo != null && !accountNo.isBlank()) {
+                            accountNos.add(accountNo.trim());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("解析服务器 {} 的 sing-box 配置失败，跳过限速账号提取", server.getId(), e);
+            }
+        }
+        return accountNos;
     }
 
     private List<Server> findEnabledSingBoxServers() {
@@ -173,6 +216,21 @@ public class RateLimitService {
 
     private boolean isEnabledSingBoxServer(Long serverId) {
         return serverId != null && findEnabledSingBoxServerIds().contains(serverId);
+    }
+
+    private boolean isEnabledSingBoxConfig(ServerConfig serverConfig) {
+        if (serverConfig == null || serverConfig.getServerId() == null) {
+            return false;
+        }
+        if (serverConfig.getEnabled() != null && serverConfig.getEnabled() == 0) {
+            return false;
+        }
+        String configType = serverConfig.getConfigType();
+        if (configType == null || configType.isBlank()) {
+            return false;
+        }
+        String normalized = configType.trim().toLowerCase();
+        return "sing-box".equals(normalized) || "singbox".equals(normalized);
     }
 
     private String quoteShell(String value) {

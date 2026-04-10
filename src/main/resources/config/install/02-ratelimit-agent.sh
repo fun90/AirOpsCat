@@ -172,22 +172,57 @@ def ensure_base_rules(nic):
     run("iptables -t mangle -C OUTPUT -j CONNMARK --restore-mark 2>/dev/null || iptables -t mangle -I OUTPUT -j CONNMARK --restore-mark")
 
 
+def list_existing_class_minors(nic):
+    result = run(f"tc class show dev {nic}")
+    class_minors = set()
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) < 3 or parts[0] != "class" or parts[1] != "htb":
+            continue
+        classid = parts[2]
+        if not classid.startswith("1:"):
+            continue
+        try:
+            class_minor = int(classid.split(":", 1)[1])
+        except ValueError:
+            continue
+        if class_minor in (1, RESERVED_DEFAULT_CLASS_MINOR):
+            continue
+        class_minors.add(class_minor)
+    return class_minors
+
+
+def list_existing_filter_marks(nic):
+    result = run(f"tc filter show dev {nic}")
+    marks = set()
+    for line in result.stdout.splitlines():
+        if " handle " not in line or " fw " not in line:
+            continue
+        fragment = line.split(" handle ", 1)[1].split()[0]
+        try:
+            marks.add(int(fragment, 16 if fragment.startswith("0x") else 10))
+        except ValueError:
+            continue
+    return marks
+
+
 def sync_tc_profiles(nic, accounts, mark_mapping, state):
-    previous_profiles = state.get("appliedProfiles", {})
     current_profiles = {
         account_no: {"mark": mark_mapping[account_no], "speed": accounts[account_no]}
         for account_no in accounts
     }
-    if previous_profiles == current_profiles:
-        return
 
-    for account_no, profile in previous_profiles.items():
-        if account_no in current_profiles:
-            continue
-        class_minor = resolve_class_minor(profile["mark"])
-        if class_minor is None:
-            continue
-        run(f"tc filter del dev {nic} parent 1: handle {profile['mark']} fw 2>/dev/null || true")
+    desired_marks = {profile["mark"] for profile in current_profiles.values()}
+    desired_class_minors = {
+        resolve_class_minor(profile["mark"])
+        for profile in current_profiles.values()
+        if resolve_class_minor(profile["mark"]) is not None
+    }
+
+    for mark_id in sorted(list_existing_filter_marks(nic) - desired_marks):
+        run(f"tc filter del dev {nic} parent 1: handle {mark_id} fw 2>/dev/null || true")
+
+    for class_minor in sorted(list_existing_class_minors(nic) - desired_class_minors, reverse=True):
         run(f"tc class del dev {nic} parent 1:1 classid 1:{class_minor} 2>/dev/null || true")
 
     for account_no, profile in current_profiles.items():
