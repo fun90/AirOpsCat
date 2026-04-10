@@ -350,7 +350,7 @@ public class AccountService {
         }
         
         accountRepository.persist(account);
-        triggerRateLimitRefreshIfNeeded(account);
+        triggerRateLimitSync();
         return account;
     }
 
@@ -361,16 +361,12 @@ public class AccountService {
             throw new EntityNotFoundException("Account not found");
         }
 
-        Integer oldSpeed = existingAccount.getSpeed();
-
         // 使用工具方法复制非null属性
         copyNonNullProperties(account, existingAccount);
 
         accountRepository.persist(existingAccount);
 
-        if (account.getSpeed() != null && !Objects.equals(oldSpeed, existingAccount.getSpeed())) {
-            triggerRateLimitRefresh(existingAccount);
-        }
+        triggerRateLimitSync();
 
         // No need to call save/persist for updates in Panache
         return existingAccount;
@@ -386,6 +382,7 @@ public class AccountService {
         accountOnlineIpService.deleteByAccountNo(account.getAccountNo());
         accountTrafficStatsRepository.deleteByAccountId(id);
         accountRepository.deleteById(id);
+        triggerRateLimitSync();
     }
 
     @Transactional
@@ -462,21 +459,13 @@ public class AccountService {
         }
     }
 
-    private void triggerRateLimitRefreshIfNeeded(Account account) {
-        if (account.getSpeed() != null && account.getSpeed() > 0) {
-            triggerRateLimitRefresh(account);
-        }
-    }
-
-    private void triggerRateLimitRefresh(Account account) {
+    private void triggerRateLimitSync() {
         CompletableFuture.runAsync(() -> {
             boolean activated = requestContextController.activate();
             try {
-                for (Server server : rateLimitService.findEnabledSingBoxServers()) {
-                    rateLimitService.applyAccountRateLimit(server, account);
-                }
+                rateLimitService.syncAll();
             } catch (Exception e) {
-                log.error("更新账号 {} 限速规则失败", account.getId(), e);
+                log.error("同步限速配置文件失败", e);
             } finally {
                 if (activated) {
                     requestContextController.deactivate();

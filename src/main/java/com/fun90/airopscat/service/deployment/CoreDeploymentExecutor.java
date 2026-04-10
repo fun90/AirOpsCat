@@ -148,11 +148,10 @@ public class CoreDeploymentExecutor {
             CompletableFuture.runAsync(() -> {
                 try {
                     if (rateLimitService.isEnabled()) {
-                        rateLimitService.initServer(server);
                         rateLimitService.syncServer(server);
                     }
                 } catch (Exception e) {
-                    log.warn("初始化服务器 {} 限速规则失败，可由定时任务恢复", server.getId(), e);
+                    log.warn("同步服务器 {} 限速配置失败，可在账号变更或重新部署后自动恢复", server.getId(), e);
                 }
             }, executorService);
         }

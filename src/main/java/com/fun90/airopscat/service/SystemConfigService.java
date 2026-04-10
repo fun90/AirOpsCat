@@ -334,7 +334,6 @@ public class SystemConfigService {
                 item("airopscat.account.expiration.cron", "过期账号处理 Cron", "检查过期账号并重新部署关联节点。", INPUT_TEXT, true, false, false, true, "0 0 5 * * ?", "0 0 5 * * ?"),
                 item("airopscat.expiration.notify.cron", "资源到期提醒 Cron", "账号、服务器、域名到期提醒调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 10 * * ?", "0 0 10 * * ?"),
                 item("airopscat.singbox.connection.fetch-cron", "Sing-box 连接采集 Cron", "定期从所有 sing-box 服务器拉取活跃连接列表，采集完成后立即触发流量统计，默认每 5 秒一次。", INPUT_TEXT, true, false, false, true, "0/5 * * * * ?", "0/5 * * * * ?"),
-                item("airopscat.ratelimit.sync-cron", "限速规则同步 Cron", "全量同步 tc HTB 规则的 Cron 表达式，防止服务器重启后规则丢失，默认每小时执行。", INPUT_TEXT, true, false, false, true, "0 0 * * * ?", "0 0 * * * ?"),
                 item("airopscat.node.deployment.history.cleanup.cron", "部署历史清理 Cron", "清理过期节点部署历史的调度表达式。", INPUT_TEXT, true, false, false, true, "0 20 3 * * ?", "0 20 3 * * ?"),
                 item("airopscat.account.traffic.cleanup.cron", "账户流量清理 Cron", "清理过期账户流量明细的调度表达式。", INPUT_TEXT, true, false, false, true, "0 40 3 * * ?", "0 40 3 * * ?"),
                 item("airopscat.server.traffic.cleanup.cron", "服务器流量清理 Cron", "清理过期服务器流量明细的调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 4 * * ?", "0 0 4 * * ?"),

@@ -9,6 +9,7 @@ import com.fun90.airopscat.scheduler.ScheduledSupport;
 import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
+import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.control.RequestContextController;
 import jakarta.inject.Inject;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,11 +31,8 @@ import java.util.concurrent.ExecutorService;
 @ApplicationScoped
 public class RateLimitService {
 
-    private static final int MAX_CONNTRACK_MARK_ID = 65534;
-    private static final int MAX_TC_CLASS_MINOR = 65534;
-    private static final int RESERVED_ROOT_CLASS_MINOR = 1;
-    private static final int RESERVED_DEFAULT_CLASS_MINOR = 9999;
-    private static final long MAX_ACCOUNT_ID_FOR_TC_CLASS = 65532L;
+    private static final String REMOTE_RATE_LIMIT_DIR = "/etc/airopscat/ratelimit";
+    private static final String REMOTE_RATE_LIMIT_PROFILE_PATH = REMOTE_RATE_LIMIT_DIR + "/accounts.json";
 
     @Inject
     ServerRepository serverRepository;
@@ -64,107 +63,34 @@ public class RateLimitService {
         return systemConfigService.getBooleanValue("airopscat.ratelimit.enabled", false);
     }
 
-    public void initServer(Server server) {
-        if (server == null) {
-            return;
-        }
-
-        String nic = getNic(server);
-        List<String> commands = List.of(
-                "tc qdisc del dev %s root 2>/dev/null || true".formatted(nic),
-                "tc qdisc add dev %s root handle 1: htb default 9999".formatted(nic),
-                "tc class add dev %s parent 1: classid 1:1 htb rate 10000mbit".formatted(nic),
-                "tc class add dev %s parent 1:1 classid 1:9999 htb rate 10000mbit".formatted(nic),
-                "iptables -t mangle -C PREROUTING -j CONNMARK --restore-mark 2>/dev/null || iptables -t mangle -I PREROUTING -j CONNMARK --restore-mark",
-                "iptables -t mangle -C OUTPUT -j CONNMARK --restore-mark 2>/dev/null || iptables -t mangle -I OUTPUT -j CONNMARK --restore-mark"
-        );
-
-        withConnection(server, connection -> {
-            for (String command : commands) {
-                executeCommand(connection, command, server.getId(), true);
-            }
-        });
-    }
-
-    public void applyAccountRateLimit(Server server, Account account) {
-        if (!isEnabled() || server == null || account == null || account.getId() == null) {
-            return;
-        }
-        if (account.getId() > MAX_CONNTRACK_MARK_ID) {
-            log.warn("账号 ID 超出 conntrack mark 范围，跳过限速, accountId={}", account.getId());
-            return;
-        }
-        Integer classMinor = resolveTcClassMinor(account.getId());
-        if (classMinor == null) {
-            log.warn("账号 ID 无法映射为有效 tc classid，跳过限速, accountId={}", account.getId());
-            return;
-        }
-
-        String nic = getNic(server);
-        int markId = account.getId().intValue();
-        int classIdMinor = classMinor;
-        int speedKbps = account.getSpeed() != null ? Math.max(account.getSpeed(), 0) * 8 : 0;
-
-        withConnection(server, connection -> {
-            if (speedKbps > 0 && (account.getDisabled() == null || account.getDisabled() == 0)) {
-                String classCommand = "tc class change dev %s parent 1:1 classid 1:%d htb rate %dkbit burst 32k 2>/dev/null || tc class add dev %s parent 1:1 classid 1:%d htb rate %dkbit burst 32k"
-                        .formatted(nic, classIdMinor, speedKbps, nic, classIdMinor, speedKbps);
-                String filterCommand = "tc filter add dev %s parent 1: handle %d fw flowid 1:%d 2>/dev/null || true"
-                        .formatted(nic, markId, classIdMinor);
-                executeCommand(connection, classCommand, server.getId(), false);
-                executeCommand(connection, filterCommand, server.getId(), false);
-                return;
-            }
-
-            String deleteFilterCommand = "tc filter del dev %s parent 1: handle %d fw 2>/dev/null || true"
-                    .formatted(nic, markId);
-            String deleteClassCommand = "tc class del dev %s parent 1:1 classid 1:%d 2>/dev/null || true"
-                    .formatted(nic, classIdMinor);
-            executeCommand(connection, deleteFilterCommand, server.getId(), false);
-            executeCommand(connection, deleteClassCommand, server.getId(), false);
-        });
-    }
-
     public void syncServer(Server server) {
         if (server == null) {
             return;
         }
-        initServer(server);
-
         if (!isEnabledSingBoxServer(server.getId())) {
             return;
         }
 
-        Map<Long, Account> accountMap = new LinkedHashMap<>();
-        for (Account account : accountRepository.findActiveRateLimitedAccounts(LocalDateTime.now())) {
-            if (account.getId() != null) {
-                accountMap.put(account.getId(), account);
-            }
-        }
-
-        for (Account account : accountMap.values()) {
-            if (account.getSpeed() != null && account.getSpeed() > 0) {
-                applyAccountRateLimit(server, account);
-            }
-        }
+        syncProfileToServer(server, buildRateLimitProfileJson());
     }
 
     public void syncAll() {
         if (!isEnabled()) {
-            log.info("全局限速开关已关闭，跳过限速规则同步");
+            log.info("全局限速开关已关闭，跳过限速配置同步");
             return;
         }
 
-        List<Server> servers = serverRepository.findMonitorableServers(LocalDate.now());
+        List<Server> servers = findEnabledSingBoxServers();
+        String profileJson = buildRateLimitProfileJson();
         Set<Long> singBoxServerIds = findEnabledSingBoxServerIds();
         CompletableFuture<?>[] futures = servers.stream()
                 .filter(server -> singBoxServerIds.contains(server.getId()))
                 .map(server -> CompletableFuture.runAsync(() -> {
                     runWithRequestContext(() -> {
                         try {
-                            syncServer(server);
+                            syncProfileToServer(server, profileJson);
                         } catch (Exception e) {
-                            log.error("同步服务器限速规则失败, serverId={}", server.getId(), e);
+                            log.error("同步服务器限速配置失败, serverId={}", server.getId(), e);
                         }
                     });
                 }, executorService))
@@ -172,9 +98,12 @@ public class RateLimitService {
         CompletableFuture.allOf(futures).join();
     }
 
-    public String getNic(Server server) {
-        String nic = server == null ? null : server.getNic();
-        return nic != null && !nic.isBlank() ? nic.trim() : "eth0";
+    private void syncProfileToServer(Server server, String profileJson) {
+        withConnection(server, connection -> {
+            executeCommand(connection, "mkdir -p " + quoteShell(REMOTE_RATE_LIMIT_DIR), server.getId(), false);
+            connection.writeRemoteFile(REMOTE_RATE_LIMIT_PROFILE_PATH, profileJson);
+            log.info("已同步限速配置文件, serverId={}, path={}", server.getId(), REMOTE_RATE_LIMIT_PROFILE_PATH);
+        });
     }
 
     private void withConnection(Server server, ConnectionConsumer consumer) {
@@ -206,23 +135,29 @@ public class RateLimitService {
         }
     }
 
-    Integer resolveTcClassMinor(Long accountId) {
-        if (accountId == null || accountId < 1 || accountId > MAX_ACCOUNT_ID_FOR_TC_CLASS) {
-            return null;
+    private String buildRateLimitProfileJson() {
+        List<Map<String, Object>> accounts = new ArrayList<>();
+        for (Account account : accountRepository.findActiveRateLimitedAccounts(LocalDateTime.now())) {
+            if (account.getAccountNo() == null || account.getAccountNo().isBlank()) {
+                continue;
+            }
+            Integer speed = account.getSpeed();
+            if (speed == null || speed <= 0) {
+                continue;
+            }
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("accountNo", account.getAccountNo());
+            item.put("speed", speed);
+            accounts.add(item);
         }
 
-        int classMinor = Math.toIntExact(accountId + 1);
-        if (classMinor >= RESERVED_DEFAULT_CLASS_MINOR) {
-            classMinor++;
-        }
-
-        if (classMinor == RESERVED_ROOT_CLASS_MINOR || classMinor == RESERVED_DEFAULT_CLASS_MINOR || classMinor > MAX_TC_CLASS_MINOR) {
-            return null;
-        }
-        return classMinor;
+        Map<String, Object> profile = new LinkedHashMap<>();
+        profile.put("updatedAt", LocalDateTime.now());
+        profile.put("accounts", accounts);
+        return JsonUtil.toJsonString(profile);
     }
 
-    public List<Server> findEnabledSingBoxServers() {
+    private List<Server> findEnabledSingBoxServers() {
         Set<Long> singBoxServerIds = findEnabledSingBoxServerIds();
         if (singBoxServerIds.isEmpty()) {
             return List.of();
@@ -238,6 +173,10 @@ public class RateLimitService {
 
     private boolean isEnabledSingBoxServer(Long serverId) {
         return serverId != null && findEnabledSingBoxServerIds().contains(serverId);
+    }
+
+    private String quoteShell(String value) {
+        return "'" + value.replace("'", "'\"'\"'") + "'";
     }
 
     @FunctionalInterface

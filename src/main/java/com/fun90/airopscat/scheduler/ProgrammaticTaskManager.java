@@ -3,8 +3,6 @@ package com.fun90.airopscat.scheduler;
 import com.fun90.airopscat.model.dto.ScheduledTaskDto;
 import com.fun90.airopscat.service.DatabaseBackupService;
 import com.fun90.airopscat.service.SystemConfigService;
-import com.fun90.airopscat.service.ratelimit.ConntrackMarkService;
-import com.fun90.airopscat.service.ratelimit.RateLimitService;
 import com.fun90.airopscat.service.singbox.SingBoxConnectionCacheService;
 import io.quarkus.runtime.StartupEvent;
 import io.quarkus.scheduler.Scheduled;
@@ -40,8 +38,6 @@ public class ProgrammaticTaskManager {
     private final AccountExpirationTask accountExpirationTask;
     private final ResourceNotificationTask resourceNotificationTask;
     private final SingBoxConnectionCacheService singBoxConnectionCacheService;
-    private final ConntrackMarkService conntrackMarkService;
-    private final RateLimitService rateLimitService;
     private final CoreConfigCleanupTask coreConfigCleanupTask;
     private final ServerMonitorStatsCleanupTask serverMonitorStatsCleanupTask;
     private final ServerMonitorTask serverMonitorTask;
@@ -59,8 +55,6 @@ public class ProgrammaticTaskManager {
                                    AccountExpirationTask accountExpirationTask,
                                    ResourceNotificationTask resourceNotificationTask,
                                    SingBoxConnectionCacheService singBoxConnectionCacheService,
-                                   ConntrackMarkService conntrackMarkService,
-                                   RateLimitService rateLimitService,
                                    CoreConfigCleanupTask coreConfigCleanupTask,
                                    ServerMonitorStatsCleanupTask serverMonitorStatsCleanupTask,
                                    ServerMonitorTask serverMonitorTask,
@@ -73,8 +67,6 @@ public class ProgrammaticTaskManager {
         this.accountExpirationTask = accountExpirationTask;
         this.resourceNotificationTask = resourceNotificationTask;
         this.singBoxConnectionCacheService = singBoxConnectionCacheService;
-        this.conntrackMarkService = conntrackMarkService;
-        this.rateLimitService = rateLimitService;
         this.coreConfigCleanupTask = coreConfigCleanupTask;
         this.serverMonitorStatsCleanupTask = serverMonitorStatsCleanupTask;
         this.serverMonitorTask = serverMonitorTask;
@@ -343,34 +335,6 @@ public class ProgrammaticTaskManager {
                 0L,
                 Scheduled.ConcurrentExecution.SKIP,
                 singBoxConnectionCacheService::refreshAll
-        ));
-        definitions.put("ratelimit-conntrack-mark", task(
-                "ratelimit-conntrack-mark",
-                "ratelimit-conntrack-mark",
-                "限速连接标记",
-                "根据活跃连接为 conntrack 连接打标，供 tc 规则限速使用。",
-                "scheduled",
-                "定时任务",
-                95,
-                SCHEDULE_TYPE_CRON,
-                "airopscat.singbox.connection.fetch-cron",
-                0L,
-                Scheduled.ConcurrentExecution.SKIP,
-                conntrackMarkService::markAll
-        ));
-        definitions.put("ratelimit-tc-sync", task(
-                "ratelimit-tc-sync",
-                "ratelimit-tc-sync",
-                "限速规则同步",
-                "全量同步服务器上的 tc 限速规则。",
-                "scheduled",
-                "定时任务",
-                100,
-                SCHEDULE_TYPE_CRON,
-                "airopscat.ratelimit.sync-cron",
-                0L,
-                Scheduled.ConcurrentExecution.SKIP,
-                rateLimitService::syncAll
         ));
         definitions.put("core-config-cleanup", task(
                 "core-config-cleanup",
