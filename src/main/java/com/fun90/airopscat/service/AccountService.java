@@ -33,10 +33,14 @@ import java.util.*;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @ApplicationScoped
 public class AccountService {
+
+    private final AtomicBoolean rateLimitSyncRunning = new AtomicBoolean(false);
+    private final AtomicBoolean rateLimitSyncPending = new AtomicBoolean(false);
 
     @Inject
     AccountRepository accountRepository;
@@ -477,20 +481,65 @@ public class AccountService {
                 if (status != Status.STATUS_COMMITTED) {
                     return;
                 }
-                CompletableFuture.runAsync(() -> {
-                    boolean activated = requestContextController.activate();
-                    try {
-                        rateLimitService.syncAll();
-                    } catch (Exception e) {
-                        log.error("同步限速配置文件失败", e);
-                    } finally {
-                        if (activated) {
-                            requestContextController.deactivate();
-                        }
-                    }
-                }, executorService);
+                scheduleRateLimitSync();
             }
         });
+    }
+
+    private void scheduleRateLimitSync() {
+        rateLimitSyncPending.set(true);
+        if (!rateLimitSyncRunning.compareAndSet(false, true)) {
+            log.info("限速同步任务已在队列或执行中，本次请求已合并");
+            return;
+        }
+
+        CompletableFuture.runAsync(() -> {
+            boolean activated = requestContextController.activate();
+            try {
+                while (true) {
+                    rateLimitSyncPending.set(false);
+                    rateLimitService.syncAll();
+                    if (!rateLimitSyncPending.get()) {
+                        break;
+                    }
+                    log.info("检测到新的限速同步请求，继续执行下一轮入口合并同步");
+                }
+            } catch (Exception e) {
+                log.error("同步限速配置文件失败", e);
+            } finally {
+                if (activated) {
+                    requestContextController.deactivate();
+                }
+                rateLimitSyncRunning.set(false);
+                if (rateLimitSyncPending.get() && rateLimitSyncRunning.compareAndSet(false, true)) {
+                    CompletableFuture.runAsync(this::runScheduledRateLimitSync, executorService);
+                }
+            }
+        }, executorService);
+    }
+
+    private void runScheduledRateLimitSync() {
+        boolean activated = requestContextController.activate();
+        try {
+            while (true) {
+                rateLimitSyncPending.set(false);
+                rateLimitService.syncAll();
+                if (!rateLimitSyncPending.get()) {
+                    break;
+                }
+                log.info("收尾阶段检测到新的限速同步请求，继续执行下一轮入口合并同步");
+            }
+        } catch (Exception e) {
+            log.error("同步限速配置文件失败", e);
+        } finally {
+            if (activated) {
+                requestContextController.deactivate();
+            }
+            rateLimitSyncRunning.set(false);
+            if (rateLimitSyncPending.get()) {
+                scheduleRateLimitSync();
+            }
+        }
     }
 
 }

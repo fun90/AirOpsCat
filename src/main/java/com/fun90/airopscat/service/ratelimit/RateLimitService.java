@@ -30,6 +30,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @ApplicationScoped
@@ -37,6 +39,10 @@ public class RateLimitService {
 
     private static final String REMOTE_RATE_LIMIT_DIR = "/etc/airopscat/ratelimit";
     private static final String REMOTE_RATE_LIMIT_PROFILE_PATH = REMOTE_RATE_LIMIT_DIR + "/accounts.json";
+    private final Object syncAllLock = new Object();
+    private final AtomicBoolean syncAllRunning = new AtomicBoolean(false);
+    private final AtomicBoolean syncAllPending = new AtomicBoolean(false);
+    private final AtomicLong syncAllSequence = new AtomicLong(0);
 
     @Inject
     ServerRepository serverRepository;
@@ -78,37 +84,85 @@ public class RateLimitService {
             return;
         }
 
-        syncProfileToServer(server, buildRateLimitProfileJson(server));
+        RateLimitSnapshot snapshot = createSnapshot();
+        syncProfileToServer(server, buildRateLimitProfileJson(server, snapshot), snapshot.sequence());
     }
 
     public void syncAll() {
-        if (!isEnabled()) {
-            log.info("全局限速开关已关闭，跳过限速配置同步");
+        syncAllPending.set(true);
+        if (!syncAllRunning.compareAndSet(false, true)) {
+            log.info("限速全量同步已在执行，当前请求已合并到下一轮");
             return;
         }
 
-        List<Server> servers = findEnabledSingBoxServers();
-        Set<Long> singBoxServerIds = findEnabledSingBoxServerIds();
-        CompletableFuture<?>[] futures = servers.stream()
-                .filter(server -> singBoxServerIds.contains(server.getId()))
-                .map(server -> CompletableFuture.runAsync(() -> {
-                    runWithRequestContext(() -> {
-                        try {
-                            syncProfileToServer(server, buildRateLimitProfileJson(server));
-                        } catch (Exception e) {
-                            log.error("同步服务器限速配置失败, serverId={}", server.getId(), e);
+        try {
+            while (true) {
+                syncAllPending.set(false);
+                doSyncAllOnce();
+                if (!syncAllPending.get()) {
+                    break;
+                }
+                log.info("检测到新的限速同步请求，继续执行下一轮全量同步");
+            }
+        } finally {
+            syncAllRunning.set(false);
+            if (syncAllPending.get() && syncAllRunning.compareAndSet(false, true)) {
+                try {
+                    while (true) {
+                        syncAllPending.set(false);
+                        doSyncAllOnce();
+                        if (!syncAllPending.get()) {
+                            break;
                         }
-                    });
-                }, executorService))
-                .toArray(CompletableFuture[]::new);
-        CompletableFuture.allOf(futures).join();
+                        log.info("收尾阶段检测到新的限速同步请求，继续执行下一轮全量同步");
+                    }
+                } finally {
+                    syncAllRunning.set(false);
+                }
+            }
+        }
     }
 
-    private void syncProfileToServer(Server server, String profileJson) {
+    private void doSyncAllOnce() {
+        synchronized (syncAllLock) {
+            if (!isEnabled()) {
+                log.info("全局限速开关已关闭，跳过限速配置同步");
+                return;
+            }
+
+            List<Server> servers = findEnabledSingBoxServers();
+            Set<Long> singBoxServerIds = findEnabledSingBoxServerIds();
+            if (servers.isEmpty() || singBoxServerIds.isEmpty()) {
+                log.info("未找到启用 sing-box 的服务器，跳过限速配置同步");
+                return;
+            }
+
+            RateLimitSnapshot snapshot = createSnapshot();
+            log.info("开始执行限速全量同步, sequence={}, serverCount={}", snapshot.sequence(), servers.size());
+
+            CompletableFuture<?>[] futures = servers.stream()
+                    .filter(server -> singBoxServerIds.contains(server.getId()))
+                    .map(server -> CompletableFuture.runAsync(() -> {
+                        runWithRequestContext(() -> {
+                            try {
+                                syncProfileToServer(server, buildRateLimitProfileJson(server, snapshot), snapshot.sequence());
+                            } catch (Exception e) {
+                                log.error("同步服务器限速配置失败, sequence={}, serverId={}", snapshot.sequence(), server.getId(), e);
+                            }
+                        });
+                    }, executorService))
+                    .toArray(CompletableFuture[]::new);
+            CompletableFuture.allOf(futures).join();
+            log.info("限速全量同步完成, sequence={}", snapshot.sequence());
+        }
+    }
+
+    private void syncProfileToServer(Server server, String profileJson, long sequence) {
         withConnection(server, connection -> {
             executeCommand(connection, "mkdir -p " + quoteShell(REMOTE_RATE_LIMIT_DIR), server.getId(), false);
             connection.writeRemoteFile(REMOTE_RATE_LIMIT_PROFILE_PATH, profileJson);
-            log.info("已同步限速配置文件, serverId={}, path={}", server.getId(), REMOTE_RATE_LIMIT_PROFILE_PATH);
+            log.info("已同步限速配置文件, sequence={}, serverId={}, path={}",
+                    sequence, server.getId(), REMOTE_RATE_LIMIT_PROFILE_PATH);
         });
     }
 
@@ -141,19 +195,11 @@ public class RateLimitService {
         }
     }
 
-    private String buildRateLimitProfileJson(Server server) {
+    private String buildRateLimitProfileJson(Server server, RateLimitSnapshot snapshot) {
         Set<String> accountNos = extractServerAccountNos(server);
-        Map<String, Account> accountMap = new LinkedHashMap<>();
-        for (Account account : accountRepository.findActiveRateLimitedAccounts(LocalDateTime.now())) {
-            if (account.getAccountNo() == null || account.getAccountNo().isBlank()) {
-                continue;
-            }
-            accountMap.put(account.getAccountNo(), account);
-        }
-
         List<Map<String, Object>> accounts = new ArrayList<>();
         for (String accountNo : accountNos) {
-            Account account = accountMap.get(accountNo);
+            Account account = snapshot.accountMap().get(accountNo);
             if (account == null) {
                 continue;
             }
@@ -164,9 +210,21 @@ public class RateLimitService {
         }
 
         Map<String, Object> profile = new LinkedHashMap<>();
-        profile.put("updatedAt", LocalDateTime.now());
+        profile.put("updatedAt", snapshot.updatedAt());
         profile.put("accounts", accounts);
         return JsonUtil.toJsonString(profile);
+    }
+
+    private RateLimitSnapshot createSnapshot() {
+        LocalDateTime snapshotTime = LocalDateTime.now();
+        Map<String, Account> accountMap = new LinkedHashMap<>();
+        for (Account account : accountRepository.findActiveRateLimitedAccounts(snapshotTime)) {
+            if (account.getAccountNo() == null || account.getAccountNo().isBlank()) {
+                continue;
+            }
+            accountMap.put(account.getAccountNo(), account);
+        }
+        return new RateLimitSnapshot(syncAllSequence.incrementAndGet(), snapshotTime, accountMap);
     }
 
     private Set<String> extractServerAccountNos(Server server) {
@@ -240,5 +298,8 @@ public class RateLimitService {
     @FunctionalInterface
     private interface ConnectionConsumer {
         void accept(SshConnection connection) throws Exception;
+    }
+
+    private record RateLimitSnapshot(long sequence, LocalDateTime updatedAt, Map<String, Account> accountMap) {
     }
 }
