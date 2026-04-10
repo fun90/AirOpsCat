@@ -4,11 +4,13 @@ import com.fun90.airopscat.annotation.SupportedCores;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
+import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.singbox.ServerConnectionSnapshot;
 import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnection;
 import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnectionsResponse;
 import com.fun90.airopscat.service.singbox.SingBoxConnectionCacheService;
+import com.fun90.airopscat.service.singbox.SingBoxConnectionResolver;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.traffic.TrafficStatsCollector;
 import com.fun90.airopscat.service.traffic.UserTrafficStats;
@@ -26,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -34,13 +37,17 @@ import java.util.stream.Collectors;
 @SupportedCores(value = {"sing-box", "singbox"}, priority = 1, description = "Sing-box Clash API 流量统计采集策略")
 public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollector {
 
-    private static final String NODE_TAG_PREFIX = "node_";
-
     @Inject
     TagRepository tagRepository;
 
     @Inject
+    AccountRepository accountRepository;
+
+    @Inject
     SingBoxConnectionCacheService connectionCacheService;
+
+    @Inject
+    SingBoxConnectionResolver connectionResolver;
 
     /**
      * 每台服务器的采集快照：上次采集时间 + 各连接流量基线
@@ -67,7 +74,7 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
             Instant pollTime = Instant.now();
             ServerConnectionSnapshot prev = serverSnapshots.get(server.getId());
 
-            Map<String, long[]> tagTrafficDelta = computeTagTrafficDelta(prev, response.connections());
+            Map<String, long[]> trafficDelta = computeTrafficDelta(server.getId(), prev, response.connections());
 
             // 无论本轮是否有增量，都更新快照以便下次轮询计算增量
             serverSnapshots.put(server.getId(), buildSnapshot(pollTime, response.connections()));
@@ -78,11 +85,11 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
                 return Collections.emptyMap();
             }
 
-            if (tagTrafficDelta.isEmpty()) {
+            if (trafficDelta.isEmpty()) {
                 return Collections.emptyMap();
             }
 
-            return mapTagTrafficToAccounts(server.getId(), tagTrafficDelta);
+            return toUserTrafficStats(trafficDelta);
 
         } catch (Exception e) {
             log.error("获取 sing-box clash API 流量统计失败, serverId={}", server.getId(), e);
@@ -103,15 +110,13 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
      *   <li>连接 start ≤ lastPollTime 且无快照（重启后第一次看到）：跳过，避免重复计费</li>
      * </ul>
      */
-    private Map<String, long[]> computeTagTrafficDelta(ServerConnectionSnapshot prev, List<ClashConnection> connections) {
-        Map<String, long[]> tagTrafficDelta = new LinkedHashMap<>();
+    private Map<String, long[]> computeTrafficDelta(Long serverId, ServerConnectionSnapshot prev, List<ClashConnection> connections) {
+        Map<String, long[]> accountTrafficDelta = new LinkedHashMap<>();
+        Map<String, long[]> fallbackTagTrafficDelta = new LinkedHashMap<>();
+        Map<String, Account> exactAccountMap = buildExactTrafficAccountMap(connections);
 
         for (ClashConnection conn : connections) {
             if (conn.id() == null || conn.metadata() == null) {
-                continue;
-            }
-            String inboundTag = extractInboundTag(conn.metadata().type());
-            if (inboundTag == null) {
                 continue;
             }
 
@@ -144,12 +149,34 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
             }
 
             if (deltaUpload > 0 || deltaDownload > 0) {
-                tagTrafficDelta.merge(inboundTag, new long[]{deltaUpload, deltaDownload},
+                Account exactAccount = connectionResolver.resolveExactAccount(conn, exactAccountMap).orElse(null);
+                if (exactAccount != null) {
+                    accountTrafficDelta.merge(exactAccount.getAccountNo(), new long[]{deltaUpload, deltaDownload},
+                            (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]});
+                    continue;
+                }
+
+                if (connectionResolver.extractAuthUser(conn) != null) {
+                    log.debug("serverId={} 未找到 authUser 对应的活跃账号，跳过精确记账, authUser={}", serverId, connectionResolver.extractAuthUser(conn));
+                    continue;
+                }
+
+                String inboundTag = connectionResolver.extractInboundTag(conn.metadata().type());
+                if (inboundTag == null) {
+                    continue;
+                }
+                fallbackTagTrafficDelta.merge(inboundTag, new long[]{deltaUpload, deltaDownload},
                         (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]});
             }
         }
 
-        return tagTrafficDelta;
+        if (!fallbackTagTrafficDelta.isEmpty()) {
+            mapTagTrafficToAccounts(serverId, fallbackTagTrafficDelta).forEach((accountNo, stats) ->
+                    accountTrafficDelta.merge(accountNo, new long[]{stats.uploadBytes(), stats.downloadBytes()},
+                            (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]}));
+        }
+
+        return accountTrafficDelta;
     }
 
     private ServerConnectionSnapshot buildSnapshot(Instant pollTime, List<ClashConnection> connections) {
@@ -165,14 +192,24 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
         return new ServerConnectionSnapshot(pollTime, snapshot);
     }
 
-    /**
-     * 将每个 inbound tag 的增量流量映射到对应账号
-     * inbound tag 格式：node_{nodeId}，通过 tag→node→account 关系查找账号
-     */
+    private Map<String, Account> buildExactTrafficAccountMap(List<ClashConnection> connections) {
+        Set<String> authUsers = connections.stream()
+                .map(connectionResolver::extractAuthUser)
+                .filter(authUser -> authUser != null && !authUser.isBlank())
+                .collect(Collectors.toSet());
+        if (authUsers.isEmpty()) {
+            return Map.of();
+        }
+
+        return accountRepository.findByAccountNos(authUsers).stream()
+                .filter(Account::isActive)
+                .collect(Collectors.toMap(Account::getAccountNo, account -> account, (left, right) -> left, LinkedHashMap::new));
+    }
+
     private Map<String, UserTrafficStats> mapTagTrafficToAccounts(Long serverId, Map<String, long[]> tagTrafficDelta) {
         Map<Long, long[]> nodeIdTrafficMap = new LinkedHashMap<>();
         for (Map.Entry<String, long[]> entry : tagTrafficDelta.entrySet()) {
-            Long nodeId = extractNodeId(entry.getKey());
+            Long nodeId = connectionResolver.extractNodeIdFromTag(entry.getKey());
             if (nodeId == null) {
                 log.debug("无法从 inbound tag 解析 nodeId: {}", entry.getKey());
                 continue;
@@ -248,33 +285,12 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
         return result;
     }
 
-    /**
-     * 从 metadata.type（如 "vless/node_11"）中提取 inbound tag（"node_11"）
-     */
-    private String extractInboundTag(String type) {
-        if (type == null || type.isBlank()) {
-            return null;
+    private Map<String, UserTrafficStats> toUserTrafficStats(Map<String, long[]> accountTrafficMap) {
+        Map<String, UserTrafficStats> result = new LinkedHashMap<>();
+        for (Map.Entry<String, long[]> entry : accountTrafficMap.entrySet()) {
+            result.put(entry.getKey(), new UserTrafficStats(entry.getValue()[0], entry.getValue()[1]));
         }
-        int slashIndex = type.indexOf('/');
-        if (slashIndex < 0) {
-            return null;
-        }
-        String tag = type.substring(slashIndex + 1).trim();
-        return tag.isBlank() ? null : tag;
-    }
-
-    /**
-     * 从 inbound tag（如 "node_11"）中提取 nodeId（11L）
-     */
-    private Long extractNodeId(String tag) {
-        if (tag == null || !tag.startsWith(NODE_TAG_PREFIX)) {
-            return null;
-        }
-        try {
-            return Long.parseLong(tag.substring(NODE_TAG_PREFIX.length()));
-        } catch (NumberFormatException e) {
-            return null;
-        }
+        return result;
     }
 
     private Instant parseConnStart(String start) {

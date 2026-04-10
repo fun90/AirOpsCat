@@ -68,6 +68,7 @@ public class SingBoxClashApiClient {
 
     public record ClashConnectionMetadata(
             String type,
+            String authUser,
             String network,
             String host,
             String sourceIP,

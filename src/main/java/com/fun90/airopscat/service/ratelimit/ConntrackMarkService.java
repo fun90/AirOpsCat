@@ -2,6 +2,7 @@ package com.fun90.airopscat.service.ratelimit;
 
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.scheduler.ScheduledSupport;
@@ -10,6 +11,7 @@ import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnection
 import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnectionMetadata;
 import com.fun90.airopscat.service.singbox.SingBoxClashApiClient.ClashConnectionsResponse;
 import com.fun90.airopscat.service.singbox.SingBoxConnectionCacheService;
+import com.fun90.airopscat.service.singbox.SingBoxConnectionResolver;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -23,21 +25,22 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Slf4j
 @ApplicationScoped
 public class ConntrackMarkService {
 
-    private static final Pattern NODE_ID_PATTERN = Pattern.compile("/node_(\\d+)");
-
     private final ConcurrentHashMap<Long, Set<String>> markedConnections = new ConcurrentHashMap<>();
 
     @Inject
     TagRepository tagRepository;
+
+    @Inject
+    AccountRepository accountRepository;
 
     @Inject
     ServerRepository serverRepository;
@@ -47,6 +50,9 @@ public class ConntrackMarkService {
 
     @Inject
     SingBoxConnectionCacheService connectionCacheService;
+
+    @Inject
+    SingBoxConnectionResolver connectionResolver;
 
     @Inject
     SystemConfigService systemConfigService;
@@ -81,9 +87,10 @@ public class ConntrackMarkService {
         Set<String> currentKeys = new LinkedHashSet<>();
         Set<String> cachedMarkedKeys = markedConnections.computeIfAbsent(serverId, ignored -> ConcurrentHashMap.newKeySet());
         List<String> commands = new ArrayList<>();
+        Map<String, Account> exactAccountMap = buildExactRateLimitAccountMap(response.connections());
 
         for (ClashConnection connection : response.connections()) {
-            Account account = resolveSingleAccount(connection);
+            Account account = resolveRateLimitAccount(connection, exactAccountMap);
             if (account == null || account.getId() == null || account.getId() > 65534) {
                 continue;
             }
@@ -120,8 +127,33 @@ public class ConntrackMarkService {
         cachedMarkedKeys.retainAll(currentKeys);
     }
 
-    private Account resolveSingleAccount(ClashConnection connection) {
-        Long nodeId = extractNodeId(connection);
+    private Map<String, Account> buildExactRateLimitAccountMap(List<ClashConnection> connections) {
+        Set<String> authUsers = connections.stream()
+                .map(connectionResolver::extractAuthUser)
+                .filter(authUser -> authUser != null && !authUser.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (authUsers.isEmpty()) {
+            return Map.of();
+        }
+        return accountRepository.findByAccountNos(authUsers).stream()
+                .filter(Account::isActive)
+                .filter(account -> account.getSpeed() != null && account.getSpeed() > 0)
+                .collect(Collectors.toMap(Account::getAccountNo, account -> account, (left, right) -> left, LinkedHashMap::new));
+    }
+
+    private Account resolveRateLimitAccount(ClashConnection connection, Map<String, Account> exactAccountMap) {
+        Optional<Account> exactAccount = connectionResolver.resolveExactAccount(connection, exactAccountMap);
+        if (exactAccount.isPresent()) {
+            return exactAccount.get();
+        }
+        if (connectionResolver.extractAuthUser(connection) != null) {
+            return null;
+        }
+        return resolveSingleAccountByNode(connection);
+    }
+
+    private Account resolveSingleAccountByNode(ClashConnection connection) {
+        Long nodeId = connectionResolver.extractNodeIdFromConnection(connection);
         if (nodeId == null) {
             return null;
         }
@@ -140,16 +172,5 @@ public class ConntrackMarkService {
             return null;
         }
         return accounts.getFirst();
-    }
-
-    private Long extractNodeId(ClashConnection connection) {
-        if (connection == null || connection.metadata() == null || connection.metadata().type() == null) {
-            return null;
-        }
-        Matcher matcher = NODE_ID_PATTERN.matcher(connection.metadata().type());
-        if (!matcher.find()) {
-            return null;
-        }
-        return Long.parseLong(matcher.group(1));
     }
 }
