@@ -20,9 +20,6 @@
 
         <!-- 工具库版本 -->
         <lombok.version>1.18.34</lombok.version>
-        <grpc.version>1.71.0</grpc.version>
-        <protobuf.version>3.25.5</protobuf.version>
-        <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
 
         <!-- 编译器插件版本 -->
         <compiler-plugin.version>3.14.0</compiler-plugin.version>
@@ -114,11 +111,6 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest-client-jackson</artifactId>
         </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-grpc</artifactId>
-        </dependency>
-
         <!-- MySQL JDBC 驱动 -->
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -141,27 +133,6 @@
             <version>3.1.0</version>
         </dependency>
 
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-protobuf</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-stub</artifactId>
-            <version>${grpc.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>javax.annotation</groupId>
-            <artifactId>javax.annotation-api</artifactId>
-            <version>1.3.2</version>
-        </dependency>
-        <dependency>
-            <groupId>com.google.protobuf</groupId>
-            <artifactId>protobuf-java</artifactId>
-            <version>${protobuf.version}</version>
-        </dependency>
-
         <!-- 测试依赖 -->
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -176,13 +147,6 @@
     </dependencies>
 
     <build>
-        <extensions>
-            <extension>
-                <groupId>kr.motd.maven</groupId>
-                <artifactId>os-maven-plugin</artifactId>
-                <version>${os-maven-plugin.version}</version>
-            </extension>
-        </extensions>
         <plugins>
             <!-- Quarkus Maven Plugin -->
             <plugin>
@@ -205,26 +169,6 @@
                         <file.encoding>UTF-8</file.encoding>
                     </systemProperties>
                 </configuration>
-            </plugin>
-
-            <plugin>
-                <groupId>org.xolstice.maven.plugins</groupId>
-                <artifactId>protobuf-maven-plugin</artifactId>
-                <version>0.6.1</version>
-                <configuration>
-                    <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
-                    <pluginId>grpc-java</pluginId>
-                    <pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
-                    <pluginParameter>@generated=omit</pluginParameter>
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>compile</goal>
-                            <goal>compile-custom</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
 
             <!-- Maven Surefire Plugin -->
