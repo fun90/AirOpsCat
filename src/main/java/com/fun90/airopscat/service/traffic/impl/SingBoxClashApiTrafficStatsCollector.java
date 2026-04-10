@@ -15,7 +15,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,10 +41,10 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
     TagRepository tagRepository;
 
     /**
-     * 记录上次采集时每个连接的流量快照，用于增量计算
-     * key: serverId, value: (connectionId → [upload, download])
+     * 每台服务器的采集快照：上次采集时间 + 各连接流量基线
+     * key: serverId
      */
-    private final ConcurrentHashMap<Long, Map<String, long[]>> previousSnapshots = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, ServerTrafficSnapshot> serverSnapshots = new ConcurrentHashMap<>();
 
     @Override
     public Map<String, UserTrafficStats> collectUserTrafficStats(SshConnection connection, Server server, ServerConfig serverConfig) {
@@ -50,11 +52,24 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
             ClashConnectionsResponse response = clashApiClient.queryConnections(connection);
             if (response == null || response.connections() == null || response.connections().isEmpty()) {
                 log.debug("clash API 没有活跃连接, serverId={}", server.getId());
-                previousSnapshots.remove(server.getId());
+                serverSnapshots.remove(server.getId());
                 return Collections.emptyMap();
             }
 
-            Map<String, long[]> tagTrafficDelta = computeTagTrafficDelta(server.getId(), response.connections());
+            Instant pollTime = Instant.now();
+            ServerTrafficSnapshot prev = serverSnapshots.get(server.getId());
+
+            Map<String, long[]> tagTrafficDelta = computeTagTrafficDelta(prev, response.connections());
+
+            // 无论本轮是否有增量，都更新快照以便下次轮询计算增量
+            serverSnapshots.put(server.getId(), buildSnapshot(pollTime, response.connections()));
+
+            if (prev == null) {
+                // 首次轮询：仅建立基线，本轮不计费，避免长连接全量重复计费
+                log.debug("serverId={} 首次采集，建立基线，本轮不计费", server.getId());
+                return Collections.emptyMap();
+            }
+
             if (tagTrafficDelta.isEmpty()) {
                 return Collections.emptyMap();
             }
@@ -73,13 +88,15 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
     }
 
     /**
-     * 根据当前连接列表与上次快照计算每个 inbound tag 的增量流量
+     * 计算每个 inbound tag 的增量流量，处理 AirOpsCat 和 sing-box 重启场景：
+     * <ul>
+     *   <li>连接 start > lastPollTime：上次采集后才建立的新连接，全量计费</li>
+     *   <li>连接 start ≤ lastPollTime 且有快照：计算增量</li>
+     *   <li>连接 start ≤ lastPollTime 且无快照（重启后第一次看到）：跳过，避免重复计费</li>
+     * </ul>
      */
-    private Map<String, long[]> computeTagTrafficDelta(Long serverId, List<ClashConnection> connections) {
-        Map<String, long[]> currentSnapshot = new HashMap<>();
+    private Map<String, long[]> computeTagTrafficDelta(ServerTrafficSnapshot prev, List<ClashConnection> connections) {
         Map<String, long[]> tagTrafficDelta = new LinkedHashMap<>();
-
-        Map<String, long[]> prev = previousSnapshots.getOrDefault(serverId, Collections.emptyMap());
 
         for (ClashConnection conn : connections) {
             if (conn.id() == null || conn.metadata() == null) {
@@ -93,11 +110,30 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
             long upload = conn.upload() != null ? conn.upload() : 0L;
             long download = conn.download() != null ? conn.download() : 0L;
 
-            currentSnapshot.put(conn.id(), new long[]{upload, download});
+            long deltaUpload;
+            long deltaDownload;
 
-            long[] previous = prev.get(conn.id());
-            long deltaUpload = previous != null ? Math.max(0L, upload - previous[0]) : upload;
-            long deltaDownload = previous != null ? Math.max(0L, download - previous[1]) : download;
+            if (prev == null) {
+                // 首次轮询，由外层直接返回空，不走到这里
+                continue;
+            }
+
+            Instant connStart = parseConnStart(conn.start());
+            if (connStart != null && connStart.isAfter(prev.lastPollTime())) {
+                // 上次采集后才建立的新连接，全量计费
+                deltaUpload = upload;
+                deltaDownload = download;
+            } else {
+                // 已存在的连接，尝试计算增量
+                long[] baseline = prev.connections().get(conn.id());
+                if (baseline == null) {
+                    // 无快照记录（AirOpsCat 或 sing-box 重启后残留的不明连接），跳过
+                    log.debug("连接 {} 无基线记录且 start 时间不晚于上次采集，跳过", conn.id());
+                    continue;
+                }
+                deltaUpload = Math.max(0L, upload - baseline[0]);
+                deltaDownload = Math.max(0L, download - baseline[1]);
+            }
 
             if (deltaUpload > 0 || deltaDownload > 0) {
                 tagTrafficDelta.merge(inboundTag, new long[]{deltaUpload, deltaDownload},
@@ -105,8 +141,20 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
             }
         }
 
-        previousSnapshots.put(serverId, currentSnapshot);
         return tagTrafficDelta;
+    }
+
+    private ServerTrafficSnapshot buildSnapshot(Instant pollTime, List<ClashConnection> connections) {
+        Map<String, long[]> snapshot = new HashMap<>();
+        for (ClashConnection conn : connections) {
+            if (conn.id() == null) {
+                continue;
+            }
+            long upload = conn.upload() != null ? conn.upload() : 0L;
+            long download = conn.download() != null ? conn.download() : 0L;
+            snapshot.put(conn.id(), new long[]{upload, download});
+        }
+        return new ServerTrafficSnapshot(pollTime, snapshot);
     }
 
     /**
@@ -220,4 +268,24 @@ public class SingBoxClashApiTrafficStatsCollector implements TrafficStatsCollect
             return null;
         }
     }
+
+    private Instant parseConnStart(String start) {
+        if (start == null || start.isBlank()) {
+            return null;
+        }
+        try {
+            return OffsetDateTime.parse(start).toInstant();
+        } catch (Exception e) {
+            log.debug("解析连接 start 时间失败: {}", start);
+            return null;
+        }
+    }
+
+    /**
+     * 每台服务器的采集快照
+     *
+     * @param lastPollTime  本次采集时间，下次采集用于判断新旧连接
+     * @param connections   本次所有活跃连接的流量基线，key=connectionId，value=[upload, download]
+     */
+    private record ServerTrafficSnapshot(Instant lastPollTime, Map<String, long[]> connections) {}
 }
