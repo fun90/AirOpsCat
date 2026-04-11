@@ -27,7 +27,7 @@ install_packages() {
 
 install_agent_files() {
   log "创建限速代理目录"
-  mkdir -p /usr/local/bin /etc/airopscat/ratelimit /var/lib/airopscat-ratelimit
+  mkdir -p /usr/local/bin /etc/airopscat/ratelimit
 
   if [[ ! -f /etc/airopscat/ratelimit/accounts.json ]]; then
     cat > /etc/airopscat/ratelimit/accounts.json <<'EOF'
@@ -39,7 +39,7 @@ EOF
 # 可选配置，留空时自动探测默认网卡
 AIROPSCAT_RATELIMIT_NIC=
 AIROPSCAT_CLASH_API_PORT=19191
-AIROPSCAT_RATELIMIT_INTERVAL=1
+AIROPSCAT_RATELIMIT_INTERVAL=5
 AIROPSCAT_RATELIMIT_ROOT_RATE=10000mbit
 EOF
 
@@ -50,260 +50,156 @@ import os
 import subprocess
 import sys
 import time
-import urllib.error
 import urllib.request
 
 CONFIG_FILE = "/etc/airopscat/ratelimit/accounts.json"
-STATE_FILE = "/var/lib/airopscat-ratelimit/state.json"
-DEFAULT_NIC_ENV = "AIROPSCAT_RATELIMIT_NIC"
 CLASH_API_PORT = os.getenv("AIROPSCAT_CLASH_API_PORT", "19191")
-POLL_INTERVAL = max(1, int(os.getenv("AIROPSCAT_RATELIMIT_INTERVAL", "1")))
+POLL_INTERVAL = max(1, int(os.getenv("AIROPSCAT_RATELIMIT_INTERVAL", "3")))
 ROOT_RATE = os.getenv("AIROPSCAT_RATELIMIT_ROOT_RATE", "10000mbit")
-MAX_MARK_ID = 65533
-RESERVED_DEFAULT_CLASS_MINOR = 9999
 
 
-def log(message):
-    print(time.strftime("[%Y-%m-%d %H:%M:%S]"), message, flush=True)
+def log(msg):
+    print(time.strftime("[%Y-%m-%d %H:%M:%S]"), msg, flush=True)
 
 
-def run(command):
-    return subprocess.run(
-        command,
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-
-
-def load_json_file(path, default_value):
-    try:
-        with open(path, "r", encoding="utf-8") as file:
-            return json.load(file)
-    except FileNotFoundError:
-        return default_value
-    except Exception as exc:
-        log(f"读取 JSON 文件失败: {path}, error={exc}")
-        return default_value
-
-
-def save_state(state):
-    with open(STATE_FILE, "w", encoding="utf-8") as file:
-        json.dump(state, file, ensure_ascii=False, indent=2, sort_keys=True)
+def run(cmd):
+    return subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
 
 def detect_nic():
-    nic = os.getenv(DEFAULT_NIC_ENV, "").strip()
+    nic = os.getenv("AIROPSCAT_RATELIMIT_NIC", "").strip()
     if nic:
         return nic
-
-    result = run("ip route show default | awk 'NR==1 {for (i=1; i<=NF; i++) if ($i == \"dev\") {print $(i+1); exit}}'")
-    nic = result.stdout.strip()
-    return nic or "eth0"
-
-
-def resolve_class_minor(mark_id):
-    class_minor = mark_id + 1
-    if class_minor >= RESERVED_DEFAULT_CLASS_MINOR:
-        class_minor += 1
-    return class_minor if class_minor <= 65534 else None
+    tokens = subprocess.run(["ip", "route", "show", "default"], capture_output=True, text=True).stdout.split()
+    if "dev" in tokens:
+        return tokens[tokens.index("dev") + 1]
+    return "eth0"
 
 
 def load_accounts():
-    data = load_json_file(CONFIG_FILE, {"accounts": []})
-    if isinstance(data, dict):
-        items = data.get("accounts", [])
-    elif isinstance(data, list):
-        items = data
-    else:
-        items = []
-
-    accounts = {}
+    try:
+        with open(CONFIG_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return {}
+    items = data.get("accounts", []) if isinstance(data, dict) else data
+    if not isinstance(items, list):
+        return {}
+    result = {}
     for item in items:
         if not isinstance(item, dict):
             continue
         account_no = str(item.get("accountNo") or "").strip()
-        speed = item.get("speed")
         try:
-            speed = int(speed)
+            speed = int(item.get("speed") or 0)
         except (TypeError, ValueError):
             speed = 0
         if account_no and speed > 0:
-            accounts[account_no] = speed
-    return accounts
+            result[account_no] = speed
+    return result
 
 
-def allocate_marks(accounts, state):
-    current_mapping = state.get("markByAccountNo", {})
-    used_marks = set()
-    next_mapping = {}
+def rebuild_tc(nic, accounts):
+    """删除并重建 HTB 规则，返回 account_no -> mark_id 映射。仅在账号变化时调用。"""
+    run(f"tc qdisc del dev {nic} root 2>/dev/null || true")
+    if not accounts:
+        return {}
 
+    run(f"tc qdisc add dev {nic} root handle 1: htb default 9999")
+    run(f"tc class add dev {nic} parent 1: classid 1:1 htb rate {ROOT_RATE}")
+    run(f"tc class add dev {nic} parent 1:1 classid 1:9999 htb rate {ROOT_RATE}")
+
+    marks = {}
+    class_id = 2
     for account_no in sorted(accounts):
-        mark_id = current_mapping.get(account_no)
-        if isinstance(mark_id, int) and 1 <= mark_id <= MAX_MARK_ID and mark_id not in used_marks and resolve_class_minor(mark_id):
-            next_mapping[account_no] = mark_id
-            used_marks.add(mark_id)
-
-    next_mark = 1
-    for account_no in sorted(accounts):
-        if account_no in next_mapping:
-            continue
-        while next_mark in used_marks or resolve_class_minor(next_mark) is None:
-            next_mark += 1
-            if next_mark > MAX_MARK_ID:
-                raise RuntimeError("可用限速 mark 已耗尽")
-        next_mapping[account_no] = next_mark
-        used_marks.add(next_mark)
-
-    state["markByAccountNo"] = next_mapping
-    return next_mapping
+        if class_id == 9999:
+            class_id += 1
+        speed_kbit = accounts[account_no] * 8
+        run(f"tc class add dev {nic} parent 1:1 classid 1:{class_id} htb rate {speed_kbit}kbit burst 32k")
+        run(f"tc filter add dev {nic} parent 1: handle {class_id} fw flowid 1:{class_id}")
+        marks[account_no] = class_id
+        class_id += 1
+    return marks
 
 
-def ensure_base_rules(nic):
-    result = run(f"tc qdisc show dev {nic}")
-    if "htb" not in result.stdout:
-        run(f"tc qdisc del dev {nic} root 2>/dev/null || true")
-        run(f"tc qdisc add dev {nic} root handle 1: htb default 9999")
-        run(f"tc class add dev {nic} parent 1: classid 1:1 htb rate {ROOT_RATE}")
-        run(f"tc class add dev {nic} parent 1:1 classid 1:9999 htb rate {ROOT_RATE}")
-
+def setup_iptables():
     run("iptables -t mangle -C PREROUTING -j CONNMARK --restore-mark 2>/dev/null || iptables -t mangle -I PREROUTING -j CONNMARK --restore-mark")
     run("iptables -t mangle -C OUTPUT -j CONNMARK --restore-mark 2>/dev/null || iptables -t mangle -I OUTPUT -j CONNMARK --restore-mark")
 
 
-def list_existing_class_minors(nic):
-    result = run(f"tc class show dev {nic}")
-    class_minors = set()
-    for line in result.stdout.splitlines():
-        parts = line.split()
-        if len(parts) < 3 or parts[0] != "class" or parts[1] != "htb":
-            continue
-        classid = parts[2]
-        if not classid.startswith("1:"):
-            continue
-        try:
-            class_minor = int(classid.split(":", 1)[1])
-        except ValueError:
-            continue
-        if class_minor in (1, RESERVED_DEFAULT_CLASS_MINOR):
-            continue
-        class_minors.add(class_minor)
-    return class_minors
-
-
-def list_existing_filter_marks(nic):
-    result = run(f"tc filter show dev {nic}")
-    marks = set()
-    for line in result.stdout.splitlines():
-        if " handle " not in line or " fw " not in line:
-            continue
-        fragment = line.split(" handle ", 1)[1].split()[0]
-        try:
-            marks.add(int(fragment, 16 if fragment.startswith("0x") else 10))
-        except ValueError:
-            continue
-    return marks
-
-
-def sync_tc_profiles(nic, accounts, mark_mapping, state):
-    current_profiles = {
-        account_no: {"mark": mark_mapping[account_no], "speed": accounts[account_no]}
-        for account_no in accounts
-    }
-
-    desired_marks = {profile["mark"] for profile in current_profiles.values()}
-    desired_class_minors = {
-        resolve_class_minor(profile["mark"])
-        for profile in current_profiles.values()
-        if resolve_class_minor(profile["mark"]) is not None
-    }
-
-    for mark_id in sorted(list_existing_filter_marks(nic) - desired_marks):
-        run(f"tc filter del dev {nic} parent 1: handle {mark_id} fw 2>/dev/null || true")
-
-    for class_minor in sorted(list_existing_class_minors(nic) - desired_class_minors, reverse=True):
-        run(f"tc class del dev {nic} parent 1:1 classid 1:{class_minor} 2>/dev/null || true")
-
-    for account_no, profile in current_profiles.items():
-        mark_id = profile["mark"]
-        class_minor = resolve_class_minor(mark_id)
-        if class_minor is None:
-            continue
-        rate_kbit = profile["speed"] * 8
-        run(
-            f"tc class change dev {nic} parent 1:1 classid 1:{class_minor} htb rate {rate_kbit}kbit burst 32k 2>/dev/null "
-            f"|| tc class add dev {nic} parent 1:1 classid 1:{class_minor} htb rate {rate_kbit}kbit burst 32k"
-        )
-        run(f"tc filter del dev {nic} parent 1: handle {mark_id} fw 2>/dev/null || true")
-        run(f"tc filter add dev {nic} parent 1: handle {mark_id} fw flowid 1:{class_minor}")
-
-    state["appliedProfiles"] = current_profiles
-
-
-def fetch_connections():
-    request = urllib.request.Request(
-        f"http://127.0.0.1:{CLASH_API_PORT}/connections",
-        headers={"Accept": "application/json"},
-    )
-    with urllib.request.urlopen(request, timeout=3) as response:
-        return json.load(response)
-
-
-def mark_connections(accounts, mark_mapping):
-    if not accounts:
+def mark_connections(marks, prev):
+    if not marks:
+        prev.clear()
         return
-
     try:
-        payload = fetch_connections()
-    except urllib.error.URLError as exc:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{CLASH_API_PORT}/connections",
+            headers={"Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            payload = json.load(resp)
+    except Exception as exc:
         log(f"读取 sing-box 连接失败: {exc}")
         return
-    except Exception as exc:
-        log(f"解析 sing-box 连接失败: {exc}")
-        return
 
-    connections = payload.get("connections", [])
-    for connection in connections:
-        if not isinstance(connection, dict):
+    desired = {}
+    for conn in payload.get("connections", []):
+        if not isinstance(conn, dict):
             continue
-        metadata = connection.get("metadata") or {}
-        account_no = str(metadata.get("authUser") or "").strip()
-        if account_no not in accounts:
+        meta = conn.get("metadata") or {}
+        account_no = str(meta.get("authUser") or "").strip()
+        mark_id = marks.get(account_no)
+        if not mark_id:
             continue
+        src_ip = str(meta.get("sourceIP") or "").strip()
+        src_port = str(meta.get("sourcePort") or "").strip()
+        if not src_ip or not src_port.isdigit():
+            continue
+        proto = "tcp" if str(meta.get("network") or "").lower() == "tcp" else "udp"
+        desired[(src_ip, src_port, proto)] = mark_id
 
-        source_ip = str(metadata.get("sourceIP") or "").strip()
-        source_port = str(metadata.get("sourcePort") or "").strip()
-        if not source_ip or not source_port.isdigit():
+    # 仅对新连接或 mark 变化的连接调用 conntrack，稳态下无子进程开销
+    for (src_ip, src_port, proto), mark_id in desired.items():
+        if prev.get((src_ip, src_port, proto)) == mark_id:
             continue
+        r = subprocess.run(
+            ["conntrack", "-U", "-p", proto, "--src", src_ip, "--sport", src_port, "--mark", str(mark_id)],
+            capture_output=True, text=True,
+        )
+        if r.returncode != 0 and r.stderr and "0 flow entries" not in r.stderr:
+            log(f"conntrack 打标失败: {src_ip}:{src_port}/{proto}: {r.stderr.strip()}")
 
-        protocol = "tcp" if str(metadata.get("network") or "").lower() == "tcp" else "udp"
-        mark_id = mark_mapping.get(account_no)
-        if mark_id is None:
-            continue
-
-        result = run(f"conntrack -U -p {protocol} --src {source_ip} --sport {source_port} --mark {mark_id}")
-        if result.returncode != 0 and result.stderr:
-            stderr = result.stderr.strip()
-            if "0 flow entries have been updated" not in stderr:
-                log(f"conntrack 打标失败: accountNo={account_no}, stderr={stderr}")
+    prev.clear()
+    prev.update(desired)
 
 
 def main():
-    os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
-    state = load_json_file(STATE_FILE, {})
+    nic = None
+    accounts_mtime = None
+    marks = {}
+    prev = {}
 
     while True:
         try:
-            nic = detect_nic()
-            accounts = load_accounts()
-            ensure_base_rules(nic)
-            mark_mapping = allocate_marks(accounts, state)
-            sync_tc_profiles(nic, accounts, mark_mapping, state)
-            save_state(state)
-            mark_connections(accounts, mark_mapping)
+            if nic is None:
+                nic = detect_nic()
+
+            try:
+                mtime = os.path.getmtime(CONFIG_FILE)
+            except OSError:
+                mtime = None
+
+            if mtime != accounts_mtime:
+                accounts = load_accounts()
+                accounts_mtime = mtime
+                marks = rebuild_tc(nic, accounts)
+                setup_iptables()
+                prev.clear()
+
+            mark_connections(marks, prev)
         except Exception as exc:
             log(f"限速代理执行失败: {exc}")
+            nic = None
         time.sleep(POLL_INTERVAL)
 
 
