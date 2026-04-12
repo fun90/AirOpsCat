@@ -17,6 +17,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.control.RequestContextController;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -76,6 +77,7 @@ public class RateLimitService {
         return systemConfigService.getBooleanValue("airopscat.ratelimit.enabled", false);
     }
 
+    @Transactional
     public void syncServer(Server server) {
         if (server == null) {
             return;
