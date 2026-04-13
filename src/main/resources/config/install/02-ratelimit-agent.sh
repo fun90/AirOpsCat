@@ -45,17 +45,20 @@ EOF
 
   cat > /usr/local/bin/airopscat-ratelimit-agent <<'EOF'
 #!/usr/bin/env python3
+import http.client
 import json
 import os
 import subprocess
 import sys
 import time
-import urllib.request
 
 CONFIG_FILE = "/etc/airopscat/ratelimit/accounts.json"
-CLASH_API_PORT = os.getenv("AIROPSCAT_CLASH_API_PORT", "19191")
+CLASH_API_PORT = int(os.getenv("AIROPSCAT_CLASH_API_PORT", "19191"))
 POLL_INTERVAL = max(1, int(os.getenv("AIROPSCAT_RATELIMIT_INTERVAL", "3")))
 ROOT_RATE = os.getenv("AIROPSCAT_RATELIMIT_ROOT_RATE", "10000mbit")
+
+# 持久 HTTP 连接，避免每轮重建 TCP 连接
+_http_conn = None
 
 
 def log(msg):
@@ -64,6 +67,29 @@ def log(msg):
 
 def run(cmd):
     return subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+
+def fetch_connections():
+    """通过持久 HTTP 连接获取 sing-box 连接列表，减少系统调用开销。"""
+    global _http_conn
+    for attempt in range(2):
+        try:
+            if _http_conn is None:
+                _http_conn = http.client.HTTPConnection("127.0.0.1", CLASH_API_PORT, timeout=3)
+            _http_conn.request("GET", "/connections", headers={"Accept": "application/json"})
+            resp = _http_conn.getresponse()
+            try:
+                return json.load(resp)
+            finally:
+                resp.read()  # 排尽响应体，保持连接可复用
+        except Exception:
+            try:
+                _http_conn.close()
+            except Exception:
+                pass
+            _http_conn = None
+            if attempt == 1:
+                raise
 
 
 def detect_nic():
@@ -136,22 +162,18 @@ def setup_iptables():
     run("iptables -t mangle -C OUTPUT -j CONNMARK --restore-mark 2>/dev/null || iptables -t mangle -I OUTPUT -j CONNMARK --restore-mark")
 
 
-def mark_connections(marks, prev):
+def mark_connections(marks, prev, desired):
     if not marks:
         prev.clear()
         return
     try:
-        req = urllib.request.Request(
-            f"http://127.0.0.1:{CLASH_API_PORT}/connections",
-            headers={"Accept": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            payload = json.load(resp)
+        payload = fetch_connections()
     except Exception as exc:
         log(f"读取 sing-box 连接失败: {exc}")
         return
 
-    desired = {}
+    # 重用 desired dict，避免每轮分配与 GC
+    desired.clear()
     for conn in payload.get("connections", []):
         if not isinstance(conn, dict):
             continue
@@ -173,7 +195,7 @@ def mark_connections(marks, prev):
             continue
         r = subprocess.run(
             ["conntrack", "-U", "-p", proto, "--src", src_ip, "--sport", src_port, "--mark", str(mark_id)],
-            capture_output=True, text=True,
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
         )
         if r.returncode != 0 and r.stderr and "0 flow entries" not in r.stderr:
             log(f"conntrack 打标失败: {src_ip}:{src_port}/{proto}: {r.stderr.strip()}")
@@ -187,6 +209,7 @@ def main():
     accounts_mtime = None
     marks = {}
     prev = {}
+    desired = {}  # 复用，避免每轮分配
 
     while True:
         try:
@@ -205,7 +228,7 @@ def main():
                 setup_iptables()
                 prev.clear()
 
-            mark_connections(marks, prev)
+            mark_connections(marks, prev, desired)
         except Exception as exc:
             log(f"限速代理执行失败: {exc}")
             nic = None
@@ -233,6 +256,7 @@ EnvironmentFile=-/etc/default/airopscat-ratelimit
 ExecStart=/usr/local/bin/airopscat-ratelimit-agent
 Restart=always
 RestartSec=2
+Nice=10
 
 [Install]
 WantedBy=multi-user.target
