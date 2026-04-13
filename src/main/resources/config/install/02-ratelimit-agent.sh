@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # @title: 安装限速本地代理
-# @description: 安装 airopscat-ratelimit systemd 服务，在服务器本地每秒读取 sing-box 连接并维护限速规则
+# @description: 安装 airopscat-ratelimit systemd 服务，在服务器本地每隔X秒读取 sing-box 连接并维护限速规则
 
 set -euo pipefail
 
@@ -99,6 +99,14 @@ def load_accounts():
     return result
 
 
+def calc_burst(speed_kbit):
+    """根据速率动态计算 burst，避免 HTB too many events。
+    burst = max(64k, 速率对应的字节数 / 10)，单位 kB。"""
+    rate_bytes_per_sec = speed_kbit * 1000 // 8
+    burst_bytes = max(64 * 1024, rate_bytes_per_sec // 10)
+    return max(64, burst_bytes // 1024)
+
+
 def rebuild_tc(nic, accounts):
     """删除并重建 HTB 规则，返回 account_no -> mark_id 映射。仅在账号变化时调用。"""
     run(f"tc qdisc del dev {nic} root 2>/dev/null || true")
@@ -106,8 +114,8 @@ def rebuild_tc(nic, accounts):
         return {}
 
     run(f"tc qdisc add dev {nic} root handle 1: htb default 9999")
-    run(f"tc class add dev {nic} parent 1: classid 1:1 htb rate {ROOT_RATE}")
-    run(f"tc class add dev {nic} parent 1:1 classid 1:9999 htb rate {ROOT_RATE}")
+    run(f"tc class add dev {nic} parent 1: classid 1:1 htb rate {ROOT_RATE} burst 128k quantum 1514")
+    run(f"tc class add dev {nic} parent 1:1 classid 1:9999 htb rate {ROOT_RATE} burst 128k quantum 1514")
 
     marks = {}
     class_id = 2
@@ -115,7 +123,8 @@ def rebuild_tc(nic, accounts):
         if class_id == 9999:
             class_id += 1
         speed_kbit = accounts[account_no] * 8
-        run(f"tc class add dev {nic} parent 1:1 classid 1:{class_id} htb rate {speed_kbit}kbit burst 32k")
+        burst_k = calc_burst(speed_kbit)
+        run(f"tc class add dev {nic} parent 1:1 classid 1:{class_id} htb rate {speed_kbit}kbit burst {burst_k}k cburst {burst_k}k quantum 1514")
         run(f"tc filter add dev {nic} parent 1: handle {class_id} fw flowid 1:{class_id}")
         marks[account_no] = class_id
         class_id += 1
