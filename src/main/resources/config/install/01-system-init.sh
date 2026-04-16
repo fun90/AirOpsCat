@@ -29,7 +29,7 @@ install_packages() {
   export DEBIAN_FRONTEND=noninteractive
 
   log "更新 APT 软件包索引"
-  apt-get update
+  apt-get update && apt-get upgrade -y
 
   log "安装基础软件包: cron vim wget htop conntrack"
   apt-get install -y cron vim wget htop conntrack
