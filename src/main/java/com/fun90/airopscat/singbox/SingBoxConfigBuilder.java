@@ -1,6 +1,5 @@
-package com.fun90.airopscat.service.deployment;
+package com.fun90.airopscat.singbox;
 
-import com.fun90.airopscat.annotation.SupportedCores;
 import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
 import com.fun90.airopscat.model.dto.deployment.NodeDeploymentSnapshot;
 import com.fun90.airopscat.model.dto.deployment.RouteRuleSnapshot;
@@ -8,7 +7,6 @@ import com.fun90.airopscat.model.dto.deployment.ServerSnapshot;
 import com.fun90.airopscat.model.dto.deployment.NodeClient;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.enums.RouteRuleType;
-import com.fun90.airopscat.service.deployment.strategy.CoreConfigBuilder;
 import com.fun90.airopscat.util.ConfigFileReader;
 import com.fun90.airopscat.util.JsonUtil;
 import com.fun90.airopscat.util.TemplateUtil;
@@ -27,8 +25,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @ApplicationScoped
 @RequiredArgsConstructor
-@SupportedCores(value = {"sing-box"}, priority = 1, description = "Sing-box 部署配置构建策略")
-public class SingBoxConfigBuilder implements CoreConfigBuilder {
+public class SingBoxConfigBuilder {
 
     private static final List<String> DEFAULT_OUTBOUND_TAGS = List.of(
             "default-direct",
@@ -38,7 +35,6 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
     private final ConfigFileReader configFileReader;
     private final TemplateUtil templateUtil;
 
-    @Override
     public String build(DeploymentServerContext ctx, List<Node> nodes) {
         List<NodeDeploymentSnapshot> snapshots = nodes.stream()
                 .map(Node::getId)
@@ -71,11 +67,6 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
 
         applyManagedRouteRules(serverSnapshot, nodeSnapshotMap, outbounds, routeRules, ruleSets);
         return renderConfig(inbounds, outbounds, routeRules, ruleSets, statsUsers.stream().distinct().toList());
-    }
-
-    @Override
-    public String getStrategyName() {
-        return "sing-box";
     }
 
     private void applyNodeConfig(NodeDeploymentSnapshot node,

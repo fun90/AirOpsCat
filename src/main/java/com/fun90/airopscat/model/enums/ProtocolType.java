@@ -7,23 +7,21 @@ import java.util.List;
 
 @Getter
 public enum ProtocolType {
-    VLESS("VLESS-Vision", "vless", 0, List.of("sing-box")),
-    VLESS_REALITY("VLESS-Vision-REALITY", "vless-reality", 0, List.of("sing-box")),
-    HYSTERIA2("Hysteria2", "hysteria2", 0, List.of("sing-box")),
-    SHADOWTLS("ShadowTLS", "shadowtls", 0, List.of("sing-box")),
-    SHADOWSOCKS("Shadowsocks", "shadowsocks", 1, List.of("sing-box")),
-    SOCKS("SOCKS", "socks", 1, List.of("sing-box"));
+    VLESS("VLESS-Vision", "vless", 0),
+    VLESS_REALITY("VLESS-Vision-REALITY", "vless-reality", 0),
+    HYSTERIA2("Hysteria2", "hysteria2", 0),
+    SHADOWTLS("ShadowTLS", "shadowtls", 0),
+    SHADOWSOCKS("Shadowsocks", "shadowsocks", 1),
+    SOCKS("SOCKS", "socks", 1);
 
     private final String label;
     private final String value;
     private final Integer type;
-    private final List<String> coreTypes;
 
-    ProtocolType(String label, String value, Integer type, List<String> coreTypes) {
+    ProtocolType(String label, String value, Integer type) {
         this.label = label;
         this.value = value;
         this.type = type;
-        this.coreTypes = coreTypes;
     }
 
     public static ProtocolType fromString(String text) {
@@ -36,9 +34,7 @@ public enum ProtocolType {
     }
 
     public boolean supports(Integer nodeType, String coreType) {
-        return type.equals(nodeType)
-                && coreType != null
-                && coreTypes.stream().anyMatch(item -> item.equalsIgnoreCase(coreType));
+        return type.equals(nodeType);
     }
 
     public static boolean isSupported(String protocol, Integer nodeType, String coreType) {

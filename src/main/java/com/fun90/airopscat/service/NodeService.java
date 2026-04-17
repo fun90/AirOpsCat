@@ -15,8 +15,7 @@ import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.ServerHostRepository;
 import com.fun90.airopscat.repository.TagRepository;
-import com.fun90.airopscat.service.inbound.registry.DefaultInboundStrategyRegistry;
-import com.fun90.airopscat.service.inbound.strategy.DefaultInboundStrategy;
+import com.fun90.airopscat.singbox.SingBoxDefaultInboundFactory;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -60,7 +59,7 @@ public class NodeService {
     TagRepository tagRepository;
 
     @Inject
-    DefaultInboundStrategyRegistry strategyRegistry;
+    SingBoxDefaultInboundFactory singBoxDefaultInboundFactory;
 
     @Inject
     NodeGroupService nodeGroupService;
@@ -303,12 +302,12 @@ public class NodeService {
     private void normalizeAndValidateNodeProtocol(Node node) {
         String coreType = node.getCoreType();
         if (coreType == null || coreType.trim().isEmpty()) {
-            throw new IllegalArgumentException("Core type cannot be empty");
+            coreType = CoreType.SING_BOX.getValue();
         }
 
         CoreType parsedCoreType = CoreType.fromValue(coreType);
         if (parsedCoreType == null) {
-            throw new IllegalArgumentException("Unsupported core type: " + coreType);
+            throw new IllegalArgumentException("当前仅支持 sing-box 内核");
         }
         node.setCoreType(parsedCoreType.getValue());
 
@@ -325,7 +324,7 @@ public class NodeService {
                     .map(ProtocolType::getLabel)
                     .collect(Collectors.joining(", "));
             throw new IllegalArgumentException("Protocol " + node.getProtocol() + " is not supported for node type "
-                    + node.getType() + " and core type " + node.getCoreType() + ". Supported protocols: " + supportedProtocols);
+                    + node.getType() + ". Supported protocols: " + supportedProtocols);
         }
     }
 
@@ -357,7 +356,7 @@ public class NodeService {
         if (node.getCoreType() != null
                 && existingNode.getCoreType() != null
                 && !node.getCoreType().equalsIgnoreCase(existingNode.getCoreType())) {
-            throw new IllegalArgumentException("节点不允许通过编辑修改内核类型，请使用切换内核功能");
+            throw new IllegalArgumentException("当前系统仅支持 sing-box 内核，内核类型不可修改");
         }
 
         normalizeAndValidateNodeProtocol(node);
@@ -686,7 +685,6 @@ public class NodeService {
                     option.put("value", type.getValue());
                     option.put("label", type.getLabel());
                     option.put("type", type.getType());
-                    option.put("coreTypes", type.getCoreTypes());
                     return option;
                 })
                 .collect(Collectors.toList());
@@ -722,7 +720,9 @@ public class NodeService {
 
     public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, Long serverId, Long accessHostId, String coreType) {
         String normalizedCoreType = (coreType == null || coreType.trim().isEmpty()) ? CoreType.SING_BOX.getValue() : coreType;
-        DefaultInboundStrategy strategy = strategyRegistry.getStrategy(normalizedCoreType);
-        return strategy.generateDefaultInbound(protocol, serverId, accessHostId);
+        if (!CoreType.SING_BOX.getValue().equalsIgnoreCase(normalizedCoreType)) {
+            throw new IllegalArgumentException("当前仅支持 sing-box 内核");
+        }
+        return singBoxDefaultInboundFactory.generateDefaultInbound(protocol, serverId, accessHostId);
     }
 }

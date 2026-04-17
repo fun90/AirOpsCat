@@ -35,7 +35,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DeploymentDataLoader {
 
-    private static final String CORE_TYPE_XRAY = "xray";
     private static final String CORE_TYPE_SING_BOX = "sing-box";
 
     private final NodeRepository nodeRepository;
@@ -47,11 +46,7 @@ public class DeploymentDataLoader {
     public DeploymentPreload load(List<Node> inputNodes) {
         List<Node> expandedInputNodes = nodeGroupService.expandWithRelatedGroups(inputNodes);
         List<Long> targetServerIds = collectTargetServerIds(expandedInputNodes);
-        Map<Long, Set<String>> targetCoreTypesByServerId = collectTargetCoreTypesByServerId(expandedInputNodes);
-        List<Node> relatedNodes = filterRelatedNodesByServerCore(
-                nodeRepository.findByServerIdIn(targetServerIds),
-                targetCoreTypesByServerId
-        );
+        List<Node> relatedNodes = nodeGroupService.expandWithRelatedGroups(nodeRepository.findByServerIdIn(targetServerIds));
         Map<Long, List<RouteRuleSnapshot>> routeRulesByServerId = routeRuleService.getEnabledSnapshotsByServerIds(targetServerIds);
         List<RouteRuleSnapshot> routeRuleSnapshots = routeRulesByServerId.values().stream()
                 .flatMap(List::stream)
@@ -89,17 +84,7 @@ public class DeploymentDataLoader {
         Map<Long, List<RouteRuleSnapshot>> routeRulesByServerId = routeRuleService.getEnabledSnapshotsByServerIds(targetServerIds);
         List<RouteRuleSnapshot> routeRuleSnapshots = routeRulesByServerId.getOrDefault(serverId, Collections.emptyList());
 
-        Map<Long, Set<String>> targetCoreTypesByServerId = collectTargetCoreTypesByServerId(relatedNodes);
-        if (!routeRuleSnapshots.isEmpty()) {
-            Set<String> coreTypes = targetCoreTypesByServerId.computeIfAbsent(serverId, key -> new LinkedHashSet<>());
-            routeRuleSnapshots.stream()
-                    .map(RouteRuleSnapshot::coreType)
-                    .forEach(coreTypes::add);
-        }
-
-        List<Node> filteredNodes = targetCoreTypesByServerId.isEmpty()
-                ? Collections.emptyList()
-                : filterRelatedNodesByServerCore(relatedNodes, targetCoreTypesByServerId);
+        List<Node> filteredNodes = relatedNodes.isEmpty() ? Collections.emptyList() : relatedNodes;
 
         Map<Long, Server> serverMap = loadServerMap(targetServerIds, filteredNodes, routeRuleSnapshots);
         ensureServersExist(targetServerIds, serverMap);
@@ -119,31 +104,6 @@ public class DeploymentDataLoader {
             serverIds.add(node.getServerId());
         }
         return new ArrayList<>(serverIds);
-    }
-
-    private Map<Long, Set<String>> collectTargetCoreTypesByServerId(List<Node> nodes) {
-        Map<Long, Set<String>> coreTypesByServerId = new LinkedHashMap<>();
-        for (Node node : nodes) {
-            String coreType = node.getCoreType();
-            coreTypesByServerId
-                    .computeIfAbsent(node.getServerId(), key -> new LinkedHashSet<>())
-                    .add(coreType);
-        }
-        return coreTypesByServerId;
-    }
-
-    private List<Node> filterRelatedNodesByServerCore(List<Node> nodes, Map<Long, Set<String>> targetCoreTypesByServerId) {
-        return nodes.stream()
-                .filter(node -> matchesTargetServerCore(node.getServerId(), node.getCoreType(), targetCoreTypesByServerId))
-                .toList();
-    }
-
-    private boolean matchesTargetServerCore(Long serverId, String coreType, Map<Long, Set<String>> targetCoreTypesByServerId) {
-        if (serverId == null) {
-            return false;
-        }
-        Set<String> allowedCoreTypes = targetCoreTypesByServerId.get(serverId);
-        return allowedCoreTypes != null && allowedCoreTypes.contains(coreType);
     }
 
     private Map<Long, Server> loadServerMap(List<Long> targetServerIds,
@@ -375,6 +335,6 @@ public class DeploymentDataLoader {
 
     private boolean supportsManagedClients(Node node) {
         String coreType = node.getCoreType();
-        return (CORE_TYPE_XRAY.equals(coreType) || CORE_TYPE_SING_BOX.equals(coreType));
+        return CORE_TYPE_SING_BOX.equals(coreType);
     }
 }

@@ -3,7 +3,7 @@
     <tr>
         <th>ID</th>
         <th>规则</th>
-        <th>内核/类型</th>
+        <th>类型</th>
         <th>作用服务器</th>
         <th>出站节点</th>
         <th>状态</th>
@@ -17,10 +17,7 @@
             <div class="fw-bold">{{ item.name }}</div>
             <div class="text-muted text-truncate" style="max-width: 280px;">{{ summarizeRuleValue(item.ruleValue) }}</div>
         </td>
-        <td>
-            <div><span class="badge" :class="getCoreBadgeClass(item.coreType)">{{ item.coreType }}</span></div>
-            <div class="text-muted mt-1">{{ getRuleTypeLabel(item.ruleType) }}</div>
-        </td>
+        <td>{{ getRuleTypeLabel(item.ruleType) }}</td>
         <td>
             <div class="text-truncate" style="max-width: 260px;">{{ (item.serverNames || []).join('、') || '-' }}</div>
         </td>

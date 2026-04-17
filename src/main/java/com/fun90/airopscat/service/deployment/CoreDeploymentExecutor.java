@@ -12,10 +12,10 @@ import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
-import com.fun90.airopscat.service.deployment.registry.CoreConfigBuilderRegistry;
 import com.fun90.airopscat.service.ratelimit.RateLimitService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
+import com.fun90.airopscat.singbox.SingBoxConfigBuilder;
 import jakarta.enterprise.context.control.ActivateRequestContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -26,7 +26,6 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -42,7 +41,7 @@ public class CoreDeploymentExecutor {
     private final CoreManagementService coreManagementService;
     private final ServerConfigRepository serverConfigRepository;
     private final NodeRepository nodeRepository;
-    private final CoreConfigBuilderRegistry coreConfigBuilderRegistry;
+    private final SingBoxConfigBuilder singBoxConfigBuilder;
     private final NodeDeploymentVersionService nodeDeploymentVersionService;
     private final SshConnectionService sshConnectionService;
     private final RateLimitService rateLimitService;
@@ -52,7 +51,7 @@ public class CoreDeploymentExecutor {
     public CoreDeploymentExecutor(CoreManagementService coreManagementService,
                                   ServerConfigRepository serverConfigRepository,
                                   NodeRepository nodeRepository,
-                                  CoreConfigBuilderRegistry coreConfigBuilderRegistry,
+                                  SingBoxConfigBuilder singBoxConfigBuilder,
                                   NodeDeploymentVersionService nodeDeploymentVersionService,
                                   SshConnectionService sshConnectionService,
                                   RateLimitService rateLimitService,
@@ -60,7 +59,7 @@ public class CoreDeploymentExecutor {
         this.coreManagementService = coreManagementService;
         this.serverConfigRepository = serverConfigRepository;
         this.nodeRepository = nodeRepository;
-        this.coreConfigBuilderRegistry = coreConfigBuilderRegistry;
+        this.singBoxConfigBuilder = singBoxConfigBuilder;
         this.nodeDeploymentVersionService = nodeDeploymentVersionService;
         this.sshConnectionService = sshConnectionService;
         this.rateLimitService = rateLimitService;
@@ -75,59 +74,49 @@ public class CoreDeploymentExecutor {
         Server server = ctx.server();
         log.info("Deploy nodes for server {}({}), count={}", server.getName(), server.getId(), ctx.nodes().size());
 
-        Map<String, List<Node>> nodesByCoreType = ctx.nodes().stream()
-                .collect(Collectors.groupingBy(node -> node.getCoreType().trim().toLowerCase()));
-
         List<CoreDeploymentExecution> results = new ArrayList<>();
         long startTime = System.nanoTime();
         if (!shouldDeployRemotely(server)) {
-            for (Map.Entry<String, List<Node>> entry : nodesByCoreType.entrySet()) {
-                results.add(executeConfigBuilder(ctx, entry.getKey(), entry.getValue(), null));
-            }
-            logServerDeploymentSummary(server, nodesByCoreType.size(), results, startTime);
+            results.add(executeConfigBuilder(ctx, ctx.nodes(), null));
+            logServerDeploymentSummary(server, results, startTime);
             return results;
         }
 
         try (SshConnection connection = createConnection(server)) {
-            for (Map.Entry<String, List<Node>> entry : nodesByCoreType.entrySet()) {
-                results.add(executeConfigBuilder(ctx, entry.getKey(), entry.getValue(), connection));
-            }
+            results.add(executeConfigBuilder(ctx, ctx.nodes(), connection));
         } catch (Exception e) {
             log.error("Create deployment SSH connection failed for server {}", server.getName(), e);
-            for (Map.Entry<String, List<Node>> entry : nodesByCoreType.entrySet()) {
-                results.add(CoreDeploymentExecution.failure(server, entry.getKey(), entry.getValue(), e.getMessage()));
-            }
+            results.add(CoreDeploymentExecution.failure(server, CORE_TYPE_SING_BOX, ctx.nodes(), e.getMessage()));
         }
-        logServerDeploymentSummary(server, nodesByCoreType.size(), results, startTime);
+        logServerDeploymentSummary(server, results, startTime);
         return results;
     }
 
     private CoreDeploymentExecution executeConfigBuilder(DeploymentServerContext ctx,
-                                                         String coreType,
                                                          List<Node> nodes,
                                                          SshConnection connection) {
         Server server = ctx.server();
         try {
-            String config = buildConfig(ctx, coreType, nodes);
+            String config = buildConfig(ctx, nodes);
             if (connection != null) {
-                deployToServer(connection, server, coreType, config);
+                deployToServer(connection, server, config);
             }
-            return CoreDeploymentExecution.success(server, coreType, nodes, config);
+            return CoreDeploymentExecution.success(server, CORE_TYPE_SING_BOX, nodes, config);
         } catch (UnsupportedOperationException | IllegalArgumentException e) {
-            return CoreDeploymentExecution.failure(server, coreType, nodes, e.getMessage());
+            return CoreDeploymentExecution.failure(server, CORE_TYPE_SING_BOX, nodes, e.getMessage());
         } catch (Exception e) {
-            log.error("Deploy nodes failed for core {} on server {}", coreType, server.getName(), e);
-            return CoreDeploymentExecution.failure(server, coreType, nodes, e.getMessage());
+            log.error("Deploy nodes failed for sing-box on server {}", server.getName(), e);
+            return CoreDeploymentExecution.failure(server, CORE_TYPE_SING_BOX, nodes, e.getMessage());
         }
     }
 
-    String buildConfig(DeploymentServerContext ctx, String coreType, List<Node> nodes) {
-        return coreConfigBuilderRegistry.getStrategy(coreType).build(ctx, nodes);
+    String buildConfig(DeploymentServerContext ctx, List<Node> nodes) {
+        return singBoxConfigBuilder.build(ctx, nodes);
     }
 
-    private void deployToServer(SshConnection connection, Server server, String coreType, String config) {
+    private void deployToServer(SshConnection connection, Server server, String config) {
         List<CoreManagementResult> results = executeOperations(
-                coreType,
+                CORE_TYPE_SING_BOX,
                 connection,
                 server,
                 new CoreManagementService.OperationRequest(CoreOperation.CONFIG, config),
@@ -143,17 +132,15 @@ public class CoreDeploymentExecutor {
             throw new RuntimeException("服务重启失败: " + (restartResult != null ? restartResult.getMessage() : "未知错误"));
         }
 
-        if (CORE_TYPE_SING_BOX.equalsIgnoreCase(coreType)) {
-            CompletableFuture.runAsync(() -> {
-                try {
-                    if (rateLimitService.isEnabled()) {
-                        rateLimitService.syncServer(server);
-                    }
-                } catch (Exception e) {
-                    log.warn("同步服务器 {} 限速配置失败，可在账号变更或重新部署后自动恢复", server.getId(), e);
+        CompletableFuture.runAsync(() -> {
+            try {
+                if (rateLimitService.isEnabled()) {
+                    rateLimitService.syncServer(server);
                 }
-            }, executorService);
-        }
+            } catch (Exception e) {
+                log.warn("同步服务器 {} 限速配置失败，可在账号变更或重新部署后自动恢复", server.getId(), e);
+            }
+        }, executorService);
     }
 
     SshConnection createConnection(Server server) {
@@ -180,14 +167,13 @@ public class CoreDeploymentExecutor {
     }
 
     private void logServerDeploymentSummary(Server server,
-                                            int coreCount,
                                             List<CoreDeploymentExecution> results,
                                             long startTime) {
         long successCount = results.stream().filter(CoreDeploymentExecution::success).count();
         long failureCount = results.size() - successCount;
         long elapsedMillis = (System.nanoTime() - startTime) / 1_000_000;
-        log.info("节点部署服务器批次完成: server={}({}), coreCount={}, success={}, failure={}, elapsedMs={}",
-                server.getName(), server.getId(), coreCount, successCount, failureCount, elapsedMillis);
+        log.info("节点部署服务器批次完成: server={}({}), core=sing-box, success={}, failure={}, elapsedMs={}",
+                server.getName(), server.getId(), successCount, failureCount, elapsedMillis);
     }
 
     private SshConfig buildSshConfig(Server server) {
@@ -237,13 +223,14 @@ public class CoreDeploymentExecutor {
 
     private void reconcileServerConfigStatuses(Long serverId) {
         for (ServerConfig serverConfig : serverConfigRepository.findByServerId(serverId)) {
-            boolean shouldEnable = hasActiveCoreUsage(serverId, serverConfig.getConfigType());
+            boolean shouldEnable = CORE_TYPE_SING_BOX.equalsIgnoreCase(serverConfig.getConfigType())
+                    && hasActiveNodeUsage(serverId);
             serverConfig.setEnabled(shouldEnable ? 1 : 0);
         }
     }
 
-    private boolean hasActiveCoreUsage(Long serverId, String coreType) {
-        return nodeRepository.countActiveByServerAssociationAndCoreType(serverId, coreType) > 0;
+    private boolean hasActiveNodeUsage(Long serverId) {
+        return nodeRepository.countActiveByServerAssociation(serverId) > 0;
     }
 
     private ServerConfig newServerConfig(Long serverId, String coreType) {
@@ -252,9 +239,7 @@ public class CoreDeploymentExecutor {
         serverConfig.setConfigType(coreType);
         serverConfig.setCreateTime(LocalDateTime.now());
         serverConfig.setEnabled(1);
-        serverConfig.setPath(CORE_TYPE_SING_BOX.equalsIgnoreCase(coreType)
-                ? "/etc/sing-box/config.json"
-                : "/etc/hysteria/config.json");
+        serverConfig.setPath("/etc/sing-box/config.json");
         return serverConfig;
     }
 

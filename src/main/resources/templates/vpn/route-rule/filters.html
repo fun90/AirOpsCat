@@ -1,14 +1,5 @@
 <div class="{#if layout == 'mobile'}col-12{#else}col-auto{/if}">
     {#if layout == 'mobile'}
-        <label class="form-label">内核</label>
-    {/if}
-    <select class="form-select" v-model="filters.coreType" @change="fetchRecords">
-        <option value="">全部内核</option>
-        <option v-for="type in coreTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
-    </select>
-</div>
-<div class="{#if layout == 'mobile'}col-12{#else}col-auto{/if}">
-    {#if layout == 'mobile'}
         <label class="form-label">状态</label>
     {/if}
     <select class="form-select" v-model="filters.enabled" @change="fetchRecords">

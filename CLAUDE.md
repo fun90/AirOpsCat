@@ -19,7 +19,7 @@ AirOpsCat 是一个基于 Quarkus 3.24.4 和 Java 21 构建的应用，为代理
 - **前端**：Qute 模板、Tabler 1.3.2、petite-vue
 - **安全**：Quarkus Security，基于 JPA 的用户认证，表单登录，RBAC
 - **远程操作**：JSch（SSH 连接）
-- **协议/核心支持**：Xray、sing-box、hysteria2
+- **协议/核心支持**：仅支持 sing-box 内核；协议包含 vless、vless-reality、hysteria2、shadowtls、shadowsocks、socks
 - **打包**：Fast JAR 与 GraalVM 原生镜像
 
 ## 常用开发命令
@@ -52,10 +52,10 @@ java -Dquarkus.config.locations=./application.properties -jar target/quarkus-app
 ### 包结构
 - `controller/`：管理员 API、公开 API、登录/仪表盘路由
 - `service/`：业务逻辑；主要子包：
-  - `deployment/`：部署编排与配置构建
-  - `core/strategy/`：核心管理策略实现（Xray、SingBox、Hysteria2）
-  - `inbound/strategy/`：按核心/协议生成默认入站配置
-  - `traffic/`：流量采集器与采集器注册表
+  - `deployment/`：部署编排、部署数据加载、部署版本记录
+  - `core/`：核心运维编排，对外保留兼容签名，内部只调用 sing-box 运维服务
+  - `traffic/`：流量统计任务周边 DTO/历史兼容内容
+  - `singbox/`：sing-box 配置构建、默认入站生成、核心运维、gRPC 查询与流量采集
   - `expiration/`：到期与阈值通知服务
   - `install/`：远程安装脚本发现与执行
   - `ssh/`：SSH 抽象与提供者实现
@@ -75,25 +75,26 @@ java -Dquarkus.config.locations=./application.properties -jar target/quarkus-app
 - `AccountOnlineIp` 跟踪每个账号的并发会话
 - Node 关系使用 EAGER 加载以避免 N+1 查询
 
-### 策略模式（服务层核心）
-三个注册表将 `CoreType` 枚举值映射到对应实现：
+### sing-box 单内核架构
+当前系统已经收敛为 sing-box 单内核，不再通过注册表在多个内核之间选择实现：
 
-1. **`CoreManagementStrategyRegistry`**：生命周期操作（启动/停止/重启/安装/卸载/配置）—— 每个策略接收 `SshConnection` 用于远程执行
-2. **`CoreConfigBuilderRegistry`**：按核心类型组装部署配置 JSON；JSON 模板位于 `src/main/resources/config/core/`
-3. **`TrafficStatsCollectorRegistry`**：协议特定流量统计；`AbstractV2RayApiTrafficStatsCollector` 提供共享的 V2Ray API 逻辑
+1. **`SingBoxConfigBuilder`**：组装 sing-box 部署配置 JSON；协议模板位于 `src/main/resources/config/core/sing-box-inbound-*.json`
+2. **`SingBoxDefaultInboundFactory`**：按节点类型和协议生成默认入站配置
+3. **`SingBoxCoreManager`**：通过 SSH 执行 sing-box 服务启动、停止、重启、状态查询和配置上传
+4. **`SingBoxTrafficStatsCollector` / `SingBoxGrpcQueryClient`**：通过 sing-box gRPC API 采集用户流量
 
-Xray 入站/出站转换也在 `service/xray/strategy/` 中使用策略模式。
+`coreType` 字段仍保留在实体和 DTO 中用于历史数据兼容，但当前业务逻辑只接受或写入 `sing-box`。
 
 ### 订阅生成流程
 `SubscriptionController` → 验证 `authCode` → 通过 `TagService.getAvailableNodesByAccount()` 获取账号关联节点（过滤条件：deployed=1、disabled=0、type=PROXY）→ 可选 `NodeObfuscator` 按可配置倍数复制节点 → `TemplateUtil.processStringTemplate()` 从 `src/main/resources/config/subscription/` 中的模板渲染配置（Clash、Loon、SingBox、Shadowrocket）。
 
 ### 关键服务
 - `AccountService`：账号生命周期、续期、授权码管理
-- `NodeService`：节点增删改查、端口检查、部署入口、核心切换
+- `NodeService`：节点增删改查、端口检查、部署入口、默认入站生成
 - `ServerService`：服务器增删改查、连接测试、续期、流量校准
 - `SubscriptionService`：订阅 URL 生成与客户端专属配置渲染
 - `NodeDeploymentService`：部署准备与执行（通过 `CompletableFuture` 异步）
-- `CoreManagementService`：按核心类型委托启动/停止/重启/状态
+- `CoreManagementService`：对外保留内核运维入口，内部固定委托 sing-box 运维服务
 - `ServerInstallService`：一键安装脚本加载与远程执行
 - `ScheduledTaskService`：到期、流量、通知等后台定时任务
 - `DatabaseBackupService`：MySQL 备份、清理、上传、恢复、下载
@@ -118,7 +119,7 @@ Xray 入站/出站转换也在 `service/xray/strategy/` 中使用策略模式。
   - `install.remote-work-dir`、`install.scripts.dir`
   - `backup.dir`、`backup.cron`、`backup.cleanup.cron`、`backup.retention-days`、`backup.mysqldump-path`
   - `domain`、`api.token`、`docs.url`
-- `RawJsonDeserializer` 保留 Xray DTO 中 inbound/rule/config 字段的原始 JSON
+- `RawJsonDeserializer` 保留 DTO 中 inbound/rule/config 字段的原始 JSON
 
 ## 安全
 
@@ -149,7 +150,6 @@ Xray 入站/出站转换也在 `service/xray/strategy/` 中使用策略模式。
 ## 配置模板与资源
 
 - 核心配置模板：`src/main/resources/config/core/`
-  - Xray 入站：`vless`、`vless-reality`、`shadowsocks`、`socks`
   - sing-box 入站：`vless`、`vless-reality`、`hysteria2`、`shadowtls`、`shadowsocks`、`socks`
 - 订阅模板：`src/main/resources/config/subscription/`
 - 安装脚本：`src/main/resources/config/install/`
@@ -178,7 +178,7 @@ Xray 入站/出站转换也在 `service/xray/strategy/` 中使用策略模式。
 
 ### 服务层
 - 业务逻辑封装在 CDI 服务中
-- 使用策略注册表选择协议/核心特定行为
+- sing-box 相关行为优先收拢到 `com.fun90.airopscat.singbox`
 - SSH 访问通过提供者和连接接口抽象
 - 部署逻辑拆分为数据加载、配置构建和执行三个步骤
 

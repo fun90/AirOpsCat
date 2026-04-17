@@ -2,8 +2,6 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.DeploymentResult;
-import com.fun90.airopscat.model.dto.NodeCoreSwitchRequest;
-import com.fun90.airopscat.model.dto.NodeCoreSwitchResponse;
 import com.fun90.airopscat.model.dto.NodeBatchTagUpdateRequest;
 import com.fun90.airopscat.model.dto.NodeDeploymentRestoreRequest;
 import com.fun90.airopscat.model.dto.NodeDeploymentVersionDetailDto;
@@ -120,21 +118,19 @@ public class NodeController {
     @GET
     @Path("/group-options")
     public Response getNodeGroupOptions(@QueryParam("type") Integer type,
-                                        @QueryParam("coreType") String coreType,
                                         @QueryParam("excludeId") Long excludeId,
                                         @QueryParam("serverId") Long serverId,
                                         @QueryParam("keyword") String keyword) {
-        return Response.ok(nodeGroupService.getNodeGroupOptions(type, coreType, excludeId, serverId, keyword)).build();
+        return Response.ok(nodeGroupService.getNodeGroupOptions(type, excludeId, serverId, keyword)).build();
     }
 
     @GET
     @Path("/group-config")
     public Response getNodeGroupConfig(@QueryParam("nodeGroup") String nodeGroup,
                                        @QueryParam("type") Integer type,
-                                       @QueryParam("coreType") String coreType,
                                        @QueryParam("serverId") Long serverId,
                                        @QueryParam("excludeId") Long excludeId) {
-        return Response.ok(nodeGroupService.getNodeGroupConfig(nodeGroup, type, coreType, serverId, excludeId)).build();
+        return Response.ok(nodeGroupService.getNodeGroupConfig(nodeGroup, type, serverId, excludeId)).build();
     }
     
     @GET
@@ -174,7 +170,7 @@ public class NodeController {
     public Response getDefaultInbound(@QueryParam("protocol") String protocol,
                                       @QueryParam("serverId") Long serverId,
                                       @QueryParam("accessHostId") Long accessHostId,
-                                      @QueryParam("coreType") @DefaultValue("xray") String coreType) {
+                                      @QueryParam("coreType") @DefaultValue("sing-box") String coreType) {
         return Response.ok(nodeService.generateDefaultInbound(protocol, serverId, accessHostId, coreType)).build();
     }
     
@@ -383,22 +379,6 @@ public class NodeController {
     public Response deployNodes(List<Long> nodeIds) {
         List<DeploymentResult> results = nodeDeploymentService.deployNodes(nodeIds);
         return Response.ok(results).build();
-    }
-
-    @POST
-    @Path("/switch-core")
-    public Response switchNodeCore(NodeCoreSwitchRequest request) {
-        try {
-            NodeCoreSwitchResponse response = nodeDeploymentService.switchNodeCore(
-                    request == null ? null : request.getNodeIds(),
-                    request == null ? null : request.getTargetCoreType(),
-                    request != null && Boolean.TRUE.equals(request.getRedeploy()));
-            return Response.ok(response).build();
-        } catch (IllegalArgumentException | EntityNotFoundException e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("message", e.getMessage());
-            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
-        }
     }
 
     @POST

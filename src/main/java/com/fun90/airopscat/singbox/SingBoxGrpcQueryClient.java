@@ -1,4 +1,4 @@
-package com.fun90.airopscat.service.traffic.impl;
+package com.fun90.airopscat.singbox;
 
 import com.fun90.airopscat.proto.v2rayapi.QueryStatsRequest;
 import com.fun90.airopscat.proto.v2rayapi.QueryStatsResponse;

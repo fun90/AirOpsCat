@@ -28,16 +28,6 @@
 
 <div class="col-12 {#if layout == 'desktop'}col-xl col-lg-6{/if}">
     {#if layout == 'mobile'}
-        <label class="form-label">内核</label>
-    {/if}
-    <select class="form-select" v-model="filters.coreType" @change="onFilterChange">
-        <option value="">全部内核</option>
-        <option v-for="coreType in coreTypes" :key="coreType.value" :value="coreType.value">{{ coreType.label }}</option>
-    </select>
-</div>
-
-<div class="col-12 {#if layout == 'desktop'}col-xl col-lg-6{/if}">
-    {#if layout == 'mobile'}
         <label class="form-label">协议</label>
     {/if}
     <select class="form-select" v-model="filters.protocol" @change="onFilterChange">

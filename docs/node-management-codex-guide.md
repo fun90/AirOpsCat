@@ -41,9 +41,7 @@
 - 校验当前服务器端口冲突和节点组服务器冲突
 - 节点复制
 - 单节点部署、强制重部署、批量部署
-- xray / sing-box 内核切换
-- 切换内核时翻译 inbound 配置
-- 切换内核时联动更新路由规则 `coreType`
+- 基于 sing-box 的默认入站配置生成和部署配置构建
 
 这意味着 Codex 要处理的不是一个页面，而是一条完整业务链路。
 
@@ -84,13 +82,14 @@
   - `src/main/java/com/fun90/airopscat/model/enums/CoreType.java`
   - `src/main/java/com/fun90/airopscat/model/enums/ProtocolType.java`
 
-### 3.3 协议策略与模板
+### 3.3 sing-box 协议配置与模板
 
-- 默认 inbound 策略注册：
-  - `src/main/java/com/fun90/airopscat/service/inbound/registry/DefaultInboundStrategyRegistry.java`
-- 默认 inbound 策略实现：
-  - `src/main/java/com/fun90/airopscat/service/inbound/strategy/impl/XrayDefaultInboundStrategy.java`
-  - `src/main/java/com/fun90/airopscat/service/inbound/strategy/impl/SingBoxDefaultInboundStrategy.java`
+- sing-box 默认入站生成：
+  - `src/main/java/com/fun90/airopscat/singbox/SingBoxDefaultInboundFactory.java`
+- sing-box 部署配置构建：
+  - `src/main/java/com/fun90/airopscat/singbox/SingBoxConfigBuilder.java`
+- sing-box 核心运维：
+  - `src/main/java/com/fun90/airopscat/singbox/SingBoxCoreManager.java`
 - 配置模板目录：
   - `src/main/resources/config/core`
 
@@ -106,7 +105,7 @@
 - `nodeGroup`：节点组名称
 - `port`：节点端口
 - `protocol`：协议
-- `coreType`：内核类型，当前主线是 `xray` / `sing-box`
+- `coreType`：内核类型，当前固定为 `sing-box`，字段保留用于历史数据兼容
 - `type`：节点类型
   - `0` = 代理节点
   - `1` = 落地节点
@@ -123,17 +122,16 @@
 从 `node.js` 和 `templates/vpn/node/modals.html` 可以提炼出这些产品规则：
 
 - 节点类型变化会影响协议可选项。
-- 内核类型变化会影响协议可选项。
-- 创建时允许直接选择 `coreType`。
-- 编辑时禁止直接修改 `coreType`，必须通过“切换内核”功能。
+- 协议可选项由节点类型决定，内核固定为 `sing-box`。
+- 创建和编辑时不再允许用户选择或修改内核。
 - 代理节点可以选择落地节点作为 `outId`。
 - 支持节点组，加入已有组时会继承组内已有节点的协议、端口、入站、出站配置。
-- 节点组只能包含相同节点类型、相同内核类型、且不在同一服务器上的节点。
+- 节点组只能包含相同节点类型、且不在同一服务器上的节点。
 - 输入一个新的节点组名时，当前节点作为组首节点保留可编辑配置。
 - 部署任一组内节点时会联动部署同组节点，并把组内有效用户集合合并到每个节点的部署快照里。
 - inbound / rule 允许用户直接编辑 JSON。
 - 节点复制时需要重新分配端口，避免冲突。
-- 禁用节点、编辑关键字段、切换内核后，节点会回到“未部署”状态。
+- 禁用节点或编辑关键部署字段后，节点会回到“未部署”状态。
 
 ---
 
@@ -147,12 +145,11 @@
   - 服务器列表
   - 落地节点列表
   - 节点类型
-  - 内核类型
   - 协议类型
   - 可用标签
 - 表格查询：
   - 关键词搜索
-  - 服务器、类型、内核、协议、启用状态、部署状态筛选
+  - 服务器、类型、协议、启用状态、部署状态筛选
 - 表单动作：
   - 创建节点
   - 编辑节点
@@ -164,7 +161,6 @@
   - 查看配置
   - 复制节点
   - 批量部署
-  - 批量切换内核
   - 单节点部署 / 强制部署
 
 ### 5.2 对应 API
@@ -230,22 +226,22 @@
 
 ### 6.2 协议支持矩阵
 
-当前 `ProtocolType` 里已经编码了协议矩阵：
+当前 `ProtocolType` 里已经编码了 sing-box 协议矩阵：
 
 - 代理节点 `type=0`
-  - `vless`：`xray` / `sing-box`
-  - `vless-reality`：`xray` / `sing-box`
-  - `hysteria2`：仅 `sing-box`
-  - `shadowtls`：仅 `sing-box`
+  - `vless`
+  - `vless-reality`
+  - `hysteria2`
+  - `shadowtls`
 - 落地节点 `type=1`
-  - `shadowsocks`：`xray` / `sing-box`
-  - `socks`：`xray` / `sing-box`
+  - `shadowsocks`
+  - `socks`
 
 这组规则非常重要，因为它决定了：
 
 - 表单协议下拉过滤
 - 创建 / 编辑校验
-- 切换内核前的可行性校验
+- 创建 / 编辑时的协议合法性校验
 
 ### 6.3 编辑和部署状态的联动
 
@@ -257,7 +253,6 @@
 
 - `port`
 - `type`
-- `coreType`
 - `serverId`
 - `nodeGroup`
 - `inbound`
@@ -280,26 +275,25 @@
 - `node-form-methods.js`
   - 新建 / 编辑表单、节点组联动、端口与协议处理、表单校验
 - `node-deploy-methods.js`
-  - 单节点部署、批量部署、切换内核、勾选态管理
+  - 单节点部署、批量部署、勾选态管理
 
 后续如果继续扩展节点页，优先往对应方法模块里放，不要把所有行为重新堆回 `node.js`。
 
 ---
 
-## 7. sing-box / xray 配置相关的真实逻辑
+## 7. sing-box 配置相关的真实逻辑
 
 ### 7.1 默认 inbound 生成
 
 默认 inbound 并不是硬编码 Java Map，而是：
 
-1. 根据 `coreType + protocol` 选择模板文件。
+1. 根据 `protocol` 选择 sing-box 模板文件。
 2. 注入动态变量。
 3. 渲染成 JSON。
 4. 反序列化为 `Map<String, Object>` 返回给前端。
 
 模板来源：
 
-- xray：`config/core/xray-inbound-*.json`
 - sing-box：`config/core/sing-box-inbound-*.json`
 
 动态值来源包括：
@@ -314,30 +308,16 @@
 
 默认配置生成还依赖宿主机命令：
 
-- xray Reality 密钥：`xray x25519`
 - sing-box Reality 密钥：`sing-box generate reality-keypair`
 
 这意味着在用 Codex 实现和测试节点管理功能时，要明确区分两件事：
 
 1. 代码逻辑是否正确
-2. 当前开发环境是否具备 `xray` / `sing-box` 可执行文件
+2. 当前开发环境是否具备 `sing-box` 可执行文件
 
-### 7.3 切换内核不是“改个字段”
+### 7.3 内核切换能力已移除
 
-`NodeDeploymentService.switchNodeCore()` 当前做了这些事：
-
-1. 校验节点集合不能为空。
-2. 校验目标内核只允许 `xray` / `sing-box`。
-3. 校验所有节点必须来自同一源内核。
-4. 校验目标内核不能和源内核相同。
-5. 校验协议是否被目标内核支持。
-6. 校验 `outId` 指向的出站节点是否已在目标内核上。
-7. 根据默认模板生成目标 inbound 骨架。
-8. 将源 inbound 翻译到目标内核格式。
-9. 把节点标记为未部署。
-10. 联动更新引用这些节点的 `RouteRule.coreType`。
-11. 如果源内核在某个服务器上已无节点使用，则禁用旧的 `ServerConfig`。
-12. 如勾选重部署，则先停旧内核，再重新按服务器部署。
+当前系统只支持 sing-box 内核，节点页面和后端 API 不再提供内核变更能力。历史 `coreType` 字段仅用于兼容旧数据；新增和编辑流程都会固定写入 `sing-box`。
 
 当前已内置的 inbound 翻译：
 
@@ -369,7 +349,7 @@
 
 ### 8.3 默认 inbound 生成依赖系统命令
 
-如果本机没有 `xray` / `sing-box`，默认配置生成会退回兜底 key。  
+如果本机没有 `sing-box`，Reality 默认配置生成会退回兜底 key。  
 这意味着测试成功不代表真实生产流程成功，必须做环境前置检查。
 
 ### 8.4 节点模块其实依赖多域对象
@@ -425,14 +405,13 @@
 
 典型验收项：
 
-- 能创建 xray-vless 代理节点
+- 能创建 sing-box vless 代理节点
 - 能创建 sing-box-hysteria2 代理节点
 - 能创建 shadowsocks 落地节点
 - 不允许选择不支持的协议组合
 - 主 / 备服务器端口冲突能正确提示
 - 编辑实质字段后自动回到未部署
-- 批量切换 xray -> sing-box 后 inbound 被正确翻译
-- 切换后需要时可以联动重部署
+- 批量部署后服务器配置预览只生成 sing-box 配置
 
 ### 阶段 3：把大任务拆成 Codex 子任务
 
@@ -443,9 +422,8 @@
 3. 端口校验与服务器联动
 4. 默认 inbound 生成
 5. 部署流程串联
-6. 内核切换与 inbound 翻译
-7. 回归测试与手工验证脚本
-8. 文档与运维说明
+6. 回归测试与手工验证脚本
+7. 文档与运维说明
 
 ### 阶段 4：一轮一轮驱动 Codex 改代码
 
@@ -458,13 +436,13 @@
 
 ### 阶段 5：引入协议知识增强
 
-因为节点模块跟 sing-box / xray 配置强相关，我会额外给 Codex 提供：
+因为节点模块跟 sing-box 配置强相关，我会额外给 Codex 提供：
 
 - 当前仓库里已有模板目录
 - 协议矩阵
 - inbound 字段映射规则
 - route rule / outbound 依赖说明
-- xray 与 sing-box 命令行能力差异
+- sing-box 命令行能力和部署环境要求
 
 ### 阶段 6：沉淀为可复用资产
 
@@ -497,7 +475,7 @@
 1. 说明页面有哪些功能动作
 2. 说明每个动作对应的 API、service、实体字段
 3. 说明节点模块有哪些业务约束
-4. 说明 xray / sing-box / protocol / nodeType 的支持矩阵
+4. 说明 sing-box / protocol / nodeType 的支持矩阵
 5. 说明有哪些高风险点和待确认点
 
 不要开始修改文件，先输出分析结果。
@@ -518,26 +496,26 @@
 
 注意：
 - 不要改动无关文件
-- 不要破坏 xray / sing-box 协议兼容性
+- 不要破坏 sing-box 协议兼容性
 - 如果涉及 inbound JSON，请按结构化方式处理，不要做脆弱的字符串拼接
 ```
 
-### 10.3 第三轮：协议翻译专项
+### 10.3 第三轮：协议配置专项
 
 ```text
-你现在专门负责 AirOpsCat 节点管理中的“内核切换与 inbound 翻译”。
+你现在专门负责 AirOpsCat 节点管理中的“sing-box inbound 配置生成与部署配置构建”。
 
 上下文要求：
-- 节点支持 xray 和 sing-box
-- 需要关注 vless、vless-reality、shadowsocks、socks
-- 切换时不能只修改 coreType，必须校验协议支持、outbound 依赖、route rule 联动和 redeploy 行为
+- 节点固定使用 sing-box 内核
+- 需要关注 vless、vless-reality、hysteria2、shadowtls、shadowsocks、socks
+- 不能只修改前端协议列表，必须同步校验默认 inbound、部署配置、订阅模板和 route rule 输出
 
 请执行：
-1. 阅读 NodeDeploymentService 中 switchNodeCore 相关逻辑
-2. 分析现有 inbound 翻译规则是否完整
+1. 阅读 SingBoxDefaultInboundFactory 和 SingBoxConfigBuilder
+2. 分析现有 inbound 模板和部署配置构建是否覆盖目标协议
 3. 找出潜在丢字段风险
-4. 如有必要，补全翻译逻辑或保护性校验
-5. 输出协议映射说明
+4. 如有必要，补全模板渲染逻辑或保护性校验
+5. 输出协议配置说明
 ```
 
 ### 10.4 第四轮：回归验证
@@ -552,8 +530,8 @@
 4. 节点复制
 5. 部署与强制部署
 6. 批量部署
-7. 内核切换
-8. route rule 联动
+7. route rule 联动
+8. 订阅模板输出
 
 输出格式：
 1. Findings：按严重程度列出问题
@@ -576,9 +554,9 @@
 让 Codex 在处理节点相关任务时，自动带上这些上下文：
 
 - 节点管理不是单纯 CRUD
-- 节点受 `nodeType + protocol + coreType` 三元关系约束
+- 节点受 `nodeType + protocol` 关系约束，`coreType` 固定为 `sing-box`
 - inbound/rule 是 JSON 配置，不是普通文本
-- 内核切换需要做协议翻译与部署联动
+- sing-box 默认入站和部署配置需要保持协议字段完整
 - 默认 inbound 来自模板而不是硬编码
 - 测试必须区分“代码逻辑”与“系统命令依赖”
 
@@ -592,7 +570,7 @@
       references/
         protocol-matrix.md
         node-module-map.md
-        inbound-translation.md
+        singbox-inbound.md
         validation-checklist.md
 ```
 
@@ -602,7 +580,7 @@
 # node-management
 
 Use this skill when working on AirOpsCat node management, node deployment, inbound generation,
-core switching, or xray/sing-box protocol compatibility.
+sing-box config building, or protocol compatibility.
 
 ## Always load first
 
@@ -617,15 +595,15 @@ core switching, or xray/sing-box protocol compatibility.
 
 - Node management spans UI, API, domain validation, deployment, and protocol templates.
 - Never treat inbound/rule as opaque strings when comparing semantic changes.
-- coreType changes must go through switch-core flow, not normal edit flow.
-- Validate compatibility across nodeType, protocol, and coreType before editing code.
+- coreType is fixed to sing-box; do not reintroduce switch-core flow.
+- Validate compatibility across nodeType and protocol before editing code.
 
 ## When editing
 
 1. Map the user-facing action to controller/service/template/js first.
 2. Check whether the change affects deployment state.
 3. Check whether the change affects route rules or outbound node references.
-4. Check whether xray/sing-box command availability matters for validation.
+4. Check whether sing-box command availability matters for validation.
 5. Prefer targeted tests or manual verification steps for protocol-sensitive logic.
 
 ## Output expectations
@@ -640,11 +618,11 @@ core switching, or xray/sing-box protocol compatibility.
 建议至少拆成 4 份参考文档：
 
 - `protocol-matrix.md`
-  - 维护 `nodeType + protocol + coreType` 支持矩阵
+  - 维护 `nodeType + protocol` 支持矩阵
 - `node-module-map.md`
   - 页面动作到 API / service / template / js 的映射
-- `inbound-translation.md`
-  - xray 与 sing-box 的 inbound 字段映射说明
+- `singbox-inbound.md`
+  - sing-box 默认入站模板和部署配置字段说明
 - `validation-checklist.md`
   - 节点开发的验收与回归清单
 
@@ -674,7 +652,7 @@ MCP 的价值在这个模块里主要有 4 类：
 用途：
 
 - 直接验证 `node`、`route_rule`、`server_config`、`node_tag` 等表的数据状态
-- 核对切换内核前后的真实数据
+- 核对部署前后的节点、路由规则和服务器配置数据
 
 建议最小能力：
 
@@ -684,16 +662,16 @@ MCP 的价值在这个模块里主要有 4 类：
 
 建议查询场景：
 
-- 查某服务器有哪些节点、分别是什么 `coreType`
+- 查某服务器有哪些节点、分别是什么协议和部署状态
 - 查某节点是否被 route rule 引用
-- 查某次切换后旧 `server_config` 是否被禁用
+- 查某次部署后 `server_config` 是否更新为 sing-box 配置
 
 ### 12.3 HTTP 调试型 MCP
 
 用途：
 
 - 直接打节点模块 API 做集成验证
-- 验证创建、编辑、切换内核的返回结构
+- 验证创建、编辑、部署相关接口的返回结构
 
 建议能力：
 
@@ -706,14 +684,14 @@ MCP 的价值在这个模块里主要有 4 类：
 - `/api/admin/nodes`
 - `/api/admin/nodes/default-inbound`
 - `/api/admin/nodes/check-port`
-- `/api/admin/nodes/switch-core`
+- `/api/admin/servers/{id}/config-preview`
 
 ### 12.4 SSH / 远程命令型 MCP
 
 用途：
 
 - 验证部署后远程服务是否生成配置
-- 检查 xray / sing-box 进程状态
+- 检查 sing-box 进程状态
 - 查看远程配置文件内容
 
 建议能力：
@@ -724,9 +702,7 @@ MCP 的价值在这个模块里主要有 4 类：
 
 适合的验证命令示例：
 
-- `systemctl status xray`
 - `systemctl status sing-box`
-- `cat /usr/local/etc/xray/config.json`
 - `cat /etc/sing-box/config.json`
 
 ---
@@ -749,8 +725,8 @@ MCP 的价值在这个模块里主要有 4 类：
 
 ### 13.3 协议轮
 
-- 强制加载 `inbound-translation.md`
-- 对涉及 xray/sing-box 的改动单独 review
+- 强制加载 `singbox-inbound.md`
+- 对涉及 sing-box 协议和部署配置的改动单独 review
 - 必要时用 HTTP MCP 和 SSH MCP 做端到端验证
 
 ### 13.4 回归轮

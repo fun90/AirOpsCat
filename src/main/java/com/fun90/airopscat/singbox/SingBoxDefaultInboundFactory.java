@@ -1,14 +1,12 @@
-package com.fun90.airopscat.service.inbound.strategy.impl;
+package com.fun90.airopscat.singbox;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fun90.airopscat.annotation.SupportedCores;
 import com.fun90.airopscat.model.dto.DefaultConfigDto;
 import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.service.ServerHostService;
 import com.fun90.airopscat.service.ServerService;
-import com.fun90.airopscat.service.inbound.strategy.DefaultInboundStrategy;
 import com.fun90.airopscat.util.ConfigFileReader;
 import com.fun90.airopscat.util.NativeRandomUtils;
 import com.fun90.airopscat.util.TemplateUtil;
@@ -26,8 +24,7 @@ import java.util.UUID;
 
 @Slf4j
 @ApplicationScoped
-@SupportedCores(value = {"sing-box"}, priority = 1, description = "Sing-box default inbound strategy")
-public class SingBoxDefaultInboundStrategy implements DefaultInboundStrategy {
+public class SingBoxDefaultInboundFactory {
 
     private static final String[] SERVER_NAMES = {"www.apple.com", "www.icloud.com", "www.amazon.com"};
 
@@ -46,7 +43,6 @@ public class SingBoxDefaultInboundStrategy implements DefaultInboundStrategy {
     @Inject
     ServerHostService serverHostService;
 
-    @Override
     public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, Long serverId, Long accessHostId) {
         String normalizedProtocol = normalizeProtocol(protocol);
         String templatePath = getTemplatePath(normalizedProtocol);
@@ -66,11 +62,6 @@ public class SingBoxDefaultInboundStrategy implements DefaultInboundStrategy {
         } catch (IOException e) {
             throw new RuntimeException("Failed to parse sing-box default inbound config template", e);
         }
-    }
-
-    @Override
-    public String getStrategyName() {
-        return CoreType.SING_BOX.getValue();
     }
 
     private String normalizeProtocol(String protocol) {

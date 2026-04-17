@@ -3,8 +3,7 @@ package com.fun90.airopscat.service.core;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.enums.CoreOperation;
-import com.fun90.airopscat.service.core.registry.CoreManagementStrategyRegistry;
-import com.fun90.airopscat.service.core.strategy.CoreManagementStrategy;
+import com.fun90.airopscat.singbox.SingBoxCoreManager;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -23,7 +22,7 @@ import java.util.List;
 public class CoreManagementService {
 
     @Inject
-    CoreManagementStrategyRegistry strategyRegistry;
+    SingBoxCoreManager singBoxCoreManager;
 
     @Inject
     SshConnectionService sshConnectionService;
@@ -48,45 +47,52 @@ public class CoreManagementService {
                                                         SshConnection connection,
                                                         String serverAddress,
                                                         OperationRequest... requests) {
+        String normalizedCoreType = normalizeCoreType(coreType);
         try {
-            CoreManagementStrategy strategy = strategyRegistry.getStrategy(coreType);
             List<CoreManagementResult> results = new ArrayList<>(requests.length);
             for (OperationRequest request : requests) {
                 if (!results.isEmpty() && !results.getLast().isSuccess()) {
-                    results.add(buildFailureResult(coreType, request.operation(), serverAddress,
+                    results.add(buildFailureResult(normalizedCoreType, request.operation(), serverAddress,
                             "操作未执行: 前序操作失败"));
                     continue;
                 }
                 CoreManagementResult result = executeOperationInternal(
-                        strategy, request.operation(), connection, request.params());
+                        singBoxCoreManager, request.operation(), connection, request.params());
                 if (result == null) {
-                    result = buildFailureResult(coreType, request.operation(), serverAddress, "暂不支持该操作");
+                    result = buildFailureResult(normalizedCoreType, request.operation(), serverAddress, "暂不支持该操作");
                 } else {
-                    enrichResult(result, coreType, request.operation(), serverAddress);
+                    enrichResult(result, normalizedCoreType, request.operation(), serverAddress);
                 }
                 results.add(result);
             }
             return results;
         } catch (Exception e) {
-            return buildExecutionFailureResults(coreType, serverAddress, requests, e);
+            return buildExecutionFailureResults(normalizedCoreType, serverAddress, requests, e);
         }
     }
 
-    private CoreManagementResult executeOperationInternal(CoreManagementStrategy strategy,
+    private String normalizeCoreType(String coreType) {
+        if (coreType == null || coreType.trim().isEmpty() || "sing-box".equalsIgnoreCase(coreType.trim())) {
+            return "sing-box";
+        }
+        throw new IllegalArgumentException("当前仅支持 sing-box 内核");
+    }
+
+    private CoreManagementResult executeOperationInternal(SingBoxCoreManager coreManager,
                                                          CoreOperation operation,
                                                          SshConnection connection,
                                                          Object... params) {
         return switch (operation) {
-            case START -> strategy.start(connection);
-            case STOP -> strategy.stop(connection);
-            case RESTART -> strategy.restart(connection);
-            case RELOAD -> strategy.reload(connection);
-            case STATUS -> strategy.status(connection);
+            case START -> coreManager.start(connection);
+            case STOP -> coreManager.stop(connection);
+            case RESTART -> coreManager.restart(connection);
+            case RELOAD -> coreManager.reload(connection);
+            case STATUS -> coreManager.status(connection);
             case VALIDATE_CONFIG -> null;
-            case INSTALL -> strategy.install(connection, params);
-            case UNINSTALL -> strategy.uninstall(connection);
-            case UPDATE -> strategy.update(connection, params);
-            case CONFIG -> strategy.config(connection, params);
+            case INSTALL -> coreManager.install(connection, params);
+            case UNINSTALL -> coreManager.uninstall(connection);
+            case UPDATE -> coreManager.update(connection, params);
+            case CONFIG -> coreManager.config(connection, params);
             case GET_VERSION -> null;
             case GET_LOGS -> null;
             case IS_INSTALLED -> null;

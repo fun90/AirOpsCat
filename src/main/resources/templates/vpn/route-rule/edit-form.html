@@ -1,21 +1,12 @@
 <div class="row">
-    <div class="col-md-6">
+    <div class="col-md-8">
         <div class="mb-3">
             <label class="form-label required">规则名称</label>
             <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.name }" v-model="editedItem.name">
             <div class="invalid-feedback" v-if="validationErrors.name">{{ validationErrors.name }}</div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="mb-3">
-            <label class="form-label required">内核类型</label>
-            <select class="form-select" :class="{ 'is-invalid': validationErrors.coreType }" v-model="editedItem.coreType" @change="onEditCoreTypeChange">
-                <option v-for="type in coreTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
-            </select>
-            <div class="invalid-feedback" v-if="validationErrors.coreType">{{ validationErrors.coreType }}</div>
-        </div>
-    </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="mb-3">
             <label class="form-label required">规则类型</label>
             <select class="form-select" :class="{ 'is-invalid': validationErrors.ruleType }" v-model="editedItem.ruleType">
@@ -65,5 +56,5 @@
     </div>
     <textarea class="form-control font-monospace" :class="{ 'is-invalid': validationErrors.ruleValue }" v-model="editRuleValueJson" rows="12"></textarea>
     <div class="invalid-feedback" v-if="validationErrors.ruleValue">{{ validationErrors.ruleValue }}</div>
-    <div class="form-hint">{{ getRuleValueHint(editedItem.ruleType, editedItem.coreType) }}</div>
+    <div class="form-hint">{{ getRuleValueHint(editedItem.ruleType) }}</div>
 </div>

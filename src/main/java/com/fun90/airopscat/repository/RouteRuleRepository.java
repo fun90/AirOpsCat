@@ -13,12 +13,10 @@ public class RouteRuleRepository implements PanacheRepository<RouteRule> {
         if (serverIds == null || serverIds.isEmpty()) {
             return List.of();
         }
-        return find("select distinct rr from RouteRule rr join rr.servers s where rr.enabled = 1 and s.id in ?1", serverIds)
+        return find("select distinct rr from RouteRule rr join rr.servers s " +
+                        "where rr.enabled = 1 and s.id in ?1 and lower(trim(rr.coreType)) = 'sing-box'",
+                serverIds)
                 .list();
-    }
-
-    public long countByCoreType(String coreType) {
-        return count("coreType", coreType);
     }
 
     public long countByEnabled(Integer enabled) {

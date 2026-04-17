@@ -5,7 +5,6 @@ import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.ServerConfigDto;
 import com.fun90.airopscat.model.dto.ServerConfigRequest;
 import com.fun90.airopscat.model.entity.ServerConfig;
-import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.service.ServerConfigService;
 import com.fun90.airopscat.service.ServerHostService;
 import com.fun90.airopscat.service.ServerService;
@@ -21,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @ApplicationScoped
 @Path("/api/admin/server-configs")
@@ -87,16 +85,7 @@ public class ServerConfigController {
     @GET
     @Path("/types")
     public Response getConfigTypes() {
-        List<Map<String, String>> types = Stream.of(CoreType.values())
-                .map(type -> {
-                    Map<String, String> map = new HashMap<>();
-                    map.put("value", type.getValue());
-                    map.put("label", type.getName());
-                    return map;
-                })
-                .collect(Collectors.toList());
-
-        return Response.ok(types).build();
+        return Response.ok(List.of(Map.of("value", "sing-box", "label", "sing-box"))).build();
     }
     
     @GET

@@ -19,20 +19,6 @@ public class ServerConfigRepository implements PanacheRepository<ServerConfig> {
         return find("serverId", serverId).list();
     }
     
-    public List<ServerConfig> findByConfigType(String configType) {
-        return find("configType", configType).list();
-    }
-    
-    public List<String> findDistinctConfigTypes() {
-        return find("select distinct configType from ServerConfig")
-                .project(String.class)
-                .list();
-    }
-    
-    public long countByConfigType(String configType) {
-        return count("configType", configType);
-    }
-
     public long countEnabled() {
         return count("(enabled is null or enabled <> 0)");
     }

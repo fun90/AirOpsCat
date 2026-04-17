@@ -1,7 +1,6 @@
 package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.entity.Node;
-import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -81,9 +80,6 @@ public class NodeGroupService {
             if (!Objects.equals(node.getType(), groupNode.getType())) {
                 throw new IllegalArgumentException("节点组只能关联相同节点类型的节点");
             }
-            if (!Objects.equals(normalizeCoreTypeValue(node.getCoreType()), normalizeCoreTypeValue(groupNode.getCoreType()))) {
-                throw new IllegalArgumentException("节点组只能关联相同内核类型的节点");
-            }
             if (node.getServerId() != null && Objects.equals(node.getServerId(), groupNode.getServerId())) {
                 throw new IllegalArgumentException("节点组不能包含同一服务器上的节点");
             }
@@ -137,12 +133,11 @@ public class NodeGroupService {
         }
     }
 
-    public List<Map<String, Object>> getNodeGroupOptions(Integer type, String coreType, Long excludeId, Long serverId, String keyword) {
-        if (type == null || coreType == null || coreType.trim().isEmpty()) {
+    public List<Map<String, Object>> getNodeGroupOptions(Integer type, Long excludeId, Long serverId, String keyword) {
+        if (type == null) {
             return List.of();
         }
 
-        String normalizedCoreType = normalizeCoreTypeValue(coreType);
         String normalizedKeyword = keyword == null ? null : keyword.trim().toLowerCase();
         LinkedHashSet<String> groups = new LinkedHashSet<>();
 
@@ -152,7 +147,7 @@ public class NodeGroupService {
             groups.add(currentNodeGroup);
         }
 
-        nodeRepository.findNodeGroupCandidateNodes(type, normalizedCoreType, excludeId).stream()
+        nodeRepository.findNodeGroupCandidateNodes(type, excludeId).stream()
                 .map(node -> normalizeNodeGroup(node.getNodeGroup()))
                 .filter(Objects::nonNull)
                 .collect(Collectors.groupingBy(group -> group, LinkedHashMap::new, Collectors.toList()))
@@ -169,7 +164,7 @@ public class NodeGroupService {
                 .toList();
     }
 
-    public Map<String, Object> getNodeGroupConfig(String nodeGroup, Integer type, String coreType, Long serverId, Long excludeId) {
+    public Map<String, Object> getNodeGroupConfig(String nodeGroup, Integer type, Long serverId, Long excludeId) {
         String normalizedNodeGroup = normalizeNodeGroup(nodeGroup);
         if (normalizedNodeGroup == null) {
             return Map.of("exists", false);
@@ -180,13 +175,10 @@ public class NodeGroupService {
             return Map.of("exists", false);
         }
 
-        String normalizedCoreType = normalizeCoreTypeValue(coreType);
         List<Node> referenceCandidates = groupNodes.stream()
                 .filter(node -> !Objects.equals(node.getId(), excludeId))
                 .toList();
         boolean compatibleType = type != null && groupNodes.stream().allMatch(node -> Objects.equals(type, node.getType()));
-        boolean compatibleCoreType = coreType != null && groupNodes.stream()
-                .allMatch(node -> Objects.equals(normalizedCoreType, normalizeCoreTypeValue(node.getCoreType())));
         boolean hasSameServer = serverId != null && referenceCandidates.stream()
                 .anyMatch(node -> Objects.equals(serverId, node.getServerId()));
         boolean lockConfig = !referenceCandidates.isEmpty();
@@ -194,14 +186,10 @@ public class NodeGroupService {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("exists", true);
-        result.put("compatible", compatibleType && compatibleCoreType && !hasSameServer);
+        result.put("compatible", compatibleType && !hasSameServer);
         result.put("lockConfig", lockConfig);
         if (!compatibleType) {
             result.put("message", "该节点组包含不同节点类型的节点，无法关联");
-            return result;
-        }
-        if (!compatibleCoreType) {
-            result.put("message", "该节点组包含不同内核类型的节点，无法关联");
             return result;
         }
         if (hasSameServer) {
@@ -232,14 +220,6 @@ public class NodeGroupService {
         option.put("value", nodeGroup);
         option.put("label", nodeGroup);
         return option;
-    }
-
-    private String normalizeCoreTypeValue(String coreType) {
-        if (coreType == null || coreType.trim().isEmpty()) {
-            return coreType;
-        }
-        CoreType parsedCoreType = CoreType.fromValue(coreType);
-        return parsedCoreType == null ? coreType.trim().toLowerCase() : parsedCoreType.getValue();
     }
 
     private String normalizeJson(String json) {

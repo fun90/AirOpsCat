@@ -89,7 +89,6 @@ const nodeTable = new DataTable({
         editedNodeRuleJson: '',
         viewConfigModal: null,
         batchDeployModal: null,
-        coreSwitchModal: null,
         batchTagModal: null,
         batchActionDropdown: null,
         batchActionDropdownCloseTimer: null,
@@ -106,9 +105,6 @@ const nodeTable = new DataTable({
             mode: 'REPLACE',
             tagIds: []
         },
-        coreSwitchTarget: 'sing-box',
-        coreSwitchRedeploy: true,
-        switchingCore: false,
         batchDeploying: false,
         batchTagUpdating: false,
         deployingNodeIds: []
@@ -293,7 +289,7 @@ const nodeTable = new DataTable({
 
         fetchNodeGroupOptions(item, isEdit = false, keyword = '') {
             const optionKey = isEdit ? 'editNodeGroupOptions' : 'nodeGroupOptions';
-            if (!item || item.type === '' || item.type === null || item.type === undefined || !item.coreType) {
+            if (!item || item.type === '' || item.type === null || item.type === undefined) {
                 this[optionKey] = [];
                 this.refreshNodeGroupSelect(isEdit);
                 return;
@@ -302,7 +298,7 @@ const nodeTable = new DataTable({
             const excludeId = isEdit ? (item.id || '') : '';
             const serverId = item.serverId || '';
             const query = keyword ? `&keyword=${encodeURIComponent(keyword)}` : '';
-            return fetch(`/api/admin/nodes/group-options?type=${encodeURIComponent(item.type)}&coreType=${encodeURIComponent(item.coreType)}&excludeId=${encodeURIComponent(excludeId)}&serverId=${encodeURIComponent(serverId)}${query}`)
+            return fetch(`/api/admin/nodes/group-options?type=${encodeURIComponent(item.type)}&excludeId=${encodeURIComponent(excludeId)}&serverId=${encodeURIComponent(serverId)}${query}`)
                 .then(response => response.json())
                 .then(data => {
                     this[optionKey] = Array.isArray(data) ? data : [];
@@ -354,12 +350,12 @@ const nodeTable = new DataTable({
         },
 
         fetchNodeGroupConfig(item, isEdit = false) {
-            if (!item?.nodeGroup || item.type === '' || item.type === null || item.type === undefined || !item.coreType) {
+            if (!item?.nodeGroup || item.type === '' || item.type === null || item.type === undefined) {
                 return Promise.resolve({ exists: false });
             }
 
             const excludeId = isEdit ? (item.id || '') : '';
-            return fetch(`/api/admin/nodes/group-config?nodeGroup=${encodeURIComponent(item.nodeGroup)}&type=${encodeURIComponent(item.type)}&coreType=${encodeURIComponent(item.coreType)}&serverId=${encodeURIComponent(item.serverId || '')}&excludeId=${encodeURIComponent(excludeId)}`)
+            return fetch(`/api/admin/nodes/group-config?nodeGroup=${encodeURIComponent(item.nodeGroup)}&type=${encodeURIComponent(item.type)}&serverId=${encodeURIComponent(item.serverId || '')}&excludeId=${encodeURIComponent(excludeId)}`)
                 .then(response => response.json())
                 .catch(error => {
                     console.error('Error fetching node group config:', error);
@@ -617,12 +613,6 @@ const nodeTable = new DataTable({
                     getValueLabel: value => this.getOptionLabel(this.nodeTypes, value)
                 },
                 {
-                    key: 'coreType',
-                    label: '内核',
-                    isActive: value => value !== '',
-                    getValueLabel: value => this.getOptionLabel(this.coreTypes, value)
-                },
-                {
                     key: 'protocol',
                     label: '协议',
                     isActive: value => value !== '',
@@ -645,11 +635,7 @@ const nodeTable = new DataTable({
 
         getFilterProtocolOptions() {
             return this.protocolTypes.filter(protocol => {
-                const matchedType = this.filters.type === '' || String(protocol.type) === String(this.filters.type);
-                const matchedCore = this.filters.coreType === ''
-                    || !protocol.coreTypes
-                    || protocol.coreTypes.includes(this.filters.coreType);
-                return matchedType && matchedCore;
+                return this.filters.type === '' || String(protocol.type) === String(this.filters.type);
             });
         },
 

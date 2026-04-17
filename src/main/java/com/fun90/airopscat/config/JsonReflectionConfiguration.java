@@ -54,8 +54,6 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.dto.NodeDto.class,
     com.fun90.airopscat.model.dto.NodeRequest.class,
     com.fun90.airopscat.model.dto.NodeBatchTagUpdateRequest.class,
-    com.fun90.airopscat.model.dto.NodeCoreSwitchRequest.class,
-    com.fun90.airopscat.model.dto.NodeCoreSwitchResponse.class,
     com.fun90.airopscat.model.dto.NodeDeploymentRestoreRequest.class,
     com.fun90.airopscat.model.dto.NodeDeploymentVersionDto.class,
     com.fun90.airopscat.model.dto.NodeDeploymentVersionDetailDto.class,

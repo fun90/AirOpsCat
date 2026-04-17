@@ -1,9 +1,7 @@
-package com.fun90.airopscat.service.core.strategy.impl;
+package com.fun90.airopscat.singbox;
 
-import com.fun90.airopscat.annotation.SupportedCores;
 import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
-import com.fun90.airopscat.service.core.strategy.CoreManagementStrategy;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
@@ -12,60 +10,45 @@ import java.time.LocalDateTime;
 
 @Slf4j
 @ApplicationScoped
-@SupportedCores(
-        value = {"sing-box", "singbox"},
-        priority = 1,
-        description = "Sing-box core management strategy",
-        supportedOS = {"linux", "ubuntu", "centos", "debian"}
-)
-public class SingBoxCoreManagementStrategy implements CoreManagementStrategy {
+public class SingBoxCoreManager {
 
     private static final String CORE_TYPE = "sing-box";
     private static final String SERVICE_NAME = "sing-box";
     private static final String BINARY_PATH = "/usr/bin/sing-box";
     private static final String CONFIG_PATH = "/etc/sing-box/config.json";
 
-    @Override
     public CoreManagementResult start(SshConnection connection) {
         return executeSystemctlCommand(connection, "start", "Start sing-box service");
     }
 
-    @Override
     public CoreManagementResult stop(SshConnection connection) {
         return executeSystemctlCommand(connection, "stop", "Stop sing-box service");
     }
 
-    @Override
     public CoreManagementResult restart(SshConnection connection) {
         return executeSystemctlCommand(connection, "restart", "Restart sing-box service");
     }
 
-    @Override
     public CoreManagementResult reload(SshConnection connection) {
         return executeSystemctlCommand(connection, "reload", "Reload sing-box service");
     }
 
-    @Override
     public CoreManagementResult status(SshConnection connection) {
         return executeSystemctlCommand(connection, "status", "Query sing-box service status");
     }
 
-    @Override
     public CoreManagementResult install(SshConnection connection, Object... params) {
         throw new UnsupportedOperationException("Sing-box install is not supported in node deployment");
     }
 
-    @Override
     public CoreManagementResult uninstall(SshConnection connection) {
         throw new UnsupportedOperationException("Sing-box uninstall is not supported in node deployment");
     }
 
-    @Override
     public CoreManagementResult update(SshConnection connection, Object... params) {
         throw new UnsupportedOperationException("Sing-box update is not supported in node deployment");
     }
 
-    @Override
     public CoreManagementResult config(SshConnection connection, Object... params) {
         CoreManagementResult result = new CoreManagementResult();
         result.setOperation("config");

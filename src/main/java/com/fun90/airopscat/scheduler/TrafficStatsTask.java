@@ -11,9 +11,8 @@ import com.fun90.airopscat.service.BarkService;
 import com.fun90.airopscat.service.ServerTrafficStatsService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
-import com.fun90.airopscat.service.traffic.TrafficStatsCollector;
-import com.fun90.airopscat.service.traffic.UserTrafficStats;
-import com.fun90.airopscat.service.traffic.registry.TrafficStatsCollectorRegistry;
+import com.fun90.airopscat.model.dto.UserTrafficStats;
+import com.fun90.airopscat.singbox.SingBoxTrafficStatsCollector;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +23,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -49,7 +49,7 @@ public class TrafficStatsTask {
     ServerTrafficStatsService serverTrafficStatsService;
 
     @Inject
-    TrafficStatsCollectorRegistry trafficStatsCollectorRegistry;
+    SingBoxTrafficStatsCollector singBoxTrafficStatsCollector;
 
     @Inject
     ScheduledSupport scheduledSupport;
@@ -135,12 +135,8 @@ public class TrafficStatsTask {
         return getRegisteredCollectorTypes().contains(configType);
     }
 
-    TrafficStatsCollector getCollector(String configType) {
-        return trafficStatsCollectorRegistry.getStrategy(configType);
-    }
-
-    java.util.Set<String> getRegisteredCollectorTypes() {
-        return trafficStatsCollectorRegistry.getRegisteredTypes();
+    Set<String> getRegisteredCollectorTypes() {
+        return Set.of("sing-box", "singbox");
     }
 
     SshConnection createConnection(Server server) {
@@ -212,8 +208,8 @@ public class TrafficStatsTask {
 
         for (ServerConfig serverConfig : serverConfigs) {
             String configType = normalizeConfigType(serverConfig.getConfigType());
-            TrafficStatsCollector collector = getCollector(configType);
-            Map<String, UserTrafficStats> allTrafficStats = collector.collectUserTrafficStats(connection, server, serverConfig);
+            Map<String, UserTrafficStats> allTrafficStats =
+                    singBoxTrafficStatsCollector.collectUserTrafficStats(connection, server, serverConfig);
             if (allTrafficStats.isEmpty()) {
                 log.debug("服务器 {} 的 {} 内核没有流量统计数据", server.getId(), configType);
                 skippedCount++;

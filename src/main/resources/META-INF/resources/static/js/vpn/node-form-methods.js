@@ -234,11 +234,8 @@ export function createNodeFormMethods() {
         },
 
         getAvailableProtocols(item) {
-            const coreType = this.getDefaultInboundCoreType(item);
             return this.protocolTypes.filter(protocol => {
-                const matchedType = protocol.type === item.type;
-                const matchedCore = !protocol.coreTypes || protocol.coreTypes.includes(coreType);
-                return matchedType && matchedCore;
+                return protocol.type === item.type;
             });
         },
 
@@ -319,11 +316,6 @@ export function createNodeFormMethods() {
                 isValid = false;
             }
 
-            if (!this.newItem.coreType) {
-                this.validationErrors.coreType = '请选择内核类型';
-                isValid = false;
-            }
-
             if (!this.newItem.protocol || !this.getAvailableProtocols(this.newItem).some(protocol => protocol.value === this.newItem.protocol)) {
                 this.validationErrors.protocol = '请选择可用协议';
                 isValid = false;
@@ -364,11 +356,6 @@ export function createNodeFormMethods() {
                 isValid = false;
             }
 
-            if (!this.editedItem.coreType) {
-                this.validationErrors.coreType = '请选择内核类型';
-                isValid = false;
-            }
-
             if (!this.editedItem.protocol || !this.getAvailableProtocols(this.editedItem).some(protocol => protocol.value === this.editedItem.protocol)) {
                 this.validationErrors.protocol = '请选择可用协议';
                 isValid = false;
@@ -395,7 +382,7 @@ export function createNodeFormMethods() {
                     nodeGroup: this.newItem.nodeGroup || null,
                     accessHostId: this.newItem.accessHostId || null,
                     port: this.newItem.port,
-                    coreType: this.newItem.coreType,
+                    coreType: 'sing-box',
                     protocol: this.newItem.protocol,
                     type: this.newItem.type,
                     level: this.newItem.level || 0,
@@ -432,7 +419,7 @@ export function createNodeFormMethods() {
                     nodeGroup: this.editedItem.nodeGroup || null,
                     accessHostId: this.editedItem.accessHostId || null,
                     port: this.editedItem.port,
-                    coreType: this.editedItem.coreType,
+                    coreType: 'sing-box',
                     protocol: this.editedItem.protocol,
                     type: this.editedItem.type,
                     level: this.editedItem.level || 0,

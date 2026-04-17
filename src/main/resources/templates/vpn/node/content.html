@@ -55,13 +55,6 @@
                                                     <a class="dropdown-item"
                                                        :class="{ disabled: selectedNodeIds.length === 0 }"
                                                        href="#"
-                                                       @click.prevent="selectedNodeIds.length && openCoreSwitchModal()">
-                                                        <i class="ti ti-cpu"></i>
-                                                        切换内核
-                                                    </a>
-                                                    <a class="dropdown-item"
-                                                       :class="{ disabled: selectedNodeIds.length === 0 }"
-                                                       href="#"
                                                        @click.prevent="selectedNodeIds.length && openBatchTagModal()">
                                                         <i class="ti ti-tags"></i>
                                                         调整标签

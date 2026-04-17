@@ -7,7 +7,6 @@ import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.enums.CoreOperation;
-import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
@@ -18,7 +17,6 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ServerConfigService {
@@ -153,28 +151,13 @@ public class ServerConfigService {
     }
 
     /**
-     * 获取配置类型选项
-     */
-    public List<Map<String, String>> getConfigTypeOptions() {
-        List<String> configTypes = serverConfigRepository.findDistinctConfigTypes();
-        return configTypes.stream()
-                .map(type -> {
-                    Map<String, String> option = new HashMap<>();
-                    option.put("value", type);
-                    option.put("label", type);
-                    return option;
-                })
-                .collect(Collectors.toList());
-    }
-
-    /**
      * 获取配置统计信息
      */
     public Map<String, Long> getServerConfigStats() {
         Map<String, Long> stats = new LinkedHashMap<>();
         stats.put("total", serverConfigRepository.count());
         stats.put("enabled", serverConfigRepository.countEnabled());
-        stats.put("singBox", serverConfigRepository.countByConfigType(CoreType.SING_BOX.getValue()));
+        stats.put("singBox", serverConfigRepository.count());
         return stats;
     }
 

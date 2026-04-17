@@ -51,7 +51,7 @@ public class ConsolePageRegistry {
                     "添加、编辑、部署节点，查看节点", "/vpn/node", "vpn/node/page",
                     true, true, false, true, "添加节点", "node-")),
             Map.entry("/vpn/route-rule", page("vpn", "代理", 30, "vpn", "路由规则", 20,
-                    "为 xray、sing-box 管理路由规则", "/vpn/route-rule", "vpn/route-rule/page",
+                    "为 sing-box 管理路由规则", "/vpn/route-rule", "vpn/route-rule/page",
                     true, false, false, true, "添加规则", "route-rule-")),
             Map.entry("/vpn/server-config", page("vpn", "代理", 30, "vpn", "配置管理", 30,
                     "查看服务器上对应的配置", "/vpn/server-config", "vpn/server-config/page",

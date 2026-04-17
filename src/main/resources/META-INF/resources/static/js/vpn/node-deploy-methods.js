@@ -155,31 +155,6 @@ export function createNodeDeployMethods() {
             return this.batchTagForm.mode === 'APPEND' ? '新增' : '覆盖';
         },
 
-        openCoreSwitchModal() {
-            if (!this.selectedNodeIds.length) {
-                ToastUtils.show('Warning', '请先勾选要切换的节点', 'warning');
-                return;
-            }
-
-            const selectedNodes = this.records.filter(node => this.selectedNodeIds.includes(node.id));
-            const hasSingBox = selectedNodes.some(node => node.coreType === 'sing-box');
-            this.coreSwitchTarget = 'sing-box';
-            const unsupportedNodes = selectedNodes.filter(node =>
-                !this.getAvailableProtocols({ type: node.type, coreType: this.coreSwitchTarget })
-                    .some(protocol => protocol.value === node.protocol)
-            );
-            if (unsupportedNodes.length > 0) {
-                const labels = unsupportedNodes
-                    .map(node => `${node.name || `节点#${node.id}`}(${node.protocol})`)
-                    .join('、');
-                ToastUtils.show('Warning', `以下节点协议不支持切换到 ${this.coreSwitchTarget}: ${labels}`, 'warning');
-                return;
-            }
-            this.coreSwitchRedeploy = true;
-            this.coreSwitchModal = new Modal(document.getElementById('node-coreSwitchModal'));
-            this.coreSwitchModal.show();
-        },
-
         isNodeSelected(nodeId) {
             return this.selectedNodeIds.includes(nodeId);
         },
@@ -206,53 +181,6 @@ export function createNodeDeployMethods() {
             }
             const currentIds = new Set(this.records.map(node => node.id));
             this.selectedNodeIds = this.selectedNodeIds.filter(id => !currentIds.has(id));
-        },
-
-        switchSelectedNodesCore() {
-            if (!this.selectedNodeIds.length) {
-                ToastUtils.show('Warning', '请先勾选要切换的节点', 'warning');
-                return;
-            }
-
-            this.switchingCore = true;
-            fetch('/api/admin/nodes/switch-core', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    nodeIds: this.selectedNodeIds,
-                    targetCoreType: this.coreSwitchTarget,
-                    redeploy: this.coreSwitchRedeploy
-                })
-            })
-                .then(async response => {
-                    if (!response.ok) {
-                        const error = await response.json().catch(() => ({ message: '切换内核失败' }));
-                        throw new Error(error.message || '切换内核失败');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    this.switchingCore = false;
-                    this.coreSwitchModal.hide();
-                    this.selectedNodeIds = [];
-                    this.fetchRecords();
-
-                    const deploymentSummary = data.redeployed
-                        ? `，重部署 ${data.deploymentResults ? data.deploymentResults.filter(result => result.success).length : 0} 项`
-                        : '';
-                    ToastUtils.show(
-                        'Success',
-                        `已切换 ${data.switchedCount} 个节点，跳过 ${data.unchangedCount} 个节点${deploymentSummary}`,
-                        'success'
-                    );
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    this.switchingCore = false;
-                    ToastUtils.show('Error', error.message || '切换内核失败', 'danger');
-                });
         },
 
         submitBatchTagUpdate() {

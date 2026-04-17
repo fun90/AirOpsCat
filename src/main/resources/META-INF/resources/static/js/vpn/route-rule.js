@@ -2,7 +2,6 @@ import { DataTable } from '/static/js/common/data-table.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
 
 const DEFAULT_ROUTE_RULE_FILTERS = Object.freeze({
-    coreType: '',
     enabled: ''
 });
 
@@ -19,7 +18,6 @@ const routeRuleTable = new DataTable({
         },
         servers: [],
         landingNodes: [],
-        coreTypes: [],
         ruleTypes: [],
         newRuleValueJson: '',
         editRuleValueJson: '',
@@ -36,9 +34,8 @@ const routeRuleTable = new DataTable({
     methods: {
         initialize() {
             this.fetchServers();
-            this.fetchCoreTypes();
             this.fetchRuleTypes();
-            this.fetchLandingNodes(this.newItem.coreType);
+            this.fetchLandingNodes();
         },
 
         fetchServers() {
@@ -46,14 +43,6 @@ const routeRuleTable = new DataTable({
                 .then(response => response.json())
                 .then(data => {
                     this.servers = data;
-                });
-        },
-
-        fetchCoreTypes() {
-            fetch('/api/admin/route-rules/core-types')
-                .then(response => response.json())
-                .then(data => {
-                    this.coreTypes = data;
                 });
         },
 
@@ -65,8 +54,8 @@ const routeRuleTable = new DataTable({
                 });
         },
 
-        fetchLandingNodes(coreType) {
-            fetch(`/api/admin/route-rules/landing-nodes?coreType=${encodeURIComponent(coreType || '')}`)
+        fetchLandingNodes() {
+            fetch('/api/admin/route-rules/landing-nodes')
                 .then(response => response.json())
                 .then(data => {
                     this.landingNodes = data;
@@ -75,20 +64,6 @@ const routeRuleTable = new DataTable({
 
         getStatsUrl() {
             return '/api/admin/route-rules/stats';
-        },
-
-        onCreateCoreTypeChange() {
-            this.newItem.outboundNodeId = '';
-            this.fetchLandingNodes(this.newItem.coreType);
-        },
-
-        onEditCoreTypeChange() {
-            this.editedItem.outboundNodeId = '';
-            this.fetchLandingNodes(this.editedItem.coreType);
-        },
-
-        getCoreBadgeClass(coreType) {
-            return coreType === 'sing-box' ? 'bg-indigo text-white' : 'bg-blue text-white';
         },
 
         getRuleTypeLabel(ruleType) {
@@ -106,9 +81,9 @@ const routeRuleTable = new DataTable({
             return `${node.name || ('节点#' + node.id)} (${node.serverHost || node.serverIp || '-'})`;
         },
 
-        getRuleValueHint(ruleType, coreType) {
+        getRuleValueHint(ruleType) {
             if (ruleType === 'custom') {
-                return `请输入完整 JSON 对象，系统会自动补齐 ${coreType === 'sing-box' ? 'outbound' : 'outboundTag'}。`;
+                return '请输入完整 JSON 对象，系统会自动补齐 outbound。';
             }
             if (ruleType === 'domain') {
                 return '示例: ["geosite:netflix"] 或 ["example.com"]';
@@ -151,7 +126,6 @@ const routeRuleTable = new DataTable({
             this.validationErrors = {};
 
             if (!item.name || !item.name.trim()) this.validationErrors.name = '请输入规则名称';
-            if (!item.coreType) this.validationErrors.coreType = '请选择内核类型';
             if (!item.ruleType) this.validationErrors.ruleType = '请选择规则类型';
             if (!item.serverIds || item.serverIds.length === 0) this.validationErrors.serverIds = '请选择至少一个服务器';
             if (!item.outboundNodeId) this.validationErrors.outboundNodeId = '请选择出站落地节点';
@@ -183,7 +157,7 @@ const routeRuleTable = new DataTable({
             try {
                 return {
                     name: item.name,
-                    coreType: item.coreType,
+                    coreType: 'sing-box',
                     ruleType: item.ruleType,
                     ruleValue: JSON.parse(ruleValueJson),
                     outboundNodeId: Number(item.outboundNodeId),
@@ -208,16 +182,16 @@ const routeRuleTable = new DataTable({
                 serverIds: []
             };
             this.newRuleValueJson = '[\n  "geosite:netflix"\n]';
-            this.fetchLandingNodes(this.newItem.coreType);
+            this.fetchLandingNodes();
         },
 
         prepareEditForm(item) {
             this.editRuleValueJson = JSON.stringify(item.ruleValue, null, 2);
-            this.fetchLandingNodes(item.coreType);
+            this.fetchLandingNodes();
             return {
                 id: item.id,
                 name: item.name,
-                coreType: item.coreType,
+                coreType: 'sing-box',
                 ruleType: item.ruleType,
                 outboundNodeId: item.outboundNodeId,
                 enabled: item.enabled,
@@ -246,11 +220,6 @@ const routeRuleTable = new DataTable({
                     label: '搜索',
                     value: this.searchQuery
                 }] : [];
-
-                if (this.filters.coreType) {
-                    const label = this.coreTypes.find(item => item.value === this.filters.coreType)?.label || this.filters.coreType;
-                    tags.push({ key: 'coreType', label: '内核', value: label });
-                }
 
                 if (this.filters.enabled !== '') {
                     tags.push({ key: 'enabled', label: '状态', value: this.filters.enabled === 'true' ? '已启用' : '已禁用' });

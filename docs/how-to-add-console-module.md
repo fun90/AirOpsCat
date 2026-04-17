@@ -124,7 +124,7 @@ Map.entry("/vpn/protocol-template", page(
         "vpn",
         "协议模板",
         40,
-        "管理 sing-box / xray 模板",
+        "管理 sing-box 协议模板",
         "/vpn/protocol-template",
         "vpn/protocol-template/content",
         true,

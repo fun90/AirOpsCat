@@ -560,8 +560,10 @@ const serverTable = new DataTable({
                 })
                 .then(data => {
                     this.previewConfigs = data.configs || {};
-                    this.previewConfigCoreTypes = Array.isArray(data.coreTypes) ? data.coreTypes : Object.keys(this.previewConfigs);
-                    this.previewConfigSelectedCoreType = this.previewConfigCoreTypes.length > 0 ? this.previewConfigCoreTypes[0] : '';
+                    this.previewConfigCoreTypes = Object.keys(this.previewConfigs);
+                    this.previewConfigSelectedCoreType = this.previewConfigs['sing-box']
+                        ? 'sing-box'
+                        : (this.previewConfigCoreTypes[0] || '');
                     this.previewConfigLoading = false;
                 })
                 .catch(error => {

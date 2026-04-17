@@ -51,20 +51,11 @@ public class NodeRepository implements PanacheRepository<Node> {
         return find("nodeGroup in ?1", nodeGroups).list();
     }
 
-    public long countByServerAssociationAndCoreType(Long serverId, String coreType) {
-        if (serverId == null || coreType == null || coreType.isBlank()) {
+    public long countActiveByServerAssociation(Long serverId) {
+        if (serverId == null) {
             return 0;
         }
-        return count("serverId = ?1 and lower(trim(coreType)) = ?2",
-                serverId, coreType.trim().toLowerCase());
-    }
-
-    public long countActiveByServerAssociationAndCoreType(Long serverId, String coreType) {
-        if (serverId == null || coreType == null || coreType.isBlank()) {
-            return 0;
-        }
-        return count("serverId = ?1 and lower(trim(coreType)) = ?2 and (disabled is null or disabled = 0)",
-                serverId, coreType.trim().toLowerCase());
+        return count("serverId = ?1 and (disabled is null or disabled = 0)", serverId);
     }
     
     public List<Node> findByType(Integer type) {
@@ -127,13 +118,11 @@ public class NodeRepository implements PanacheRepository<Node> {
         return count("serverId = ?1 and port = ?2 and id not in ?3", serverId, port, excludedIds) > 0;
     }
 
-    public List<Node> findNodeGroupCandidateNodes(Integer type, String coreType, Long excludeId) {
-        String normalizedCoreType = coreType.trim().toLowerCase();
+    public List<Node> findNodeGroupCandidateNodes(Integer type, Long excludeId) {
         if (excludeId != null) {
-            return find("type = ?1 and lower(trim(coreType)) = ?2 and id != ?3",
-                    type, normalizedCoreType, excludeId).list();
+            return find("type = ?1 and id != ?2", type, excludeId).list();
         }
-        return find("type = ?1 and lower(trim(coreType)) = ?2", type, normalizedCoreType).list();
+        return find("type", type).list();
     }
 
 }

@@ -8,7 +8,6 @@ import com.fun90.airopscat.model.dto.deployment.RouteRuleSnapshot;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.RouteRule;
 import com.fun90.airopscat.model.entity.Server;
-import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.RouteRuleType;
 import com.fun90.airopscat.repository.NodeRepository;
@@ -32,6 +31,8 @@ import java.util.Set;
 
 @ApplicationScoped
 public class RouteRuleService {
+
+    private static final String CORE_TYPE_SING_BOX = "sing-box";
 
     private final RouteRuleRepository routeRuleRepository;
     private final ServerRepository serverRepository;
@@ -60,8 +61,7 @@ public class RouteRuleService {
             params.put("search", "%" + search.trim().toLowerCase() + "%");
         }
         if (coreType != null && !coreType.trim().isEmpty()) {
-            query.append(" and rr.coreType = :coreType");
-            params.put("coreType", requireSupportedCoreType(coreType));
+            normalizeSingBoxCoreType(coreType);
         }
         if (enabled != null) {
             query.append(" and rr.enabled = :enabled");
@@ -91,7 +91,7 @@ public class RouteRuleService {
         stats.put("total", routeRuleRepository.count());
         stats.put("enabled", routeRuleRepository.countByEnabled(1));
         stats.put("disabled", routeRuleRepository.countByEnabled(0));
-        stats.put("singBox", routeRuleRepository.countByCoreType(CoreType.SING_BOX.getValue()));
+        stats.put("singBox", routeRuleRepository.count());
         return stats;
     }
 
@@ -108,12 +108,10 @@ public class RouteRuleService {
 
     public List<Map<String, String>> getSupportedCoreTypeOptions() {
         List<Map<String, String>> options = new ArrayList<>();
-        for (CoreType type : List.of(CoreType.SING_BOX)) {
-            Map<String, String> option = new LinkedHashMap<>();
-            option.put("value", type.getValue());
-            option.put("label", type.getName());
-            options.add(option);
-        }
+        Map<String, String> option = new LinkedHashMap<>();
+        option.put("value", CORE_TYPE_SING_BOX);
+        option.put("label", "sing-box");
+        options.add(option);
         return options;
     }
 
@@ -189,7 +187,7 @@ public class RouteRuleService {
         validateRequest(request);
 
         routeRule.setName(request.getName().trim());
-        routeRule.setCoreType(requireSupportedCoreType(request.getCoreType()));
+        routeRule.setCoreType(normalizeSingBoxCoreType(request.getCoreType()));
         routeRule.setRuleType(normalizeRuleType(request.getRuleType()));
         routeRule.setRuleValue(writeRuleValue(request.getRuleValue()));
         routeRule.setOutboundNodeId(request.getOutboundNodeId());
@@ -218,7 +216,7 @@ public class RouteRuleService {
         if (request.getName() == null || request.getName().trim().isEmpty()) {
             throw new IllegalArgumentException("规则名称不能为空");
         }
-        String requestCoreType = requireSupportedCoreType(request.getCoreType());
+        normalizeSingBoxCoreType(request.getCoreType());
         RouteRuleType ruleType = RouteRuleType.fromValue(request.getRuleType());
         if (ruleType == null) {
             throw new IllegalArgumentException("规则类型不支持");
@@ -246,10 +244,6 @@ public class RouteRuleService {
         if (outboundNode.getDisabled() != null && outboundNode.getDisabled() == 1) {
             throw new IllegalArgumentException("出站落地节点已禁用");
         }
-        if (!requestCoreType.equals(outboundNode.getCoreType())) {
-            throw new IllegalArgumentException("路由规则内核类型必须与出站落地节点一致");
-        }
-
         Set<Long> uniqueServerIds = new LinkedHashSet<>(request.getServerIds());
         List<Server> servers = serverRepository.findByIdIn(new ArrayList<>(uniqueServerIds));
         if (servers.size() != uniqueServerIds.size()) {
@@ -289,12 +283,15 @@ public class RouteRuleService {
         }
     }
 
-    private String requireSupportedCoreType(String coreType) {
-        CoreType normalized = CoreType.fromValue(coreType);
-        if (normalized == null) {
+    private String normalizeSingBoxCoreType(String coreType) {
+        if (coreType == null || coreType.trim().isEmpty()) {
+            return CORE_TYPE_SING_BOX;
+        }
+        String normalized = coreType.trim().toLowerCase();
+        if (!CORE_TYPE_SING_BOX.equals(normalized) && !"singbox".equals(normalized)) {
             throw new IllegalArgumentException("仅支持 sing-box 内核");
         }
-        return normalized.getValue();
+        return CORE_TYPE_SING_BOX;
     }
 
     private String normalizeRuleType(String ruleType) {
