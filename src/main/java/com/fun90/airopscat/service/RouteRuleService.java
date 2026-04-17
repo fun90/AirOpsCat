@@ -108,7 +108,7 @@ public class RouteRuleService {
 
     public List<Map<String, String>> getSupportedCoreTypeOptions() {
         List<Map<String, String>> options = new ArrayList<>();
-        for (CoreType type : List.of(CoreType.HYSTERIA2, CoreType.SING_BOX)) {
+        for (CoreType type : List.of(CoreType.SING_BOX)) {
             Map<String, String> option = new LinkedHashMap<>();
             option.put("value", type.getValue());
             option.put("label", type.getName());
@@ -291,7 +291,7 @@ public class RouteRuleService {
 
     private String requireSupportedCoreType(String coreType) {
         CoreType normalized = CoreType.fromValue(coreType);
-        if (normalized == null || normalized == CoreType.HYSTERIA2) {
+        if (normalized == null) {
             throw new IllegalArgumentException("仅支持 sing-box 内核");
         }
         return normalized.getValue();

@@ -4,8 +4,6 @@ import lombok.Getter;
 
 @Getter
 public enum CoreType {
-    HYSTERIA2("hysteria2", "hysteria2"),
-
     SING_BOX("sing-box", "sing-box");
 
 

@@ -327,8 +327,8 @@ public class NodeDeploymentService {
 
     private String normalizeSupportedCoreType(String coreType) {
         CoreType parsedCoreType = CoreType.fromValue(coreType);
-        if (parsedCoreType == null || parsedCoreType == CoreType.HYSTERIA2) {
-            throw new IllegalArgumentException("仅支持切换到 xray 或 sing-box");
+        if (parsedCoreType == null) {
+            throw new IllegalArgumentException("仅支持切换到 sing-box");
         }
         return parsedCoreType.getValue();
     }

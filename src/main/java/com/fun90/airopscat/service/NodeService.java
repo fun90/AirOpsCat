@@ -307,7 +307,7 @@ public class NodeService {
         }
 
         CoreType parsedCoreType = CoreType.fromValue(coreType);
-        if (parsedCoreType == null || parsedCoreType == CoreType.HYSTERIA2) {
+        if (parsedCoreType == null) {
             throw new IllegalArgumentException("Unsupported core type: " + coreType);
         }
         node.setCoreType(parsedCoreType.getValue());
@@ -694,7 +694,7 @@ public class NodeService {
 
     public List<Map<String, Object>> getNodeCoreTypeOptions() {
         return Arrays.stream(CoreType.values())
-                .filter(type -> type == CoreType.HYSTERIA2 || type == CoreType.SING_BOX)
+                .filter(type -> type == CoreType.SING_BOX)
                 .map(type -> {
                     Map<String, Object> option = new HashMap<>();
                     option.put("value", type.getValue());

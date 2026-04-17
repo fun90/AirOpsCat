@@ -73,8 +73,6 @@ const configTable = new DataTable({
         // Get Badge classes
         getConfigTypeBadgeClass(configType) {
             switch (configType) {
-                case 'HYSTERIA': return 'bg-purple';
-                case 'HYSTERIA2': return 'bg-green';
                 default: return 'bg-gray';
             }
         },
@@ -143,7 +141,7 @@ const configTable = new DataTable({
         // Copy config content from view modal
         async copyConfigContent() {
             try {
-                const content = this.configViewMode === 'formatted' 
+                const content = this.configViewMode === 'formatted'
                     ? this.formatJsonForDisplay(this.editedItem.config)
                     : this.editedItem.config;
                 await navigator.clipboard.writeText(content);
@@ -157,10 +155,10 @@ const configTable = new DataTable({
         // Download config
         downloadConfig() {
             try {
-                const content = this.configViewMode === 'formatted' 
+                const content = this.configViewMode === 'formatted'
                     ? this.formatJsonForDisplay(this.editedItem.config)
                     : this.editedItem.config;
-                
+
                 const blob = new Blob([content], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -170,7 +168,7 @@ const configTable = new DataTable({
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                
+
                 ToastUtils.show('Success', '配置已下载', 'success');
             } catch (error) {
                 console.error('下载失败:', error);
@@ -321,7 +319,7 @@ const configTable = new DataTable({
             this.uploading = true;
             this.uploadProgress = 0;
             this.uploadProgressMessage = '正在连接服务器...';
-            
+
             // Show progress modal
             const progressModal = new Modal(document.getElementById('uploadProgressModal'));
             progressModal.show();
