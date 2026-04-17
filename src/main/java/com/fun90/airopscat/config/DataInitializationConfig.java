@@ -97,9 +97,9 @@ public class DataInitializationConfig {
     }
 
     private void initializeNodeCoreType() {
-        long updatedCount = nodeRepository.fillEmptyCoreType(CoreType.XRAY.getValue());
+        long updatedCount = nodeRepository.fillEmptyCoreType(CoreType.SING_BOX.getValue());
         if (updatedCount > 0) {
-            log.info("Initialized coreType for {} node records with value {}", updatedCount, CoreType.XRAY.getValue());
+            log.info("Initialized coreType for {} node records with value {}", updatedCount, CoreType.SING_BOX.getValue());
         }
     }
 

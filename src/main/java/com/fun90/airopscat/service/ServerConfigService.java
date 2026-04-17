@@ -174,7 +174,6 @@ public class ServerConfigService {
         Map<String, Long> stats = new LinkedHashMap<>();
         stats.put("total", serverConfigRepository.count());
         stats.put("enabled", serverConfigRepository.countEnabled());
-        stats.put("xray", serverConfigRepository.countByConfigType(CoreType.XRAY.getValue()));
         stats.put("singBox", serverConfigRepository.countByConfigType(CoreType.SING_BOX.getValue()));
         return stats;
     }

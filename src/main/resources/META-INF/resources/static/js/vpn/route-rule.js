@@ -15,7 +15,6 @@ const routeRuleTable = new DataTable({
             total: 0,
             enabled: 0,
             disabled: 0,
-            xray: 0,
             singBox: 0
         },
         servers: [],
@@ -26,7 +25,7 @@ const routeRuleTable = new DataTable({
         editRuleValueJson: '',
         newItem: {
             name: '',
-            coreType: 'xray',
+            coreType: 'sing-box',
             ruleType: 'domain',
             outboundNodeId: '',
             enabled: 1,
@@ -201,7 +200,7 @@ const routeRuleTable = new DataTable({
         resetCreateForm() {
             this.newItem = {
                 name: '',
-                coreType: 'xray',
+                coreType: 'sing-box',
                 ruleType: 'domain',
                 outboundNodeId: '',
                 enabled: 1,

@@ -230,7 +230,7 @@ export function createNodeFormMethods() {
         },
 
         getDefaultInboundCoreType(item) {
-            return item && item.coreType ? item.coreType : 'xray';
+            return item && item.coreType ? item.coreType : 'sing-box';
         },
 
         getAvailableProtocols(item) {
@@ -461,7 +461,7 @@ export function createNodeFormMethods() {
                 nodeGroup: '',
                 accessHostId: '',
                 port: null,
-                coreType: 'xray',
+                coreType: 'sing-box',
                 protocol: 'vless',
                 type: 0,
                 level: 0,

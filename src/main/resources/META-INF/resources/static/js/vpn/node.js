@@ -60,7 +60,7 @@ const nodeTable = new DataTable({
             nodeGroup: '',
             accessHostId: '',
             port: null,
-            coreType: 'xray',
+            coreType: 'sing-box',
             protocol: 'vless',
             type: 0,
             level: 0,

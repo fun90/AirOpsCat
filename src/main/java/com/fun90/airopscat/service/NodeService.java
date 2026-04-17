@@ -694,7 +694,7 @@ public class NodeService {
 
     public List<Map<String, Object>> getNodeCoreTypeOptions() {
         return Arrays.stream(CoreType.values())
-                .filter(type -> type == CoreType.XRAY || type == CoreType.SING_BOX)
+                .filter(type -> type == CoreType.HYSTERIA2 || type == CoreType.SING_BOX)
                 .map(type -> {
                     Map<String, Object> option = new HashMap<>();
                     option.put("value", type.getValue());
@@ -721,7 +721,7 @@ public class NodeService {
     }
 
     public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, Long serverId, Long accessHostId, String coreType) {
-        String normalizedCoreType = (coreType == null || coreType.trim().isEmpty()) ? CoreType.XRAY.getValue() : coreType;
+        String normalizedCoreType = (coreType == null || coreType.trim().isEmpty()) ? CoreType.SING_BOX.getValue() : coreType;
         DefaultInboundStrategy strategy = strategyRegistry.getStrategy(normalizedCoreType);
         return strategy.generateDefaultInbound(protocol, serverId, accessHostId);
     }

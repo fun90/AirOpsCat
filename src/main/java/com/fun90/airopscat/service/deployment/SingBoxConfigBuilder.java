@@ -355,7 +355,7 @@ public class SingBoxConfigBuilder implements CoreConfigBuilder {
                         routeRule.id(), routeRule.outboundNodeId());
                 continue;
             }
-            if (!"sing-box".equalsIgnoreCase(Objects.toString(outboundNode.coreType(), "xray"))) {
+            if (!"sing-box".equalsIgnoreCase(Objects.toString(outboundNode.coreType(), "sing-box"))) {
                 log.warn("Skip sing-box route rule {}, outbound node {} core type mismatch: {}",
                         routeRule.id(), routeRule.outboundNodeId(), outboundNode.coreType());
                 continue;

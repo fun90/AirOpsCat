@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class CoreDeploymentExecutor {
 
-    private static final String CORE_TYPE_XRAY = "xray";
     private static final String CORE_TYPE_SING_BOX = "sing-box";
     private static final String DEFAULT_USERNAME = "root";
 
@@ -253,9 +252,7 @@ public class CoreDeploymentExecutor {
         serverConfig.setConfigType(coreType);
         serverConfig.setCreateTime(LocalDateTime.now());
         serverConfig.setEnabled(1);
-        serverConfig.setPath(CORE_TYPE_XRAY.equalsIgnoreCase(coreType)
-                ? "/usr/local/etc/xray/config.json"
-                : CORE_TYPE_SING_BOX.equalsIgnoreCase(coreType)
+        serverConfig.setPath(CORE_TYPE_SING_BOX.equalsIgnoreCase(coreType)
                 ? "/etc/sing-box/config.json"
                 : "/etc/hysteria/config.json");
         return serverConfig;

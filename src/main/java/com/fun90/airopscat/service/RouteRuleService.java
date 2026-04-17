@@ -91,7 +91,6 @@ public class RouteRuleService {
         stats.put("total", routeRuleRepository.count());
         stats.put("enabled", routeRuleRepository.countByEnabled(1));
         stats.put("disabled", routeRuleRepository.countByEnabled(0));
-        stats.put("xray", routeRuleRepository.countByCoreType(CoreType.XRAY.getValue()));
         stats.put("singBox", routeRuleRepository.countByCoreType(CoreType.SING_BOX.getValue()));
         return stats;
     }
@@ -109,7 +108,7 @@ public class RouteRuleService {
 
     public List<Map<String, String>> getSupportedCoreTypeOptions() {
         List<Map<String, String>> options = new ArrayList<>();
-        for (CoreType type : List.of(CoreType.XRAY, CoreType.SING_BOX)) {
+        for (CoreType type : List.of(CoreType.HYSTERIA2, CoreType.SING_BOX)) {
             Map<String, String> option = new LinkedHashMap<>();
             option.put("value", type.getValue());
             option.put("label", type.getName());
@@ -293,7 +292,7 @@ public class RouteRuleService {
     private String requireSupportedCoreType(String coreType) {
         CoreType normalized = CoreType.fromValue(coreType);
         if (normalized == null || normalized == CoreType.HYSTERIA2) {
-            throw new IllegalArgumentException("仅支持 xray 和 sing-box 内核");
+            throw new IllegalArgumentException("仅支持 sing-box 内核");
         }
         return normalized.getValue();
     }

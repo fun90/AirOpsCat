@@ -14,7 +14,6 @@ const configTable = new DataTable({
         stats: {
             total: 0,
             enabled: 0,
-            xray: 0,
             singBox: 0
         },
         // Form data
@@ -74,7 +73,6 @@ const configTable = new DataTable({
         // Get Badge classes
         getConfigTypeBadgeClass(configType) {
             switch (configType) {
-                case 'XRAY': return 'bg-blue';
                 case 'HYSTERIA': return 'bg-purple';
                 case 'HYSTERIA2': return 'bg-green';
                 default: return 'bg-gray';

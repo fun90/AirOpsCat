@@ -162,15 +162,8 @@ export function createNodeDeployMethods() {
             }
 
             const selectedNodes = this.records.filter(node => this.selectedNodeIds.includes(node.id));
-            const hasXray = selectedNodes.some(node => node.coreType === 'xray');
             const hasSingBox = selectedNodes.some(node => node.coreType === 'sing-box');
-            if (hasXray && hasSingBox) {
-                ToastUtils.show('Warning', '所选节点必须是同一种原内核', 'warning');
-                return;
-            }
-
-            const sourceCoreType = hasXray ? 'xray' : 'sing-box';
-            this.coreSwitchTarget = sourceCoreType === 'xray' ? 'sing-box' : 'xray';
+            this.coreSwitchTarget = 'sing-box';
             const unsupportedNodes = selectedNodes.filter(node =>
                 !this.getAvailableProtocols({ type: node.type, coreType: this.coreSwitchTarget })
                     .some(protocol => protocol.value === node.protocol)

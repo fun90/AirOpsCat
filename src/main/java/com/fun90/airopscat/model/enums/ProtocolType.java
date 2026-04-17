@@ -7,12 +7,12 @@ import java.util.List;
 
 @Getter
 public enum ProtocolType {
-    VLESS("VLESS-Vision", "vless", 0, List.of("xray", "sing-box")),
-    VLESS_REALITY("VLESS-Vision-REALITY", "vless-reality", 0, List.of("xray", "sing-box")),
+    VLESS("VLESS-Vision", "vless", 0, List.of("sing-box")),
+    VLESS_REALITY("VLESS-Vision-REALITY", "vless-reality", 0, List.of("sing-box")),
     HYSTERIA2("Hysteria2", "hysteria2", 0, List.of("sing-box")),
     SHADOWTLS("ShadowTLS", "shadowtls", 0, List.of("sing-box")),
-    SHADOWSOCKS("Shadowsocks", "shadowsocks", 1, List.of("xray", "sing-box")),
-    SOCKS("SOCKS", "socks", 1, List.of("xray", "sing-box"));
+    SHADOWSOCKS("Shadowsocks", "shadowsocks", 1, List.of("sing-box")),
+    SOCKS("SOCKS", "socks", 1, List.of("sing-box"));
 
     private final String label;
     private final String value;
