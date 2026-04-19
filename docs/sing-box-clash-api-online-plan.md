@@ -23,7 +23,7 @@
 3. 不改变现有 gRPC 流量统计链路。
 4. 不删除限速代理 `02-ratelimit-agent.sh`，该脚本已基于 Clash API，不属于旧在线上报链路。
 
-## 阶段一：补齐 Clash API 基础配置
+## 阶段一：补齐 Clash API 基础配置 ✅
 
 ### 配置模板
 
@@ -54,7 +54,7 @@
 
 如这些配置需要在控制台可编辑，应同步更新 `SystemConfigService` 的配置分组。
 
-## 阶段二：新增 Clash API 客户端
+## 阶段二：新增 Clash API 客户端 ✅
 
 新增 `com.fun90.airopscat.singbox.SingBoxClashApiClient`。
 
@@ -101,7 +101,7 @@
 
 字段应允许缺失，避免不同 sing-box 版本或协议返回结构差异导致采集失败。
 
-## 阶段三：部署配置热加载
+## 阶段三：部署配置热加载 ✅
 
 当前 `CoreDeploymentExecutor.deployToServer(...)` 流程为：
 
@@ -142,7 +142,7 @@ systemctl reload sing-box
 4. 配置上传成功，热加载失败，未回退重启。
 5. 配置上传成功，热加载失败，回退重启也失败。
 
-## 阶段四：在线 IP 改为 Clash API 主动采集
+## 阶段四：在线 IP 改为 Clash API 主动采集 ✅
 
 新增服务 `AccountOnlineIpCollector` 或 `SingBoxOnlineConnectionService`。
 
@@ -189,7 +189,7 @@ public int refreshFromConnections(String serverIp, List<SingBoxConnectionSnapsho
 4. 使用现有 `upsertOnlineStatus(...)` 维护 `lastOnlineTime`。
 5. 在线判断继续使用 `lastOnlineTime > now - airopscat.online.check-minutes`。
 
-## 阶段五：新增在线采集定时任务
+## 阶段五：新增在线采集定时任务 ✅
 
 在 `ProgrammaticTaskManager` 中新增任务：
 
@@ -213,7 +213,7 @@ airopscat.account.online.refresh-minutes=1
 
 保留在线记录清理逻辑，继续按 `airopscat.online.check-minutes * 2` 清理过期记录。
 
-## 阶段六：连接管理 API
+## 阶段六：连接管理 API ✅
 
 新增管理端接口，建议放在服务器维度：
 
@@ -231,7 +231,7 @@ airopscat.account.online.refresh-minutes=1
 
 账号维度接口可以聚合所有服务器连接，并按 `metadata.authUser` 过滤。
 
-## 阶段七：废弃旧在线上报接口
+## 阶段七：废弃旧在线上报接口 ✅（软废弃，已返回 410）
 
 旧接口位于 `OpenController`：
 
@@ -299,6 +299,8 @@ curl http://127.0.0.1:19191/connections
 ```
 
 确认返回包含 `metadata.authUser` 和 `metadata.sourceIP`。
+
+> ✅ 已验证（2026-04-19）：真实节点 `/connections` 返回中 `metadata.authUser` 字段有值，采集链路可正常映射账号。
 
 2. 部署节点后检查日志：
    - 配置校验成功。

@@ -2,6 +2,8 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.ServerDto;
 import com.fun90.airopscat.model.dto.ServerTrafficCalibrationDto;
+import com.fun90.airopscat.model.dto.singbox.SingBoxConnectionsResponse;
+import com.fun90.airopscat.singbox.SingBoxOnlineConnectionService;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerTrafficStats;
 import com.fun90.airopscat.model.entity.Transaction;
@@ -51,6 +53,9 @@ public class ServerController {
 
     @Inject
     com.fun90.airopscat.service.AccountOnlineIpService accountOnlineIpService;
+
+    @Inject
+    SingBoxOnlineConnectionService singBoxOnlineConnectionService;
 
     @GET
     public Response getServerPage(
@@ -346,5 +351,56 @@ public class ServerController {
 
         ServerDto dto = serverService.convertToDto(server);
         return Response.ok(dto).build();
+    }
+
+    @GET
+    @Path("/{id}/connections")
+    public Response getServerConnections(@PathParam("id") Long id) {
+        Server server = serverService.getServerById(id);
+        if (server == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        try {
+            SingBoxConnectionsResponse connections = singBoxOnlineConnectionService.getServerConnections(server);
+            return Response.ok(connections).build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("message", "获取连接列表失败: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    @DELETE
+    @Path("/{id}/connections/{connectionId}")
+    public Response deleteServerConnection(@PathParam("id") Long id, @PathParam("connectionId") String connectionId) {
+        Server server = serverService.getServerById(id);
+        if (server == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        try {
+            singBoxOnlineConnectionService.deleteServerConnection(server, connectionId);
+            return Response.ok().build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("message", "断开连接失败: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    @DELETE
+    @Path("/{id}/connections")
+    public Response deleteAllServerConnections(@PathParam("id") Long id) {
+        Server server = serverService.getServerById(id);
+        if (server == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        try {
+            singBoxOnlineConnectionService.deleteAllServerConnections(server);
+            return Response.ok().build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("message", "断开全部连接失败: " + e.getMessage()))
+                    .build();
+        }
     }
 }

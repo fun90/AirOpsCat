@@ -7,6 +7,7 @@ import com.fun90.airopscat.model.dto.deployment.ServerSnapshot;
 import com.fun90.airopscat.model.dto.deployment.NodeClient;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.enums.RouteRuleType;
+import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.util.ConfigFileReader;
 import com.fun90.airopscat.util.JsonUtil;
 import com.fun90.airopscat.util.TemplateUtil;
@@ -34,6 +35,7 @@ public class SingBoxConfigBuilder {
 
     private final ConfigFileReader configFileReader;
     private final TemplateUtil templateUtil;
+    private final SystemConfigService systemConfigService;
 
     public String build(DeploymentServerContext ctx, List<Node> nodes) {
         List<NodeDeploymentSnapshot> snapshots = nodes.stream()
@@ -310,18 +312,19 @@ public class SingBoxConfigBuilder {
                                 List<Map<String, Object>> ruleSets,
                                 List<String> statsUsers) {
         String configTemplate = configFileReader.readFileContent("config/core/sing-box.json");
-        Map<String, Object> templateData = Map.of(
-                "hasExtraInbounds", !inbounds.isEmpty(),
-                "extraInbounds", toJsonFragments(inbounds),
-                "hasExtraOutbounds", !outbounds.isEmpty(),
-                "extraOutbounds", toJsonFragments(outbounds),
-                "hasExtraRouteRules", !routeRules.isEmpty(),
-                "extraRouteRules", toJsonFragments(routeRules),
-                "hasExtraRuleSets", !ruleSets.isEmpty(),
-                "extraRuleSets", toJsonFragments(ruleSets),
-                "hasStatsUsers", !statsUsers.isEmpty(),
-                "statsUsers", JsonUtil.toJsonString(statsUsers)
-        );
+        String clashApiSecret = systemConfigService.getResolvedValue("airopscat.sing-box.clash-api.secret");
+        Map<String, Object> templateData = new java.util.LinkedHashMap<>();
+        templateData.put("hasExtraInbounds", !inbounds.isEmpty());
+        templateData.put("extraInbounds", toJsonFragments(inbounds));
+        templateData.put("hasExtraOutbounds", !outbounds.isEmpty());
+        templateData.put("extraOutbounds", toJsonFragments(outbounds));
+        templateData.put("hasExtraRouteRules", !routeRules.isEmpty());
+        templateData.put("extraRouteRules", toJsonFragments(routeRules));
+        templateData.put("hasExtraRuleSets", !ruleSets.isEmpty());
+        templateData.put("extraRuleSets", toJsonFragments(ruleSets));
+        templateData.put("hasStatsUsers", !statsUsers.isEmpty());
+        templateData.put("statsUsers", JsonUtil.toJsonString(statsUsers));
+        templateData.put("clashApiSecret", clashApiSecret == null ? "" : clashApiSecret);
         return templateUtil.processStringTemplate(configTemplate, templateData);
     }
 

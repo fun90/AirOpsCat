@@ -43,6 +43,7 @@ public class ProgrammaticTaskManager {
     private final NodeDeploymentHistoryCleanupTask nodeDeploymentHistoryCleanupTask;
     private final AccountTrafficStatsCleanupTask accountTrafficStatsCleanupTask;
     private final ServerTrafficStatsCleanupTask serverTrafficStatsCleanupTask;
+    private final AccountOnlineRefreshTask accountOnlineRefreshTask;
 
     private final Map<String, TaskDefinition> taskDefinitions;
     private final Set<String> pausedTaskKeys;
@@ -59,7 +60,8 @@ public class ProgrammaticTaskManager {
                                    ServerMonitorTask serverMonitorTask,
                                    NodeDeploymentHistoryCleanupTask nodeDeploymentHistoryCleanupTask,
                                    AccountTrafficStatsCleanupTask accountTrafficStatsCleanupTask,
-                                   ServerTrafficStatsCleanupTask serverTrafficStatsCleanupTask) {
+                                   ServerTrafficStatsCleanupTask serverTrafficStatsCleanupTask,
+                                   AccountOnlineRefreshTask accountOnlineRefreshTask) {
         this.scheduler = scheduler;
         this.systemConfigService = systemConfigService;
         this.databaseBackupService = databaseBackupService;
@@ -72,6 +74,7 @@ public class ProgrammaticTaskManager {
         this.nodeDeploymentHistoryCleanupTask = nodeDeploymentHistoryCleanupTask;
         this.accountTrafficStatsCleanupTask = accountTrafficStatsCleanupTask;
         this.serverTrafficStatsCleanupTask = serverTrafficStatsCleanupTask;
+        this.accountOnlineRefreshTask = accountOnlineRefreshTask;
         this.taskDefinitions = buildTaskDefinitions();
         this.pausedTaskKeys = ConcurrentHashMap.newKeySet();
     }
@@ -250,6 +253,20 @@ public class ProgrammaticTaskManager {
                 1L,
                 Scheduled.ConcurrentExecution.SKIP,
                 serverMonitorTask::collectServerMonitorStats
+        ));
+        definitions.put("account-online-refresh", task(
+                "account-online-refresh",
+                "account-online-refresh",
+                "在线账号刷新",
+                "通过 Clash API 主动采集各服务器当前连接，刷新账号在线状态。",
+                "monitor",
+                "监控与在线状态",
+                35,
+                SCHEDULE_TYPE_INTERVAL_MINUTES,
+                "airopscat.account.online.refresh-minutes",
+                1L,
+                Scheduled.ConcurrentExecution.SKIP,
+                accountOnlineRefreshTask::refreshOnlineAccounts
         ));
         definitions.put("server-monitor-cleanup", task(
                 "server-monitor-cleanup",

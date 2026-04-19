@@ -6,7 +6,13 @@
   },
   "experimental": {
     "clash_api": {
-      "external_controller": "127.0.0.1:19191"
+      "external_controller": "127.0.0.1:19191",
+      "secret": "{clashApiSecret}"
+    },
+    "cache_file": {
+      "enabled": true,
+      "path": "/var/lib/sing-box/cache.db",
+      "cache_id": "airopscat"
     },
     "v2ray_api": {
       "listen": "127.0.0.1:101",

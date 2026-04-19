@@ -11,6 +11,7 @@ import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
+import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.ratelimit.RateLimitService;
 import com.fun90.airopscat.service.ssh.SshConnection;
@@ -46,6 +47,7 @@ public class CoreDeploymentExecutor {
     private final SshConnectionService sshConnectionService;
     private final RateLimitService rateLimitService;
     private final ExecutorService executorService;
+    private final SystemConfigService systemConfigService;
 
     @Inject
     public CoreDeploymentExecutor(CoreManagementService coreManagementService,
@@ -55,7 +57,8 @@ public class CoreDeploymentExecutor {
                                   NodeDeploymentVersionService nodeDeploymentVersionService,
                                   SshConnectionService sshConnectionService,
                                   RateLimitService rateLimitService,
-                                  @Named("deploymentTaskExecutor") ExecutorService executorService) {
+                                  @Named("deploymentTaskExecutor") ExecutorService executorService,
+                                  SystemConfigService systemConfigService) {
         this.coreManagementService = coreManagementService;
         this.serverConfigRepository = serverConfigRepository;
         this.nodeRepository = nodeRepository;
@@ -64,6 +67,7 @@ public class CoreDeploymentExecutor {
         this.sshConnectionService = sshConnectionService;
         this.rateLimitService = rateLimitService;
         this.executorService = executorService;
+        this.systemConfigService = systemConfigService;
     }
 
     @ConfigProperty(name = "airopscat.deployment.skip-remote-config", defaultValue = "false")
@@ -115,21 +119,49 @@ public class CoreDeploymentExecutor {
     }
 
     private void deployToServer(SshConnection connection, Server server, String config) {
-        List<CoreManagementResult> results = executeOperations(
+        // 1. 上传配置
+        List<CoreManagementResult> configResults = executeOperations(
                 CORE_TYPE_SING_BOX,
                 connection,
                 server,
-                new CoreManagementService.OperationRequest(CoreOperation.CONFIG, config),
-                new CoreManagementService.OperationRequest(CoreOperation.RESTART)
+                new CoreManagementService.OperationRequest(CoreOperation.CONFIG, config)
         );
-        CoreManagementResult configResult = results.getFirst();
+        CoreManagementResult configResult = configResults.getFirst();
         if (configResult == null || !configResult.isSuccess()) {
             throw new RuntimeException("配置上传失败: " + (configResult != null ? configResult.getMessage() : "未知错误"));
         }
 
-        CoreManagementResult restartResult = results.get(1);
-        if (restartResult == null || !restartResult.isSuccess()) {
-            throw new RuntimeException("服务重启失败: " + (restartResult != null ? restartResult.getMessage() : "未知错误"));
+        // 2. 尝试热加载
+        List<CoreManagementResult> reloadResults = executeOperations(
+                CORE_TYPE_SING_BOX,
+                connection,
+                server,
+                new CoreManagementService.OperationRequest(CoreOperation.RELOAD)
+        );
+        CoreManagementResult reloadResult = reloadResults.getFirst();
+
+        boolean reloadFallbackRestart = systemConfigService.getBooleanValue("airopscat.sing-box.reload.fallback-restart", true);
+        if (reloadResult != null && reloadResult.isSuccess()) {
+            log.info("配置热加载成功: server={}({})", server.getName(), server.getId());
+        } else {
+            String reloadError = reloadResult != null ? reloadResult.getMessage() : "未知错误";
+            if (reloadFallbackRestart) {
+                log.warn("配置热加载失败，回退重启: server={}({}), reason={}", server.getName(), server.getId(), reloadError);
+                List<CoreManagementResult> restartResults = executeOperations(
+                        CORE_TYPE_SING_BOX,
+                        connection,
+                        server,
+                        new CoreManagementService.OperationRequest(CoreOperation.RESTART)
+                );
+                CoreManagementResult restartResult = restartResults.getFirst();
+                if (restartResult == null || !restartResult.isSuccess()) {
+                    String restartError = restartResult != null ? restartResult.getMessage() : "未知错误";
+                    throw new RuntimeException("配置上传成功，热加载失败，回退重启也失败: reload=" + reloadError + ", restart=" + restartError);
+                }
+                log.info("回退重启成功: server={}({})", server.getName(), server.getId());
+            } else {
+                throw new RuntimeException("配置上传成功，热加载失败，未回退重启: " + reloadError);
+            }
         }
 
         CompletableFuture.runAsync(() -> {

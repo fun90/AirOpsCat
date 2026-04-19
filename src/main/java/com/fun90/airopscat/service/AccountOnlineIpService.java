@@ -2,6 +2,7 @@ package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
 import com.fun90.airopscat.model.dto.ClientRequest;
+import com.fun90.airopscat.model.dto.singbox.SingBoxConnectionSnapshot;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AccountOnlineIp;
 import com.fun90.airopscat.model.entity.User;
@@ -14,9 +15,11 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -143,6 +146,47 @@ public class AccountOnlineIpService {
             return 0L;
         }
         return accountOnlineIpRepository.deleteByAccountNo(accountNo);
+    }
+
+    /**
+     * 基于 Clash API 连接列表批量刷新在线状态
+     *
+     * @param serverIp    服务器 IP，写入 node_ip 字段
+     * @param connections Clash API 返回的连接快照列表
+     * @return 本轮成功 upsert 的记录数
+     */
+    @Transactional
+    public int refreshFromConnections(String serverIp, List<SingBoxConnectionSnapshot> connections) {
+        if (connections == null || connections.isEmpty()) {
+            return 0;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime offlineThreshold = now.minusMinutes(getCheckMinutes());
+        Set<String> seen = new HashSet<>();
+        int count = 0;
+
+        for (SingBoxConnectionSnapshot conn : connections) {
+            if (conn.getMetadata() == null) {
+                continue;
+            }
+            String accountNo = conn.getMetadata().getAuthUser();
+            String clientIp = conn.getMetadata().getSourceIP();
+            if (accountNo == null || accountNo.isBlank() || clientIp == null || clientIp.isBlank()) {
+                continue;
+            }
+            String dedupeKey = accountNo + "\0" + clientIp + "\0" + serverIp;
+            if (!seen.add(dedupeKey)) {
+                continue;
+            }
+            try {
+                accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, serverIp, now, now, now, now, offlineThreshold);
+                count++;
+            } catch (Exception e) {
+                log.error("refreshFromConnections upsert 失败: accountNo={}, clientIp={}, serverIp={}", accountNo, clientIp, serverIp, e);
+            }
+        }
+        return count;
     }
 
     /**
