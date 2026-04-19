@@ -18,7 +18,7 @@ import java.time.LocalDate;
         indexes = {
                 @Index(name = "idx_server_expire_date", columnList = "expire_date"),
                 @Index(name = "idx_server_supplier", columnList = "supplier"),
-                @Index(name = "idx_server_state_expire", columnList = "disabled,external,expire_date")
+                @Index(name = "idx_server_state_expire", columnList = "disabled,external_server,expire_date")
         }
 )
 @DynamicUpdate
@@ -65,6 +65,7 @@ public class Server {
     /**
      * 外部的服务器
      */
+    @Column(name = "external_server")
     private Integer external;
     
     private String remark;
