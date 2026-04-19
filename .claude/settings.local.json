@@ -1,8 +1,6 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(git add:*)",
-      "Bash(git commit:*)"
-    ]
-  }
+    "permissions": {
+        "allow": ["Bash(*)", "Read(*)", "Write(*)", "Edit(*)"],
+        "deny": []
+    }
 }

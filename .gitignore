@@ -50,3 +50,4 @@ logs/
 backup/
 
 .claude/worktrees
+.agents/
