@@ -1,7 +1,6 @@
 <table class="table table-selectable card-table table-vcenter text-nowrap datatable">
     <thead>
     <tr>
-        <th>ID</th>
         <th>用户</th>
         <th>账号</th>
         <th>状态</th>
@@ -14,7 +13,6 @@
     </thead>
     <tbody>
     <tr v-for="account in records" :key="account.id">
-        <td v-text="account.id"></td>
         <td>
             <div class="d-flex flex-column">
                 <span class="text-decoration-none text-truncate" style="max-width: 150px;">{{ account.nickName }}</span>
