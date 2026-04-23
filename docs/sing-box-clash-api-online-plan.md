@@ -193,17 +193,17 @@ public int refreshFromConnections(String serverIp, List<SingBoxConnectionSnapsho
 
 在 `ProgrammaticTaskManager` 中新增任务：
 
-| 字段 | 建议值 |
-| --- | --- |
-| taskKey | `account-online-refresh` |
-| identity | `account-online-refresh` |
-| taskName | `在线账号刷新` |
-| groupKey | `monitor` |
-| groupTitle | `监控与在线状态` |
-| scheduleType | `interval-minutes` |
+| 字段 | 建议值                                        |
+| --- |--------------------------------------------|
+| taskKey | `account-online-refresh`                   |
+| identity | `account-online-refresh`                   |
+| taskName | `在线账号刷新`                                   |
+| groupKey | `monitor`                                  |
+| groupTitle | `监控与在线状态`                                  |
+| scheduleType | `interval-minutes`                         |
 | configKey | `airopscat.account.online.refresh-minutes` |
-| defaultIntervalMinutes | `1` |
-| concurrentExecution | `SKIP` |
+| defaultIntervalMinutes | `5`                                        |
+| concurrentExecution | `SKIP`                                     |
 
 新增系统配置：
 

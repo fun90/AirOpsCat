@@ -55,7 +55,7 @@ public class AccountOnlineIpService {
         String clientIp = request.getClientIp();
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime offlineThresholdTime = now.minusMinutes(getCheckMinutes());
-        
+
         try {
             accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, nodeIp, now, now, now, now, offlineThresholdTime);
         } catch (Exception e) {
@@ -84,7 +84,7 @@ public class AccountOnlineIpService {
     public List<AccountOnlineIpDto> getOnlineRecordsByAccountNo(String accountNo) {
         // 计算检查时间范围（当前时间往前推checkMinutes分钟）
         LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(getCheckMinutes());
-        
+
         // 直接查询在时间窗口内的记录
         List<AccountOnlineIp> records = accountOnlineIpRepository.findByAccountNoAndLastOnlineTimeAfter(accountNo, checkStartTime);
         return convertToDtoList(records);
@@ -115,7 +115,7 @@ public class AccountOnlineIpService {
     public List<AccountOnlineIpDto> getAllOnlineRecords() {
         // 计算检查时间范围（当前时间往前推checkMinutes分钟）
         LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(getCheckMinutes());
-        
+
         // 直接查询在时间窗口内的记录
         List<AccountOnlineIp> records = accountOnlineIpRepository.findByLastOnlineTimeAfter(checkStartTime);
         return convertToDtoList(records);
@@ -221,7 +221,7 @@ public class AccountOnlineIpService {
             throw new RuntimeException("Failed to cleanup expired records", e);
         }
     }
-    
+
     /**
      * 将实体列表转换为DTO列表
      */
@@ -229,12 +229,12 @@ public class AccountOnlineIpService {
         // 获取所有相关的账户和用户信息
         Map<String, Account> accountMap = getAccountMap(records);
         Map<Long, User> userMap = getUserMap(accountMap.values());
-        
+
         return records.stream()
                 .map(record -> convertToDto(record, accountMap, userMap))
                 .collect(Collectors.toList());
     }
-    
+
     /**
      * 将单个实体转换为DTO
      */
@@ -279,7 +279,7 @@ public class AccountOnlineIpService {
         }
         return record.getLastOnlineTime();
     }
-    
+
     /**
      * 获取账户映射
      */
@@ -288,15 +288,15 @@ public class AccountOnlineIpService {
                 .map(AccountOnlineIp::getAccountNo)
                 .distinct()
                 .collect(Collectors.toList());
-        
+
         if (accountNos.isEmpty()) {
             return Map.of();
         }
-        
+
         return accountRepository.list("accountNo in ?1", accountNos).stream()
                 .collect(Collectors.toMap(Account::getAccountNo, account -> account));
     }
-    
+
     /**
      * 获取用户映射
      */
@@ -306,20 +306,20 @@ public class AccountOnlineIpService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList());
-        
+
         if (userIds.isEmpty()) {
             return Map.of();
         }
-        
+
         return userRepository.list("id in ?1", userIds).stream()
                 .collect(Collectors.toMap(User::getId, user -> user));
     }
 
     private int getCheckMinutes() {
-        return Math.max(1, systemConfigService.getIntValue("airopscat.online.check-minutes", 5));
+        return Math.max(1, systemConfigService.getIntValue("airopscat.online.check-minutes", 10));
     }
 
     private long elapsedMillis(long startedAt) {
         return (System.nanoTime() - startedAt) / 1_000_000;
     }
-} 
+}
