@@ -288,6 +288,7 @@ public class SystemConfigService {
                 item("airopscat.sing-box.clash-api.port", "Clash API 远端端口", "sing-box Clash API 监听端口。", INPUT_NUMBER, true, false, false, true, "19191", "19191"),
                 item("airopscat.sing-box.clash-api.secret", "Clash API Secret", "Clash API Bearer Token，留空时不验证。", INPUT_PASSWORD, false, true, false, true, "", "", true),
                 item("airopscat.sing-box.clash-api.timeout-seconds", "Clash API 超时秒数", "HTTP 请求超时时间。", INPUT_NUMBER, true, false, false, true, "5", "5"),
+                item("airopscat.sing-box.clash-api.max-retries", "Clash API 重试次数", "Clash API 查询失败后的重试次数。", INPUT_NUMBER, true, false, false, true, "1", "1"),
                 item("airopscat.sing-box.reload.fallback-restart", "热加载失败回退重启", "配置热加载失败时是否自动回退重启 sing-box。", INPUT_CHECKBOX, false, false, false, true, "", "true"),
                 item("airopscat.server.monitor.enabled", "启用监控", "是否启用服务器监控和负载告警。", INPUT_CHECKBOX, false, false, false, true, "", "true"),
                 item("airopscat.server.monitor.refresh-minutes", "采集间隔分钟数", "服务器监控采集间隔。", INPUT_NUMBER, true, false, false, true, "2", "2"),
