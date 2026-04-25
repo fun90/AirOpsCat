@@ -111,10 +111,10 @@
 调整为：
 
 1. `CONFIG`
-2. `RELOAD`
-3. 如果 `RELOAD` 失败且 `airopscat.sing-box.reload.fallback-restart=true`，再执行 `RESTART`
+2. 通过 sing-box Clash API 执行配置热加载：`PUT /configs`
+3. 如果 Clash API 热加载失败且 `airopscat.sing-box.reload.fallback-restart=true`，再执行 `RESTART`
 
-### SingBoxCoreManager 调整
+### 配置上传与校验
 
 `SingBoxCoreManager.config(...)` 继续保持现有安全流程：
 
@@ -124,23 +124,29 @@
 4. 执行 `/usr/bin/sing-box check -c /etc/sing-box/config.json`。
 5. 校验失败时回滚旧配置。
 
-`SingBoxCoreManager.reload(...)` 继续调用：
+### Clash API 热加载
 
-```bash
-systemctl reload sing-box
+`SingBoxClashApiClient` 新增配置热加载方法，继续复用 SSH 本地端口转发访问远端 Clash API：
+
+```http
+PUT /configs
+Authorization: Bearer <secret>
+Content-Type: application/json
+
+{"path":"/etc/sing-box/config.json"}
 ```
 
-如果远端 systemd unit 不支持 reload，应返回明确失败信息，由部署层决定是否回退重启。
+`CoreDeploymentExecutor.deployToServer(...)` 不再调用 `CoreOperation.RELOAD`，也不再依赖远端 systemd unit 是否支持 `reload`。只有 Clash API 热加载失败，并且配置允许回退时，才执行 `CoreOperation.RESTART`。
 
 ### 结果语义
 
 部署结果日志和异常信息应区分：
 
 1. 配置上传失败。
-2. 配置上传成功，热加载成功。
-3. 配置上传成功，热加载失败，已回退重启。
-4. 配置上传成功，热加载失败，未回退重启。
-5. 配置上传成功，热加载失败，回退重启也失败。
+2. 配置上传成功，Clash API 热加载成功。
+3. 配置上传成功，Clash API 热加载失败，已回退重启。
+4. 配置上传成功，Clash API 热加载失败，未回退重启。
+5. 配置上传成功，Clash API 热加载失败，回退重启也失败。
 
 ## 阶段四：在线 IP 改为 Clash API 主动采集 ✅
 
@@ -275,6 +281,7 @@ POST /api/open/account/online/{nodeIp}
 
 1. `SingBoxClashApiClient`
    - 正常解析 `/connections`。
+   - 正常调用 `PUT /configs` 并传入配置路径。
    - Bearer Token header。
    - 非 2xx 响应。
    - 超时与重试。
@@ -285,10 +292,10 @@ POST /api/open/account/online/{nodeIp}
    - 同一轮去重。
    - upsert 后查询在线记录。
 3. `CoreDeploymentExecutor`
-   - reload 成功。
-   - reload 失败并回退 restart。
-   - reload 失败且不回退。
-   - config 失败时不 reload。
+   - Clash API 热加载成功。
+   - Clash API 热加载失败并回退 restart。
+   - Clash API 热加载失败且不回退。
+   - config 失败时不调用 Clash API 热加载。
 
 ### 手动验证
 
@@ -304,7 +311,7 @@ curl http://127.0.0.1:19191/connections
 
 2. 部署节点后检查日志：
    - 配置校验成功。
-   - 执行 `systemctl reload sing-box`。
+   - 调用 Clash API `PUT /configs` 热加载 `/etc/sing-box/config.json`。
    - 未无故重启服务。
 3. 客户端连接后，账号在线 IP 页面能看到对应 IP。
 4. 客户端断开后，超过 `airopscat.online.check-minutes` 自动离线。
@@ -318,7 +325,7 @@ curl http://127.0.0.1:19191/connections
 | --- | --- | --- |
 | 部分 sing-box 版本 `/connections` 字段有差异 | 在线账号无法归属 | DTO 容忍缺失字段，真实节点验证各协议 |
 | 某些协议 `authUser` 为空 | 无法映射账号 | 验证 vless、hysteria2、shadowtls、shadowsocks、socks；必要时调整 inbound 用户标识 |
-| systemd unit 不支持 reload | 热加载失败 | 保留可配置 fallback restart |
+| Clash API 不可访问或返回非 2xx | 热加载失败 | 保留可配置 fallback restart |
 | Clash API secret 与模板不一致 | 采集 401 | secret 统一由系统配置渲染和客户端读取 |
 | 多服务器采集耗时过长 | 定时任务堆积 | `SKIP` 并发策略，服务器级失败隔离，必要时使用线程池并发采集 |
 | 删除旧上报接口过早 | 线上在线状态断档 | 先软废弃，再确认无依赖后删除 |
@@ -328,7 +335,7 @@ curl http://127.0.0.1:19191/connections
 1. 新增 `SingBoxClashApiClient` 和连接 DTO。
 2. 新增在线连接采集服务与定时任务。
 3. 修改 `AccountOnlineIpService`，支持 Clash API 批量刷新。
-4. 修改部署流程为 `CONFIG -> RELOAD -> fallback RESTART`。
+4. 修改部署流程为 `CONFIG -> Clash API PUT /configs -> fallback RESTART`。
 5. 增加服务器维度连接管理 API。
 6. 软废弃旧 `/api/open/account/online/{nodeIp}`。
 7. 完成真实节点验证后删除旧上报链路。
@@ -336,6 +343,7 @@ curl http://127.0.0.1:19191/connections
 ## 参考资料
 
 1. [sing-box Clash API 配置](https://sing-box.sagernet.org/configuration/experimental/clash-api/)
-2. [sing-box Experimental 配置结构](https://sing-box.sagernet.org/configuration/experimental/)
-3. [sing-box Cache File 配置](https://sing-box.sagernet.org/configuration/experimental/cache-file/)
-4. [sing-box 配置检查命令](https://sing-box.sagernet.org/configuration/)
+2. [Clash RESTful API Config](https://clash.gitbook.io/doc/restful-api/config)
+3. [sing-box Experimental 配置结构](https://sing-box.sagernet.org/configuration/experimental/)
+4. [sing-box Cache File 配置](https://sing-box.sagernet.org/configuration/experimental/cache-file/)
+5. [sing-box 配置检查命令](https://sing-box.sagernet.org/configuration/)

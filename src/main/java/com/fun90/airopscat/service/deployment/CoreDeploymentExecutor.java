@@ -16,6 +16,7 @@ import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.ratelimit.RateLimitService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
+import com.fun90.airopscat.singbox.SingBoxClashApiClient;
 import com.fun90.airopscat.singbox.SingBoxConfigBuilder;
 import jakarta.enterprise.context.control.ActivateRequestContext;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -48,6 +49,7 @@ public class CoreDeploymentExecutor {
     private final RateLimitService rateLimitService;
     private final ExecutorService executorService;
     private final SystemConfigService systemConfigService;
+    private final SingBoxClashApiClient clashApiClient;
 
     @Inject
     public CoreDeploymentExecutor(CoreManagementService coreManagementService,
@@ -58,7 +60,8 @@ public class CoreDeploymentExecutor {
                                   SshConnectionService sshConnectionService,
                                   RateLimitService rateLimitService,
                                   @Named("deploymentTaskExecutor") ExecutorService executorService,
-                                  SystemConfigService systemConfigService) {
+                                  SystemConfigService systemConfigService,
+                                  SingBoxClashApiClient clashApiClient) {
         this.coreManagementService = coreManagementService;
         this.serverConfigRepository = serverConfigRepository;
         this.nodeRepository = nodeRepository;
@@ -68,6 +71,7 @@ public class CoreDeploymentExecutor {
         this.rateLimitService = rateLimitService;
         this.executorService = executorService;
         this.systemConfigService = systemConfigService;
+        this.clashApiClient = clashApiClient;
     }
 
     @ConfigProperty(name = "airopscat.deployment.skip-remote-config", defaultValue = "false")
@@ -131,14 +135,8 @@ public class CoreDeploymentExecutor {
             throw new RuntimeException("配置上传失败: " + (configResult != null ? configResult.getMessage() : "未知错误"));
         }
 
-        // 2. 尝试热加载
-        List<CoreManagementResult> reloadResults = executeOperations(
-                CORE_TYPE_SING_BOX,
-                connection,
-                server,
-                new CoreManagementService.OperationRequest(CoreOperation.RELOAD)
-        );
-        CoreManagementResult reloadResult = reloadResults.getFirst();
+        // 2. 通过 Clash API 热加载配置，避免依赖 systemd reload 支持
+        CoreManagementResult reloadResult = reloadConfigByClashApi(connection, server);
 
         boolean reloadFallbackRestart = systemConfigService.getBooleanValue("airopscat.sing-box.reload.fallback-restart", true);
         if (reloadResult != null && reloadResult.isSuccess()) {
@@ -173,6 +171,27 @@ public class CoreDeploymentExecutor {
                 log.warn("同步服务器 {} 限速配置失败，可在账号变更或重新部署后自动恢复", server.getId(), e);
             }
         }, executorService);
+    }
+
+    private CoreManagementResult reloadConfigByClashApi(SshConnection connection, Server server) {
+        CoreManagementResult result = new CoreManagementResult();
+        result.setOperation(CoreOperation.RELOAD.name());
+        result.setCoreType(CORE_TYPE_SING_BOX);
+        result.setServerAddress(server.getIp());
+        result.setOperationTime(LocalDateTime.now());
+
+        try {
+            clashApiClient.reloadConfig(connection);
+            result.setSuccess(true);
+            result.setMessage("Clash API reload config succeeded");
+            return result;
+        } catch (Exception e) {
+            log.warn("Clash API 热加载配置失败: server={}({})", server.getName(), server.getId(), e);
+            result.setSuccess(false);
+            result.setMessage("Clash API reload config failed: " + e.getMessage());
+            result.setError(e.getMessage());
+            return result;
+        }
     }
 
     SshConnection createConnection(Server server) {
