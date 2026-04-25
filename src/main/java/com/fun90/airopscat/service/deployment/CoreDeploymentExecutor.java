@@ -11,12 +11,10 @@ import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
-import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.ratelimit.RateLimitService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
-import com.fun90.airopscat.singbox.SingBoxClashApiClient;
 import com.fun90.airopscat.singbox.SingBoxConfigBuilder;
 import jakarta.enterprise.context.control.ActivateRequestContext;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -48,8 +46,6 @@ public class CoreDeploymentExecutor {
     private final SshConnectionService sshConnectionService;
     private final RateLimitService rateLimitService;
     private final ExecutorService executorService;
-    private final SystemConfigService systemConfigService;
-    private final SingBoxClashApiClient clashApiClient;
 
     @Inject
     public CoreDeploymentExecutor(CoreManagementService coreManagementService,
@@ -59,9 +55,7 @@ public class CoreDeploymentExecutor {
                                   NodeDeploymentVersionService nodeDeploymentVersionService,
                                   SshConnectionService sshConnectionService,
                                   RateLimitService rateLimitService,
-                                  @Named("deploymentTaskExecutor") ExecutorService executorService,
-                                  SystemConfigService systemConfigService,
-                                  SingBoxClashApiClient clashApiClient) {
+                                  @Named("deploymentTaskExecutor") ExecutorService executorService) {
         this.coreManagementService = coreManagementService;
         this.serverConfigRepository = serverConfigRepository;
         this.nodeRepository = nodeRepository;
@@ -70,8 +64,6 @@ public class CoreDeploymentExecutor {
         this.sshConnectionService = sshConnectionService;
         this.rateLimitService = rateLimitService;
         this.executorService = executorService;
-        this.systemConfigService = systemConfigService;
-        this.clashApiClient = clashApiClient;
     }
 
     @ConfigProperty(name = "airopscat.deployment.skip-remote-config", defaultValue = "false")
@@ -135,32 +127,19 @@ public class CoreDeploymentExecutor {
             throw new RuntimeException("配置上传失败: " + (configResult != null ? configResult.getMessage() : "未知错误"));
         }
 
-        // 2. 通过 Clash API 热加载配置，避免依赖 systemd reload 支持
-        CoreManagementResult reloadResult = reloadConfigByClashApi(connection, server);
-
-        boolean reloadFallbackRestart = systemConfigService.getBooleanValue("airopscat.sing-box.reload.fallback-restart", true);
-        if (reloadResult != null && reloadResult.isSuccess()) {
-            log.info("配置热加载成功: server={}({})", server.getName(), server.getId());
-        } else {
-            String reloadError = reloadResult != null ? reloadResult.getMessage() : "未知错误";
-            if (reloadFallbackRestart) {
-                log.warn("配置热加载失败，回退重启: server={}({}), reason={}", server.getName(), server.getId(), reloadError);
-                List<CoreManagementResult> restartResults = executeOperations(
-                        CORE_TYPE_SING_BOX,
-                        connection,
-                        server,
-                        new CoreManagementService.OperationRequest(CoreOperation.RESTART)
-                );
-                CoreManagementResult restartResult = restartResults.getFirst();
-                if (restartResult == null || !restartResult.isSuccess()) {
-                    String restartError = restartResult != null ? restartResult.getMessage() : "未知错误";
-                    throw new RuntimeException("配置上传成功，热加载失败，回退重启也失败: reload=" + reloadError + ", restart=" + restartError);
-                }
-                log.info("回退重启成功: server={}({})", server.getName(), server.getId());
-            } else {
-                throw new RuntimeException("配置上传成功，热加载失败，未回退重启: " + reloadError);
-            }
+        // 2. 重启服务使主配置生效
+        List<CoreManagementResult> restartResults = executeOperations(
+                CORE_TYPE_SING_BOX,
+                connection,
+                server,
+                new CoreManagementService.OperationRequest(CoreOperation.RESTART)
+        );
+        CoreManagementResult restartResult = restartResults.getFirst();
+        if (restartResult == null || !restartResult.isSuccess()) {
+            throw new RuntimeException("配置上传成功，重启失败: "
+                    + (restartResult != null ? restartResult.getMessage() : "未知错误"));
         }
+        log.info("配置重启生效成功: server={}({})", server.getName(), server.getId());
 
         CompletableFuture.runAsync(() -> {
             try {
@@ -171,27 +150,6 @@ public class CoreDeploymentExecutor {
                 log.warn("同步服务器 {} 限速配置失败，可在账号变更或重新部署后自动恢复", server.getId(), e);
             }
         }, executorService);
-    }
-
-    private CoreManagementResult reloadConfigByClashApi(SshConnection connection, Server server) {
-        CoreManagementResult result = new CoreManagementResult();
-        result.setOperation(CoreOperation.RELOAD.name());
-        result.setCoreType(CORE_TYPE_SING_BOX);
-        result.setServerAddress(server.getIp());
-        result.setOperationTime(LocalDateTime.now());
-
-        try {
-            clashApiClient.reloadConfig(connection);
-            result.setSuccess(true);
-            result.setMessage("Clash API reload config succeeded");
-            return result;
-        } catch (Exception e) {
-            log.warn("Clash API 热加载配置失败: server={}({})", server.getName(), server.getId(), e);
-            result.setSuccess(false);
-            result.setMessage("Clash API reload config failed: " + e.getMessage());
-            result.setError(e.getMessage());
-            return result;
-        }
     }
 
     SshConnection createConnection(Server server) {

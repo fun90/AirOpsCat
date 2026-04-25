@@ -17,14 +17,12 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @ApplicationScoped
 public class SingBoxClashApiClient {
 
     static final String LOCAL_HOST = "127.0.0.1";
-    static final String DEFAULT_CONFIG_PATH = "/etc/sing-box/config.json";
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -52,19 +50,7 @@ public class SingBoxClashApiClient {
         execute(connection, "DELETE", "/connections", Void.class);
     }
 
-    public void reloadConfig(SshConnection connection) throws Exception {
-        reloadConfig(connection, DEFAULT_CONFIG_PATH);
-    }
-
-    public void reloadConfig(SshConnection connection, String configPath) throws Exception {
-        execute(connection, "PUT", "/configs", Map.of("path", configPath), Void.class);
-    }
-
     private <T> T execute(SshConnection connection, String method, String path, Class<T> responseType) throws Exception {
-        return execute(connection, method, path, null, responseType);
-    }
-
-    private <T> T execute(SshConnection connection, String method, String path, Object requestBody, Class<T> responseType) throws Exception {
         String remoteHost = getRemoteHost();
         int remotePort = getRemotePort();
         int maxRetries = getMaxRetries();
@@ -76,7 +62,7 @@ public class SingBoxClashApiClient {
             try (SshLocalPortForward portForward = connection.openLocalPortForward(0, remoteHost, remotePort)) {
                 log.debug("Clash API 请求: method={}, path={}, attempt={}, localPort={}",
                         method, path, attempt, portForward.localPort());
-                return doRequest(portForward.localPort(), method, path, requestBody, responseType);
+                return doRequest(portForward.localPort(), method, path, responseType);
             } catch (Exception e) {
                 lastError = e;
                 if (attempt >= attempts) {
@@ -89,7 +75,7 @@ public class SingBoxClashApiClient {
         throw lastError == null ? new IllegalStateException("Clash API 请求失败: " + path) : lastError;
     }
 
-    private <T> T doRequest(int localPort, String method, String path, Object requestBody, Class<T> responseType) throws IOException, InterruptedException {
+    private <T> T doRequest(int localPort, String method, String path, Class<T> responseType) throws IOException, InterruptedException {
         int timeoutSeconds = getTimeoutSeconds();
         String secret = getSecret();
 
@@ -105,13 +91,7 @@ public class SingBoxClashApiClient {
             builder.header("Authorization", "Bearer " + secret);
         }
 
-        HttpRequest request = switch (method) {
-            case "DELETE" -> builder.DELETE().build();
-            case "PUT" -> builder.header("Content-Type", "application/json")
-                    .PUT(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(requestBody)))
-                    .build();
-            default -> builder.GET().build();
-        };
+        HttpRequest request = "DELETE".equals(method) ? builder.DELETE().build() : builder.GET().build();
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
