@@ -9,6 +9,7 @@ import com.fun90.airopscat.model.dto.deployment.NodeClient;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
@@ -56,7 +57,8 @@ public class DeploymentDataLoader {
         Map<Long, Server> serverMap = loadServerMap(targetServerIds, relatedNodes, routeRuleSnapshots);
         ensureServersExist(targetServerIds, serverMap);
 
-        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap = buildNodeSnapshotMap(relatedNodes, routeRuleSnapshots, serverMap);
+        List<Node> deployableRelatedNodes = filterDeployableNodes(relatedNodes);
+        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap = buildNodeSnapshotMap(deployableRelatedNodes, routeRuleSnapshots, serverMap);
         Map<Long, List<Node>> nodesByServerId = groupNodesByDeploymentServer(targetServerIds, relatedNodes);
 
         Map<Long, DeploymentServerContext> serverContexts = new LinkedHashMap<>();
@@ -85,11 +87,12 @@ public class DeploymentDataLoader {
         List<RouteRuleSnapshot> routeRuleSnapshots = routeRulesByServerId.getOrDefault(serverId, Collections.emptyList());
 
         List<Node> filteredNodes = relatedNodes.isEmpty() ? Collections.emptyList() : relatedNodes;
+        List<Node> deployableFilteredNodes = filterDeployableNodes(filteredNodes);
 
-        Map<Long, Server> serverMap = loadServerMap(targetServerIds, filteredNodes, routeRuleSnapshots);
+        Map<Long, Server> serverMap = loadServerMap(targetServerIds, deployableFilteredNodes, routeRuleSnapshots);
         ensureServersExist(targetServerIds, serverMap);
 
-        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap = buildNodeSnapshotMap(filteredNodes, routeRuleSnapshots, serverMap);
+        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap = buildNodeSnapshotMap(deployableFilteredNodes, routeRuleSnapshots, serverMap);
         return new DeploymentServerContext(
                 server,
                 groupNodesByDeploymentServer(targetServerIds, filteredNodes).getOrDefault(serverId, Collections.emptyList()),
@@ -101,9 +104,20 @@ public class DeploymentDataLoader {
     private List<Long> collectTargetServerIds(List<Node> nodes) {
         Set<Long> serverIds = new LinkedHashSet<>();
         for (Node node : nodes) {
-            serverIds.add(node.getServerId());
+            if (node.getServerId() != null) {
+                serverIds.add(node.getServerId());
+            }
         }
         return new ArrayList<>(serverIds);
+    }
+
+    private List<Node> filterDeployableNodes(List<Node> nodes) {
+        if (nodes == null || nodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return nodes.stream()
+                .filter(node -> !NodeDeploymentStatus.isPendingDelete(node.getDeployed()))
+                .toList();
     }
 
     private Map<Long, Server> loadServerMap(List<Long> targetServerIds,
@@ -163,7 +177,9 @@ public class DeploymentDataLoader {
         Map<Long, Node> snapshotNodeMap = relatedNodes.stream()
                 .collect(Collectors.toMap(Node::getId, node -> node, (left, right) -> left, LinkedHashMap::new));
         if (!extraNodeIds.isEmpty()) {
-            nodeRepository.findByIdIn(new ArrayList<>(extraNodeIds)).forEach(node -> snapshotNodeMap.putIfAbsent(node.getId(), node));
+            nodeRepository.findByIdIn(new ArrayList<>(extraNodeIds)).stream()
+                    .filter(node -> !NodeDeploymentStatus.isPendingDelete(node.getDeployed()))
+                    .forEach(node -> snapshotNodeMap.putIfAbsent(node.getId(), node));
         }
         List<Node> snapshotNodes = new ArrayList<>(snapshotNodeMap.values());
 

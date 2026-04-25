@@ -51,9 +51,10 @@
     {#if layout == 'mobile'}
         <label class="form-label">部署</label>
     {/if}
-    <select class="form-select" v-model="filters.deployed" @change="onFilterChange">
+    <select class="form-select" v-model="filters.deploymentStatus" @change="onFilterChange">
         <option value="">全部部署状态</option>
-        <option value="true">已部署</option>
-        <option value="false">未部署</option>
+        <option value="0">待部署</option>
+        <option value="2">待删除</option>
+        <option value="1">已部署</option>
     </select>
 </div>

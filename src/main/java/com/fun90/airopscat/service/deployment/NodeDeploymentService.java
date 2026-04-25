@@ -4,6 +4,7 @@ import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.model.dto.deployment.CoreDeploymentExecution;
@@ -72,12 +73,12 @@ public class NodeDeploymentService {
     @Transactional
     public List<DeploymentResult> deployNodes(List<Long> nodeIds) {
         try {
-            List<Node> undeployedNodes = nodeGroupService.expandWithRelatedGroups(getUndeployedNodes(nodeIds));
-            if (undeployedNodes.isEmpty()) {
-                log.info("No undeployed nodes found");
+            List<Node> pendingNodes = nodeGroupService.expandWithRelatedGroups(getPendingDeploymentNodes(nodeIds));
+            if (pendingNodes.isEmpty()) {
+                log.info("No pending deployment nodes found");
                 return Collections.emptyList();
             }
-            return processNodesByServer(undeployedNodes);
+            return processNodesByServer(pendingNodes);
         } catch (Exception e) {
             log.error("Deploy nodes failed", e);
             throw new RuntimeException("节点部署失败: " + e.getMessage(), e);
@@ -106,11 +107,15 @@ public class NodeDeploymentService {
         return deployNodesForcibly(groupNodes);
     }
 
-    private List<Node> getUndeployedNodes(List<Long> nodeIds) {
+    private List<Node> getPendingDeploymentNodes(List<Long> nodeIds) {
+        List<Integer> deployableStatuses = List.of(
+                NodeDeploymentStatus.PENDING_DEPLOY.getValue(),
+                NodeDeploymentStatus.PENDING_DELETE.getValue()
+        );
         if (nodeIds != null && !nodeIds.isEmpty()) {
-            return nodeRepository.findByDeployedAndIdIn(0, nodeIds);
+            return nodeRepository.findByDeployedInAndIdIn(deployableStatuses, nodeIds);
         }
-        return nodeRepository.findByDeployed(0);
+        return nodeRepository.findByDeployedIn(deployableStatuses);
     }
 
     private List<DeploymentResult> processNodesByServer(List<Node> nodes) {

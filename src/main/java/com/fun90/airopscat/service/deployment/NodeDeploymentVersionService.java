@@ -7,6 +7,7 @@ import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeDeployment;
 import com.fun90.airopscat.model.entity.NodeDeploymentHistory;
 import com.fun90.airopscat.model.entity.Tag;
+import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.NodeDeploymentHistoryRepository;
 import com.fun90.airopscat.repository.NodeDeploymentRepository;
 import com.fun90.airopscat.repository.NodeRepository;
@@ -114,7 +115,7 @@ public class NodeDeploymentVersionService {
             return 0;
         }
 
-        List<Node> deployedNodes = nodeRepository.findByDeployed(1);
+        List<Node> deployedNodes = nodeRepository.findByDeployed(NodeDeploymentStatus.DEPLOYED.getValue());
         if (deployedNodes.isEmpty()) {
             return 0;
         }

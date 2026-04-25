@@ -11,6 +11,7 @@ import com.fun90.airopscat.model.entity.NodeDeployment;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.model.enums.NodeType;
+import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.NodeDeploymentRepository;
@@ -250,7 +251,11 @@ public class SubscriptionService {
 
         Map<Long, Node> availableNodeMap = availableNodes.stream()
                 .filter(Objects::nonNull)
+                .filter(node -> NodeDeploymentStatus.isDeployed(node.getDeployed()))
                 .collect(Collectors.toMap(Node::getId, node -> node, (left, right) -> left, LinkedHashMap::new));
+        if (availableNodeMap.isEmpty()) {
+            return List.of();
+        }
         List<NodeDeployment> deployments = nodeDeploymentRepository.findByNodeIds(new ArrayList<>(availableNodeMap.keySet()));
         if (deployments.isEmpty()) {
             return List.of();
@@ -325,7 +330,7 @@ public class SubscriptionService {
         dto.setOutId(snapshot.getOutId());
         dto.setRule(snapshot.getRule() != null ? new HashMap<>(snapshot.getRule()) : new HashMap<>());
         dto.setLevel(snapshot.getLevel());
-        dto.setDeployed(1);
+        dto.setDeployed(NodeDeploymentStatus.DEPLOYED.getValue());
         dto.setDisabled(snapshot.getDisabled());
         dto.setName(snapshot.getName());
         dto.setNo(snapshot.getNo());

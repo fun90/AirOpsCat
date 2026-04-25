@@ -12,9 +12,15 @@ const DEFAULT_NODE_FILTERS = Object.freeze({
     coreType: '',
     protocol: '',
     disabled: '',
-    deployed: '',
+    deploymentStatus: '',
     sortBy: '',
     sortOrder: 'desc'
+});
+
+const NODE_DEPLOYMENT_STATUS = Object.freeze({
+    PENDING_DEPLOY: 0,
+    DEPLOYED: 1,
+    PENDING_DELETE: 2
 });
 
 const nodeTable = new DataTable({
@@ -625,12 +631,47 @@ const nodeTable = new DataTable({
                     getValueLabel: value => value === 'true' ? '已禁用' : '已启用'
                 },
                 {
-                    key: 'deployed',
+                    key: 'deploymentStatus',
                     label: '部署',
                     isActive: value => value !== '',
-                    getValueLabel: value => value === 'true' ? '已部署' : '未部署'
+                    getValueLabel: value => this.getDeploymentStatusLabel(Number(value))
                 }
             ];
+        },
+
+        isPendingDeploy(node) {
+            return node && node.deployed === NODE_DEPLOYMENT_STATUS.PENDING_DEPLOY;
+        },
+
+        isDeployed(node) {
+            return node && node.deployed === NODE_DEPLOYMENT_STATUS.DEPLOYED;
+        },
+
+        isPendingDelete(node) {
+            return node && node.deployed === NODE_DEPLOYMENT_STATUS.PENDING_DELETE;
+        },
+
+        getDeploymentStatusLabel(deployed) {
+            switch (deployed) {
+                case NODE_DEPLOYMENT_STATUS.DEPLOYED:
+                    return '已部署';
+                case NODE_DEPLOYMENT_STATUS.PENDING_DELETE:
+                    return '待删除';
+                case NODE_DEPLOYMENT_STATUS.PENDING_DEPLOY:
+                default:
+                    return '待部署';
+            }
+        },
+
+        canDeleteNode(node) {
+            return this.isPendingDeploy(node) || (this.isDeployed(node) && node.disabled === 1);
+        },
+
+        getDeleteModalDescription() {
+            if (this.selectedItem && this.isDeployed(this.selectedItem)) {
+                return '该节点已部署，确认后会先标记为待删除，部署刷新成功后再从系统中移除。';
+            }
+            return '该节点尚未部署到远端，确认后将直接删除，数据无法恢复。';
         },
 
         getFilterProtocolOptions() {
@@ -712,6 +753,32 @@ const nodeTable = new DataTable({
                 this.records[index].disabled = data.disabled;
                 this.records[index].deployed = data.deployed;
             }
+        },
+
+        deleteItem() {
+            if (!this.selectedItem) return;
+
+            fetch(`/api/admin/nodes/${this.selectedItem.id}`, {
+                method: 'DELETE'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.message || '删除失败');
+                        });
+                    }
+                    return response.json().catch(() => ({ message: '删除成功' }));
+                })
+                .then(data => {
+                    this.fetchRecords();
+                    this.refreshStats();
+                    ToastUtils.show('Success', data.message || '删除成功', 'success');
+                    this.deleteModal.hide();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '删除失败', 'danger');
+                });
         },
 
         copyNode(node) {

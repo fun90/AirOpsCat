@@ -1,6 +1,7 @@
 package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -116,8 +117,9 @@ public class NodeGroupService {
             return;
         }
 
-        findPeerNodes(normalizedNodeGroup, currentNodeId)
-                .forEach(node -> node.setDeployed(0));
+        findPeerNodes(normalizedNodeGroup, currentNodeId).stream()
+                .filter(node -> !NodeDeploymentStatus.isPendingDelete(node.getDeployed()))
+                .forEach(node -> node.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue()));
     }
 
     public void syncPeerNodesToReference(Node referenceNode, List<Node> peerNodes) {
@@ -129,7 +131,9 @@ public class NodeGroupService {
             peer.setPort(referenceNode.getPort());
             peer.setInbound(normalizeJson(referenceNode.getInbound()));
             peer.setOutId(normalizeNullableLong(referenceNode.getOutId()));
-            peer.setDeployed(0);
+            if (!NodeDeploymentStatus.isPendingDelete(peer.getDeployed())) {
+                peer.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
+            }
         }
     }
 

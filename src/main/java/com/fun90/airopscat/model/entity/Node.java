@@ -59,7 +59,7 @@ public class Node {
     
     private Integer level;
 
-    // 0:未部署,1:已部署
+    // 0:待部署,1:已部署,2:待删除
     private Integer deployed;
 
     private Integer disabled;

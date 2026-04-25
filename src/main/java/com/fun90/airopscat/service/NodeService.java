@@ -9,8 +9,10 @@ import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.model.enums.NodeBatchTagUpdateMode;
+import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.ProtocolType;
+import com.fun90.airopscat.repository.NodeDeploymentRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.ServerHostRepository;
@@ -47,6 +49,9 @@ public class NodeService {
     NodeRepository nodeRepository;
 
     @Inject
+    NodeDeploymentRepository nodeDeploymentRepository;
+
+    @Inject
     ServerRepository serverRepository;
 
     @Inject
@@ -73,6 +78,7 @@ public class NodeService {
             String protocol,
             Boolean disabled,
             Boolean deployed,
+            Integer deploymentStatus,
             String sortBy,
             String sortOrder
     ) {
@@ -123,9 +129,14 @@ public class NodeService {
             params.put("disabled", disabled ? 1 : 0);
         }
 
-        if (deployed != null) {
+        if (deploymentStatus != null) {
+            query.append(" and deployed = :deploymentStatus");
+            params.put("deploymentStatus", NodeDeploymentStatus.fromValue(deploymentStatus).getValue());
+        } else if (deployed != null) {
             query.append(" and deployed = :deployed");
-            params.put("deployed", deployed ? 1 : 0);
+            params.put("deployed", deployed
+                    ? NodeDeploymentStatus.DEPLOYED.getValue()
+                    : NodeDeploymentStatus.PENDING_DEPLOY.getValue());
         }
 
         Sort sort = buildSort(sortBy, sortOrder);
@@ -331,7 +342,7 @@ public class NodeService {
     @Transactional
     public Node saveNode(Node node, String nodeGroup) {
         if (node.getDeployed() == null) {
-            node.setDeployed(0);
+            markPendingDeploy(node);
         }
 
         normalizeAndValidateNodeProtocol(node);
@@ -369,7 +380,7 @@ public class NodeService {
         existingNode.setOutId(node.getOutId());
 
         if (hasSubstantialChanges) {
-            existingNode.setDeployed(0);
+            markPendingDeploy(existingNode);
         }
 
         if (existingNode.getServerId() != null) {
@@ -444,7 +455,7 @@ public class NodeService {
             }
 
             node.setTags(new LinkedHashSet<>(updatedTags));
-            node.setDeployed(0);
+            markPendingDeploy(node);
             updatedCount++;
         }
 
@@ -506,7 +517,7 @@ public class NodeService {
                     .filter(Objects::nonNull)
                     .collect(Collectors.toCollection(LinkedHashSet::new));
             node.setTags(targetTags);
-            node.setDeployed(0);
+            markPendingDeploy(node);
             updatedCount++;
         }
 
@@ -652,7 +663,29 @@ public class NodeService {
     }
 
     @Transactional
-    public void deleteNode(Long id) {
+    public Node deleteNode(Long id) {
+        Node node = nodeRepository.findById(id);
+        if (node == null) {
+            return null;
+        }
+        if (NodeDeploymentStatus.isDeployed(node.getDeployed())) {
+            node.setDeployed(NodeDeploymentStatus.PENDING_DELETE.getValue());
+            return node;
+        }
+        if (NodeDeploymentStatus.isPendingDelete(node.getDeployed())) {
+            return node;
+        }
+        physicallyDeleteNode(id);
+        return node;
+    }
+
+    @Transactional
+    public void physicallyDeleteNode(Long id) {
+        if (id == null) {
+            return;
+        }
+        tagRepository.deleteAllNodeTagsByNodeId(id);
+        nodeDeploymentRepository.deleteByNodeId(id);
         nodeRepository.deleteById(id);
     }
 
@@ -661,10 +694,17 @@ public class NodeService {
         Node node = nodeRepository.findById(id);
         if (node != null) {
             node.setDisabled(disabled ? 1 : 0);
-            node.setDeployed(0);
+            markPendingDeploy(node);
             return node;
         }
         return null;
+    }
+
+    public void markPendingDeploy(Node node) {
+        if (node == null || NodeDeploymentStatus.isPendingDelete(node.getDeployed())) {
+            return;
+        }
+        node.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
     }
 
     public List<Map<String, Object>> getNodeTypeOptions() {

@@ -9,8 +9,10 @@ import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.enums.CoreOperation;
+import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
+import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.ratelimit.RateLimitService;
 import com.fun90.airopscat.service.ssh.SshConnection;
@@ -43,6 +45,7 @@ public class CoreDeploymentExecutor {
     private final NodeRepository nodeRepository;
     private final SingBoxConfigBuilder singBoxConfigBuilder;
     private final NodeDeploymentVersionService nodeDeploymentVersionService;
+    private final NodeService nodeService;
     private final SshConnectionService sshConnectionService;
     private final RateLimitService rateLimitService;
     private final ExecutorService executorService;
@@ -53,6 +56,7 @@ public class CoreDeploymentExecutor {
                                   NodeRepository nodeRepository,
                                   SingBoxConfigBuilder singBoxConfigBuilder,
                                   NodeDeploymentVersionService nodeDeploymentVersionService,
+                                  NodeService nodeService,
                                   SshConnectionService sshConnectionService,
                                   RateLimitService rateLimitService,
                                   @Named("deploymentTaskExecutor") ExecutorService executorService) {
@@ -61,6 +65,7 @@ public class CoreDeploymentExecutor {
         this.nodeRepository = nodeRepository;
         this.singBoxConfigBuilder = singBoxConfigBuilder;
         this.nodeDeploymentVersionService = nodeDeploymentVersionService;
+        this.nodeService = nodeService;
         this.sshConnectionService = sshConnectionService;
         this.rateLimitService = rateLimitService;
         this.executorService = executorService;
@@ -214,6 +219,7 @@ public class CoreDeploymentExecutor {
                         .filter(DeploymentResult::isSuccess)
                         .map(result -> nodeRepository.findById(result.getNodeId()))
                         .filter(Objects::nonNull)
+                        .filter(node -> !NodeDeploymentStatus.isPendingDelete(node.getDeployed()))
                         .toList()
         );
         return results;
@@ -257,8 +263,12 @@ public class CoreDeploymentExecutor {
         for (Node node : nodes) {
             try {
                 if (serverId.equals(node.getServerId())) {
-                    node.setDeployed(1);
-                    nodeRepository.persist(node);
+                    if (NodeDeploymentStatus.isPendingDelete(node.getDeployed())) {
+                        nodeService.physicallyDeleteNode(node.getId());
+                    } else {
+                        node.setDeployed(NodeDeploymentStatus.DEPLOYED.getValue());
+                        nodeRepository.persist(node);
+                    }
                 }
                 results.add(toSuccessResult(node, "节点部署成功"));
             } catch (Exception e) {

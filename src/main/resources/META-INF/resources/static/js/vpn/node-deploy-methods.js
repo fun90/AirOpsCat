@@ -146,9 +146,9 @@ export function createNodeDeployMethods() {
 
         getBatchTagModeDescription() {
             if (this.batchTagForm.mode === 'APPEND') {
-                return '保存后会在所选节点现有标签的基础上新增下面勾选的标签；已有标签会保留，实际变更的节点会被标记为未部署。';
+                return '保存后会在所选节点现有标签的基础上新增下面勾选的标签；已有标签会保留，实际变更的节点会被标记为待部署。';
             }
-            return '保存后会将所选节点的标签整体替换为下面勾选的结果，并将这些节点标记为未部署。';
+            return '保存后会将所选节点的标签整体替换为下面勾选的结果，并将这些节点标记为待部署。';
         },
 
         getBatchTagModeActionLabel() {
@@ -308,7 +308,14 @@ export function createNodeDeployMethods() {
         },
 
         getDeploymentStatusBadgeClass(deployed) {
-            return deployed === 1 ? 'bg-success-lt' : 'bg-warning-lt';
+            switch (deployed) {
+                case 1:
+                    return 'bg-success-lt';
+                case 2:
+                    return 'bg-danger-lt';
+                default:
+                    return 'bg-warning-lt';
+            }
         }
     };
 }

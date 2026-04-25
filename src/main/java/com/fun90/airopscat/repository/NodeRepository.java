@@ -1,6 +1,7 @@
 package com.fun90.airopscat.repository;
 
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -55,7 +56,8 @@ public class NodeRepository implements PanacheRepository<Node> {
         if (serverId == null) {
             return 0;
         }
-        return count("serverId = ?1 and (disabled is null or disabled = 0)", serverId);
+        return count("serverId = ?1 and (disabled is null or disabled = 0) and deployed != ?2",
+                serverId, NodeDeploymentStatus.PENDING_DELETE.getValue());
     }
     
     public List<Node> findByType(Integer type) {
@@ -66,8 +68,22 @@ public class NodeRepository implements PanacheRepository<Node> {
         return find("deployed", deployed).list();
     }
 
+    public List<Node> findByDeployedIn(List<Integer> statuses) {
+        if (statuses == null || statuses.isEmpty()) {
+            return List.of();
+        }
+        return find("deployed in ?1", statuses).list();
+    }
+
     public List<Node> findByDeployedAndIdIn(Integer deployed, List<Long> nodeIds) {
         return find("deployed = ?1 and id in ?2", deployed, nodeIds).list();
+    }
+
+    public List<Node> findByDeployedInAndIdIn(List<Integer> statuses, List<Long> nodeIds) {
+        if (statuses == null || statuses.isEmpty() || nodeIds == null || nodeIds.isEmpty()) {
+            return List.of();
+        }
+        return find("deployed in ?1 and id in ?2", statuses, nodeIds).list();
     }
 
     public long fillEmptyCoreType(String coreType) {

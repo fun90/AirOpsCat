@@ -1,6 +1,7 @@
 package com.fun90.airopscat.model.dto;
 
 import com.fun90.airopscat.model.entity.Tag;
+import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.model.enums.NodeType;
 import lombok.Data;
 
@@ -56,10 +57,7 @@ public class NodeDto {
     
     // 辅助方法：获取状态描述
     public String getDeploymentStatusDescription() {
-        if (deployed != null && deployed == 1) {
-            return "已部署";
-        }
-        return "未部署";
+        return NodeDeploymentStatus.fromValue(deployed).getDescription();
     }
     
     // 辅助方法：获取类型描述

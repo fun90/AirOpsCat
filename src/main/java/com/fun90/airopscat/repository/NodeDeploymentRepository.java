@@ -20,4 +20,11 @@ public class NodeDeploymentRepository implements PanacheRepository<NodeDeploymen
         }
         return find("nodeId in ?1", nodeIds).list();
     }
+
+    public long deleteByNodeId(Long nodeId) {
+        if (nodeId == null) {
+            return 0;
+        }
+        return delete("nodeId", nodeId);
+    }
 }

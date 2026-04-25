@@ -12,6 +12,7 @@ import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.NodeType;
+import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.service.NodeGroupService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentVersionService;
@@ -72,10 +73,11 @@ public class NodeController {
             @QueryParam("protocol") String protocol,
             @QueryParam("disabled") Boolean disabled,
             @QueryParam("deployed") Boolean deployed,
+            @QueryParam("deploymentStatus") Integer deploymentStatus,
             @QueryParam("sortBy") String sortBy,
             @QueryParam("sortOrder") @DefaultValue("desc") String sortOrder
     ) {
-        PanacheQuery<Node> nodeQuery = nodeService.getNodePage(search, serverIds, nodeTagId, type, coreType, protocol, disabled, deployed, sortBy, sortOrder);
+        PanacheQuery<Node> nodeQuery = nodeService.getNodePage(search, serverIds, nodeTagId, type, coreType, protocol, disabled, deployed, deploymentStatus, sortBy, sortOrder);
         nodeQuery.page(Page.of(page - 1, size));
         List<NodeDto> nodeDtos = nodeService.toNodeDtos(nodeQuery.list());
 
@@ -245,8 +247,15 @@ public class NodeController {
         }
 
         try {
-            nodeService.deleteNode(id);
-            return Response.ok().build();
+            Node deletedNode = nodeService.deleteNode(id);
+            String message = deletedNode != null && NodeDeploymentStatus.isPendingDelete(deletedNode.getDeployed())
+                    ? "节点已标记为待删除，部署成功后将移除"
+                    : "删除成功";
+            return Response.ok(Map.of(
+                    "id", id,
+                    "deployed", deletedNode == null ? null : deletedNode.getDeployed(),
+                    "message", message
+            )).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
@@ -262,7 +271,7 @@ public class NodeController {
             Map<String, Object> response = new HashMap<>();
             response.put("id", id);
             response.put("disabled", 0);
-            response.put("deployed", 0);
+            response.put("deployed", NodeDeploymentStatus.PENDING_DEPLOY.getValue());
             return Response.ok(response).build();
         }
         return Response.status(Response.Status.NOT_FOUND).build();
@@ -276,7 +285,7 @@ public class NodeController {
             Map<String, Object> response = new HashMap<>();
             response.put("id", id);
             response.put("disabled", 1);
-            response.put("deployed", 0);
+            response.put("deployed", NodeDeploymentStatus.PENDING_DEPLOY.getValue());
             return Response.ok(response).build();
         }
         return Response.status(Response.Status.NOT_FOUND).build();
@@ -326,8 +335,7 @@ public class NodeController {
             nodeCopy.setDisabled(existingNode.getDisabled());
             nodeCopy.setRemark(existingNode.getRemark());
 
-            // Set deployed status to 0 (not deployed) for the copy
-            nodeCopy.setDeployed(0);
+            nodeCopy.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
 
             // Modify the name to indicate it's a copy
             if (existingNode.getName() != null) {
@@ -441,7 +449,7 @@ public class NodeController {
                     "message", "版本还原成功",
                     "nodeId", id,
                     "version", version,
-                    "deployed", 0
+                    "deployed", NodeDeploymentStatus.PENDING_DEPLOY.getValue()
             )).build();
         } catch (IllegalArgumentException | EntityNotFoundException e) {
             Map<String, String> error = new HashMap<>();

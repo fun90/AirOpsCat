@@ -83,7 +83,7 @@
                         {{ node.disabled === 0 ? '已启用' : '已禁用' }}
                     </span>
                     <span class="badge" :class="isNodeDeploying(node.id) ? 'text-bg-info' : getDeploymentStatusBadgeClass(node.deployed)">
-                        {{ isNodeDeploying(node.id) ? '部署中' : (node.deployed === 0 ? '未部署' : '已部署') }}
+                        {{ isNodeDeploying(node.id) ? '部署中' : getDeploymentStatusLabel(node.deployed) }}
                     </span>
                 </div>
                 <div class="text-secondary small d-lg-none">
@@ -103,7 +103,7 @@
                         更多
                     </button>
                     <div class="dropdown-menu dropdown-menu-end">
-                        <a class="dropdown-item" href="#" @click="openEditModal(node)">
+                        <a class="dropdown-item" href="#" :class="{ disabled: isPendingDelete(node) }" @click="!isPendingDelete(node) && openEditModal(node)">
                             <i class="ti ti-edit"></i> 编辑
                         </a>
                         <a class="dropdown-item" href="#" @click.prevent="viewNodeConfig(node)">
@@ -112,24 +112,27 @@
                         <a class="dropdown-item" href="#" @click.prevent="openDeploymentHistory(node)">
                             <i class="ti ti-versions"></i> 部署历史
                         </a>
-                        <a v-if="node.disabled === 1" class="dropdown-item" href="#" @click.prevent="toggleItemStatus(node, false)">
+                        <a v-if="node.disabled === 1" class="dropdown-item" href="#" :class="{ disabled: isPendingDelete(node) }" @click.prevent="!isPendingDelete(node) && toggleItemStatus(node, false)">
                             <i class="ti ti-check"></i> 启用
                         </a>
-                        <a v-else class="dropdown-item" href="#" @click.prevent="toggleItemStatus(node, true)">
+                        <a v-else class="dropdown-item" href="#" :class="{ disabled: isPendingDelete(node) }" @click.prevent="!isPendingDelete(node) && toggleItemStatus(node, true)">
                             <i class="ti ti-ban"></i> 禁用
                         </a>
                         <div class="dropdown-divider"></div>
-                        <a class="dropdown-item" href="#" @click.prevent="copyNode(node)">
+                        <a class="dropdown-item" href="#" :class="{ disabled: isPendingDelete(node) }" @click.prevent="!isPendingDelete(node) && copyNode(node)">
                             <i class="ti ti-copy"></i> 复制
                         </a>
-                        <a v-if="node.deployed === 0" class="dropdown-item" href="#" :class="{ disabled: isNodeDeploying(node.id) }" @click.prevent="deployNode(node)">
+                        <a v-if="isPendingDeploy(node)" class="dropdown-item" href="#" :class="{ disabled: isNodeDeploying(node.id) }" @click.prevent="deployNode(node)">
                             <i class="ti ti-rocket"></i> 部署
+                        </a>
+                        <a v-else-if="isPendingDelete(node)" class="dropdown-item text-danger" href="#" :class="{ disabled: isNodeDeploying(node.id) }" @click.prevent="deployNode(node)">
+                            <i class="ti ti-trash"></i> 刷新删除
                         </a>
                         <a v-else class="dropdown-item" href="#" :class="{ disabled: isNodeDeploying(node.id) }" @click.prevent="deployNode(node, true)">
                             <i class="ti ti-rocket"></i> 重新部署
                         </a>
-                        <div v-if="node.deployed === 1 && node.disabled === 1" class="dropdown-divider"></div>
-                        <a v-if="node.deployed === 1 && node.disabled === 1" class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(node)">
+                        <div v-if="canDeleteNode(node)" class="dropdown-divider"></div>
+                        <a v-if="canDeleteNode(node)" class="dropdown-item text-danger" href="#" @click.prevent="confirmDelete(node)">
                             <i class="ti ti-trash"></i> 删除
                         </a>
                     </div>
