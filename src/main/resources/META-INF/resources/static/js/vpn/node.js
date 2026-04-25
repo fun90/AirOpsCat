@@ -664,7 +664,7 @@ const nodeTable = new DataTable({
         },
 
         canDeleteNode(node) {
-            return this.isPendingDeploy(node) || (this.isDeployed(node) && node.disabled === 1);
+            return this.isPendingDeploy(node) || this.isDeployed(node);
         },
 
         getDeleteModalDescription() {
