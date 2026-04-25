@@ -11,7 +11,6 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -191,22 +190,11 @@ public class AccountOnlineLimitAlertService {
                 .distinct()
                 .count();
 
-        String distribution = records.stream()
-                .sorted(Comparator.comparing(AccountOnlineIpDto::getLastOnlineTime,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
-                .limit(8)
-                .map(record -> record.getClientIp()
-                        + " @ "
-                        + Objects.toString(record.getNodeName(),
-                        Objects.toString(record.getNodeTag(), record.getNodeIp())))
-                .collect(Collectors.joining("\n"));
-
         return "账户: " + account.getAccountNo()
                 + (account.getRemark() == null || account.getRemark().isBlank() ? "" : "（" + account.getRemark() + "）")
                 + "\n当前连接数: " + connectionCount
                 + "\n连接数限制: " + limit
-                + "\n去重客户端 IP 数: " + distinctIps
-                + (distribution.isBlank() ? "" : "\n连接分布:\n" + distribution);
+                + "\n去重客户端 IP 数: " + distinctIps;
     }
 
     private void persistIfNew(AlertState state) {
