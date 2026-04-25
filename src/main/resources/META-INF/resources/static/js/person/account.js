@@ -65,10 +65,10 @@ const accountTable = new DataTable({
             paymentMethod: ''
         },
         resetAuthCodeModal: null,
-        // 在线IP相关数据
-        onlineIpsModal: null,
-        onlineIps: [],
-        onlineIpsLoading: false,
+        // 在线连接相关数据
+        onlineConnectionsModal: null,
+        onlineConnections: [],
+        onlineConnectionsLoading: false,
         // 账号详情相关数据
         accountDetailsModal: null,
         // 文档链接配置
@@ -83,7 +83,7 @@ const accountTable = new DataTable({
             uuid: '',
             authCode: '',
             accountNo: '',
-            maxOnlineIps: 0,
+            maxConnections: 0,
             speed: 0,
             bandwidth: 0,
             disabled: false,
@@ -651,7 +651,7 @@ const accountTable = new DataTable({
                 periodType: this.newItem.periodType,
                 uuid: this.newItem.uuid || null, // Will be generated on server if null
                 authCode: this.newItem.authCode || null, // Will be generated on server if null
-                maxOnlineIps: this.newItem.maxOnlineIps || null,
+                maxConnections: this.newItem.maxConnections || null,
                 speed: this.newItem.speed || null,
                 bandwidth: this.newItem.bandwidth || null,
                 disabled: this.newItem.disabled ? 1 : 0,
@@ -670,7 +670,7 @@ const accountTable = new DataTable({
                 fromDate: this.editedItem.fromDate || null,
                 toDate: this.editedItem.toDate || null,
                 periodType: this.editedItem.periodType,
-                maxOnlineIps: this.editedItem.maxOnlineIps,
+                maxConnections: this.editedItem.maxConnections,
                 speed: this.editedItem.speed,
                 bandwidth: this.editedItem.bandwidth,
                 disabled: this.editedItem.disabled,
@@ -700,7 +700,7 @@ const accountTable = new DataTable({
                 periodType: 'MONTHLY',
                 uuid: '',
                 authCode: '',
-                maxOnlineIps: 0,
+                maxConnections: 0,
                 speed: 2048,
                 bandwidth: 0,
                 disabled: false,
@@ -738,7 +738,7 @@ const accountTable = new DataTable({
                 periodType: account.periodType,
                 uuid: account.uuid,
                 authCode: account.authCode,
-                maxOnlineIps: account.maxOnlineIps,
+                maxConnections: account.maxConnections,
                 speed: account.speed,
                 bandwidth: account.bandwidth,
                 disabled: account.disabled,
@@ -772,40 +772,40 @@ const accountTable = new DataTable({
             return `/api/admin/accounts/${item.id}/${action}`;
         },
 
-        // 在线IP相关方法
-        viewOnlineIps(account) {
+        // 在线连接相关方法
+        viewOnlineConnections(account) {
             this.selectedItem = account;
-            this.onlineIpsModal = new Modal(document.getElementById('onlineIpsModal'));
-            this.onlineIpsModal.show();
-            this.fetchOnlineIps(account.accountNo);
+            this.onlineConnectionsModal = new Modal(document.getElementById('onlineConnectionsModal'));
+            this.onlineConnectionsModal.show();
+            this.fetchOnlineConnections(account.accountNo);
         },
 
-        fetchOnlineIps(accountNo) {
-            this.onlineIpsLoading = true;
-            this.onlineIps = [];
+        fetchOnlineConnections(accountNo) {
+            this.onlineConnectionsLoading = true;
+            this.onlineConnections = [];
 
             fetch(`/api/admin/accounts/online/accountNo/${encodeURIComponent(accountNo)}`)
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('获取在线IP记录失败');
+                        throw new Error('获取在线连接记录失败');
                     }
                     return response.json();
                 })
                 .then(data => {
-                    this.onlineIps = data;
+                    this.onlineConnections = data;
                 })
                 .catch(error => {
-                    console.error('Error fetching online IPs:', error);
-                    ToastUtils.show('Error', '获取在线IP记录失败', 'danger');
+                    console.error('Error fetching online connections:', error);
+                    ToastUtils.show('Error', '获取在线连接记录失败', 'danger');
                 })
                 .finally(() => {
-                    this.onlineIpsLoading = false;
+                    this.onlineConnectionsLoading = false;
                 });
         },
 
-        refreshOnlineIps() {
+        refreshOnlineConnections() {
             if (this.selectedItem) {
-                this.fetchOnlineIps(this.selectedItem.accountNo);
+                this.fetchOnlineConnections(this.selectedItem.accountNo);
             }
         },
 

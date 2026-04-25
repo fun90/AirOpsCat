@@ -5,9 +5,11 @@ import com.fun90.airopscat.model.dto.ClientRequest;
 import com.fun90.airopscat.model.dto.singbox.SingBoxConnectionSnapshot;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AccountOnlineIp;
+import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.repository.AccountOnlineIpRepository;
 import com.fun90.airopscat.repository.AccountRepository;
+import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.UserRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -29,16 +31,19 @@ public class AccountOnlineIpService {
 
     private final AccountOnlineIpRepository accountOnlineIpRepository;
     private final AccountRepository accountRepository;
+    private final NodeRepository nodeRepository;
     private final UserRepository userRepository;
     private final SystemConfigService systemConfigService;
 
     @Inject
     public AccountOnlineIpService(AccountOnlineIpRepository accountOnlineIpRepository,
                                  AccountRepository accountRepository,
+                                 NodeRepository nodeRepository,
                                  UserRepository userRepository,
                                  SystemConfigService systemConfigService) {
         this.accountOnlineIpRepository = accountOnlineIpRepository;
         this.accountRepository = accountRepository;
+        this.nodeRepository = nodeRepository;
         this.userRepository = userRepository;
         this.systemConfigService = systemConfigService;
     }
@@ -57,7 +62,8 @@ public class AccountOnlineIpService {
         LocalDateTime offlineThresholdTime = now.minusMinutes(getCheckMinutes());
 
         try {
-            accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, nodeIp, now, now, now, now, offlineThresholdTime);
+            accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, legacyConnectionId(clientIp, nodeIp),
+                    nodeIp, null, null, now, now, now, now, offlineThresholdTime);
         } catch (Exception e) {
             log.error("Failed to update online status for account {}: {}", accountNo, e.getMessage());
             throw new RuntimeException("Failed to update online status for account " + accountNo, e);
@@ -126,6 +132,16 @@ public class AccountOnlineIpService {
         return accountOnlineIpRepository.countByNodeIpsAndLastOnlineTimeAfter(nodeIps, checkStartTime);
     }
 
+    public Map<Long, Long> countOnlineRecordsByNodeIds(List<Long> nodeIds) {
+        LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(getCheckMinutes());
+        return accountOnlineIpRepository.countByNodeIdsAndLastOnlineTimeAfter(nodeIds, checkStartTime);
+    }
+
+    public Map<String, Long> countOnlineRecordsByAccountNos(List<String> accountNos) {
+        LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(getCheckMinutes());
+        return accountOnlineIpRepository.countByAccountNosAndLastOnlineTimeAfter(accountNos, checkStartTime);
+    }
+
     /**
      * 批量获取各accountNo的最近一次在线时间
      */
@@ -157,9 +173,23 @@ public class AccountOnlineIpService {
      */
     @Transactional
     public int refreshFromConnections(String serverIp, List<SingBoxConnectionSnapshot> connections) {
+        return refreshFromConnections(serverIp, connections, Map.of());
+    }
+
+    @Transactional
+    public int refreshFromConnections(String serverIp, List<SingBoxConnectionSnapshot> connections, Map<String, Node> nodeByTag) {
         if (connections == null || connections.isEmpty()) {
             return 0;
         }
+
+        // 预先收集所有 authUser，批量校验账号是否存在，过滤落地节点公共账号等无效用户
+        Set<String> candidateNos = connections.stream()
+                .filter(c -> c.getMetadata() != null)
+                .map(c -> c.getMetadata().getAuthUser())
+                .filter(u -> u != null && !u.isBlank())
+                .collect(Collectors.toSet());
+        Set<String> validAccountNos = candidateNos.isEmpty() ? Set.of()
+                : new HashSet<>(accountRepository.findExistingAccountNos(new java.util.ArrayList<>(candidateNos)));
 
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime offlineThreshold = now.minusMinutes(getCheckMinutes());
@@ -175,22 +205,72 @@ public class AccountOnlineIpService {
             if (accountNo == null || accountNo.isBlank() || clientIp == null || clientIp.isBlank()) {
                 continue;
             }
-            String dedupeKey = accountNo + "\0" + clientIp + "\0" + serverIp;
+            if (!validAccountNos.contains(accountNo)) {
+                log.debug("refreshFromConnections 跳过无效账号: authUser={}, serverIp={}", accountNo, serverIp);
+                continue;
+            }
+            String nodeTag = normalizeBlank(conn.getMetadata().resolveNodeTag());
+            Node node = nodeTag == null || nodeByTag == null ? null : nodeByTag.get(nodeTag);
+            String connectionId = buildConnectionId(conn, accountNo, clientIp, serverIp, nodeTag);
+            String dedupeKey = accountNo + "\0" + connectionId + "\0" + serverIp;
             if (!seen.add(dedupeKey)) {
                 continue;
             }
             try {
-                accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, serverIp, now, now, now, now, offlineThreshold);
+                accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, connectionId, serverIp,
+                        node == null ? null : node.getId(), nodeTag, now, now, now, now, offlineThreshold);
                 count++;
             } catch (Exception e) {
-                log.error("refreshFromConnections upsert 失败: accountNo={}, clientIp={}, serverIp={}", accountNo, clientIp, serverIp, e);
+                log.error("refreshFromConnections upsert 失败: accountNo={}, clientIp={}, connectionId={}, serverIp={}",
+                        accountNo, clientIp, connectionId, serverIp, e);
             }
         }
         return count;
     }
 
+    public List<AccountOnlineIpDto> getOnlineRecordsByNodeId(Long nodeId) {
+        LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(getCheckMinutes());
+        List<AccountOnlineIp> records = accountOnlineIpRepository.findByNodeIdAndLastOnlineTimeAfter(nodeId, checkStartTime);
+        return convertToDtoList(records);
+    }
+
+    public List<AccountOnlineIpDto> getOnlineRecordsByAccountNos(List<String> accountNos) {
+        LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(getCheckMinutes());
+        List<AccountOnlineIp> records = accountOnlineIpRepository.findByAccountNosAndLastOnlineTimeAfter(accountNos, checkStartTime);
+        return convertToDtoList(records);
+    }
+
     /**
-     * 清理过期的在线记录
+     * 清理超过指定小时数的历史在线记录
+     */
+    @Transactional
+    public long cleanupOldRecords() {
+        int retentionHours = Math.max(1, systemConfigService.getIntValue("airopscat.account.online.history.retention-hours", 8));
+        LocalDateTime expireTime = LocalDateTime.now().minusHours(retentionHours);
+        int batchSize = getCleanupBatchSize();
+        long totalDeleted = 0L;
+        int rounds = 0;
+        long startedAt = System.nanoTime();
+        try {
+            while (true) {
+                int deleted = accountOnlineIpRepository.deleteExpiredRecordsBatch(expireTime, batchSize);
+                if (deleted <= 0) break;
+                totalDeleted += deleted;
+                rounds++;
+                if (deleted < batchSize) break;
+            }
+            log.info("在线记录历史清理完成，保留小时数={}, 截止时间={}, 批次={}, 删除总数={}, 耗时={} ms",
+                    retentionHours, expireTime, rounds, totalDeleted, elapsedMillis(startedAt));
+            return totalDeleted;
+        } catch (Exception e) {
+            log.error("在线记录历史清理失败，截止时间={}, 已删除={}, 耗时={} ms",
+                    expireTime, totalDeleted, elapsedMillis(startedAt), e);
+            throw new RuntimeException("Failed to cleanup old online records", e);
+        }
+    }
+
+    /**
+     * 清理过期的在线记录（短窗口，基于在线检测分钟数）
      */
     @Transactional
     public long cleanupExpiredRecords() {
@@ -229,21 +309,28 @@ public class AccountOnlineIpService {
         // 获取所有相关的账户和用户信息
         Map<String, Account> accountMap = getAccountMap(records);
         Map<Long, User> userMap = getUserMap(accountMap.values());
+        Map<Long, Node> nodeMap = getNodeMap(records);
 
         return records.stream()
-                .map(record -> convertToDto(record, accountMap, userMap))
+                .map(record -> convertToDto(record, accountMap, userMap, nodeMap))
                 .collect(Collectors.toList());
     }
 
     /**
      * 将单个实体转换为DTO
      */
-    private AccountOnlineIpDto convertToDto(AccountOnlineIp record, Map<String, Account> accountMap, Map<Long, User> userMap) {
+    private AccountOnlineIpDto convertToDto(AccountOnlineIp record,
+                                           Map<String, Account> accountMap,
+                                           Map<Long, User> userMap,
+                                           Map<Long, Node> nodeMap) {
         AccountOnlineIpDto dto = new AccountOnlineIpDto();
         dto.setId(record.getId());
         dto.setAccountNo(record.getAccountNo());
         dto.setClientIp(record.getClientIp());
+        dto.setConnectionId(record.getConnectionId());
         dto.setNodeIp(record.getNodeIp());
+        dto.setNodeId(record.getNodeId());
+        dto.setNodeTag(record.getNodeTag());
         dto.setLastOnlineTime(record.getLastOnlineTime());
         dto.setSessionStartTime(resolveSessionStartTime(record));
         dto.setCreateTime(record.getCreateTime());
@@ -260,6 +347,11 @@ public class AccountOnlineIpService {
             if (user != null) {
                 dto.setUserNickName(user.getNickName());
             }
+        }
+
+        Node node = record.getNodeId() == null ? null : nodeMap.get(record.getNodeId());
+        if (node != null) {
+            dto.setNodeName(formatNodeName(node));
         }
 
         return dto;
@@ -313,6 +405,68 @@ public class AccountOnlineIpService {
 
         return userRepository.list("id in ?1", userIds).stream()
                 .collect(Collectors.toMap(User::getId, user -> user));
+    }
+
+    private Map<Long, Node> getNodeMap(List<AccountOnlineIp> records) {
+        List<Long> nodeIds = records.stream()
+                .map(AccountOnlineIp::getNodeId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (nodeIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return nodeRepository.findByIdIn(nodeIds).stream()
+                .collect(Collectors.toMap(Node::getId, node -> node));
+    }
+
+    private String formatNodeName(Node node) {
+        if (node.getName() != null && !node.getName().isBlank() && node.getNo() != null) {
+            return node.getName() + "-" + node.getNo();
+        }
+        if (node.getName() != null && !node.getName().isBlank()) {
+            return node.getName();
+        }
+        if (node.getNo() != null) {
+            return String.valueOf(node.getNo());
+        }
+        return node.getTag();
+    }
+
+    private String buildConnectionId(SingBoxConnectionSnapshot conn,
+                                     String accountNo,
+                                     String clientIp,
+                                     String serverIp,
+                                     String nodeTag) {
+        String rawId = normalizeBlank(conn.getId());
+        if (rawId != null) {
+            return rawId;
+        }
+
+        String destinationIp = normalizeBlank(conn.getMetadata().getDestinationIP());
+        Integer destinationPort = conn.getMetadata().getDestinationPort();
+        return String.join("|",
+                "fallback",
+                accountNo,
+                clientIp,
+                Objects.toString(serverIp, ""),
+                Objects.toString(nodeTag, ""),
+                Objects.toString(destinationIp, ""),
+                Objects.toString(destinationPort, ""));
+    }
+
+    private String legacyConnectionId(String clientIp, String nodeIp) {
+        return String.join("|", "legacy", Objects.toString(clientIp, ""), Objects.toString(nodeIp, ""));
+    }
+
+    private String normalizeBlank(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private int getCheckMinutes() {

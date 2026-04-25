@@ -14,6 +14,7 @@ import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.service.NodeGroupService;
+import com.fun90.airopscat.service.AccountOnlineIpService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentVersionService;
 import com.fun90.airopscat.service.NodeService;
@@ -61,6 +62,9 @@ public class NodeController {
     @Inject
     NodeDeploymentVersionService nodeDeploymentVersionService;
 
+    @Inject
+    AccountOnlineIpService accountOnlineIpService;
+
     @GET
     public Response getNodePage(
             @QueryParam("page") @DefaultValue("1") int page,
@@ -80,6 +84,7 @@ public class NodeController {
         PanacheQuery<Node> nodeQuery = nodeService.getNodePage(search, serverIds, nodeTagId, type, coreType, protocol, disabled, deployed, deploymentStatus, sortBy, sortOrder);
         nodeQuery.page(Page.of(page - 1, size));
         List<NodeDto> nodeDtos = nodeService.toNodeDtos(nodeQuery.list());
+        nodeService.fillOnlineConnectionCounts(nodeDtos);
 
         Map<String, Object> response = new HashMap<>();
         response.put("records", nodeDtos);
@@ -89,6 +94,16 @@ public class NodeController {
         response.put("size", size);
 
         return Response.ok(response).build();
+    }
+
+    @GET
+    @Path("/{id}/online-accounts")
+    public Response getNodeOnlineAccounts(@PathParam("id") Long id) {
+        Node node = nodeService.getNodeById(id);
+        if (node == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        return Response.ok(accountOnlineIpService.getOnlineRecordsByNodeId(id)).build();
     }
 
     @GET

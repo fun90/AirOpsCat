@@ -193,7 +193,7 @@ public class AccountController {
         account.setPeriodType(request.getPeriodType());
         account.setUuid(request.getUuid());
         account.setAuthCode(request.getAuthCode());
-        account.setMaxOnlineIps(request.getMaxOnlineIps());
+        account.setMaxConnections(request.getMaxConnections());
         account.setSpeed(request.getSpeed());
         account.setBandwidth(request.getBandwidth());
         account.setDisabled(request.getDisabled());
@@ -231,7 +231,7 @@ public class AccountController {
         account.setPeriodType(request.getPeriodType());
         account.setUuid(request.getUuid());
         account.setAuthCode(request.getAuthCode());
-        account.setMaxOnlineIps(request.getMaxOnlineIps());
+        account.setMaxConnections(request.getMaxConnections());
         account.setSpeed(request.getSpeed());
         account.setBandwidth(request.getBandwidth());
         account.setDisabled(request.getDisabled());

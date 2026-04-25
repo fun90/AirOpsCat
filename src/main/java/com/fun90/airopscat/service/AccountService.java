@@ -252,7 +252,7 @@ public class AccountService {
         dto.setLevel(account.getLevel());
         dto.setNodeMultiple(account.getNodeMultiple());
         dto.setNodePrefix(account.getNodePrefix());
-        dto.setMaxOnlineIps(account.getMaxOnlineIps());
+        dto.setMaxConnections(account.getMaxConnections());
         dto.setSpeed(account.getSpeed());
         
         // Enrich with user email if available
@@ -282,8 +282,9 @@ public class AccountService {
         
         // Add online IP information
         if (account.getAccountNo() != null) {
-            List<AccountOnlineIpDto> onlineIps = accountOnlineIpService.getOnlineRecordsByAccountNo(account.getAccountNo());
-            dto.setOnlineIps(onlineIps);
+            List<AccountOnlineIpDto> onlineConnections = accountOnlineIpService.getOnlineRecordsByAccountNo(account.getAccountNo());
+            dto.setOnlineConnections(onlineConnections);
+            dto.setOnlineConnectionCount(onlineConnections.size());
         }
         
         // Calculate days until expiration
@@ -313,8 +314,8 @@ public class AccountService {
             AccountDto dto = convertToDto(account);
             if (account.getAccountNo() != null) {
                 // 优先取当前在线记录中最新的时间，否则取历史最大值
-                if (dto.getOnlineIps() != null && !dto.getOnlineIps().isEmpty()) {
-                    LocalDateTime latestOnline = dto.getOnlineIps().stream()
+                if (dto.getOnlineConnections() != null && !dto.getOnlineConnections().isEmpty()) {
+                    LocalDateTime latestOnline = dto.getOnlineConnections().stream()
                             .map(AccountOnlineIpDto::getLastOnlineTime)
                             .filter(Objects::nonNull)
                             .max(LocalDateTime::compareTo)

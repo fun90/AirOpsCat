@@ -30,6 +30,7 @@ public class ProgrammaticTaskManager {
     private static final ZoneId SHANGHAI_ZONE_ID = ZoneId.of(SHANGHAI_TIME_ZONE);
     private static final String SCHEDULE_TYPE_CRON = "cron";
     private static final String SCHEDULE_TYPE_INTERVAL_MINUTES = "interval-minutes";
+    private static final String SCHEDULE_TYPE_INTERVAL_HOURS = "interval-hours";
 
     private final Scheduler scheduler;
     private final SystemConfigService systemConfigService;
@@ -44,6 +45,7 @@ public class ProgrammaticTaskManager {
     private final AccountTrafficStatsCleanupTask accountTrafficStatsCleanupTask;
     private final ServerTrafficStatsCleanupTask serverTrafficStatsCleanupTask;
     private final AccountOnlineRefreshTask accountOnlineRefreshTask;
+    private final AccountOnlineIpCleanupTask accountOnlineIpCleanupTask;
 
     private final Map<String, TaskDefinition> taskDefinitions;
     private final Set<String> pausedTaskKeys;
@@ -61,7 +63,8 @@ public class ProgrammaticTaskManager {
                                    NodeDeploymentHistoryCleanupTask nodeDeploymentHistoryCleanupTask,
                                    AccountTrafficStatsCleanupTask accountTrafficStatsCleanupTask,
                                    ServerTrafficStatsCleanupTask serverTrafficStatsCleanupTask,
-                                   AccountOnlineRefreshTask accountOnlineRefreshTask) {
+                                   AccountOnlineRefreshTask accountOnlineRefreshTask,
+                                   AccountOnlineIpCleanupTask accountOnlineIpCleanupTask) {
         this.scheduler = scheduler;
         this.systemConfigService = systemConfigService;
         this.databaseBackupService = databaseBackupService;
@@ -75,6 +78,7 @@ public class ProgrammaticTaskManager {
         this.accountTrafficStatsCleanupTask = accountTrafficStatsCleanupTask;
         this.serverTrafficStatsCleanupTask = serverTrafficStatsCleanupTask;
         this.accountOnlineRefreshTask = accountOnlineRefreshTask;
+        this.accountOnlineIpCleanupTask = accountOnlineIpCleanupTask;
         this.taskDefinitions = buildTaskDefinitions();
         this.pausedTaskKeys = ConcurrentHashMap.newKeySet();
     }
@@ -189,6 +193,9 @@ public class ProgrammaticTaskManager {
         if (Objects.equals(SCHEDULE_TYPE_INTERVAL_MINUTES, definition.scheduleType())) {
             return Math.max(1L, systemConfigService.getLongValue(definition.configKey(), definition.defaultIntervalMinutes())) + " 分钟";
         }
+        if (Objects.equals(SCHEDULE_TYPE_INTERVAL_HOURS, definition.scheduleType())) {
+            return Math.max(1L, systemConfigService.getLongValue(definition.configKey(), definition.defaultIntervalMinutes())) + " 小时";
+        }
         return resolveCron(definition);
     }
 
@@ -197,6 +204,11 @@ public class ProgrammaticTaskManager {
             long refreshMinutes = Math.max(1L,
                     systemConfigService.getLongValue(definition.configKey(), definition.defaultIntervalMinutes()));
             return "0 */" + refreshMinutes + " * * * ?";
+        }
+        if (Objects.equals(SCHEDULE_TYPE_INTERVAL_HOURS, definition.scheduleType())) {
+            long hours = Math.max(1L,
+                    systemConfigService.getLongValue(definition.configKey(), definition.defaultIntervalMinutes()));
+            return "0 0 */" + hours + " * * ?";
         }
         return systemConfigService.getResolvedValue(definition.configKey());
     }
@@ -267,6 +279,20 @@ public class ProgrammaticTaskManager {
                 1L,
                 Scheduled.ConcurrentExecution.SKIP,
                 accountOnlineRefreshTask::refreshOnlineAccounts
+        ));
+        definitions.put("account-online-ip-cleanup", task(
+                "account-online-ip-cleanup",
+                "account-online-ip-cleanup",
+                "在线连接记录清理",
+                "按保留小时数清理历史在线连接记录，执行间隔与保留时长相同。",
+                "monitor",
+                "监控与在线状态",
+                37,
+                SCHEDULE_TYPE_INTERVAL_HOURS,
+                "airopscat.account.online.history.retention-hours",
+                8L,
+                Scheduled.ConcurrentExecution.SKIP,
+                accountOnlineIpCleanupTask::cleanupOldRecords
         ));
         definitions.put("server-monitor-cleanup", task(
                 "server-monitor-cleanup",

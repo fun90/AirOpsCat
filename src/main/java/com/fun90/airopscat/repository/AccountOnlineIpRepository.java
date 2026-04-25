@@ -23,6 +23,13 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
     public List<AccountOnlineIp> findByAccountNoAndLastOnlineTimeAfter(String accountNo, LocalDateTime afterTime) {
         return find("accountNo = ?1 and lastOnlineTime > ?2 order by lastOnlineTime desc", accountNo, afterTime).list();
     }
+
+    public List<AccountOnlineIp> findByAccountNosAndLastOnlineTimeAfter(List<String> accountNos, LocalDateTime afterTime) {
+        if (accountNos == null || accountNos.isEmpty()) {
+            return List.of();
+        }
+        return find("accountNo in ?1 and lastOnlineTime > ?2 order by lastOnlineTime desc", accountNos, afterTime).list();
+    }
     
     /**
      * 查找在指定时间之后的所有在线记录
@@ -40,6 +47,10 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
 
     public List<AccountOnlineIp> findByNodeIpAndLastOnlineTimeAfter(String nodeIp, LocalDateTime afterTime) {
         return find("nodeIp = ?1 and lastOnlineTime > ?2 order by lastOnlineTime desc", nodeIp, afterTime).list();
+    }
+
+    public List<AccountOnlineIp> findByNodeIdAndLastOnlineTimeAfter(Long nodeId, LocalDateTime afterTime) {
+        return find("nodeId = ?1 and lastOnlineTime > ?2 order by lastOnlineTime desc", nodeId, afterTime).list();
     }
 
     /**
@@ -97,6 +108,48 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
         return result;
     }
 
+    @SuppressWarnings("unchecked")
+    public Map<Long, Long> countByNodeIdsAndLastOnlineTimeAfter(List<Long> nodeIds, LocalDateTime afterTime) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<Object[]> rows = getEntityManager()
+                .createQuery("SELECT a.nodeId, COUNT(a) FROM AccountOnlineIp a WHERE a.nodeId IN :nodeIds AND a.lastOnlineTime > :afterTime GROUP BY a.nodeId")
+                .setParameter("nodeIds", nodeIds)
+                .setParameter("afterTime", afterTime)
+                .getResultList();
+
+        Map<Long, Long> result = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] != null) {
+                result.put((Long) row[0], ((Number) row[1]).longValue());
+            }
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Long> countByAccountNosAndLastOnlineTimeAfter(List<String> accountNos, LocalDateTime afterTime) {
+        if (accountNos == null || accountNos.isEmpty()) {
+            return Map.of();
+        }
+
+        List<Object[]> rows = getEntityManager()
+                .createQuery("SELECT a.accountNo, COUNT(a) FROM AccountOnlineIp a WHERE a.accountNo IN :accountNos AND a.lastOnlineTime > :afterTime GROUP BY a.accountNo")
+                .setParameter("accountNos", accountNos)
+                .setParameter("afterTime", afterTime)
+                .getResultList();
+
+        Map<String, Long> result = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] != null) {
+                result.put((String) row[0], ((Number) row[1]).longValue());
+            }
+        }
+        return result;
+    }
+
     /**
      * 删除过期的在线记录
      */
@@ -116,30 +169,39 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
     @Transactional
     public void upsertOnlineStatus(String accountNo,
                                    String clientIp,
+                                   String connectionId,
                                    String nodeIp,
+                                   Long nodeId,
+                                   String nodeTag,
                                    LocalDateTime lastOnlineTime,
                                    LocalDateTime sessionStartTime,
                                    LocalDateTime createTime,
                                    LocalDateTime updateTime,
                                    LocalDateTime offlineThresholdTime) {
         getEntityManager().createNativeQuery(
-            "INSERT INTO account_online_ip (account_no, client_ip, node_ip, last_online_time, session_start_time, create_time, update_time) " +
-            "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) " +
+            "INSERT INTO account_online_ip (account_no, client_ip, connection_id, node_ip, node_id, node_tag, last_online_time, session_start_time, create_time, update_time) " +
+            "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10) " +
             "ON DUPLICATE KEY UPDATE " +
+            "client_ip = VALUES(client_ip), " +
+            "node_id = VALUES(node_id), " +
+            "node_tag = VALUES(node_tag), " +
             "session_start_time = CASE " +
-            "WHEN account_online_ip.last_online_time IS NULL OR account_online_ip.last_online_time <= ?8 THEN VALUES(session_start_time) " +
+            "WHEN account_online_ip.last_online_time IS NULL OR account_online_ip.last_online_time <= ?11 THEN VALUES(session_start_time) " +
             "WHEN account_online_ip.session_start_time IS NULL THEN COALESCE(account_online_ip.create_time, VALUES(session_start_time)) " +
             "ELSE account_online_ip.session_start_time END, " +
             "last_online_time = VALUES(last_online_time), " +
             "update_time = VALUES(update_time)")
             .setParameter(1, accountNo)
             .setParameter(2, clientIp)
-            .setParameter(3, nodeIp)
-            .setParameter(4, lastOnlineTime)
-            .setParameter(5, sessionStartTime)
-            .setParameter(6, createTime)
-            .setParameter(7, updateTime)
-            .setParameter(8, offlineThresholdTime)
+            .setParameter(3, connectionId)
+            .setParameter(4, nodeIp)
+            .setParameter(5, nodeId)
+            .setParameter(6, nodeTag)
+            .setParameter(7, lastOnlineTime)
+            .setParameter(8, sessionStartTime)
+            .setParameter(9, createTime)
+            .setParameter(10, updateTime)
+            .setParameter(11, offlineThresholdTime)
             .executeUpdate();
     }
 }

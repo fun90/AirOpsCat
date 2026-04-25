@@ -107,6 +107,10 @@ const nodeTable = new DataTable({
         loadingDeploymentVersionDetail: false,
         restoringDeploymentVersion: false,
         selectedNodeIds: [],
+        onlineConnectionsModal: null,
+        onlineConnectionsNode: null,
+        onlineConnections: [],
+        onlineConnectionsLoading: false,
         batchTagForm: {
             mode: 'REPLACE',
             tagIds: []
@@ -803,6 +807,67 @@ const nodeTable = new DataTable({
                     console.error('Error:', error);
                     ToastUtils.show('Error', '复制节点失败', 'danger');
                 });
+        },
+
+        viewOnlineConnections(node) {
+            this.onlineConnectionsNode = node;
+            this.onlineConnections = [];
+            this.onlineConnectionsLoading = true;
+            if (!this.onlineConnectionsModal) {
+                this.onlineConnectionsModal = new Modal(document.getElementById('nodeOnlineConnectionsModal'));
+            }
+            this.onlineConnectionsModal.show();
+            this.fetchNodeOnlineConnections(node);
+        },
+
+        fetchNodeOnlineConnections(node) {
+            if (!node || !node.id) {
+                this.onlineConnectionsLoading = false;
+                return;
+            }
+
+            fetch(`/api/admin/nodes/${node.id}/online-accounts`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('获取在线连接失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.onlineConnections = Array.isArray(data) ? data : [];
+                })
+                .catch(error => {
+                    console.error('Error fetching node online connections:', error);
+                    ToastUtils.show('Error', '获取在线连接失败', 'danger');
+                })
+                .finally(() => {
+                    this.onlineConnectionsLoading = false;
+                });
+        },
+
+        refreshNodeOnlineConnections() {
+            if (this.onlineConnectionsNode) {
+                this.fetchNodeOnlineConnections(this.onlineConnectionsNode);
+            }
+        },
+
+        getOnlineDuration(sessionStartTime) {
+            if (!sessionStartTime) {
+                return '-';
+            }
+            const now = new Date();
+            const start = new Date(sessionStartTime);
+            const minutes = Math.floor(Math.max(0, now.getTime() - start.getTime()) / 60000);
+            if (minutes < 60) {
+                return `${minutes} 分钟`;
+            }
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            if (hours < 24) {
+                return `${hours}小时${remainingMinutes}分钟`;
+            }
+            const days = Math.floor(hours / 24);
+            return `${days}天${hours % 24}小时`;
         },
 
         ...createNodeFormMethods(),

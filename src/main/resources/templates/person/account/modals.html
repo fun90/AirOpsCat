@@ -71,8 +71,8 @@
                     </div>
                     <div class="col-md-6">
                         <div class="mb-3">
-                            <label class="form-label">最大在线IP数</label>
-                            <input type="number" class="form-control" v-model="newItem.maxOnlineIps" min="0">
+                            <label class="form-label">最大连接数</label>
+                            <input type="number" class="form-control" v-model="newItem.maxConnections" min="0">
                         </div>
                     </div>
                 </div>
@@ -218,8 +218,8 @@
                     </div>
                     <div class="col-md-6">
                         <div class="mb-3">
-                            <label class="form-label">最大在线IP数</label>
-                            <input type="number" class="form-control" v-model="editedItem.maxOnlineIps" min="0">
+                            <label class="form-label">最大连接数</label>
+                            <input type="number" class="form-control" v-model="editedItem.maxConnections" min="0">
                         </div>
                     </div>
                 </div>
@@ -450,8 +450,8 @@
                                         <div class="fw-bold">{{ selectedItem.level || 0 }}</div>
                                     </div>
                                     <div class="mb-3">
-                                        <label class="form-label text-muted">最大在线IP数</label>
-                                        <div class="fw-bold">{{ selectedItem.maxOnlineIps || '无限制' }}</div>
+                                        <label class="form-label text-muted">最大连接数</label>
+                                        <div class="fw-bold">{{ selectedItem.maxConnections || '无限制' }}</div>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label text-muted">速度限制</label>
@@ -518,22 +518,22 @@
                                 </div>
                                 <div class="card-body">
                                     <div class="mb-3">
-                                        <label class="form-label text-muted">当前在线IP数</label>
+                                        <label class="form-label text-muted">当前在线连接数</label>
                                         <div class="d-flex align-items-center">
                                                 <span class="fw-bold me-2">
-                                                    {{ selectedItem.onlineIps ? selectedItem.onlineIps.length : 0 }}
+                                                    {{ selectedItem.onlineConnectionCount || 0 }}
                                                 </span>
-                                            <button v-if="selectedItem.onlineIps && selectedItem.onlineIps.length > 0"
-                                                    @click="viewOnlineIps(selectedItem)"
+                                            <button v-if="selectedItem.onlineConnectionCount && selectedItem.onlineConnectionCount > 0"
+                                                    @click="viewOnlineConnections(selectedItem)"
                                                     class="btn btn-sm btn-outline-primary">
                                                 <i class="ti ti-eye me-1"></i>查看详情
                                             </button>
                                         </div>
                                     </div>
-                                    <div v-if="selectedItem.onlineIps && selectedItem.onlineIps.length > 0">
-                                        <label class="form-label text-muted">在线IP列表</label>
+                                    <div v-if="selectedItem.onlineConnections && selectedItem.onlineConnections.length > 0">
+                                        <label class="form-label text-muted">在线连接列表</label>
                                         <div class="list-group list-group-flush">
-                                            <div v-for="ip in selectedItem.onlineIps.slice(0, 3)" :key="ip.id"
+                                            <div v-for="ip in selectedItem.onlineConnections.slice(0, 3)" :key="ip.id"
                                                  class="list-group-item px-0 py-2">
                                                 <div class="d-flex justify-content-between align-items-center">
                                                     <span class="badge text-bg-primary">{{ ip.clientIp }}</span>
@@ -543,13 +543,13 @@
                                                     <small class="text-muted">{{ formatDate(ip.lastOnlineTime) }}</small>
                                                 </div>
                                             </div>
-                                            <div v-if="selectedItem.onlineIps.length > 3" class="text-center py-2">
-                                                <small class="text-muted">还有 {{ selectedItem.onlineIps.length - 3 }} 个IP...</small>
+                                            <div v-if="selectedItem.onlineConnections.length > 3" class="text-center py-2">
+                                                <small class="text-muted">还有 {{ selectedItem.onlineConnections.length - 3 }} 条连接...</small>
                                             </div>
                                         </div>
                                     </div>
                                     <div v-else>
-                                        <div class="text-muted">当前无在线IP</div>
+                                        <div class="text-muted">当前无在线连接</div>
                                     </div>
                                 </div>
                             </div>
@@ -726,12 +726,12 @@
     </div>
 </div>
 
-<!-- Online IPs Modal -->
-<div class="modal modal-blur fade" id="onlineIpsModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+<!-- Online Connections Modal -->
+<div class="modal modal-blur fade" id="onlineConnectionsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">在线IP详情</h5>
+                <h5 class="modal-title">在线连接详情</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -741,19 +741,19 @@
                             <i class="ti ti-info-circle"></i>
                         </div>
                         <div class="ms-2">
-                            <strong>{{ selectedItem.remark }}</strong> 的在线IP记录
+                            <strong>{{ selectedItem.remark || selectedItem.accountNo }}</strong> 的在线连接记录
                         </div>
                     </div>
                 </div>
 
-                <div v-if="onlineIpsLoading" class="text-center py-3">
+                <div v-if="onlineConnectionsLoading" class="text-center py-3">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
                 </div>
 
-                <div v-else-if="onlineIps.length === 0" class="text-center py-3">
-                    <div class="text-muted">暂无在线IP记录</div>
+                <div v-else-if="onlineConnections.length === 0" class="text-center py-3">
+                    <div class="text-muted">暂无在线连接记录</div>
                 </div>
 
                 <div v-else>
@@ -761,14 +761,19 @@
                         <table class="table table-vcenter">
                             <thead>
                                 <tr>
+                                    <th>连接ID</th>
                                     <th>客户端IP</th>
-                                    <th>节点IP</th>
+                                    <th>服务器</th>
+                                    <th>节点</th>
                                     <th>最后在线时间</th>
                                     <th>在线时长</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="ip in onlineIps" :key="ip.id">
+                                <tr v-for="ip in onlineConnections" :key="ip.id">
+                                    <td>
+                                        <span class="text-muted text-truncate d-inline-block" style="max-width: 110px;" :title="ip.connectionId">{{ ip.connectionId || '-' }}</span>
+                                    </td>
                                     <td>
                                         <span class="badge text-bg-primary">{{ ip.clientIp }}</span>
                                         <button @click="copyToClipboard(ip.clientIp)" class="btn btn-sm btn-ghost-secondary">
@@ -777,6 +782,9 @@
                                     </td>
                                     <td>
                                         <span class="text-muted">{{ ip.nodeIp }}</span>
+                                    </td>
+                                    <td>
+                                        <span>{{ ip.nodeName || ip.nodeTag || '-' }}</span>
                                     </td>
                                     <td>
                                         {{ formatDate(ip.lastOnlineTime) }}
@@ -792,7 +800,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
-                <button type="button" class="btn btn-outline-secondary" @click="refreshOnlineIps">
+                <button type="button" class="btn btn-outline-secondary" @click="refreshOnlineConnections">
                     <i class="ti ti-refresh"></i> 刷新
                 </button>
             </div>

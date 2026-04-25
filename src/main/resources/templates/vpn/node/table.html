@@ -28,6 +28,7 @@
                     <i :class="getSortIcon('outbound')" :style="{ opacity: isSortActive('outbound') ? 1 : 0.45 }"></i>
                 </button>
             </th>
+            <th>在线连接</th>
             <th>状态</th>
             <th class="w-1">操作</th>
         </tr>
@@ -75,6 +76,15 @@
                 <span>{{ node.outName || '直连' }}</span>
                 <span v-if="node.outServerHost" class="text-secondary small text-break">{{ node.outServerHost }}:{{ node.outPort }}</span>
             </div>
+        </td>
+        <td>
+            <div v-if="node.onlineConnectionCount && node.onlineConnectionCount > 0" class="d-flex align-items-center">
+                <span class="badge text-bg-success me-2">{{ node.onlineConnectionCount }}</span>
+                <button type="button" class="btn btn-sm btn-ghost-secondary" @click="viewOnlineConnections(node)">
+                    <i class="ti ti-eye"></i>
+                </button>
+            </div>
+            <span v-else class="text-secondary">-</span>
         </td>
         <td>
             <div class="d-flex flex-column gap-2">

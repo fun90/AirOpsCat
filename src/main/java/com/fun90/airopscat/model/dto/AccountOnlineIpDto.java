@@ -9,7 +9,11 @@ public class AccountOnlineIpDto {
     private Long id;
     private String accountNo; // 账号编号
     private String clientIp;
+    private String connectionId;
     private String nodeIp;
+    private Long nodeId;
+    private String nodeName;
+    private String nodeTag;
     private LocalDateTime lastOnlineTime;
     private LocalDateTime sessionStartTime;
     private LocalDateTime createTime;

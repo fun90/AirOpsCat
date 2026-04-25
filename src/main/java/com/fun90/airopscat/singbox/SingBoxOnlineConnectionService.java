@@ -1,8 +1,11 @@
 package com.fun90.airopscat.singbox;
 
 import com.fun90.airopscat.model.dto.singbox.SingBoxConnectionsResponse;
+import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
+import com.fun90.airopscat.service.AccountOnlineLimitAlertService;
 import com.fun90.airopscat.service.AccountOnlineIpService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
@@ -13,7 +16,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Slf4j
 @ApplicationScoped
@@ -25,6 +30,9 @@ public class SingBoxOnlineConnectionService {
     ServerRepository serverRepository;
 
     @Inject
+    NodeRepository nodeRepository;
+
+    @Inject
     SingBoxClashApiClient clashApiClient;
 
     @Inject
@@ -32,6 +40,9 @@ public class SingBoxOnlineConnectionService {
 
     @Inject
     AccountOnlineIpService accountOnlineIpService;
+
+    @Inject
+    AccountOnlineLimitAlertService accountOnlineLimitAlertService;
 
     public void refreshAllServers() {
         List<Server> servers = serverRepository.findMonitorableServers(LocalDate.now());
@@ -53,6 +64,7 @@ public class SingBoxOnlineConnectionService {
             }
         }
         log.info("在线账号刷新完成，服务器数={}, 成功={}, 失败={}", servers.size(), success, failure);
+        accountOnlineLimitAlertService.checkAndNotify();
     }
 
     private int refreshServer(Server server) throws Exception {
@@ -61,7 +73,9 @@ public class SingBoxOnlineConnectionService {
             if (response == null || response.getConnections() == null) {
                 return 0;
             }
-            return accountOnlineIpService.refreshFromConnections(server.getIp(), response.getConnections());
+            Map<String, Node> nodeByTag = nodeRepository.findOnlineTrackableByServerId(server.getId()).stream()
+                    .collect(Collectors.toMap(Node::getTag, node -> node, (left, right) -> left));
+            return accountOnlineIpService.refreshFromConnections(server.getIp(), response.getConnections(), nodeByTag);
         }
     }
 

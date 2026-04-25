@@ -17,7 +17,7 @@ public class AccountDto {
     private String uuid;
     private String accountNo;
     private String authCode;
-    private Integer maxOnlineIps;
+    private Integer maxConnections;
     private Integer speed;
     private Integer bandwidth;
     private Integer disabled;
@@ -34,7 +34,8 @@ public class AccountDto {
     private Long totalUsedBytes;     // 总使用流量
     private Double usagePercentage;  // 使用百分比
     
-    // 在线IP信息
-    private List<AccountOnlineIpDto> onlineIps; // 在线IP列表
+    // 在线连接信息
+    private Integer onlineConnectionCount;
+    private List<AccountOnlineIpDto> onlineConnections;
     private LocalDateTime lastOnlineTime; // 最后在线时间
 }

@@ -41,8 +41,8 @@ public class Account {
     @Column(nullable = false)
     private String authCode;
     
-    @Column(name = "max_online_ips")
-    private Integer maxOnlineIps;
+    @Column(name = "max_connections")
+    private Integer maxConnections;
 
     /**
      * 账号限速（KB/s），0 或 null 表示不限速

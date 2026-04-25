@@ -37,6 +37,7 @@ public class NodeDto {
     private String name;
     private Integer no;
     private String remark;
+    private Integer onlineConnectionCount;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
     private Set<Tag> tags = new HashSet<>();

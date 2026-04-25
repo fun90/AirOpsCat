@@ -4,7 +4,7 @@
         <th>用户</th>
         <th>账号</th>
         <th>状态</th>
-        <th>在线IP</th>
+        <th>在线连接</th>
         <th>流量使用</th>
         <th>统计周期</th>
         <th>到期时间</th>
@@ -43,10 +43,10 @@
             </div>
         </td>
         <td>
-            <div v-if="account.onlineIps && account.onlineIps.length > 0">
+            <div v-if="account.onlineConnectionCount && account.onlineConnectionCount > 0">
                 <div class="d-flex align-items-center">
-                    <span class="badge text-bg-success me-2">{{ account.onlineIps.length }}</span>
-                    <button @click="viewOnlineIps(account)" class="btn btn-sm btn-ghost-secondary">
+                    <span class="badge text-bg-success me-2">{{ account.onlineConnectionCount }}</span>
+                    <button @click="viewOnlineConnections(account)" class="btn btn-sm btn-ghost-secondary">
                         <i class="ti ti-eye"></i>
                     </button>
                 </div>

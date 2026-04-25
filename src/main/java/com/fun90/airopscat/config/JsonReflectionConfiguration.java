@@ -107,6 +107,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     // Entity Classes (for direct JSON serialization)
     com.fun90.airopscat.model.entity.User.class,
     com.fun90.airopscat.model.entity.Account.class,
+    com.fun90.airopscat.model.entity.AlertState.class,
     com.fun90.airopscat.model.entity.AccountOnlineIp.class,
     com.fun90.airopscat.model.entity.AccountTrafficStats.class,
     com.fun90.airopscat.model.entity.Server.class,

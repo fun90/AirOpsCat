@@ -18,7 +18,7 @@ public class AccountRequest {
     private String periodType;
     private String uuid;
     private String authCode;
-    private Integer maxOnlineIps;
+    private Integer maxConnections;
     private Integer speed;
     private Integer bandwidth;
     private Integer disabled;

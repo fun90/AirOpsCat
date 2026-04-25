@@ -10,10 +10,11 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
         name = "account_online_ip",
-        uniqueConstraints = {@UniqueConstraint(columnNames = {"account_no", "client_ip", "node_ip"})},
+        uniqueConstraints = {@UniqueConstraint(columnNames = {"account_no", "node_ip", "connection_id"})},
         indexes = {
                 @Index(name = "idx_account_online_account_time", columnList = "account_no,last_online_time"),
                 @Index(name = "idx_account_online_node_time", columnList = "node_ip,last_online_time"),
+                @Index(name = "idx_account_online_logic_node_time", columnList = "node_id,last_online_time"),
                 @Index(name = "idx_account_online_last_time", columnList = "last_online_time")
         }
 )
@@ -28,9 +29,18 @@ public class AccountOnlineIp {
     
     @Column(name = "client_ip", nullable = false)
     private String clientIp;
+
+    @Column(name = "connection_id")
+    private String connectionId;
     
     @Column(name = "node_ip", nullable = false)
     private String nodeIp;
+
+    @Column(name = "node_id")
+    private Long nodeId;
+
+    @Column(name = "node_tag")
+    private String nodeTag;
     
     @Column(name = "last_online_time", nullable = false)
     private LocalDateTime lastOnlineTime;

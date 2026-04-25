@@ -69,6 +69,9 @@ public class NodeService {
     @Inject
     NodeGroupService nodeGroupService;
 
+    @Inject
+    AccountOnlineIpService accountOnlineIpService;
+
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Node> getNodePage(
             String search,
             String serverIds,
@@ -232,6 +235,20 @@ public class NodeService {
             return List.of();
         }
         return nodes.stream().map(NodeConverter::toDto).toList();
+    }
+
+    public void fillOnlineConnectionCounts(List<NodeDto> nodeDtos) {
+        if (nodeDtos == null || nodeDtos.isEmpty()) {
+            return;
+        }
+        List<Long> nodeIds = nodeDtos.stream()
+                .map(NodeDto::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, Long> countByNodeId = accountOnlineIpService.countOnlineRecordsByNodeIds(nodeIds);
+        nodeDtos.forEach(dto -> dto.setOnlineConnectionCount(
+                countByNodeId.getOrDefault(dto.getId(), 0L).intValue()));
     }
 
     public List<Node> getNodeByType(NodeType nodeType) {

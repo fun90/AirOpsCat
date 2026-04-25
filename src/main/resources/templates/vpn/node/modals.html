@@ -246,6 +246,76 @@
     </div>
 </div>
 
+<!-- Node Online Connections Modal -->
+<div class="modal modal-blur fade" id="nodeOnlineConnectionsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">在线连接</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div v-if="onlineConnectionsNode" class="alert alert-info">
+                    <div class="d-flex">
+                        <div><i class="ti ti-info-circle"></i></div>
+                        <div class="ms-2">
+                            <strong>{{ onlineConnectionsNode.name || onlineConnectionsNode.id }}</strong>
+                            当前在线连接记录
+                        </div>
+                    </div>
+                </div>
+                <div v-if="onlineConnectionsLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div v-else-if="onlineConnections.length === 0" class="text-center py-4">
+                    <div class="text-secondary">暂无在线连接</div>
+                </div>
+                <div v-else class="table-responsive">
+                    <table class="table table-vcenter">
+                        <thead>
+                        <tr>
+                            <th>账户</th>
+                            <th>连接ID</th>
+                            <th>客户端IP</th>
+                            <th>服务器</th>
+                            <th>最后在线时间</th>
+                            <th>在线时长</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="conn in onlineConnections" :key="conn.id">
+                            <td>
+                                <div class="d-flex flex-column">
+                                    <span>{{ conn.accountNo }}</span>
+                                    <small v-if="conn.remark" class="text-secondary">{{ conn.remark }}</small>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="text-secondary text-truncate d-inline-block" style="max-width: 130px;" :title="conn.connectionId">{{ conn.connectionId || '-' }}</span>
+                            </td>
+                            <td>
+                                <span class="badge text-bg-primary">{{ conn.clientIp }}</span>
+                            </td>
+                            <td>{{ conn.nodeIp || '-' }}</td>
+                            <td>{{ formatDate(conn.lastOnlineTime) }}</td>
+                            <td>{{ getOnlineDuration(conn.sessionStartTime) }}</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-outline-secondary" @click="refreshNodeOnlineConnections">
+                    <i class="ti ti-refresh"></i> 刷新
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Edit Node Modal -->
 <div class="modal modal-blur fade" id="node-editModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
