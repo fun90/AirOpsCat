@@ -7,7 +7,7 @@
 - 去除 `DeploymentDataLoader#buildNodeClientsMap` 中对流量超额账户的过滤，超额账户仍继续进入节点客户端配置。
 - 新增账户流量超额限速配置项，放入现有 `SystemConfig` 的账号设置分组，默认值为 `20`，单位为 `KB/s`（展示文案使用 `20KB/s`）。
 - 流量统计累加后若当前周期使用量超过有效配额，则识别为超额状态并发送告警通知。
-- 生成部署客户端数据时，根据账户是否超额计算有效速度限制：未超额时使用 `Account.speed`，超额时使用系统配置的超额限速值，并保留更严格的已有账户限速。
+- 限速同步数据生成时，根据账户是否超额计算有效速度限制：未超额时使用 `Account.speed`，超额时使用系统配置的超额限速值，并保留更严格的已有账户限速。
 - 前端账户详情页面的“速度限制”需要标识当前是否正在因流量超额限速，并展示实际生效的超额限速值。
 - 使用现有告警状态模型记录账户流量超额状态，避免重复告警，并支持恢复状态记录。
 
@@ -19,15 +19,15 @@
 
 ### Modified Capabilities
 
-- `server-and-node-deployment`：节点部署生成客户端列表时不再剔除流量超额账户，并根据超额状态计算下发限速值。
+- `server-and-node-deployment`：节点部署生成客户端列表时不再剔除流量超额账户。
 
 ## Impact
 
-- **服务**：`AccountTrafficStatsService.saveOrUpdateTrafficStats()` 在累加流量后检查当前周期是否超额，并触发告警与后续部署/限速同步。
+- **调度任务**：`TrafficStatsTask` 在账户流量统计累加后检查当前周期是否超额，并触发告警与后续限速同步。
 - **服务**：新增或扩展账户流量超额处置服务，负责判断超额状态、读取超额限速配置、写入 `AlertState`、调用 `BarkService`。
-- **部署**：`DeploymentDataLoader#buildNodeClientsMap` 移除 `isWithinBandwidth()` 过滤，并确保 `NodeClient` 携带按超额状态计算出的有效速度值。
+- **部署**：`DeploymentDataLoader#buildNodeClientsMap` 移除 `isWithinBandwidth()` 过滤，超额账户仍进入节点客户端列表；`NodeClient` 不承载限速字段。
+- **限速同步**：`RateLimitService` 输出 `accounts.json` 时按超额状态计算有效速度。
 - **账户 DTO/API**：账户详情响应补充有效速度限制和是否因流量超额限速字段，供前端标识超额限速。
 - **前端**：账户详情页面“速度限制”展示实际生效速度；当 `trafficOverQuotaLimited` 为 `true` 时显示明确标识。
 - **配置**：`SystemConfigService` 的 `account` 分组新增 `airopscat.account.traffic-over-quota.speed-kb`，默认 `20`。
-- **实体/DTO**：若当前 `NodeClient` 未包含速度字段，需要补充速度字段并检查 `JsonReflectionConfiguration` 原生镜像注册。
 - **告警**：复用 `AlertState` 和 Bark 通知；告警类型建议为 `account-traffic-over-quota`。

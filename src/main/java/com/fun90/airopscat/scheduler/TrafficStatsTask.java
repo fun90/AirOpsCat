@@ -1,11 +1,13 @@
 package com.fun90.airopscat.scheduler;
 
 import com.fun90.airopscat.model.entity.Account;
+import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerRepository;
+import com.fun90.airopscat.service.AccountTrafficOverQuotaService;
 import com.fun90.airopscat.service.AccountTrafficStatsService;
 import com.fun90.airopscat.service.BarkService;
 import com.fun90.airopscat.service.ServerTrafficStatsService;
@@ -44,6 +46,9 @@ public class TrafficStatsTask {
 
     @Inject
     AccountTrafficStatsService accountTrafficStatsService;
+
+    @Inject
+    AccountTrafficOverQuotaService accountTrafficOverQuotaService;
 
     @Inject
     ServerTrafficStatsService serverTrafficStatsService;
@@ -246,7 +251,7 @@ public class TrafficStatsTask {
                         continue;
                     }
 
-                    accountTrafficStatsService.saveOrUpdateTrafficStats(
+                    AccountTrafficStats stats = accountTrafficStatsService.saveOrUpdateTrafficStats(
                             account.getId(),
                             account.getUserId(),
                             account.getPeriodType(),
@@ -254,6 +259,7 @@ public class TrafficStatsTask {
                             adjustedUpload,
                             adjustedDownload
                     );
+                    accountTrafficOverQuotaService.handle(account, stats);
                     successCount++;
 
                     log.debug("处理服务器 {} 上的用户 {} 流量统计: 上传 {} 字节, 下载 {} 字节, core={}",

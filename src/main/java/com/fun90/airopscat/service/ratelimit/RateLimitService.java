@@ -20,7 +20,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.control.RequestContextController;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
+import jakarta.transaction.Status;
+import jakarta.transaction.Synchronization;
 import jakarta.transaction.Transactional;
+import jakarta.transaction.TransactionSynchronizationRegistry;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -47,6 +50,8 @@ public class RateLimitService {
     private final AtomicBoolean syncAllRunning = new AtomicBoolean(false);
     private final AtomicBoolean syncAllPending = new AtomicBoolean(false);
     private final AtomicLong syncAllSequence = new AtomicLong(0);
+    private final AtomicBoolean asyncSyncRunning = new AtomicBoolean(false);
+    private final AtomicBoolean asyncSyncPending = new AtomicBoolean(false);
 
     @Inject
     ServerRepository serverRepository;
@@ -81,6 +86,9 @@ public class RateLimitService {
 
     @Inject
     RequestContextController requestContextController;
+
+    @Inject
+    TransactionSynchronizationRegistry transactionSynchronizationRegistry;
 
     public boolean isEnabled() {
         return systemConfigService.getBooleanValue("airopscat.ratelimit.enabled", false);
@@ -322,6 +330,81 @@ public class RateLimitService {
     @FunctionalInterface
     private interface ConnectionConsumer {
         void accept(SshConnection connection) throws Exception;
+    }
+
+    public void triggerAsyncSync() {
+        if (transactionSynchronizationRegistry == null) {
+            scheduleAsyncSync();
+            return;
+        }
+        transactionSynchronizationRegistry.registerInterposedSynchronization(new Synchronization() {
+            @Override
+            public void beforeCompletion() {
+            }
+
+            @Override
+            public void afterCompletion(int status) {
+                if (status == Status.STATUS_COMMITTED) {
+                    scheduleAsyncSync();
+                }
+            }
+        });
+    }
+
+    private void scheduleAsyncSync() {
+        asyncSyncPending.set(true);
+        if (!asyncSyncRunning.compareAndSet(false, true)) {
+            log.info("限速同步任务已在队列或执行中，本次请求已合并");
+            return;
+        }
+
+        CompletableFuture.runAsync(() -> {
+            boolean activated = requestContextController.activate();
+            try {
+                while (true) {
+                    asyncSyncPending.set(false);
+                    syncAll();
+                    if (!asyncSyncPending.get()) {
+                        break;
+                    }
+                    log.info("检测到新的限速同步请求，继续执行下一轮入口合并同步");
+                }
+            } catch (Exception e) {
+                log.error("同步限速配置文件失败", e);
+            } finally {
+                if (activated) {
+                    requestContextController.deactivate();
+                }
+                asyncSyncRunning.set(false);
+                if (asyncSyncPending.get() && asyncSyncRunning.compareAndSet(false, true)) {
+                    CompletableFuture.runAsync(this::runScheduledAsyncSync, executorService);
+                }
+            }
+        }, executorService);
+    }
+
+    private void runScheduledAsyncSync() {
+        boolean activated = requestContextController.activate();
+        try {
+            while (true) {
+                asyncSyncPending.set(false);
+                syncAll();
+                if (!asyncSyncPending.get()) {
+                    break;
+                }
+                log.info("收尾阶段检测到新的限速同步请求，继续执行下一轮入口合并同步");
+            }
+        } catch (Exception e) {
+            log.error("同步限速配置文件失败", e);
+        } finally {
+            if (activated) {
+                requestContextController.deactivate();
+            }
+            asyncSyncRunning.set(false);
+            if (asyncSyncPending.get()) {
+                scheduleAsyncSync();
+            }
+        }
     }
 
     private record RateLimitSnapshot(long sequence,

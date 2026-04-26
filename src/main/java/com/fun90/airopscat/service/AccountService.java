@@ -3,26 +3,16 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.AccountDto;
 import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
 import com.fun90.airopscat.model.entity.Account;
-import com.fun90.airopscat.model.entity.Node;
-import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.model.enums.PeriodType;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
-import com.fun90.airopscat.repository.NodeRepository;
-import com.fun90.airopscat.repository.ServerRepository;
-import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.repository.UserRepository;
 import com.fun90.airopscat.service.ratelimit.RateLimitService;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.context.control.RequestContextController;
 import jakarta.inject.Inject;
-import jakarta.inject.Named;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Status;
-import jakarta.transaction.Synchronization;
-import jakarta.transaction.TransactionSynchronizationRegistry;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,24 +22,18 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.Locale;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @Slf4j
 @ApplicationScoped
 public class AccountService {
 
-    private final AtomicBoolean rateLimitSyncRunning = new AtomicBoolean(false);
-    private final AtomicBoolean rateLimitSyncPending = new AtomicBoolean(false);
-
     @Inject
     AccountRepository accountRepository;
-    
+
     @Inject
     UserRepository userRepository;
-    
+
     @Inject
     AccountTrafficStatsRepository accountTrafficStatsRepository;
 
@@ -63,47 +47,28 @@ public class AccountService {
     AccountTrafficLimitService accountTrafficLimitService;
 
     @Inject
-    TagRepository tagRepository;
-
-    @Inject
-    NodeRepository nodeRepository;
-
-    @Inject
-    ServerRepository serverRepository;
-
-    @Inject
     RateLimitService rateLimitService;
-
-    @Inject
-    @Named("blockingTaskExecutor")
-    ExecutorService executorService;
-
-    @Inject
-    RequestContextController requestContextController;
-
-    @Inject
-    TransactionSynchronizationRegistry transactionSynchronizationRegistry;
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Account> getAccountPage(String search, Long userId, String status, String onlineStatus) {
         // Create sort by createTime descending
         Sort sort = Sort.by("createTime").descending();
-        
+
         // Build query string
         Map<String, Object> params = new HashMap<>();
-        
+
         List<String> conditions = new ArrayList<>();
-        
+
         // Search condition
         if (search != null && !search.trim().isEmpty()) {
             appendSearchConditions(conditions, params, search);
         }
-        
+
         // UserId filter
         if (userId != null) {
             conditions.add("userId = :userId");
             params.put("userId", userId);
         }
-        
+
         // Status filter
         if (status != null && !status.trim().isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
@@ -158,7 +123,7 @@ public class AccountService {
         }
 
         String query = conditions.isEmpty() ? "" : String.join(" and ", conditions);
-        
+
         if (query.isEmpty()) {
             return accountRepository.findAll(sort);
         } else {
@@ -220,21 +185,21 @@ public class AccountService {
     public Map<String, Long> getAccountsStats() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime inOneWeek = now.plusWeeks(1);
-        
+
         Map<String, Long> stats = new HashMap<>();
         stats.put("total", accountRepository.count() * systemConfigService.getIntValue("airopscat.account.multiplier", 1));
         stats.put("active", accountRepository.countActiveAccounts(now) * systemConfigService.getIntValue("airopscat.account.multiplier", 1));
         stats.put("expired", accountRepository.countExpiredAccounts(now));
         stats.put("disabled", accountRepository.countDisabledAccounts());
         stats.put("expiringSoon", accountRepository.countExpiringInOneWeek(now, inOneWeek));
-        
+
         // 添加在线用户统计（按accountNo去重）
         long onlineUsers = accountOnlineIpService.getAllOnlineRecords().stream()
                 .map(AccountOnlineIpDto::getAccountNo)
                 .distinct()
                 .count();
         stats.put("onlineUsers", onlineUsers * systemConfigService.getIntValue("airopscat.account.multiplier", 1));
-        
+
         return stats;
     }
 
@@ -354,33 +319,33 @@ public class AccountService {
         if (account.getUuid() == null || account.getUuid().trim().isEmpty()) {
             account.setUuid(UUID.randomUUID().toString());
         }
-        
+
         // Generate auth code if not provided
         if (account.getAuthCode() == null || account.getAuthCode().trim().isEmpty()) {
             account.setAuthCode(generateAuthCode());
         }
-        
+
         // Generate account number if not provided
         if (account.getAccountNo() == null || account.getAccountNo().trim().isEmpty()) {
             account.setAccountNo(generateAccountNo());
         }
-        
+
         // Ensure user exists
         if (account.getUserId() != null && userRepository.findById(account.getUserId()) == null) {
             throw new EntityNotFoundException("User with ID " + account.getUserId() + " not found");
         }
-        
+
         // Set default values if not provided
         if (account.getDisabled() == null) {
             account.setDisabled(0);
         }
-        
+
         if (account.getPeriodType() == null || account.getPeriodType().trim().isEmpty()) {
             account.setPeriodType(PeriodType.MONTHLY.name());
         }
-        
+
         accountRepository.persist(account);
-        triggerRateLimitSync();
+        rateLimitService.triggerAsyncSync();
         return account;
     }
 
@@ -391,12 +356,21 @@ public class AccountService {
             throw new EntityNotFoundException("Account not found");
         }
 
+        // 记录限速相关字段的旧值
+        String oldAccountNo = existingAccount.getAccountNo();
+        Integer oldSpeed = existingAccount.getSpeed();
+
         // 使用工具方法复制非null属性
         copyNonNullProperties(account, existingAccount);
 
         accountRepository.persist(existingAccount);
 
-        triggerRateLimitSync();
+        // 仅当 accountNo 或 speed 发生变化时才触发限速同步
+        boolean accountNoChanged = !Objects.equals(oldAccountNo, existingAccount.getAccountNo());
+        boolean speedChanged = !Objects.equals(oldSpeed, existingAccount.getSpeed());
+        if (accountNoChanged || speedChanged) {
+            rateLimitService.triggerAsyncSync();
+        }
 
         // No need to call save/persist for updates in Panache
         return existingAccount;
@@ -412,7 +386,7 @@ public class AccountService {
         accountOnlineIpService.deleteByAccountNo(account.getAccountNo());
         accountTrafficStatsRepository.deleteByAccountId(id);
         accountRepository.deleteById(id);
-        triggerRateLimitSync();
+        rateLimitService.triggerAsyncSync();
     }
 
     @Transactional
@@ -425,40 +399,40 @@ public class AccountService {
         }
         return null;
     }
-    
+
     @Transactional
     public Account renewAccount(Long id, LocalDateTime newExpiryDate) {
         Account account = accountRepository.findById(id);
         if (account == null) {
             throw new EntityNotFoundException("Account not found");
         }
-        
+
         account.setToDate(newExpiryDate);
         if (account.getDisabled() == 1) {
             account.setDisabled(0); // Reactivate account if disabled
         }
-        
+
         // No need to call save/persist for updates in Panache
         return account;
     }
-    
+
     @Transactional
     public Account resetAuthCode(Long id) {
         Account account = accountRepository.findById(id);
         if (account == null) {
             throw new EntityNotFoundException("Account not found");
         }
-        
+
         account.setAuthCode(generateAuthCode());
         // No need to call save/persist for updates in Panache
         return account;
     }
-    
+
     // 生成随机认证码
     private String generateAuthCode() {
         return UUID.randomUUID().toString().replaceAll("-", "").substring(0, 32);
     }
-    
+
     // 生成随机账号
     private String generateAccountNo() {
         return UUID.randomUUID().toString().replaceAll("-", "").substring(0, 12);
@@ -485,79 +459,6 @@ public class AccountService {
                 }
             } catch (IllegalAccessException e) {
                 // 忽略无法访问的字段
-            }
-        }
-    }
-
-    private void triggerRateLimitSync() {
-        transactionSynchronizationRegistry.registerInterposedSynchronization(new Synchronization() {
-            @Override
-            public void beforeCompletion() {
-                // no-op
-            }
-
-            @Override
-            public void afterCompletion(int status) {
-                if (status != Status.STATUS_COMMITTED) {
-                    return;
-                }
-                scheduleRateLimitSync();
-            }
-        });
-    }
-
-    private void scheduleRateLimitSync() {
-        rateLimitSyncPending.set(true);
-        if (!rateLimitSyncRunning.compareAndSet(false, true)) {
-            log.info("限速同步任务已在队列或执行中，本次请求已合并");
-            return;
-        }
-
-        CompletableFuture.runAsync(() -> {
-            boolean activated = requestContextController.activate();
-            try {
-                while (true) {
-                    rateLimitSyncPending.set(false);
-                    rateLimitService.syncAll();
-                    if (!rateLimitSyncPending.get()) {
-                        break;
-                    }
-                    log.info("检测到新的限速同步请求，继续执行下一轮入口合并同步");
-                }
-            } catch (Exception e) {
-                log.error("同步限速配置文件失败", e);
-            } finally {
-                if (activated) {
-                    requestContextController.deactivate();
-                }
-                rateLimitSyncRunning.set(false);
-                if (rateLimitSyncPending.get() && rateLimitSyncRunning.compareAndSet(false, true)) {
-                    CompletableFuture.runAsync(this::runScheduledRateLimitSync, executorService);
-                }
-            }
-        }, executorService);
-    }
-
-    private void runScheduledRateLimitSync() {
-        boolean activated = requestContextController.activate();
-        try {
-            while (true) {
-                rateLimitSyncPending.set(false);
-                rateLimitService.syncAll();
-                if (!rateLimitSyncPending.get()) {
-                    break;
-                }
-                log.info("收尾阶段检测到新的限速同步请求，继续执行下一轮入口合并同步");
-            }
-        } catch (Exception e) {
-            log.error("同步限速配置文件失败", e);
-        } finally {
-            if (activated) {
-                requestContextController.deactivate();
-            }
-            rateLimitSyncRunning.set(false);
-            if (rateLimitSyncPending.get()) {
-                scheduleRateLimitSync();
             }
         }
     }

@@ -6,18 +6,10 @@ import com.fun90.airopscat.model.entity.AlertState;
 import com.fun90.airopscat.repository.AlertStateRepository;
 import com.fun90.airopscat.service.ratelimit.RateLimitService;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.context.control.RequestContextController;
 import jakarta.inject.Inject;
-import jakarta.inject.Named;
-import jakarta.transaction.Status;
-import jakarta.transaction.Synchronization;
-import jakarta.transaction.TransactionSynchronizationRegistry;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @ApplicationScoped
@@ -29,9 +21,6 @@ public class AccountTrafficOverQuotaService {
     private static final String STATUS_RECOVERED = "RECOVERED";
     private static final String SEVERITY_WARNING = "WARNING";
     private static final String NOTIFY_INTERVAL_KEY = "airopscat.account.connection-limit.alert.min-interval-minutes";
-
-    private final AtomicBoolean rateLimitSyncRunning = new AtomicBoolean(false);
-    private final AtomicBoolean rateLimitSyncPending = new AtomicBoolean(false);
 
     @Inject
     AlertStateRepository alertStateRepository;
@@ -48,16 +37,6 @@ public class AccountTrafficOverQuotaService {
     @Inject
     RateLimitService rateLimitService;
 
-    @Inject
-    TransactionSynchronizationRegistry transactionSynchronizationRegistry;
-
-    @Inject
-    RequestContextController requestContextController;
-
-    @Inject
-    @Named("blockingTaskExecutor")
-    ExecutorService executorService;
-
     public void handle(Account account, AccountTrafficStats stats) {
         if (account == null || stats == null || account.getId() == null) {
             return;
@@ -66,6 +45,7 @@ public class AccountTrafficOverQuotaService {
         long usedBytes = safe(stats.getUploadBytes()) + safe(stats.getDownloadBytes());
         Long effectiveBandwidth = accountTrafficLimitService.resolveEffectiveBandwidth(account, stats);
         if (accountTrafficLimitService.isOverQuota(usedBytes, effectiveBandwidth)) {
+            rateLimitService.triggerAsyncSync();
             triggerAlert(account, usedBytes, effectiveBandwidth);
             return;
         }
@@ -80,12 +60,10 @@ public class AccountTrafficOverQuotaService {
                 .findByIdentity(ALERT_TYPE, RESOURCE_TYPE, account.getId(), fingerprint)
                 .orElseGet(() -> newAlertState(account, fingerprint, now));
 
-        boolean becameActive = !STATUS_ACTIVE.equals(state.getStatus());
-        if (becameActive) {
+        if (!STATUS_ACTIVE.equals(state.getStatus())) {
             state.setStatus(STATUS_ACTIVE);
             state.setFirstTriggeredTime(now);
             state.setRecoveredTime(null);
-            requestRateLimitSyncAfterCommit();
         }
 
         AccountTrafficLimitService.EffectiveSpeedLimit limit =
@@ -120,7 +98,7 @@ public class AccountTrafficOverQuotaService {
                     state.setLastValue(toGb(usedBytes));
                     state.setThresholdValue(effectiveBandwidth == null ? null : effectiveBandwidth.doubleValue());
                     state.setSummary(buildRecoverySummary(account, usedBytes, effectiveBandwidth));
-                    requestRateLimitSyncAfterCommit();
+                    rateLimitService.triggerAsyncSync();
                 });
     }
 
@@ -184,55 +162,4 @@ public class AccountTrafficOverQuotaService {
         }
     }
 
-    private void requestRateLimitSyncAfterCommit() {
-        if (transactionSynchronizationRegistry == null) {
-            scheduleRateLimitSync();
-            return;
-        }
-        transactionSynchronizationRegistry.registerInterposedSynchronization(new Synchronization() {
-            @Override
-            public void beforeCompletion() {
-            }
-
-            @Override
-            public void afterCompletion(int status) {
-                if (status == Status.STATUS_COMMITTED) {
-                    scheduleRateLimitSync();
-                }
-            }
-        });
-    }
-
-    private void scheduleRateLimitSync() {
-        if (rateLimitService == null || executorService == null) {
-            return;
-        }
-        rateLimitSyncPending.set(true);
-        if (!rateLimitSyncRunning.compareAndSet(false, true)) {
-            return;
-        }
-
-        CompletableFuture.runAsync(() -> {
-            boolean activated = requestContextController != null && requestContextController.activate();
-            try {
-                while (true) {
-                    rateLimitSyncPending.set(false);
-                    rateLimitService.syncAll();
-                    if (!rateLimitSyncPending.get()) {
-                        break;
-                    }
-                }
-            } catch (Exception e) {
-                log.error("同步流量超额限速配置失败", e);
-            } finally {
-                if (activated) {
-                    requestContextController.deactivate();
-                }
-                rateLimitSyncRunning.set(false);
-                if (rateLimitSyncPending.get()) {
-                    scheduleRateLimitSync();
-                }
-            }
-        }, executorService);
-    }
 }

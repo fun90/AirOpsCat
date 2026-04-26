@@ -7,9 +7,8 @@
 
 - [x] 2.1 修改 `DeploymentDataLoader#buildNodeClientsMap`，移除 `isWithinBandwidth(...)` 过滤，确保流量用量不再用于剔除账户
 - [x] 2.2 删除或停用 `DeploymentDataLoader#isWithinBandwidth`，确保流量超额账户仍会进入节点客户端列表
-- [x] 2.3 扩展 `NodeClient` 以携带有效速度字段，或确认现有下游不需要该字段时将同一有效速度计算逻辑接入 `RateLimitService`
+- [x] 2.3 限速值仅通过 `RateLimitService` 输出的限速配置下发
 - [x] 2.4 新增有效速度计算方法：未超额返回 `Account.speed`；超额且账户未限速时返回超额限速；超额且账户已限速时返回 `min(Account.speed, 超额限速)`
-- [x] 2.5 检查 `JsonReflectionConfiguration`，如 `NodeClient` 字段变化影响 JSON 序列化或原生镜像，补充注册或验证已有注册覆盖
 
 ## 3. 超额处置服务
 
@@ -20,7 +19,7 @@
 
 ## 4. 流量统计触发
 
-- [x] 4.1 修改 `AccountTrafficStatsService.saveOrUpdateTrafficStats()`，在新建或更新当前周期记录后调用超额处置服务
+- [x] 4.1 修改 `TrafficStatsTask`，在 `AccountTrafficStatsService.saveOrUpdateTrafficStats()` 新建或更新当前周期记录后调用超额处置服务
 - [x] 4.2 确保超额判定使用 `AccountTrafficStats.bandwidthQuota` 优先、`Account.bandwidth` 兜底的有效配额逻辑
 - [x] 4.3 确保超额边界按当前周期总用量大于等于有效配额触发，并正确换算 GB 到字节
 
@@ -33,7 +32,7 @@
 
 ## 6. 配置刷新与限速同步
 
-- [x] 6.1 在账户进入或恢复流量超额状态后，请求节点部署或 `RateLimitService.syncAll()` 等价刷新入口
+- [x] 6.1 在账户流量统计任务检测到超过限额或恢复时，触发限速同步（`triggerRateLimitSync` / `RateLimitService.syncAll()`）
 - [x] 6.2 确认全局限速开关关闭时仍记录告警并发送通知，远端实际执行保持由现有限速同步逻辑控制
 - [x] 6.3 调整 `RateLimitService` 输出的 `accounts.json`，如该文件仍承担限速下发职责，则使用与部署客户端一致的有效速度计算逻辑，而不是直接使用 `Account.speed`
 
@@ -49,6 +48,6 @@
 
 - [x] 8.1 增加单元测试覆盖：未超额使用账户 `speed`、超额未配置账户 `speed` 时使用默认 20、配置值覆盖默认值、超额且已有更低账户限速时不被放宽
 - [x] 8.2 增加单元测试覆盖：首次超额创建 ACTIVE 告警、持续超额按间隔抑制重复通知、恢复时标记 RECOVERED 且不修改账户 `speed`
-- [x] 8.3 增加或调整部署数据加载测试，验证超额账户不再被过滤且速度字段根据超额状态计算
+- [x] 8.3 增加或调整验证，确认超额账户不再被过滤且 `NodeClient` 不携带 speed 字段
 - [x] 8.4 增加账户详情 DTO/前端展示测试，验证流量超额限速标识只在 `trafficOverQuotaLimited` 为 `true` 时出现
 - [x] 8.5 运行 `./mvnw test`，并按需要手动验证账户详情页面和限速配置同步输出

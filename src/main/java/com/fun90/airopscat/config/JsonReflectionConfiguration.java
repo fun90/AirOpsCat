@@ -61,7 +61,6 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.dto.NodeDeploymentVersionDto.class,
     com.fun90.airopscat.model.dto.NodeDeploymentVersionDetailDto.class,
     com.fun90.airopscat.model.dto.NodeDeploymentVersionSnapshotDto.class,
-    com.fun90.airopscat.model.dto.deployment.NodeClient.class,
     com.fun90.airopscat.model.dto.DomainDto.class,
     com.fun90.airopscat.model.dto.DnsProviderConfigDto.class,
     com.fun90.airopscat.model.dto.DnsProviderConfigRequest.class,
