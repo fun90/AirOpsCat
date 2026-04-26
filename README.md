@@ -187,7 +187,7 @@ Custom application properties use the `airopscat.*` namespace, including:
 ## Deployment Notes
 
 - The repository includes Docker-related files under `src/main/docker`.
-- Assembly and install assets live under `src/main/assembly` and `src/main/resources/config/install`.
+- Assembly and shell assets live under `src/main/assembly` and `src/main/resources/config/shell`.
 - The application contains scheduled jobs for backup, cleanup, traffic collection, account expiration handling, and notifications. Be careful when changing related services because those changes can affect background processing as well as request handling.
 
 ## Security Warning

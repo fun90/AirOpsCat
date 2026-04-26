@@ -271,7 +271,7 @@ public class SystemConfigService {
                 50,
                 false,
                 item("airopscat.config.templates.dir", "模板目录", "订阅和核心配置模板目录。", INPUT_TEXT, true, false, false, true, "./config", "./config"),
-                item("airopscat.install.scripts.dir", "运维脚本目录", "服务器运维脚本的本地存放目录，兼容原一键安装脚本目录配置。", INPUT_TEXT, true, false, false, true, "./config/install", "./config/install"),
+                item("airopscat.install.scripts.dir", "运维脚本目录", "服务器运维脚本的本地存放目录，兼容原一键安装脚本目录配置。", INPUT_TEXT, true, false, false, true, "./config/shell", "./config/shell"),
                 item("airopscat.install.remote-work-dir", "远端工作目录", "服务器运维脚本在服务器上的工作目录。", INPUT_TEXT, true, false, false, true, "/tmp/airopscat-maintenance", "/tmp/airopscat-installer"),
                 item("airopscat.deployment.max-parallel-servers", "部署并发服务器数", "单轮节点部署最多并发处理的服务器数。", INPUT_NUMBER, true, false, false, true, "4", "4")
         ));

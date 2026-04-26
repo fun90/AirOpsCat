@@ -1242,7 +1242,7 @@ JDBC URL 可评估补充：
 - [SingBoxGrpcQueryClientTest.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/test/java/com/fun90/airopscat/service/traffic/impl/SingBoxGrpcQueryClientTest.java)、[TrafficStatsTaskTest.java](/Users/omg/Documents/Code/VPN/AirOpsCat/src/test/java/com/fun90/airopscat/scheduler/TrafficStatsTaskTest.java) 已覆盖重试释放行为与“同一服务器多配置只创建一次 SSH 连接”场景
 - 当前实现说明：
 - 流量统计已恢复为基于 `experimental.v2ray_api` 的 gRPC 查询链路。
-- `experimental.clash_api` 仍需保留，因为服务器本地限速脚本 [02-ratelimit-agent.sh](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/resources/config/install/02-ratelimit-agent.sh) 仍会直接请求 `/connections`，这部分不再依赖 Java 统计代码。
+- `experimental.clash_api` 仍需保留，因为服务器本地限速脚本 [02-ratelimit-agent.sh](/Users/omg/Documents/Code/VPN/AirOpsCat/src/main/resources/config/shell/02-ratelimit-agent.sh) 仍会直接请求 `/connections`，这部分不再依赖 Java 统计代码。
 - 本轮未处理：
 - 跨服务器并发采集
 - SSH 连接池化或跨任务复用
