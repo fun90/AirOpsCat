@@ -337,6 +337,11 @@ public class RateLimitService {
             scheduleAsyncSync();
             return;
         }
+        if (transactionSynchronizationRegistry.getTransactionKey() == null) {
+            // 无活跃事务（如调度任务上下文），直接异步同步
+            scheduleAsyncSync();
+            return;
+        }
         transactionSynchronizationRegistry.registerInterposedSynchronization(new Synchronization() {
             @Override
             public void beforeCompletion() {
