@@ -7,6 +7,7 @@ import com.fun90.airopscat.model.dto.deployment.RouteRuleSnapshot;
 import com.fun90.airopscat.model.dto.deployment.ServerSnapshot;
 import com.fun90.airopscat.model.dto.deployment.NodeClient;
 import com.fun90.airopscat.model.entity.Account;
+import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
@@ -14,6 +15,7 @@ import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
+import com.fun90.airopscat.service.AccountTrafficLimitService;
 import com.fun90.airopscat.service.NodeGroupService;
 import com.fun90.airopscat.service.RouteRuleService;
 import com.fun90.airopscat.util.JsonUtil;
@@ -44,6 +46,7 @@ public class DeploymentDataLoader {
     private final AccountTrafficStatsRepository accountTrafficRepository;
     private final RouteRuleService routeRuleService;
     private final NodeGroupService nodeGroupService;
+    private final AccountTrafficLimitService accountTrafficLimitService;
     public DeploymentPreload load(List<Node> inputNodes) {
         List<Node> expandedInputNodes = nodeGroupService.expandWithRelatedGroups(inputNodes);
         List<Long> targetServerIds = collectTargetServerIds(expandedInputNodes);
@@ -311,7 +314,7 @@ public class DeploymentDataLoader {
                 .collect(Collectors.toMap(Account::getId, account -> account, (left, right) -> left));
 
         Map<Long, List<Long>> tagAccountIdsMap = tagRepository.findAccountIdsByTagIds(allTagIds);
-        Map<Long, Long> accountUsageMap = accountTrafficRepository.sumBytesByAccountIds(
+        Map<Long, AccountTrafficStats> currentStatsMap = accountTrafficRepository.findCurrentPeriodByAccountIds(
                 new ArrayList<>(accountMap.keySet()), now);
 
         Map<Long, List<NodeClient>> result = new HashMap<>();
@@ -328,8 +331,7 @@ public class DeploymentDataLoader {
             List<NodeClient> clients = accountIds.stream()
                     .map(accountMap::get)
                     .filter(Objects::nonNull)
-                    .filter(account -> isWithinBandwidth(account, accountUsageMap.get(account.getId())))
-                    .map(this::toVlessClient)
+                    .map(account -> toVlessClient(account, currentStatsMap.get(account.getId())))
                     .toList();
             result.put(node.getId(), clients);
         }
@@ -337,16 +339,10 @@ public class DeploymentDataLoader {
         return result;
     }
 
-    private boolean isWithinBandwidth(Account account, Long usedBytes) {
-        if (usedBytes == null || account.getBandwidth() == null) {
-            return true;
-        }
-        long bandwidthBytes = account.getBandwidth() * 1024L * 1024L * 1024L;
-        return usedBytes < bandwidthBytes;
-    }
-
-    private NodeClient toVlessClient(Account account) {
-        return new NodeClient(account.getUuid(), account.getAccountNo(), "xtls-rprx-vision");
+    private NodeClient toVlessClient(Account account, AccountTrafficStats currentStats) {
+        AccountTrafficLimitService.EffectiveSpeedLimit speedLimit =
+                accountTrafficLimitService.resolveEffectiveSpeed(account, currentStats);
+        return new NodeClient(account.getUuid(), account.getAccountNo(), "xtls-rprx-vision", speedLimit.speed());
     }
 
     private boolean supportsManagedClients(Node node) {

@@ -281,6 +281,12 @@ const accountTable = new DataTable({
             return 'bg-success';
         },
 
+        formatSpeedLimit(item) {
+            if (!item) return '无限制';
+            const speed = item.effectiveSpeed != null ? item.effectiveSpeed : item.speed;
+            return speed && Number(speed) > 0 ? `${speed} KB/s` : '无限制';
+        },
+
         // 统计周期相关方法
         getPeriodTypeLabel(periodType) {
             if (!periodType) return '未设置';

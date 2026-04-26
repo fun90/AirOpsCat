@@ -455,7 +455,12 @@
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label text-muted">速度限制</label>
-                                        <div class="fw-bold">{{ selectedItem.speed || '无限制' }}</div>
+                                        <div class="fw-bold">
+                                            {{ formatSpeedLimit(selectedItem) }}
+                                            <span v-if="selectedItem.trafficOverQuotaLimited" class="badge bg-warning-lt ms-2">
+                                                流量超额限速
+                                            </span>
+                                        </div>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label text-muted">流量限制</label>

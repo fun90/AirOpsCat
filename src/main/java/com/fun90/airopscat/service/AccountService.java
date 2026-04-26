@@ -60,6 +60,9 @@ public class AccountService {
     SystemConfigService systemConfigService;
 
     @Inject
+    AccountTrafficLimitService accountTrafficLimitService;
+
+    @Inject
     TagRepository tagRepository;
 
     @Inject
@@ -307,6 +310,10 @@ public class AccountService {
                     ? currentStats.getBandwidthQuota()
                     : (account.getBandwidth() != null ? account.getBandwidth().longValue() : null);
             dto.setEffectiveBandwidth(effectiveBandwidth);
+            AccountTrafficLimitService.EffectiveSpeedLimit speedLimit =
+                    accountTrafficLimitService.resolveEffectiveSpeed(account, dto.getTotalUsedBytes(), effectiveBandwidth);
+            dto.setEffectiveSpeed(speedLimit.speed());
+            dto.setTrafficOverQuotaLimited(speedLimit.trafficOverQuotaLimited());
             if (effectiveBandwidth != null && effectiveBandwidth > 0) {
                 long bandwidthInBytes = effectiveBandwidth * 1024L * 1024L * 1024L;
                 dto.setUsagePercentage(Math.min(100.0, (dto.getTotalUsedBytes() * 100.0) / bandwidthInBytes));

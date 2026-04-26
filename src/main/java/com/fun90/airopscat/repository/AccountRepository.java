@@ -32,6 +32,10 @@ public class AccountRepository implements PanacheRepository<Account> {
         return find("disabled = 0 and speed is not null and speed > 0 and (toDate is null or toDate > ?1)", now).list();
     }
 
+    public List<Account> findActiveAccounts(LocalDateTime now) {
+        return find("disabled = 0 and (toDate is null or toDate > ?1)", now).list();
+    }
+
     public List<Account> findActiveConnectionLimitedAccounts(LocalDateTime now) {
         return find("disabled = 0 and maxConnections is not null and maxConnections > 0 and (toDate is null or toDate > ?1)", now).list();
     }

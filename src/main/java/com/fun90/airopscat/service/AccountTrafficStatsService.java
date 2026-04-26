@@ -36,18 +36,21 @@ public class AccountTrafficStatsService {
     private final UserRepository userRepository;
     private final EntityManager entityManager;
     private final SystemConfigService systemConfigService;
+    private final AccountTrafficOverQuotaService accountTrafficOverQuotaService;
 
     @Inject
     public AccountTrafficStatsService(AccountTrafficStatsRepository accountTrafficStatsRepository,
                                       AccountRepository accountRepository,
                                       UserRepository userRepository,
                                       EntityManager entityManager,
-                                      SystemConfigService systemConfigService) {
+                                      SystemConfigService systemConfigService,
+                                      AccountTrafficOverQuotaService accountTrafficOverQuotaService) {
         this.accountTrafficStatsRepository = accountTrafficStatsRepository;
         this.accountRepository = accountRepository;
         this.userRepository = userRepository;
         this.entityManager = entityManager;
         this.systemConfigService = systemConfigService;
+        this.accountTrafficOverQuotaService = accountTrafficOverQuotaService;
     }
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<AccountTrafficStats> getStatsPage(Long userId,
@@ -273,6 +276,8 @@ public class AccountTrafficStatsService {
             AccountTrafficStats stats = existingStats.getFirst();
             stats.setUploadBytes(stats.getUploadBytes() + uploadBytes);
             stats.setDownloadBytes(stats.getDownloadBytes() + downloadBytes);
+            Account account = accountRepository.findById(accountId);
+            accountTrafficOverQuotaService.handle(account, stats);
             return stats;
         }
 
@@ -289,6 +294,7 @@ public class AccountTrafficStatsService {
             newStats.setBandwidthQuota(account.getBandwidth() != null ? account.getBandwidth().longValue() : null);
         }
         accountTrafficStatsRepository.persist(newStats);
+        accountTrafficOverQuotaService.handle(account, newStats);
         return newStats;
     }
 

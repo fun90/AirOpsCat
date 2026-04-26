@@ -3,12 +3,15 @@ package com.fun90.airopscat.service.ratelimit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.entity.Account;
+import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.repository.AccountRepository;
+import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.scheduler.ScheduledSupport;
+import com.fun90.airopscat.service.AccountTrafficLimitService;
 import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
@@ -52,6 +55,9 @@ public class RateLimitService {
     AccountRepository accountRepository;
 
     @Inject
+    AccountTrafficStatsRepository accountTrafficStatsRepository;
+
+    @Inject
     ServerConfigRepository serverConfigRepository;
 
     @Inject
@@ -62,6 +68,9 @@ public class RateLimitService {
 
     @Inject
     SystemConfigService systemConfigService;
+
+    @Inject
+    AccountTrafficLimitService accountTrafficLimitService;
 
     @Inject
     ScheduledSupport scheduledSupport;
@@ -205,9 +214,15 @@ public class RateLimitService {
             if (account == null) {
                 continue;
             }
+            AccountTrafficLimitService.EffectiveSpeedLimit speedLimit = accountTrafficLimitService.resolveEffectiveSpeed(
+                    account,
+                    snapshot.currentStatsMap().get(account.getId()));
+            if (speedLimit.speed() == null || speedLimit.speed() <= 0) {
+                continue;
+            }
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("accountNo", account.getAccountNo());
-            item.put("speed", account.getSpeed());
+            item.put("speed", speedLimit.speed());
             accounts.add(item);
         }
 
@@ -220,13 +235,20 @@ public class RateLimitService {
     private RateLimitSnapshot createSnapshot() {
         LocalDateTime snapshotTime = LocalDateTime.now();
         Map<String, Account> accountMap = new LinkedHashMap<>();
-        for (Account account : accountRepository.findActiveRateLimitedAccounts(snapshotTime)) {
+        List<Account> accounts = accountRepository.findActiveAccounts(snapshotTime);
+        for (Account account : accounts) {
             if (account.getAccountNo() == null || account.getAccountNo().isBlank()) {
                 continue;
             }
             accountMap.put(account.getAccountNo(), account);
         }
-        return new RateLimitSnapshot(syncAllSequence.incrementAndGet(), snapshotTime, accountMap);
+        List<Long> accountIds = accounts.stream()
+                .map(Account::getId)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        Map<Long, AccountTrafficStats> currentStatsMap =
+                accountTrafficStatsRepository.findCurrentPeriodByAccountIds(accountIds, snapshotTime);
+        return new RateLimitSnapshot(syncAllSequence.incrementAndGet(), snapshotTime, accountMap, currentStatsMap);
     }
 
     private Set<String> extractServerAccountNos(Server server) {
@@ -302,6 +324,9 @@ public class RateLimitService {
         void accept(SshConnection connection) throws Exception;
     }
 
-    private record RateLimitSnapshot(long sequence, LocalDateTime updatedAt, Map<String, Account> accountMap) {
+    private record RateLimitSnapshot(long sequence,
+                                     LocalDateTime updatedAt,
+                                     Map<String, Account> accountMap,
+                                     Map<Long, AccountTrafficStats> currentStatsMap) {
     }
 }
