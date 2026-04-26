@@ -1,6 +1,7 @@
 <div class="page-body">
     <div class="container-xl">
         <div class="row g-4">
+            <!-- 左侧：作业目标 -->
             <div class="col-12 col-xl-4">
                 <div class="card">
                     <div class="card-header">
@@ -12,19 +13,33 @@
                         </div>
                     </div>
                     <div class="card-body">
+                        <!-- 服务器多选 -->
                         <div class="mb-3">
-                            <label class="form-label required">选择服务器</label>
-                            <select class="form-select" v-model="selectedServerId" :disabled="executing">
-                                <option value="">请选择服务器</option>
-                                <option v-for="server in servers" :key="server.id" :value="String(server.id)">
-                                    {{ server.name }}
-                                </option>
-                            </select>
-                            <div class="form-hint">会使用当前服务器已保存的 SSH 信息执行运维脚本。</div>
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <label class="form-label mb-0 required">选择服务器</label>
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-outline-secondary btn-xs" type="button" @click="selectAllServers" :disabled="executing">全选</button>
+                                    <button class="btn btn-outline-secondary btn-xs" type="button" @click="clearServerSelection" :disabled="executing">清空</button>
+                                </div>
+                            </div>
+                            <div class="list-group list-group-flush border rounded" style="max-height:200px;overflow-y:auto;">
+                                <label class="list-group-item list-group-item-action py-2 px-3" v-for="server in servers" :key="server.id">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <input class="form-check-input flex-shrink-0"
+                                               type="checkbox"
+                                               :value="String(server.id)"
+                                               v-model="selectedServerIds"
+                                               :disabled="executing">
+                                        <span class="small">{{ server.name }}</span>
+                                    </div>
+                                </label>
+                                <div class="list-group-item py-3 text-center text-secondary small" v-if="!servers.length">暂无可用服务器</div>
+                            </div>
+                            <div class="form-hint">支持同时选择多台服务器并发执行。</div>
                         </div>
 
                         <div class="alert alert-info" v-if="scripts.length">
-                            勾选脚本后会按文件名前缀顺序执行,例如 `01-prepare.sh` 会先于 `02-runtime.sh`。点击脚本名称可预览内容。
+                            勾选脚本后会按文件名前缀顺序执行，例如 `01-prepare.sh` 会先于 `02-runtime.sh`。点击脚本名称可预览或编辑内容。
                         </div>
                         <div class="alert alert-warning" v-else>
                             当前脚本目录没有匹配 `01-xxx.sh` 规则的脚本。
@@ -32,14 +47,18 @@
 
                         <div class="d-flex gap-2 flex-wrap mb-3" v-if="scripts.length">
                             <button class="btn btn-outline-secondary btn-sm" type="button" @click="selectAllScripts" :disabled="executing">
-                                全选
+                                全选脚本
                             </button>
                             <button class="btn btn-outline-secondary btn-sm" type="button" @click="clearScriptSelection" :disabled="executing">
-                                清空
+                                清空脚本
                             </button>
                             <button class="btn btn-primary" type="button" @click="runSelectedScripts" :disabled="!canStartExecution">
                                 <span v-if="executing" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                开始执行
+                                批量执行
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" type="button" @click="resumeExecution" :disabled="!canResumeExecution" title="跳过已成功的步骤，继续执行剩余步骤">
+                                <span v-if="executing" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                继续执行
                             </button>
                         </div>
 
@@ -58,7 +77,7 @@
                                             <a href="#" @click.prevent="previewScript(script.fileName)" class="fw-medium text-decoration-none">
                                                 {{ script.fileName }}
                                             </a>
-                                            <button class="btn btn-sm btn-ghost-secondary" @click.prevent="previewScript(script.fileName)" :disabled="loadingPreview">
+                                            <button class="btn btn-sm btn-ghost-secondary" @click.prevent="previewScript(script.fileName)" :disabled="loadingPreview" title="预览">
                                                 <i class="ti ti-eye"></i>
                                             </button>
                                         </div>
@@ -72,13 +91,28 @@
                 </div>
             </div>
 
+            <!-- 右侧：预览/编辑 + 执行结果 -->
             <div class="col-12 col-xl-8">
-                <!-- Script Preview Card -->
-                <div class="card mb-4" v-if="previewContent">
+                <!-- 脚本预览/编辑卡片 -->
+                <div class="card mb-4" v-if="previewContent || previewScriptName">
                     <div class="card-header">
-                        <h3 class="card-title">脚本预览</h3>
-                        <div class="card-actions">
-                            <button class="btn btn-sm btn-ghost-secondary" @click="closePreview" title="关闭预览">
+                        <h3 class="card-title">{{ editMode ? '编辑脚本' : '脚本预览' }}</h3>
+                        <div class="card-actions d-flex gap-2">
+                            <template v-if="!editMode">
+                                <button class="btn btn-sm btn-outline-primary" @click="startEdit" title="编辑脚本">
+                                    <i class="ti ti-pencil me-1"></i>编辑
+                                </button>
+                            </template>
+                            <template v-else>
+                                <button class="btn btn-sm btn-primary" @click="saveScript" :disabled="savingScript">
+                                    <span v-if="savingScript" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                    保存
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" @click="cancelEdit" :disabled="savingScript">
+                                    取消
+                                </button>
+                            </template>
+                            <button class="btn btn-sm btn-ghost-secondary" @click="closePreview" title="关闭">
                                 <i class="ti ti-x"></i>
                             </button>
                         </div>
@@ -90,19 +124,28 @@
                                 <span class="fw-medium">{{ previewScriptName }}</span>
                             </div>
                         </div>
-                        <pre class="bg-dark text-white p-3 m-0 maintenance-log" style="max-height: 400px;">{{ previewContent }}</pre>
+                        <template v-if="!editMode">
+                            <pre class="bg-dark text-white p-3 m-0 maintenance-log" style="max-height: 400px;">{{ previewContent }}</pre>
+                        </template>
+                        <template v-else>
+                            <textarea class="form-control maintenance-editor font-monospace"
+                                      v-model="editContent"
+                                      :disabled="savingScript"
+                                      spellcheck="false"
+                                      style="min-height:400px;resize:vertical;border-radius:0;border-left:none;border-right:none;border-bottom:none;"></textarea>
+                        </template>
                     </div>
                 </div>
 
-                <!-- Execution Steps Card -->
+                <!-- 执行步骤卡片 -->
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">执行步骤</h3>
-                        <div class="card-actions text-secondary small" v-if="selectedSteps.length">
-                            已选择 {{ selectedSteps.length }} 个步骤
+                        <div class="card-actions text-secondary small" v-if="selectedSteps.length && selectedServers.length">
+                            {{ selectedServers.length }} 台服务器 × {{ selectedSteps.length }} 个步骤
                         </div>
                     </div>
-                    <div class="progress progress-sm rounded-0" v-if="selectedSteps.length">
+                    <div class="progress progress-sm rounded-0" v-if="selectedSteps.length && selectedServers.length">
                         <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
                              :style="{ width: progressPercent + '%' }"
                              :aria-valuenow="progressPercent"
@@ -111,72 +154,95 @@
                         </div>
                     </div>
                     <div class="card-body p-0">
-                        <div v-if="!selectedSteps.length" class="empty py-5">
+                        <div v-if="!selectedSteps.length || !selectedServers.length" class="empty py-5">
                             <div class="empty-img"><i class="ti ti-checklist fs-1 text-secondary"></i></div>
-                            <p class="empty-title">先选择要执行的脚本</p>
-                            <p class="empty-subtitle text-secondary">系统会顺序执行,并展示每一步的输出和错误信息。</p>
+                            <p class="empty-title">先选择服务器和脚本</p>
+                            <p class="empty-subtitle text-secondary">系统会对每台服务器顺序执行所选脚本，并展示每一步的输出和错误信息。</p>
                         </div>
 
-                        <div v-else class="list-group list-group-flush">
-                            <div class="list-group-item maintenance-step-item"
-                                 :class="stepItemClass(step, index)"
-                                 v-for="(step, index) in selectedSteps"
-                                 :key="step.fileName">
-                                <div class="d-flex justify-content-between gap-3 align-items-start">
-                                    <div>
-                                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                                            <span class="badge maintenance-status-badge" :class="statusBadgeClass(step.status)">
-                                                <span v-if="step.status === 'running'" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                                                {{ statusLabel(step.status) }}
+                        <!-- 按服务器分组的 accordion -->
+                        <div v-else class="accordion accordion-flush" id="serverStepsAccordion">
+                            <div class="accordion-item" v-for="server in selectedServers" :key="server.id">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button py-3" type="button"
+                                            data-bs-toggle="collapse"
+                                            :data-bs-target="'#server-steps-' + server.id"
+                                            aria-expanded="true">
+                                        <div class="d-flex align-items-center gap-2 flex-grow-1 me-3">
+                                            <span class="badge" :class="serverSummaryBadge(server.id)">
+                                                {{ serverSummaryLabel(server.id) }}
                                             </span>
-                                            <span class="fw-medium">{{ index + 1 }}. {{ step.title }}</span>
-                                            <a href="#" @click.prevent="previewScript(step.fileName)" class="text-secondary small text-decoration-none">
-                                                {{ step.fileName }}
-                                            </a>
+                                            <span class="fw-medium">{{ server.name }}</span>
+                                            <span class="text-secondary small">{{ server.ip }}</span>
                                         </div>
-                                        <div class="text-secondary small mt-1">{{ step.description || '按顺序执行的运维步骤' }}</div>
-                                        <div class="text-warning small mt-1" v-if="isStepLocked(index)">
-                                            需前一个步骤执行成功后才可继续
+                                    </button>
+                                </h2>
+                                <div :id="'server-steps-' + server.id" class="accordion-collapse collapse show">
+                                    <div class="accordion-body p-0">
+                                        <div class="list-group list-group-flush">
+                                            <div class="list-group-item maintenance-step-item"
+                                                 :class="stepItemClass(server.id, step.fileName)"
+                                                 v-for="(step, index) in selectedSteps"
+                                                 :key="step.fileName">
+                                                <div class="d-flex justify-content-between gap-3 align-items-start">
+                                                    <div>
+                                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                                            <span class="badge maintenance-status-badge" :class="statusBadgeClass(getStepState(server.id, step.fileName).status)">
+                                                                <span v-if="getStepState(server.id, step.fileName).status === 'running'" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                                                {{ statusLabel(getStepState(server.id, step.fileName).status) }}
+                                                            </span>
+                                                            <span class="fw-medium">{{ index + 1 }}. {{ step.title }}</span>
+                                                            <a href="#" @click.prevent="previewScript(step.fileName)" class="text-secondary small text-decoration-none">
+                                                                {{ step.fileName }}
+                                                            </a>
+                                                        </div>
+                                                        <div class="text-secondary small mt-1">{{ step.description || '按顺序执行的运维步骤' }}</div>
+                                                        <div class="text-warning small mt-1" v-if="isStepLocked(server.id, index)">
+                                                            需前一个步骤执行成功后才可继续
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="d-flex gap-2 flex-wrap flex-shrink-0">
+                                                        <button class="btn btn-outline-primary btn-sm"
+                                                                type="button"
+                                                                @click="executeSingleStep(server.id, step.fileName)"
+                                                                :disabled="!canRunSingleStep(server.id, index)">
+                                                            <span v-if="getStepState(server.id, step.fileName).status === 'running'" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                                            执行此步
+                                                        </button>
+                                                        <button class="btn btn-outline-warning btn-sm"
+                                                                type="button"
+                                                                @click="retryStep(server.id, step.fileName)"
+                                                                :disabled="!canRetryStep(server.id, step, index)">
+                                                            重试
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div class="row g-3 mt-1" v-if="getStepState(server.id, step.fileName).result">
+                                                    <div class="col-md-4">
+                                                        <div class="small text-secondary">退出码</div>
+                                                        <div class="fw-medium">{{ getStepState(server.id, step.fileName).result.exitStatus }}</div>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <div class="small text-secondary">耗时</div>
+                                                        <div class="fw-medium">{{ formatDuration(getStepState(server.id, step.fileName).result.durationMs) }}</div>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <div class="small text-secondary">执行时间</div>
+                                                        <div class="fw-medium">{{ formatDateTime(getStepState(server.id, step.fileName).result.finishedAt) || '-' }}</div>
+                                                    </div>
+                                                    <div class="col-12" v-if="getStepState(server.id, step.fileName).result.stdout">
+                                                        <div class="small text-secondary mb-1">标准输出</div>
+                                                        <pre class="bg-dark text-white p-3 rounded small maintenance-log">{{ getStepState(server.id, step.fileName).result.stdout }}</pre>
+                                                    </div>
+                                                    <div class="col-12" v-if="getStepState(server.id, step.fileName).result.stderr">
+                                                        <div class="small text-secondary mb-1">{{ stderrTitle(getStepState(server.id, step.fileName).result) }}</div>
+                                                        <pre class="p-3 rounded small maintenance-log" :class="stderrClass(getStepState(server.id, step.fileName).result)">{{ getStepState(server.id, step.fileName).result.stderr }}</pre>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-
-                                    <div class="d-flex gap-2 flex-wrap">
-                                        <button class="btn btn-outline-primary btn-sm"
-                                                type="button"
-                                                @click="executeSingleStep(step.fileName)"
-                                                :disabled="!canRunSingleStep(index)">
-                                            <span v-if="step.status === 'running'" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                                            执行此步
-                                        </button>
-                                        <button class="btn btn-outline-warning btn-sm"
-                                                type="button"
-                                                @click="retryStep(step.fileName)"
-                                                :disabled="!canRetryStep(step, index)">
-                                            重试
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div class="row g-3 mt-1" v-if="step.result">
-                                    <div class="col-md-4">
-                                        <div class="small text-secondary">退出码</div>
-                                        <div class="fw-medium">{{ step.result.exitStatus }}</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="small text-secondary">耗时</div>
-                                        <div class="fw-medium">{{ formatDuration(step.result.durationMs) }}</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="small text-secondary">执行时间</div>
-                                        <div class="fw-medium">{{ formatDateTime(step.result.finishedAt) || '-' }}</div>
-                                    </div>
-                                    <div class="col-12" v-if="step.result.stdout">
-                                        <div class="small text-secondary mb-1">标准输出</div>
-                                        <pre class="bg-dark text-white p-3 rounded small maintenance-log">{{ step.result.stdout }}</pre>
-                                    </div>
-                                    <div class="col-12" v-if="step.result.stderr">
-                                        <div class="small text-secondary mb-1">{{ stderrTitle(step) }}</div>
-                                        <pre class="p-3 rounded small maintenance-log" :class="stderrClass(step)">{{ step.result.stderr }}</pre>
                                     </div>
                                 </div>
                             </div>
@@ -190,16 +256,16 @@
                     </div>
                     <div class="card-body">
                         <div class="alert alert-primary">
-                            推荐把关键过程输出到标准输出,并在失败时返回非 0 退出码,这样页面才能准确显示每一步结果。
+                            推荐把关键过程输出到标准输出，并在失败时返回非 0 退出码，这样页面才能准确显示每一步结果。
                         </div>
                         <ul class="mb-0 ps-3">
                             <li>文件名使用 `01-xxx.sh`、`02-xxx.sh` 这种有序格式。</li>
-                            <li>脚本开头建议加 `set -euo pipefail`,避免错误被吞掉。</li>
-                            <li>关键节点用 `echo` 打印,例如"开始安装 Docker""完成写入配置"。</li>
-                            <li>执行时会自动注入变量:`$server_ip` 为服务器 IP,`$server_host` 为服务器主域名或主机名,`$server_hosts` 为服务器可用 host 列表(bash array)。</li>
-                            <li>系统配置也会注入:`$airopscat_domain` 对应 `airopscat.domain`,`$airopscat_api_token` 对应 `airopscat.api.token`。</li>
-                            <li>可选元信息:前几行支持 `# @title: 安装 Docker`、`# @description: 安装容器运行时`。</li>
-                            <li>脚本尽量设计成幂等,失败后修复环境即可重试。</li>
+                            <li>脚本开头建议加 `set -euo pipefail`，避免错误被吞掉。</li>
+                            <li>关键节点用 `echo` 打印，例如"开始安装 Docker""完成写入配置"。</li>
+                            <li>执行时会自动注入变量：`$server_ip` 为服务器 IP，`$server_host` 为服务器主域名或主机名，`$server_hosts` 为服务器可用 host 列表（bash array）。</li>
+                            <li>系统配置也会注入：`$airopscat_domain` 对应 `airopscat.domain`，`$airopscat_api_token` 对应 `airopscat.api.token`。</li>
+                            <li>可选元信息：前几行支持 `# @title: 安装 Docker`、`# @description: 安装容器运行时`。</li>
+                            <li>脚本尽量设计成幂等，失败后修复环境即可重试。</li>
                         </ul>
                     </div>
                 </div>
@@ -243,6 +309,20 @@
         white-space: pre-wrap;
         word-break: break-word;
         font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .maintenance-editor {
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        background-color: #1e2128;
+        color: #d4d4d4;
+    }
+
+    .maintenance-editor:focus {
+        background-color: #1e2128;
+        color: #d4d4d4;
+        box-shadow: none;
     }
 
     @keyframes maintenance-step-pulse {

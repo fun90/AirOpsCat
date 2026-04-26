@@ -71,6 +71,23 @@ public class ServerMaintenanceService {
         return readScriptContent(scriptName);
     }
 
+    public void saveScriptContent(String scriptName, String content) {
+        Path dir = Path.of(systemConfigService.getResolvedValue("airopscat.install.scripts.dir")).normalize();
+        Path file = dir.resolve(scriptName).normalize();
+        if (!file.startsWith(dir)) {
+            throw new IllegalArgumentException("非法脚本路径: " + scriptName);
+        }
+        Matcher matcher = SCRIPT_NAME_PATTERN.matcher(scriptName);
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException("脚本文件名不符合规范: " + scriptName);
+        }
+        try {
+            Files.writeString(file, content, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalStateException("保存脚本失败: " + scriptName, e);
+        }
+    }
+
     public ServerMaintenanceStepResultDto executeScript(Long serverId, String scriptName) {
         LocalDateTime startedAt = LocalDateTime.now();
         ServerMaintenanceStepResultDto result = new ServerMaintenanceStepResultDto();

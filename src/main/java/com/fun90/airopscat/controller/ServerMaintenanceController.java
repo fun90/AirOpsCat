@@ -11,6 +11,7 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
@@ -86,6 +87,34 @@ public class ServerMaintenanceController {
         } catch (Exception e) {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity(Map.of("message", "读取脚本失败: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    @PUT
+    @Path("/scripts/{scriptName}")
+    public Response saveScript(@jakarta.ws.rs.PathParam("scriptName") String scriptName, Map<String, String> body) {
+        if (scriptName == null || scriptName.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", "脚本名称不能为空"))
+                    .build();
+        }
+        String content = body == null ? null : body.get("content");
+        if (content == null) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", "脚本内容不能为空"))
+                    .build();
+        }
+        try {
+            serverMaintenanceService.saveScriptContent(scriptName, content);
+            return Response.ok(Map.of("message", "保存成功")).build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", e.getMessage()))
+                    .build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("message", "保存脚本失败: " + e.getMessage()))
                     .build();
         }
     }
