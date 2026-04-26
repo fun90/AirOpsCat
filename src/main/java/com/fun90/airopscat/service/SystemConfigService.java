@@ -247,8 +247,8 @@ public class SystemConfigService {
                 false,
                 item("airopscat.subscription.url", "订阅地址", "生成订阅和客户端配置时使用。", INPUT_URL, true, false, false, true, "http://localhost:8080/subscribe", "http://localhost:8080/subscribe"),
                 item("airopscat.docs.url", "文档地址", "控制台展示的文档入口地址。", INPUT_URL, false, false, false, true, "https://docs.xxx.com", "https://docs.xxx.com"),
-                item("airopscat.domain", "系统域名", "安装脚本和对外地址使用的域名。", INPUT_TEXT, false, false, false, true, "yourdomain.com", "yourdomain.com"),
-                item("airopscat.api.token", "接口 Token", "开放接口和安装脚本使用的 Token。", INPUT_PASSWORD, false, true, false, true, "your_api_token_here", "your_api_token_here", true),
+                item("airopscat.domain", "系统域名", "运维脚本和对外地址使用的域名。", INPUT_TEXT, false, false, false, true, "yourdomain.com", "yourdomain.com"),
+                item("airopscat.api.token", "接口 Token", "开放接口和运维脚本使用的 Token。", INPUT_PASSWORD, false, true, false, true, "your_api_token_here", "your_api_token_here", true),
                 item("airopscat.apple.id", "Apple ID", "开放接口返回的 Apple ID。", INPUT_TEXT, false, true, false, true, "your_apple_id_here", "your_apple_id_here", true),
                 item("airopscat.apple.pwd", "Apple 密码", "开放接口返回的 Apple 密码。", INPUT_PASSWORD, false, true, false, true, "your_apple_pwd_here", "your_apple_pwd_here", true)
         ));
@@ -265,13 +265,13 @@ public class SystemConfigService {
 
         groups.put("template", group(
                 "template",
-                "模板与安装",
-                "模板目录和安装脚本运行参数。",
+                "模板与运维",
+                "模板目录和服务器运维脚本运行参数。",
                 50,
                 false,
                 item("airopscat.config.templates.dir", "模板目录", "订阅和核心配置模板目录。", INPUT_TEXT, true, false, false, true, "./config", "./config"),
-                item("airopscat.install.scripts.dir", "安装脚本目录", "一键安装脚本的本地存放目录。", INPUT_TEXT, true, false, false, true, "./config/install", "./config/install"),
-                item("airopscat.install.remote-work-dir", "远端工作目录", "一键安装脚本在服务器上的工作目录。", INPUT_TEXT, true, false, false, true, "/tmp/airopscat-installer", "/tmp/airopscat-installer"),
+                item("airopscat.install.scripts.dir", "运维脚本目录", "服务器运维脚本的本地存放目录，兼容原一键安装脚本目录配置。", INPUT_TEXT, true, false, false, true, "./config/install", "./config/install"),
+                item("airopscat.install.remote-work-dir", "远端工作目录", "服务器运维脚本在服务器上的工作目录。", INPUT_TEXT, true, false, false, true, "/tmp/airopscat-maintenance", "/tmp/airopscat-installer"),
                 item("airopscat.deployment.max-parallel-servers", "部署并发服务器数", "单轮节点部署最多并发处理的服务器数。", INPUT_NUMBER, true, false, false, true, "4", "4")
         ));
 

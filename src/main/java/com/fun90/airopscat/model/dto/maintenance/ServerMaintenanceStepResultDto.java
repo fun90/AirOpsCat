@@ -1,11 +1,11 @@
-package com.fun90.airopscat.model.dto.install;
+package com.fun90.airopscat.model.dto.maintenance;
 
 import lombok.Data;
 
 import java.time.LocalDateTime;
 
 @Data
-public class ServerInstallStepResultDto {
+public class ServerMaintenanceStepResultDto {
     private String scriptName;
     private String stepTitle;
     private boolean success;

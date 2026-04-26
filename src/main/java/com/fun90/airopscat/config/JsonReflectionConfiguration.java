@@ -95,9 +95,9 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.dto.RouteRuleRequest.class,
     com.fun90.airopscat.model.dto.DefaultConfigDto.class,
     com.fun90.airopscat.model.dto.BackupFileDto.class,
-    com.fun90.airopscat.model.dto.install.ServerInstallExecuteRequest.class,
-    com.fun90.airopscat.model.dto.install.InstallScriptDto.class,
-    com.fun90.airopscat.model.dto.install.ServerInstallStepResultDto.class,
+    com.fun90.airopscat.model.dto.maintenance.ServerMaintenanceExecuteRequest.class,
+    com.fun90.airopscat.model.dto.maintenance.MaintenanceScriptDto.class,
+    com.fun90.airopscat.model.dto.maintenance.ServerMaintenanceStepResultDto.class,
 
     // Qute Template VO Classes
     com.fun90.airopscat.model.vo.ConsoleMenuGroup.class,

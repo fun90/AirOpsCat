@@ -94,8 +94,8 @@
                             <i class="ti ti-chart-line"></i> 监控
                         </a>
                         <div class="dropdown-divider"></div>
-                        <a v-if="server.external !== 1" class="dropdown-item" :href="'/console/device/server-install?serverId=' + server.id">
-                            <i class="ti ti-server-cog"></i> 一键装机
+                        <a v-if="server.external !== 1" class="dropdown-item" :href="'/console/device/server-maintenance?serverId=' + server.id">
+                            <i class="ti ti-server-cog"></i> 服务器运维
                         </a>
                         <a class="dropdown-item" href="#" @click.prevent="openTrafficCalibrationModal(server)">
                             <i class="ti ti-target"></i> 流量校准

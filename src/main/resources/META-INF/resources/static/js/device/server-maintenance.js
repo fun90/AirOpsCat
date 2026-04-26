@@ -1,4 +1,4 @@
-const serverInstallApp = PetiteVue.createApp({
+const serverMaintenanceApp = PetiteVue.createApp({
     servers: [],
     scripts: [],
     selectedServerId: '',
@@ -47,12 +47,12 @@ const serverInstallApp = PetiteVue.createApp({
         this.loading = true;
         try {
             const [serversResponse, scriptsResponse] = await Promise.all([
-                fetch('/api/admin/server-installs/servers'),
-                fetch('/api/admin/server-installs/scripts')
+                fetch('/api/admin/server-maintenance/servers'),
+                fetch('/api/admin/server-maintenance/scripts')
             ]);
 
             if (!serversResponse.ok || !scriptsResponse.ok) {
-                throw new Error('加载装机页面数据失败');
+                throw new Error('加载运维作业数据失败');
             }
 
             this.servers = await serversResponse.json();
@@ -62,7 +62,7 @@ const serverInstallApp = PetiteVue.createApp({
             this.loadFromQueryParams();
         } catch (error) {
             console.error(error);
-            ToastUtils.show('Error', error.message || '加载装机页面数据失败', 'danger');
+            ToastUtils.show('Error', error.message || '加载运维作业数据失败', 'danger');
         } finally {
             this.loading = false;
         }
@@ -114,7 +114,7 @@ const serverInstallApp = PetiteVue.createApp({
 
         this.loadingPreview = true;
         try {
-            const response = await fetch(`/api/admin/server-installs/scripts/${encodeURIComponent(scriptName)}/preview`);
+            const response = await fetch(`/api/admin/server-maintenance/scripts/${encodeURIComponent(scriptName)}/preview`);
 
             if (!response.ok) {
                 const payload = await response.json();
@@ -216,7 +216,7 @@ const serverInstallApp = PetiteVue.createApp({
         };
 
         try {
-            const response = await fetch('/api/admin/server-installs/execute', {
+            const response = await fetch('/api/admin/server-maintenance/execute', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -229,7 +229,7 @@ const serverInstallApp = PetiteVue.createApp({
 
             const payload = await response.json();
             if (!response.ok) {
-                throw new Error(payload.message || '执行安装步骤失败');
+                throw new Error(payload.message || '执行运维步骤失败');
             }
 
             this.stepStateMap[fileName] = {
@@ -253,7 +253,7 @@ const serverInstallApp = PetiteVue.createApp({
                 success: false,
                 exitStatus: -1,
                 stdout: '',
-                stderr: error.message || '执行安装步骤失败',
+                stderr: error.message || '执行运维步骤失败',
                 durationMs: 0,
                 finishedAt: new Date().toISOString()
             };
@@ -264,7 +264,7 @@ const serverInstallApp = PetiteVue.createApp({
                 result: fallback
             };
 
-            ToastUtils.show('Error', error.message || '执行安装步骤失败', 'danger');
+            ToastUtils.show('Error', error.message || '执行运维步骤失败', 'danger');
             return fallback;
         }
     },
@@ -314,13 +314,13 @@ const serverInstallApp = PetiteVue.createApp({
     stepItemClass(step, index) {
         const classes = [];
         if (step.status === 'running') {
-            classes.push('install-step-running');
+            classes.push('maintenance-step-running');
         } else if (step.status === 'success') {
-            classes.push('install-step-success');
+            classes.push('maintenance-step-success');
         } else if (step.status === 'failed') {
-            classes.push('install-step-failed');
+            classes.push('maintenance-step-failed');
         } else {
-            classes.push('install-step-pending');
+            classes.push('maintenance-step-pending');
         }
         return classes.join(' ');
     },
@@ -379,4 +379,4 @@ const serverInstallApp = PetiteVue.createApp({
     }
 });
 
-serverInstallApp.mount('#app');
+serverMaintenanceApp.mount('#app');

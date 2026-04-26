@@ -4,7 +4,7 @@
             <div class="col-12 col-xl-4">
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">安装目标</h3>
+                        <h3 class="card-title">作业目标</h3>
                         <div class="card-actions">
                             <button class="btn btn-outline-primary btn-sm" type="button" @click="refreshAll" :disabled="loading || executing">
                                 刷新
@@ -20,7 +20,7 @@
                                     {{ server.name }}
                                 </option>
                             </select>
-                            <div class="form-hint">会使用当前服务器已保存的 SSH 信息执行脚本。</div>
+                            <div class="form-hint">会使用当前服务器已保存的 SSH 信息执行运维脚本。</div>
                         </div>
 
                         <div class="alert alert-info" v-if="scripts.length">
@@ -90,7 +90,7 @@
                                 <span class="fw-medium">{{ previewScriptName }}</span>
                             </div>
                         </div>
-                        <pre class="bg-dark text-white p-3 m-0 install-log" style="max-height: 400px;">{{ previewContent }}</pre>
+                        <pre class="bg-dark text-white p-3 m-0 maintenance-log" style="max-height: 400px;">{{ previewContent }}</pre>
                     </div>
                 </div>
 
@@ -118,14 +118,14 @@
                         </div>
 
                         <div v-else class="list-group list-group-flush">
-                            <div class="list-group-item install-step-item"
+                            <div class="list-group-item maintenance-step-item"
                                  :class="stepItemClass(step, index)"
                                  v-for="(step, index) in selectedSteps"
                                  :key="step.fileName">
                                 <div class="d-flex justify-content-between gap-3 align-items-start">
                                     <div>
                                         <div class="d-flex align-items-center gap-2 flex-wrap">
-                                            <span class="badge install-status-badge" :class="statusBadgeClass(step.status)">
+                                            <span class="badge maintenance-status-badge" :class="statusBadgeClass(step.status)">
                                                 <span v-if="step.status === 'running'" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
                                                 {{ statusLabel(step.status) }}
                                             </span>
@@ -134,7 +134,7 @@
                                                 {{ step.fileName }}
                                             </a>
                                         </div>
-                                        <div class="text-secondary small mt-1">{{ step.description || '按顺序执行的安装步骤' }}</div>
+                                        <div class="text-secondary small mt-1">{{ step.description || '按顺序执行的运维步骤' }}</div>
                                         <div class="text-warning small mt-1" v-if="isStepLocked(index)">
                                             需前一个步骤执行成功后才可继续
                                         </div>
@@ -172,11 +172,11 @@
                                     </div>
                                     <div class="col-12" v-if="step.result.stdout">
                                         <div class="small text-secondary mb-1">标准输出</div>
-                                        <pre class="bg-dark text-white p-3 rounded small install-log">{{ step.result.stdout }}</pre>
+                                        <pre class="bg-dark text-white p-3 rounded small maintenance-log">{{ step.result.stdout }}</pre>
                                     </div>
                                     <div class="col-12" v-if="step.result.stderr">
                                         <div class="small text-secondary mb-1">{{ stderrTitle(step) }}</div>
-                                        <pre class="p-3 rounded small install-log" :class="stderrClass(step)">{{ step.result.stderr }}</pre>
+                                        <pre class="p-3 rounded small maintenance-log" :class="stderrClass(step)">{{ step.result.stderr }}</pre>
                                     </div>
                                 </div>
                             </div>
@@ -186,7 +186,7 @@
 
                 <div class="card mt-4">
                     <div class="card-header">
-                        <h3 class="card-title">脚本规范建议</h3>
+                        <h3 class="card-title">运维脚本规范建议</h3>
                     </div>
                     <div class="card-body">
                         <div class="alert alert-primary">
@@ -209,35 +209,35 @@
 </div>
 
 <style>
-    .install-step-item {
+    .maintenance-step-item {
         transition: background-color 0.25s ease, box-shadow 0.25s ease, border-left-color 0.25s ease;
         border-left: 4px solid transparent;
     }
 
-    .install-step-running {
+    .maintenance-step-running {
         background: linear-gradient(90deg, rgba(32, 107, 196, 0.10), rgba(32, 107, 196, 0.02));
         border-left-color: var(--tblr-primary);
-        animation: install-step-pulse 1.6s ease-in-out infinite;
+        animation: maintenance-step-pulse 1.6s ease-in-out infinite;
     }
 
-    .install-step-success {
+    .maintenance-step-success {
         border-left-color: var(--tblr-success);
     }
 
-    .install-step-failed {
+    .maintenance-step-failed {
         border-left-color: var(--tblr-danger);
     }
 
-    .install-step-pending {
+    .maintenance-step-pending {
         border-left-color: rgba(98, 105, 118, 0.35);
     }
 
-    .install-status-badge {
+    .maintenance-status-badge {
         display: inline-flex;
         align-items: center;
     }
 
-    .install-log {
+    .maintenance-log {
         max-height: 280px;
         overflow: auto;
         white-space: pre-wrap;
@@ -245,7 +245,7 @@
         font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     }
 
-    @keyframes install-step-pulse {
+    @keyframes maintenance-step-pulse {
         0% {
             box-shadow: inset 0 0 0 0 rgba(32, 107, 196, 0.00);
         }

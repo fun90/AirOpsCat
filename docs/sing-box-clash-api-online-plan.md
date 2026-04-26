@@ -238,7 +238,7 @@ POST /api/open/account/online/{nodeIp}
    - 删除 `OpenController.access(...)`。
    - 删除 `ClientRequest`，前提是无其他引用。
    - 删除 `AccountOnlineIpService.updateOnlineStatus(List<ClientRequest>, nodeIp)` 的旧上报入口。
-   - 删除旧日志监控/上报安装脚本和文档。
+   - 删除旧日志监控/上报运维脚本和文档。
 
 注意：`src/main/resources/config/install/02-ratelimit-agent.sh` 已基于 Clash API 做限速，不属于旧在线上报链路，不应删除。
 

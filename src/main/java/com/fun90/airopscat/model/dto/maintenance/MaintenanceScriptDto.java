@@ -1,9 +1,9 @@
-package com.fun90.airopscat.model.dto.install;
+package com.fun90.airopscat.model.dto.maintenance;
 
 import lombok.Data;
 
 @Data
-public class InstallScriptDto {
+public class MaintenanceScriptDto {
     private Integer order;
     private String fileName;
     private String title;

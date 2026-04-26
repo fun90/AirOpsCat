@@ -1,9 +1,9 @@
-package com.fun90.airopscat.service.install;
+package com.fun90.airopscat.service.maintenance;
 
 import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.SshConfig;
-import com.fun90.airopscat.model.dto.install.InstallScriptDto;
-import com.fun90.airopscat.model.dto.install.ServerInstallStepResultDto;
+import com.fun90.airopscat.model.dto.maintenance.MaintenanceScriptDto;
+import com.fun90.airopscat.model.dto.maintenance.ServerMaintenanceStepResultDto;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.service.ServerHostService;
 import com.fun90.airopscat.service.ServerService;
@@ -28,7 +28,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @ApplicationScoped
-public class ServerInstallService {
+public class ServerMaintenanceService {
 
     private static final Pattern SCRIPT_NAME_PATTERN = Pattern.compile("^(\\d+)-(.+)\\.sh$");
     private static final Pattern TITLE_PATTERN = Pattern.compile("^#\\s*@title\\s*:\\s*(.+)$", Pattern.CASE_INSENSITIVE);
@@ -46,24 +46,24 @@ public class ServerInstallService {
     @Inject
     SystemConfigService systemConfigService;
 
-    public List<InstallScriptDto> listScripts() {
+    public List<MaintenanceScriptDto> listScripts() {
         Path dir = Path.of(systemConfigService.getResolvedValue("airopscat.install.scripts.dir")).normalize();
         if (!Files.exists(dir) || !Files.isDirectory(dir)) {
             return List.of();
         }
 
         try {
-            List<InstallScriptDto> scripts = new ArrayList<>();
+            List<MaintenanceScriptDto> scripts = new ArrayList<>();
             try (var stream = Files.list(dir)) {
                 stream.filter(Files::isRegularFile)
                         .map(this::toScriptDto)
                         .flatMap(Optional::stream)
-                        .sorted(Comparator.comparing(InstallScriptDto::getOrder).thenComparing(InstallScriptDto::getFileName))
+                        .sorted(Comparator.comparing(MaintenanceScriptDto::getOrder).thenComparing(MaintenanceScriptDto::getFileName))
                         .forEach(scripts::add);
             }
             return scripts;
         } catch (IOException e) {
-            throw new IllegalStateException("读取装机脚本目录失败: " + dir, e);
+            throw new IllegalStateException("读取运维脚本目录失败: " + dir, e);
         }
     }
 
@@ -71,14 +71,14 @@ public class ServerInstallService {
         return readScriptContent(scriptName);
     }
 
-    public ServerInstallStepResultDto executeScript(Long serverId, String scriptName) {
+    public ServerMaintenanceStepResultDto executeScript(Long serverId, String scriptName) {
         LocalDateTime startedAt = LocalDateTime.now();
-        ServerInstallStepResultDto result = new ServerInstallStepResultDto();
+        ServerMaintenanceStepResultDto result = new ServerMaintenanceStepResultDto();
         result.setScriptName(scriptName);
         result.setStartedAt(startedAt);
 
-        InstallScriptDto script = findScript(scriptName)
-                .orElseThrow(() -> new IllegalArgumentException("未找到装机脚本: " + scriptName));
+        MaintenanceScriptDto script = findScript(scriptName)
+                .orElseThrow(() -> new IllegalArgumentException("未找到运维脚本: " + scriptName));
         result.setStepTitle(script.getTitle());
 
         Server server = Optional.ofNullable(serverService.getServerById(serverId))
@@ -115,7 +115,7 @@ public class ServerInstallService {
         return result;
     }
 
-    private Optional<InstallScriptDto> findScript(String scriptName) {
+    private Optional<MaintenanceScriptDto> findScript(String scriptName) {
         return listScripts().stream()
                 .filter(script -> Objects.equals(script.getFileName(), scriptName))
                 .findFirst();
@@ -124,32 +124,32 @@ public class ServerInstallService {
     private String readScriptContent(String scriptName) {
         Path file = Path.of(systemConfigService.getResolvedValue("airopscat.install.scripts.dir"), scriptName).normalize();
         if (!Files.exists(file) || !Files.isRegularFile(file)) {
-            throw new IllegalArgumentException("装机脚本不存在: " + scriptName);
+            throw new IllegalArgumentException("运维脚本不存在: " + scriptName);
         }
         try {
             return Files.readString(file, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new IllegalStateException("读取装机脚本失败: " + scriptName, e);
+            throw new IllegalStateException("读取运维脚本失败: " + scriptName, e);
         }
     }
 
-    private Optional<InstallScriptDto> toScriptDto(Path path) {
+    private Optional<MaintenanceScriptDto> toScriptDto(Path path) {
         String fileName = path.getFileName().toString();
         Matcher matcher = SCRIPT_NAME_PATTERN.matcher(fileName);
         if (!matcher.matches()) {
             return Optional.empty();
         }
 
-        InstallScriptDto dto = new InstallScriptDto();
+        MaintenanceScriptDto dto = new MaintenanceScriptDto();
         dto.setOrder(Integer.parseInt(matcher.group(1)));
         dto.setFileName(fileName);
         dto.setTitle(toFriendlyTitle(matcher.group(2)));
-        dto.setDescription("按顺序执行的安装步骤");
+        dto.setDescription("按顺序执行的运维步骤");
         enrichMetadata(path, dto);
         return Optional.of(dto);
     }
 
-    private void enrichMetadata(Path path, InstallScriptDto dto) {
+    private void enrichMetadata(Path path, MaintenanceScriptDto dto) {
         try {
             List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
             for (String line : lines.stream().limit(12).toList()) {
