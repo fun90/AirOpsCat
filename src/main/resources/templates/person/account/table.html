@@ -56,14 +56,14 @@
             </div>
         </td>
         <td>
-            <div v-if="account.bandwidth"
+            <div v-if="account.effectiveBandwidth"
                  :title="`使用率: $\{Math.round(account.usagePercentage || 0)\}%`"
                  data-bs-toggle="tooltip"
                  data-bs-placement="top"
                  style="cursor: pointer; max-width: 125px;">
                 <div class="d-flex flex-column">
                     <div class="small text-muted mb-1">
-                        {{ formatBytes(account.totalUsedBytes) }} / {{ account.bandwidth }} GB
+                        {{ formatBytes(account.totalUsedBytes) }} / {{ account.effectiveBandwidth }} GB
                     </div>
                     <div class="progress progress-sm">
                         <div class="progress-bar"

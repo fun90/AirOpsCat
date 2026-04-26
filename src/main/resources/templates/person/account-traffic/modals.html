@@ -32,6 +32,10 @@
                     <input type="number" class="form-control" v-model="newItem.downloadBytes">
                     <small class="form-hint">{{ formatBytes(newItem.downloadBytes || 0) }}</small>
                 </div>
+                <div class="mb-3">
+                    <label class="form-label">周期配额（GB）</label>
+                    <input type="number" min="0" class="form-control" v-model="newItem.bandwidthQuota" placeholder="留空继承账户基准配额">
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
@@ -73,6 +77,11 @@
                     <label class="form-label">下载流量 (字节)</label>
                     <input type="number" class="form-control" v-model="editedItem.downloadBytes">
                     <small class="form-hint">{{ formatBytes(editedItem.downloadBytes || 0) }}</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">周期配额（GB）</label>
+                    <input type="number" min="0" class="form-control" v-model="editedItem.bandwidthQuota" placeholder="留空继承账户基准配额">
+                    <small class="form-hint">清空后保存表示此周期沿用账户基准配额</small>
                 </div>
             </div>
             <div class="modal-footer">

@@ -29,7 +29,8 @@ const trafficStatsTable = new DataTable({
             periodStart: '',
             periodEnd: '',
             uploadBytes: 0,
-            downloadBytes: 0
+            downloadBytes: 0,
+            bandwidthQuota: null
         }
     },
     methods: {
@@ -228,13 +229,16 @@ const trafficStatsTable = new DataTable({
         },
 
         prepareCreateData() {
+            const quota = this.newItem.bandwidthQuota === '' ? null
+                : (this.newItem.bandwidthQuota != null ? Number(this.newItem.bandwidthQuota) : null);
             return {
                 userId: this.newItem.userId,
                 accountId: this.newItem.accountId,
                 periodStart: this.newItem.periodStart,
                 periodEnd: this.newItem.periodEnd,
                 uploadBytes: this.newItem.uploadBytes || 0,
-                downloadBytes: this.newItem.downloadBytes || 0
+                downloadBytes: this.newItem.downloadBytes || 0,
+                bandwidthQuota: quota
             };
         },
 
@@ -249,6 +253,44 @@ const trafficStatsTable = new DataTable({
             };
         },
 
+        updateItem() {
+            if (typeof this.validateEditForm === 'function' && !this.validateEditForm()) {
+                return;
+            }
+
+            const id = this.editedItem.id;
+            const quota = this.editedItem.bandwidthQuota === '' ? null
+                : (this.editedItem.bandwidthQuota != null ? Number(this.editedItem.bandwidthQuota) : null);
+            const putData = this.prepareUpdateData();
+
+            Promise.all([
+                fetch(`/api/admin/traffic-stats/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(putData)
+                }).then(r => { if (!r.ok) throw new Error('更新失败'); return r.json(); }),
+                fetch(`/api/admin/traffic-stats/${id}/quota`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bandwidthQuota: quota })
+                }).then(r => { if (!r.ok) throw new Error('配额更新失败'); })
+            ]).then(([updatedRecord]) => {
+                const index = this.records.findIndex(r => r.id === id);
+                if (index !== -1) {
+                    this.records.splice(index, 1, {
+                        ...this.records[index],
+                        ...updatedRecord,
+                        bandwidthQuota: quota
+                    });
+                }
+                this.editModal.hide();
+                ToastUtils.show('Success', '更新成功', 'success');
+            }).catch(error => {
+                console.error('Error:', error);
+                ToastUtils.show('Error', error.message || '更新失败', 'danger');
+            });
+        },
+
         resetCreateForm() {
             const now = new Date();
             const localDateTimeFormat = now.toISOString().slice(0, 16);
@@ -259,7 +301,8 @@ const trafficStatsTable = new DataTable({
                 periodStart: localDateTimeFormat,
                 periodEnd: localDateTimeFormat,
                 uploadBytes: 0,
-                downloadBytes: 0
+                downloadBytes: 0,
+                bandwidthQuota: null
             };
 
             this.createAccountSearch?.clear();
@@ -273,7 +316,7 @@ const trafficStatsTable = new DataTable({
                 return new Date(dateString).toISOString().slice(0, 16);
             };
 
-            const editedItem = {
+            return {
                 id: record.id,
                 userId: record.userId,
                 accountId: record.accountId,
@@ -281,17 +324,16 @@ const trafficStatsTable = new DataTable({
                 periodStart: formatDateForInput(record.periodStart),
                 periodEnd: formatDateForInput(record.periodEnd),
                 uploadBytes: record.uploadBytes || 0,
-                downloadBytes: record.downloadBytes || 0
+                downloadBytes: record.downloadBytes || 0,
+                bandwidthQuota: record.bandwidthQuota != null ? record.bandwidthQuota : null
             };
-
-            return editedItem;
         },
 
         getApiUrl() {
             return '/api/admin/traffic-stats';
         },
 
-        ...createResponsiveFilterMethods({
+...createResponsiveFilterMethods({
             createDefaultFilters: () => createDefaultTrafficFilters(),
             applyFilters() {
                 this.currentPage = 1;

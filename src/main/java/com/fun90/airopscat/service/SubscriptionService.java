@@ -35,6 +35,7 @@ public class SubscriptionService {
 
     private final AccountRepository accountRepository;
     private final AccountTrafficStatsRepository accountTrafficRepository;
+    private final AccountTrafficStatsService accountTrafficStatsService;
     private final NodeDeploymentRepository nodeDeploymentRepository;
     private final ServerRepository serverRepository;
     private final ServerHostRepository serverHostRepository;
@@ -47,6 +48,7 @@ public class SubscriptionService {
     public SubscriptionService(
             AccountRepository accountRepository,
             AccountTrafficStatsRepository accountTrafficRepository,
+            AccountTrafficStatsService accountTrafficStatsService,
             NodeDeploymentRepository nodeDeploymentRepository,
             ServerRepository serverRepository,
             ServerHostRepository serverHostRepository,
@@ -56,6 +58,7 @@ public class SubscriptionService {
             SystemConfigService systemConfigService) {
         this.accountRepository = accountRepository;
         this.accountTrafficRepository = accountTrafficRepository;
+        this.accountTrafficStatsService = accountTrafficStatsService;
         this.nodeDeploymentRepository = nodeDeploymentRepository;
         this.serverRepository = serverRepository;
         this.serverHostRepository = serverHostRepository;
@@ -175,8 +178,8 @@ public class SubscriptionService {
 
 
         String fileName = account.getRemark();
-        long bandwidth = account.getBandwidth() != null ? account.getBandwidth() : 500L;
-        bandwidth = bandwidth * 1024L * 1024L * 1024L;
+        Long effectiveQuota = accountTrafficStatsService.getEffectiveBandwidth(account.getId());
+        long bandwidth = (effectiveQuota != null ? effectiveQuota : 500L) * 1024L * 1024L * 1024L;
         LocalDateTime currentTime = LocalDateTime.now();
         List<AccountTrafficStats> trafficStatsList = accountTrafficRepository.findByAccountIdAndCurrentTime(account.getId(), currentTime);
         AccountTrafficStats accountTrafficStats = trafficStatsList.isEmpty() ? null : trafficStatsList.getFirst();

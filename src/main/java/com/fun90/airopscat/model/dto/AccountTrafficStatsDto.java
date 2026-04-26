@@ -18,10 +18,12 @@ public class AccountTrafficStatsDto {
     private Long uploadBytes;
     private Long downloadBytes;
     private Long totalBytes;
+    private Long bandwidthQuota;
 
     public AccountTrafficStatsDto(Long id, Long userId, String nickname, Long accountId,
                                   LocalDateTime periodStart, LocalDateTime periodEnd,
-                                  Long uploadBytes, Long downloadBytes, Long totalBytes) {
+                                  Long uploadBytes, Long downloadBytes, Long totalBytes,
+                                  Long bandwidthQuota) {
         this.id = id;
         this.userId = userId;
         this.nickname = nickname;
@@ -31,5 +33,6 @@ public class AccountTrafficStatsDto {
         this.uploadBytes = uploadBytes;
         this.downloadBytes = downloadBytes;
         this.totalBytes = totalBytes;
+        this.bandwidthQuota = bandwidthQuota;
     }
 }

@@ -26,6 +26,7 @@ import jakarta.transaction.TransactionSynchronizationRegistry;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
+import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -34,6 +35,7 @@ import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 @Slf4j
 @ApplicationScoped
@@ -50,7 +52,7 @@ public class AccountService {
     
     @Inject
     AccountTrafficStatsRepository accountTrafficStatsRepository;
-    
+
     @Inject
     AccountOnlineIpService accountOnlineIpService;
 
@@ -234,99 +236,109 @@ public class AccountService {
     }
 
     public AccountDto convertToDto(Account account) {
-        AccountDto dto = new AccountDto();
-        // Copy properties manually since BeanUtils is not available
-        dto.setId(account.getId());
-        dto.setUserId(account.getUserId());
-        dto.setAccountNo(account.getAccountNo());
-        dto.setUuid(account.getUuid());
-        dto.setAuthCode(account.getAuthCode());
-        dto.setFromDate(account.getFromDate());
-        dto.setToDate(account.getToDate());
-        dto.setBandwidth(account.getBandwidth());
-        dto.setCreateTime(account.getCreateTime());
-        // dto.setUpdateTime(account.getUpdateTime()); // Remove if DTO doesn't have this property
-        dto.setDisabled(account.getDisabled());
-        dto.setPeriodType(account.getPeriodType());
-        dto.setRemark(account.getRemark());
-        dto.setLevel(account.getLevel());
-        dto.setNodeMultiple(account.getNodeMultiple());
-        dto.setNodePrefix(account.getNodePrefix());
-        dto.setMaxConnections(account.getMaxConnections());
-        dto.setSpeed(account.getSpeed());
-        
-        // Enrich with user email if available
-        if (account.getUserId() != null) {
-            User user = userRepository.findById(account.getUserId());
+        return convertToDtoList(List.of(account)).getFirst();
+    }
+
+    public List<AccountDto> convertToDtoList(List<Account> accounts) {
+        if (accounts.isEmpty()) return Collections.emptyList();
+
+        LocalDateTime now = LocalDateTime.now();
+        List<Long> accountIds = accounts.stream().map(Account::getId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        List<String> accountNos = accounts.stream().map(Account::getAccountNo).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        List<Long> userIds = accounts.stream().map(Account::getUserId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+
+        // 批量查询用户信息
+        Map<Long, User> userMap = userIds.isEmpty() ? Collections.emptyMap() :
+                userRepository.find("id in ?1", userIds).list().stream()
+                        .collect(Collectors.toMap(User::getId, u -> u));
+
+        // 批量查询当前周期上传/下载字节数
+        Map<Long, long[]> trafficMap = accountTrafficStatsRepository.sumUploadDownloadByAccountIds(accountIds, now);
+
+        // 批量查询当前周期 AccountTrafficStats（用于读取周期配额）
+        Map<Long, AccountTrafficStats> currentStatsMap = accountTrafficStatsRepository.findCurrentPeriodByAccountIds(accountIds, now);
+
+        // 批量查询在线连接信息，按 accountNo 分组
+        Map<String, List<AccountOnlineIpDto>> onlineByAccountNo = accountNos.isEmpty()
+                ? Collections.emptyMap()
+                : accountOnlineIpService.getOnlineRecordsByAccountNos(accountNos).stream()
+                        .filter(r -> r.getAccountNo() != null)
+                        .collect(Collectors.groupingBy(AccountOnlineIpDto::getAccountNo));
+
+        // 批量查询最后在线时间（历史记录兜底）
+        Map<String, LocalDateTime> lastOnlineTimeMap = accountOnlineIpService.getLastOnlineTimeMap(accountNos);
+
+        return accounts.stream().map(account -> {
+            AccountDto dto = new AccountDto();
+            dto.setId(account.getId());
+            dto.setUserId(account.getUserId());
+            dto.setAccountNo(account.getAccountNo());
+            dto.setUuid(account.getUuid());
+            dto.setAuthCode(account.getAuthCode());
+            dto.setFromDate(account.getFromDate());
+            dto.setToDate(account.getToDate());
+            dto.setBandwidth(account.getBandwidth());
+            dto.setCreateTime(account.getCreateTime());
+            dto.setDisabled(account.getDisabled());
+            dto.setPeriodType(account.getPeriodType());
+            dto.setRemark(account.getRemark());
+            dto.setLevel(account.getLevel());
+            dto.setNodeMultiple(account.getNodeMultiple());
+            dto.setNodePrefix(account.getNodePrefix());
+            dto.setMaxConnections(account.getMaxConnections());
+            dto.setSpeed(account.getSpeed());
+
+            // 用户信息
+            User user = account.getUserId() != null ? userMap.get(account.getUserId()) : null;
             if (user != null) {
                 dto.setUserEmail(user.getEmail());
                 dto.setNickName(user.getNickName());
             }
-        }
-        
-        // Add traffic usage data
-        Long uploadBytes = accountTrafficStatsRepository.sumUploadBytesByAccountId(account.getId());
-        Long downloadBytes = accountTrafficStatsRepository.sumDownloadBytesByAccountId(account.getId());
-        dto.setUsedUploadBytes(uploadBytes != null ? uploadBytes : 0L);
-        dto.setUsedDownloadBytes(downloadBytes != null ? downloadBytes : 0L);
-        dto.setTotalUsedBytes(dto.getUsedUploadBytes() + dto.getUsedDownloadBytes());
-        
-        // Calculate usage percentage if bandwidth is set
-        if (account.getBandwidth() != null && account.getBandwidth() > 0) {
-            // Convert bandwidth from GB to bytes for comparison (bandwidth is stored in GB)
-            long bandwidthInBytes = account.getBandwidth() * 1024L * 1024L * 1024L;
-            dto.setUsagePercentage(Math.min(100.0, (dto.getTotalUsedBytes() * 100.0) / bandwidthInBytes));
-        } else {
-            dto.setUsagePercentage(0.0);
-        }
-        
-        // Add online IP information
-        if (account.getAccountNo() != null) {
-            List<AccountOnlineIpDto> onlineConnections = accountOnlineIpService.getOnlineRecordsByAccountNo(account.getAccountNo());
-            dto.setOnlineConnections(onlineConnections);
-            dto.setOnlineConnectionCount(onlineConnections.size());
-        }
-        
-        // Calculate days until expiration
-        if (account.getToDate() != null) {
-            LocalDateTime now = LocalDateTime.now();
-            dto.setDaysUntilExpiration(ChronoUnit.DAYS.between(now, account.getToDate()));
-        } else {
-            dto.setDaysUntilExpiration(null);
-        }
-        
-        return dto;
-    }
 
-    /**
-     * 批量转换账户列表为DTO，最后在线时间使用批量查询避免N+1
-     */
-    public List<AccountDto> convertToDtoList(List<Account> accounts) {
-        // 批量查询所有账号的最后在线时间
-        List<String> accountNos = accounts.stream()
-                .map(Account::getAccountNo)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(java.util.stream.Collectors.toList());
-        Map<String, LocalDateTime> lastOnlineTimeMap = accountOnlineIpService.getLastOnlineTimeMap(accountNos);
+            // 流量使用
+            long[] traffic = trafficMap.getOrDefault(account.getId(), new long[]{0L, 0L});
+            dto.setUsedUploadBytes(traffic[0]);
+            dto.setUsedDownloadBytes(traffic[1]);
+            dto.setTotalUsedBytes(traffic[0] + traffic[1]);
 
-        return accounts.stream().map(account -> {
-            AccountDto dto = convertToDto(account);
+            // 有效配额：周期配额优先，其次账户基准
+            AccountTrafficStats currentStats = currentStatsMap.get(account.getId());
+            Long effectiveBandwidth = (currentStats != null && currentStats.getBandwidthQuota() != null)
+                    ? currentStats.getBandwidthQuota()
+                    : (account.getBandwidth() != null ? account.getBandwidth().longValue() : null);
+            dto.setEffectiveBandwidth(effectiveBandwidth);
+            if (effectiveBandwidth != null && effectiveBandwidth > 0) {
+                long bandwidthInBytes = effectiveBandwidth * 1024L * 1024L * 1024L;
+                dto.setUsagePercentage(Math.min(100.0, (dto.getTotalUsedBytes() * 100.0) / bandwidthInBytes));
+            } else {
+                dto.setUsagePercentage(0.0);
+            }
+
+            // 在线连接
             if (account.getAccountNo() != null) {
-                // 优先取当前在线记录中最新的时间，否则取历史最大值
-                if (dto.getOnlineConnections() != null && !dto.getOnlineConnections().isEmpty()) {
-                    LocalDateTime latestOnline = dto.getOnlineConnections().stream()
+                List<AccountOnlineIpDto> onlineConnections = onlineByAccountNo.getOrDefault(account.getAccountNo(), Collections.emptyList());
+                dto.setOnlineConnections(onlineConnections);
+                dto.setOnlineConnectionCount(onlineConnections.size());
+
+                // 最后在线时间：优先当前在线记录中最新的，否则取历史最大值
+                if (!onlineConnections.isEmpty()) {
+                    dto.setLastOnlineTime(onlineConnections.stream()
                             .map(AccountOnlineIpDto::getLastOnlineTime)
                             .filter(Objects::nonNull)
                             .max(LocalDateTime::compareTo)
-                            .orElse(null);
-                    dto.setLastOnlineTime(latestOnline);
+                            .orElse(null));
                 } else {
                     dto.setLastOnlineTime(lastOnlineTimeMap.get(account.getAccountNo()));
                 }
             }
+
+            // 到期剩余天数
+            if (account.getToDate() != null) {
+                dto.setDaysUntilExpiration(ChronoUnit.DAYS.between(now, account.getToDate()));
+            }
+
             return dto;
-        }).collect(java.util.stream.Collectors.toList());
+        }).collect(Collectors.toList());
     }
 
     @Transactional

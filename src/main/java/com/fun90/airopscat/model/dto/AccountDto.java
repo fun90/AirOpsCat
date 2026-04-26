@@ -29,6 +29,7 @@ public class AccountDto {
     private Long daysUntilExpiration; // 到期剩余天数
     
     // 流量使用情况
+    private Long effectiveBandwidth; // 当前周期实际生效配额（GB），周期配额优先，其次账户基准，null 表示不限量
     private Long usedUploadBytes;    // 已使用上传流量
     private Long usedDownloadBytes;  // 已使用下载流量
     private Long totalUsedBytes;     // 总使用流量

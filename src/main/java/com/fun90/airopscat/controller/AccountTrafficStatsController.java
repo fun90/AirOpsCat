@@ -8,6 +8,7 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
@@ -85,6 +86,19 @@ public class AccountTrafficStatsController {
         stats.setId(id);
         AccountTrafficStats updatedStats = trafficStatsService.updateStats(stats);
         return Response.ok(updatedStats).build();
+    }
+
+    @PATCH
+    @Path("/{id}/quota")
+    public Response updateQuota(@PathParam("id") Long id, Map<String, Object> body) {
+        AccountTrafficStats existingStats = trafficStatsService.getStatsById(id);
+        if (existingStats == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        Object quotaVal = body.get("bandwidthQuota");
+        Long quota = quotaVal == null ? null : ((Number) quotaVal).longValue();
+        trafficStatsService.updateBandwidthQuota(id, quota);
+        return Response.ok().build();
     }
 
     @DELETE

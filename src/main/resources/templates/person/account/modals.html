@@ -460,7 +460,7 @@
                                     <div class="mb-3">
                                         <label class="form-label text-muted">流量限制</label>
                                         <div class="fw-bold">
-                                            {{ selectedItem.bandwidth ? selectedItem.bandwidth + ' GB' : '无限制' }}
+                                            {{ selectedItem.effectiveBandwidth ? selectedItem.effectiveBandwidth + ' GB' : '无限制' }}
                                         </div>
                                     </div>
                                 </div>
@@ -483,7 +483,7 @@
                                         <label class="form-label text-muted">已使用流量</label>
                                         <div class="fw-bold">{{ formatBytes(selectedItem.totalUsedBytes) }}</div>
                                     </div>
-                                    <div v-if="selectedItem.bandwidth" class="mb-3">
+                                    <div v-if="selectedItem.effectiveBandwidth" class="mb-3">
                                         <label class="form-label text-muted">使用进度</label>
                                         <div class="progress progress-sm mb-2">
                                             <div class="progress-bar"
@@ -494,7 +494,7 @@
                                         </div>
                                         <div class="text-muted small">
                                             {{ Math.round(selectedItem.usagePercentage || 0) }}%
-                                            ({{ formatBytes(selectedItem.totalUsedBytes) }} / {{ selectedItem.bandwidth }} GB)
+                                            ({{ formatBytes(selectedItem.totalUsedBytes) }} / {{ selectedItem.effectiveBandwidth }} GB)
                                         </div>
                                     </div>
                                     <div class="mb-3">

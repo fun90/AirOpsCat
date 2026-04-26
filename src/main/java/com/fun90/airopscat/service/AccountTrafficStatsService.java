@@ -1,7 +1,9 @@
 package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.AccountTrafficStatsDto;
+import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
+import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.util.TrafficPeriodUtils;
 import com.fun90.airopscat.repository.UserRepository;
@@ -30,16 +32,19 @@ public class AccountTrafficStatsService {
     private static final int DEFAULT_CLEANUP_BATCH_SIZE = 1000;
 
     private final AccountTrafficStatsRepository accountTrafficStatsRepository;
+    private final AccountRepository accountRepository;
     private final UserRepository userRepository;
     private final EntityManager entityManager;
     private final SystemConfigService systemConfigService;
 
     @Inject
     public AccountTrafficStatsService(AccountTrafficStatsRepository accountTrafficStatsRepository,
+                                      AccountRepository accountRepository,
                                       UserRepository userRepository,
                                       EntityManager entityManager,
                                       SystemConfigService systemConfigService) {
         this.accountTrafficStatsRepository = accountTrafficStatsRepository;
+        this.accountRepository = accountRepository;
         this.userRepository = userRepository;
         this.entityManager = entityManager;
         this.systemConfigService = systemConfigService;
@@ -84,7 +89,7 @@ public class AccountTrafficStatsService {
         String selectQuery = "select new com.fun90.airopscat.model.dto.AccountTrafficStatsDto(" +
                 "ats.id, ats.userId, a.remark, ats.accountId, ats.periodStart, ats.periodEnd, " +
                 "coalesce(ats.uploadBytes, 0), coalesce(ats.downloadBytes, 0), " +
-                totalBytesExpr + ") " +
+                totalBytesExpr + ", ats.bandwidthQuota) " +
                 queryContext.fromClause() +
                 queryContext.whereClause() + orderClause;
 
@@ -183,6 +188,22 @@ public class AccountTrafficStatsService {
         return accountTrafficStatsRepository.findByAccountIdAndCurrentTime(accountId, currentTime);
     }
 
+    /**
+     * 获取账户当前有效流量配额（GB）：当前周期配额优先，不存在则取账户基准值。
+     * 返回 null 表示不限量。
+     */
+    public Long getEffectiveBandwidth(Long accountId) {
+        List<AccountTrafficStats> currentStats = accountTrafficStatsRepository.findByAccountIdAndCurrentTime(accountId, LocalDateTime.now());
+        if (!currentStats.isEmpty()) {
+            Long quota = currentStats.getFirst().getBandwidthQuota();
+            if (quota != null) {
+                return quota;
+            }
+        }
+        Account account = accountRepository.findById(accountId);
+        return account != null && account.getBandwidth() != null ? account.getBandwidth().longValue() : null;
+    }
+
     @Transactional
     public AccountTrafficStats saveStats(AccountTrafficStats stats) {
         if (stats.getUserId() != null && userRepository.findById(stats.getUserId()) == null) {
@@ -217,12 +238,24 @@ public class AccountTrafficStatsService {
         if (src.getPeriodEnd() != null) {
             target.setPeriodEnd(src.getPeriodEnd());
         }
+        if (src.getBandwidthQuota() != null) {
+            target.setBandwidthQuota(src.getBandwidthQuota());
+        }
         if (src.getUploadBytes() != null) {
             target.setUploadBytes(src.getUploadBytes());
         }
         if (src.getDownloadBytes() != null) {
             target.setDownloadBytes(src.getDownloadBytes());
         }
+    }
+
+    @Transactional
+    public void updateBandwidthQuota(Long id, Long bandwidthQuota) {
+        AccountTrafficStats stats = accountTrafficStatsRepository.findById(id);
+        if (stats == null) {
+            throw new jakarta.persistence.EntityNotFoundException("Traffic stats not found");
+        }
+        stats.setBandwidthQuota(bandwidthQuota);
     }
 
     @Transactional
@@ -251,6 +284,10 @@ public class AccountTrafficStatsService {
         newStats.setPeriodEnd(TrafficPeriodUtils.resolveAccountPeriodEnd(currentTime, toDate, periodType));
         newStats.setUploadBytes(uploadBytes);
         newStats.setDownloadBytes(downloadBytes);
+        Account account = accountRepository.findById(accountId);
+        if (account != null) {
+            newStats.setBandwidthQuota(account.getBandwidth() != null ? account.getBandwidth().longValue() : null);
+        }
         accountTrafficStatsRepository.persist(newStats);
         return newStats;
     }

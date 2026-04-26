@@ -33,8 +33,10 @@ public class AccountTrafficStats {
     @Column(nullable = false)
     private LocalDateTime periodEnd;
     
+    private Long bandwidthQuota;
+
     private Long uploadBytes = 0L;
-    
+
     private Long downloadBytes = 0L;
     
     private LocalDateTime createTime;

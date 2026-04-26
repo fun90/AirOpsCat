@@ -19,6 +19,7 @@
                     <i :class="getSortIcon('totalBytes')" :style="{ opacity: isSortActive('totalBytes') ? 1 : 0.45 }"></i>
                 </button>
             </th>
+            <th>周期配额</th>
             <th>操作</th>
         </tr>
         </thead>
@@ -32,6 +33,10 @@
             <td v-text="formatBytes(record.downloadBytes)"></td>
             <td v-text="formatBytes(record.totalBytes ?? ((record.uploadBytes || 0) + (record.downloadBytes || 0)))"></td>
             <td>
+                <span v-if="record.bandwidthQuota != null">{{ record.bandwidthQuota }} GB</span>
+                <span v-else class="text-muted">—</span>
+            </td>
+            <td>
                 <div class="btn-list flex-nowrap">
                     <button @click="openEditModal(record)" class="btn btn-sm btn-outline-primary">
                         <i class="ti ti-edit"></i> 编辑
@@ -43,14 +48,14 @@
             </td>
         </tr>
         <tr v-if="loading">
-            <td colspan="8" class="text-center py-3">
+            <td colspan="9" class="text-center py-3">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
             </td>
         </tr>
         <tr v-else-if="records.length === 0">
-            <td colspan="8" class="text-center py-3">没有查到数据。</td>
+            <td colspan="9" class="text-center py-3">没有查到数据。</td>
         </tr>
         </tbody>
     </table>
