@@ -7,6 +7,7 @@ import com.fun90.airopscat.repository.AlertStateRepository;
 import com.fun90.airopscat.service.ratelimit.RateLimitService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
@@ -37,6 +38,7 @@ public class AccountTrafficOverQuotaService {
     @Inject
     RateLimitService rateLimitService;
 
+    @Transactional
     public void handle(Account account, AccountTrafficStats stats) {
         if (account == null || stats == null || account.getId() == null) {
             return;
