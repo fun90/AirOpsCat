@@ -55,10 +55,6 @@
         "action": "sniff"
       },
       {
-        "domain": [ "bam.nr-data.net" ],
-        "action": "reject"
-      },
-      {
         "action": "resolve",
         "strategy": "prefer_ipv4"
       },
@@ -74,10 +70,6 @@
         "domain_suffix": [ "gstatic.com" ],
         "action": "route",
         "outbound": "default-direct"
-      },
-      {
-        "rule_set": ["geoip-cn", "geosite-cn"],
-        "action": "reject"
       }{#if hasExtraRouteRules},
       {extraRouteRules}
       {/if}
@@ -96,8 +88,7 @@
         "format": "binary",
         "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/refs/heads/rule-set/geosite-cn.srs",
         "download_detour": "default-direct"
-      }
-      {#if hasExtraRuleSets},
+      }{#if hasExtraRuleSets},
       {extraRuleSets}
       {/if}
     ]
