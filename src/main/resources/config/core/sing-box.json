@@ -67,7 +67,7 @@
         "action": "reject"
       },
       {
-        "domain_suffix": [ "gstatic.com" ],
+        "domain_suffix": [ "gstatic.com", "google.com" ],
         "action": "route",
         "outbound": "default-direct"
       }{#if hasExtraRouteRules},
