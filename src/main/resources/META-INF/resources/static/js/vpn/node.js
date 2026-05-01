@@ -3,7 +3,7 @@ import { Dropdown, Modal } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
 import { createNodeDeployMethods } from '/static/js/vpn/node-deploy-methods.js';
 import { createNodeFormMethods } from '/static/js/vpn/node-form-methods.js';
-import { createRemoteSearchConfig } from '/static/js/common/tom-select-helper.js';
+import { createRemoteSearchConfig, withTomSelectSearchClear } from '/static/js/common/tom-select-helper.js';
 
 const DEFAULT_NODE_FILTERS = Object.freeze({
     serverId: '',
@@ -36,7 +36,7 @@ const nodeTable = new DataTable({
         coreTypes: [],
         protocolTypes: [],
         availableTags: [],
-        serverFilterSearch: null,
+        serverFilterSearches: [],
         createNodeGroupSelect: null,
         editNodeGroupSelect: null,
         nodeGroupSyncHighlight: {
@@ -168,10 +168,13 @@ const nodeTable = new DataTable({
 
         initializeSearchComponents() {
             setTimeout(() => {
-                const selectElement = document.getElementById('server-filter-select');
-                if (!selectElement) return;
+                const selectElements = ['nodeServerFilter', 'nodeMobileServerFilter']
+                    .map(selectId => document.getElementById(selectId))
+                    .filter(Boolean);
+                if (!selectElements.length) return;
 
-                this.serverFilterSearch = new TomSelect(selectElement, createRemoteSearchConfig({
+                this.serverFilterSearches.forEach(instance => instance.destroy());
+                this.serverFilterSearches = selectElements.map(selectElement => new TomSelect(selectElement, createRemoteSearchConfig({
                     apiUrl: '/api/admin/servers',
                     valueField: 'id',
                     labelField: 'name',
@@ -191,9 +194,11 @@ const nodeTable = new DataTable({
                     })),
                     onChange: (values) => {
                         this.filters.serverId = values.join(',');
+                        this.syncServerFilterSearches();
                         this.onFilterChange();
                     }
-                }));
+                })));
+                this.syncServerFilterSearches();
             }, 100);
         },
 
@@ -260,10 +265,12 @@ const nodeTable = new DataTable({
         },
 
         syncServerFilterSearches(serverItem = null) {
-            if (!this.serverFilterSearch) return;
+            if (!this.serverFilterSearches.length) return;
 
             const serverIds = this.filters.serverId ? this.filters.serverId.split(',').filter(id => id) : [];
-            this.serverFilterSearch.setValue(serverIds, true);
+            this.serverFilterSearches.forEach(instance => {
+                instance.setValue(serverIds, true);
+            });
         },
 
         fetchServers() {
@@ -273,14 +280,16 @@ const nodeTable = new DataTable({
                     this.servers = data;
 
                     // 更新 Tom Select 默认选项
-                    if (this.serverFilterSearch && this.servers.length > 0) {
+                    if (this.serverFilterSearches.length && this.servers.length > 0) {
                         const defaultOptions = this.servers.slice(0, 10).map(server => ({
                             id: server.id,
                             name: this.formatServerDisplayLabel(server),
                             ip: server.ip
                         }));
-                        this.serverFilterSearch.clearOptions();
-                        this.serverFilterSearch.addOptions(defaultOptions);
+                        this.serverFilterSearches.forEach(instance => {
+                            instance.clearOptions();
+                            instance.addOptions(defaultOptions);
+                        });
                     }
 
                     this.syncServerFilterSearches();
@@ -530,7 +539,7 @@ const nodeTable = new DataTable({
 
                 this.destroyNodeGroupSelect(isEdit);
                 const instanceKey = isEdit ? 'editNodeGroupSelect' : 'createNodeGroupSelect';
-                this[instanceKey] = new TomSelect(selectElement, {
+                this[instanceKey] = new TomSelect(selectElement, withTomSelectSearchClear({
                     valueField: 'value',
                     labelField: 'label',
                     searchField: ['label', 'value'],
@@ -551,7 +560,7 @@ const nodeTable = new DataTable({
                     onChange: (value) => {
                         this.handleNodeGroupChange(value, isEdit);
                     }
-                });
+                }));
 
                 this[instanceKey].refreshOptions(false);
             });
@@ -879,13 +888,11 @@ const nodeTable = new DataTable({
                 this.onFilterChange();
             },
             onReset() {
-                if (this.serverFilterSearch) {
-                    this.serverFilterSearch.clear();
-                }
+                this.serverFilterSearches.forEach(instance => instance.clear());
             },
             onClear(key) {
-                if (key === 'serverId' && this.serverFilterSearch) {
-                    this.serverFilterSearch.clear();
+                if (key === 'serverId') {
+                    this.serverFilterSearches.forEach(instance => instance.clear());
                 }
             },
             getActiveTags() {

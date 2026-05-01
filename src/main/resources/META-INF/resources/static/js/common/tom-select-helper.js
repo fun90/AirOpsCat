@@ -2,6 +2,35 @@
  * TomSelect 远程搜索辅助函数
  */
 
+export function clearTomSelectSearchInput(instance) {
+    if (!instance) {
+        return;
+    }
+
+    setTimeout(() => {
+        instance.setTextboxValue('');
+        if (instance.control_input) {
+            instance.control_input.value = '';
+        }
+        instance.lastQuery = null;
+        instance.refreshOptions(false);
+    }, 0);
+}
+
+export function withTomSelectSearchClear(config = {}) {
+    const originalOnItemAdd = config.onItemAdd;
+
+    return {
+        ...config,
+        onItemAdd(value, item) {
+            if (originalOnItemAdd) {
+                originalOnItemAdd.call(this, value, item);
+            }
+            clearTomSelectSearchInput(this);
+        }
+    };
+}
+
 /**
  * 创建远程搜索配置
  * @param {Object} options 配置选项
@@ -18,6 +47,7 @@
  * @param {string[]} [options.plugins] - TomSelect 插件
  * @param {Array} [options.options] - 初始选项
  * @param {number} [options.maxOptions] - 最大选项数
+ * @param {Function} [options.onItemAdd] - 选项添加回调
  * @returns {Object} TomSelect 配置对象
  */
 export function createRemoteSearchConfig(options) {
@@ -34,10 +64,11 @@ export function createRemoteSearchConfig(options) {
         dataTransform,
         plugins,
         options: initialOptions,
-        maxOptions
+        maxOptions,
+        onItemAdd
     } = options;
 
-    const config = {
+    const config = withTomSelectSearchClear({
         valueField,
         labelField,
         searchField,
@@ -55,8 +86,9 @@ export function createRemoteSearchConfig(options) {
                 })
                 .catch(() => callback());
         },
-        onChange
-    };
+        onChange,
+        onItemAdd
+    });
 
     if (render) {
         config.render = render;
