@@ -1,8 +1,8 @@
 {
   "type": "hysteria2",
   "users": [],
-  "up_mbps": 50,
-  "down_mbps": 50,
+  "up_mbps": 24,
+  "down_mbps": 24,
   "tls": {
     "server_name": "{serverName}",
     "enabled": true,
