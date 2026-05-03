@@ -119,6 +119,9 @@ public class AccountTrafficOverQuotaService {
     }
 
     private boolean shouldNotify(AlertState state, LocalDateTime now) {
+        if ("ACKNOWLEDGED".equals(state.getStatus())) {
+            return false;
+        }
         int intervalMinutes = Math.max(0, systemConfigService.getIntValue(NOTIFY_INTERVAL_KEY, 60));
         return state.getLastNotifiedTime() == null || !state.getLastNotifiedTime().plusMinutes(intervalMinutes).isAfter(now);
     }

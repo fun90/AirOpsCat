@@ -1,0 +1,109 @@
+<div class="page-body" id="alert-app" v-scope @vue:mounted="initialize">
+    <div class="container-xl">
+        <div class="row g-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 w-100">
+                            <div>
+                                <h3 class="card-title mb-1">告警管理</h3>
+                                <div class="text-secondary small">查看当前活跃告警与历史告警，支持手动确认和清除。</div>
+                            </div>
+                            <div class="btn-list">
+                                <button class="btn btn-outline-primary" type="button" @click="refreshAlerts()">
+                                    <i class="ti ti-refresh me-1"></i>刷新
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 筛选栏 -->
+                    <div class="card-body border-bottom">
+                        <div class="row g-2">
+                            <div class="col-12 col-md-3">
+                                <select class="form-select" v-model="filters.status" @change="onFilterChange">
+                                    <option value="">全部状态</option>
+                                    <option value="ACTIVE">活跃 (ACTIVE)</option>
+                                    <option value="ACKNOWLEDGED">已确认 (ACKNOWLEDGED)</option>
+                                    <option value="RECOVERED">已恢复 (RECOVERED)</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <select class="form-select" v-model="filters.alertType" @change="onFilterChange">
+                                    <option value="">全部类型</option>
+                                    <option value="account-expiring">账户到期</option>
+                                    <option value="server-expiring">服务器到期</option>
+                                    <option value="domain-expiring">域名到期</option>
+                                    <option value="server-traffic-threshold">服务器流量阈值</option>
+                                    <option value="server-monitor-load">服务器负载</option>
+                                    <option value="account-traffic-over-quota">账户流量超额</option>
+                                    <option value="account-connection-limit">账户连接数超限</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <select class="form-select" v-model="filters.resourceType" @change="onFilterChange">
+                                    <option value="">全部资源类型</option>
+                                    <option value="account">账户</option>
+                                    <option value="server">服务器</option>
+                                    <option value="domain">域名</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <button class="btn btn-secondary w-100" type="button" @click="resetFilters">
+                                    <i class="ti ti-x me-1"></i>重置筛选
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 统计 -->
+                    <div class="card-body border-bottom py-3">
+                        <div class="row g-3 text-center">
+                            <div class="col-4">
+                                <div class="text-danger fw-bold h4 m-0">{{ stats.active }}</div>
+                                <div class="text-secondary small">活跃告警</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-warning fw-bold h4 m-0">{{ stats.acknowledged }}</div>
+                                <div class="text-secondary small">已确认</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-success fw-bold h4 m-0">{{ stats.recovered }}</div>
+                                <div class="text-secondary small">已恢复</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 加载骨架 -->
+                    <div class="card-body" v-if="loading">
+                        <div class="placeholder-glow">
+                            <span class="placeholder col-12 mb-2"></span>
+                            <span class="placeholder col-10 mb-2"></span>
+                            <span class="placeholder col-8"></span>
+                        </div>
+                    </div>
+
+                    <div v-else>
+                        {#include system/alert/table /}
+
+                        <!-- 空状态 -->
+                        <div class="empty py-5" v-if="!alerts.length">
+                            <div class="empty-icon">
+                                <i class="ti ti-bell-off icon"></i>
+                            </div>
+                            <p class="empty-title">暂无告警记录</p>
+                            <p class="empty-subtitle text-secondary">当前筛选条件下没有告警数据。</p>
+                        </div>
+
+                        <!-- 分页 -->
+                        <div v-if="totalPages > 0">
+                            {#include pagination-controls /}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {#include system/alert/modals /}
+</div>

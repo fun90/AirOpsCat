@@ -70,7 +70,10 @@ public class ConsolePageRegistry {
                     true, false, false, false, "", DEFAULT_MODAL_PREFIX)),
             Map.entry("/system/backup", page("system", "系统", 50, "system", "数据备份", 30,
                     "查看和管理系统数据备份文件", "/system/backup", "system/backup/page",
-                    true, false, false, false, "", "backup-"))
+                    true, false, false, false, "", "backup-")),
+            Map.entry("/system/alert", page("system", "系统", 50, "system", "告警管理", 40,
+                    "查看当前活跃告警与历史告警，支持确认和清除操作", "/system/alert", "system/alert/page",
+                    true, false, false, false, "", "alert-"))
     );
     private final List<ConsoleMenuGroup> menuGroups = buildMenuGroups();
 

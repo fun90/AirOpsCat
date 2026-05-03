@@ -1,0 +1,59 @@
+<div class="table-responsive">
+    <table class="table table-vcenter card-table">
+        <thead>
+        <tr>
+            <th>告警类型</th>
+            <th>资源</th>
+            <th>状态</th>
+            <th>触发次数</th>
+            <th>最后触发</th>
+            <th>最后通知</th>
+            <th>摘要</th>
+            <th class="text-end">操作</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr v-for="alert in alerts" :key="alert.id">
+            <td>
+                <span class="badge bg-blue-lt">{{ alertTypeLabel(alert.alertType) }}</span>
+            </td>
+            <td>
+                <div class="fw-medium">{{ alert.resourceKey || alert.resourceId }}</div>
+                <div class="text-secondary small">{{ resourceTypeLabel(alert.resourceType) }}</div>
+            </td>
+            <td>
+                <span class="badge" :class="statusBadgeClass(alert.status)">{{ statusLabel(alert.status) }}</span>
+                <div class="text-secondary small mt-1" v-if="alert.severity">{{ alert.severity }}</div>
+            </td>
+            <td>{{ alert.triggerCount || 0 }}</td>
+            <td>
+                <span class="text-secondary small">{{ formatDateTime(alert.lastTriggeredTime) }}</span>
+            </td>
+            <td>
+                <span class="text-secondary small">{{ formatDateTime(alert.lastNotifiedTime) || '—' }}</span>
+            </td>
+            <td style="max-width: 300px;">
+                <div class="text-truncate small" :title="alert.summary">{{ alert.summary || '—' }}</div>
+                <div class="text-secondary small" v-if="alert.acknowledgedBy">
+                    确认人: {{ alert.acknowledgedBy }}
+                </div>
+            </td>
+            <td class="text-end">
+                <div class="btn-list justify-content-end flex-nowrap">
+                    <button class="btn btn-sm btn-outline-warning"
+                            v-if="alert.status === 'ACTIVE'"
+                            @click="openAcknowledge(alert)"
+                            title="确认告警">
+                        <i class="ti ti-check me-1"></i>确认
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger"
+                            @click="openDelete(alert)"
+                            title="清除告警">
+                        <i class="ti ti-trash me-1"></i>清除
+                    </button>
+                </div>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>

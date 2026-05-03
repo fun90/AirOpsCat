@@ -164,6 +164,9 @@ public class AccountOnlineLimitAlertService {
     }
 
     private boolean shouldNotify(AlertState state, LocalDateTime now) {
+        if ("ACKNOWLEDGED".equals(state.getStatus())) {
+            return false;
+        }
         int intervalMinutes = Math.max(0, systemConfigService.getIntValue(
                 "airopscat.account.connection-limit.alert.min-interval-minutes", 60));
         return state.getLastNotifiedTime() == null || !state.getLastNotifiedTime().plusMinutes(intervalMinutes).isAfter(now);

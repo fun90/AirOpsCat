@@ -1,0 +1,59 @@
+<!-- 确认告警模态框 -->
+<div class="modal fade" id="alert-acknowledge-modal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">确认告警</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" v-if="acknowledgeTarget">
+                <p class="text-secondary mb-3">将告警标记为已确认，后续不再重复推送通知。</p>
+                <div class="mb-2">
+                    <span class="badge" :class="statusBadgeClass(acknowledgeTarget.status)">{{ statusLabel(acknowledgeTarget.status) }}</span>
+                    <span class="ms-2 small fw-medium">{{ alertTypeLabel(acknowledgeTarget.alertType) }}</span>
+                </div>
+                <div class="small text-secondary text-wrap mb-3" style="white-space: pre-line;">{{ acknowledgeTarget.summary }}</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning"
+                        @click="confirmAcknowledge"
+                        :disabled="acknowledging">
+                    <span v-if="acknowledging" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    确认告警
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 清除告警确认对话框 -->
+<div class="modal fade" id="alert-delete-modal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">清除告警</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" v-if="deleteTarget">
+                <div class="alert alert-warning mb-3">
+                    <i class="ti ti-alert-triangle me-1"></i>此操作不可撤销，告警记录将被永久删除。
+                </div>
+                <div class="mb-2">
+                    <span class="badge" :class="statusBadgeClass(deleteTarget.status)">{{ statusLabel(deleteTarget.status) }}</span>
+                    <span class="ms-2 small fw-medium">{{ alertTypeLabel(deleteTarget.alertType) }}</span>
+                </div>
+                <div class="small text-secondary">资源: {{ deleteTarget.resourceKey || deleteTarget.resourceId }}</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger"
+                        @click="confirmDelete"
+                        :disabled="deleting">
+                    <span v-if="deleting" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    确认清除
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

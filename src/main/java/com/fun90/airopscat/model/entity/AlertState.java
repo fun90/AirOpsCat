@@ -57,6 +57,12 @@ public class AlertState {
     @Column(name = "recovered_time")
     private LocalDateTime recoveredTime;
 
+    @Column(name = "acknowledged_time")
+    private LocalDateTime acknowledgedTime;
+
+    @Column(name = "acknowledged_by", length = 64)
+    private String acknowledgedBy;
+
     @Column(name = "trigger_count")
     private Integer triggerCount;
 
