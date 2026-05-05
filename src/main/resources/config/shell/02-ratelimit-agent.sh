@@ -41,6 +41,7 @@ AIROPSCAT_RATELIMIT_NIC=
 AIROPSCAT_CLASH_API_PORT=19191
 AIROPSCAT_RATELIMIT_INTERVAL=5
 AIROPSCAT_RATELIMIT_ROOT_RATE=10000mbit
+AIROPSCAT_RATELIMIT_ACTIVE_TTL=60
 EOF
 
   cat > /usr/local/bin/airopscat-ratelimit-agent <<'EOF'
@@ -56,6 +57,7 @@ CONFIG_FILE = "/etc/airopscat/ratelimit/accounts.json"
 CLASH_API_PORT = int(os.getenv("AIROPSCAT_CLASH_API_PORT", "19191"))
 POLL_INTERVAL = max(1, int(os.getenv("AIROPSCAT_RATELIMIT_INTERVAL", "3")))
 ROOT_RATE = os.getenv("AIROPSCAT_RATELIMIT_ROOT_RATE", "10000mbit")
+ACTIVE_TTL = max(POLL_INTERVAL, int(os.getenv("AIROPSCAT_RATELIMIT_ACTIVE_TTL", "60")))
 IPTS_CHAIN = "AIROPSCAT_MARK"
 
 # 持久 HTTP 连接，避免每轮重建 TCP 连接
@@ -128,22 +130,22 @@ def load_accounts():
 
 def calc_burst(speed_kbit):
     """根据速率动态计算 burst，避免 HTB too many events。
-    burst = max(64k, 速率对应的字节数 / 10)，单位 kB。"""
+    burst = max(128k, 速率对应的 1 秒字节数)，单位 kB。"""
     rate_bytes_per_sec = speed_kbit * 1000 // 8
-    burst_bytes = max(64 * 1024, rate_bytes_per_sec // 10)
-    return max(64, burst_bytes // 1024)
+    burst_bytes = max(128 * 1024, rate_bytes_per_sec)
+    return max(128, burst_bytes // 1024)
 
 
 def rebuild_tc(nic, accounts):
-    """删除并重建 HTB 规则，返回 account_no -> mark_id 映射。仅在账号变化时调用。"""
+    """删除并重建 HTB 规则，返回 account_no -> mark_id 映射。仅为近期活跃账号建立 class。"""
     run(f"tc qdisc del dev {nic} root 2>/dev/null || true")
     run(f"iptables -t mangle -F {IPTS_CHAIN} 2>/dev/null || true")
     if not accounts:
         return {}
 
-    run(f"tc qdisc add dev {nic} root handle 1: htb default 9999")
-    run(f"tc class add dev {nic} parent 1: classid 1:1 htb rate {ROOT_RATE} burst 128k quantum 1514")
-    run(f"tc class add dev {nic} parent 1:1 classid 1:9999 htb rate {ROOT_RATE} burst 128k quantum 1514")
+    run(f"tc qdisc add dev {nic} root handle 1: htb default 9999 r2q 1")
+    run(f"tc class add dev {nic} parent 1: classid 1:1 htb rate {ROOT_RATE} burst 1m cburst 1m quantum 1514")
+    run(f"tc class add dev {nic} parent 1:1 classid 1:9999 htb rate {ROOT_RATE} burst 1m cburst 1m quantum 1514")
 
     marks = {}
     class_id = 2
@@ -157,6 +159,26 @@ def rebuild_tc(nic, accounts):
         marks[account_no] = class_id
         class_id += 1
     return marks
+
+
+def extract_active_accounts(payload, accounts, last_seen):
+    """从 sing-box 连接中提取活跃账号，并按 TTL 保留近期账号，避免频繁重建 HTB。"""
+    now = time.monotonic()
+    for conn in payload.get("connections", []):
+        if not isinstance(conn, dict):
+            continue
+        meta = conn.get("metadata") or {}
+        account_no = str(meta.get("authUser") or "").strip()
+        if account_no in accounts:
+            last_seen[account_no] = now
+
+    active = {}
+    for account_no, seen_at in list(last_seen.items()):
+        if account_no not in accounts or now - seen_at > ACTIVE_TTL:
+            last_seen.pop(account_no, None)
+            continue
+        active[account_no] = accounts[account_no]
+    return active
 
 
 def setup_iptables():
@@ -190,15 +212,10 @@ def sync_udp_rules(desired_udp, prev_udp):
     prev_udp.update(desired_udp)
 
 
-def mark_connections(marks, prev_tcp, prev_udp, desired):
+def mark_connections(payload, marks, prev_tcp, prev_udp, desired):
     if not marks:
         prev_tcp.clear()
         sync_udp_rules({}, prev_udp)
-        return
-    try:
-        payload = fetch_connections()
-    except Exception as exc:
-        log(f"读取 sing-box 连接失败: {exc}")
         return
 
     desired.clear()
@@ -251,6 +268,9 @@ def main():
     prev_tcp = {}
     prev_udp = {}
     desired = {}
+    accounts = {}
+    active_accounts = {}
+    last_seen_accounts = {}
 
     while True:
         try:
@@ -265,12 +285,34 @@ def main():
             if mtime != accounts_mtime:
                 accounts = load_accounts()
                 accounts_mtime = mtime
-                marks = rebuild_tc(nic, accounts)
-                setup_iptables()
+                last_seen_accounts = {account_no: seen_at for account_no, seen_at in last_seen_accounts.items() if account_no in accounts}
+                active_accounts = {}
+                marks = rebuild_tc(nic, {})
                 prev_tcp.clear()
                 prev_udp.clear()
 
-            mark_connections(marks, prev_tcp, prev_udp, desired)
+            if not accounts:
+                setup_iptables()
+                time.sleep(POLL_INTERVAL)
+                continue
+
+            try:
+                payload = fetch_connections()
+            except Exception as exc:
+                log(f"读取 sing-box 连接失败: {exc}")
+                time.sleep(POLL_INTERVAL)
+                continue
+
+            next_active_accounts = extract_active_accounts(payload, accounts, last_seen_accounts)
+            if next_active_accounts != active_accounts:
+                active_accounts = next_active_accounts
+                marks = rebuild_tc(nic, active_accounts)
+                setup_iptables()
+                prev_tcp.clear()
+                prev_udp.clear()
+                log(f"已刷新限速规则: activeAccounts={len(active_accounts)}, totalAccounts={len(accounts)}")
+
+            mark_connections(payload, marks, prev_tcp, prev_udp, desired)
         except Exception as exc:
             log(f"限速代理执行失败: {exc}")
             nic = None
