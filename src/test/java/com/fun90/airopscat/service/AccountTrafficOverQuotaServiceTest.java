@@ -4,6 +4,7 @@ import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import com.fun90.airopscat.model.entity.AlertState;
 import com.fun90.airopscat.repository.AlertStateRepository;
+import com.fun90.airopscat.service.ratelimit.RateLimitService;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -17,6 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class AccountTrafficOverQuotaServiceTest {
+
+    private static final LocalDateTime PERIOD_START = LocalDateTime.of(2026, 5, 1, 0, 0);
+    private static final LocalDateTime PERIOD_END = LocalDateTime.of(2026, 6, 1, 0, 0);
 
     @Test
     void shouldCreateAlertWithoutChangingAccountSpeedAndRespectNotifyInterval() {
@@ -54,6 +58,67 @@ class AccountTrafficOverQuotaServiceTest {
         assertEquals(null, account.getSpeed());
     }
 
+    @Test
+    void shouldKeepAcknowledgedCurrentPeriodAlertSilentAndMigrateLegacyFingerprint() {
+        Account account = account(1L, "acct-001", null);
+        FakeAlertStateRepository alertStateRepository = new FakeAlertStateRepository();
+        AlertState legacyState = legacyState(account, "ACKNOWLEDGED", PERIOD_START.plusHours(2));
+        legacyState.setAcknowledgedTime(PERIOD_START.plusHours(3));
+        legacyState.setAcknowledgedBy("ops@example.com");
+        legacyState.setLastNotifiedTime(PERIOD_START.plusHours(1));
+        legacyState.setTriggerCount(1);
+        alertStateRepository.states.add(legacyState);
+        FakeBarkService barkService = new FakeBarkService();
+        AccountTrafficOverQuotaService service = service(alertStateRepository, barkService, 20);
+
+        service.handle(account, stats(1L, 10L, gb(11), 0, PERIOD_START, PERIOD_END));
+
+        AlertState state = alertStateRepository.states.getFirst();
+        assertEquals("ACKNOWLEDGED", state.getStatus());
+        assertEquals("acct-001:" + PERIOD_START, state.getFingerprint());
+        assertEquals(2, state.getTriggerCount());
+        assertEquals(0, barkService.warningCount);
+    }
+
+    @Test
+    void shouldCreateNewPeriodAlertWhenOnlyLegacyAlertBelongsToPreviousPeriod() {
+        Account account = account(1L, "acct-001", null);
+        FakeAlertStateRepository alertStateRepository = new FakeAlertStateRepository();
+        AlertState legacyState = legacyState(account, "ACKNOWLEDGED", PERIOD_START.minusDays(1));
+        legacyState.setAcknowledgedTime(PERIOD_START.minusHours(12));
+        legacyState.setAcknowledgedBy("ops@example.com");
+        alertStateRepository.states.add(legacyState);
+        FakeBarkService barkService = new FakeBarkService();
+        AccountTrafficOverQuotaService service = service(alertStateRepository, barkService, 20);
+
+        service.handle(account, stats(1L, 10L, gb(11), 0, PERIOD_START, PERIOD_END));
+
+        assertEquals(2, alertStateRepository.states.size());
+        AlertState newState = alertStateRepository.states.get(1);
+        assertEquals("ACTIVE", newState.getStatus());
+        assertEquals("acct-001:" + PERIOD_START, newState.getFingerprint());
+        assertEquals(1, barkService.warningCount);
+    }
+
+    @Test
+    void shouldRecoverAcknowledgedCurrentPeriodAlertWhenUsageBackWithinQuota() {
+        Account account = account(1L, "acct-001", null);
+        FakeAlertStateRepository alertStateRepository = new FakeAlertStateRepository();
+        AlertState state = legacyState(account, "ACKNOWLEDGED", PERIOD_START.plusHours(2));
+        state.setFingerprint("acct-001:" + PERIOD_START);
+        state.setAcknowledgedTime(PERIOD_START.plusHours(3));
+        state.setAcknowledgedBy("ops@example.com");
+        alertStateRepository.states.add(state);
+        FakeBarkService barkService = new FakeBarkService();
+        AccountTrafficOverQuotaService service = service(alertStateRepository, barkService, 20);
+
+        service.handle(account, stats(1L, 10L, gb(9), 0, PERIOD_START, PERIOD_END));
+
+        assertEquals("RECOVERED", state.getStatus());
+        assertNotNull(state.getRecoveredTime());
+        assertEquals(0, barkService.warningCount);
+    }
+
     private static AccountTrafficOverQuotaService service(FakeAlertStateRepository alertStateRepository,
                                                           FakeBarkService barkService,
                                                           int overQuotaSpeed) {
@@ -68,6 +133,7 @@ class AccountTrafficOverQuotaServiceTest {
         service.barkService = barkService;
         service.systemConfigService = configService;
         service.accountTrafficLimitService = limitService;
+        service.rateLimitService = new FakeRateLimitService();
         return service;
     }
 
@@ -81,14 +147,33 @@ class AccountTrafficOverQuotaServiceTest {
     }
 
     private static AccountTrafficStats stats(Long accountId, Long bandwidthQuota, long uploadBytes, long downloadBytes) {
+        return stats(accountId, bandwidthQuota, uploadBytes, downloadBytes, PERIOD_START, PERIOD_END);
+    }
+
+    private static AccountTrafficStats stats(Long accountId, Long bandwidthQuota, long uploadBytes, long downloadBytes,
+                                             LocalDateTime periodStart, LocalDateTime periodEnd) {
         AccountTrafficStats stats = new AccountTrafficStats();
         stats.setAccountId(accountId);
         stats.setBandwidthQuota(bandwidthQuota);
         stats.setUploadBytes(uploadBytes);
         stats.setDownloadBytes(downloadBytes);
-        stats.setPeriodStart(LocalDateTime.now().minusDays(1));
-        stats.setPeriodEnd(LocalDateTime.now().plusDays(1));
+        stats.setPeriodStart(periodStart);
+        stats.setPeriodEnd(periodEnd);
         return stats;
+    }
+
+    private static AlertState legacyState(Account account, String status, LocalDateTime lastTriggeredTime) {
+        AlertState state = new AlertState();
+        state.setId(1L);
+        state.setAlertType("account-traffic-over-quota");
+        state.setResourceType("account");
+        state.setResourceId(account.getId());
+        state.setResourceKey(account.getAccountNo());
+        state.setFingerprint(account.getAccountNo());
+        state.setStatus(status);
+        state.setSeverity("WARNING");
+        state.setLastTriggeredTime(lastTriggeredTime);
+        return state;
     }
 
     private static long gb(long value) {
@@ -124,6 +209,15 @@ class AccountTrafficOverQuotaServiceTest {
         public boolean sendWarningNotification(String title, String body) {
             warningCount++;
             return true;
+        }
+    }
+
+    static class FakeRateLimitService extends RateLimitService {
+        int syncCount;
+
+        @Override
+        public void triggerAsyncSync() {
+            syncCount++;
         }
     }
 

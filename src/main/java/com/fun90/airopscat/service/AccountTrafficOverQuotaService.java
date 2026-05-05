@@ -11,6 +11,7 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Slf4j
 @ApplicationScoped
@@ -48,24 +49,23 @@ public class AccountTrafficOverQuotaService {
         Long effectiveBandwidth = accountTrafficLimitService.resolveEffectiveBandwidth(account, stats);
         if (accountTrafficLimitService.isOverQuota(usedBytes, effectiveBandwidth)) {
             rateLimitService.triggerAsyncSync();
-            triggerAlert(account, usedBytes, effectiveBandwidth);
+            triggerAlert(account, stats, usedBytes, effectiveBandwidth);
             return;
         }
 
-        recoverAlert(account, usedBytes, effectiveBandwidth);
+        recoverAlert(account, stats, usedBytes, effectiveBandwidth);
     }
 
-    private void triggerAlert(Account account, long usedBytes, Long effectiveBandwidth) {
+    private void triggerAlert(Account account, AccountTrafficStats stats, long usedBytes, Long effectiveBandwidth) {
         LocalDateTime now = LocalDateTime.now();
-        String fingerprint = fingerprint(account);
-        AlertState state = alertStateRepository
-                .findByIdentity(ALERT_TYPE, RESOURCE_TYPE, account.getId(), fingerprint)
-                .orElseGet(() -> newAlertState(account, fingerprint, now));
+        String periodFingerprint = periodFingerprint(account, stats);
+        AlertState state = findCurrentPeriodState(account, stats, periodFingerprint)
+                .orElseGet(() -> newAlertState(account, periodFingerprint, now));
 
         if (!STATUS_ACTIVE.equals(state.getStatus())) {
-            state.setStatus(STATUS_ACTIVE);
-            state.setFirstTriggeredTime(now);
-            state.setRecoveredTime(null);
+            if (STATUS_RECOVERED.equals(state.getStatus())) {
+                activate(state, now);
+            }
         }
 
         AccountTrafficLimitService.EffectiveSpeedLimit limit =
@@ -89,10 +89,10 @@ public class AccountTrafficOverQuotaService {
         }
     }
 
-    private void recoverAlert(Account account, long usedBytes, Long effectiveBandwidth) {
+    private void recoverAlert(Account account, AccountTrafficStats stats, long usedBytes, Long effectiveBandwidth) {
         LocalDateTime now = LocalDateTime.now();
-        alertStateRepository.findByIdentity(ALERT_TYPE, RESOURCE_TYPE, account.getId(), fingerprint(account))
-                .filter(state -> STATUS_ACTIVE.equals(state.getStatus()))
+        findCurrentPeriodState(account, stats, periodFingerprint(account, stats))
+                .filter(state -> STATUS_ACTIVE.equals(state.getStatus()) || "ACKNOWLEDGED".equals(state.getStatus()))
                 .ifPresent(state -> {
                     state.setStatus(STATUS_RECOVERED);
                     state.setRecoveredTime(now);
@@ -116,6 +116,30 @@ public class AccountTrafficOverQuotaService {
         state.setFirstTriggeredTime(now);
         state.setTriggerCount(0);
         return state;
+    }
+
+    private void activate(AlertState state, LocalDateTime now) {
+        state.setStatus(STATUS_ACTIVE);
+        state.setFirstTriggeredTime(now);
+        state.setRecoveredTime(null);
+        state.setAcknowledgedTime(null);
+        state.setAcknowledgedBy(null);
+    }
+
+    private Optional<AlertState> findCurrentPeriodState(Account account, AccountTrafficStats stats, String periodFingerprint) {
+        Optional<AlertState> currentState = alertStateRepository
+                .findByIdentity(ALERT_TYPE, RESOURCE_TYPE, account.getId(), periodFingerprint);
+        if (currentState.isPresent()) {
+            return currentState;
+        }
+
+        return alertStateRepository
+                .findByIdentity(ALERT_TYPE, RESOURCE_TYPE, account.getId(), legacyFingerprint(account))
+                .filter(state -> belongsToCurrentPeriod(state, stats))
+                .map(state -> {
+                    state.setFingerprint(periodFingerprint);
+                    return state;
+                });
     }
 
     private boolean shouldNotify(AlertState state, LocalDateTime now) {
@@ -145,8 +169,25 @@ public class AccountTrafficOverQuotaService {
                 + (account.getRemark() == null || account.getRemark().isBlank() ? "" : "（" + account.getRemark() + "）");
     }
 
-    private String fingerprint(Account account) {
+    private String legacyFingerprint(Account account) {
         return account.getAccountNo() == null ? String.valueOf(account.getId()) : account.getAccountNo();
+    }
+
+    private String periodFingerprint(Account account, AccountTrafficStats stats) {
+        String base = legacyFingerprint(account);
+        if (stats == null || stats.getPeriodStart() == null) {
+            return base;
+        }
+        return base + ":" + stats.getPeriodStart();
+    }
+
+    private boolean belongsToCurrentPeriod(AlertState state, AccountTrafficStats stats) {
+        if (stats == null || stats.getPeriodStart() == null || stats.getPeriodEnd() == null) {
+            return true;
+        }
+        LocalDateTime lastTriggeredTime = state.getLastTriggeredTime();
+        return lastTriggeredTime == null
+                || (!lastTriggeredTime.isBefore(stats.getPeriodStart()) && lastTriggeredTime.isBefore(stats.getPeriodEnd()));
     }
 
     private long safe(Long value) {
