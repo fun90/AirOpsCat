@@ -1,6 +1,7 @@
 package com.fun90.airopscat.repository;
 
 import com.fun90.airopscat.model.dto.SystemRequestLogQuery;
+import com.fun90.airopscat.model.dto.SystemRequestLogPathStatsVo;
 import com.fun90.airopscat.model.dto.SystemRequestLogStatsItemVo;
 import com.fun90.airopscat.model.entity.SystemRequestLog;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
@@ -17,6 +18,7 @@ import java.util.Map;
 
 @ApplicationScoped
 public class SystemRequestLogRepository implements PanacheRepository<SystemRequestLog> {
+    private static final String LIKE_ESCAPE_CLAUSE = " escape '!'";
 
     public PanacheQuery<SystemRequestLog> findByQuery(SystemRequestLogQuery query) {
         QueryParts parts = buildQueryParts(query);
@@ -26,26 +28,41 @@ public class SystemRequestLogRepository implements PanacheRepository<SystemReque
         return find(String.join(" and ", parts.conditions()), Sort.by("accessTime").descending(), parts.params());
     }
 
-    public List<SystemRequestLogStatsItemVo> statsByPath(SystemRequestLogQuery query, int limit) {
-        return aggregate("requestPath", query, limit);
+    public List<SystemRequestLogPathStatsVo> statsByPathAndDate(SystemRequestLogQuery query, int pathLimit) {
+        List<String> paths = aggregate("requestPath", query, pathLimit)
+                .stream()
+                .map(SystemRequestLogStatsItemVo::getLabel)
+                .toList();
+        if (paths.isEmpty()) {
+            return List.of();
+        }
+
+        QueryParts parts = buildQueryParts(query);
+        List<String> conditions = new ArrayList<>(parts.conditions());
+        Map<String, Object> params = new HashMap<>(parts.params());
+        conditions.add("requestPath in :requestPaths");
+        params.put("requestPaths", paths);
+
+        String where = " where " + String.join(" and ", conditions);
+        String jpql = "select requestPath, function('date_format', accessTime, '%Y-%m-%d'), count(id) "
+                + "from SystemRequestLog" + where
+                + " group by requestPath, function('date_format', accessTime, '%Y-%m-%d') "
+                + "order by function('date_format', accessTime, '%Y-%m-%d') asc";
+        TypedQuery<Object[]> typedQuery = getEntityManager().createQuery(jpql, Object[].class);
+        setParameters(typedQuery, params);
+
+        Map<String, List<SystemRequestLogStatsItemVo>> grouped = new HashMap<>();
+        typedQuery.getResultList().forEach(row -> grouped
+                .computeIfAbsent(String.valueOf(row[0]), key -> new ArrayList<>())
+                .add(new SystemRequestLogStatsItemVo(String.valueOf(row[1]), ((Number) row[2]).longValue())));
+
+        return paths.stream()
+                .map(path -> new SystemRequestLogPathStatsVo(path, grouped.getOrDefault(path, List.of())))
+                .toList();
     }
 
     public List<SystemRequestLogStatsItemVo> statsByClientIp(SystemRequestLogQuery query, int limit) {
         return aggregate("clientIp", query, limit);
-    }
-
-    public List<SystemRequestLogStatsItemVo> statsByHour(SystemRequestLogQuery query, int limit) {
-        QueryParts parts = buildQueryParts(query);
-        String where = parts.conditions().isEmpty() ? "" : " where " + String.join(" and ", parts.conditions());
-        String jpql = "select function('date_format', accessTime, '%Y-%m-%d %H:00'), count(id) "
-                + "from SystemRequestLog" + where + " group by function('date_format', accessTime, '%Y-%m-%d %H:00') "
-                + "order by function('date_format', accessTime, '%Y-%m-%d %H:00') asc";
-        TypedQuery<Object[]> typedQuery = getEntityManager().createQuery(jpql, Object[].class);
-        setParameters(typedQuery, parts.params());
-        return typedQuery.setMaxResults(limit).getResultList()
-                .stream()
-                .map(row -> new SystemRequestLogStatsItemVo(String.valueOf(row[0]), ((Number) row[1]).longValue()))
-                .toList();
     }
 
     public long deleteExpired(LocalDateTime cutoff) {
@@ -80,11 +97,11 @@ public class SystemRequestLogRepository implements PanacheRepository<SystemReque
             params.put("endTime", query.getEndTime());
         }
         if (hasText(query.getRequestPath())) {
-            conditions.add("requestPath like :requestPath escape '\\\\'");
+            conditions.add("requestPath like :requestPath" + LIKE_ESCAPE_CLAUSE);
             params.put("requestPath", "%" + escapeLike(query.getRequestPath().trim()) + "%");
         }
         if (hasText(query.getClientIp())) {
-            conditions.add("clientIp like :clientIp escape '\\\\'");
+            conditions.add("clientIp like :clientIp" + LIKE_ESCAPE_CLAUSE);
             params.put("clientIp", "%" + escapeLike(query.getClientIp().trim()) + "%");
         }
         return new QueryParts(conditions, params);
@@ -92,9 +109,9 @@ public class SystemRequestLogRepository implements PanacheRepository<SystemReque
 
     private String escapeLike(String value) {
         return value
-                .replace("\\", "\\\\")
-                .replace("%", "\\%")
-                .replace("_", "\\_");
+                .replace("!", "!!")
+                .replace("%", "!%")
+                .replace("_", "!_");
     }
 
     private void setParameters(TypedQuery<?> query, Map<String, Object> params) {

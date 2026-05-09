@@ -47,8 +47,7 @@ public class SystemRequestLogService {
 
     public SystemRequestLogStatsVo getStats(SystemRequestLogQuery query) {
         return new SystemRequestLogStatsVo(
-                systemRequestLogRepository.statsByPath(query, 12),
-                systemRequestLogRepository.statsByHour(query, 48),
+                systemRequestLogRepository.statsByPathAndDate(query, 8),
                 systemRequestLogRepository.statsByClientIp(query, 10)
         );
     }

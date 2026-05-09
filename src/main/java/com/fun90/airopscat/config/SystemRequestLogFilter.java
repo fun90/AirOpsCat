@@ -18,7 +18,10 @@ public class SystemRequestLogFilter {
     @Inject
     SystemRequestLogService systemRequestLogService;
 
-    void onStart(@Observes StartupEvent event, Router router) {
+    @Inject
+    Router router;
+
+    void onStart(@Observes StartupEvent event) {
         router.route()
                 .order(-1000)
                 .handler(this::handle);

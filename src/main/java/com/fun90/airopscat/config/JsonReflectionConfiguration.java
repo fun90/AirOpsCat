@@ -135,6 +135,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.dto.SystemRequestLogVo.class,
     com.fun90.airopscat.model.dto.SystemRequestLogPageVo.class,
     com.fun90.airopscat.model.dto.SystemRequestLogQuery.class,
+    com.fun90.airopscat.model.dto.SystemRequestLogPathStatsVo.class,
     com.fun90.airopscat.model.dto.SystemRequestLogStatsItemVo.class,
     com.fun90.airopscat.model.dto.SystemRequestLogStatsVo.class,
 

@@ -9,7 +9,7 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class SystemRequestLogStatsVo {
-    private List<SystemRequestLogPathStatsVo> pathStats;
-    private List<SystemRequestLogStatsItemVo> clientIpStats;
+public class SystemRequestLogPathStatsVo {
+    private String requestPath;
+    private List<SystemRequestLogStatsItemVo> dateStats;
 }

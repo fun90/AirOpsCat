@@ -1,5 +1,33 @@
 import ApexCharts from '/static/js/apexcharts.js';
 
+function getCurrentThemeMode() {
+    return (
+        document.documentElement.getAttribute('data-bs-theme') ||
+        window.localStorage.getItem('tabler-theme') ||
+        'light'
+    );
+}
+
+function getApexThemeOptions(mode) {
+    const isDark = mode === 'dark';
+    const axisLabelColor = isDark ? '#d0d4db' : '#7e7e8d';
+    const gridColor = isDark ? '#d0d4db' : '#a8afaf';
+
+    return {
+        theme: { mode },
+        tooltip: { theme: mode },
+        xaxis: { labels: { style: { colors: axisLabelColor } } },
+        yaxis: { labels: { style: { colors: axisLabelColor } } },
+        legend: { labels: { colors: axisLabelColor } },
+        grid: { borderColor: gridColor }
+    };
+}
+
+function shortLabel(value, maxLength) {
+    if (!value) return '-';
+    return value.length > maxLength ? `${value.slice(0, maxLength - 1)}...` : value;
+}
+
 const requestLogApp = PetiteVue.createApp({
     loading: true,
     logs: [],
@@ -14,11 +42,11 @@ const requestLogApp = PetiteVue.createApp({
         clientIp: ''
     },
     pathChart: null,
-    trendChart: null,
     ipChart: null,
 
     initialize() {
         this.refresh();
+        this.initThemeObserver();
     },
 
     async refresh() {
@@ -83,51 +111,131 @@ const requestLogApp = PetiteVue.createApp({
     },
 
     renderCharts(stats) {
-        this.pathChart = this.renderBarChart(
-            this.pathChart,
-            '#request-path-chart',
-            stats.pathStats || [],
-            '请求数',
-            true
-        );
-        this.trendChart = this.renderLineChart(
-            this.trendChart,
-            '#request-trend-chart',
-            stats.trendStats || []
-        );
+        this.pathChart = this.renderPathDateChart(this.pathChart, '#request-path-chart', stats.pathStats || []);
         this.ipChart = this.renderBarChart(
             this.ipChart,
             '#request-ip-chart',
             stats.clientIpStats || [],
-            '请求数',
-            false
+            '请求数'
         );
     },
 
-    renderBarChart(instance, selector, items, seriesName, horizontal) {
-        const labels = items.map(item => item.label || '-');
-        const values = items.map(item => item.count || 0);
+    renderPathDateChart(instance, selector, items) {
+        const categories = [...new Set(items.flatMap(item => (item.dateStats || []).map(point => point.label)))].sort();
+        const series = items.map(item => {
+            const pointsByDate = new Map((item.dateStats || []).map(point => [point.label, point.count || 0]));
+            return {
+                name: shortLabel(item.requestPath || '-', 48),
+                data: categories.map(date => pointsByDate.get(date) || 0)
+            };
+        });
+        const fullLabels = items.map(item => item.requestPath || '-');
+        const themeOptions = getApexThemeOptions(getCurrentThemeMode());
         const options = {
-            chart: { type: 'bar', height: 280, toolbar: { show: false } },
-            series: [{ name: seriesName, data: values }],
-            plotOptions: { bar: { horizontal, borderRadius: 3 } },
-            xaxis: { categories: labels, labels: { trim: true } },
+            chart: { type: 'line', height: 320, toolbar: { show: false }, background: 'transparent' },
+            theme: themeOptions.theme,
+            series,
+            colors: ['#206bc4', '#2fb344', '#f59f00', '#d6336c', '#4299e1', '#ae3ec9', '#0ca678', '#f76707'],
+            xaxis: {
+                categories,
+                labels: {
+                    rotate: -30,
+                    style: { colors: themeOptions.xaxis.labels.style.colors }
+                }
+            },
+            yaxis: {
+                min: 0,
+                forceNiceScale: true,
+                labels: {
+                    style: { colors: themeOptions.yaxis.labels.style.colors },
+                    formatter: value => Math.round(value)
+                }
+            },
+            stroke: { curve: 'smooth', width: 3 },
+            markers: { size: 3 },
             dataLabels: { enabled: false },
+            legend: {
+                position: 'top',
+                horizontalAlign: 'left',
+                labels: { colors: themeOptions.legend.labels.colors },
+                formatter: (_seriesName, opts) => fullLabels[opts.seriesIndex] || _seriesName
+            },
+            grid: {
+                borderColor: themeOptions.grid.borderColor,
+                strokeDashArray: 5
+            },
+            tooltip: {
+                theme: themeOptions.tooltip.theme,
+                shared: true,
+                intersect: false,
+                custom: ({ series, dataPointIndex }) => {
+                    const date = categories[dataPointIndex] || '-';
+                    const rows = series.map((values, index) => {
+                        const label = fullLabels[index] || '-';
+                        return `<div class="d-flex align-items-center gap-2 mt-1">
+                            <span class="badge badge-empty" style="background-color: ${options.colors[index % options.colors.length]}"></span>
+                            <span class="text-wrap" style="max-width: 420px;">${this.escapeHtml(label)}: ${values[dataPointIndex] || 0}</span>
+                        </div>`;
+                    }).join('');
+                    return `<div class="px-3 py-2">
+                        <div class="fw-medium">${this.escapeHtml(date)}</div>
+                        ${rows}
+                    </div>`;
+                }
+            },
             noData: { text: '暂无数据' }
         };
         return this.renderChart(instance, selector, options);
     },
 
-    renderLineChart(instance, selector, items) {
+    renderBarChart(instance, selector, items, seriesName) {
         const labels = items.map(item => item.label || '-');
+        const displayLabels = labels.map(label => shortLabel(label, 18));
         const values = items.map(item => item.count || 0);
+        const themeOptions = getApexThemeOptions(getCurrentThemeMode());
         const options = {
-            chart: { type: 'line', height: 280, toolbar: { show: false } },
-            series: [{ name: '请求数', data: values }],
-            xaxis: { categories: labels, labels: { rotate: -30 } },
-            stroke: { curve: 'smooth', width: 3 },
-            markers: { size: 3 },
+            chart: { type: 'bar', height: 320, toolbar: { show: false }, background: 'transparent' },
+            theme: themeOptions.theme,
+            series: [{ name: seriesName, data: values }],
+            colors: ['#2fb344'],
+            plotOptions: {
+                bar: {
+                    horizontal: false,
+                    borderRadius: 3,
+                    columnWidth: '48%'
+                }
+            },
+            xaxis: {
+                categories: displayLabels,
+                labels: {
+                    trim: true,
+                    style: { colors: themeOptions.xaxis.labels.style.colors }
+                }
+            },
+            yaxis: {
+                min: 0,
+                forceNiceScale: true,
+                labels: {
+                    style: { colors: themeOptions.yaxis.labels.style.colors },
+                    formatter: value => Math.round(value)
+                }
+            },
+            grid: {
+                borderColor: themeOptions.grid.borderColor,
+                strokeDashArray: 5
+            },
             dataLabels: { enabled: false },
+            tooltip: {
+                theme: themeOptions.tooltip.theme,
+                custom: ({ dataPointIndex }) => {
+                    const label = labels[dataPointIndex] || '-';
+                    const value = values[dataPointIndex] || 0;
+                    return `<div class="px-3 py-2">
+                        <div class="fw-medium text-wrap" style="max-width: 420px;">${this.escapeHtml(label)}</div>
+                        <div class="text-secondary small mt-1">${seriesName}: ${value}</div>
+                    </div>`;
+                }
+            },
             noData: { text: '暂无数据' }
         };
         return this.renderChart(instance, selector, options);
@@ -143,6 +251,44 @@ const requestLogApp = PetiteVue.createApp({
         const chart = new ApexCharts(element, options);
         chart.render();
         return chart;
+    },
+
+    initThemeObserver() {
+        const applyTheme = () => {
+            const themeOptions = getApexThemeOptions(getCurrentThemeMode());
+            [this.pathChart, this.ipChart].forEach(chart => {
+                if (!chart) return;
+                const chartConfig = chart.w && chart.w.config;
+                const yaxisConfig = Array.isArray(chartConfig.yaxis) ? chartConfig.yaxis[0] : chartConfig.yaxis;
+                const xaxisLabels = chartConfig.xaxis && chartConfig.xaxis.labels ? chartConfig.xaxis.labels : {};
+                const yaxisLabels = yaxisConfig && yaxisConfig.labels ? yaxisConfig.labels : {};
+
+                chart.updateOptions({
+                    theme: themeOptions.theme,
+                    tooltip: themeOptions.tooltip,
+                    xaxis: {
+                        labels: {
+                            ...xaxisLabels,
+                            style: { colors: themeOptions.xaxis.labels.style.colors }
+                        }
+                    },
+                    yaxis: {
+                        labels: {
+                            ...yaxisLabels,
+                            style: { colors: themeOptions.yaxis.labels.style.colors }
+                        }
+                    },
+                    legend: themeOptions.legend,
+                    grid: themeOptions.grid
+                }, false, true);
+            });
+        };
+
+        const observer = new MutationObserver(applyTheme);
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['data-bs-theme']
+        });
     },
 
     changePageSize() {
@@ -189,5 +335,15 @@ const requestLogApp = PetiteVue.createApp({
         if (statusCode >= 400) return 'bg-warning-lt';
         if (statusCode >= 300) return 'bg-info-lt';
         return 'bg-success-lt';
+    },
+
+    escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[char]));
     }
 }).mount('#request-log-app');
