@@ -41,6 +41,16 @@ public class SystemRequestLogProperties {
         return getPaths().stream().anyMatch(pattern -> matches(pattern, path));
     }
 
+    public String findMatchedPattern(String path) {
+        if (path == null || path.isBlank()) {
+            return null;
+        }
+        return getPaths().stream()
+                .filter(pattern -> matches(pattern, path))
+                .findFirst()
+                .orElse(null);
+    }
+
     private boolean matches(String pattern, String path) {
         if (pattern == null || pattern.isBlank()) {
             return false;

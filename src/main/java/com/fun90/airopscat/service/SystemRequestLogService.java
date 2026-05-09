@@ -1,7 +1,9 @@
 package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.SystemRequestLogPageVo;
+import com.fun90.airopscat.model.dto.SystemRequestLogPathStatsVo;
 import com.fun90.airopscat.model.dto.SystemRequestLogQuery;
+import com.fun90.airopscat.model.dto.SystemRequestLogStatsItemVo;
 import com.fun90.airopscat.model.dto.SystemRequestLogStatsVo;
 import com.fun90.airopscat.model.dto.SystemRequestLogVo;
 import com.fun90.airopscat.model.entity.SystemRequestLog;
@@ -14,7 +16,10 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @ApplicationScoped
@@ -47,7 +52,7 @@ public class SystemRequestLogService {
 
     public SystemRequestLogStatsVo getStats(SystemRequestLogQuery query) {
         return new SystemRequestLogStatsVo(
-                systemRequestLogRepository.statsByPathAndDate(query, 8),
+                statsByConfiguredPathAndDate(query),
                 systemRequestLogRepository.statsByClientIp(query, 10)
         );
     }
@@ -95,5 +100,30 @@ public class SystemRequestLogService {
             return null;
         }
         return normalized.length() <= maxLength ? normalized : normalized.substring(0, maxLength);
+    }
+
+    private List<SystemRequestLogPathStatsVo> statsByConfiguredPathAndDate(SystemRequestLogQuery query) {
+        Map<String, Map<String, Long>> grouped = new LinkedHashMap<>();
+        for (SystemRequestLogPathStatsVo rawPathStats : systemRequestLogRepository.statsByPathAndDate(query)) {
+            String configuredPath = systemRequestLogProperties.findMatchedPattern(rawPathStats.getRequestPath());
+            if (configuredPath == null) {
+                continue;
+            }
+            Map<String, Long> dateCounts = grouped.computeIfAbsent(configuredPath, key -> new LinkedHashMap<>());
+            for (SystemRequestLogStatsItemVo dateStat : rawPathStats.getDateStats()) {
+                dateCounts.merge(dateStat.getLabel(), dateStat.getCount(), Long::sum);
+            }
+        }
+
+        return systemRequestLogProperties.getPaths().stream()
+                .filter(grouped::containsKey)
+                .map(configuredPath -> new SystemRequestLogPathStatsVo(
+                        configuredPath,
+                        grouped.get(configuredPath).entrySet().stream()
+                                .sorted(Map.Entry.comparingByKey(Comparator.naturalOrder()))
+                                .map(entry -> new SystemRequestLogStatsItemVo(entry.getKey(), entry.getValue()))
+                                .toList()
+                ))
+                .toList();
     }
 }

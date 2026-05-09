@@ -28,36 +28,23 @@ public class SystemRequestLogRepository implements PanacheRepository<SystemReque
         return find(String.join(" and ", parts.conditions()), Sort.by("accessTime").descending(), parts.params());
     }
 
-    public List<SystemRequestLogPathStatsVo> statsByPathAndDate(SystemRequestLogQuery query, int pathLimit) {
-        List<String> paths = aggregate("requestPath", query, pathLimit)
-                .stream()
-                .map(SystemRequestLogStatsItemVo::getLabel)
-                .toList();
-        if (paths.isEmpty()) {
-            return List.of();
-        }
-
+    public List<SystemRequestLogPathStatsVo> statsByPathAndDate(SystemRequestLogQuery query) {
         QueryParts parts = buildQueryParts(query);
-        List<String> conditions = new ArrayList<>(parts.conditions());
-        Map<String, Object> params = new HashMap<>(parts.params());
-        conditions.add("requestPath in :requestPaths");
-        params.put("requestPaths", paths);
-
-        String where = " where " + String.join(" and ", conditions);
+        String where = parts.conditions().isEmpty() ? "" : " where " + String.join(" and ", parts.conditions());
         String jpql = "select requestPath, function('date_format', accessTime, '%Y-%m-%d'), count(id) "
                 + "from SystemRequestLog" + where
                 + " group by requestPath, function('date_format', accessTime, '%Y-%m-%d') "
-                + "order by function('date_format', accessTime, '%Y-%m-%d') asc";
+                + "order by requestPath asc, function('date_format', accessTime, '%Y-%m-%d') asc";
         TypedQuery<Object[]> typedQuery = getEntityManager().createQuery(jpql, Object[].class);
-        setParameters(typedQuery, params);
+        setParameters(typedQuery, parts.params());
 
         Map<String, List<SystemRequestLogStatsItemVo>> grouped = new HashMap<>();
         typedQuery.getResultList().forEach(row -> grouped
                 .computeIfAbsent(String.valueOf(row[0]), key -> new ArrayList<>())
                 .add(new SystemRequestLogStatsItemVo(String.valueOf(row[1]), ((Number) row[2]).longValue())));
 
-        return paths.stream()
-                .map(path -> new SystemRequestLogPathStatsVo(path, grouped.getOrDefault(path, List.of())))
+        return grouped.entrySet().stream()
+                .map(entry -> new SystemRequestLogPathStatsVo(entry.getKey(), entry.getValue()))
                 .toList();
     }
 
