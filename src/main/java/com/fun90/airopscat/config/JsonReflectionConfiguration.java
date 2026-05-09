@@ -124,11 +124,19 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.entity.Transaction.class,
     com.fun90.airopscat.model.entity.RouteRule.class,
     com.fun90.airopscat.model.entity.SystemConfig.class,
+    com.fun90.airopscat.model.entity.SystemRequestLog.class,
 
     // Alert state DTOs
     com.fun90.airopscat.model.dto.AlertStateVo.class,
     com.fun90.airopscat.model.dto.AlertStatePageVo.class,
     com.fun90.airopscat.model.dto.AcknowledgeRequest.class,
+
+    // System request log DTOs
+    com.fun90.airopscat.model.dto.SystemRequestLogVo.class,
+    com.fun90.airopscat.model.dto.SystemRequestLogPageVo.class,
+    com.fun90.airopscat.model.dto.SystemRequestLogQuery.class,
+    com.fun90.airopscat.model.dto.SystemRequestLogStatsItemVo.class,
+    com.fun90.airopscat.model.dto.SystemRequestLogStatsVo.class,
 
     // MySQL JDBC classes loaded reflectively in native mode
     com.mysql.cj.PerConnectionLRUFactory.class,

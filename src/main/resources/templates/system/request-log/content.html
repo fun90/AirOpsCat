@@ -1,0 +1,90 @@
+<div class="page-body" id="request-log-app" v-scope @vue:mounted="initialize">
+    <div class="container-xl">
+        <div class="row g-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 w-100">
+                            <div>
+                                <h3 class="card-title mb-1">请求日志</h3>
+                                <div class="text-secondary small">公开接口与订阅入口访问记录</div>
+                            </div>
+                            <div class="btn-list">
+                                <button class="btn btn-outline-primary" type="button" @click="refresh()">
+                                    <i class="ti ti-refresh me-1"></i>刷新
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body border-bottom">
+                        <div class="row g-2">
+                            <div class="col-12 col-md-3">
+                                <input type="datetime-local" class="form-control" v-model="filters.startTime">
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <input type="datetime-local" class="form-control" v-model="filters.endTime">
+                            </div>
+                            <div class="col-12 col-md-2">
+                                <input type="text" class="form-control" placeholder="请求路径" v-model="filters.requestPath" @keyup.enter="search">
+                            </div>
+                            <div class="col-12 col-md-2">
+                                <input type="text" class="form-control" placeholder="客户端 IP" v-model="filters.clientIp" @keyup.enter="search">
+                            </div>
+                            <div class="col-12 col-md-2">
+                                <div class="btn-list flex-nowrap">
+                                    <button class="btn btn-primary flex-fill" type="button" @click="search">
+                                        <i class="ti ti-search me-1"></i>查询
+                                    </button>
+                                    <button class="btn btn-outline-secondary" type="button" @click="resetFilters">
+                                        <i class="ti ti-x"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body border-bottom">
+                        <div class="row g-3">
+                            <div class="col-12 col-xl-5">
+                                <div class="fw-medium mb-2">按请求路径统计</div>
+                                <div id="request-path-chart" style="min-height: 280px;"></div>
+                            </div>
+                            <div class="col-12 col-xl-4">
+                                <div class="fw-medium mb-2">访问趋势</div>
+                                <div id="request-trend-chart" style="min-height: 280px;"></div>
+                            </div>
+                            <div class="col-12 col-xl-3">
+                                <div class="fw-medium mb-2">客户端 IP Top 10</div>
+                                <div id="request-ip-chart" style="min-height: 280px;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body" v-if="loading">
+                        <div class="placeholder-glow">
+                            <span class="placeholder col-12 mb-2"></span>
+                            <span class="placeholder col-10 mb-2"></span>
+                            <span class="placeholder col-8"></span>
+                        </div>
+                    </div>
+
+                    <div v-else>
+                        {#include system/request-log/table /}
+
+                        <div class="empty py-5" v-if="!logs.length">
+                            <div class="empty-icon">
+                                <i class="ti ti-file-search icon"></i>
+                            </div>
+                            <p class="empty-title">暂无请求日志</p>
+                        </div>
+
+                        <div v-if="totalPages > 0">
+                            {#include pagination-controls /}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

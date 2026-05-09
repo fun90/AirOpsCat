@@ -1,0 +1,35 @@
+<div class="table-responsive">
+    <table class="table table-vcenter card-table">
+        <thead>
+        <tr>
+            <th>访问时间</th>
+            <th>方法</th>
+            <th>请求路径</th>
+            <th>客户端 IP</th>
+            <th>状态码</th>
+            <th>耗时</th>
+            <th>User-Agent</th>
+            <th>Referer</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr v-for="log in logs" :key="log.id">
+            <td class="text-nowrap">{{ formatDateTime(log.accessTime) }}</td>
+            <td><span class="badge bg-primary-lt">{{ log.method }}</span></td>
+            <td>
+                <div class="text-wrap">
+                    <code>{{ log.requestPath }}</code>
+                    <div class="text-secondary small text-truncate" v-if="log.queryString">?{{ log.queryString }}</div>
+                </div>
+            </td>
+            <td class="text-nowrap">{{ log.clientIp }}</td>
+            <td>
+                <span class="badge" :class="statusBadgeClass(log.statusCode)">{{ log.statusCode }}</span>
+            </td>
+            <td class="text-nowrap">{{ log.durationMillis }} ms</td>
+            <td class="text-truncate" style="max-width: 220px;" :title="log.userAgent">{{ log.userAgent || '-' }}</td>
+            <td class="text-truncate" style="max-width: 180px;" :title="log.referer">{{ log.referer || '-' }}</td>
+        </tr>
+        </tbody>
+    </table>
+</div>

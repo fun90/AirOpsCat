@@ -247,6 +247,8 @@ public class SystemConfigService {
                 false,
                 item("airopscat.subscription.url", "订阅地址", "生成订阅和客户端配置时使用。", INPUT_URL, true, false, false, true, "http://localhost:8080/subscribe", "http://localhost:8080/subscribe"),
                 item("airopscat.docs.url", "文档地址", "控制台展示的文档入口地址。", INPUT_URL, false, false, false, true, "https://docs.xxx.com", "https://docs.xxx.com"),
+                item("airopscat.request-log.enabled", "请求日志开关", "是否记录开放接口和订阅入口的系统请求日志。", INPUT_CHECKBOX, false, false, false, true, "", "true"),
+                item("airopscat.request-log.paths", "请求日志路径", "逗号分隔的请求日志记录路径，支持 /path/* 前缀匹配。", INPUT_TEXT, true, false, false, true, "/api/open/docs-info/*,/subscribe/*", "/api/open/docs-info/*,/subscribe/*"),
                 item("airopscat.domain", "系统域名", "运维脚本和对外地址使用的域名。", INPUT_TEXT, false, false, false, true, "yourdomain.com", "yourdomain.com"),
                 item("airopscat.api.token", "接口 Token", "开放接口和运维脚本使用的 Token。", INPUT_PASSWORD, false, true, false, true, "your_api_token_here", "your_api_token_here", true),
                 item("airopscat.apple.id", "Apple ID", "开放接口返回的 Apple ID。", INPUT_TEXT, false, true, false, true, "your_apple_id_here", "your_apple_id_here", true),
@@ -323,7 +325,8 @@ public class SystemConfigService {
                 item("airopscat.account.traffic.retention-days", "账户流量保留天数", "账户流量明细保留天数。", INPUT_NUMBER, true, false, false, true, "180", "180"),
                 item("airopscat.account.traffic.cleanup.batch-size", "账户流量清理批大小", "账户流量明细单批删除数量。", INPUT_NUMBER, true, false, false, true, "1000", "1000"),
                 item("airopscat.server.traffic.retention-days", "服务器流量保留天数", "服务器流量明细保留天数。", INPUT_NUMBER, true, false, false, true, "180", "180"),
-                item("airopscat.server.traffic.cleanup.batch-size", "服务器流量清理批大小", "服务器流量明细单批删除数量。", INPUT_NUMBER, true, false, false, true, "1000", "1000")
+                item("airopscat.server.traffic.cleanup.batch-size", "服务器流量清理批大小", "服务器流量明细单批删除数量。", INPUT_NUMBER, true, false, false, true, "1000", "1000"),
+                item("airopscat.request-log.retention-days", "请求日志保留天数", "系统请求日志自动清理时保留的天数。", INPUT_NUMBER, true, false, false, true, "30", "30")
         ));
 
         groups.put("backup", group(
@@ -351,6 +354,7 @@ public class SystemConfigService {
                 item("airopscat.node.deployment.history.cleanup.cron", "部署历史清理 Cron", "清理过期节点部署历史的调度表达式。", INPUT_TEXT, true, false, false, true, "0 20 3 * * ?", "0 20 3 * * ?"),
                 item("airopscat.account.traffic.cleanup.cron", "账户流量清理 Cron", "清理过期账户流量明细的调度表达式。", INPUT_TEXT, true, false, false, true, "0 40 3 * * ?", "0 40 3 * * ?"),
                 item("airopscat.server.traffic.cleanup.cron", "服务器流量清理 Cron", "清理过期服务器流量明细的调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 4 * * ?", "0 0 4 * * ?"),
+                item("airopscat.request-log.cleanup.cron", "请求日志清理 Cron", "清理过期系统请求日志的调度表达式。", INPUT_TEXT, true, false, false, true, "0 30 3 * * ?", "0 30 3 * * ?"),
                 item("airopscat.core.config.cleanup.cron", "内核配置清理 Cron", "清理内核配置旧备份文件的调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 8 * * ?", "0 0 8 * * ?")
         ));
 

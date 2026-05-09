@@ -44,6 +44,7 @@ public class ProgrammaticTaskManager {
     private final NodeDeploymentHistoryCleanupTask nodeDeploymentHistoryCleanupTask;
     private final AccountTrafficStatsCleanupTask accountTrafficStatsCleanupTask;
     private final ServerTrafficStatsCleanupTask serverTrafficStatsCleanupTask;
+    private final SystemRequestLogCleanupTask systemRequestLogCleanupTask;
     private final AccountOnlineRefreshTask accountOnlineRefreshTask;
     private final AccountOnlineIpCleanupTask accountOnlineIpCleanupTask;
 
@@ -63,6 +64,7 @@ public class ProgrammaticTaskManager {
                                    NodeDeploymentHistoryCleanupTask nodeDeploymentHistoryCleanupTask,
                                    AccountTrafficStatsCleanupTask accountTrafficStatsCleanupTask,
                                    ServerTrafficStatsCleanupTask serverTrafficStatsCleanupTask,
+                                   SystemRequestLogCleanupTask systemRequestLogCleanupTask,
                                    AccountOnlineRefreshTask accountOnlineRefreshTask,
                                    AccountOnlineIpCleanupTask accountOnlineIpCleanupTask) {
         this.scheduler = scheduler;
@@ -77,6 +79,7 @@ public class ProgrammaticTaskManager {
         this.nodeDeploymentHistoryCleanupTask = nodeDeploymentHistoryCleanupTask;
         this.accountTrafficStatsCleanupTask = accountTrafficStatsCleanupTask;
         this.serverTrafficStatsCleanupTask = serverTrafficStatsCleanupTask;
+        this.systemRequestLogCleanupTask = systemRequestLogCleanupTask;
         this.accountOnlineRefreshTask = accountOnlineRefreshTask;
         this.accountOnlineIpCleanupTask = accountOnlineIpCleanupTask;
         this.taskDefinitions = buildTaskDefinitions();
@@ -433,6 +436,20 @@ public class ProgrammaticTaskManager {
                 0L,
                 Scheduled.ConcurrentExecution.SKIP,
                 serverTrafficStatsCleanupTask::cleanupExpiredStats
+        ));
+        definitions.put("system-request-log-cleanup", task(
+                "system-request-log-cleanup",
+                "system-request-log-cleanup",
+                "系统请求日志清理",
+                "按保留天数清理过期系统请求日志。",
+                "scheduled",
+                "定时任务",
+                145,
+                SCHEDULE_TYPE_CRON,
+                "airopscat.request-log.cleanup.cron",
+                0L,
+                Scheduled.ConcurrentExecution.SKIP,
+                systemRequestLogCleanupTask::cleanupExpiredLogs
         ));
 
         return definitions;
