@@ -41,7 +41,8 @@ AIROPSCAT_RATELIMIT_NIC=
 AIROPSCAT_CLASH_API_PORT=19191
 AIROPSCAT_RATELIMIT_INTERVAL=5
 AIROPSCAT_RATELIMIT_ROOT_RATE=10000mbit
-AIROPSCAT_RATELIMIT_ACTIVE_TTL=60
+AIROPSCAT_RATELIMIT_ACTIVE_TTL=30
+AIROPSCAT_RATELIMIT_MAX_ACTIVE_CLASSES=1024
 EOF
 
   cat > /usr/local/bin/airopscat-ratelimit-agent <<'EOF'
@@ -54,14 +55,31 @@ import sys
 import time
 
 CONFIG_FILE = "/etc/airopscat/ratelimit/accounts.json"
-CLASH_API_PORT = int(os.getenv("AIROPSCAT_CLASH_API_PORT", "19191"))
-POLL_INTERVAL = max(1, int(os.getenv("AIROPSCAT_RATELIMIT_INTERVAL", "3")))
 ROOT_RATE = os.getenv("AIROPSCAT_RATELIMIT_ROOT_RATE", "10000mbit")
-ACTIVE_TTL = max(POLL_INTERVAL, int(os.getenv("AIROPSCAT_RATELIMIT_ACTIVE_TTL", "60")))
 IPTS_CHAIN = "AIROPSCAT_MARK"
+TC_CLASS_MINOR_MAX = 65534
+
+
+def env_int(name, default, minimum=None, maximum=None):
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
+
+
+CLASH_API_PORT = env_int("AIROPSCAT_CLASH_API_PORT", 19191, 1, 65535)
+POLL_INTERVAL = env_int("AIROPSCAT_RATELIMIT_INTERVAL", 3, 1)
+ACTIVE_TTL = max(POLL_INTERVAL, env_int("AIROPSCAT_RATELIMIT_ACTIVE_TTL", 30, 1))
+MAX_ACTIVE_CLASSES = env_int("AIROPSCAT_RATELIMIT_MAX_ACTIVE_CLASSES", 1024, 0, TC_CLASS_MINOR_MAX - 2)
 
 # 持久 HTTP 连接，避免每轮重建 TCP 连接
 _http_conn = None
+_last_clip_log_at = 0
 
 
 def log(msg):
@@ -152,18 +170,32 @@ def rebuild_tc(nic, accounts):
     for account_no in sorted(accounts):
         if class_id == 9999:
             class_id += 1
+        if class_id > TC_CLASS_MINOR_MAX:
+            log(f"HTB class 数量达到 classid 上限，跳过剩余账号: built={len(marks)}, skipped={len(accounts) - len(marks)}")
+            break
         speed_kbit = accounts[account_no] * 8
         burst_k = calc_burst(speed_kbit)
-        run(f"tc class add dev {nic} parent 1:1 classid 1:{class_id} htb rate {speed_kbit}kbit burst {burst_k}k cburst {burst_k}k quantum 1514")
-        run(f"tc filter add dev {nic} parent 1: handle {class_id} fw flowid 1:{class_id}")
+        class_result = run(f"tc class add dev {nic} parent 1:1 classid 1:{class_id} htb rate {speed_kbit}kbit burst {burst_k}k cburst {burst_k}k quantum 1514")
+        if class_result.returncode != 0:
+            log(f"tc class 添加失败: account={account_no}, classid=1:{class_id}, speed={speed_kbit}kbit: {class_result.stderr.strip()}")
+            class_id += 1
+            continue
+        filter_result = run(f"tc filter add dev {nic} parent 1: handle {class_id} fw flowid 1:{class_id}")
+        if filter_result.returncode != 0:
+            run(f"tc class del dev {nic} classid 1:{class_id} 2>/dev/null || true")
+            log(f"tc filter 添加失败: account={account_no}, classid=1:{class_id}: {filter_result.stderr.strip()}")
+            class_id += 1
+            continue
         marks[account_no] = class_id
         class_id += 1
     return marks
 
 
 def extract_active_accounts(payload, accounts, last_seen):
-    """从 sing-box 连接中提取活跃账号，并按 TTL 保留近期账号，避免频繁重建 HTB。"""
+    """从 sing-box 连接中提取活跃账号，并裁剪 HTB class 数量，避免事件队列过大。"""
+    global _last_clip_log_at
     now = time.monotonic()
+    current_counts = {}
     for conn in payload.get("connections", []):
         if not isinstance(conn, dict):
             continue
@@ -171,12 +203,29 @@ def extract_active_accounts(payload, accounts, last_seen):
         account_no = str(meta.get("authUser") or "").strip()
         if account_no in accounts:
             last_seen[account_no] = now
+            current_counts[account_no] = current_counts.get(account_no, 0) + 1
 
-    active = {}
+    candidates = []
     for account_no, seen_at in list(last_seen.items()):
         if account_no not in accounts or now - seen_at > ACTIVE_TTL:
             last_seen.pop(account_no, None)
             continue
+        candidates.append((account_no, seen_at, current_counts.get(account_no, 0)))
+
+    if MAX_ACTIVE_CLASSES and len(candidates) > MAX_ACTIVE_CLASSES:
+        candidates.sort(key=lambda item: (item[2] > 0, item[2], item[1], item[0]), reverse=True)
+        selected = candidates[:MAX_ACTIVE_CLASSES]
+        skipped = candidates[MAX_ACTIVE_CLASSES:]
+        for account_no, _, count in skipped:
+            if count == 0:
+                last_seen.pop(account_no, None)
+        if now - _last_clip_log_at >= 60:
+            log(f"活跃账号超过 HTB class 上限，已裁剪: active={len(candidates)}, kept={len(selected)}, skipped={len(skipped)}")
+            _last_clip_log_at = now
+        candidates = selected
+
+    active = {}
+    for account_no, _, _ in candidates:
         active[account_no] = accounts[account_no]
     return active
 
