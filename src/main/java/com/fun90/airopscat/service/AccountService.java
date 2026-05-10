@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @ApplicationScoped
 public class AccountService {
+    private static final int AUTH_CODE_LENGTH = 32;
 
     @Inject
     AccountRepository accountRepository;
@@ -144,6 +145,10 @@ public class AccountService {
         searchConditions.add("uuid = :searchExact");
         searchConditions.add("uuid like :searchPrefix");
 
+        if (isAuthCodeKeyword(keyword)) {
+            searchConditions.add("authCode = :searchExact");
+        }
+
         List<Long> matchedUserIds = userRepository.findIdsByKeyword(keyword, 200);
         if (!matchedUserIds.isEmpty()) {
             searchConditions.add("userId in :matchedUserIds");
@@ -176,6 +181,10 @@ public class AccountService {
         } catch (IllegalArgumentException e) {
             return false;
         }
+    }
+
+    private boolean isAuthCodeKeyword(String keyword) {
+        return keyword != null && keyword.length() == AUTH_CODE_LENGTH;
     }
 
     public Account getAccountById(Long id) {

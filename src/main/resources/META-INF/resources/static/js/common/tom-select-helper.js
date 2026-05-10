@@ -158,8 +158,8 @@ export function createAccountSearch(onChange) {
         apiUrl: '/api/admin/accounts',
         valueField: 'id',
         labelField: 'displayName',
-        searchField: ['remark', 'accountNo'],
-        placeholder: '搜索账户备注或账号...',
+        searchField: ['remark', 'accountNo', 'authCode'],
+        placeholder: '搜索账户备注、账号或认证码...',
         dataTransform: (records) => records.map(item => ({
             ...item,
             displayName: `${item.remark || '未命名账户'}${item.accountNo ? ` (${item.accountNo})` : ''}`

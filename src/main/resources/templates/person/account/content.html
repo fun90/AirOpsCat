@@ -9,14 +9,14 @@
                         <div class="d-none d-lg-block">
                             <div class="row g-2 align-items-center">
                                 <div class="col">
-                                    <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
+                                    <input type="text" class="form-control" placeholder="搜索账号、备注、UUID、用户或32位认证码" v-model="searchQuery" @input="searchDebounced">
                                 </div>
                                 {#include person/account/filters layout='desktop' /}
                             </div>
                         </div>
                         <div class="row g-2 align-items-center d-lg-none">
                             <div class="col">
-                                <input type="text" class="form-control" placeholder="搜索..." v-model="searchQuery" @input="searchDebounced">
+                                <input type="text" class="form-control" placeholder="搜索账号、备注、UUID、用户或32位认证码" v-model="searchQuery" @input="searchDebounced">
                             </div>
                             <div class="col-auto">
                                 <button class="btn btn-outline-primary" type="button" data-bs-toggle="offcanvas" data-bs-target="#accountFilterOffcanvas" aria-controls="accountFilterOffcanvas">
