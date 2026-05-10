@@ -200,11 +200,11 @@ ipv6 = false
 [Proxy]
 {#for node in nodes}
 {#if node.protocol == 'hysteria2'}
-{node.name} = hysteria2, {node.serverHost}, {node.port}, password={account.uuid}, sni={node.inbound.tls.server_name}, skip-cert-verify=true, udp=true, fast-open=true, obfs=salamander, obfs-password={node.inbound.obfs.password}
+{node.name} = hysteria2, {node.serverHost}, {node.port}, auth={account.uuid}, peer={node.inbound.tls.server_name}, obfs=salamander, obfsParam={node.inbound.obfs.password}, udp=true, alpn=h3, skip-cert-verify=true
 {#else if node.protocol == 'vless'}
 {node.name} = vless, {node.serverHost}, {node.port}, password={account.uuid}, tls=true, sni={node.serverHost}, flow=xtls-rprx-vision, udp=true, skip-cert-verify=true
 {#else if node.protocol == 'vless-reality'}
-{node.name} = vless, {node.serverHost}, {node.port}, password={account.uuid}, tls=true, sni={node.inbound.tls.server_name}, reality=true, public-key={node.inbound.tls.reality.public_key}, short-id={node.inbound.tls.reality.short_id[0]}, flow=xtls-rprx-vision, udp=true, skip-cert-verify=true
+{node.name} = vless, {node.serverHost}, {node.port}, username={account.uuid}, tls=true, sni={node.inbound.tls.server_name}, security=reality, pbk={node.inbound.tls.reality.public_key}, sid={node.inbound.tls.reality.short_id[0]}, h2=true, fp=chrome, flow=xtls-rprx-vision
 {/if}
 {/for}
 

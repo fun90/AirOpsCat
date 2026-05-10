@@ -4,6 +4,6 @@ hysteria2://{account.uuid.urlEncode}@{node.serverHost.urlEncode}:{node.port}?ins
 {#else if node.protocol == 'vless'}
 vless://{account.uuid.urlEncode}@{node.serverHost.urlEncode}:{node.port}?encryption=none&security=tls&sni={node.serverHost.urlEncode}&type=tcp&flow=xtls-rprx-vision#{node.name.urlEncode}
 {#else if node.protocol == 'vless-reality'}
-vless://{account.uuid.urlEncode}@{node.serverHost.urlEncode}:{node.port}?encryption=none&security=reality&sni={node.inbound.tls.server_name.urlEncode}&pbk={node.inbound.tls.reality.public_key.urlEncode}&sid={node.inbound.tls.reality.short_id[0].urlEncode}&type=tcp&flow=xtls-rprx-vision#{node.name.urlEncode}
+vless://{account.uuid.urlEncode}@{node.serverHost.urlEncode}:{node.port}?encryption=none&security=reality&sni={node.inbound.tls.server_name.urlEncode}&pbk={node.inbound.tls.reality.public_key.urlEncode}&sid={node.inbound.tls.reality.short_id[0].urlEncode}&type=tcp&h2=true&fp=chrome&flow=xtls-rprx-vision#{node.name.urlEncode}
 {/if}
 {/for}
