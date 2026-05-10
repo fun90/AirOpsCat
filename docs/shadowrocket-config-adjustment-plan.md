@@ -55,6 +55,21 @@ AirOpsCat 当前只有 `vless`、`vless-reality`、`hysteria2` 这几类订阅�
 
 Sub-Store 对 Shadowrocket 的 App 配置说明里，是让 Shadowrocket 安装 Surge 模块，而不是生成一个完整 Shadowrocket `.conf`。因此它更适合作为“节点字段兼容性参考”，不适合直接复制为 AirOpsCat 的完整配置模板。
 
+## 外部资料校正
+
+参考资料：
+
+- Shadowrocket 说明文档：`https://github.com/LOWERTOP/Shadowrocket/blob/main/README.md`
+- Shadowrocket lazy group 示例解析：`https://deepwiki.com/LOWERTOP/Shadowrocket/4.3-proxy-groups`
+- Shadowrocket `.conf` 结构示例：`https://shadowrocketvpn.app/help/servers/config`
+
+资料结论：
+
+- Shadowrocket 添加节点支持 `Subscribe` 类型，也支持复制 `trojan://`、`vmess://`、`vless://` 等节点链接后识别导入。
+- Shadowrocket 支持的协议类型包含 `VLESS`、`Hysteria2` 等，但“节点订阅链接”与“完整配置 `[Proxy]` 本地节点行”不是同一种输出格式。
+- Shadowrocket `.conf` 的核心结构是 `[General]`、`[Rule]`、`[Proxy]`、`[Proxy Group]`；`[Proxy Group]` 可使用 `select`、`url-test` 等策略组类型。
+- Shadowrocket 的策略组示例可以通过订阅名称加 `use=true` 引用已存在订阅；同时社区配置中也常见 `policy-path` 这类策略组级远程节点写法。AirOpsCat 可以优先沿用“完整配置引用远程节点订阅”的主路径，但节点订阅内容不能直接照搬 Loon 本地节点行。
+
 ## 目标
 
 将 AirOpsCat 的 Shadowrocket 订阅调整为真正面向 Shadowrocket 的输出，避免继续把 Clash Profile 伪装成 Shadowrocket 配置。
@@ -66,12 +81,19 @@ Sub-Store 对 Shadowrocket 的 App 配置说明里，是让 Shadowrocket 安装 
 
 ## 推荐方案
 
-推荐采用“完整 `.conf` 配置 + 远程节点订阅”的结构。节点远程引用有两种写法：
+推荐采用“完整 `.conf` 配置内联 `[Proxy]` 节点”的结构。
 
-1. `policy-path`：在 `[Proxy Group]` 中直接为某个策略组绑定远程节点订阅。
-2. `[Remote Proxy]`：先定义一个远程节点资源，再在策略组里引用这个资源名称。
+真机验证结论：
 
-对 Shadowrocket 优先评估 `policy-path`，因为它更直接地表达“这个策略组的候选节点来自这个远程订阅”。`[Remote Proxy]` 可以作为兼容方案或 Loon 风格迁移方案保留。
+- `policy-path` 无法在 Shadowrocket 中正常获取远程节点。
+- `[Remote Proxy]` 也无法在 Shadowrocket 中正常获取远程节点。
+- 因此完整配置不再依赖 `/nodes/{authCode}/shadowrocket` 作为远程节点来源，而是在 `shadowrocket.conf` 的 `[Proxy]` 段直接展开当前账号可用节点。
+
+核心调整：
+
+1. 完整配置 `/config/{authCode}/ios/shadowrocket/...`：生成 Shadowrocket `.conf`，在 `[Proxy]` 中内联当前账号节点，在 `[Proxy Group]` 中引用这些节点名称。
+2. 独立节点订阅 `/nodes/{authCode}/shadowrocket`：继续输出 Shadowrocket 可导入的 URI 节点订阅，作为独立节点订阅入口保留。
+3. 不再在完整配置中使用 `policy-path` 或 `[Remote Proxy]` 拉取远程节点。
 
 ### 文件结构
 
@@ -112,7 +134,7 @@ private String getSubscriptionFileSuffix(String appName) {
 `policy-path` 是策略组级别的远程节点来源。配置直接写在 `[Proxy Group]` 里：
 
 ```ini
-代理 = select, policy-path={subscriptionUrl}/nodes/{account.authCode}/shadowrocket, update-interval=43200
+代理 = select, 自动, DIRECT, policy-path={subscriptionUrl}/nodes/{account.authCode}/shadowrocket, update-interval=43200
 自动 = url-test, policy-path={subscriptionUrl}/nodes/{account.authCode}/shadowrocket, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50
 ```
 
@@ -141,7 +163,24 @@ private String getSubscriptionFileSuffix(String appName) {
 - 多了一层 `订阅节点`，策略组里看到的是资源名而不是直接的 URL。
 - 需要真机确认 Shadowrocket 对 `[Remote Proxy]` 中 `opt-parser`、`enabled` 等参数的兼容情况。
 
-结论：文档方案建议以 `policy-path` 作为首选模板；如果真机验证发现 `policy-path` 对节点格式或刷新行为不理想，再切回 `[Remote Proxy]`。
+结论：真机验证中 `policy-path` 与 `[Remote Proxy]` 均无法获取节点，当前不再作为完整配置主路径，仅保留为历史尝试记录。
+
+### Shadowrocket 节点模板
+
+Shadowrocket 节点订阅不能直接复用 `nodes/loon.html` 的本地节点行：
+
+```text
+节点名=VLESS,host,port,"uuid",transport=tcp,...
+```
+
+推荐让 `nodes/shadowrocket.html` 输出 Shadowrocket 可识别的标准节点 URI：
+
+```text
+vless://uuid@host:port?encryption=none&security=reality&sni=example.com&pbk=...&sid=...&type=tcp&flow=xtls-rprx-vision#节点名
+hysteria2://password@host:port?insecure=1&sni=example.com&obfs=salamander&obfs-password=...#节点名
+```
+
+该节点订阅继续作为独立入口保留，但完整 `.conf` 不再通过 `policy-path` / `[Remote Proxy]` 引用它。
 
 ### Shadowrocket 完整配置模板
 
@@ -159,10 +198,19 @@ dns-server = system
 ipv6 = false
 
 [Proxy]
+{#for node in nodes}
+{#if node.protocol == 'hysteria2'}
+{node.name} = hysteria2, {node.serverHost}, {node.port}, password={account.uuid}, sni={node.inbound.tls.server_name}, skip-cert-verify=true, udp=true, fast-open=true, obfs=salamander, obfs-password={node.inbound.obfs.password}
+{#else if node.protocol == 'vless'}
+{node.name} = vless, {node.serverHost}, {node.port}, password={account.uuid}, tls=true, sni={node.serverHost}, flow=xtls-rprx-vision, udp=true, skip-cert-verify=true
+{#else if node.protocol == 'vless-reality'}
+{node.name} = vless, {node.serverHost}, {node.port}, password={account.uuid}, tls=true, sni={node.inbound.tls.server_name}, reality=true, public-key={node.inbound.tls.reality.public_key}, short-id={node.inbound.tls.reality.short_id[0]}, flow=xtls-rprx-vision, udp=true, skip-cert-verify=true
+{/if}
+{/for}
 
 [Proxy Group]
-代理 = select, 自动, DIRECT, policy-path={subscriptionUrl}/nodes/{account.authCode}/shadowrocket, update-interval=43200
-自动 = url-test, policy-path={subscriptionUrl}/nodes/{account.authCode}/shadowrocket, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50
+代理 = select, 自动, DIRECT{#for node in nodes}, {node.name}{/for}
+自动 = url-test{#for node in nodes}, {node.name}{/for}, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50
 Apple = select, DIRECT, 代理
 Microsoft = select, 代理, DIRECT
 
@@ -182,24 +230,26 @@ FINAL,代理
 
 - `MATCH,代理` 改为 `FINAL,代理`。
 - `proxy-groups` 改为 `[Proxy Group]`。
+- `[Proxy]` 直接内联 Shadowrocket 本地节点行。
+- `[Proxy Group]` 引用内联节点名称，不再使用 `policy-path` 或 `[Remote Proxy]`。
 - `rule-providers` 改为 `[Rule]` 中直接引用远程 `RULE-SET`，规则 URL 复用现有 `rules/clash/*.yaml`。
 - 私网地址用明确的 `IP-CIDR` 规则替代 `GEOIP,LAN`。
 - 策略名统一使用正常 UTF-8：`代理`、`自动`，不再使用乱码名称。
 
 ### Shadowrocket 节点订阅模板
 
-新增 `nodes/shadowrocket.html`，参考现有 `nodes/loon.html`，但建议字段命名按 Shadowrocket 节点输出保守处理。
+新增或调整 `nodes/shadowrocket.html`。Shadowrocket 节点订阅建议输出标准 URI 链接，一行一个节点。
 
 建议模板：
 
 ```text
 {#for node in nodes}
 {#if node.protocol == 'hysteria2'}
-{node.name}=Hysteria2,{node.serverHost},{node.port},"{account.uuid}",tls-name={node.inbound.tls.server_name},skip-cert-verify=true,udp=true,fast-open=true,salamander-password={node.inbound.obfs.password}
+hysteria2://{account.uuid}@{node.serverHost}:{node.port}?insecure=1&sni={node.inbound.tls.server_name}&obfs=salamander&obfs-password={node.inbound.obfs.password}#{node.name}
 {#else if node.protocol == 'vless'}
-{node.name}=VLESS,{node.serverHost},{node.port},"{account.uuid}",transport=tcp,flow=xtls-rprx-vision,over-tls=true,tls-name={node.serverHost},skip-cert-verify=true,udp=true
+vless://{account.uuid}@{node.serverHost}:{node.port}?encryption=none&security=tls&sni={node.serverHost}&type=tcp&flow=xtls-rprx-vision#{node.name}
 {#else if node.protocol == 'vless-reality'}
-{node.name}=VLESS,{node.serverHost},{node.port},"{account.uuid}",transport=tcp,flow=xtls-rprx-vision,over-tls=true,sni={node.inbound.tls.server_name},public-key="{node.inbound.tls.reality.public_key}",short-id={node.inbound.tls.reality.short_id[0]},skip-cert-verify=true,udp=true
+vless://{account.uuid}@{node.serverHost}:{node.port}?encryption=none&security=reality&sni={node.inbound.tls.server_name}&pbk={node.inbound.tls.reality.public_key}&sid={node.inbound.tls.reality.short_id[0]}&type=tcp&flow=xtls-rprx-vision#{node.name}
 {/if}
 {/for}
 ```
@@ -207,8 +257,9 @@ FINAL,代理
 注意：
 
 - AirOpsCat 已收敛为 sing-box 单内核，`vless-reality` 可优先使用 `node.inbound.tls.*` 路径，不建议继续保留 xray 分支。
-- Hysteria2 的混淆字段建议继续使用 `salamander-password`，这与当前 Loon 节点模板一致。
-- 如果实际 Shadowrocket 版本对 `Hysteria2` 大小写、`tls-name`/`sni` 字段存在差异，应以真机导入结果为准微调。
+- URI 中的 `node.name`、`sni`、`obfs-password` 等值理论上需要 URL 编码；如果 Qute 模板没有可用编码函数，应在服务层预先准备编码后的字段，避免节点名、密码或域名特殊字符破坏链接。
+- Hysteria2 URI 的 `obfs=salamander` / `obfs-password`、VLESS Reality URI 的 `pbk` / `sid` 需要真机确认 Shadowrocket 当前版本是否完整识别；如果不识别，再按 Shadowrocket 实测字段做最小调整。
+- 完整配置不再引用该订阅，而是在 `[Proxy]` 中内联节点；该订阅仅作为独立节点订阅入口。
 
 ### 规则文件复用策略
 
@@ -226,47 +277,26 @@ Shadowrocket 的 `RULE-SET` 可以直接使用当前 Clash classical 规则集�
 
 ## 备选方案
 
-### 方案 A：只输出 Shadowrocket 节点 YAML
+### 远程节点订阅引用
 
-参考 Sub-Store，保留 `shadowrocket.yaml` 但只输出：
-
-```yaml
-proxies:
-  - name: ...
-```
+完整配置中通过 `policy-path` 或 `[Remote Proxy]` 引用 `/nodes/{authCode}/shadowrocket`。
 
 优点：
 
-- 改动小。
-- 和 Sub-Store 的 Shadowrocket 节点输出模型接近。
+- 配置文件短。
+- 节点可远程刷新。
 
 缺点：
 
-- 不能提供完整分流规则。
-- 当前 iOS 用户入口名叫 `shadowrocket`，用户可能预期导入后就有完整策略。
-- 仍需要客户端已有配置或手动配置策略。
+- 已经真机验证无法获取节点。
+- 会导致完整配置导入后策略组无可用节点。
 
-### 方案 B：完整 `.conf` 内联全部节点
-
-不增加 `/nodes/{authCode}/shadowrocket`，直接在 `[Proxy]` 中展开所有节点。
-
-优点：
-
-- 单文件完成导入。
-- 不依赖 `[Remote Proxy]` 的远程节点刷新行为。
-
-缺点：
-
-- 配置文件更长。
-- 节点刷新必须刷新整份配置。
-- 和现有 Loon 的远程节点结构不一致。
-
-推荐优先采用“完整 `.conf` + 远程节点订阅”，也就是上面的主方案。
+推荐优先采用“完整 `.conf` 内联 `[Proxy]` 节点”，也就是上面的主方案。
 
 ## 实施步骤
 
-1. 新增 `nodes/shadowrocket.html`。
-2. 新增 `shadowrocket.conf`，使用 `[General]`、`[Proxy Group]`、`[Rule]` 结构，策略组优先使用 `policy-path` 引用远程节点订阅。
+1. 调整 `nodes/shadowrocket.html`，输出 Shadowrocket 可识别的节点订阅，优先使用 URI 节点链接，不复用 Loon 节点行模板。
+2. 调整 `shadowrocket.conf`，使用 `[General]`、`[Proxy]`、`[Proxy Group]`、`[Rule]` 结构，在 `[Proxy]` 中内联节点，策略组引用内联节点名称。
 3. 在 `shadowrocket.conf` 的 `RULE-SET` 中直接引用现有 `rules/clash/*.yaml`。
 4. 修改 `SubscriptionService#getSubscriptionFileSuffix`，让 `shadowrocket` 使用 `.conf`。
 5. 删除或停用旧 `shadowrocket.yaml`，避免后续误维护。
@@ -278,15 +308,19 @@ proxies:
 ### 服务端验证
 
 - 请求 `/subscribe/config/{authCode}/ios/shadowrocket/{remark}` 返回文本以 `[General]` 开头。
+- 完整配置的 `[Proxy]` 段包含当前账号节点。
+- 完整配置不包含 `policy-path` 或 `[Remote Proxy]`。
 - 响应头仍包含 Shadowrocket 专用 `subscription-userinfo`。
-- 请求 `/subscribe/nodes/{authCode}/shadowrocket` 返回一行一个节点。
+- 请求 `/subscribe/nodes/{authCode}/shadowrocket` 返回一行一个 `vless://...` 或 `hysteria2://...` 节点 URI。
 - 请求 `/subscribe/rules/clash/myreject.yaml`、`mydirect.yaml`、`myproxy.yaml` 仍返回现有 Clash 规则内容，并能被 Shadowrocket 的 `RULE-SET` 拉取。
 
 ### 客户端验证
 
-- Shadowrocket 能通过一键导入 URL 添加配置。
+- Shadowrocket 能通过一键导入 URL 添加完整配置。
+- Shadowrocket 能通过完整配置直接看到节点。
+- Shadowrocket 能通过节点订阅 URL 添加独立节点订阅。
 - 配置内能看到 `代理`、`自动`、`Apple`、`Microsoft` 策略组。
-- 节点列表能正常刷新。
+- 内联节点能被策略组引用；独立 URI 节点订阅能正常刷新。
 - VLESS Reality 节点能连通。
 - Hysteria2 节点能连通。
 - 国内站点命中 `DIRECT`，未匹配国外站点命中 `FINAL,代理`。
@@ -299,8 +333,10 @@ proxies:
 
 ## 风险与注意事项
 
-- Shadowrocket 对协议字段的支持会随版本变化，VLESS Reality 和 Hysteria2 必须真机验证。
+- Shadowrocket 对协议字段的支持会随版本变化，VLESS Reality 和 Hysteria2 必须真机验证，尤其是 URI 参数名与本地 `[Proxy]` 参数名。
 - Sub-Store 对 Shadowrocket 的默认产物是节点 YAML，不代表 Shadowrocket 完整配置也应使用 Clash Profile。
+- Loon 的 `节点名=VLESS,...` 行看起来与 Shadowrocket 本地节点行相似，但参数名、协议大小写、远程订阅模型都不完全相同，不能作为 Shadowrocket 节点订阅模板直接复用。
+- `policy-path` / `[Remote Proxy]` 已经真机验证无法获取节点，完整配置不要再依赖它们。
 - 规则文件 URL 中如果包含中文策略名，一般没有问题，但建议策略名统一、简短，避免编码不一致。
 - 当前仓库存在中文乱码文件内容，修改 Shadowrocket 模板时必须使用 UTF-8 保存。
 - 如果真机验证发现 Shadowrocket 对某个 Clash 规则集格式不兼容，再针对该规则集做最小转换；不要提前维护两套规则。

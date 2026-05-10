@@ -1,9 +1,9 @@
 {#for node in nodes}
 {#if node.protocol == 'hysteria2'}
-{node.name}=Hysteria2,{node.serverHost},{node.port},"{account.uuid}",skip-cert-verify=true,sni={node.inbound.tls.server_name},udp=true,fast-open=true,salamander-password={node.inbound.obfs.password}
+hysteria2://{account.uuid.urlEncode}@{node.serverHost.urlEncode}:{node.port}?insecure=1&sni={node.inbound.tls.server_name.urlEncode}&obfs=salamander&obfs-password={node.inbound.obfs.password.urlEncode}#{node.name.urlEncode}
 {#else if node.protocol == 'vless'}
-{node.name}=VLESS,{node.serverHost},{node.port},"{account.uuid}",transport=tcp,flow=xtls-rprx-vision,over-tls=true,sni={node.serverHost},skip-cert-verify=true,udp=true
+vless://{account.uuid.urlEncode}@{node.serverHost.urlEncode}:{node.port}?encryption=none&security=tls&sni={node.serverHost.urlEncode}&type=tcp&flow=xtls-rprx-vision#{node.name.urlEncode}
 {#else if node.protocol == 'vless-reality'}
-{node.name}=VLESS,{node.serverHost},{node.port},"{account.uuid}",transport=tcp,flow=xtls-rprx-vision,over-tls=true,sni={node.inbound.tls.server_name},public-key="{node.inbound.tls.reality.public_key}",short-id={node.inbound.tls.reality.short_id[0]},skip-cert-verify=true,udp=true
+vless://{account.uuid.urlEncode}@{node.serverHost.urlEncode}:{node.port}?encryption=none&security=reality&sni={node.inbound.tls.server_name.urlEncode}&pbk={node.inbound.tls.reality.public_key.urlEncode}&sid={node.inbound.tls.reality.short_id[0].urlEncode}&type=tcp&flow=xtls-rprx-vision#{node.name.urlEncode}
 {/if}
 {/for}
