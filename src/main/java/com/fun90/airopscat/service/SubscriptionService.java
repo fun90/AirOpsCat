@@ -230,7 +230,7 @@ public class SubscriptionService {
     }
 
     private String getSubscriptionFileSuffix(String appName) {
-        if ("loon".equalsIgnoreCase(appName)) {
+        if ("loon".equalsIgnoreCase(appName) || "shadowrocket".equalsIgnoreCase(appName)) {
             return ".conf";
         } else if ("sing-box".equalsIgnoreCase(appName)) {
             return ".json";

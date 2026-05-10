@@ -1,0 +1,9 @@
+{#for node in nodes}
+{#if node.protocol == 'hysteria2'}
+{node.name}=Hysteria2,{node.serverHost},{node.port},"{account.uuid}",skip-cert-verify=true,sni={node.inbound.tls.server_name},udp=true,fast-open=true,salamander-password={node.inbound.obfs.password}
+{#else if node.protocol == 'vless'}
+{node.name}=VLESS,{node.serverHost},{node.port},"{account.uuid}",transport=tcp,flow=xtls-rprx-vision,over-tls=true,sni={node.serverHost},skip-cert-verify=true,udp=true
+{#else if node.protocol == 'vless-reality'}
+{node.name}=VLESS,{node.serverHost},{node.port},"{account.uuid}",transport=tcp,flow=xtls-rprx-vision,over-tls=true,sni={node.inbound.tls.server_name},public-key="{node.inbound.tls.reality.public_key}",short-id={node.inbound.tls.reality.short_id[0]},skip-cert-verify=true,udp=true
+{/if}
+{/for}
