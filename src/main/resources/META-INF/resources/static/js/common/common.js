@@ -3,6 +3,43 @@
  */
 
 /**
+ * 复制文本到剪贴板。
+ * 优先使用 Clipboard API，不可用或失败时降级到 textarea + execCommand。
+ * @param {string|number|null|undefined} text - 要复制的内容
+ * @returns {Promise<void>}
+ */
+export async function copyToClipboard(text) {
+    const content = text == null ? '' : String(text);
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        try {
+            await navigator.clipboard.writeText(content);
+            return;
+        } catch (error) {
+            console.warn('Clipboard API copy failed, falling back to execCommand:', error);
+        }
+    }
+
+    const textArea = document.createElement('textarea');
+    textArea.value = content;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.top = '-9999px';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+
+    try {
+        textArea.select();
+
+        if (!document.execCommand('copy')) {
+            throw new Error('execCommand copy failed');
+        }
+    } finally {
+        document.body.removeChild(textArea);
+    }
+}
+
+/**
  * 格式化日期时间为本地时间（北京时间 UTC+8）
  * @param {Date} date - 要格式化的日期对象
  * @returns {string} 格式化后的日期时间字符串 (YYYY-MM-DDTHH:MM)

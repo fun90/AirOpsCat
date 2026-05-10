@@ -1,4 +1,6 @@
 // 用户面板数据管理
+import { copyToClipboard as copyTextToClipboard } from '/static/js/common/common.js';
+
 const userPanelData = {
     // 数据状态
     accounts: [],
@@ -234,18 +236,11 @@ const userPanelData = {
     // 复制到剪贴板
     async copyToClipboard(text) {
         try {
-            await navigator.clipboard.writeText(text);
+            await copyTextToClipboard(text);
             this.showToast('已复制到剪贴板', 'success');
         } catch (error) {
             console.error('Failed to copy to clipboard:', error);
-            // 降级方案
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            this.showToast('已复制到剪贴板', 'success');
+            this.showToast('复制失败', 'danger');
         }
     },
 

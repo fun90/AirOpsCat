@@ -1,3 +1,4 @@
+import { copyToClipboard as copyTextToClipboard } from '/static/js/common/common.js';
 import { DataTable } from '/static/js/common/data-table.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 
@@ -130,7 +131,7 @@ const configTable = new DataTable({
         // Copy config to clipboard
         async copyConfig(config) {
             try {
-                await navigator.clipboard.writeText(config.config);
+                await copyTextToClipboard(config.config);
                 ToastUtils.show('Success', '配置已复制到剪贴板', 'success');
             } catch (error) {
                 console.error('复制失败:', error);
@@ -144,7 +145,7 @@ const configTable = new DataTable({
                 const content = this.configViewMode === 'formatted'
                     ? this.formatJsonForDisplay(this.editedItem.config)
                     : this.editedItem.config;
-                await navigator.clipboard.writeText(content);
+                await copyTextToClipboard(content);
                 ToastUtils.show('Success', '配置内容已复制到剪贴板', 'success');
             } catch (error) {
                 console.error('复制失败:', error);

@@ -13,6 +13,7 @@
  * 3. Override necessary methods and properties for your specific entity
  */
 import { Modal, Tooltip } from '/static/tabler/js/tabler.esm.min.js';
+import { copyToClipboard as copyTextToClipboard } from '/static/js/common/common.js';
 
 export class DataTable {
   constructor(options = {}) {
@@ -274,15 +275,14 @@ export class DataTable {
         return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + units[i];
       },
 
-      copyToClipboard(text) {
-        navigator.clipboard.writeText(text)
-          .then(() => {
-            ToastUtils.show('Success', '已复制到剪贴板', 'success');
-          })
-          .catch(err => {
-            console.error('Failed to copy text: ', err);
-            ToastUtils.show('Error', '复制失败', 'danger');
-          });
+      async copyToClipboard(text) {
+        try {
+          await copyTextToClipboard(text);
+          ToastUtils.show('Success', '已复制到剪贴板', 'success');
+        } catch (err) {
+          console.error('Failed to copy text: ', err);
+          ToastUtils.show('Error', '复制失败', 'danger');
+        }
       },
 
       // CRUD Operations
