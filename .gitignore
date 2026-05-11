@@ -48,6 +48,7 @@ admin.db-wal
 admin.db-shm
 logs/
 backup/
+docs/htb-too-many-events/
 
 .claude/worktrees
 .agents/

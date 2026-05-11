@@ -13,11 +13,17 @@ Load `references/htb-too-many-events.md` when the user provides `tc -s -d` outpu
 
 ## Workflow
 
-1. Anchor the timeline.
+1. Review recent local reports first.
+   - Inspect `docs/htb-too-many-events/` if it exists.
+   - Read the latest two analysis reports before running fresh diagnostics, using filename date or mtime to decide recency.
+   - Use prior reports to compare warning frequency, server identity, HTB topology, ratelimit behavior, counters, and previous recommendations.
+   - If no prior reports exist, state that this is the first local baseline.
+
+2. Anchor the timeline.
    - Record the exact warning time and the time commands were run.
    - State that later `tc` counters may not fully describe the warning moment, especially if qdisc was recreated.
 
-2. Confirm HTB is present.
+3. Confirm HTB is present.
    - Ask for or inspect:
      ```bash
      tc qdisc show
@@ -26,27 +32,34 @@ Load `references/htb-too-many-events.md` when the user provides `tc -s -d` outpu
      ```
    - If no HTB qdisc is present now, explain that a prior QoS/limit program may have removed or rebuilt it.
 
-3. Request detailed counters when needed.
+4. Request detailed counters when needed.
    ```bash
    tc -s -d qdisc show dev <dev>
    tc -s -d class show dev <dev>
    journalctl -k --since "<time-before>" --until "<time-after>"
    ```
 
-4. Interpret the shape of the HTB tree.
+5. Interpret the shape of the HTB tree.
    - Count classes and levels.
    - Identify root, default class, leaf classes, and filters.
    - Map `fw` filters to skb marks when present.
    - Compare configured rates, ceilings, burst/cburst, and observed traffic.
 
-5. Judge severity from counters.
+6. Judge severity from counters.
    - Low risk: few classes, `dropped 0`, `overlimits 0`, `backlog 0`, `requeues 0`, and no nearby kernel errors.
    - Higher risk: many classes, persistent backlog, drops, frequent overlimits, repeated warnings, CPU stalls, NETDEV WATCHDOG, NIC resets, or rule reloads near the timestamp.
 
-6. Give a concise conclusion.
+7. Give a concise conclusion.
    - Prefer a probability-ranked explanation.
    - Separate "what the current counters prove" from "what likely happened at the warning time".
    - Recommend action only when the warning is repeated or counters show real congestion.
+
+8. Write a local analysis report.
+   - Create `docs/htb-too-many-events/` if needed.
+   - Save the report as `docs/htb-too-many-events/<YYYY-MM-DD>-analysis.md`; if that file already exists for a different incident, use a descriptive suffix such as `<YYYY-MM-DD>-analysis-<host>.md` or `<YYYY-MM-DD>-analysis-<HHMM>.md`.
+   - Include: server, command execution time, warning timeline, nearby kernel/system logs, current HTB qdisc/class/filter shape, relevant counters, service or script evidence, severity judgment, probability-ranked causes, and follow-up commands.
+   - Explicitly note which prior reports were reviewed, or that none existed.
+   - In the final response, link the generated report path.
 
 ## Useful Commands
 
