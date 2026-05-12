@@ -198,6 +198,13 @@ const accountTable = new DataTable({
             return `${this.docsBaseUrl}/?code=${authCode}`;
         },
 
+        getManualUrl(authCode) {
+            if (!authCode || !this.docsBaseUrl) {
+                return '';
+            }
+            return `${this.docsBaseUrl}/manual.html?code=${authCode}`;
+        },
+
         getStatusDescription(item) {
             if (item.disabled != null && item.disabled === 1) {
                 return "已禁用";

@@ -383,10 +383,23 @@
                                     <div class="row">
                                         <div class="col-12">
                                             <div class="mb-3">
-                                                <label class="form-label text-muted">使用文档</label>
+                                                <label class="form-label text-muted">安装手册</label>
                                                 <div class="d-flex align-items-center">
-                                                    <code class="me-2 text-truncate" @click="copyToClipboard(getDocumentUrl(selectedItem.authCode) + '\n打开链接，查看安装步骤')">{{ getDocumentUrl(selectedItem.authCode) }}</code>
+                                                    <code class="me-2 text-truncate" @click="copyToClipboard(getDocumentUrl(selectedItem.authCode) + '\n点击链接，查看安装手册')">{{ getDocumentUrl(selectedItem.authCode) }}</code>
                                                     <button @click="copyToClipboard(getDocumentUrl(selectedItem.authCode))" class="btn btn-sm btn-ghost-secondary">
+                                                        <i class="ti ti-copy"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <div class="mb-3">
+                                                <label class="form-label text-muted">使用手册</label>
+                                                <div class="d-flex align-items-center">
+                                                    <code class="me-2 text-truncate" @click="copyToClipboard(getManualUrl(selectedItem.authCode) + '\n点击链接，查看使用手册')">{{ getManualUrl(selectedItem.authCode) }}</code>
+                                                    <button @click="copyToClipboard(getManualUrl(selectedItem.authCode))" class="btn btn-sm btn-ghost-secondary">
                                                         <i class="ti ti-copy"></i>
                                                     </button>
                                                 </div>
