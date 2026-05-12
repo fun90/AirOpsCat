@@ -164,8 +164,10 @@ public class ServerMonitorLoadNotifier implements MonitorNotifier {
                 state.setSummary(summary);
 
                 if (shouldNotify(state, now)) {
-                    barkService.sendWarningNotification(getTitle(), summary);
-                    state.setLastNotifiedTime(now);
+                    boolean sent = barkService.sendWarningNotification(getTitle(), summary);
+                    if (sent) {
+                        state.setLastNotifiedTime(now);
+                    }
                 }
             } else if (state != null && STATUS_ACTIVE.equals(state.getStatus())) {
                 state.setStatus(STATUS_RECOVERED);
