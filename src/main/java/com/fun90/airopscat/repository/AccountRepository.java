@@ -44,6 +44,10 @@ public class AccountRepository implements PanacheRepository<Account> {
         return find("authCode", authCode).firstResultOptional();
     }
 
+    public boolean existsByUuidAndIdNot(String uuid, Long id) {
+        return count("uuid = ?1 and id <> ?2", uuid, id) > 0;
+    }
+
     public long countByUserId(Long userId) {
         return count("userId", userId);
     }

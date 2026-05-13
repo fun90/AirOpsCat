@@ -237,7 +237,14 @@ public class AccountController {
         account.setDisabled(request.getDisabled());
         account.setRemark(request.getRemark());
 
-        Account updatedAccount = accountService.updateAccount(account);
+        Account updatedAccount;
+        try {
+            updatedAccount = accountService.updateAccount(account);
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", e.getMessage()))
+                    .build();
+        }
 
         // 处理标签关联
         if (request.getTagIds() != null) {

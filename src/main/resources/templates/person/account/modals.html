@@ -177,9 +177,10 @@
                         <div class="mb-3">
                             <label class="form-label">UUID</label>
                             <div class="input-group">
-                                <input type="text" class="form-control" v-model="editedItem.uuid" readonly>
+                                <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.uuid }" v-model="editedItem.uuid">
                                 <button class="btn" type="button" @click="regenerateUuid">重新生成</button>
                             </div>
+                            <div class="invalid-feedback" v-if="validationErrors.uuid">{{ validationErrors.uuid }}</div>
                         </div>
                     </div>
                     <div class="col-md-6">

@@ -634,6 +634,16 @@ const accountTable = new DataTable({
                 isValid = false;
             }
 
+            const uuid = (this.editedItem.uuid || '').trim();
+            const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            if (!uuid) {
+                this.validationErrors.uuid = 'UUID不能为空';
+                isValid = false;
+            } else if (!uuidPattern.test(uuid)) {
+                this.validationErrors.uuid = 'UUID格式不合法';
+                isValid = false;
+            }
+
             // NodeMultiple validation
             if (!this.editedItem.nodeMultiple) {
                 this.validationErrors.nodeMultiple = '请填写倍数';
@@ -689,7 +699,7 @@ const accountTable = new DataTable({
                 disabled: this.editedItem.disabled,
                 remark: this.editedItem.remark || null,
                 tagIds: this.editedItem.tagIds || [],
-                uuid: this.editedItem.uuid
+                uuid: this.editedItem.uuid ? this.editedItem.uuid.trim() : ''
             };
         },
 
@@ -758,6 +768,12 @@ const accountTable = new DataTable({
                 remark: account.remark || '',
                 tagIds: [] // Will be loaded asynchronously
             };
+        },
+
+        afterUpdate(data) {
+            if (this.selectedItem && this.selectedItem.id === data.id) {
+                this.selectedItem = data;
+            }
         },
 
         loadAccountTags(accountId) {

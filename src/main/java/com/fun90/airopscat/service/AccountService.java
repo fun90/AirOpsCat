@@ -365,6 +365,8 @@ public class AccountService {
             throw new EntityNotFoundException("Account not found");
         }
 
+        normalizeAndValidateUuid(account);
+
         // 记录限速相关字段的旧值
         String oldAccountNo = existingAccount.getAccountNo();
         Integer oldSpeed = existingAccount.getSpeed();
@@ -383,6 +385,26 @@ public class AccountService {
 
         // No need to call save/persist for updates in Panache
         return existingAccount;
+    }
+
+    private void normalizeAndValidateUuid(Account account) {
+        String uuid = account.getUuid();
+        if (uuid == null || uuid.trim().isEmpty()) {
+            throw new IllegalArgumentException("UUID不能为空");
+        }
+
+        String normalizedUuid;
+        try {
+            normalizedUuid = UUID.fromString(uuid.trim()).toString();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("UUID格式不合法");
+        }
+
+        if (accountRepository.existsByUuidAndIdNot(normalizedUuid, account.getId())) {
+            throw new IllegalArgumentException("UUID已存在");
+        }
+
+        account.setUuid(normalizedUuid);
     }
 
 
