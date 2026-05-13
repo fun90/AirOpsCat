@@ -39,15 +39,194 @@ EOF
 # 可选配置，留空时自动探测默认网卡
 AIROPSCAT_RATELIMIT_NIC=
 AIROPSCAT_CLASH_API_PORT=19191
+AIROPSCAT_CONNECTION_SNAPSHOT_INTERVAL=3
+AIROPSCAT_CONNECTION_SNAPSHOT_DIR=/run/airopscat
+AIROPSCAT_RATELIMIT_SNAPSHOT_TTL=10
+AIROPSCAT_ONLINE_SNAPSHOT_TTL=60
 AIROPSCAT_RATELIMIT_INTERVAL=3
 AIROPSCAT_RATELIMIT_ROOT_RATE=10000mbit
 AIROPSCAT_RATELIMIT_ACTIVE_TTL=15
 AIROPSCAT_RATELIMIT_MAX_ACTIVE_CLASSES=512
 EOF
 
-  cat > /usr/local/bin/airopscat-ratelimit-agent <<'EOF'
+  cat > /usr/local/bin/airopscat-connection-snapshot-agent <<'EOF'
 #!/usr/bin/env python3
 import http.client
+import json
+import os
+import tempfile
+import time
+
+
+def env_int(name, default, minimum=None, maximum=None):
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
+
+
+CLASH_API_PORT = env_int("AIROPSCAT_CLASH_API_PORT", 19191, 1, 65535)
+POLL_INTERVAL = env_int("AIROPSCAT_CONNECTION_SNAPSHOT_INTERVAL", 3, 1)
+SNAPSHOT_DIR = os.getenv("AIROPSCAT_CONNECTION_SNAPSHOT_DIR", "/run/airopscat")
+RATELIMIT_TTL = env_int("AIROPSCAT_RATELIMIT_SNAPSHOT_TTL", 10, 1)
+ONLINE_TTL = env_int("AIROPSCAT_ONLINE_SNAPSHOT_TTL", 60, 1)
+SCHEMA_VERSION = 1
+
+RATELIMIT_FILE = os.path.join(SNAPSHOT_DIR, "ratelimit-flows.json")
+ONLINE_FILE = os.path.join(SNAPSHOT_DIR, "online-connections.json")
+
+_http_conn = None
+_last_error_log_at = {}
+_last_counts = None
+
+
+def log(msg):
+    print(time.strftime("[%Y-%m-%d %H:%M:%S]"), msg, flush=True)
+
+
+def log_limited(key, msg, interval=60):
+    now = time.monotonic()
+    if now - _last_error_log_at.get(key, 0) >= interval:
+        _last_error_log_at[key] = now
+        log(msg)
+
+
+def fetch_connections():
+    global _http_conn
+    for attempt in range(2):
+        try:
+            if _http_conn is None:
+                _http_conn = http.client.HTTPConnection("127.0.0.1", CLASH_API_PORT, timeout=3)
+            _http_conn.request("GET", "/connections", headers={"Accept": "application/json"})
+            resp = _http_conn.getresponse()
+            try:
+                if resp.status < 200 or resp.status >= 300:
+                    raise RuntimeError(f"Clash API status={resp.status}")
+                return json.load(resp)
+            finally:
+                resp.read()
+        except Exception:
+            try:
+                if _http_conn is not None:
+                    _http_conn.close()
+            except Exception:
+                pass
+            _http_conn = None
+            if attempt == 1:
+                raise
+
+
+def resolve_node_tag(conn_type):
+    if not isinstance(conn_type, str):
+        return None
+    slash = conn_type.find("/")
+    if slash < 0 or slash >= len(conn_type) - 1:
+        return None
+    value = conn_type[slash + 1:].strip()
+    return value or None
+
+
+def build_snapshots(payload):
+    now = int(time.time())
+    flows = []
+    online = []
+    source_count = 0
+
+    connections = payload.get("connections", []) if isinstance(payload, dict) else []
+    for conn in connections:
+        if not isinstance(conn, dict):
+            continue
+        source_count += 1
+        meta = conn.get("metadata") or {}
+        if not isinstance(meta, dict):
+            continue
+
+        auth_user = str(meta.get("authUser") or "").strip()
+        source_ip = str(meta.get("sourceIP") or "").strip()
+        network = str(meta.get("network") or "").strip().lower()
+        source_port = meta.get("sourcePort")
+
+        if auth_user and source_ip and network and source_port is not None:
+            flows.append([network, source_ip, source_port, auth_user])
+
+        if auth_user and source_ip:
+            online.append({
+                "id": conn.get("id"),
+                "accountNo": auth_user,
+                "clientIp": source_ip,
+                "nodeTag": resolve_node_tag(meta.get("type")),
+                "start": conn.get("start"),
+            })
+
+    return (
+        {
+            "schemaVersion": SCHEMA_VERSION,
+            "generatedAtEpochSeconds": now,
+            "ttlSeconds": RATELIMIT_TTL,
+            "flows": flows,
+        },
+        {
+            "schemaVersion": SCHEMA_VERSION,
+            "generatedAtEpochSeconds": now,
+            "ttlSeconds": ONLINE_TTL,
+            "connections": online,
+        },
+        source_count,
+        len(flows),
+        len(online),
+    )
+
+
+def atomic_write_json(path, payload):
+    os.makedirs(os.path.dirname(path), mode=0o750, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".tmp", dir=os.path.dirname(path))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp_path, 0o640)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def main():
+    global _last_counts
+    os.makedirs(SNAPSHOT_DIR, mode=0o750, exist_ok=True)
+    while True:
+        try:
+            started = time.monotonic()
+            payload = fetch_connections()
+            ratelimit_snapshot, online_snapshot, source_count, flow_count, online_count = build_snapshots(payload)
+            atomic_write_json(RATELIMIT_FILE, ratelimit_snapshot)
+            atomic_write_json(ONLINE_FILE, online_snapshot)
+            counts = (source_count, flow_count, online_count)
+            if counts != _last_counts:
+                elapsed_ms = int((time.monotonic() - started) * 1000)
+                log(f"connection snapshots written: source={source_count}, flows={flow_count}, online={online_count}, elapsedMs={elapsed_ms}")
+                _last_counts = counts
+        except Exception as exc:
+            log_limited("snapshot", f"connection snapshot refresh failed: {exc}", 10)
+        time.sleep(POLL_INTERVAL)
+
+
+if __name__ == "__main__":
+    main()
+EOF
+
+  cat > /usr/local/bin/airopscat-ratelimit-agent <<'EOF'
+#!/usr/bin/env python3
 import ipaddress
 import json
 import os
@@ -56,6 +235,8 @@ import sys
 import time
 
 CONFIG_FILE = "/etc/airopscat/ratelimit/accounts.json"
+SNAPSHOT_DIR = os.getenv("AIROPSCAT_CONNECTION_SNAPSHOT_DIR", "/run/airopscat")
+RATELIMIT_SNAPSHOT_FILE = os.path.join(SNAPSHOT_DIR, "ratelimit-flows.json")
 NFT_TABLE = "airopscat_ratelimit"
 NFT_LEGACY_CHAIN = "AIROPSCAT_MARK"
 TC_CLASS_MINOR_MAX = 65534
@@ -74,12 +255,11 @@ def env_int(name, default, minimum=None, maximum=None):
     return value
 
 
-CLASH_API_PORT = env_int("AIROPSCAT_CLASH_API_PORT", 19191, 1, 65535)
 POLL_INTERVAL = env_int("AIROPSCAT_RATELIMIT_INTERVAL", 3, 1)
 ACTIVE_TTL = max(POLL_INTERVAL, env_int("AIROPSCAT_RATELIMIT_ACTIVE_TTL", 15, 1))
 MAX_ACTIVE_CLASSES = env_int("AIROPSCAT_RATELIMIT_MAX_ACTIVE_CLASSES", 512, 0, TC_CLASS_MINOR_MAX - 2)
+SCHEMA_VERSION = 1
 
-_http_conn = None
 _last_error_log_at = {}
 
 
@@ -101,26 +281,24 @@ def run(args, input_text=None, check=False):
     return result
 
 
-def fetch_connections():
-    global _http_conn
-    for attempt in range(2):
-        try:
-            if _http_conn is None:
-                _http_conn = http.client.HTTPConnection("127.0.0.1", CLASH_API_PORT, timeout=3)
-            _http_conn.request("GET", "/connections", headers={"Accept": "application/json"})
-            resp = _http_conn.getresponse()
-            try:
-                return json.load(resp)
-            finally:
-                resp.read()
-        except Exception:
-            try:
-                _http_conn.close()
-            except Exception:
-                pass
-            _http_conn = None
-            if attempt == 1:
-                raise
+def load_ratelimit_snapshot():
+    with open(RATELIMIT_SNAPSHOT_FILE, encoding="utf-8") as f:
+        payload = json.load(f)
+    if not isinstance(payload, dict):
+        raise ValueError("snapshot is not an object")
+    if payload.get("schemaVersion") != SCHEMA_VERSION:
+        raise ValueError(f"unsupported snapshot schema: {payload.get('schemaVersion')}")
+
+    generated_at = int(payload.get("generatedAtEpochSeconds") or 0)
+    ttl = int(payload.get("ttlSeconds") or 0)
+    now = int(time.time())
+    if generated_at <= 0 or ttl <= 0 or now - generated_at > ttl:
+        raise ValueError(f"snapshot expired: age={now - generated_at}s ttl={ttl}s")
+
+    flows = payload.get("flows")
+    if not isinstance(flows, list):
+        raise ValueError("snapshot flows is not a list")
+    return flows
 
 
 def detect_nic():
@@ -164,13 +342,13 @@ def calc_burst_k(speed_kbit):
     return max(128, max(128 * 1024, bytes_per_sec) // 1024)
 
 
-def build_active_accounts(payload, accounts, last_seen):
+def build_active_accounts(flows, accounts, last_seen):
     now = time.monotonic()
     counts = {}
-    for conn in payload.get("connections", []):
-        if not isinstance(conn, dict):
+    for flow in flows:
+        if not isinstance(flow, list) or len(flow) < 4:
             continue
-        account_no = str((conn.get("metadata") or {}).get("authUser") or "").strip()
+        account_no = str(flow[3] or "").strip()
         if account_no in accounts:
             last_seen[account_no] = now
             counts[account_no] = counts.get(account_no, 0) + 1
@@ -280,21 +458,21 @@ def nft_key(ip_text, port_text):
     return family, f"{ip_obj.compressed} . {port}"
 
 
-def desired_marks(payload, marks):
+def desired_marks(flows, marks):
     desired = {"tcp4": {}, "udp4": {}, "tcp6": {}, "udp6": {}}
-    for conn in payload.get("connections", []):
-        if not isinstance(conn, dict):
+    for flow in flows:
+        if not isinstance(flow, list) or len(flow) < 4:
             continue
-        meta = conn.get("metadata") or {}
-        mark = marks.get(str(meta.get("authUser") or "").strip())
+        network, source_ip, source_port, account_no = flow[0], flow[1], flow[2], flow[3]
+        mark = marks.get(str(account_no or "").strip())
         if not mark:
             continue
 
-        key = nft_key(str(meta.get("sourceIP") or "").strip(), str(meta.get("sourcePort") or "").strip())
+        key = nft_key(str(source_ip or "").strip(), str(source_port or "").strip())
         if key is None:
             continue
 
-        network = str(meta.get("network") or "").lower()
+        network = str(network or "").lower()
         proto = "tcp" if network == "tcp" else "udp"
         family, value = key
         desired[f"{proto}{family}"][value] = mark
@@ -359,20 +537,20 @@ def main():
                 continue
 
             try:
-                payload = fetch_connections()
+                flows = load_ratelimit_snapshot()
             except Exception as exc:
-                log_limited("fetch", f"读取 sing-box 连接失败: {exc}")
+                log_limited("snapshot", f"读取连接快照失败: {exc}")
                 time.sleep(POLL_INTERVAL)
                 continue
 
-            next_active = build_active_accounts(payload, accounts, last_seen)
+            next_active = build_active_accounts(flows, accounts, last_seen)
             if next_active != active_accounts:
                 active_accounts = next_active
                 marks = rebuild_tc(nic, active_accounts)
                 sync_nft_maps(prev_maps, empty_maps())
                 log(f"已刷新限速 class: activeAccounts={len(active_accounts)}, totalAccounts={len(accounts)}")
 
-            sync_nft_maps(prev_maps, desired_marks(payload, marks))
+            sync_nft_maps(prev_maps, desired_marks(flows, marks))
         except Exception as exc:
             log_limited("main", f"限速代理执行失败: {exc}", 10)
             try:
@@ -393,13 +571,31 @@ if __name__ == "__main__":
         sys.exit(0)
 EOF
 
-  chmod 0755 /usr/local/bin/airopscat-ratelimit-agent
+  chmod 0755 /usr/local/bin/airopscat-connection-snapshot-agent /usr/local/bin/airopscat-ratelimit-agent
+
+  cat > /etc/systemd/system/airopscat-connection-snapshot.service <<'EOF'
+[Unit]
+Description=AirOpsCat Connection Snapshot Agent
+After=network-online.target sing-box.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/airopscat-ratelimit
+ExecStart=/usr/local/bin/airopscat-connection-snapshot-agent
+Restart=always
+RestartSec=2
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
 
   cat > /etc/systemd/system/airopscat-ratelimit.service <<'EOF'
 [Unit]
 Description=AirOpsCat Rate Limit Agent
-After=network-online.target sing-box.service
-Wants=network-online.target
+After=network-online.target sing-box.service airopscat-connection-snapshot.service
+Wants=network-online.target airopscat-connection-snapshot.service
 
 [Service]
 Type=simple
@@ -417,6 +613,8 @@ EOF
 enable_service() {
   log "启用并启动 airopscat-ratelimit 服务"
   systemctl daemon-reload
+  systemctl enable --now airopscat-connection-snapshot.service
+  systemctl restart airopscat-connection-snapshot.service
   systemctl enable --now airopscat-ratelimit.service
   systemctl restart airopscat-ratelimit.service
 }

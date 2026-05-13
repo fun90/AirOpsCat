@@ -17,6 +17,9 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -216,9 +219,10 @@ public class AccountOnlineIpService {
             if (!seen.add(dedupeKey)) {
                 continue;
             }
+            LocalDateTime sessionStartTime = resolveConnectionStartTime(conn, now);
             try {
                 accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, connectionId, serverIp,
-                        node == null ? null : node.getId(), nodeTag, now, now, now, now, offlineThreshold);
+                        node == null ? null : node.getId(), nodeTag, now, sessionStartTime, now, now, offlineThreshold);
                 count++;
             } catch (Exception e) {
                 log.error("refreshFromConnections upsert 失败: accountNo={}, clientIp={}, connectionId={}, serverIp={}",
@@ -455,6 +459,23 @@ public class AccountOnlineIpService {
                 Objects.toString(nodeTag, ""),
                 Objects.toString(destinationIp, ""),
                 Objects.toString(destinationPort, ""));
+    }
+
+    private LocalDateTime resolveConnectionStartTime(SingBoxConnectionSnapshot conn, LocalDateTime fallback) {
+        String start = normalizeBlank(conn.getStart());
+        if (start == null) {
+            return fallback;
+        }
+        try {
+            return OffsetDateTime.parse(start).toLocalDateTime();
+        } catch (DateTimeParseException ignored) {
+            try {
+                return java.time.Instant.parse(start).atZone(ZoneId.systemDefault()).toLocalDateTime();
+            } catch (DateTimeParseException ignoredAgain) {
+                log.debug("无法解析连接开始时间: start={}", start);
+                return fallback;
+            }
+        }
     }
 
     private String legacyConnectionId(String clientIp, String nodeIp) {
