@@ -1,8 +1,6 @@
 ## Purpose
 Define server inventory, node lifecycle, deployment orchestration, deployment-state semantics, and remote core management behavior.
-
 ## Requirements
-
 ### Requirement: Administrators SHALL manage server inventory and connectivity
 The system SHALL provide admin APIs for server lifecycle management, server configuration preview, supplier and auth-type metadata, SSH connectivity testing, enablement toggles, renewal, and traffic calibration.
 
@@ -57,3 +55,24 @@ The system SHALL support one-click install script discovery, preview, execution,
 #### Scenario: Core-specific runtime actions can be delegated
 - **WHEN** the system is asked to start, stop, restart, inspect, or switch a supported core implementation
 - **THEN** it routes the request through the matching core-management strategy for that node or server context
+
+### Requirement: 节点部署必须保留流量超额账户
+
+系统 SHALL 在生成节点部署客户端列表时保留仍然有效且已授权到节点的流量超额账户，不得仅因账户当前周期流量达到或超过配额而从 sing-box 用户配置中剔除。
+
+#### Scenario: 已授权账户流量超额
+- **WHEN** 节点部署数据加载器为 sing-box 节点生成客户端列表，且某个已授权有效账户当前周期流量已达到或超过有效配额
+- **THEN** 系统 SHALL 仍将该账户加入节点客户端列表
+
+#### Scenario: 已授权账户未超额
+- **WHEN** 节点部署数据加载器为 sing-box 节点生成客户端列表，且某个已授权有效账户当前周期流量未超过有效配额
+- **THEN** 系统 SHALL 将该账户加入节点客户端列表
+
+### Requirement: 节点客户端不得承载流量超额限速字段
+
+系统 SHALL 保持节点客户端数据只表达核心用户身份信息，不在 `NodeClient` 中承载流量超额限速值；流量超额限速 SHALL 通过现有限速同步配置下发。
+
+#### Scenario: 生成节点客户端数据
+- **WHEN** 节点部署数据加载器将账户转换为节点客户端数据
+- **THEN** 节点客户端数据 SHALL 包含账户 UUID、账户号和协议所需 flow
+- **AND** 节点客户端数据 SHALL 不包含 speed 字段

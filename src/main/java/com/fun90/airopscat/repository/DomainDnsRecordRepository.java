@@ -14,6 +14,23 @@ public class DomainDnsRecordRepository implements PanacheRepository<DomainDnsRec
         return find("domainId", domainId).list();
     }
 
+    public List<DomainDnsRecord> findByIdIn(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return find("id in ?1", ids).list();
+    }
+
+    public List<DomainDnsRecord> searchByFullName(String search, int size) {
+        int limit = size <= 0 ? 20 : Math.min(size, 100);
+        if (search == null || search.trim().isEmpty()) {
+            return find("fullName is not null and trim(fullName) <> '' order by fullName").page(0, limit).list();
+        }
+        return find("lower(fullName) like ?1 order by fullName", "%" + search.trim().toLowerCase() + "%")
+                .page(0, limit)
+                .list();
+    }
+
     public void deleteByDomainId(Long domainId) {
         delete("domainId", domainId);
     }

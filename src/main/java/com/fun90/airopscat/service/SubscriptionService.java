@@ -40,6 +40,7 @@ public class SubscriptionService {
     private final ServerRepository serverRepository;
     private final ServerHostRepository serverHostRepository;
     private final TagService tagService;
+    private final AccountNodeSubscriptionDomainBindingService accountNodeSubscriptionDomainBindingService;
     private final TemplateUtil templateUtil;
     private final ConfigFileReader configFileReader;
     private final SystemConfigService systemConfigService;
@@ -53,6 +54,7 @@ public class SubscriptionService {
             ServerRepository serverRepository,
             ServerHostRepository serverHostRepository,
             TagService tagService,
+            AccountNodeSubscriptionDomainBindingService accountNodeSubscriptionDomainBindingService,
             TemplateUtil templateUtil,
             ConfigFileReader configFileReader,
             SystemConfigService systemConfigService) {
@@ -63,6 +65,7 @@ public class SubscriptionService {
         this.serverRepository = serverRepository;
         this.serverHostRepository = serverHostRepository;
         this.tagService = tagService;
+        this.accountNodeSubscriptionDomainBindingService = accountNodeSubscriptionDomainBindingService;
         this.templateUtil = templateUtil;
         this.configFileReader = configFileReader;
         this.systemConfigService = systemConfigService;
@@ -287,6 +290,8 @@ public class SubscriptionService {
                 ? Collections.emptyMap()
                 : serverHostRepository.list("id in ?1", new ArrayList<>(accessHostIds)).stream()
                         .collect(Collectors.toMap(ServerHost::getId, host -> host));
+        Map<Long, String> hostOverrides = accountNodeSubscriptionDomainBindingService.findSubscriptionHostOverrides(
+                accountId, new ArrayList<>(availableNodeMap.keySet()));
 
         List<NodeDto> nodes = new ArrayList<>();
         for (Node availableNode : availableNodeMap.values()) {
@@ -305,6 +310,10 @@ public class SubscriptionService {
             }
             if (!Objects.equals(nodeDto.getType(), NodeType.PROXY.getValue())) {
                 continue;
+            }
+            String hostOverride = hostOverrides.get(nodeDto.getId());
+            if (hostOverride != null && !hostOverride.isBlank()) {
+                nodeDto.setServerHost(hostOverride);
             }
             nodes.add(nodeDto);
         }

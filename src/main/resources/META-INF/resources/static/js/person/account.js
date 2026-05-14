@@ -2,7 +2,7 @@ import { DataTable } from '/static/js/common/data-table.js';
 import { formatDateTimeForLocal, formatRelativeTime, formatDateTimeFull } from '/static/js/common/common.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
-import { createUserSearch } from '/static/js/common/tom-select-helper.js';
+import { createRemoteSearchConfig, createUserSearch } from '/static/js/common/tom-select-helper.js';
 
 const DEFAULT_ACCOUNT_FILTERS = Object.freeze({
     userId: '',
@@ -71,6 +71,23 @@ const accountTable = new DataTable({
         onlineConnectionsLoading: false,
         // 账号详情相关数据
         accountDetailsModal: null,
+        subscriptionDomainBindings: [],
+        subscriptionDomainBindingsLoading: false,
+        subscriptionDomainBindingModal: null,
+        subscriptionDomainBindingNodeSearch: null,
+        subscriptionDomainBindingDomainSearch: null,
+        subscriptionDomainBindingForm: {
+            id: null,
+            accountId: null,
+            nodeId: '',
+            nodeName: '',
+            nodeServerHost: '',
+            nodePort: null,
+            domainDnsRecordId: '',
+            fullName: '',
+            enabled: 1,
+            remark: ''
+        },
         // 文档链接配置
         docsBaseUrl: '', // 将从后端获取
         newItem: {
@@ -130,6 +147,10 @@ const accountTable = new DataTable({
                     this.editUserSearch.addOption({ id: this.editedItem.userId, nickName: this.editedItem.nickName || '' });
                     this.editUserSearch.setValue(this.editedItem.userId, true);
                 }
+            });
+
+            document.getElementById('subscriptionDomainBindingModal').addEventListener('show.bs.modal', () => {
+                this.initializeSubscriptionDomainBindingSearches();
             });
         },
 
@@ -337,8 +358,263 @@ const accountTable = new DataTable({
         // 查看账号详情
         viewAccountDetails(account) {
             this.selectedItem = account;
+            this.fetchSubscriptionDomainBindings(account.id);
             this.accountDetailsModal = new Modal(document.getElementById('accountDetailsModal'));
             this.accountDetailsModal.show();
+        },
+
+        initializeSubscriptionDomainBindingSearches() {
+            if (this.subscriptionDomainBindingNodeSearch) {
+                this.subscriptionDomainBindingNodeSearch.destroy();
+            }
+            if (this.subscriptionDomainBindingDomainSearch) {
+                this.subscriptionDomainBindingDomainSearch.destroy();
+            }
+
+            const availableNodeApiUrl = `/api/admin/account-node-subscription-domain-bindings/accounts/${this.subscriptionDomainBindingForm.accountId}/available-nodes`;
+            this.subscriptionDomainBindingNodeSearch = new TomSelect(
+                document.getElementById('subscription-domain-node-search'),
+                createRemoteSearchConfig({
+                    apiUrl: availableNodeApiUrl,
+                    valueField: 'id',
+                    labelField: 'displayName',
+                    searchField: ['name', 'serverHost', 'serverIp'],
+                    placeholder: '搜索节点...',
+                    pageSize: 20,
+                    dataTransform: (records) => records.map(node => ({
+                        ...node,
+                        displayName: this.formatBindingNode(node)
+                    })),
+                    onChange: (value) => {
+                        this.subscriptionDomainBindingForm.nodeId = value || '';
+                    }
+                })
+            );
+            this.loadDefaultSubscriptionDomainNodes(availableNodeApiUrl);
+
+            this.subscriptionDomainBindingDomainSearch = new TomSelect(
+                document.getElementById('subscription-domain-domain-search'),
+                createRemoteSearchConfig({
+                    apiUrl: '/api/admin/domain-dns-records',
+                    valueField: 'id',
+                    labelField: 'fullName',
+                    searchField: ['fullName'],
+                    placeholder: '搜索DNS记录完整域名...',
+                    minQueryLength: 1,
+                    render: {
+                        option: (data, escape) => `<div>
+                            <div>${escape(data.fullName || '')}</div>
+                            <div class="text-muted small">${escape(data.type || '')}${data.domain ? ` · ${escape(data.domain)}` : ''}</div>
+                        </div>`,
+                        item: (data, escape) => `<div>${escape(data.fullName || '')}</div>`
+                    },
+                    onChange: (value) => {
+                        this.subscriptionDomainBindingForm.domainDnsRecordId = value || '';
+                    }
+                })
+            );
+
+            const form = this.subscriptionDomainBindingForm;
+            if (form.nodeId) {
+                this.subscriptionDomainBindingNodeSearch.addOption({
+                    id: form.nodeId,
+                    displayName: this.formatBindingNode(form)
+                });
+                this.subscriptionDomainBindingNodeSearch.setValue(form.nodeId, true);
+            }
+            if (form.domainDnsRecordId) {
+                this.subscriptionDomainBindingDomainSearch.addOption({
+                    id: form.domainDnsRecordId,
+                    fullName: form.fullName || '',
+                    type: form.recordType || '',
+                    domain: form.domain || ''
+                });
+                this.subscriptionDomainBindingDomainSearch.setValue(form.domainDnsRecordId, true);
+            }
+        },
+
+        loadDefaultSubscriptionDomainNodes(apiUrl) {
+            fetch(`${apiUrl}?size=20`)
+                .then(response => response.ok ? response.json() : { records: [] })
+                .then(data => {
+                    if (!this.subscriptionDomainBindingNodeSearch) {
+                        return;
+                    }
+                    const records = (data.records || data || []).map(node => ({
+                        ...node,
+                        displayName: this.formatBindingNode(node)
+                    }));
+                    this.subscriptionDomainBindingNodeSearch.addOptions(records);
+                    this.subscriptionDomainBindingNodeSearch.refreshOptions(false);
+                })
+                .catch(error => {
+                    console.error('Error loading available nodes:', error);
+                });
+        },
+
+        fetchSubscriptionDomainBindings(accountId) {
+            if (!accountId) {
+                this.subscriptionDomainBindings = [];
+                return;
+            }
+            this.subscriptionDomainBindingsLoading = true;
+            fetch(`/api/admin/account-node-subscription-domain-bindings/accounts/${accountId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('获取订阅域名绑定失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.subscriptionDomainBindings = data || [];
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '获取订阅域名绑定失败', 'danger');
+                })
+                .finally(() => {
+                    this.subscriptionDomainBindingsLoading = false;
+                });
+        },
+
+        openSubscriptionDomainBindingModal(binding) {
+            if (!this.selectedItem || !this.selectedItem.id) {
+                return;
+            }
+            this.subscriptionDomainBindingForm = binding ? {
+                id: binding.id,
+                accountId: binding.accountId,
+                nodeId: binding.nodeId || '',
+                nodeName: binding.nodeName || '',
+                nodeServerHost: binding.nodeServerHost || '',
+                nodePort: binding.nodePort || null,
+                domainDnsRecordId: binding.domainDnsRecordId || '',
+                domainId: binding.domainId || '',
+                fullName: binding.fullName || '',
+                domain: binding.domain || '',
+                recordType: binding.recordType || '',
+                enabled: binding.enabled == null ? 1 : binding.enabled,
+                remark: binding.remark || ''
+            } : {
+                id: null,
+                accountId: this.selectedItem.id,
+                nodeId: '',
+                nodeName: '',
+                nodeServerHost: '',
+                nodePort: null,
+                domainDnsRecordId: '',
+                fullName: '',
+                enabled: 1,
+                remark: ''
+            };
+            this.validationErrors = {};
+            this.subscriptionDomainBindingModal = new Modal(document.getElementById('subscriptionDomainBindingModal'));
+            this.subscriptionDomainBindingModal.show();
+        },
+
+        validateSubscriptionDomainBindingForm() {
+            this.validationErrors = {};
+            if (!this.subscriptionDomainBindingForm.nodeId) {
+                this.validationErrors.subscriptionDomainNodeId = '请选择节点';
+            }
+            if (!this.subscriptionDomainBindingForm.domainDnsRecordId) {
+                this.validationErrors.subscriptionDomainDomainId = '请选择DNS记录';
+            }
+            return Object.keys(this.validationErrors).length === 0;
+        },
+
+        saveSubscriptionDomainBinding() {
+            if (!this.validateSubscriptionDomainBindingForm() || !this.selectedItem) {
+                return;
+            }
+
+            fetch('/api/admin/account-node-subscription-domain-bindings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    accountId: this.selectedItem.id,
+                    nodeId: Number(this.subscriptionDomainBindingForm.nodeId),
+                    domainDnsRecordId: Number(this.subscriptionDomainBindingForm.domainDnsRecordId),
+                    enabled: Number(this.subscriptionDomainBindingForm.enabled || 0),
+                    remark: this.subscriptionDomainBindingForm.remark || null
+                })
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.message || '保存订阅域名绑定失败');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(() => {
+                    this.subscriptionDomainBindingModal.hide();
+                    this.fetchSubscriptionDomainBindings(this.selectedItem.id);
+                    ToastUtils.show('Success', '订阅域名绑定已保存', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '保存订阅域名绑定失败', 'danger');
+                });
+        },
+
+        toggleSubscriptionDomainBinding(binding) {
+            const action = binding.enabled === 1 ? 'disable' : 'enable';
+            fetch(`/api/admin/account-node-subscription-domain-bindings/${binding.id}/${action}`, {
+                method: 'PATCH'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('更新订阅域名绑定状态失败');
+                    }
+                    return response.json();
+                })
+                .then(() => {
+                    this.fetchSubscriptionDomainBindings(this.selectedItem.id);
+                    ToastUtils.show('Success', '订阅域名绑定状态已更新', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '更新订阅域名绑定状态失败', 'danger');
+                });
+        },
+
+        deleteSubscriptionDomainBinding(binding) {
+            if (!binding || !binding.id) {
+                return;
+            }
+            fetch(`/api/admin/account-node-subscription-domain-bindings/${binding.id}`, {
+                method: 'DELETE'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('删除订阅域名绑定失败');
+                    }
+                })
+                .then(() => {
+                    this.fetchSubscriptionDomainBindings(this.selectedItem.id);
+                    ToastUtils.show('Success', '订阅域名绑定已删除', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '删除订阅域名绑定失败', 'danger');
+                });
+        },
+
+        formatBindingNode(node) {
+            if (!node) {
+                return '-';
+            }
+            const name = node.nodeName || node.name || `节点#${node.nodeId || node.id}`;
+            const host = node.nodeServerHost || node.serverHost || node.serverIp || '-';
+            const port = node.nodePort || node.port;
+            return `${name} (${host}${port ? ':' + port : ''})`;
+        },
+
+        getBindingEnabledBadgeClass(binding) {
+            return binding && binding.enabled === 1 ? 'text-bg-success' : 'text-bg-secondary';
         },
 
         // UUID and Auth code management
@@ -773,6 +1049,7 @@ const accountTable = new DataTable({
         afterUpdate(data) {
             if (this.selectedItem && this.selectedItem.id === data.id) {
                 this.selectedItem = data;
+                this.fetchSubscriptionDomainBindings(data.id);
             }
         },
 

@@ -42,6 +42,8 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
 
     // Account and User Related DTOs
     com.fun90.airopscat.model.dto.AccountDto.class,
+    com.fun90.airopscat.model.dto.AccountNodeSubscriptionDomainBindingDto.class,
+    com.fun90.airopscat.model.dto.AccountNodeSubscriptionDomainBindingRequest.class,
     com.fun90.airopscat.model.dto.AccountOnlineIpDto.class,
     com.fun90.airopscat.model.dto.AccountRequest.class,
     com.fun90.airopscat.model.dto.AccountTrafficStatsDto.class,
@@ -109,6 +111,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     // Entity Classes (for direct JSON serialization)
     com.fun90.airopscat.model.entity.User.class,
     com.fun90.airopscat.model.entity.Account.class,
+    com.fun90.airopscat.model.entity.AccountNodeSubscriptionDomainBinding.class,
     com.fun90.airopscat.model.entity.AlertState.class,
     com.fun90.airopscat.model.entity.AccountOnlineIp.class,
     com.fun90.airopscat.model.entity.AccountTrafficStats.class,

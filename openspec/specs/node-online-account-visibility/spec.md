@@ -1,8 +1,6 @@
 ## Purpose
 Define how AirOpsCat records online account connections by logical node and exposes node/account online connection visibility to administrators.
-
 ## Requirements
-
 ### Requirement: 在线连接记录必须区分逻辑节点
 系统 SHALL 在基于 sing-box 连接信息刷新账户在线记录时，尽可能将连接归属到 AirOpsCat 逻辑节点，并在在线连接记录中保存节点区分信息。
 
@@ -69,3 +67,40 @@ Define how AirOpsCat records online account connections by logical node and expo
 #### Scenario: 节点没有当前在线账户
 - **WHEN** 节点列表加载且某个节点没有当前有效在线记录
 - **THEN** 系统展示空状态或零数量，不阻塞节点列表使用
+
+### Requirement: 在线状态刷新必须优先使用节点在线状态快照
+系统 SHALL 在刷新账号在线状态时优先读取节点侧在线状态快照，并使用快照中的账号、客户端 IP、连接 ID、节点标识和连接开始时间维护在线记录。
+
+#### Scenario: 在线状态快照可用
+- **WHEN** 系统刷新某台服务器的账号在线状态且该服务器存在未过期的在线状态快照
+- **THEN** 系统使用在线状态快照刷新账号在线记录
+- **AND** 不再为该次刷新额外读取完整 Clash API 连接列表
+
+#### Scenario: 在线状态快照不可用
+- **WHEN** 系统刷新某台服务器的账号在线状态但快照不存在、不可读或已过期
+- **THEN** 系统记录快照不可用原因
+- **AND** 系统可以按配置降级为现有 Clash API 直连采集方式
+
+#### Scenario: 快照连接映射到节点
+- **WHEN** 在线状态快照中的连接包含可映射到 AirOpsCat 节点的节点标识
+- **THEN** 系统在在线记录中保存对应节点 ID 和节点标识
+
+#### Scenario: 快照连接无法映射到节点
+- **WHEN** 在线状态快照中的连接缺少节点标识或无法映射到 AirOpsCat 节点
+- **THEN** 系统仍保存服务器维度在线记录
+- **AND** 节点字段允许为空
+
+### Requirement: 管理页在线详情必须复用在线状态记录
+系统 SHALL 让当前管理页中的账号在线详情、节点在线详情和服务器在线账号详情复用由在线状态快照刷新得到的在线记录，不为这些页面引入独立的连接快照数据源。
+
+#### Scenario: 管理员查看账号在线详情
+- **WHEN** 管理员打开账号在线连接详情
+- **THEN** 系统从当前有效在线记录返回连接 ID、客户端 IP、服务器 IP、节点信息、最后在线时间和在线时长
+
+#### Scenario: 管理员查看节点在线详情
+- **WHEN** 管理员打开节点在线连接详情
+- **THEN** 系统从当前有效在线记录返回账号、连接 ID、客户端 IP、服务器 IP、最后在线时间和在线时长
+
+#### Scenario: 管理员查看服务器在线账号详情
+- **WHEN** 管理员打开服务器在线账号详情
+- **THEN** 系统从当前有效在线记录返回账号、客户端 IP、最后在线时间和在线时长
