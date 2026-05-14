@@ -8,6 +8,7 @@ import com.fun90.airopscat.model.entity.Domain;
 import com.fun90.airopscat.model.entity.DomainDnsRecord;
 import com.fun90.airopscat.model.enums.DnsRecordStatus;
 import com.fun90.airopscat.model.enums.DnsSyncStatus;
+import com.fun90.airopscat.repository.AccountNodeSubscriptionDomainBindingRepository;
 import com.fun90.airopscat.repository.DomainDnsRecordRepository;
 import com.fun90.airopscat.repository.DomainRepository;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
@@ -28,12 +29,15 @@ public class DomainDnsRecordService {
     private static final List<String> ALLOWED_SORT_FIELDS = List.of("type", "name", "content", "updateTime", "createTime");
 
     private final DomainDnsRecordRepository domainDnsRecordRepository;
+    private final AccountNodeSubscriptionDomainBindingRepository bindingRepository;
     private final DomainRepository domainRepository;
 
     @Inject
     public DomainDnsRecordService(DomainDnsRecordRepository domainDnsRecordRepository,
+                                  AccountNodeSubscriptionDomainBindingRepository bindingRepository,
                                   DomainRepository domainRepository) {
         this.domainDnsRecordRepository = domainDnsRecordRepository;
+        this.bindingRepository = bindingRepository;
         this.domainRepository = domainRepository;
     }
 
@@ -140,6 +144,9 @@ public class DomainDnsRecordService {
     public void delete(Long domainId, Long recordId) {
         Domain domain = requireBoundDomain(domainId);
         DomainDnsRecord entity = requireRecord(domainId, recordId);
+        if (bindingRepository.existsByDomainDnsRecordId(recordId)) {
+            throw new IllegalStateException("DNS 记录已绑定到账户节点订阅域名，请先解绑后再删除");
+        }
 
         if (entity.getStatus() == DnsRecordStatus.PENDING_CREATE) {
             domainDnsRecordRepository.delete(entity);

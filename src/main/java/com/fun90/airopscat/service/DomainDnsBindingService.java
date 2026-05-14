@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.dto.DomainDnsProviderBindingDto;
 import com.fun90.airopscat.model.dto.DomainDnsProviderBindingRequest;
 import com.fun90.airopscat.model.entity.Domain;
+import com.fun90.airopscat.model.entity.DomainDnsRecord;
 import com.fun90.airopscat.model.entity.DnsProviderConfig;
 import com.fun90.airopscat.model.enums.DnsProviderConfigStatus;
 import com.fun90.airopscat.model.enums.DnsSyncStatus;
+import com.fun90.airopscat.repository.AccountNodeSubscriptionDomainBindingRepository;
 import com.fun90.airopscat.repository.DnsProviderConfigRepository;
 import com.fun90.airopscat.repository.DomainDnsRecordRepository;
 import com.fun90.airopscat.repository.DomainRepository;
@@ -16,6 +18,7 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @ApplicationScoped
@@ -24,16 +27,19 @@ public class DomainDnsBindingService {
     private final DomainRepository domainRepository;
     private final DnsProviderConfigRepository dnsProviderConfigRepository;
     private final DomainDnsRecordRepository domainDnsRecordRepository;
+    private final AccountNodeSubscriptionDomainBindingRepository bindingRepository;
     private final ObjectMapper objectMapper;
 
     @Inject
     public DomainDnsBindingService(DomainRepository domainRepository,
                                    DnsProviderConfigRepository dnsProviderConfigRepository,
                                    DomainDnsRecordRepository domainDnsRecordRepository,
+                                   AccountNodeSubscriptionDomainBindingRepository bindingRepository,
                                    ObjectMapper objectMapper) {
         this.domainRepository = domainRepository;
         this.dnsProviderConfigRepository = dnsProviderConfigRepository;
         this.domainDnsRecordRepository = domainDnsRecordRepository;
+        this.bindingRepository = bindingRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -61,6 +67,7 @@ public class DomainDnsBindingService {
         domain.setDnsBindingExtensionJson(writeBindingJson(Map.of("zoneId", request.getZoneId().trim())));
 
         if (bindingChanged) {
+            ensureNoBoundDnsRecord(domainId);
             domainDnsRecordRepository.deleteByDomainId(domainId);
             domain.setDnsSyncStatus(DnsSyncStatus.NOT_SYNCED);
             domain.setDnsLastSyncTime(null);
@@ -72,6 +79,7 @@ public class DomainDnsBindingService {
     @Transactional
     public void unbind(Long domainId) {
         Domain domain = requireDomain(domainId);
+        ensureNoBoundDnsRecord(domainId);
         domainDnsRecordRepository.deleteByDomainId(domainId);
         domain.setDnsProviderConfigId(null);
         domain.setDnsProviderType(null);
@@ -137,6 +145,15 @@ public class DomainDnsBindingService {
             return value == null ? null : String.valueOf(value);
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    private void ensureNoBoundDnsRecord(Long domainId) {
+        List<Long> recordIds = domainDnsRecordRepository.findByDomainId(domainId).stream()
+                .map(DomainDnsRecord::getId)
+                .toList();
+        if (bindingRepository.existsByDomainDnsRecordIds(recordIds)) {
+            throw new IllegalStateException("域名下存在已绑定到账户节点订阅域名的 DNS 记录，请先解绑后再操作");
         }
     }
 }

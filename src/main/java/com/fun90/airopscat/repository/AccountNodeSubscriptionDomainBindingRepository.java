@@ -37,4 +37,18 @@ public class AccountNodeSubscriptionDomainBindingRepository implements PanacheRe
         }
         return find("accountId = ?1 and nodeId in ?2 and enabled = 1", accountId, nodeIds).list();
     }
+
+    public boolean existsByDomainDnsRecordId(Long domainDnsRecordId) {
+        if (domainDnsRecordId == null) {
+            return false;
+        }
+        return count("domainDnsRecordId", domainDnsRecordId) > 0;
+    }
+
+    public boolean existsByDomainDnsRecordIds(List<Long> domainDnsRecordIds) {
+        if (domainDnsRecordIds == null || domainDnsRecordIds.isEmpty()) {
+            return false;
+        }
+        return count("domainDnsRecordId in ?1", domainDnsRecordIds) > 0;
+    }
 }
