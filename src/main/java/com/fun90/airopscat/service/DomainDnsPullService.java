@@ -114,11 +114,12 @@ public class DomainDnsPullService {
             if (localRecord == null) {
                 localRecord = new DomainDnsRecord();
                 localRecord.setDomainId(domainId);
+                fillRecord(localRecord, providerConfig, remoteRecord, syncTime);
                 domainDnsRecordRepository.persist(localRecord);
             } else {
                 syncedRecordIds.add(localRecord.getId());
+                fillRecord(localRecord, providerConfig, remoteRecord, syncTime);
             }
-            fillRecord(localRecord, providerConfig, remoteRecord, syncTime);
         }
 
         boolean hasRetainedPendingDeleteRecords = false;
