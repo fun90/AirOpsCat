@@ -1,3 +1,9 @@
+## Purpose
+
+定义账户流量统计周期内的独立配额快照、有效配额查询优先级、订阅与使用率计算读取规则，以及管理端查看和调整周期配额的行为，确保历史周期配额不会被账户默认配额变更意外覆盖。
+
+## Requirements
+
 ### Requirement: 周期流量记录存储配额快照
 
 `AccountTrafficStats` 实体 SHALL 包含 `bandwidthQuota`（`Long`，单位 GB，可为 null）字段，记录该流量周期实际生效的流量配额。
