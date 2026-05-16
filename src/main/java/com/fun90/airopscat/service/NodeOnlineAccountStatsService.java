@@ -77,7 +77,6 @@ public class NodeOnlineAccountStatsService {
             return null;
         }
         int safeDays = clampDays(days);
-        sampleNodeToday(node.id());
         List<NodeOnlineAccountDailyStats> statsList = getStatsInRange(node.id(), safeDays);
         NodeOnlineAccountStatsSummaryDto dto = buildNodeSummary(node, safeDays);
         dto.setMonitorIntervalSeconds(Math.max(1L,
@@ -116,7 +115,6 @@ public class NodeOnlineAccountStatsService {
             return null;
         }
         int safeDays = clampDays(days);
-        sampleNodeToday(node.id());
         NodeOnlineAccountStatsChartDto dto = buildNodeChart(node, safeDays);
         dto.setPoints(getStatsInRange(node.id(), safeDays).stream()
                 .map(this::toPointDto)
@@ -127,7 +125,6 @@ public class NodeOnlineAccountStatsService {
     @Transactional
     public NodeOnlineAccountOverviewSummaryDto getOverviewSummary(int days) {
         int safeDays = clampDays(days);
-        sampleToday();
         List<NodeOnlineAccountDailyStats> statsList = getAllStatsInRange(safeDays);
         Map<Long, NodeStatsTarget> nodesById = findAllNodeStatsTargets();
 
@@ -193,7 +190,6 @@ public class NodeOnlineAccountStatsService {
     @Transactional
     public NodeOnlineAccountOverviewChartDto getOverviewChartData(int days) {
         int safeDays = clampDays(days);
-        sampleToday();
         NodeOnlineAccountOverviewChartDto dto = new NodeOnlineAccountOverviewChartDto();
         dto.setDays(safeDays);
         dto.setPoints(buildOverviewPoints(getAllStatsInRange(safeDays)));
