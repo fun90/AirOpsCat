@@ -49,10 +49,10 @@
 - [x] 9.3 新建 `table.html`（告警列表表格片段，含状态颜色标签、操作按钮）
 - [x] 9.4 新建 `modals.html`（确认告警模态框 + 清除确认对话框）
 - [x] 9.5 创建 JS 文件 `src/main/resources/META-INF/resources/static/js/system/alert.js`，实现列表加载、筛选提交、确认/清除操作的 API 调用与页面刷新
-- [ ] 9.6 手动验证页面：告警列表展示、筛选、翻页、确认操作、清除操作均正常
+- [x] 9.6 手动验证页面：告警列表展示、筛选、翻页、确认操作、清除操作均正常
 
 ## 10. 收尾检查
 
-- [ ] 10.1 检查所有改造后的 Notifier 在开发模式下能正确写入 `AlertState` 表
-- [ ] 10.2 确认 `alert_state` 唯一约束未被触发导致异常
+- [x] 10.1 检查所有改造后的 Notifier 在开发模式下能正确写入 `AlertState` 表
+- [x] 10.2 确认 `alert_state` 唯一约束未被触发导致异常
 - [x] 10.3 确认前端页面在 GraalVM 原生镜像以外的模式下序列化正常（JsonReflectionConfiguration 在 JVM 模式下可选，但需验证）
