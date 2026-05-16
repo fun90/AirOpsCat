@@ -288,6 +288,7 @@ public class SystemConfigService {
                 item("airopscat.account.online.refresh-minutes", "在线刷新间隔分钟数", "通过 Clash API 主动采集在线状态的间隔。", INPUT_NUMBER, true, false, false, true, "5", "5"),
                 item("airopscat.account.online.cleanup.batch-size", "在线清理批大小", "在线记录清理单批删除数量。", INPUT_NUMBER, true, false, false, true, "1000", "1000"),
                 item("airopscat.account.online.history.retention-hours", "在线记录保留小时数", "定期清理超过此小时数的历史在线连接记录，任务执行间隔与此值相同。", INPUT_NUMBER, true, false, false, true, "8", "8"),
+                item("airopscat.node.online-account.stats.sample-minutes", "节点在线趋势采样间隔分钟数", "采样当前在线账户数并沉淀为节点每日在线账户趋势的间隔。", INPUT_NUMBER, true, false, false, true, "5", "5"),
                 item("airopscat.account.connection-limit.alert.enabled", "连接数超限告警", "账户当前在线连接数超过最大连接数时发送告警。", INPUT_CHECKBOX, false, false, false, true, "", "true"),
                 item("airopscat.account.connection-limit.alert.min-interval-minutes", "连接数告警间隔分钟数", "同一账户连接数持续超限时，两次通知之间的最小间隔。", INPUT_NUMBER, true, false, false, true, "60", "60"),
                 item("airopscat.account.connection-limit.alert.recovery-notify-enabled", "连接数恢复通知", "账户连接数恢复到限制以内时是否发送恢复通知。", INPUT_CHECKBOX, false, false, false, true, "", "false"),

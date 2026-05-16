@@ -47,6 +47,7 @@ public class ProgrammaticTaskManager {
     private final SystemRequestLogCleanupTask systemRequestLogCleanupTask;
     private final AccountOnlineRefreshTask accountOnlineRefreshTask;
     private final AccountOnlineIpCleanupTask accountOnlineIpCleanupTask;
+    private final NodeOnlineAccountStatsTask nodeOnlineAccountStatsTask;
 
     private final Map<String, TaskDefinition> taskDefinitions;
     private final Set<String> pausedTaskKeys;
@@ -66,7 +67,8 @@ public class ProgrammaticTaskManager {
                                    ServerTrafficStatsCleanupTask serverTrafficStatsCleanupTask,
                                    SystemRequestLogCleanupTask systemRequestLogCleanupTask,
                                    AccountOnlineRefreshTask accountOnlineRefreshTask,
-                                   AccountOnlineIpCleanupTask accountOnlineIpCleanupTask) {
+                                   AccountOnlineIpCleanupTask accountOnlineIpCleanupTask,
+                                   NodeOnlineAccountStatsTask nodeOnlineAccountStatsTask) {
         this.scheduler = scheduler;
         this.systemConfigService = systemConfigService;
         this.databaseBackupService = databaseBackupService;
@@ -82,6 +84,7 @@ public class ProgrammaticTaskManager {
         this.systemRequestLogCleanupTask = systemRequestLogCleanupTask;
         this.accountOnlineRefreshTask = accountOnlineRefreshTask;
         this.accountOnlineIpCleanupTask = accountOnlineIpCleanupTask;
+        this.nodeOnlineAccountStatsTask = nodeOnlineAccountStatsTask;
         this.taskDefinitions = buildTaskDefinitions();
         this.pausedTaskKeys = ConcurrentHashMap.newKeySet();
     }
@@ -296,6 +299,20 @@ public class ProgrammaticTaskManager {
                 8L,
                 Scheduled.ConcurrentExecution.SKIP,
                 accountOnlineIpCleanupTask::cleanupOldRecords
+        ));
+        definitions.put("node-online-account-stats", task(
+                "node-online-account-stats",
+                "node-online-account-stats",
+                "节点在线账户日统计",
+                "按当前在线窗口采样节点在线账户数，沉淀为每日趋势数据。",
+                "monitor",
+                "监控与在线状态",
+                38,
+                SCHEDULE_TYPE_INTERVAL_MINUTES,
+                "airopscat.node.online-account.stats.sample-minutes",
+                5L,
+                Scheduled.ConcurrentExecution.SKIP,
+                nodeOnlineAccountStatsTask::sampleDailyStats
         ));
         definitions.put("server-monitor-cleanup", task(
                 "server-monitor-cleanup",

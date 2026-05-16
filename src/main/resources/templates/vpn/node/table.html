@@ -122,6 +122,9 @@
                         <a class="dropdown-item" href="#" @click.prevent="openDeploymentHistory(node)">
                             <i class="ti ti-versions"></i> 部署历史
                         </a>
+                        <a class="dropdown-item" :href="'/console/vpn/node-online-account-stats?nodeId=' + node.id">
+                            <i class="ti ti-chart-line"></i> 在线趋势
+                        </a>
                         <a v-if="node.disabled === 1" class="dropdown-item" href="#" :class="{ disabled: isPendingDelete(node) }" @click.prevent="!isPendingDelete(node) && toggleItemStatus(node, false)">
                             <i class="ti ti-check"></i> 启用
                         </a>

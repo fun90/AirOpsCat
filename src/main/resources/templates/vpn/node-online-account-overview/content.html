@@ -1,0 +1,203 @@
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row g-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="w-100 d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+                            <div>
+                                <h3 class="card-title mb-1">全部节点在线趋势</h3>
+                                <div class="text-muted">按节点承载账户数聚合展示，不等同于全站唯一账户数</div>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <select class="form-select form-select-sm w-auto d-sm-none" v-model="selectedDays" @change="changeDays">
+                                    <option value="7">近 7 天</option>
+                                    <option value="30">近 30 天</option>
+                                    <option value="90">近 90 天</option>
+                                </select>
+                                <select class="form-select w-auto d-none d-sm-block" v-model="selectedDays" @change="changeDays">
+                                    <option value="7">近 7 天</option>
+                                    <option value="30">近 30 天</option>
+                                    <option value="90">近 90 天</option>
+                                </select>
+                                <button type="button" class="btn btn-sm btn-outline-primary d-sm-none" @click="refreshData" :disabled="loading">
+                                    <i class="ti ti-refresh"></i>
+                                    刷新
+                                </button>
+                                <button type="button" class="btn btn-outline-primary d-none d-sm-inline-flex" @click="refreshData" :disabled="loading">
+                                    <i class="ti ti-refresh"></i>
+                                    刷新
+                                </button>
+                                <a href="/console/vpn/node" class="btn btn-sm btn-outline-secondary d-sm-none">
+                                    <i class="ti ti-arrow-left"></i>
+                                    返回
+                                </a>
+                                <a href="/console/vpn/node" class="btn btn-outline-secondary d-none d-sm-inline-flex">
+                                    <i class="ti ti-arrow-left"></i>
+                                    返回节点列表
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body" v-if="loading && !summary">
+                        <div class="d-flex justify-content-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body" v-else>
+                        <div class="alert alert-warning" v-if="summary && !summary.dataAvailable">
+                            暂无所有节点在线趋势数据，请等待下一次在线状态刷新和统计采样。
+                        </div>
+
+                        <div class="row g-2 g-sm-3 mb-3" v-if="summary">
+                            <div class="col-6 col-lg-2">
+                                <div class="card">
+                                    <div class="card-body text-center p-3 p-sm-4">
+                                        <div class="text-muted small">节点总数</div>
+                                        <div class="h3 mb-0 text-primary">{{ formatCount(summary.totalNodeCount) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-lg-2">
+                                <div class="card">
+                                    <div class="card-body text-center p-3 p-sm-4">
+                                        <div class="text-muted small">有数据节点</div>
+                                        <div class="h3 mb-0 text-azure">{{ formatCount(summary.nodesWithDataCount) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-lg-2">
+                                <div class="card">
+                                    <div class="card-body text-center p-3 p-sm-4">
+                                        <div class="text-muted small">今日当前承载</div>
+                                        <div class="h3 mb-0 text-green">{{ formatCount(summary.todayLatestOnlineAccountCount) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-lg-2">
+                                <div class="card">
+                                    <div class="card-body text-center p-3 p-sm-4">
+                                        <div class="text-muted small">今日峰值承载</div>
+                                        <div class="h3 mb-0 text-orange">{{ formatCount(summary.todayPeakOnlineAccountCount) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-lg-2">
+                                <div class="card">
+                                    <div class="card-body text-center p-3 p-sm-4">
+                                        <div class="text-muted small">周期峰值承载</div>
+                                        <div class="h3 mb-0 text-red">{{ formatCount(summary.periodPeakOnlineAccountCount) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-lg-2">
+                                <div class="card">
+                                    <div class="card-body text-center p-3 p-sm-4">
+                                        <div class="text-muted small">日均承载账户</div>
+                                        <div class="h3 mb-0 text-purple">{{ formatAverage(summary.periodAverageUniqueOnlineAccountCount) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-3" v-if="summary && summary.dataAvailable">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">所有节点每日承载趋势</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="node-online-account-overview-chart" style="height: 360px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">高峰节点</h3>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-vcenter card-table">
+                                            <thead>
+                                            <tr>
+                                                <th>节点</th>
+                                                <th class="text-end">周期峰值</th>
+                                                <th class="text-end">日均承载</th>
+                                                <th class="w-1"></th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            <tr v-for="node in summary.topNodes" :key="'top-' + node.nodeId">
+                                                <td>
+                                                    <div class="fw-medium">{{ node.nodeDisplayName || '-' }}</div>
+                                                    <div class="text-muted small">{{ node.serverIp || '-' }}</div>
+                                                </td>
+                                                <td class="text-end">{{ formatCount(node.periodPeakOnlineAccountCount) }}</td>
+                                                <td class="text-end">{{ formatAverage(node.periodAverageUniqueOnlineAccountCount) }}</td>
+                                                <td>
+                                                    <a class="btn btn-sm btn-ghost-secondary" :href="singleNodeTrendUrl(node.nodeId)">
+                                                        <i class="ti ti-chart-line"></i>
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                            <tr v-if="!summary.topNodes || summary.topNodes.length === 0">
+                                                <td colspan="4" class="text-center text-muted py-4">暂无排行数据</td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3 class="card-title">低使用节点</h3>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-vcenter card-table">
+                                            <thead>
+                                            <tr>
+                                                <th>节点</th>
+                                                <th class="text-end">周期峰值</th>
+                                                <th class="text-end">日均承载</th>
+                                                <th class="w-1"></th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            <tr v-for="node in summary.lowUsageNodes" :key="'low-' + node.nodeId">
+                                                <td>
+                                                    <div class="fw-medium">{{ node.nodeDisplayName || '-' }}</div>
+                                                    <div class="text-muted small">{{ node.serverIp || '-' }}</div>
+                                                </td>
+                                                <td class="text-end">{{ formatCount(node.periodPeakOnlineAccountCount) }}</td>
+                                                <td class="text-end">{{ formatAverage(node.periodAverageUniqueOnlineAccountCount) }}</td>
+                                                <td>
+                                                    <a class="btn btn-sm btn-ghost-secondary" :href="singleNodeTrendUrl(node.nodeId)">
+                                                        <i class="ti ti-chart-line"></i>
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                            <tr v-if="!summary.lowUsageNodes || summary.lowUsageNodes.length === 0">
+                                                <td colspan="4" class="text-center text-muted py-4">暂无低使用节点数据</td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-column flex-sm-row justify-content-between gap-2 text-muted small" v-if="summary">
+                            <span>采样间隔配置: {{summary?.monitorIntervalSeconds || 300}} 秒</span>
+                            <span>最后采样时间: {{ formatDateTime(summary.lastSampleTime) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

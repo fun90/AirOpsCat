@@ -130,6 +130,25 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
     }
 
     @SuppressWarnings("unchecked")
+    public Map<Long, List<String>> findDistinctAccountNosByNodeAfter(LocalDateTime afterTime) {
+        List<Object[]> rows = getEntityManager()
+                .createQuery("SELECT a.nodeId, a.accountNo FROM AccountOnlineIp a " +
+                        "WHERE a.nodeId IS NOT NULL AND a.accountNo IS NOT NULL AND a.lastOnlineTime > :afterTime " +
+                        "GROUP BY a.nodeId, a.accountNo")
+                .setParameter("afterTime", afterTime)
+                .getResultList();
+
+        Map<Long, List<String>> result = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] != null && row[1] != null) {
+                result.computeIfAbsent((Long) row[0], ignored -> new java.util.ArrayList<>())
+                        .add((String) row[1]);
+            }
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
     public Map<String, Long> countByAccountNosAndLastOnlineTimeAfter(List<String> accountNos, LocalDateTime afterTime) {
         if (accountNos == null || accountNos.isEmpty()) {
             return Map.of();
