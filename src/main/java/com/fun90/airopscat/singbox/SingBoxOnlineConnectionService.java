@@ -16,7 +16,7 @@ import com.fun90.airopscat.service.AccountOnlineIpService;
 import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
-import com.fun90.airopscat.model.dto.SshConfig;
+import com.fun90.airopscat.service.ssh.ServerSshConfigFactory;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +34,6 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class SingBoxOnlineConnectionService {
 
-    private static final String DEFAULT_USERNAME = "root";
     private static final int SNAPSHOT_SCHEMA_VERSION = 1;
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -50,6 +49,9 @@ public class SingBoxOnlineConnectionService {
 
     @Inject
     SshConnectionService sshConnectionService;
+
+    @Inject
+    ServerSshConfigFactory serverSshConfigFactory;
 
     @Inject
     AccountOnlineIpService accountOnlineIpService;
@@ -84,7 +86,7 @@ public class SingBoxOnlineConnectionService {
     }
 
     private int refreshServer(Server server) throws Exception {
-        try (SshConnection connection = sshConnectionService.createConnection(buildSshConfig(server))) {
+        try (SshConnection connection = sshConnectionService.createConnection(serverSshConfigFactory.create(server))) {
             List<SingBoxConnectionSnapshot> connections = getRefreshConnections(connection, server);
             if (connections == null || connections.isEmpty()) {
                 return 0;
@@ -185,36 +187,20 @@ public class SingBoxOnlineConnectionService {
         return path == null || path.isBlank() ? "/run/airopscat/online-connections.json" : path.trim();
     }
 
-    private SshConfig buildSshConfig(Server server) {
-        SshConfig sshConfig = new SshConfig();
-        sshConfig.setHost(server.getIp());
-        sshConfig.setPort(server.getSshPort());
-        sshConfig.setUsername(Objects.toString(server.getUsername(), DEFAULT_USERNAME));
-
-        boolean isPassword = "PASSWORD".equalsIgnoreCase(server.getAuthType())
-                || "password".equalsIgnoreCase(server.getAuthType());
-        if (isPassword) {
-            sshConfig.setPassword(server.getAuth());
-        } else {
-            sshConfig.setPrivateKeyContent(server.getAuth());
-        }
-        return sshConfig;
-    }
-
     public SingBoxConnectionsResponse getServerConnections(Server server) throws Exception {
-        try (SshConnection connection = sshConnectionService.createConnection(buildSshConfig(server))) {
+        try (SshConnection connection = sshConnectionService.createConnection(serverSshConfigFactory.create(server))) {
             return clashApiClient.getConnections(connection);
         }
     }
 
     public void deleteServerConnection(Server server, String connectionId) throws Exception {
-        try (SshConnection connection = sshConnectionService.createConnection(buildSshConfig(server))) {
+        try (SshConnection connection = sshConnectionService.createConnection(serverSshConfigFactory.create(server))) {
             clashApiClient.deleteConnection(connection, connectionId);
         }
     }
 
     public void deleteAllServerConnections(Server server) throws Exception {
-        try (SshConnection connection = sshConnectionService.createConnection(buildSshConfig(server))) {
+        try (SshConnection connection = sshConnectionService.createConnection(serverSshConfigFactory.create(server))) {
             clashApiClient.deleteAllConnections(connection);
         }
     }

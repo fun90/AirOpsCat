@@ -1,5 +1,6 @@
 package com.fun90.airopscat.controller;
 
+import com.fun90.airopscat.model.dto.ServerConnectionTestResult;
 import com.fun90.airopscat.model.dto.ServerDto;
 import com.fun90.airopscat.model.dto.ServerTrafficCalibrationDto;
 import com.fun90.airopscat.model.dto.singbox.SingBoxConnectionsResponse;
@@ -157,13 +158,8 @@ public class ServerController {
     @POST
     @Path("/test-connection")
     public Response testConnection(ServerDto server) {
-        boolean success = serverService.testConnection(server);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", success);
-        response.put("message", success ? "连接成功" : "连接失败");
-
-        return Response.ok(response).build();
+        ServerConnectionTestResult result = serverService.testConnection(server);
+        return Response.ok(result).build();
     }
 
     @POST

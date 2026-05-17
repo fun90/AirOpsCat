@@ -2,7 +2,6 @@ package com.fun90.airopscat.service.deployment;
 
 import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.DeploymentResult;
-import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.dto.deployment.CoreDeploymentExecution;
 import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
 import com.fun90.airopscat.model.entity.Node;
@@ -17,6 +16,7 @@ import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.ratelimit.RateLimitService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
+import com.fun90.airopscat.service.ssh.ServerSshConfigFactory;
 import com.fun90.airopscat.singbox.SingBoxConfigBuilder;
 import jakarta.enterprise.context.control.ActivateRequestContext;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -38,8 +38,6 @@ import java.util.stream.Collectors;
 public class CoreDeploymentExecutor {
 
     private static final String CORE_TYPE_SING_BOX = "sing-box";
-    private static final String DEFAULT_USERNAME = "root";
-
     private final CoreManagementService coreManagementService;
     private final ServerConfigRepository serverConfigRepository;
     private final NodeRepository nodeRepository;
@@ -47,6 +45,7 @@ public class CoreDeploymentExecutor {
     private final NodeDeploymentVersionService nodeDeploymentVersionService;
     private final NodeService nodeService;
     private final SshConnectionService sshConnectionService;
+    private final ServerSshConfigFactory serverSshConfigFactory;
     private final RateLimitService rateLimitService;
     private final ExecutorService executorService;
 
@@ -58,6 +57,7 @@ public class CoreDeploymentExecutor {
                                   NodeDeploymentVersionService nodeDeploymentVersionService,
                                   NodeService nodeService,
                                   SshConnectionService sshConnectionService,
+                                  ServerSshConfigFactory serverSshConfigFactory,
                                   RateLimitService rateLimitService,
                                   @Named("deploymentTaskExecutor") ExecutorService executorService) {
         this.coreManagementService = coreManagementService;
@@ -67,6 +67,7 @@ public class CoreDeploymentExecutor {
         this.nodeDeploymentVersionService = nodeDeploymentVersionService;
         this.nodeService = nodeService;
         this.sshConnectionService = sshConnectionService;
+        this.serverSshConfigFactory = serverSshConfigFactory;
         this.rateLimitService = rateLimitService;
         this.executorService = executorService;
     }
@@ -158,7 +159,7 @@ public class CoreDeploymentExecutor {
     }
 
     SshConnection createConnection(Server server) {
-        return sshConnectionService.createConnection(buildSshConfig(server));
+        return sshConnectionService.createConnection(serverSshConfigFactory.create(server));
     }
 
     List<CoreManagementResult> executeOperations(String coreType,
@@ -188,22 +189,6 @@ public class CoreDeploymentExecutor {
         long elapsedMillis = (System.nanoTime() - startTime) / 1_000_000;
         log.info("节点部署服务器批次完成: server={}({}), core=sing-box, success={}, failure={}, elapsedMs={}",
                 server.getName(), server.getId(), successCount, failureCount, elapsedMillis);
-    }
-
-    private SshConfig buildSshConfig(Server server) {
-        SshConfig sshConfig = new SshConfig();
-        sshConfig.setHost(server.getIp());
-        sshConfig.setPort(server.getSshPort());
-        sshConfig.setUsername(Objects.toString(server.getUsername(), DEFAULT_USERNAME));
-
-        boolean isPassword = "PASSWORD".equalsIgnoreCase(server.getAuthType())
-                || "password".equalsIgnoreCase(server.getAuthType());
-        if (isPassword) {
-            sshConfig.setPassword(server.getAuth());
-        } else {
-            sshConfig.setPrivateKeyContent(server.getAuth());
-        }
-        return sshConfig;
     }
 
     public List<DeploymentResult> persist(CoreDeploymentExecution execution) {

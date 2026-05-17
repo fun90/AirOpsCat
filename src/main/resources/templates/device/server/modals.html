@@ -129,9 +129,10 @@
                         </div>
                         <div v-else-if="newItem.authType === 'KEY'">
                             <div class="mb-3">
-                                <label class="form-label required">密钥</label>
-                                <textarea class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="newItem.auth" rows="8"></textarea>
+                                <label class="form-label required">私钥内容</label>
+                                <textarea class="form-control font-monospace" :class="{ 'is-invalid': validationErrors.auth }" v-model="newItem.auth" rows="8" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
                                 <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                <small class="form-hint">请粘贴未加密私钥内容，暂不支持带密码短语的私钥或私钥文件路径。</small>
                             </div>
                         </div>
                     </div>
@@ -320,9 +321,10 @@
                         </div>
                         <div v-else-if="editedItem.authType === 'KEY'">
                             <div class="mb-3">
-                                <label class="form-label required">密钥</label>
-                                <textarea class="form-control" :class="{ 'is-invalid': validationErrors.auth }" v-model="editedItem.auth" rows="8"></textarea>
+                                <label class="form-label required">私钥内容</label>
+                                <textarea class="form-control font-monospace" :class="{ 'is-invalid': validationErrors.auth }" v-model="editedItem.auth" rows="8" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
                                 <div class="invalid-feedback" v-if="validationErrors.auth">{{ validationErrors.auth }}</div>
+                                <small class="form-hint">请粘贴未加密私钥内容，暂不支持带密码短语的私钥或私钥文件路径。</small>
                             </div>
                         </div>
                     </div>

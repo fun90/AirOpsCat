@@ -51,6 +51,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
 
     // Server and Node Related DTOs
     com.fun90.airopscat.model.dto.ServerDto.class,
+    com.fun90.airopscat.model.dto.ServerConnectionTestResult.class,
     com.fun90.airopscat.model.dto.ServerHostDto.class,
     com.fun90.airopscat.model.dto.ServerMonitorPointDto.class,
     com.fun90.airopscat.model.dto.ServerMonitorSummaryDto.class,

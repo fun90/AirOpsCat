@@ -5,7 +5,6 @@ import com.fun90.airopscat.model.dto.ServerMonitorChartDto;
 import com.fun90.airopscat.model.dto.ServerMonitorPointDto;
 import com.fun90.airopscat.model.dto.ServerMonitorSummaryDto;
 import com.fun90.airopscat.model.dto.ServerMonitorTrafficCalibrationDto;
-import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerMonitorStats;
 import com.fun90.airopscat.model.entity.ServerTrafficStats;
@@ -13,6 +12,7 @@ import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.ServerMonitorStatsRepository;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
+import com.fun90.airopscat.service.ssh.ServerSshConfigFactory;
 import com.fun90.airopscat.util.TrafficPeriodUtils;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -40,6 +40,9 @@ public class ServerMonitorStatsService {
 
     @Inject
     SshConnectionService sshConnectionService;
+
+    @Inject
+    ServerSshConfigFactory serverSshConfigFactory;
 
     @Inject
     ServerHostService serverHostService;
@@ -237,7 +240,7 @@ public class ServerMonitorStatsService {
     }
 
     private Map<String, String> executeRemoteCollection(Server server) {
-        try (SshConnection connection = sshConnectionService.createConnection(buildSshConfig(server))) {
+        try (SshConnection connection = sshConnectionService.createConnection(serverSshConfigFactory.create(server, 10000))) {
             CommandResult commandResult = connection.executeCommand(
                     "if [ ! -x " + quoteShell(REMOTE_COLLECTOR_PATH) + " ]; then echo " + quoteShell(COLLECTOR_MISSING_MARKER)
                             + "; exit 0; fi; " + quoteShell(REMOTE_COLLECTOR_PATH)
@@ -348,7 +351,7 @@ public class ServerMonitorStatsService {
     }
 
     private Integer fetchCpuCores(Server server) {
-        try (SshConnection connection = sshConnectionService.createConnection(buildSshConfig(server))) {
+        try (SshConnection connection = sshConnectionService.createConnection(serverSshConfigFactory.create(server, 10000))) {
             CommandResult commandResult = connection.executeCommand("nproc");
             if (!commandResult.isSuccess()) {
                 log.warn("获取 CPU 核数失败，serverId={}, stderr={}", server.getId(), commandResult.getStderr());
@@ -456,23 +459,6 @@ public class ServerMonitorStatsService {
         dto.setNetworkRxRateBytes(stats.getNetworkRxRateBytes());
         dto.setNetworkTxRateBytes(stats.getNetworkTxRateBytes());
         return dto;
-    }
-
-    private SshConfig buildSshConfig(Server server) {
-        SshConfig sshConfig = new SshConfig();
-        sshConfig.setHost(server.getIp());
-        sshConfig.setPort(server.getSshPort() != null ? server.getSshPort() : 22);
-        sshConfig.setUsername(server.getUsername() == null || server.getUsername().isBlank() ? "root" : server.getUsername());
-        sshConfig.setTimeout(10000);
-
-        boolean isPassword = "PASSWORD".equalsIgnoreCase(server.getAuthType())
-                || "password".equalsIgnoreCase(server.getAuthType());
-        if (isPassword) {
-            sshConfig.setPassword(server.getAuth());
-        } else {
-            sshConfig.setPrivateKeyContent(server.getAuth());
-        }
-        return sshConfig;
     }
 
     private Long parseLong(String value) {

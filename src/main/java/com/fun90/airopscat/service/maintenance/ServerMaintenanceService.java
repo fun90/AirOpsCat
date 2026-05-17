@@ -1,7 +1,6 @@
 package com.fun90.airopscat.service.maintenance;
 
 import com.fun90.airopscat.model.dto.CommandResult;
-import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.dto.maintenance.MaintenanceScriptDto;
 import com.fun90.airopscat.model.dto.maintenance.ServerMaintenanceStepResultDto;
 import com.fun90.airopscat.model.entity.Server;
@@ -10,6 +9,7 @@ import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
+import com.fun90.airopscat.service.ssh.ServerSshConfigFactory;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -42,6 +42,9 @@ public class ServerMaintenanceService {
 
     @Inject
     SshConnectionService sshConnectionService;
+
+    @Inject
+    ServerSshConfigFactory serverSshConfigFactory;
 
     @Inject
     SystemConfigService systemConfigService;
@@ -103,7 +106,7 @@ public class ServerMaintenanceService {
 
         String scriptContent = readScriptContent(scriptName).replace("\r\n", "\n");
 
-        try (SshConnection connection = sshConnectionService.createConnection(buildSshConfig(server))) {
+        try (SshConnection connection = sshConnectionService.createConnection(serverSshConfigFactory.create(server))) {
             String remoteWorkDir = getRemoteWorkDir();
             connection.executeCommand("mkdir -p " + quoteShell(remoteWorkDir));
 
@@ -188,22 +191,6 @@ public class ServerMaintenanceService {
         return rawName.replace('-', ' ')
                 .replace('_', ' ')
                 .trim();
-    }
-
-    private SshConfig buildSshConfig(Server server) {
-        SshConfig sshConfig = new SshConfig();
-        sshConfig.setHost(server.getIp());
-        sshConfig.setPort(server.getSshPort());
-        sshConfig.setUsername(server.getUsername() == null || server.getUsername().isBlank() ? "root" : server.getUsername());
-
-        boolean isPassword = "PASSWORD".equalsIgnoreCase(server.getAuthType())
-                || "password".equalsIgnoreCase(server.getAuthType());
-        if (isPassword) {
-            sshConfig.setPassword(server.getAuth());
-        } else {
-            sshConfig.setPrivateKeyContent(server.getAuth());
-        }
-        return sshConfig;
     }
 
     private String quoteShell(String value) {
