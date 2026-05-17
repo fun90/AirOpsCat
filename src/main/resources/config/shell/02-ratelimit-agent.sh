@@ -45,8 +45,7 @@ AIROPSCAT_RATELIMIT_SNAPSHOT_TTL=10
 AIROPSCAT_ONLINE_SNAPSHOT_TTL=60
 AIROPSCAT_RATELIMIT_INTERVAL=3
 AIROPSCAT_RATELIMIT_ROOT_RATE=10000mbit
-AIROPSCAT_RATELIMIT_ACTIVE_TTL=15
-AIROPSCAT_RATELIMIT_MAX_ACTIVE_CLASSES=512
+AIROPSCAT_RATELIMIT_MAX_TC_CLASSES=512
 EOF
 
   cat > /usr/local/bin/airopscat-connection-snapshot-agent <<'EOF'
@@ -256,8 +255,12 @@ def env_int(name, default, minimum=None, maximum=None):
 
 
 POLL_INTERVAL = env_int("AIROPSCAT_RATELIMIT_INTERVAL", 3, 1)
-ACTIVE_TTL = max(POLL_INTERVAL, env_int("AIROPSCAT_RATELIMIT_ACTIVE_TTL", 15, 1))
-MAX_ACTIVE_CLASSES = env_int("AIROPSCAT_RATELIMIT_MAX_ACTIVE_CLASSES", 512, 0, TC_CLASS_MINOR_MAX - 2)
+MAX_TC_CLASSES = env_int(
+    "AIROPSCAT_RATELIMIT_MAX_TC_CLASSES",
+    env_int("AIROPSCAT_RATELIMIT_MAX_ACTIVE_CLASSES", 512, 0, TC_CLASS_MINOR_MAX - 2),
+    0,
+    TC_CLASS_MINOR_MAX - 2,
+)
 SCHEMA_VERSION = 1
 
 _last_error_log_at = {}
@@ -342,37 +345,20 @@ def calc_burst_k(speed_kbit):
     return max(128, max(128 * 1024, bytes_per_sec) // 1024)
 
 
-def build_active_accounts(flows, accounts, last_seen):
-    now = time.monotonic()
-    counts = {}
-    for flow in flows:
-        if not isinstance(flow, list) or len(flow) < 4:
-            continue
-        account_no = str(flow[3] or "").strip()
-        if account_no in accounts:
-            last_seen[account_no] = now
-            counts[account_no] = counts.get(account_no, 0) + 1
+def select_limited_accounts(accounts):
+    if not MAX_TC_CLASSES or len(accounts) <= MAX_TC_CLASSES:
+        return dict(accounts)
 
-    active = []
-    for account_no, seen_at in list(last_seen.items()):
-        if account_no not in accounts or now - seen_at > ACTIVE_TTL:
-            last_seen.pop(account_no, None)
-            continue
-        active.append((account_no, seen_at, counts.get(account_no, 0)))
-
-    if MAX_ACTIVE_CLASSES and len(active) > MAX_ACTIVE_CLASSES:
-        active.sort(key=lambda item: (item[2] > 0, item[2], item[1], item[0]), reverse=True)
-        for account_no, _, count in active[MAX_ACTIVE_CLASSES:]:
-            if count == 0:
-                last_seen.pop(account_no, None)
-        active = active[:MAX_ACTIVE_CLASSES]
-
-    return {account_no: accounts[account_no] for account_no, _, _ in active}
+    selected = {}
+    for account_no in sorted(accounts)[:MAX_TC_CLASSES]:
+        selected[account_no] = accounts[account_no]
+    log_limited("tc_class_limit", f"HTB class 数量达到配置上限，仅为前 {len(selected)} 个账号创建 class: totalAccounts={len(accounts)}")
+    return selected
 
 
-def rebuild_tc(nic, active_accounts):
+def rebuild_tc(nic, tc_accounts):
     run(["tc", "qdisc", "del", "dev", nic, "root"])
-    if not active_accounts:
+    if not tc_accounts:
         return {}
 
     run(["tc", "qdisc", "add", "dev", nic, "root", "handle", "1:", "htb", "default", "9999", "r2q", "1"], check=True)
@@ -383,14 +369,14 @@ def rebuild_tc(nic, active_accounts):
 
     marks = {}
     class_id = 2
-    for account_no in sorted(active_accounts):
+    for account_no in sorted(tc_accounts):
         if class_id == 9999:
             class_id += 1
         if class_id > TC_CLASS_MINOR_MAX:
             log_limited("tc_class_limit", f"HTB class 数量达到上限，已跳过剩余账号: built={len(marks)}")
             break
 
-        speed_kbit = active_accounts[account_no] * 8
+        speed_kbit = tc_accounts[account_no] * 8
         burst_k = f"{calc_burst_k(speed_kbit)}k"
         class_result = run(["tc", "class", "add", "dev", nic, "parent", "1:1", "classid", f"1:{class_id}",
                             "htb", "rate", f"{speed_kbit}kbit", "burst", burst_k, "cburst", burst_k, "quantum", "1514"])
@@ -508,8 +494,7 @@ def main():
     nic = detect_nic()
     accounts_mtime = None
     accounts = {}
-    active_accounts = {}
-    last_seen = {}
+    limited_accounts = {}
     marks = {}
     prev_maps = empty_maps()
 
@@ -526,11 +511,10 @@ def main():
             if mtime != accounts_mtime:
                 accounts = load_accounts()
                 accounts_mtime = mtime
-                last_seen = {key: value for key, value in last_seen.items() if key in accounts}
-                active_accounts = {}
-                marks = rebuild_tc(nic, {})
+                limited_accounts = select_limited_accounts(accounts)
+                marks = rebuild_tc(nic, limited_accounts)
                 sync_nft_maps(prev_maps, empty_maps())
-                log(f"已加载限速账号: totalAccounts={len(accounts)}")
+                log(f"已加载限速账号: totalAccounts={len(accounts)}, tcClasses={len(marks)}")
 
             if not accounts:
                 time.sleep(POLL_INTERVAL)
@@ -543,13 +527,6 @@ def main():
                 time.sleep(POLL_INTERVAL)
                 continue
 
-            next_active = build_active_accounts(flows, accounts, last_seen)
-            if next_active != active_accounts:
-                active_accounts = next_active
-                marks = rebuild_tc(nic, active_accounts)
-                sync_nft_maps(prev_maps, empty_maps())
-                log(f"已刷新限速 class: activeAccounts={len(active_accounts)}, totalAccounts={len(accounts)}")
-
             sync_nft_maps(prev_maps, desired_marks(flows, marks))
         except Exception as exc:
             log_limited("main", f"限速代理执行失败: {exc}", 10)
@@ -557,7 +534,7 @@ def main():
                 nic = detect_nic()
                 setup_nft()
                 prev_maps = empty_maps()
-                marks = rebuild_tc(nic, active_accounts)
+                marks = rebuild_tc(nic, limited_accounts)
                 sync_nft_maps(prev_maps, empty_maps())
             except Exception as recover_exc:
                 log_limited("recover", f"限速代理恢复失败: {recover_exc}", 10)

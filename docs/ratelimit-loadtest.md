@@ -134,7 +134,7 @@ python3 scripts/ratelimit_loadtest.py \
 - `connect_failed` 在升压后不持续增长。
 - `request_failed` 不持续增长，少量目标站主动断连可接受。
 - `journalctl -u airopscat-ratelimit.service` 没有持续刷屏错误。
-- `tc class` 数量接近活跃账号数，而不是连接数。
+- `tc class` 数量接近已配置限速账号数，而不是活跃账号数或连接数。
 - `nft map` 元素数量接近活跃连接数，随连接关闭逐步下降。
 
 ## 需要记录
