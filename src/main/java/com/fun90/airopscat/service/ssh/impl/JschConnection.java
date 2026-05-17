@@ -27,6 +27,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 public class JschConnection implements SshConnection {
+
+    private static final String PUBLIC_KEY_ALGORITHMS = String.join(",",
+            "ssh-ed25519",
+            "ecdsa-sha2-nistp256",
+            "ecdsa-sha2-nistp384",
+            "ecdsa-sha2-nistp521",
+            "rsa-sha2-512",
+            "rsa-sha2-256",
+            "ssh-rsa");
+
+    private static final String SERVER_HOST_KEY_ALGORITHMS = String.join(",",
+            "ssh-ed25519",
+            "ecdsa-sha2-nistp256",
+            "ecdsa-sha2-nistp384",
+            "ecdsa-sha2-nistp521",
+            "rsa-sha2-512",
+            "rsa-sha2-256",
+            "ssh-rsa");
     
     private final SshConfig config;
     private final JSch jsch;
@@ -36,6 +54,7 @@ public class JschConnection implements SshConnection {
     public JschConnection(SshConfig config) {
         this.config = config;
         this.jsch = new JSch();
+        this.jsch.setInstanceLogger(new SanitizedJschLogger());
     }
     
     @Override
@@ -233,6 +252,9 @@ public class JschConnection implements SshConnection {
             Properties properties = new Properties();
             properties.put("StrictHostKeyChecking", "no");
             properties.put("PreferredAuthentications", "publickey,password");
+            properties.put("PubkeyAcceptedAlgorithms", PUBLIC_KEY_ALGORITHMS);
+            properties.put("PubkeyAcceptedKeyTypes", PUBLIC_KEY_ALGORITHMS);
+            properties.put("server_host_key", SERVER_HOST_KEY_ALGORITHMS);
             session.setConfig(properties);
             session.setTimeout(config.getTimeout());
             
@@ -268,12 +290,38 @@ public class JschConnection implements SshConnection {
             jsch.addIdentity("key", 
                     config.getPrivateKeyContent().getBytes(StandardCharsets.UTF_8),
                     null, passphraseBytes);
+            log.debug("SSH密钥认证已配置: source=content, passphrase={}", passphraseBytes != null);
         } else if (config.getPrivateKeyPath() != null && !config.getPrivateKeyPath().trim().isEmpty()) {
             // 从文件加载私钥
             if (config.getPassphrase() != null && !config.getPassphrase().trim().isEmpty()) {
                 jsch.addIdentity(config.getPrivateKeyPath(), config.getPassphrase());
             } else {
                 jsch.addIdentity(config.getPrivateKeyPath());
+            }
+            log.debug("SSH密钥认证已配置: source=path, passphrase={}",
+                    config.getPassphrase() != null && !config.getPassphrase().trim().isEmpty());
+        } else if (config.getPassword() != null && !config.getPassword().trim().isEmpty()) {
+            log.debug("SSH密码认证已配置");
+        }
+    }
+
+    private static class SanitizedJschLogger implements Logger {
+
+        @Override
+        public boolean isEnabled(int level) {
+            return level >= Logger.WARN ? log.isWarnEnabled() : log.isDebugEnabled();
+        }
+
+        @Override
+        public void log(int level, String message) {
+            String safeMessage = message == null ? "" : message
+                    .replaceAll("(?i)(password|passphrase)=[^,\\s]+", "$1=<hidden>");
+            if (level >= Logger.ERROR) {
+                log.warn("JSch: {}", safeMessage);
+            } else if (level >= Logger.WARN) {
+                log.warn("JSch: {}", safeMessage);
+            } else {
+                log.debug("JSch: {}", safeMessage);
             }
         }
     }

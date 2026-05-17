@@ -39,6 +39,7 @@ public class Server {
     private String username;
     
     @Convert(converter = CryptoConverter.class)
+    @Column(columnDefinition = "text")
     private String auth;
     
     private String host;
