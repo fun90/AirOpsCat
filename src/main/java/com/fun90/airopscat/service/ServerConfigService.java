@@ -3,13 +3,13 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.convert.ServerConfigConverter;
 import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.ServerConfigDto;
-import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.core.CoreManagementService;
+import com.fun90.airopscat.service.ssh.ServerSshConfigFactory;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -29,6 +29,9 @@ public class ServerConfigService {
     
     @Inject
     CoreManagementService coreManagementService;
+
+    @Inject
+    ServerSshConfigFactory serverSshConfigFactory;
 
     /**
      * 分页查询服务器配置
@@ -129,11 +132,9 @@ public class ServerConfigService {
         }
 
         // 创建SSH配置
-        SshConfig sshConfig = createSshConfig(server);
-
         List<CoreManagementResult> results = coreManagementService.executeOperations(
                 serverConfig.getConfigType(),
-                sshConfig,
+                serverSshConfigFactory.create(server),
                 new CoreManagementService.OperationRequest(CoreOperation.CONFIG, serverConfig.getConfig()),
                 new CoreManagementService.OperationRequest(CoreOperation.RESTART)
         );
@@ -159,26 +160,6 @@ public class ServerConfigService {
         stats.put("enabled", serverConfigRepository.countEnabled());
         stats.put("singBox", serverConfigRepository.count());
         return stats;
-    }
-
-    /**
-     * 创建SSH配置
-     */
-    private SshConfig createSshConfig(Server server) {
-        SshConfig sshConfig = new SshConfig();
-        sshConfig.setHost(server.getIp());
-        sshConfig.setPort(server.getSshPort());
-        sshConfig.setUsername(Objects.toString(server.getUsername(), "root"));
-
-        String auth = server.getAuth();
-        
-        if ("PASSWORD".equalsIgnoreCase(server.getAuthType()) || "password".equalsIgnoreCase(server.getAuthType())) {
-            sshConfig.setPassword(auth);
-        } else {
-            sshConfig.setPrivateKeyContent(auth);
-        }
-
-        return sshConfig;
     }
 
     /**

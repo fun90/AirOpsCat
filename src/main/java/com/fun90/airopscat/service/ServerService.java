@@ -2,6 +2,8 @@ package com.fun90.airopscat.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fun90.airopscat.model.dto.CommandResult;
+import com.fun90.airopscat.model.dto.ServerConnectionTestResult;
 import com.fun90.airopscat.model.dto.ServerDto;
 import com.fun90.airopscat.model.dto.ServerHostDto;
 import com.fun90.airopscat.model.entity.Server;
@@ -9,6 +11,9 @@ import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.repository.ServerHostRepository;
 import com.fun90.airopscat.model.enums.ServerAuthType;
 import com.fun90.airopscat.repository.ServerRepository;
+import com.fun90.airopscat.service.ssh.ServerSshConfigFactory;
+import com.fun90.airopscat.service.ssh.SshConnection;
+import com.fun90.airopscat.service.ssh.SshConnectionService;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -20,8 +25,14 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @ApplicationScoped
 public class ServerService {
+
+    private static final String CONNECTION_TEST_COMMAND = "echo airopscat-ssh-ok";
+    private static final int CONNECTION_TEST_TIMEOUT_MILLIS = 10000;
 
     private final ServerRepository serverRepository;
     private final ServerHostRepository serverHostRepository;
@@ -29,6 +40,8 @@ public class ServerService {
     private final ServerHostService serverHostService;
     private final ServerMonitorStatsService serverMonitorStatsService;
     private final ServerTrafficStatsService serverTrafficStatsService;
+    private final SshConnectionService sshConnectionService;
+    private final ServerSshConfigFactory serverSshConfigFactory;
 
     @Inject
     public ServerService(ServerRepository serverRepository,
@@ -36,13 +49,17 @@ public class ServerService {
                          ObjectMapper objectMapper,
                          ServerHostService serverHostService,
                          ServerMonitorStatsService serverMonitorStatsService,
-                         ServerTrafficStatsService serverTrafficStatsService) {
+                         ServerTrafficStatsService serverTrafficStatsService,
+                         SshConnectionService sshConnectionService,
+                         ServerSshConfigFactory serverSshConfigFactory) {
         this.serverRepository = serverRepository;
         this.serverHostRepository = serverHostRepository;
         this.objectMapper = objectMapper;
         this.serverHostService = serverHostService;
         this.serverMonitorStatsService = serverMonitorStatsService;
         this.serverTrafficStatsService = serverTrafficStatsService;
+        this.sshConnectionService = sshConnectionService;
+        this.serverSshConfigFactory = serverSshConfigFactory;
     }
 
     public io.quarkus.hibernate.orm.panache.PanacheQuery<Server> getServerPage(String search, String supplier, Boolean expired, Boolean disabled) {
@@ -389,18 +406,34 @@ public class ServerService {
                 .collect(Collectors.toList());
     }
 
-    // 测试服务器连接
-    public boolean testConnection(ServerDto server) {
-        // 在实际应用中，这里会有一段代码来测试SSH连接
-        // 为了演示，我们只返回一个模拟的结果
-        try {
-            // 模拟连接延迟
-            Thread.sleep(1000);
-
-            // 简单的模拟逻辑，返回true表示连接成功
-            return true;
+    public ServerConnectionTestResult testConnection(ServerDto server) {
+        try (SshConnection connection = sshConnectionService.createConnection(
+                serverSshConfigFactory.create(server, CONNECTION_TEST_TIMEOUT_MILLIS))) {
+            CommandResult result = connection.executeCommand(CONNECTION_TEST_COMMAND);
+            if (result.isSuccess()) {
+                return ServerConnectionTestResult.success();
+            }
+            String detail = result.getStderr() == null || result.getStderr().isBlank()
+                    ? result.getStdout()
+                    : result.getStderr();
+            return ServerConnectionTestResult.failure("连接失败: " + sanitizeConnectionError(detail));
         } catch (Exception e) {
-            return false;
+            log.warn("服务器连接测试失败: server={}, authType={}, error={}",
+                    server == null ? null : server.getIp(),
+                    server == null ? null : server.getAuthType(),
+                    e.getMessage());
+            return ServerConnectionTestResult.failure("连接失败: " + sanitizeConnectionError(e.getMessage()));
         }
+    }
+
+    private String sanitizeConnectionError(String message) {
+        if (message == null || message.isBlank()) {
+            return "请检查主机、端口、用户名和认证信息";
+        }
+        String sanitized = message.replace('\r', ' ').replace('\n', ' ').trim();
+        if (sanitized.length() > 200) {
+            sanitized = sanitized.substring(0, 200) + "...";
+        }
+        return sanitized;
     }
 }

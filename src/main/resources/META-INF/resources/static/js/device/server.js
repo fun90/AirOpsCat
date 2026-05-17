@@ -295,6 +295,9 @@ const serverTable = new DataTable({
             if (this.newItem.authType && !this.newItem.auth) {
                 this.validationErrors.auth = '认证信息不能为空';
                 isValid = false;
+            } else if (this.newItem.authType === 'KEY' && !this.isSupportedPrivateKeyContent(this.newItem.auth)) {
+                this.validationErrors.auth = '请填写未加密私钥内容，暂不支持带密码短语的私钥';
+                isValid = false;
             }
 
             return isValid;
@@ -326,9 +329,19 @@ const serverTable = new DataTable({
             if (this.editedItem.authType && !this.editedItem.auth) {
                 this.validationErrors.auth = '认证信息不能为空';
                 isValid = false;
+            } else if (this.editedItem.authType === 'KEY' && !this.isSupportedPrivateKeyContent(this.editedItem.auth)) {
+                this.validationErrors.auth = '请填写未加密私钥内容，暂不支持带密码短语的私钥';
+                isValid = false;
             }
 
             return isValid;
+        },
+
+        isSupportedPrivateKeyContent(value) {
+            const content = (value || '').trim();
+            return content.includes('PRIVATE KEY')
+                && !content.includes('ENCRYPTED')
+                && !content.includes('Proc-Type: 4,ENCRYPTED');
         },
 
         prepareCreateData() {

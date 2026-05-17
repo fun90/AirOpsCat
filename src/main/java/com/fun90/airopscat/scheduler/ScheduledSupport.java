@@ -3,11 +3,15 @@ package com.fun90.airopscat.scheduler;
 import com.fun90.airopscat.model.dto.SshConfig;
 import com.fun90.airopscat.model.entity.Server;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 
 import java.time.LocalDate;
 
 @ApplicationScoped
 public class ScheduledSupport {
+
+    @Inject
+    com.fun90.airopscat.service.ssh.ServerSshConfigFactory serverSshConfigFactory;
 
     public boolean isInvalidServer(Server server, LocalDate today) {
         if (server == null) {
@@ -23,20 +27,7 @@ public class ScheduledSupport {
     }
 
     public SshConfig buildSshConfig(Server server) {
-        SshConfig sshConfig = new SshConfig();
-        sshConfig.setHost(server.getIp());
-        sshConfig.setPort(server.getSshPort() != null ? server.getSshPort() : 22);
-        sshConfig.setUsername(server.getUsername());
-        sshConfig.setTimeout(10000);
-
-        String auth = server.getAuth();
-        if ("PASSWORD".equalsIgnoreCase(server.getAuthType())) {
-            sshConfig.setPassword(auth);
-        } else {
-            sshConfig.setPrivateKeyContent(auth);
-        }
-
-        return sshConfig;
+        return serverSshConfigFactory.create(server, 10000);
     }
 
     public String resolveParentDirectory(String path) {
