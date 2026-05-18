@@ -29,7 +29,8 @@
         "tag": "google",
         "server": "8.8.8.8"
       }
-    ]
+    ],
+    "strategy": "ipv4_only"
   },
   "inbounds": [
     {#if hasExtraInbounds}
