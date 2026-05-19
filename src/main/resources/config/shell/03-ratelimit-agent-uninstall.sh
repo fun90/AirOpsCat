@@ -1,16 +1,13 @@
 #!/usr/bin/env bash
 # @title: 卸载限速本地代理
-# @description: 停止并移除 airopscat-ratelimit systemd 服务，清理限速代理写入的 tc、iptables 和 nftables 规则
+# @description: 卸载 airopscat-ratelimit systemd 服务，清理 nftables 表、tc HTB 规则及所有相关文件
 
 set -euo pipefail
 
-SERVICE_NAME="airopscat-ratelimit.service"
-AGENT_PATH="/usr/local/bin/airopscat-ratelimit-agent"
-SYSTEMD_UNIT_PATH="/etc/systemd/system/${SERVICE_NAME}"
+NFT_TABLE="airopscat_ratelimit"
+IPTS_CHAIN="AIROPSCAT_MARK"
 DEFAULT_PATH="/etc/default/airopscat-ratelimit"
 CONFIG_DIR="/etc/airopscat/ratelimit"
-IPTS_CHAIN="AIROPSCAT_MARK"
-NFT_TABLE="airopscat_ratelimit"
 PURGE_CONFIG=0
 
 log() {
@@ -48,14 +45,17 @@ EOF
   done
 }
 
-stop_service() {
-  if command -v systemctl >/dev/null 2>&1; then
-    log "停止并禁用 ${SERVICE_NAME}"
-    systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
-    systemctl disable "${SERVICE_NAME}" 2>/dev/null || true
-  else
-    log "警告: 未找到 systemctl，跳过服务停止"
-  fi
+stop_services() {
+  for svc in airopscat-ratelimit.service airopscat-connection-snapshot.service; do
+    if systemctl is-active --quiet "${svc}" 2>/dev/null; then
+      log "停止服务: ${svc}"
+      systemctl stop "${svc}" 2>/dev/null || true
+    fi
+    if systemctl is-enabled --quiet "${svc}" 2>/dev/null; then
+      log "禁用服务: ${svc}"
+      systemctl disable "${svc}" 2>/dev/null || true
+    fi
+  done
 }
 
 detect_nic() {
@@ -63,7 +63,7 @@ detect_nic() {
 
   if [[ -f "${DEFAULT_PATH}" ]]; then
     # shellcheck disable=SC1090
-    source "${DEFAULT_PATH}" || true
+    source "${DEFAULT_PATH}" 2>/dev/null || true
     nic="${AIROPSCAT_RATELIMIT_NIC:-}"
   fi
 
@@ -79,16 +79,12 @@ detect_nic() {
       }')"
   fi
 
-  if [[ -z "${nic}" ]]; then
-    nic="eth0"
-  fi
-
-  printf '%s\n' "${nic}"
+  printf '%s\n' "${nic:-eth0}"
 }
 
 cleanup_tc() {
   if ! command -v tc >/dev/null 2>&1; then
-    log "警告: 未找到 tc，跳过 tc 规则清理"
+    log "警告: 未找到 tc，跳过 HTB 规则清理"
     return 0
   fi
 
@@ -104,19 +100,16 @@ cleanup_iptables() {
     return 0
   fi
 
-  log "清理 iptables mangle 表中的限速代理规则"
+  log "清理 iptables mangle 表中的遗留限速规则"
   while iptables -t mangle -C OUTPUT -j "${IPTS_CHAIN}" 2>/dev/null; do
     iptables -t mangle -D OUTPUT -j "${IPTS_CHAIN}" 2>/dev/null || true
   done
-
   while iptables -t mangle -C OUTPUT -j CONNMARK --restore-mark 2>/dev/null; do
     iptables -t mangle -D OUTPUT -j CONNMARK --restore-mark 2>/dev/null || true
   done
-
   while iptables -t mangle -C PREROUTING -j CONNMARK --restore-mark 2>/dev/null; do
     iptables -t mangle -D PREROUTING -j CONNMARK --restore-mark 2>/dev/null || true
   done
-
   iptables -t mangle -F "${IPTS_CHAIN}" 2>/dev/null || true
   iptables -t mangle -X "${IPTS_CHAIN}" 2>/dev/null || true
 }
@@ -127,34 +120,47 @@ cleanup_nftables() {
     return 0
   fi
 
-  log "清理 nftables 限速规则"
-  nft delete table inet "${NFT_TABLE}" 2>/dev/null || true
+  if nft list table inet "${NFT_TABLE}" >/dev/null 2>&1; then
+    log "删除 nftables 表: inet ${NFT_TABLE}"
+    nft delete table inet "${NFT_TABLE}" 2>/dev/null || true
+  fi
 }
 
 remove_files() {
-  log "删除限速代理程序和 systemd 配置"
-  rm -f "${AGENT_PATH}" "${SYSTEMD_UNIT_PATH}" "${DEFAULT_PATH}"
+  log "删除限速代理程序文件"
+  rm -f \
+    /usr/local/bin/airopscat-ratelimit-agent \
+    /usr/local/bin/airopscat-connection-snapshot-agent \
+    /etc/systemd/system/airopscat-ratelimit.service \
+    /etc/systemd/system/airopscat-connection-snapshot.service \
+    "${DEFAULT_PATH}"
+
+  if [[ -d /run/airopscat ]]; then
+    log "删除运行时快照目录: /run/airopscat"
+    rm -rf /run/airopscat
+  fi
 
   if ((PURGE_CONFIG == 1)); then
-    log "删除限速代理配置目录 ${CONFIG_DIR}"
+    log "删除限速账号配置目录: ${CONFIG_DIR}"
     rm -rf "${CONFIG_DIR}"
+    if [[ -d /etc/airopscat ]] && [[ -z "$(ls -A /etc/airopscat 2>/dev/null)" ]]; then
+      rmdir /etc/airopscat
+    fi
   else
-    log "保留限速账号配置目录 ${CONFIG_DIR}；如需删除请使用 --purge"
+    log "保留限速账号配置目录: ${CONFIG_DIR}；如需删除请使用 --purge"
   fi
 }
 
 reload_systemd() {
-  if command -v systemctl >/dev/null 2>&1; then
-    log "刷新 systemd 配置"
-    systemctl daemon-reload
-    systemctl reset-failed "${SERVICE_NAME}" 2>/dev/null || true
-  fi
+  log "刷新 systemd 配置"
+  systemctl daemon-reload
+  systemctl reset-failed airopscat-ratelimit.service airopscat-connection-snapshot.service 2>/dev/null || true
 }
 
 main() {
   parse_args "$@"
   require_root
-  stop_service
+  stop_services
   cleanup_tc
   cleanup_iptables
   cleanup_nftables
