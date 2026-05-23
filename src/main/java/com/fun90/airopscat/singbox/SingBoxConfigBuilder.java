@@ -37,22 +37,35 @@ public class SingBoxConfigBuilder {
     private final TemplateUtil templateUtil;
     private final SystemConfigService systemConfigService;
 
+    public record RateLimitOverride(Integer downloadMbps, Integer uploadMbps) {}
+
     public String build(DeploymentServerContext ctx, List<Node> nodes) {
+        return build(ctx, nodes, Collections.emptyMap());
+    }
+
+    public String build(DeploymentServerContext ctx, List<Node> nodes, Map<String, RateLimitOverride> overrides) {
         List<NodeDeploymentSnapshot> snapshots = nodes.stream()
                 .map(Node::getId)
                 .map(ctx.nodeSnapshotMap()::get)
                 .filter(Objects::nonNull)
                 .toList();
-        return build(ctx.serverSnapshot(), snapshots, ctx.nodeSnapshotMap());
+        return build(ctx.serverSnapshot(), snapshots, ctx.nodeSnapshotMap(), overrides);
     }
 
     public String build(ServerSnapshot serverSnapshot, List<NodeDeploymentSnapshot> nodes) {
-        return build(serverSnapshot, nodes, Collections.emptyMap());
+        return build(serverSnapshot, nodes, Collections.emptyMap(), Collections.emptyMap());
     }
 
     public String build(ServerSnapshot serverSnapshot,
                         List<NodeDeploymentSnapshot> nodes,
                         Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap) {
+        return build(serverSnapshot, nodes, nodeSnapshotMap, Collections.emptyMap());
+    }
+
+    public String build(ServerSnapshot serverSnapshot,
+                        List<NodeDeploymentSnapshot> nodes,
+                        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap,
+                        Map<String, RateLimitOverride> overrides) {
         List<NodeDeploymentSnapshot> enabledNodes = nodes.stream()
                 .filter(node -> node.disabled() == 0)
                 .toList();
@@ -64,7 +77,7 @@ public class SingBoxConfigBuilder {
         List<String> statsUsers = new ArrayList<>();
 
         for (NodeDeploymentSnapshot node : enabledNodes) {
-            applyNodeConfig(node, inbounds, outbounds, routeRules, statsUsers);
+            applyNodeConfig(node, inbounds, outbounds, routeRules, statsUsers, overrides);
         }
 
         applyManagedRouteRules(serverSnapshot, nodeSnapshotMap, outbounds, routeRules, ruleSets);
@@ -75,14 +88,15 @@ public class SingBoxConfigBuilder {
                                  List<Map<String, Object>> inbounds,
                                  List<Map<String, Object>> outbounds,
                                  List<Map<String, Object>> routeRules,
-                                 List<String> statsUsers) {
+                                 List<String> statsUsers,
+                                 Map<String, RateLimitOverride> overrides) {
         if (node.inbound() == null) {
             log.warn("Node {} inbound config is null, skip", node.id());
             return;
         }
 
         Map<String, Object> inboundMap = toMap(node.inbound());
-        inbounds.add(buildInbound(node, inboundMap));
+        inbounds.add(buildInbound(node, inboundMap, overrides));
 
         String protocol = normalize(node.protocol());
         if ("shadowsocks".equals(protocol) || "socks".equals(protocol)) {
@@ -103,7 +117,8 @@ public class SingBoxConfigBuilder {
         }
     }
 
-    private Map<String, Object> buildInbound(NodeDeploymentSnapshot node, Map<String, Object> inboundMap) {
+    private Map<String, Object> buildInbound(NodeDeploymentSnapshot node, Map<String, Object> inboundMap,
+                                              Map<String, RateLimitOverride> overrides) {
         removeRealityPublicKey(inboundMap);
         inboundMap.put("tag", node.tag());
         inboundMap.put("listen", "::");
@@ -111,9 +126,9 @@ public class SingBoxConfigBuilder {
 
         String protocol = normalize(node.protocol());
         if ("vless".equals(protocol) || "vless-reality".equals(protocol)) {
-            inboundMap.put("users", mergeUsers(asMapList(inboundMap.get("users")), buildVlessUsers(node.clients()), "uuid"));
+            inboundMap.put("users", mergeUsers(asMapList(inboundMap.get("users")), buildVlessUsers(node.clients(), overrides), "uuid"));
         } else if ("hysteria2".equals(protocol)) {
-            inboundMap.put("users", mergeUsers(asMapList(inboundMap.get("users")), buildHysteria2Users(node.clients()), "name", "password"));
+            inboundMap.put("users", mergeUsers(asMapList(inboundMap.get("users")), buildHysteria2Users(node.clients(), overrides), "name", "password"));
         }
         return inboundMap;
     }
@@ -132,7 +147,7 @@ public class SingBoxConfigBuilder {
         reality.remove("public_key");
     }
 
-    private List<Map<String, Object>> buildVlessUsers(List<NodeClient> clients) {
+    private List<Map<String, Object>> buildVlessUsers(List<NodeClient> clients, Map<String, RateLimitOverride> overrides) {
         return clients.stream()
                 .map(client -> {
                     Map<String, Object> user = new LinkedHashMap<>();
@@ -141,30 +156,33 @@ public class SingBoxConfigBuilder {
                     if (client.flow() != null && !client.flow().isBlank()) {
                         user.put("flow", client.flow());
                     }
-                    putRateLimitFields(user, client);
+                    putRateLimitFields(user, client, overrides);
                     return user;
                 })
                 .toList();
     }
 
-    private List<Map<String, Object>> buildHysteria2Users(List<NodeClient> clients) {
+    private List<Map<String, Object>> buildHysteria2Users(List<NodeClient> clients, Map<String, RateLimitOverride> overrides) {
         return clients.stream()
                 .map(client -> {
                     Map<String, Object> user = new LinkedHashMap<>();
                     user.put("name", client.email());
                     user.put("password", client.id());
-                    putRateLimitFields(user, client);
+                    putRateLimitFields(user, client, overrides);
                     return user;
                 })
                 .toList();
     }
 
-    private void putRateLimitFields(Map<String, Object> user, NodeClient client) {
-        if (client.downloadMbps() != null && client.downloadMbps() > 0) {
-            user.put("download_mbps", client.downloadMbps());
+    private void putRateLimitFields(Map<String, Object> user, NodeClient client, Map<String, RateLimitOverride> overrides) {
+        RateLimitOverride override = overrides != null ? overrides.get(client.email()) : null;
+        Integer downloadMbps = override != null ? override.downloadMbps() : client.downloadMbps();
+        Integer uploadMbps = override != null ? override.uploadMbps() : client.uploadMbps();
+        if (downloadMbps != null && downloadMbps > 0) {
+            user.put("download_mbps", downloadMbps);
         }
-        if (client.uploadMbps() != null && client.uploadMbps() > 0) {
-            user.put("upload_mbps", client.uploadMbps());
+        if (uploadMbps != null && uploadMbps > 0) {
+            user.put("upload_mbps", uploadMbps);
         }
     }
 

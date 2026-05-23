@@ -262,8 +262,9 @@ public class SystemConfigService {
                 45,
                 false,
                 item("airopscat.account.multiplier", "账号倍数", "账号总数和在线数等统计数值的展示倍率，设为 1 时不放大。", INPUT_NUMBER, true, false, false, true, "1", "1"),
-                item("airopscat.account.traffic-over-quota.speed-kb", "流量超额限速", "账户流量达到当前周期配额后生效的限速值，单位 KB/s。", INPUT_NUMBER, true, false, false, true, "20", "20"),
-                item("airopscat.ratelimit.enabled", "启用限速", "全局限速开关，关闭后所有账号限速规则不生效。", INPUT_CHECKBOX, false, false, false, true, "", "false")
+                item("airopscat.account.traffic-over-quota.download-mbps", "超配下行降速（Mbps）", "账户流量超额后的下行限速值，单位 Mbps，最小 1。", INPUT_NUMBER, true, false, false, true, "1", "1"),
+                item("airopscat.account.traffic-over-quota.upload-mbps", "超配上行降速（Mbps）", "账户流量超额后的上行限速值，单位 Mbps，最小 1。", INPUT_NUMBER, true, false, false, true, "1", "1"),
+                item("airopscat.ratelimit.enabled", "启用限速", "全局 sing-box 原生限速开关，关闭后部署和同步均不注入限速配置。", INPUT_CHECKBOX, false, false, false, true, "", "false")
         ));
 
         groups.put("template", group(

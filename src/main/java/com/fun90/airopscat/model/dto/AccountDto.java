@@ -18,8 +18,6 @@ public class AccountDto {
     private String accountNo;
     private String authCode;
     private Integer maxConnections;
-    private Integer speed;
-    private Integer effectiveSpeed;
     private Boolean trafficOverQuotaLimited;
     private Integer bandwidth;
     private Integer downloadMbps;
