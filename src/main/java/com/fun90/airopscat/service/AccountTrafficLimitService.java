@@ -8,29 +8,29 @@ import jakarta.inject.Inject;
 @ApplicationScoped
 public class AccountTrafficLimitService {
 
-    public static final String OVER_QUOTA_SPEED_KEY = "airopscat.account.traffic-over-quota.speed-kb";
-    public static final int DEFAULT_OVER_QUOTA_SPEED_KB = 20;
+    public static final String OVER_QUOTA_DOWNLOAD_MBPS_KEY = "airopscat.account.traffic-over-quota.download-mbps";
+    public static final String OVER_QUOTA_UPLOAD_MBPS_KEY = "airopscat.account.traffic-over-quota.upload-mbps";
 
     @Inject
     SystemConfigService systemConfigService;
 
-    public EffectiveSpeedLimit resolveEffectiveSpeed(Account account, AccountTrafficStats currentStats) {
-        Long effectiveBandwidth = resolveEffectiveBandwidth(account, currentStats);
-        long usedBytes = currentStats == null ? 0L : safe(currentStats.getUploadBytes()) + safe(currentStats.getDownloadBytes());
-        return resolveEffectiveSpeed(account, usedBytes, effectiveBandwidth);
+    public int getOverQuotaDownloadMbps() {
+        return Math.max(1, systemConfigService.getIntValue(OVER_QUOTA_DOWNLOAD_MBPS_KEY, 1));
     }
 
-    public EffectiveSpeedLimit resolveEffectiveSpeed(Account account, long usedBytes, Long effectiveBandwidth) {
-        Integer accountSpeed = normalizeSpeed(account == null ? null : account.getSpeed());
-        if (!isOverQuota(usedBytes, effectiveBandwidth)) {
-            return new EffectiveSpeedLimit(accountSpeed, false);
-        }
+    public int getOverQuotaUploadMbps() {
+        return Math.max(1, systemConfigService.getIntValue(OVER_QUOTA_UPLOAD_MBPS_KEY, 1));
+    }
 
-        int overQuotaSpeed = getOverQuotaSpeedKb();
-        if (accountSpeed != null && accountSpeed <= overQuotaSpeed) {
-            return new EffectiveSpeedLimit(accountSpeed, false);
+    public EffectiveMbpsLimit resolveEffectiveMbps(Account account, AccountTrafficStats currentStats) {
+        long usedBytes = currentStats == null ? 0L : safe(currentStats.getUploadBytes()) + safe(currentStats.getDownloadBytes());
+        Long effectiveBandwidth = resolveEffectiveBandwidth(account, currentStats);
+        if (isOverQuota(usedBytes, effectiveBandwidth)) {
+            return new EffectiveMbpsLimit(getOverQuotaDownloadMbps(), getOverQuotaUploadMbps(), true);
         }
-        return new EffectiveSpeedLimit(overQuotaSpeed, true);
+        Integer downloadMbps = account == null ? null : account.getDownloadMbps();
+        Integer uploadMbps = account == null ? null : account.getUploadMbps();
+        return new EffectiveMbpsLimit(downloadMbps, uploadMbps, false);
     }
 
     public Long resolveEffectiveBandwidth(Account account, AccountTrafficStats currentStats) {
@@ -47,10 +47,6 @@ public class AccountTrafficLimitService {
         return usedBytes >= toBytes(effectiveBandwidth);
     }
 
-    public int getOverQuotaSpeedKb() {
-        return Math.max(1, systemConfigService.getIntValue(OVER_QUOTA_SPEED_KEY, DEFAULT_OVER_QUOTA_SPEED_KB));
-    }
-
     private long toBytes(long gigabytes) {
         return gigabytes * 1024L * 1024L * 1024L;
     }
@@ -59,10 +55,6 @@ public class AccountTrafficLimitService {
         return value == null ? 0L : value;
     }
 
-    private Integer normalizeSpeed(Integer speed) {
-        return speed != null && speed > 0 ? speed : null;
-    }
-
-    public record EffectiveSpeedLimit(Integer speed, boolean trafficOverQuotaLimited) {
+    public record EffectiveMbpsLimit(Integer downloadMbps, Integer uploadMbps, boolean trafficOverQuotaLimited) {
     }
 }

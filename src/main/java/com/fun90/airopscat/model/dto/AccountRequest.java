@@ -19,7 +19,6 @@ public class AccountRequest {
     private String uuid;
     private String authCode;
     private Integer maxConnections;
-    private Integer speed;
     private Integer bandwidth;
     private Integer downloadMbps;
     private Integer uploadMbps;

@@ -117,6 +117,9 @@ public class CoreDeploymentExecutor {
     }
 
     String buildConfig(DeploymentServerContext ctx, List<Node> nodes) {
+        if (rateLimitService.isEnabled()) {
+            return singBoxConfigBuilder.build(ctx, nodes, rateLimitService.buildOverrides(ctx));
+        }
         return singBoxConfigBuilder.build(ctx, nodes);
     }
 
@@ -147,15 +150,6 @@ public class CoreDeploymentExecutor {
         }
         log.info("配置重启生效成功: server={}({})", server.getName(), server.getId());
 
-        CompletableFuture.runAsync(() -> {
-            try {
-                if (rateLimitService.isEnabled()) {
-                    rateLimitService.syncServer(server);
-                }
-            } catch (Exception e) {
-                log.warn("同步服务器 {} 限速配置失败，可在账号变更或重新部署后自动恢复", server.getId(), e);
-            }
-        }, executorService);
     }
 
     SshConnection createConnection(Server server) {

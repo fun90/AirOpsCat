@@ -89,7 +89,13 @@
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">限速</label>
-                                        <div class="form-control-plaintext">{{ currentAccount.speed ? currentAccount.speed + ' Mbps' : '无限制' }}</div>
+                                        <div class="form-control-plaintext">
+                                            <span v-if="currentAccount.downloadMbps || currentAccount.uploadMbps">
+                                                {{ currentAccount.downloadMbps ? '下行 ' + currentAccount.downloadMbps + ' Mbps' : '' }}
+                                                {{ currentAccount.uploadMbps ? '上行 ' + currentAccount.uploadMbps + ' Mbps' : '' }}
+                                            </span>
+                                            <span v-else>无限制</span>
+                                        </div>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">状态</label>

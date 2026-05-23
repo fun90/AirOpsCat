@@ -68,13 +68,11 @@ public class AccountTrafficOverQuotaService {
             }
         }
 
-        AccountTrafficLimitService.EffectiveSpeedLimit limit =
-                accountTrafficLimitService.resolveEffectiveSpeed(account, usedBytes, effectiveBandwidth);
         state.setLastTriggeredTime(now);
         state.setTriggerCount((state.getTriggerCount() == null ? 0 : state.getTriggerCount()) + 1);
         state.setLastValue(toGb(usedBytes));
         state.setThresholdValue(effectiveBandwidth == null ? null : effectiveBandwidth.doubleValue());
-        state.setSummary(buildSummary(account, usedBytes, effectiveBandwidth, limit.speed()));
+        state.setSummary(buildSummary(account, usedBytes, effectiveBandwidth));
         persistIfNew(state);
 
         if (!shouldNotify(state, now)) {
@@ -150,11 +148,11 @@ public class AccountTrafficOverQuotaService {
         return state.getLastNotifiedTime() == null || !state.getLastNotifiedTime().plusMinutes(intervalMinutes).isAfter(now);
     }
 
-    private String buildSummary(Account account, long usedBytes, Long effectiveBandwidth, Integer effectiveSpeed) {
+    private String buildSummary(Account account, long usedBytes, Long effectiveBandwidth) {
         return "账户: " + displayName(account)
                 + "\n当前用量: " + formatGb(usedBytes)
                 + "\n有效配额: " + (effectiveBandwidth == null ? "不限量" : effectiveBandwidth + " GB")
-                + "\n当前限速: " + (effectiveSpeed == null || effectiveSpeed <= 0 ? "无限制" : effectiveSpeed + " KB/s");
+                + "\n超配降速已通过 sing-box 原生限速生效";
     }
 
     private String buildRecoverySummary(Account account, long usedBytes, Long effectiveBandwidth) {

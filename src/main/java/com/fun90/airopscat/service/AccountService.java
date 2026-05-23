@@ -263,7 +263,6 @@ public class AccountService {
             dto.setNodeMultiple(account.getNodeMultiple());
             dto.setNodePrefix(account.getNodePrefix());
             dto.setMaxConnections(account.getMaxConnections());
-            dto.setSpeed(account.getSpeed());
             dto.setDownloadMbps(account.getDownloadMbps());
             dto.setUploadMbps(account.getUploadMbps());
 
@@ -286,10 +285,9 @@ public class AccountService {
                     ? currentStats.getBandwidthQuota()
                     : (account.getBandwidth() != null ? account.getBandwidth().longValue() : null);
             dto.setEffectiveBandwidth(effectiveBandwidth);
-            AccountTrafficLimitService.EffectiveSpeedLimit speedLimit =
-                    accountTrafficLimitService.resolveEffectiveSpeed(account, dto.getTotalUsedBytes(), effectiveBandwidth);
-            dto.setEffectiveSpeed(speedLimit.speed());
-            dto.setTrafficOverQuotaLimited(speedLimit.trafficOverQuotaLimited());
+            AccountTrafficLimitService.EffectiveMbpsLimit mbpsLimit =
+                    accountTrafficLimitService.resolveEffectiveMbps(account, currentStats);
+            dto.setTrafficOverQuotaLimited(mbpsLimit.trafficOverQuotaLimited());
             if (effectiveBandwidth != null && effectiveBandwidth > 0) {
                 long bandwidthInBytes = effectiveBandwidth * 1024L * 1024L * 1024L;
                 dto.setUsagePercentage(Math.min(100.0, (dto.getTotalUsedBytes() * 100.0) / bandwidthInBytes));
@@ -371,7 +369,8 @@ public class AccountService {
 
         // 记录限速相关字段的旧值
         String oldAccountNo = existingAccount.getAccountNo();
-        Integer oldSpeed = existingAccount.getSpeed();
+        Integer oldDownloadMbps = existingAccount.getDownloadMbps();
+        Integer oldUploadMbps = existingAccount.getUploadMbps();
 
         // 使用工具方法复制非null属性
         copyNonNullProperties(account, existingAccount);
@@ -382,10 +381,11 @@ public class AccountService {
 
         accountRepository.persist(existingAccount);
 
-        // 仅当 accountNo 或 speed 发生变化时才触发限速同步
+        // 当 accountNo、downloadMbps 或 uploadMbps 发生变化时触发限速同步
         boolean accountNoChanged = !Objects.equals(oldAccountNo, existingAccount.getAccountNo());
-        boolean speedChanged = !Objects.equals(oldSpeed, existingAccount.getSpeed());
-        if (accountNoChanged || speedChanged) {
+        boolean mbpsChanged = !Objects.equals(oldDownloadMbps, existingAccount.getDownloadMbps())
+                || !Objects.equals(oldUploadMbps, existingAccount.getUploadMbps());
+        if (accountNoChanged || mbpsChanged) {
             rateLimitService.triggerAsyncSync();
         }
 

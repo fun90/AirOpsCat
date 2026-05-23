@@ -194,7 +194,6 @@ public class AccountController {
         account.setUuid(request.getUuid());
         account.setAuthCode(request.getAuthCode());
         account.setMaxConnections(request.getMaxConnections());
-        account.setSpeed(request.getSpeed());
         account.setBandwidth(request.getBandwidth());
         account.setDownloadMbps(request.getDownloadMbps());
         account.setUploadMbps(request.getUploadMbps());
@@ -234,7 +233,6 @@ public class AccountController {
         account.setUuid(request.getUuid());
         account.setAuthCode(request.getAuthCode());
         account.setMaxConnections(request.getMaxConnections());
-        account.setSpeed(request.getSpeed());
         account.setBandwidth(request.getBandwidth());
         account.setDownloadMbps(request.getDownloadMbps());
         account.setUploadMbps(request.getUploadMbps());

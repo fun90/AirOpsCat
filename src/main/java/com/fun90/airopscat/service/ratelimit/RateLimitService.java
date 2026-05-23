@@ -1,21 +1,24 @@
 package com.fun90.airopscat.service.ratelimit;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fun90.airopscat.model.dto.CoreManagementResult;
+import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
+import com.fun90.airopscat.model.dto.deployment.NodeClient;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import com.fun90.airopscat.model.entity.Server;
-import com.fun90.airopscat.model.entity.ServerConfig;
+import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
-import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.ServerConfigRepository;
+import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.scheduler.ScheduledSupport;
 import com.fun90.airopscat.service.AccountTrafficLimitService;
 import com.fun90.airopscat.service.SystemConfigService;
+import com.fun90.airopscat.service.core.CoreManagementService;
+import com.fun90.airopscat.service.deployment.DeploymentDataLoader;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
-import com.fun90.airopscat.util.JsonUtil;
+import com.fun90.airopscat.singbox.SingBoxConfigBuilder;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.control.RequestContextController;
 import jakarta.inject.Inject;
@@ -26,14 +29,13 @@ import jakarta.transaction.Transactional;
 import jakarta.transaction.TransactionSynchronizationRegistry;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -44,8 +46,9 @@ import java.util.concurrent.atomic.AtomicLong;
 @ApplicationScoped
 public class RateLimitService {
 
-    private static final String REMOTE_RATE_LIMIT_DIR = "/etc/airopscat/ratelimit";
-    private static final String REMOTE_RATE_LIMIT_PROFILE_PATH = REMOTE_RATE_LIMIT_DIR + "/accounts.json";
+    private static final String CORE_TYPE_SING_BOX = "sing-box";
+    private static final String SING_BOX_CONFIG_PATH = "/etc/sing-box/config.json";
+
     private final Object syncAllLock = new Object();
     private final AtomicBoolean syncAllRunning = new AtomicBoolean(false);
     private final AtomicBoolean syncAllPending = new AtomicBoolean(false);
@@ -66,9 +69,6 @@ public class RateLimitService {
     ServerConfigRepository serverConfigRepository;
 
     @Inject
-    ObjectMapper objectMapper;
-
-    @Inject
     SshConnectionService sshConnectionService;
 
     @Inject
@@ -76,6 +76,15 @@ public class RateLimitService {
 
     @Inject
     AccountTrafficLimitService accountTrafficLimitService;
+
+    @Inject
+    DeploymentDataLoader deploymentDataLoader;
+
+    @Inject
+    SingBoxConfigBuilder singBoxConfigBuilder;
+
+    @Inject
+    CoreManagementService coreManagementService;
 
     @Inject
     ScheduledSupport scheduledSupport;
@@ -102,9 +111,7 @@ public class RateLimitService {
         if (!isEnabledSingBoxServer(server.getId())) {
             return;
         }
-
-        RateLimitSnapshot snapshot = createSnapshot();
-        syncProfileToServer(server, buildRateLimitProfileJson(server, snapshot), snapshot.sequence());
+        pushSingBoxConfig(server);
     }
 
     public void syncAll() {
@@ -150,39 +157,86 @@ public class RateLimitService {
             }
 
             List<Server> servers = findEnabledSingBoxServers();
-            Set<Long> singBoxServerIds = findEnabledSingBoxServerIds();
-            if (servers.isEmpty() || singBoxServerIds.isEmpty()) {
+            if (servers.isEmpty()) {
                 log.info("未找到启用 sing-box 的服务器，跳过限速配置同步");
                 return;
             }
 
-            RateLimitSnapshot snapshot = createSnapshot();
-            log.info("开始执行限速全量同步, sequence={}, serverCount={}", snapshot.sequence(), servers.size());
+            long sequence = syncAllSequence.incrementAndGet();
+            log.info("开始执行限速全量同步, sequence={}, serverCount={}", sequence, servers.size());
 
             CompletableFuture<?>[] futures = servers.stream()
-                    .filter(server -> singBoxServerIds.contains(server.getId()))
                     .map(server -> CompletableFuture.runAsync(() -> {
                         runWithRequestContext(() -> {
                             try {
-                                syncProfileToServer(server, buildRateLimitProfileJson(server, snapshot), snapshot.sequence());
+                                pushSingBoxConfig(server);
                             } catch (Exception e) {
-                                log.error("同步服务器限速配置失败, sequence={}, serverId={}", snapshot.sequence(), server.getId(), e);
+                                log.error("同步服务器限速配置失败, sequence={}, serverId={}", sequence, server.getId(), e);
                             }
                         });
                     }, executorService))
                     .toArray(CompletableFuture[]::new);
             CompletableFuture.allOf(futures).join();
-            log.info("限速全量同步完成, sequence={}", snapshot.sequence());
+            log.info("限速全量同步完成, sequence={}", sequence);
         }
     }
 
-    private void syncProfileToServer(Server server, String profileJson, long sequence) {
-        withConnection(server, connection -> {
-            executeCommand(connection, "mkdir -p " + quoteShell(REMOTE_RATE_LIMIT_DIR), server.getId(), false);
-            connection.writeRemoteFile(REMOTE_RATE_LIMIT_PROFILE_PATH, profileJson);
-            log.info("已同步限速配置文件, sequence={}, serverId={}, path={}",
-                    sequence, server.getId(), REMOTE_RATE_LIMIT_PROFILE_PATH);
-        });
+    public Map<String, SingBoxConfigBuilder.RateLimitOverride> buildOverrides(DeploymentServerContext ctx) {
+        RateLimitSnapshot snapshot = createSnapshot();
+        return buildOverrides(ctx, snapshot);
+    }
+
+    private Map<String, SingBoxConfigBuilder.RateLimitOverride> buildOverrides(DeploymentServerContext ctx,
+                                                                                RateLimitSnapshot snapshot) {
+        Map<String, SingBoxConfigBuilder.RateLimitOverride> overrides = new LinkedHashMap<>();
+        Set<String> accountNos = new LinkedHashSet<>();
+        for (var nodeSnapshot : ctx.nodeSnapshotMap().values()) {
+            for (NodeClient client : nodeSnapshot.clients()) {
+                if (client.email() != null && !client.email().isBlank()) {
+                    accountNos.add(client.email());
+                }
+            }
+        }
+
+        for (String accountNo : accountNos) {
+            Account account = snapshot.accountMap().get(accountNo);
+            if (account == null) {
+                continue;
+            }
+            AccountTrafficStats stats = snapshot.currentStatsMap().get(account.getId());
+            AccountTrafficLimitService.EffectiveMbpsLimit limit =
+                    accountTrafficLimitService.resolveEffectiveMbps(account, stats);
+            if (limit.downloadMbps() != null || limit.uploadMbps() != null) {
+                overrides.put(accountNo, new SingBoxConfigBuilder.RateLimitOverride(
+                        limit.downloadMbps(), limit.uploadMbps()));
+            }
+        }
+        return overrides;
+    }
+
+    private void pushSingBoxConfig(Server server) {
+        try {
+            DeploymentServerContext ctx = deploymentDataLoader.loadForServer(server.getId());
+            Map<String, SingBoxConfigBuilder.RateLimitOverride> overrides = buildOverrides(ctx);
+            String config = singBoxConfigBuilder.build(ctx, ctx.nodes(), overrides);
+            withConnection(server, connection -> {
+                List<CoreManagementResult> results = coreManagementService.executeOperations(
+                        CORE_TYPE_SING_BOX,
+                        connection,
+                        server.getIp(),
+                        new CoreManagementService.OperationRequest(CoreOperation.CONFIG, config),
+                        new CoreManagementService.OperationRequest(CoreOperation.RELOAD)
+                );
+                for (CoreManagementResult result : results) {
+                    if (result != null && !result.isSuccess()) {
+                        log.error("sing-box 限速操作失败, serverId={}, message={}", server.getId(), result.getMessage());
+                    }
+                }
+                log.info("sing-box 限速配置推送成功, serverId={}", server.getId());
+            });
+        } catch (Exception e) {
+            log.error("推送 sing-box 限速配置失败, serverId={}", server.getId(), e);
+        }
     }
 
     private void withConnection(Server server, ConnectionConsumer consumer) {
@@ -190,16 +244,6 @@ public class RateLimitService {
             consumer.accept(connection);
         } catch (Exception e) {
             log.error("执行远端限速命令失败, serverId={}", server.getId(), e);
-        }
-    }
-
-    private void executeCommand(SshConnection connection, String command, Long serverId, boolean ignoreFailure) throws IOException {
-        log.info("执行限速命令, serverId={}, command={}", serverId, command);
-        var result = connection.executeCommand(command);
-        if (!result.isSuccess() && !ignoreFailure) {
-            log.error("限速命令执行失败, serverId={}, stderr={}", serverId, result.getStderr());
-        } else if (!result.isSuccess()) {
-            log.error("限速初始化命令执行失败, serverId={}, stderr={}", serverId, result.getStderr());
         }
     }
 
@@ -214,32 +258,6 @@ public class RateLimitService {
         }
     }
 
-    private String buildRateLimitProfileJson(Server server, RateLimitSnapshot snapshot) {
-        Set<String> accountNos = extractServerAccountNos(server);
-        List<Map<String, Object>> accounts = new ArrayList<>();
-        for (String accountNo : accountNos) {
-            Account account = snapshot.accountMap().get(accountNo);
-            if (account == null) {
-                continue;
-            }
-            AccountTrafficLimitService.EffectiveSpeedLimit speedLimit = accountTrafficLimitService.resolveEffectiveSpeed(
-                    account,
-                    snapshot.currentStatsMap().get(account.getId()));
-            if (speedLimit.speed() == null || speedLimit.speed() <= 0) {
-                continue;
-            }
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("accountNo", account.getAccountNo());
-            item.put("speed", speedLimit.speed());
-            accounts.add(item);
-        }
-
-        Map<String, Object> profile = new LinkedHashMap<>();
-        profile.put("updatedAt", snapshot.updatedAt());
-        profile.put("accounts", accounts);
-        return JsonUtil.toJsonString(profile);
-    }
-
     private RateLimitSnapshot createSnapshot() {
         LocalDateTime snapshotTime = LocalDateTime.now();
         Map<String, Account> accountMap = new LinkedHashMap<>();
@@ -252,42 +270,11 @@ public class RateLimitService {
         }
         List<Long> accountIds = accounts.stream()
                 .map(Account::getId)
-                .filter(java.util.Objects::nonNull)
+                .filter(Objects::nonNull)
                 .toList();
         Map<Long, AccountTrafficStats> currentStatsMap =
                 accountTrafficStatsRepository.findCurrentPeriodByAccountIds(accountIds, snapshotTime);
-        return new RateLimitSnapshot(syncAllSequence.incrementAndGet(), snapshotTime, accountMap, currentStatsMap);
-    }
-
-    private Set<String> extractServerAccountNos(Server server) {
-        if (server == null || server.getId() == null) {
-            return Set.of();
-        }
-
-        Set<String> accountNos = new LinkedHashSet<>();
-        for (ServerConfig serverConfig : serverConfigRepository.findByServerId(server.getId())) {
-            if (!isEnabledSingBoxConfig(serverConfig) || serverConfig.getConfig() == null || serverConfig.getConfig().isBlank()) {
-                continue;
-            }
-            try {
-                JsonNode root = objectMapper.readTree(serverConfig.getConfig());
-                for (JsonNode inbound : root.path("inbounds")) {
-                    JsonNode users = inbound.path("users");
-                    if (!users.isArray()) {
-                        continue;
-                    }
-                    for (JsonNode user : users) {
-                        String accountNo = user.path("name").asText(null);
-                        if (accountNo != null && !accountNo.isBlank()) {
-                            accountNos.add(accountNo.trim());
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("解析服务器 {} 的 sing-box 配置失败，跳过限速账号提取", server.getId(), e);
-            }
-        }
-        return accountNos;
+        return new RateLimitSnapshot(syncAllSequence.get(), snapshotTime, accountMap, currentStatsMap);
     }
 
     private List<Server> findEnabledSingBoxServers() {
@@ -308,37 +295,12 @@ public class RateLimitService {
         return serverId != null && findEnabledSingBoxServerIds().contains(serverId);
     }
 
-    private boolean isEnabledSingBoxConfig(ServerConfig serverConfig) {
-        if (serverConfig == null || serverConfig.getServerId() == null) {
-            return false;
-        }
-        if (serverConfig.getEnabled() != null && serverConfig.getEnabled() == 0) {
-            return false;
-        }
-        String configType = serverConfig.getConfigType();
-        if (configType == null || configType.isBlank()) {
-            return false;
-        }
-        String normalized = configType.trim().toLowerCase();
-        return "sing-box".equals(normalized) || "singbox".equals(normalized);
-    }
-
-    private String quoteShell(String value) {
-        return "'" + value.replace("'", "'\"'\"'") + "'";
-    }
-
-    @FunctionalInterface
-    private interface ConnectionConsumer {
-        void accept(SshConnection connection) throws Exception;
-    }
-
     public void triggerAsyncSync() {
         if (transactionSynchronizationRegistry == null) {
             scheduleAsyncSync();
             return;
         }
         if (transactionSynchronizationRegistry.getTransactionKey() == null) {
-            // 无活跃事务（如调度任务上下文），直接异步同步
             scheduleAsyncSync();
             return;
         }
@@ -410,6 +372,11 @@ public class RateLimitService {
                 scheduleAsyncSync();
             }
         }
+    }
+
+    @FunctionalInterface
+    private interface ConnectionConsumer {
+        void accept(SshConnection connection) throws Exception;
     }
 
     private record RateLimitSnapshot(long sequence,
