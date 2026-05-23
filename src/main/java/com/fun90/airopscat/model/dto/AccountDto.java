@@ -22,6 +22,8 @@ public class AccountDto {
     private Integer effectiveSpeed;
     private Boolean trafficOverQuotaLimited;
     private Integer bandwidth;
+    private Integer downloadMbps;
+    private Integer uploadMbps;
     private Integer disabled;
     private String remark; // 账户备注
     private Long userId;

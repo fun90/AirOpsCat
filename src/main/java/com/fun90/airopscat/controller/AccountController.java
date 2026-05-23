@@ -196,6 +196,8 @@ public class AccountController {
         account.setMaxConnections(request.getMaxConnections());
         account.setSpeed(request.getSpeed());
         account.setBandwidth(request.getBandwidth());
+        account.setDownloadMbps(request.getDownloadMbps());
+        account.setUploadMbps(request.getUploadMbps());
         account.setDisabled(request.getDisabled());
         account.setRemark(request.getRemark());
 
@@ -234,6 +236,8 @@ public class AccountController {
         account.setMaxConnections(request.getMaxConnections());
         account.setSpeed(request.getSpeed());
         account.setBandwidth(request.getBandwidth());
+        account.setDownloadMbps(request.getDownloadMbps());
+        account.setUploadMbps(request.getUploadMbps());
         account.setDisabled(request.getDisabled());
         account.setRemark(request.getRemark());
 

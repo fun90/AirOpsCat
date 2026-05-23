@@ -50,7 +50,13 @@ public class Account {
     private Integer speed;
 
     private Integer bandwidth;
-    
+
+    @Column(name = "download_mbps")
+    private Integer downloadMbps;
+
+    @Column(name = "upload_mbps")
+    private Integer uploadMbps;
+
     private Integer disabled = 0;
     
     private String remark; // 账户备注
