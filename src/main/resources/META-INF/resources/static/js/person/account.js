@@ -103,6 +103,8 @@ const accountTable = new DataTable({
             maxConnections: 0,
             speed: 0,
             bandwidth: 0,
+            downloadMbps: null,
+            uploadMbps: null,
             disabled: false,
             remark: '',
             tagIds: []
@@ -953,6 +955,8 @@ const accountTable = new DataTable({
                 maxConnections: this.newItem.maxConnections || null,
                 speed: this.newItem.speed || null,
                 bandwidth: this.newItem.bandwidth || null,
+                downloadMbps: this.newItem.downloadMbps > 0 ? this.newItem.downloadMbps : null,
+                uploadMbps: this.newItem.uploadMbps > 0 ? this.newItem.uploadMbps : null,
                 disabled: this.newItem.disabled ? 1 : 0,
                 remark: this.newItem.remark || null,
                 tagIds: this.newItem.tagIds || []
@@ -972,6 +976,8 @@ const accountTable = new DataTable({
                 maxConnections: this.editedItem.maxConnections,
                 speed: this.editedItem.speed,
                 bandwidth: this.editedItem.bandwidth,
+                downloadMbps: this.editedItem.downloadMbps > 0 ? this.editedItem.downloadMbps : null,
+                uploadMbps: this.editedItem.uploadMbps > 0 ? this.editedItem.uploadMbps : null,
                 disabled: this.editedItem.disabled,
                 remark: this.editedItem.remark || null,
                 tagIds: this.editedItem.tagIds || [],
@@ -1002,6 +1008,8 @@ const accountTable = new DataTable({
                 maxConnections: 0,
                 speed: 2048,
                 bandwidth: 0,
+                downloadMbps: null,
+                uploadMbps: null,
                 disabled: false,
                 remark: '',
                 tagIds: []
@@ -1040,6 +1048,8 @@ const accountTable = new DataTable({
                 maxConnections: account.maxConnections,
                 speed: account.speed,
                 bandwidth: account.bandwidth,
+                downloadMbps: account.downloadMbps || null,
+                uploadMbps: account.uploadMbps || null,
                 disabled: account.disabled,
                 remark: account.remark || '',
                 tagIds: [] // Will be loaded asynchronously

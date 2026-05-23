@@ -376,6 +376,10 @@ public class AccountService {
         // 使用工具方法复制非null属性
         copyNonNullProperties(account, existingAccount);
 
+        // 允许显式清空的字段：copyNonNullProperties 会跳过 null，需在此单独覆盖
+        existingAccount.setDownloadMbps(account.getDownloadMbps());
+        existingAccount.setUploadMbps(account.getUploadMbps());
+
         accountRepository.persist(existingAccount);
 
         // 仅当 accountNo 或 speed 发生变化时才触发限速同步
