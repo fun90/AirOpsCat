@@ -93,6 +93,20 @@
                 <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">
+                            <label class="form-label">下行限速 (Mbps，空为不限制)</label>
+                            <input type="number" class="form-control" v-model="newItem.downloadMbps" min="1" placeholder="不限速">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">上行限速 (Mbps，空为不限制)</label>
+                            <input type="number" class="form-control" v-model="newItem.uploadMbps" min="1" placeholder="不限速">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
                             <label class="form-label">级别</label>
                             <input type="number" class="form-control" v-model="newItem.level" min="0">
                         </div>
@@ -235,6 +249,20 @@
                         <div class="mb-3">
                             <label class="form-label">流量限制 (GB)</label>
                             <input type="number" class="form-control" v-model="editedItem.bandwidth" min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">下行限速 (Mbps，空为不限制)</label>
+                            <input type="number" class="form-control" v-model="editedItem.downloadMbps" min="1" placeholder="不限速">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">上行限速 (Mbps，空为不限制)</label>
+                            <input type="number" class="form-control" v-model="editedItem.uploadMbps" min="1" placeholder="不限速">
                         </div>
                     </div>
                 </div>

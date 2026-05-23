@@ -141,6 +141,7 @@ public class SingBoxConfigBuilder {
                     if (client.flow() != null && !client.flow().isBlank()) {
                         user.put("flow", client.flow());
                     }
+                    putRateLimitFields(user, client);
                     return user;
                 })
                 .toList();
@@ -152,9 +153,19 @@ public class SingBoxConfigBuilder {
                     Map<String, Object> user = new LinkedHashMap<>();
                     user.put("name", client.email());
                     user.put("password", client.id());
+                    putRateLimitFields(user, client);
                     return user;
                 })
                 .toList();
+    }
+
+    private void putRateLimitFields(Map<String, Object> user, NodeClient client) {
+        if (client.downloadMbps() != null && client.downloadMbps() > 0) {
+            user.put("download_mbps", client.downloadMbps());
+        }
+        if (client.uploadMbps() != null && client.uploadMbps() > 0) {
+            user.put("upload_mbps", client.uploadMbps());
+        }
     }
 
     private List<Map<String, Object>> mergeUsers(List<Map<String, Object>> currentUsers,

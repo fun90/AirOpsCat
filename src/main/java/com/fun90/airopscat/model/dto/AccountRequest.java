@@ -21,6 +21,8 @@ public class AccountRequest {
     private Integer maxConnections;
     private Integer speed;
     private Integer bandwidth;
+    private Integer downloadMbps;
+    private Integer uploadMbps;
     private Integer disabled;
     private String remark; // 账户备注
     private List<Long> tagIds; // 标签ID列表

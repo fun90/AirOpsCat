@@ -264,6 +264,8 @@ public class AccountService {
             dto.setNodePrefix(account.getNodePrefix());
             dto.setMaxConnections(account.getMaxConnections());
             dto.setSpeed(account.getSpeed());
+            dto.setDownloadMbps(account.getDownloadMbps());
+            dto.setUploadMbps(account.getUploadMbps());
 
             // 用户信息
             User user = account.getUserId() != null ? userMap.get(account.getUserId()) : null;
