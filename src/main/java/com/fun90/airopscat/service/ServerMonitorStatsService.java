@@ -4,26 +4,25 @@ import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.ServerMonitorChartDto;
 import com.fun90.airopscat.model.dto.ServerMonitorPointDto;
 import com.fun90.airopscat.model.dto.ServerMonitorSummaryDto;
-import com.fun90.airopscat.model.dto.ServerMonitorTrafficCalibrationDto;
+import com.fun90.airopscat.model.dto.VnstatPointDto;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerMonitorStats;
-import com.fun90.airopscat.model.entity.ServerTrafficStats;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.ServerMonitorStatsRepository;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
 import com.fun90.airopscat.service.ssh.ServerSshConfigFactory;
-import com.fun90.airopscat.util.TrafficPeriodUtils;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 
 @Slf4j
 @ApplicationScoped
@@ -48,7 +47,7 @@ public class ServerMonitorStatsService {
     ServerHostService serverHostService;
 
     @Inject
-    ServerTrafficStatsService serverTrafficStatsService;
+    ServerVnstatStatsService serverVnstatStatsService;
 
     @Inject
     SystemConfigService systemConfigService;
@@ -67,38 +66,36 @@ public class ServerMonitorStatsService {
         stats.setMemoryUsage(parseDouble(metrics.get("memoryUsage")));
         stats.setMemoryUsedBytes(parseLong(metrics.get("memoryUsedBytes")));
         stats.setMemoryTotalBytes(parseLong(metrics.get("memoryTotalBytes")));
-        stats.setNetworkRxBytes(parseLong(metrics.get("networkRxBytes")));
-        stats.setNetworkTxBytes(parseLong(metrics.get("networkTxBytes")));
-        stats.setSampleTime(now);
-        fillNetworkIncrement(stats);
         stats.setNetworkRxRateBytes(parseLong(metrics.get("networkRxRateBytes")));
         stats.setNetworkTxRateBytes(parseLong(metrics.get("networkTxRateBytes")));
+        stats.setSampleTime(now);
         serverMonitorStatsRepository.persist(stats);
 
-        return toSummaryDto(server, stats, calculatePeriodTraffic(server, now));
+        return toSummaryDto(server, stats, getVnstatTraffic(server.getId(), now));
     }
 
     @Transactional
     public ServerMonitorSummaryDto getLatestSummary(Server server) {
         Integer cpuCores = resolveCpuCores(server);
         ServerMonitorStats latest = serverMonitorStatsRepository.findLatestByServerId(server.getId());
+        LocalDateTime now = LocalDateTime.now();
+        VnstatTraffic vnstatTraffic = getVnstatTraffic(server.getId(), now);
+
         if (latest == null) {
-            LocalDateTime now = LocalDateTime.now();
-            PeriodTraffic currentTraffic = calculatePeriodTraffic(server, now);
             ServerMonitorSummaryDto dto = new ServerMonitorSummaryDto();
             dto.setServerId(server.getId());
             dto.setServerName(server.getName());
             dto.setServerIp(server.getIp());
             dto.setServerHost(serverHostService.resolvePrimaryHost(server));
             dto.setCpuCores(cpuCores);
-            dto.setNetworkRxBytes(currentTraffic.rxBytes());
-            dto.setNetworkTxBytes(currentTraffic.txBytes());
-            dto.setTrafficPeriodStart(resolveBandwidthPeriodStart(server, now));
-            dto.setTrafficPeriodEnd(resolveBandwidthPeriodEnd(server, now));
+            dto.setNetworkRxBytes(vnstatTraffic.rxBytes());
+            dto.setNetworkTxBytes(vnstatTraffic.txBytes());
+            dto.setVnstatAvailable(vnstatTraffic.available());
             dto.setDataAvailable(false);
             return dto;
         }
-        ServerMonitorSummaryDto dto = toSummaryDto(server, latest, calculatePeriodTraffic(server, latest.getSampleTime()));
+
+        ServerMonitorSummaryDto dto = toSummaryDto(server, latest, vnstatTraffic);
         dto.setCpuCores(cpuCores);
         return dto;
     }
@@ -108,15 +105,10 @@ public class ServerMonitorStatsService {
         int safeHours = Math.clamp(hours, 1, 24 * 7);
         LocalDateTime endTime = LocalDateTime.now();
         LocalDateTime startTime = endTime.minusHours(safeHours);
-        LocalDateTime periodStart = resolveBandwidthPeriodStart(server, endTime);
-        MonitorTrafficAdjustment adjustment = getMonitorTrafficAdjustment(server, endTime);
-        List<ServerMonitorStats> statsList = serverMonitorStatsRepository.findByServerIdAndSampleTimeBetween(server.getId(), startTime, endTime);
-        long baseRx = startTime.isBefore(periodStart)
-                ? 0L
-                : adjustment.downloadBytes() + defaultLong(serverMonitorStatsRepository.sumRxIncrement(server.getId(), periodStart, startTime));
-        long baseTx = startTime.isBefore(periodStart)
-                ? 0L
-                : adjustment.uploadBytes() + defaultLong(serverMonitorStatsRepository.sumTxIncrement(server.getId(), periodStart, startTime));
+        List<ServerMonitorStats> statsList = serverMonitorStatsRepository
+                .findByServerIdAndSampleTimeBetween(server.getId(), startTime, endTime);
+        List<ServerVnstatStatsService.VnstatSnapshotData> vnstatSnapshots =
+                serverVnstatStatsService.getSnapshots(server.getId(), startTime);
 
         ServerMonitorChartDto dto = new ServerMonitorChartDto();
         dto.setServerId(server.getId());
@@ -124,7 +116,8 @@ public class ServerMonitorStatsService {
         dto.setServerIp(server.getIp());
         dto.setServerHost(serverHostService.resolvePrimaryHost(server));
         dto.setHours(safeHours);
-        dto.setPoints(toPointDtos(statsList, baseRx, baseTx, periodStart));
+        dto.setPoints(toPointDtos(statsList));
+        dto.setVnstatPoints(toVnstatPointDtos(vnstatSnapshots));
         return dto;
     }
 
@@ -132,83 +125,25 @@ public class ServerMonitorStatsService {
     public boolean isCpuUsageHighForDuration(Long serverId, LocalDateTime referenceTime,
                                              double threshold, int durationMinutes) {
         return hasContinuousUsageThresholdExceeded(
-                serverId,
-                referenceTime,
-                threshold,
-                durationMinutes,
-                ServerMonitorStats::getCpuUsage
-        );
+                serverId, referenceTime, threshold, durationMinutes, ServerMonitorStats::getCpuUsage);
     }
 
     @Transactional
     public boolean isMemoryUsageHighForDuration(Long serverId, LocalDateTime referenceTime,
                                                 double threshold, int durationMinutes) {
         return hasContinuousUsageThresholdExceeded(
-                serverId,
-                referenceTime,
-                threshold,
-                durationMinutes,
-                ServerMonitorStats::getMemoryUsage
-        );
+                serverId, referenceTime, threshold, durationMinutes, ServerMonitorStats::getMemoryUsage);
     }
 
     @Transactional
     public long getCurrentPeriodTotalTrafficBytes(Server server, LocalDateTime sampleTime) {
-        PeriodTraffic periodTraffic = calculatePeriodTraffic(server, sampleTime);
-        return periodTraffic.rxBytes() + periodTraffic.txBytes();
-    }
-
-    @Transactional
-    public ServerMonitorSummaryDto calibrateCurrentPeriod(Server server, ServerMonitorTrafficCalibrationDto calibrationDto) {
-        Server managedServer = serverRepository.findById(server.getId());
-        if (managedServer == null) {
-            throw new IllegalArgumentException("服务器不存在: " + server.getId());
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        RawPeriodTraffic rawPeriodTraffic = calculateRawPeriodTraffic(managedServer, now);
-        long rawPeriodTx = rawPeriodTraffic.uploadBytes();
-        long rawPeriodRx = rawPeriodTraffic.downloadBytes();
-        long targetTx = calibrationDto.getUploadGb()
-                .multiply(java.math.BigDecimal.valueOf(1024L * 1024L * 1024L))
-                .longValue();
-        long targetRx = calibrationDto.getDownloadGb()
-                .multiply(java.math.BigDecimal.valueOf(1024L * 1024L * 1024L))
-                .longValue();
-
-        serverTrafficStatsService.calibrateCurrentPeriodMonitorTraffic(
-                managedServer.getId(),
-                managedServer.getBandwidthDate(),
-                now,
-                targetTx - rawPeriodTx,
-                targetRx - rawPeriodRx
-        );
-
-        ServerMonitorStats latest = serverMonitorStatsRepository.findLatestByServerId(server.getId());
-        if (latest == null) {
-            ServerMonitorSummaryDto dto = new ServerMonitorSummaryDto();
-            dto.setServerId(managedServer.getId());
-            dto.setServerName(managedServer.getName());
-            dto.setServerIp(managedServer.getIp());
-            dto.setServerHost(serverHostService.resolvePrimaryHost(managedServer));
-            dto.setCpuCores(resolveCpuCores(managedServer));
-            dto.setNetworkTxBytes(targetTx);
-            dto.setNetworkRxBytes(targetRx);
-            dto.setTrafficPeriodStart(resolveBandwidthPeriodStart(managedServer, now));
-            dto.setTrafficPeriodEnd(resolveBandwidthPeriodEnd(managedServer, now));
-            dto.setDataAvailable(false);
-            return dto;
-        }
-
-        ServerMonitorSummaryDto dto = toSummaryDto(managedServer, latest, calculatePeriodTraffic(managedServer, now));
-        dto.setCpuCores(resolveCpuCores(managedServer));
-        dto.setTrafficPeriodStart(resolveBandwidthPeriodStart(managedServer, now));
-        dto.setTrafficPeriodEnd(resolveBandwidthPeriodEnd(managedServer, now));
-        return dto;
+        VnstatTraffic traffic = getVnstatTraffic(server.getId(), sampleTime);
+        return traffic.rxBytes() + traffic.txBytes();
     }
 
     @Transactional
     public long deleteByServerId(Long serverId) {
+        serverVnstatStatsService.deleteByServerId(serverId);
         return serverMonitorStatsRepository.deleteByServerId(serverId);
     }
 
@@ -217,25 +152,21 @@ public class ServerMonitorStatsService {
         int retentionDays = Math.max(systemConfigService.getIntValue("airopscat.server.monitor.retention-days", 30), 1);
         LocalDateTime cutoffTime = LocalDateTime.now().minusDays(retentionDays);
         int batchSize = Math.max(
-                systemConfigService.getIntValue("airopscat.server.monitor.cleanup.batch-size", DEFAULT_CLEANUP_BATCH_SIZE),
-                1);
+                systemConfigService.getIntValue("airopscat.server.monitor.cleanup.batch-size", DEFAULT_CLEANUP_BATCH_SIZE), 1);
         long totalDeleted = 0L;
         int rounds = 0;
 
         while (true) {
             int deleted = serverMonitorStatsRepository.deleteBySampleTimeBeforeBatch(cutoffTime, batchSize);
-            if (deleted <= 0) {
-                break;
-            }
+            if (deleted <= 0) break;
             totalDeleted += deleted;
             rounds++;
-            if (deleted < batchSize) {
-                break;
-            }
+            if (deleted < batchSize) break;
         }
 
-        log.info("服务器监控历史清理完成，保留天数: {}, 截止时间: {}, 批大小: {}, 批次数: {}, 删除总数: {}",
-                retentionDays, cutoffTime, batchSize, rounds, totalDeleted);
+        long vnstatDeleted = serverVnstatStatsService.cleanupExpiredStats(cutoffTime);
+        log.info("服务器监控历史清理完成，保留天数: {}, 截止时间: {}, 批大小: {}, 批次数: {}, 删除总数: {}, vnstat删除: {}",
+                retentionDays, cutoffTime, batchSize, rounds, totalDeleted, vnstatDeleted);
         return totalDeleted;
     }
 
@@ -266,15 +197,11 @@ public class ServerMonitorStatsService {
         if (output == null || output.isBlank()) {
             return result;
         }
-
-        String[] lines = output.split("\\R");
-        for (String line : lines) {
-            int separatorIndex = line.indexOf('=');
-            if (separatorIndex <= 0) {
-                continue;
-            }
-            String key = line.substring(0, separatorIndex).trim();
-            String value = line.substring(separatorIndex + 1).trim();
+        for (String line : output.split("\\R")) {
+            int idx = line.indexOf('=');
+            if (idx <= 0) continue;
+            String key = line.substring(0, idx).trim();
+            String value = line.substring(idx + 1).trim();
             if (!key.isEmpty()) {
                 result.put(key, value);
             }
@@ -282,62 +209,63 @@ public class ServerMonitorStatsService {
         return result;
     }
 
-    private void fillNetworkIncrement(ServerMonitorStats stats) {
-        ServerMonitorStats previous = serverMonitorStatsRepository.findPreviousByServerId(stats.getServerId(), stats.getSampleTime());
-        if (previous == null) {
-            stats.setNetworkRxIncrementBytes(0L);
-            stats.setNetworkTxIncrementBytes(0L);
-            return;
-        }
-
-        long currentRx = defaultLong(stats.getNetworkRxBytes());
-        long currentTx = defaultLong(stats.getNetworkTxBytes());
-        long previousRx = defaultLong(previous.getNetworkRxBytes());
-        long previousTx = defaultLong(previous.getNetworkTxBytes());
-
-        stats.setNetworkRxIncrementBytes(currentRx >= previousRx ? currentRx - previousRx : currentRx);
-        stats.setNetworkTxIncrementBytes(currentTx >= previousTx ? currentTx - previousTx : currentTx);
+    private VnstatTraffic getVnstatTraffic(Long serverId, LocalDateTime referenceTime) {
+        Optional<ServerVnstatStatsService.VnstatPeriodTraffic> opt =
+                serverVnstatStatsService.getPeriodTraffic(serverId, referenceTime.getYear(), referenceTime.getMonthValue());
+        return opt.map(t -> new VnstatTraffic(t.rxBytes(), t.txBytes(), true))
+                .orElse(new VnstatTraffic(0L, 0L, false));
     }
 
-    private PeriodTraffic calculatePeriodTraffic(Server server, LocalDateTime sampleTime) {
-        MonitorTrafficAdjustment adjustment = getMonitorTrafficAdjustment(server, sampleTime);
-        RawPeriodTraffic rawPeriodTraffic = calculateRawPeriodTraffic(server, sampleTime);
-        long rx = adjustment.downloadBytes() + rawPeriodTraffic.downloadBytes();
-        long tx = adjustment.uploadBytes() + rawPeriodTraffic.uploadBytes();
-        return new PeriodTraffic(rx, tx);
+    private ServerMonitorSummaryDto toSummaryDto(Server server, ServerMonitorStats stats, VnstatTraffic vnstatTraffic) {
+        ServerMonitorSummaryDto dto = new ServerMonitorSummaryDto();
+        dto.setServerId(server.getId());
+        dto.setServerName(server.getName());
+        dto.setServerIp(server.getIp());
+        dto.setServerHost(serverHostService.resolvePrimaryHost(server));
+        dto.setSampleTime(stats.getSampleTime());
+        dto.setCpuUsage(stats.getCpuUsage());
+        dto.setMemoryUsage(stats.getMemoryUsage());
+        dto.setMemoryUsedBytes(stats.getMemoryUsedBytes());
+        dto.setMemoryTotalBytes(stats.getMemoryTotalBytes());
+        dto.setNetworkRxBytes(vnstatTraffic.rxBytes());
+        dto.setNetworkTxBytes(vnstatTraffic.txBytes());
+        dto.setVnstatAvailable(vnstatTraffic.available());
+        dto.setNetworkRxRateBytes(stats.getNetworkRxRateBytes());
+        dto.setNetworkTxRateBytes(stats.getNetworkTxRateBytes());
+        dto.setDataAvailable(true);
+        return dto;
     }
 
-    private RawPeriodTraffic calculateRawPeriodTraffic(Server server, LocalDateTime sampleTime) {
-        LocalDateTime periodStart = resolveBandwidthPeriodStart(server, sampleTime);
-        long downloadBytes = defaultLong(serverMonitorStatsRepository.sumRxIncrement(server.getId(), periodStart, sampleTime.plusNanos(1)));
-        long uploadBytes = defaultLong(serverMonitorStatsRepository.sumTxIncrement(server.getId(), periodStart, sampleTime.plusNanos(1)));
-        return new RawPeriodTraffic(downloadBytes, uploadBytes);
+    private List<ServerMonitorPointDto> toPointDtos(List<ServerMonitorStats> statsList) {
+        return statsList.stream().map(this::toPointDto).toList();
     }
 
-    private MonitorTrafficAdjustment getMonitorTrafficAdjustment(Server server, LocalDateTime sampleTime) {
-        ServerTrafficStats stats = serverTrafficStatsService.getCurrentPeriodStats(server.getId(), sampleTime);
-        if (stats == null) {
-            return new MonitorTrafficAdjustment(0L, 0L);
-        }
-        return new MonitorTrafficAdjustment(
-                defaultLong(stats.getMonitorDownloadAdjustmentBytes()),
-                defaultLong(stats.getMonitorUploadAdjustmentBytes())
-        );
+    private ServerMonitorPointDto toPointDto(ServerMonitorStats stats) {
+        ServerMonitorPointDto dto = new ServerMonitorPointDto();
+        dto.setSampleTime(stats.getSampleTime());
+        dto.setCpuUsage(stats.getCpuUsage());
+        dto.setMemoryUsage(stats.getMemoryUsage());
+        dto.setMemoryUsedBytes(stats.getMemoryUsedBytes());
+        dto.setMemoryTotalBytes(stats.getMemoryTotalBytes());
+        dto.setNetworkRxRateBytes(stats.getNetworkRxRateBytes());
+        dto.setNetworkTxRateBytes(stats.getNetworkTxRateBytes());
+        return dto;
     }
 
-    private LocalDateTime resolveBandwidthPeriodStart(Server server, LocalDateTime referenceTime) {
-        return TrafficPeriodUtils.resolveServerPeriodStart(referenceTime, server.getBandwidthDate());
-    }
-
-    private LocalDateTime resolveBandwidthPeriodEnd(Server server, LocalDateTime referenceTime) {
-        return TrafficPeriodUtils.resolveServerPeriodEnd(referenceTime, server.getBandwidthDate());
+    private List<VnstatPointDto> toVnstatPointDtos(List<ServerVnstatStatsService.VnstatSnapshotData> snapshots) {
+        return snapshots.stream().map(s -> {
+            VnstatPointDto dto = new VnstatPointDto();
+            dto.setSampledAt(s.sampledAt());
+            dto.setRxBytes(s.rxBytes());
+            dto.setTxBytes(s.txBytes());
+            return dto;
+        }).toList();
     }
 
     private Integer resolveCpuCores(Server server) {
         if (server.getCpuCores() != null && server.getCpuCores() > 0) {
             return server.getCpuCores();
         }
-
         Integer cpuCores = fetchCpuCores(server);
         if (cpuCores > 0) {
             Server managedServer = serverRepository.findById(server.getId());
@@ -364,26 +292,18 @@ public class ServerMonitorStatsService {
         }
     }
 
-    private String quoteShell(String value) {
-        return "'" + value.replace("'", "'\"'\"'") + "'";
-    }
-
     private boolean hasContinuousUsageThresholdExceeded(Long serverId, LocalDateTime referenceTime,
                                                         double threshold, int durationMinutes,
-                                                        java.util.function.Function<ServerMonitorStats, Double> usageExtractor) {
+                                                        Function<ServerMonitorStats, Double> usageExtractor) {
         long monitorRefreshSeconds = getMonitorRefreshSeconds();
         if (serverId == null || referenceTime == null || durationMinutes <= 0 || monitorRefreshSeconds <= 0) {
             return false;
         }
-
-        long durationSeconds = durationMinutes * 60L + this.getMonitorRefreshSeconds() * 2;
-        // 半数达到
+        long durationSeconds = durationMinutes * 60L + monitorRefreshSeconds * 2;
         int requiredSampleCount = (int) Math.ceil(durationSeconds / (double) monitorRefreshSeconds / 2);
         LocalDateTime windowStart = referenceTime.minusSeconds(durationSeconds);
         List<ServerMonitorStats> latestStats = serverMonitorStatsRepository.findLatestListByServerId(serverId, requiredSampleCount);
-        if (latestStats.size() < requiredSampleCount) {
-            return false;
-        }
+        if (latestStats.size() < requiredSampleCount) return false;
 
         ServerMonitorStats latest = latestStats.getFirst();
         if (latest.getSampleTime() == null
@@ -392,20 +312,14 @@ public class ServerMonitorStatsService {
         }
 
         List<ServerMonitorStats> effectiveStats = latestStats.stream()
-                .filter(stats -> stats.getSampleTime() != null)
-                .filter(stats -> !stats.getSampleTime().isBefore(windowStart))
+                .filter(s -> s.getSampleTime() != null && !s.getSampleTime().isBefore(windowStart))
                 .toList();
-        if (effectiveStats.isEmpty()) {
-            return false;
-        }
+        if (effectiveStats.isEmpty()) return false;
 
-        for (ServerMonitorStats stats : effectiveStats) {
-            Double usage = usageExtractor.apply(stats);
-            if (usage == null || usage < threshold) {
-                return false;
-            }
+        for (ServerMonitorStats s : effectiveStats) {
+            Double usage = usageExtractor.apply(s);
+            if (usage == null || usage < threshold) return false;
         }
-
         return true;
     }
 
@@ -413,58 +327,12 @@ public class ServerMonitorStatsService {
         return Math.max(1, systemConfigService.getIntValue("airopscat.server.monitor.refresh-minutes", 1)) * 60L;
     }
 
-    private ServerMonitorSummaryDto toSummaryDto(Server server, ServerMonitorStats stats, PeriodTraffic periodTraffic) {
-        ServerMonitorSummaryDto dto = new ServerMonitorSummaryDto();
-        dto.setServerId(server.getId());
-        dto.setServerName(server.getName());
-        dto.setServerIp(server.getIp());
-        dto.setServerHost(serverHostService.resolvePrimaryHost(server));
-        dto.setSampleTime(stats.getSampleTime());
-        dto.setCpuUsage(stats.getCpuUsage());
-        dto.setMemoryUsage(stats.getMemoryUsage());
-        dto.setMemoryUsedBytes(stats.getMemoryUsedBytes());
-        dto.setMemoryTotalBytes(stats.getMemoryTotalBytes());
-        dto.setNetworkRxBytes(periodTraffic.rxBytes());
-        dto.setNetworkTxBytes(periodTraffic.txBytes());
-        dto.setNetworkRxRateBytes(stats.getNetworkRxRateBytes());
-        dto.setNetworkTxRateBytes(stats.getNetworkTxRateBytes());
-        dto.setTrafficPeriodStart(resolveBandwidthPeriodStart(server, stats.getSampleTime()));
-        dto.setTrafficPeriodEnd(resolveBandwidthPeriodEnd(server, stats.getSampleTime()));
-        dto.setDataAvailable(true);
-        return dto;
-    }
-
-    private List<ServerMonitorPointDto> toPointDtos(List<ServerMonitorStats> statsList, long baseRx, long baseTx, LocalDateTime periodStart) {
-        long[] totals = {baseRx, baseTx};
-        return statsList.stream()
-                .map(stats -> {
-                    if (!stats.getSampleTime().isBefore(periodStart)) {
-                        totals[0] += defaultLong(stats.getNetworkRxIncrementBytes());
-                        totals[1] += defaultLong(stats.getNetworkTxIncrementBytes());
-                    }
-                    return toPointDto(stats, totals[0], totals[1]);
-                })
-                .toList();
-    }
-
-    private ServerMonitorPointDto toPointDto(ServerMonitorStats stats, long cumulativeRx, long cumulativeTx) {
-        ServerMonitorPointDto dto = new ServerMonitorPointDto();
-        dto.setSampleTime(stats.getSampleTime());
-        dto.setCpuUsage(stats.getCpuUsage());
-        dto.setMemoryUsage(stats.getMemoryUsage());
-        dto.setMemoryUsedBytes(stats.getMemoryUsedBytes());
-        dto.setMemoryTotalBytes(stats.getMemoryTotalBytes());
-        dto.setNetworkRxBytes(cumulativeRx);
-        dto.setNetworkTxBytes(cumulativeTx);
-        dto.setNetworkRxRateBytes(stats.getNetworkRxRateBytes());
-        dto.setNetworkTxRateBytes(stats.getNetworkTxRateBytes());
-        return dto;
+    private String quoteShell(String value) {
+        return "'" + value.replace("'", "'\"'\"'") + "'";
     }
 
     private Long parseLong(String value) {
-        if (value == null || value.isBlank()) {
-            return 0L;
-        }
+        if (value == null || value.isBlank()) return 0L;
         try {
             return Long.parseLong(value);
         } catch (NumberFormatException e) {
@@ -474,9 +342,7 @@ public class ServerMonitorStatsService {
     }
 
     private Double parseDouble(String value) {
-        if (value == null || value.isBlank()) {
-            return 0D;
-        }
+        if (value == null || value.isBlank()) return 0D;
         try {
             return Double.parseDouble(value);
         } catch (NumberFormatException e) {
@@ -486,9 +352,7 @@ public class ServerMonitorStatsService {
     }
 
     private Integer parseInteger(String value) {
-        if (value == null || value.isBlank()) {
-            return 0;
-        }
+        if (value == null || value.isBlank()) return 0;
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException e) {
@@ -497,16 +361,5 @@ public class ServerMonitorStatsService {
         }
     }
 
-    private long defaultLong(Long value) {
-        return value == null ? 0L : value;
-    }
-
-    private record PeriodTraffic(long rxBytes, long txBytes) {
-    }
-
-    private record RawPeriodTraffic(long downloadBytes, long uploadBytes) {
-    }
-
-    private record MonitorTrafficAdjustment(long downloadBytes, long uploadBytes) {
-    }
+    private record VnstatTraffic(long rxBytes, long txBytes, boolean available) {}
 }

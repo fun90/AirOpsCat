@@ -31,8 +31,26 @@ install_packages() {
   log "更新 APT 软件包索引"
   apt-get update && apt-get upgrade -y
 
-  log "安装基础软件包: cron vim wget htop conntrack iftop"
-  apt-get install -y cron vim wget htop conntrack iftop
+  log "安装基础软件包: cron vim wget htop conntrack iftop vnstat"
+  apt-get install -y cron vim wget htop conntrack iftop vnstat
+}
+
+install_vnstat() {
+  local billing_day="${bandwidth_day:-1}"
+
+  log "配置 vnstat 计费周期起始日为 ${billing_day}"
+  if [[ -f /etc/vnstat.conf ]]; then
+    sed -i "s/^MonthRotate .*/MonthRotate ${billing_day}/" /etc/vnstat.conf
+  fi
+
+  local iface
+  iface=$(ip route get 1.1.1.1 2>/dev/null \
+    | awk '/dev/{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1);exit}}')
+  iface="${iface:-eth0}"
+  log "检测到出口网卡: ${iface}，注册至 vnstat"
+
+  systemctl enable --now vnstat
+  vnstat --add -i "${iface}" 2>/dev/null || true
 }
 
 install_monitor_collector() {
@@ -186,8 +204,6 @@ printf "cpuUsage=%s\n"           "${cpu_usage}"
 printf "memoryUsage=%s\n"        "${memory_usage}"
 printf "memoryUsedBytes=%s\n"    "${memory_used}"
 printf "memoryTotalBytes=%s\n"   "${memory_total}"
-printf "networkRxBytes=%s\n"     "${rx_now}"
-printf "networkTxBytes=%s\n"     "${tx_now}"
 printf "networkRxRateBytes=%s\n" "${rx_rate}"
 printf "networkTxRateBytes=%s\n" "${tx_rate}"
 EOF
@@ -197,9 +213,10 @@ EOF
 
 main() {
   require_root
-  log "当前服务器变量: server_ip=${server_ip:-}, server_host=${server_host:-}"
+  log "当前服务器变量: server_ip=${server_ip:-}, server_host=${server_host:-}, bandwidth_day=${bandwidth_day:-1}"
   set_timezone
   install_packages
+  install_vnstat
   install_monitor_collector
   log "系统初始化完成"
 }

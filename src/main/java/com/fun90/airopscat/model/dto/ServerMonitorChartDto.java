@@ -13,4 +13,5 @@ public class ServerMonitorChartDto {
     private String serverHost;
     private Integer hours;
     private List<ServerMonitorPointDto> points = new ArrayList<>();
+    private List<VnstatPointDto> vnstatPoints = new ArrayList<>();
 }

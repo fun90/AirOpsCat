@@ -209,9 +209,17 @@ public class ServerMaintenanceService {
                 + "; server_ssh_port=" + quoteShell(server.getSshPort() + "")
                 + "; airopscat_domain=" + quoteShell(defaultString(getDomain()))
                 + "; airopscat_api_token=" + quoteShell(defaultString(getApiToken()))
+                + "; bandwidth_day=" + quoteShell(resolveBandwidthDay(server))
                 + "; declare -a server_hosts=" + toBashArray(hosts)
-                + "; export AIROPSCAT_STEP_NAME server_ip server_host airopscat_domain airopscat_api_token"
+                + "; export AIROPSCAT_STEP_NAME server_ip server_host airopscat_domain airopscat_api_token bandwidth_day"
                 + "; source " + quoteShell(remoteScriptPath);
+    }
+
+    private String resolveBandwidthDay(Server server) {
+        if (server.getBandwidthDate() == null) {
+            return "1";
+        }
+        return String.valueOf(server.getBandwidthDate().getDayOfMonth());
     }
 
     private String getRemoteWorkDir() {

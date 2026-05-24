@@ -11,8 +11,6 @@ public class ServerMonitorPointDto {
     private Double memoryUsage;
     private Long memoryUsedBytes;
     private Long memoryTotalBytes;
-    private Long networkRxBytes;
-    private Long networkTxBytes;
     private Long networkRxRateBytes;
     private Long networkTxRateBytes;
 }

@@ -48,6 +48,7 @@ public class ProgrammaticTaskManager {
     private final AccountOnlineRefreshTask accountOnlineRefreshTask;
     private final AccountOnlineIpCleanupTask accountOnlineIpCleanupTask;
     private final NodeOnlineAccountStatsTask nodeOnlineAccountStatsTask;
+    private final VnstatCollectTask vnstatCollectTask;
 
     private final Map<String, TaskDefinition> taskDefinitions;
     private final Set<String> pausedTaskKeys;
@@ -68,7 +69,8 @@ public class ProgrammaticTaskManager {
                                    SystemRequestLogCleanupTask systemRequestLogCleanupTask,
                                    AccountOnlineRefreshTask accountOnlineRefreshTask,
                                    AccountOnlineIpCleanupTask accountOnlineIpCleanupTask,
-                                   NodeOnlineAccountStatsTask nodeOnlineAccountStatsTask) {
+                                   NodeOnlineAccountStatsTask nodeOnlineAccountStatsTask,
+                                   VnstatCollectTask vnstatCollectTask) {
         this.scheduler = scheduler;
         this.systemConfigService = systemConfigService;
         this.databaseBackupService = databaseBackupService;
@@ -85,6 +87,7 @@ public class ProgrammaticTaskManager {
         this.accountOnlineRefreshTask = accountOnlineRefreshTask;
         this.accountOnlineIpCleanupTask = accountOnlineIpCleanupTask;
         this.nodeOnlineAccountStatsTask = nodeOnlineAccountStatsTask;
+        this.vnstatCollectTask = vnstatCollectTask;
         this.taskDefinitions = buildTaskDefinitions();
         this.pausedTaskKeys = ConcurrentHashMap.newKeySet();
     }
@@ -467,6 +470,20 @@ public class ProgrammaticTaskManager {
                 0L,
                 Scheduled.ConcurrentExecution.SKIP,
                 systemRequestLogCleanupTask::cleanupExpiredLogs
+        ));
+        definitions.put("vnstat-traffic-collect", task(
+                "vnstat-traffic-collect",
+                "vnstat-traffic-collect",
+                "vnstat 流量采集",
+                "通过 vnstat 采集服务器 OS 网卡月度流量，作为监控周期流量的权威数据源。",
+                "monitor",
+                "监控与在线状态",
+                33,
+                SCHEDULE_TYPE_INTERVAL_MINUTES,
+                "airopscat.server.vnstat.collect-minutes",
+                5L,
+                Scheduled.ConcurrentExecution.SKIP,
+                vnstatCollectTask::collectVnstatTraffic
         ));
 
         return definitions;
