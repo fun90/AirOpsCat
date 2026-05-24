@@ -76,21 +76,36 @@ read_cpu_values() {
 }
 
 read_network_totals() {
-  awk '
+  local iface
+  iface=$(ip route show default 2>/dev/null \
+    | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1);exit}}')
+
+  if [[ -z "${iface}" ]]; then
+    printf "0 0\n"
+    return 0
+  fi
+
+  awk -v target_iface="${iface}" '
+  BEGIN {
+    found = 0;
+  }
   NR > 2 {
     split($0, parts, ":");
     iface = parts[1];
     gsub(/^[ \t]+|[ \t]+$/, "", iface);
-    if (iface == "" || iface ~ /^(lo|docker.*|veth.*|br.*|virbr.*|vmnet.*|zt.*)$/) {
+    if (iface != target_iface) {
       next;
     }
     gsub(/^[ \t]+/, "", parts[2]);
-    count = split(parts[2], values, /[ \t]+/);
-    rx += values[1];
-    tx += values[9];
+    split(parts[2], values, /[ \t]+/);
+    printf "%.0f %.0f\n", values[1], values[9];
+    found = 1;
+    exit;
   }
   END {
-    printf "%.0f %.0f\n", rx, tx;
+    if (!found) {
+      printf "0 0\n";
+    }
   }' /proc/net/dev
 }
 
@@ -133,16 +148,28 @@ read_memory_stats() {
   awk '
   BEGIN {
     total = 0;
-    available = 0;
+    free = 0;
+    buffers = 0;
+    cached = 0;
+    sreclaimable = 0;
   }
   /^MemTotal:/ {
     total = $2 * 1024;
   }
-  /^MemAvailable:/ {
-    available = $2 * 1024;
+  /^MemFree:/ {
+    free = $2 * 1024;
+  }
+  /^Buffers:/ {
+    buffers = $2 * 1024;
+  }
+  /^Cached:/ {
+    cached = $2 * 1024;
+  }
+  /^SReclaimable:/ {
+    sreclaimable = $2 * 1024;
   }
   END {
-    used = total - available;
+    used = total - free - buffers - cached - sreclaimable;
     if (used < 0) {
       used = 0;
     }
