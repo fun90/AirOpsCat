@@ -1,6 +1,5 @@
 package com.fun90.airopscat.controller;
 
-import com.fun90.airopscat.model.dto.ServerMonitorTrafficCalibrationDto;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.service.ServerMonitorStatsService;
 import com.fun90.airopscat.service.ServerService;
@@ -11,8 +10,6 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -20,7 +17,6 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
-import java.math.BigDecimal;
 import java.util.Map;
 
 @ApplicationScoped
@@ -78,37 +74,6 @@ public class ServerMonitorController {
                 "serverId", serverId,
                 "deletedCount", deletedCount
         )).build();
-    }
-
-    @PUT
-    @Path("/{serverId}/traffic-calibration")
-    public Response calibrateTraffic(@PathParam("serverId") Long serverId,
-                                     ServerMonitorTrafficCalibrationDto calibrationDto) {
-        Server server = serverService.getServerById(serverId);
-        Response guardResponse = guardMonitorServer(server);
-        if (guardResponse != null) {
-            return guardResponse;
-        }
-
-        if (calibrationDto == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("message", "请求数据不能为空"))
-                    .build();
-        }
-        if (calibrationDto.getUploadGb() == null || calibrationDto.getUploadGb().compareTo(BigDecimal.ZERO) < 0) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("message", "累计上传流量必须大于或等于 0"))
-                    .build();
-        }
-        if (calibrationDto.getDownloadGb() == null || calibrationDto.getDownloadGb().compareTo(BigDecimal.ZERO) < 0) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("message", "累计下载流量必须大于或等于 0"))
-                    .build();
-        }
-
-        var summary = serverMonitorStatsService.calibrateCurrentPeriod(server, calibrationDto);
-        summary.setMonitorIntervalSeconds(Math.max(1L, getRefreshMinutes()) * 60L);
-        return Response.ok(summary).build();
     }
 
     private Response guardMonitorServer(Server server) {

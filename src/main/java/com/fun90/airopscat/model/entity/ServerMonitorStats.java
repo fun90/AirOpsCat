@@ -32,14 +32,6 @@ public class ServerMonitorStats {
 
     private Long memoryTotalBytes;
 
-    private Long networkRxBytes;
-
-    private Long networkTxBytes;
-
-    private Long networkRxIncrementBytes;
-
-    private Long networkTxIncrementBytes;
-
     private Long networkRxRateBytes;
 
     private Long networkTxRateBytes;

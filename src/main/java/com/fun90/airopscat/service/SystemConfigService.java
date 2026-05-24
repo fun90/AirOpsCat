@@ -314,6 +314,7 @@ public class SystemConfigService {
                 item("airopscat.server.monitor.alert.traffic-threshold", "流量告警阈值", "支持 0-1 或 0-100 写法。", INPUT_NUMBER, true, false, false, true, "0.85", "0.85"),
                 item("airopscat.server.monitor.alert.continuous-minutes", "阈值持续分钟数", "达到阈值后持续多久才触发告警。", INPUT_NUMBER, true, false, false, true, "30", "30"),
                 item("airopscat.server.monitor.alert.min-interval-minutes", "监控告警间隔分钟数", "同一服务器同一负载指标持续超限时，两次通知之间的最小间隔。", INPUT_NUMBER, true, false, false, true, "60", "60"),
+                item("airopscat.server.vnstat.collect-minutes", "vnstat 采集间隔分钟数", "通过 vnstat 采集服务器网卡月度流量的间隔分钟数。", INPUT_NUMBER, true, false, false, true, "5", "5"),
                 item("airopscat.server.expiring.alert.min-interval-hours", "服务器到期提醒间隔小时数", "同一服务器到期提醒两次通知之间的最小间隔。", INPUT_NUMBER, true, false, false, true, "23", "23"),
                 item("airopscat.domain.expiring.alert.min-interval-hours", "域名到期提醒间隔小时数", "同一域名到期提醒两次通知之间的最小间隔。", INPUT_NUMBER, true, false, false, true, "23", "23"),
                 item("airopscat.account.expiring.alert.min-interval-hours", "账号到期提醒间隔小时数", "同一账号到期提醒两次通知之间的最小间隔。", INPUT_NUMBER, true, false, false, true, "23", "23")

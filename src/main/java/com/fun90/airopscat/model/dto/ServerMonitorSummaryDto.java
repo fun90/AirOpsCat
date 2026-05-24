@@ -18,10 +18,9 @@ public class ServerMonitorSummaryDto {
     private Long memoryTotalBytes;
     private Long networkRxBytes;
     private Long networkTxBytes;
+    private boolean vnstatAvailable;
     private Long networkRxRateBytes;
     private Long networkTxRateBytes;
-    private LocalDateTime trafficPeriodStart;
-    private LocalDateTime trafficPeriodEnd;
     private Long monitorIntervalSeconds;
     private boolean dataAvailable;
 }

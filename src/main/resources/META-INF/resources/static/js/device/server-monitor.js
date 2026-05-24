@@ -33,18 +33,12 @@ const serverMonitorApp = {
     summary: null,
     chartData: null,
     clearModal: null,
-    trafficCalibrationModal: null,
     cpuChart: null,
     memoryChart: null,
     networkRateChart: null,
-    networkTotalChart: null,
+    vnstatTrafficChart: null,
     refreshTimer: null,
     themeObserver: null,
-    validationErrors: {},
-    trafficCalibration: {
-        uploadGb: '',
-        downloadGb: ''
-    },
 
     mounted() {
         const params = new URLSearchParams(window.location.search);
@@ -56,7 +50,6 @@ const serverMonitorApp = {
 
         this.serverId = Number(serverId);
         this.clearModal = new Modal(document.getElementById('server-monitor-clearModal'));
-        this.trafficCalibrationModal = new Modal(document.getElementById('server-monitor-trafficCalibrationModal'));
         this.refreshData();
         this.observeTheme();
         window.addEventListener('beforeunload', () => this.cleanup());
@@ -145,20 +138,6 @@ const serverMonitorApp = {
         }
     },
 
-    openTrafficCalibrationModal() {
-        if (!this.summary) {
-            return;
-        }
-        this.validationErrors = {};
-        this.trafficCalibration = {
-            uploadGb: this.bytesToGbValue(this.summary.networkTxBytes),
-            downloadGb: this.bytesToGbValue(this.summary.networkRxBytes)
-        };
-        if (this.trafficCalibrationModal) {
-            this.trafficCalibrationModal.show();
-        }
-    },
-
     async clearRecords() {
         if (!this.serverId) {
             return;
@@ -183,14 +162,13 @@ const serverMonitorApp = {
                 memoryUsage: 0,
                 memoryUsedBytes: 0,
                 memoryTotalBytes: 0,
-                networkRxBytes: 0,
-                networkTxBytes: 0,
                 networkRxRateBytes: 0,
                 networkTxRateBytes: 0
             };
             this.chartData = {
                 ...(this.chartData || {}),
-                points: []
+                points: [],
+                vnstatPoints: []
             };
             this.destroyCharts();
             ToastUtils.show('Success', '监控数据已清空', 'success');
@@ -202,126 +180,72 @@ const serverMonitorApp = {
         }
     },
 
-    validateTrafficCalibrationForm() {
-        let isValid = true;
-        this.validationErrors = {};
-
-        const uploadGb = parseFloat(this.trafficCalibration.uploadGb);
-        if (this.trafficCalibration.uploadGb === '' || Number.isNaN(uploadGb) || uploadGb < 0) {
-            this.validationErrors.trafficUploadGb = '请输入有效的累计上传流量';
-            isValid = false;
-        }
-
-        const downloadGb = parseFloat(this.trafficCalibration.downloadGb);
-        if (this.trafficCalibration.downloadGb === '' || Number.isNaN(downloadGb) || downloadGb < 0) {
-            this.validationErrors.trafficDownloadGb = '请输入有效的累计下载流量';
-            isValid = false;
-        }
-
-        return isValid;
-    },
-
-    async saveTrafficCalibration() {
-        if (!this.validateTrafficCalibrationForm()) {
-            return;
-        }
-
-        try {
-            const response = await fetch(`/api/admin/server-monitors/${this.serverId}/traffic-calibration`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    uploadGb: this.trafficCalibration.uploadGb,
-                    downloadGb: this.trafficCalibration.downloadGb
-                })
-            });
-
-            if (!response.ok) {
-                let errorMessage = '流量校准失败';
-                try {
-                    const errorData = await response.json();
-                    errorMessage = errorData.message || errorMessage;
-                } catch (_) {
-                }
-                throw new Error(errorMessage);
-            }
-
-            this.summary = await response.json();
-            this.startAutoRefresh();
-            await this.fetchCharts();
-            this.$nextTick(() => {
-                if (this.summary?.dataAvailable) {
-                    this.renderCharts();
-                } else {
-                    this.destroyCharts();
-                }
-            });
-            this.trafficCalibrationModal.hide();
-            ToastUtils.show('Success', '累计流量校准成功', 'success');
-        } catch (error) {
-            console.error(error);
-            ToastUtils.show('Error', error.message || '流量校准失败', 'danger');
-        }
-    },
-
     renderCharts() {
         const points = Array.isArray(this.chartData?.points) ? this.chartData.points : [];
         if (points.length === 0) {
-            this.destroyCharts();
-            return;
+            ['cpuChart', 'memoryChart', 'networkRateChart'].forEach(key => {
+                if (this[key]) { this[key].destroy(); this[key] = null; }
+            });
+        } else {
+            const categories = points.map(point => this.formatAxisTime(point.sampleTime));
+            const cpuData = points.map(point => Number(point.cpuUsage || 0));
+            const memoryData = points.map(point => Number(point.memoryUsage || 0));
+            const uploadRateData = points.map(point => Number(point.networkTxRateBytes || 0));
+            const downloadRateData = points.map(point => Number(point.networkRxRateBytes || 0));
+
+            this.renderLineChart('cpuChart', '#cpu-chart', categories, [
+                { name: 'CPU 使用率', data: cpuData }
+            ], {
+                colors: ['#206bc4'],
+                yaxis: {
+                    min: 0,
+                    max: 100,
+                    labels: { formatter: value => `${value.toFixed(0)}%` }
+                }
+            });
+
+            this.renderLineChart('memoryChart', '#memory-chart', categories, [
+                { name: '内存使用率', data: memoryData }
+            ], {
+                colors: ['#4299e1'],
+                yaxis: {
+                    min: 0,
+                    max: 100,
+                    labels: { formatter: value => `${value.toFixed(0)}%` }
+                }
+            });
+
+            this.renderLineChart('networkRateChart', '#network-rate-chart', categories, [
+                { name: '上传速率', data: uploadRateData },
+                { name: '下载速率', data: downloadRateData }
+            ], {
+                colors: ['#2fb344', '#f59f00'],
+                yaxis: {
+                    labels: { formatter: value => this.formatBytesPerSecond(value) }
+                }
+            });
         }
 
-        const categories = points.map(point => this.formatAxisTime(point.sampleTime));
-        const cpuData = points.map(point => Number(point.cpuUsage || 0));
-        const memoryData = points.map(point => Number(point.memoryUsage || 0));
-        const uploadRateData = points.map(point => Number(point.networkTxRateBytes || 0));
-        const downloadRateData = points.map(point => Number(point.networkRxRateBytes || 0));
-        const uploadTotalData = points.map(point => Number(point.networkTxBytes || 0));
-        const downloadTotalData = points.map(point => Number(point.networkRxBytes || 0));
-
-        this.renderLineChart('cpuChart', '#cpu-chart', categories, [
-            { name: 'CPU 使用率', data: cpuData }
-        ], {
-            colors: ['#206bc4'],
-            yaxis: {
-                min: 0,
-                max: 100,
-                labels: { formatter: value => `${value.toFixed(0)}%` }
-            }
-        });
-
-        this.renderLineChart('memoryChart', '#memory-chart', categories, [
-            { name: '内存使用率', data: memoryData }
-        ], {
-            colors: ['#4299e1'],
-            yaxis: {
-                min: 0,
-                max: 100,
-                labels: { formatter: value => `${value.toFixed(0)}%` }
-            }
-        });
-
-        this.renderLineChart('networkRateChart', '#network-rate-chart', categories, [
-            { name: '上传速率', data: uploadRateData },
-            { name: '下载速率', data: downloadRateData }
-        ], {
-            colors: ['#2fb344', '#f59f00'],
-            yaxis: {
-                labels: { formatter: value => this.formatBytesPerSecond(value) }
-            }
-        });
-
-        this.renderLineChart('networkTotalChart', '#network-total-chart', categories, [
-            { name: '累计上传', data: uploadTotalData },
-            { name: '累计下载', data: downloadTotalData }
-        ], {
-            colors: ['#12b886', '#fd7e14'],
-            yaxis: {
-                labels: { formatter: value => this.formatBytes(value) }
-            }
-        });
+        const vnstatPoints = Array.isArray(this.chartData?.vnstatPoints) ? this.chartData.vnstatPoints : [];
+        if (vnstatPoints.length > 0) {
+            this.$nextTick(() => {
+                const vnstatCategories = vnstatPoints.map(p => this.formatAxisTime(p.sampledAt));
+                const rxData = vnstatPoints.map(p => Number(p.rxBytes || 0));
+                const txData = vnstatPoints.map(p => Number(p.txBytes || 0));
+                this.renderLineChart('vnstatTrafficChart', '#vnstat-traffic-chart', vnstatCategories, [
+                    { name: '累计下载', data: rxData },
+                    { name: '累计上传', data: txData }
+                ], {
+                    colors: ['#f59f00', '#2fb344'],
+                    yaxis: {
+                        labels: { formatter: value => this.formatBytes(value) }
+                    }
+                });
+            });
+        } else if (this.vnstatTrafficChart) {
+            this.vnstatTrafficChart.destroy();
+            this.vnstatTrafficChart = null;
+        }
     },
 
     renderLineChart(chartKey, selector, categories, series, overrides = {}) {
@@ -459,7 +383,7 @@ const serverMonitorApp = {
     },
 
     destroyCharts() {
-        ['cpuChart', 'memoryChart', 'networkRateChart', 'networkTotalChart'].forEach(chartKey => {
+        ['cpuChart', 'memoryChart', 'networkRateChart', 'vnstatTrafficChart'].forEach(chartKey => {
             if (this[chartKey]) {
                 this[chartKey].destroy();
                 this[chartKey] = null;
@@ -492,11 +416,6 @@ const serverMonitorApp = {
     formatPercent(value) {
         const numericValue = Number(value || 0);
         return `${numericValue.toFixed(2)}%`;
-    },
-
-    bytesToGbValue(bytes) {
-        const value = Number(bytes || 0) / (1024 * 1024 * 1024);
-        return Number.isFinite(value) ? value.toFixed(2) : '0.00';
     },
 
     formatBytes(value) {
