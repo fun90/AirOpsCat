@@ -2,12 +2,17 @@
 set -euo pipefail
 
 VERSION="${1:-}"
-HOST="${AIROPSCAT_DEPLOY_HOST:-root@ssh.fun90.com}"
+HOST="${AIROPSCAT_DEPLOY_HOST:-}"
 APP_DIR="${AIROPSCAT_DEPLOY_DIR:-/data/airopscat}"
 SERVICE="${AIROPSCAT_DEPLOY_SERVICE:-airopscat}"
 
 if [[ -z "$VERSION" ]]; then
   echo "Usage: $0 <version>" >&2
+  exit 64
+fi
+
+if [[ -z "$HOST" ]]; then
+  echo "AIROPSCAT_DEPLOY_HOST is required. Set it to the production SSH target, for example user@host." >&2
   exit 64
 fi
 
