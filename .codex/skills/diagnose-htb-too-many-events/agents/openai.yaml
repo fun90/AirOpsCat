@@ -1,4 +1,0 @@
-interface:
-  display_name: "诊断 HTB 事件告警"
-  short_description: "分析 htb: too many events 内核日志"
-  default_prompt: "Use $diagnose-htb-too-many-events to analyze an htb: too many events kernel log with tc and journalctl output."
