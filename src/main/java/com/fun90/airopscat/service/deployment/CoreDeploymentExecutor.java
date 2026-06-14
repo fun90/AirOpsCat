@@ -6,11 +6,9 @@ import com.fun90.airopscat.model.dto.deployment.CoreDeploymentExecution;
 import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Server;
-import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.NodeRepository;
-import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.ratelimit.RateLimitService;
@@ -25,7 +23,6 @@ import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -39,7 +36,6 @@ public class CoreDeploymentExecutor {
 
     private static final String CORE_TYPE_SING_BOX = "sing-box";
     private final CoreManagementService coreManagementService;
-    private final ServerConfigRepository serverConfigRepository;
     private final NodeRepository nodeRepository;
     private final SingBoxConfigBuilder singBoxConfigBuilder;
     private final NodeDeploymentVersionService nodeDeploymentVersionService;
@@ -51,7 +47,6 @@ public class CoreDeploymentExecutor {
 
     @Inject
     public CoreDeploymentExecutor(CoreManagementService coreManagementService,
-                                  ServerConfigRepository serverConfigRepository,
                                   NodeRepository nodeRepository,
                                   SingBoxConfigBuilder singBoxConfigBuilder,
                                   NodeDeploymentVersionService nodeDeploymentVersionService,
@@ -61,7 +56,6 @@ public class CoreDeploymentExecutor {
                                   RateLimitService rateLimitService,
                                   @Named("deploymentTaskExecutor") ExecutorService executorService) {
         this.coreManagementService = coreManagementService;
-        this.serverConfigRepository = serverConfigRepository;
         this.nodeRepository = nodeRepository;
         this.singBoxConfigBuilder = singBoxConfigBuilder;
         this.nodeDeploymentVersionService = nodeDeploymentVersionService;
@@ -191,7 +185,6 @@ public class CoreDeploymentExecutor {
                     .map(node -> toFailureResult(node, execution.message()))
                     .collect(Collectors.toList());
         }
-        saveServerConfig(execution.server(), execution.coreType(), execution.config());
         List<DeploymentResult> results = updateNodeDeploymentStatus(execution.nodes(), execution.server().getId());
         nodeDeploymentVersionService.recordSuccessfulDeployments(
                 results.stream()
@@ -202,39 +195,6 @@ public class CoreDeploymentExecutor {
                         .toList()
         );
         return results;
-    }
-
-    private void saveServerConfig(Server server, String coreType, String config) {
-        ServerConfig serverConfig = serverConfigRepository
-                .findByServerIdAndConfigType(server.getId(), coreType)
-                .orElseGet(() -> newServerConfig(server.getId(), coreType));
-        serverConfig.setConfig(config);
-        serverConfig.setEnabled(1);
-        serverConfig.setUpdateTime(LocalDateTime.now());
-        serverConfigRepository.persist(serverConfig);
-        reconcileServerConfigStatuses(server.getId());
-    }
-
-    private void reconcileServerConfigStatuses(Long serverId) {
-        for (ServerConfig serverConfig : serverConfigRepository.findByServerId(serverId)) {
-            boolean shouldEnable = CORE_TYPE_SING_BOX.equalsIgnoreCase(serverConfig.getConfigType())
-                    && hasActiveNodeUsage(serverId);
-            serverConfig.setEnabled(shouldEnable ? 1 : 0);
-        }
-    }
-
-    private boolean hasActiveNodeUsage(Long serverId) {
-        return nodeRepository.countActiveByServerAssociation(serverId) > 0;
-    }
-
-    private ServerConfig newServerConfig(Long serverId, String coreType) {
-        ServerConfig serverConfig = new ServerConfig();
-        serverConfig.setServerId(serverId);
-        serverConfig.setConfigType(coreType);
-        serverConfig.setCreateTime(LocalDateTime.now());
-        serverConfig.setEnabled(1);
-        serverConfig.setPath("/etc/sing-box/config.json");
-        return serverConfig;
     }
 
     private List<DeploymentResult> updateNodeDeploymentStatus(List<Node> nodes, Long serverId) {

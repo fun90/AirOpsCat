@@ -1,7 +1,6 @@
 package com.fun90.airopscat.singbox;
 
 import com.fun90.airopscat.model.entity.Server;
-import com.fun90.airopscat.model.entity.ServerConfig;
 import com.fun90.airopscat.proto.v2rayapi.QueryStatsRequest;
 import com.fun90.airopscat.proto.v2rayapi.QueryStatsResponse;
 import com.fun90.airopscat.proto.v2rayapi.Stat;
@@ -25,7 +24,7 @@ public class SingBoxTrafficStatsCollector {
     @Inject
     SingBoxGrpcQueryClient grpcQueryClient;
 
-    public Map<String, UserTrafficStats> collectUserTrafficStats(SshConnection connection, Server server, ServerConfig serverConfig) {
+    public Map<String, UserTrafficStats> collectUserTrafficStats(SshConnection connection, Server server) {
         try {
             QueryStatsResponse response = grpcQueryClient.queryStats(connection, QueryStatsRequest.newBuilder()
                     .setReset(true)

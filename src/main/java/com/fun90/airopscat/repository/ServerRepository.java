@@ -1,6 +1,7 @@
 package com.fun90.airopscat.repository;
 
 import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -56,6 +57,40 @@ public class ServerRepository implements PanacheRepository<Server> {
         return find("(disabled = 0 or disabled is null) " +
                 "and (external = 0 or external is null) " +
                 "and (expireDate is null or expireDate >= ?1)", date).list();
+    }
+
+    public List<Server> findRuntimeTargetServers(LocalDate date) {
+        return find("select distinct s from Server s " +
+                "where (s.disabled = 0 or s.disabled is null) " +
+                "and (s.external = 0 or s.external is null) " +
+                "and (s.expireDate is null or s.expireDate >= ?1) " +
+                "and exists (select n.id from Node n " +
+                "where n.serverId = s.id " +
+                "and (n.disabled = 0 or n.disabled is null) " +
+                "and n.deployed = ?2)",
+                date, NodeDeploymentStatus.DEPLOYED.getValue()).list();
+    }
+
+    public boolean isRuntimeTargetServer(Long serverId, LocalDate date) {
+        if (serverId == null) {
+            return false;
+        }
+        Long count = getEntityManager().createQuery(
+                        "select count(s.id) from Server s " +
+                                "where s.id = :serverId " +
+                                "and (s.disabled = 0 or s.disabled is null) " +
+                                "and (s.external = 0 or s.external is null) " +
+                                "and (s.expireDate is null or s.expireDate >= :date) " +
+                                "and exists (select n.id from Node n " +
+                                "where n.serverId = s.id " +
+                                "and (n.disabled = 0 or n.disabled is null) " +
+                                "and n.deployed = :deployed)",
+                        Long.class)
+                .setParameter("serverId", serverId)
+                .setParameter("date", date)
+                .setParameter("deployed", NodeDeploymentStatus.DEPLOYED.getValue())
+                .getSingleResult();
+        return count != null && count > 0;
     }
 
 

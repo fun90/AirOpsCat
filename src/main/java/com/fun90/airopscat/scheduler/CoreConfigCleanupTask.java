@@ -2,9 +2,6 @@ package com.fun90.airopscat.scheduler;
 
 import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.entity.Server;
-import com.fun90.airopscat.model.entity.ServerConfig;
-import com.fun90.airopscat.model.enums.CoreType;
-import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.BarkService;
 import com.fun90.airopscat.service.ssh.SshConnection;
@@ -14,21 +11,12 @@ import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Slf4j
 @ApplicationScoped
 public class CoreConfigCleanupTask {
-    private static final Set<String> SUPPORTED_CORE_TYPES = Arrays.stream(CoreType.values())
-            .map(CoreType::getValue)
-            .collect(Collectors.toUnmodifiableSet());
-
-    @Inject
-    ServerConfigRepository serverConfigRepository;
+    static final String SING_BOX_CONFIG_PATH = "/etc/sing-box/config.json";
 
     @Inject
     ServerRepository serverRepository;
@@ -46,65 +34,36 @@ public class CoreConfigCleanupTask {
         log.info("开始执行定时任务：清理内核配置旧备份文件");
 
         try {
-            List<ServerConfig> coreConfigs = serverConfigRepository.findAll().list().stream()
-                    .filter(serverConfig -> isSupportedCoreType(serverConfig.getConfigType()))
-                    .toList();
-            if (coreConfigs.isEmpty()) {
-                log.info("没有找到需要清理的内核配置，任务结束");
+            List<Server> servers = loadRuntimeTargetServers();
+            if (servers.isEmpty()) {
+                log.info("没有找到需要清理的目标服务器，任务结束");
                 return;
             }
 
-            Map<Long, Server> serverMap = serverRepository.findByIdIn(coreConfigs.stream()
-                            .map(ServerConfig::getServerId)
-                            .distinct()
-                            .toList())
-                    .stream()
-                    .collect(Collectors.toMap(Server::getId, server -> server));
-
-            log.info("找到 {} 个内核配置，支持的内核类型: {}", coreConfigs.size(), SUPPORTED_CORE_TYPES);
-
-            LocalDate today = LocalDate.now();
+            String configDir = scheduledSupport.resolveParentDirectory(SING_BOX_CONFIG_PATH);
+            log.info("找到 {} 台需要清理备份的目标服务器", servers.size());
             int totalCleaned = 0;
             int successCount = 0;
             int failureCount = 0;
 
-            for (ServerConfig serverConfig : coreConfigs) {
+            for (Server server : servers) {
                 try {
-                    Server server = serverMap.get(serverConfig.getServerId());
-                    if (server == null) {
-                        log.warn("服务器 {} 不存在，跳过", serverConfig.getServerId());
-                        continue;
-                    }
-                    if (scheduledSupport.isInvalidServer(server, today)) {
-                        log.info("服务器 {} 为托管、禁用或过期状态，跳过内核配置清理，configType={}",
-                                server.getId(), serverConfig.getConfigType());
-                        continue;
-                    }
-
-                    String configDir = scheduledSupport.resolveParentDirectory(serverConfig.getPath());
-                    if (configDir == null) {
-                        log.warn("服务器 {} 的内核配置路径为空，跳过，configType={}",
-                                server.getId(), serverConfig.getConfigType());
-                        continue;
-                    }
-
                     int cleanedCount = cleanupServerBackupFiles(server, configDir);
                     totalCleaned += cleanedCount;
                     successCount++;
 
-                    log.info("服务器 {} 清理了 {} 个旧备份文件，configType={}",
-                            server.getName(), cleanedCount, serverConfig.getConfigType());
+                    log.info("服务器 {} 清理了 {} 个旧备份文件", server.getName(), cleanedCount);
                 } catch (Exception e) {
-                    log.error("处理服务器配置 {} 时发生错误: {}", serverConfig.getId(), e.getMessage(), e);
+                    log.error("处理服务器 {} 时发生错误: {}", server.getId(), e.getMessage(), e);
                     failureCount++;
                 }
             }
 
-            log.info("内核配置备份清理完成 - 总共清理: {} 个文件, 成功处理: {} 个配置, 失败: {} 个配置",
+            log.info("内核配置备份清理完成 - 总共清理: {} 个文件, 成功处理: {} 台服务器, 失败: {} 台服务器",
                     totalCleaned, successCount, failureCount);
 
             if (totalCleaned > 0 || failureCount > 0) {
-                String message = String.format("清理了 %d 个内核配置旧备份文件，成功处理: %d 个配置，失败: %d 个配置",
+                String message = String.format("清理了 %d 个内核配置旧备份文件，成功处理: %d 台服务器，失败: %d 台服务器",
                         totalCleaned, successCount, failureCount);
                 if (failureCount > 0) {
                     barkService.sendWarningNotification("AirOpsCat 内核配置清理", message);
@@ -120,7 +79,11 @@ public class CoreConfigCleanupTask {
         log.info("内核配置清理任务执行完成");
     }
 
-    private int cleanupServerBackupFiles(Server server, String configDir) {
+    List<Server> loadRuntimeTargetServers() {
+        return serverRepository.findRuntimeTargetServers(LocalDate.now());
+    }
+
+    int cleanupServerBackupFiles(Server server, String configDir) {
         int cleanedCount = 0;
 
         try (SshConnection connection = sshConnectionService.createConnection(
@@ -165,12 +128,5 @@ public class CoreConfigCleanupTask {
         }
 
         return cleanedCount;
-    }
-
-    private boolean isSupportedCoreType(String configType) {
-        if (configType == null || configType.isBlank()) {
-            return false;
-        }
-        return SUPPORTED_CORE_TYPES.contains(configType.trim().toLowerCase());
     }
 }

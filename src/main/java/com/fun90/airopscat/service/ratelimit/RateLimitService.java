@@ -9,7 +9,6 @@ import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
-import com.fun90.airopscat.repository.ServerConfigRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.scheduler.ScheduledSupport;
 import com.fun90.airopscat.service.AccountTrafficLimitService;
@@ -66,9 +65,6 @@ public class RateLimitService {
     AccountTrafficStatsRepository accountTrafficStatsRepository;
 
     @Inject
-    ServerConfigRepository serverConfigRepository;
-
-    @Inject
     SshConnectionService sshConnectionService;
 
     @Inject
@@ -108,7 +104,7 @@ public class RateLimitService {
         if (server == null) {
             return;
         }
-        if (!isEnabledSingBoxServer(server.getId())) {
+        if (!isRuntimeTargetServer(server.getId())) {
             return;
         }
         pushSingBoxConfig(server);
@@ -156,7 +152,7 @@ public class RateLimitService {
                 return;
             }
 
-            List<Server> servers = findEnabledSingBoxServers();
+            List<Server> servers = findRuntimeTargetServers();
             if (servers.isEmpty()) {
                 log.info("未找到启用 sing-box 的服务器，跳过限速配置同步");
                 return;
@@ -277,22 +273,12 @@ public class RateLimitService {
         return new RateLimitSnapshot(syncAllSequence.get(), snapshotTime, accountMap, currentStatsMap);
     }
 
-    private List<Server> findEnabledSingBoxServers() {
-        Set<Long> singBoxServerIds = findEnabledSingBoxServerIds();
-        if (singBoxServerIds.isEmpty()) {
-            return List.of();
-        }
-        return serverRepository.findMonitorableServers(LocalDate.now()).stream()
-                .filter(server -> singBoxServerIds.contains(server.getId()))
-                .toList();
+    List<Server> findRuntimeTargetServers() {
+        return serverRepository.findRuntimeTargetServers(LocalDate.now());
     }
 
-    private Set<Long> findEnabledSingBoxServerIds() {
-        return serverConfigRepository.findEnabledServerIdsByConfigTypes(List.of("sing-box", "singbox"));
-    }
-
-    private boolean isEnabledSingBoxServer(Long serverId) {
-        return serverId != null && findEnabledSingBoxServerIds().contains(serverId);
+    boolean isRuntimeTargetServer(Long serverId) {
+        return serverRepository.isRuntimeTargetServer(serverId, LocalDate.now());
     }
 
     public void triggerAsyncSync() {
