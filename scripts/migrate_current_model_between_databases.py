@@ -219,19 +219,6 @@ TABLE_MAPPINGS: "OrderedDict[str, OrderedDict[str, str]]" = OrderedDict(
                 "update_time": raw("update_time"),
             }
         ),
-        "server_config": OrderedDict(
-            {
-                "id": raw("id"),
-                "server_id": raw("server_id"),
-                "config": raw("config"),
-                "config_type": raw("config_type"),
-                "path": raw("path"),
-                "description": raw("description"),
-                "enabled": raw("enabled"),
-                "create_time": raw("create_time"),
-                "update_time": raw("update_time"),
-            }
-        ),
         "server_host": OrderedDict(
             {
                 "id": raw("id"),
