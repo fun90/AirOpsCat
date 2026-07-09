@@ -58,6 +58,8 @@ class ServerServiceConnectionTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 sshConnectionService,
                 new ServerSshConfigFactory()
         );
