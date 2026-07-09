@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -25,6 +26,12 @@ public class AccountOnlineLimitAlertService {
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_RECOVERED = "RECOVERED";
     private static final String SEVERITY_WARNING = "WARNING";
+    private static final int DEFAULT_CONSECUTIVE_TIMES = 2;
+
+    /**
+     * 记录每个账户连续超限的次数，未达到连续次数前不触发告警，账户恢复正常或不再受限时清零。
+     */
+    private final Map<String, Integer> consecutiveExceedCounts = new ConcurrentHashMap<>();
 
     private final AccountRepository accountRepository;
     private final AccountOnlineIpService accountOnlineIpService;
@@ -77,16 +84,30 @@ public class AccountOnlineLimitAlertService {
     private void checkAccount(Account account, List<AccountOnlineIpDto> records, LocalDateTime now) {
         int limit = account.getMaxConnections() == null ? 0 : account.getMaxConnections();
         if (limit <= 0) {
+            consecutiveExceedCounts.remove(account.getAccountNo());
             return;
         }
 
         int connectionCount = records.size();
         if (connectionCount > limit) {
-            triggerAlert(account, records, limit, connectionCount, now);
+            int consecutiveTimes = consecutiveExceedCounts.merge(account.getAccountNo(), 1, Integer::sum);
+            int requiredTimes = getConsecutiveTimesThreshold();
+            if (consecutiveTimes >= requiredTimes) {
+                triggerAlert(account, records, limit, connectionCount, now);
+            } else {
+                log.debug("账户连接数超限，未达到连续{}次阈值，当前连续次数: {}, accountNo={}",
+                        requiredTimes, consecutiveTimes, account.getAccountNo());
+            }
             return;
         }
 
+        consecutiveExceedCounts.remove(account.getAccountNo());
         recoverAlert(account, connectionCount, limit, "当前连接数 " + connectionCount + "，限制 " + limit, now);
+    }
+
+    private int getConsecutiveTimesThreshold() {
+        return Math.max(1, systemConfigService.getIntValue(
+                "airopscat.account.connection-limit.alert.consecutive-times", DEFAULT_CONSECUTIVE_TIMES));
     }
 
     private void triggerAlert(Account account,
