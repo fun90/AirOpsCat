@@ -29,4 +29,11 @@ public class RouteRuleRepository implements PanacheRepository<RouteRule> {
         }
         return find("outboundNodeId in ?1", outboundNodeIds).list();
     }
+
+    public List<RouteRule> findByServerId(Long serverId) {
+        if (serverId == null) {
+            return List.of();
+        }
+        return find("select distinct rr from RouteRule rr join rr.servers s where s.id = ?1", serverId).list();
+    }
 }
