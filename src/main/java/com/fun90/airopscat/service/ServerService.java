@@ -365,6 +365,7 @@ public class ServerService {
     public void deleteServer(Long id) {
         serverMonitorStatsService.deleteByServerId(id);
         serverTrafficStatsService.deleteByServerId(id);
+        serverHostService.deleteHostsByServerId(id);
         serverRepository.deleteById(id);
     }
 

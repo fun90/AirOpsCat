@@ -189,6 +189,21 @@ public class ServerHostService {
         return persistedHosts;
     }
 
+    @Transactional
+    public void deleteHostsByServerId(Long serverId) {
+        if (serverId == null) {
+            return;
+        }
+        List<Long> hostIds = serverHostRepository.findByServerId(serverId).stream()
+                .map(ServerHost::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (!hostIds.isEmpty()) {
+            nodeRepository.clearAccessHostIds(hostIds);
+        }
+        serverHostRepository.deleteByServerId(serverId);
+    }
+
     public List<String> getResolvedHosts(Server server) {
         return toDtos(getHostsByServerId(server != null ? server.getId() : null), server).stream()
                 .map(ServerHostDto::getHost)
