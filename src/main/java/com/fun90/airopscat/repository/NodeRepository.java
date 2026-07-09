@@ -105,6 +105,21 @@ public class NodeRepository implements PanacheRepository<Node> {
         return update("accessHostId = null where accessHostId in ?1", accessHostIds);
     }
 
+    public int clearAccessHostIdsByServerId(Long serverId) {
+        if (serverId == null) {
+            return 0;
+        }
+        return getEntityManager().createNativeQuery("""
+                        UPDATE node
+                        SET access_host_id = NULL
+                        WHERE access_host_id IN (
+                            SELECT id FROM server_host WHERE server_id = ?1
+                        )
+                        """)
+                .setParameter(1, serverId)
+                .executeUpdate();
+    }
+
     public long countProxyNodes() {
         return count("type = 0");
     }

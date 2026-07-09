@@ -194,13 +194,7 @@ public class ServerHostService {
         if (serverId == null) {
             return;
         }
-        List<Long> hostIds = serverHostRepository.findByServerId(serverId).stream()
-                .map(ServerHost::getId)
-                .filter(Objects::nonNull)
-                .toList();
-        if (!hostIds.isEmpty()) {
-            nodeRepository.clearAccessHostIds(hostIds);
-        }
+        nodeRepository.clearAccessHostIdsByServerId(serverId);
         serverHostRepository.deleteByServerId(serverId);
     }
 
