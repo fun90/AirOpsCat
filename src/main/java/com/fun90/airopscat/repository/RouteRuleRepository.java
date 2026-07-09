@@ -30,10 +30,12 @@ public class RouteRuleRepository implements PanacheRepository<RouteRule> {
         return find("outboundNodeId in ?1", outboundNodeIds).list();
     }
 
-    public List<RouteRule> findByServerId(Long serverId) {
+    public int deleteServerBindings(Long serverId) {
         if (serverId == null) {
-            return List.of();
+            return 0;
         }
-        return find("select distinct rr from RouteRule rr join rr.servers s where s.id = ?1", serverId).list();
+        return getEntityManager().createNativeQuery("DELETE FROM route_rule_server WHERE server_id = ?1")
+                .setParameter(1, serverId)
+                .executeUpdate();
     }
 }

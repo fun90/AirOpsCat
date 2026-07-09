@@ -374,8 +374,7 @@ public class ServerService {
         if (nodeRepository.count("serverId", id) > 0) {
             throw new IllegalStateException("服务器下还有节点，不能删除");
         }
-        routeRuleRepository.findByServerId(id)
-                .forEach(routeRule -> routeRule.getServers().removeIf(server -> Objects.equals(server.getId(), id)));
+        routeRuleRepository.deleteServerBindings(id);
         serverMonitorStatsService.deleteByServerId(id);
         serverTrafficStatsService.deleteByServerId(id);
         serverHostService.deleteHostsByServerId(id);
