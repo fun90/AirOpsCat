@@ -154,6 +154,11 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     // MySQL JDBC classes loaded reflectively in native mode
     com.mysql.cj.PerConnectionLRUFactory.class,
 
+    // JSch classes loaded reflectively in native mode
+    com.jcraft.jsch.bc.SignatureEd25519.class,
+    com.jcraft.jsch.bc.SignatureEd448.class,
+    com.jcraft.jsch.bc.KeyPairGenEdDSA.class,
+
     // Time-related classes (Java standard classes are automatically registered)
     java.time.LocalDateTime.class,
     java.time.LocalDate.class,

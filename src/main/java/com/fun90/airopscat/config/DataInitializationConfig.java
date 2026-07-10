@@ -46,6 +46,10 @@ public class DataInitializationConfig {
 
     @Transactional
     public void onStart(@Observes StartupEvent event) {
+        if (SshSmokeTestMode.isEnabled()) {
+            log.info("SSH smoke test mode enabled, skipping data initialization");
+            return;
+        }
         initializeSystemConfigs();
         initializeNodeCoreType();
         initializeServerHosts();

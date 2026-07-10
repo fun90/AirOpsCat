@@ -19,6 +19,10 @@ public class ObsoleteConfigTableMigration {
     AgroalDataSource dataSource;
 
     void onStart(@Observes StartupEvent event) {
+        if (SshSmokeTestMode.isEnabled()) {
+            log.info("SSH smoke test mode enabled, skipping obsolete config table migration");
+            return;
+        }
         dropObsoleteConfigTable();
     }
 
