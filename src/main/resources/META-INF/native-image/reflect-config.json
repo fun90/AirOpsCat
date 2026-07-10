@@ -32,6 +32,21 @@
     "allDeclaredConstructors": true
   },
   {
+    "name": "com.jcraft.jsch.bc.SignatureEd25519",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.jcraft.jsch.bc.SignatureEd448",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.jcraft.jsch.bc.KeyPairGenEdDSA",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "com.jcraft.jsch.jce.KeyPairGenRSA",
     "allDeclaredConstructors": true
   },

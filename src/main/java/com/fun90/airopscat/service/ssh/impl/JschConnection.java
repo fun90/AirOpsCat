@@ -2,6 +2,7 @@ package com.fun90.airopscat.service.ssh.impl;
 
 import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.SshConfig;
+import com.fun90.airopscat.config.SshSmokeTestMode;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshLocalPortForward;
 import com.jcraft.jsch.*;
@@ -11,6 +12,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Constructor;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,6 +29,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 public class JschConnection implements SshConnection {
+
+    private static final Class<? extends Signature> ED25519_SIGNATURE_CLASS =
+            com.jcraft.jsch.bc.SignatureEd25519.class;
+    private static final Class<? extends Signature> ED448_SIGNATURE_CLASS =
+            com.jcraft.jsch.bc.SignatureEd448.class;
+    private static final Class<? extends KeyPairGenEdDSA> EDDSA_KEY_PAIR_GENERATOR_CLASS =
+            com.jcraft.jsch.bc.KeyPairGenEdDSA.class;
 
     private static final String PUBLIC_KEY_ALGORITHMS = String.join(",",
             "ssh-ed25519",
@@ -53,8 +62,54 @@ public class JschConnection implements SshConnection {
     
     public JschConnection(SshConfig config) {
         this.config = config;
+        configureEdDsaProvider();
         this.jsch = new JSch();
         this.jsch.setInstanceLogger(new SanitizedJschLogger());
+    }
+
+    private static void configureEdDsaProvider() {
+        JSch.setConfig("ssh-ed25519", ED25519_SIGNATURE_CLASS.getName());
+        JSch.setConfig("ssh-ed448", ED448_SIGNATURE_CLASS.getName());
+        JSch.setConfig("keypairgen.eddsa", EDDSA_KEY_PAIR_GENERATOR_CLASS.getName());
+        if (SshSmokeTestMode.isEnabled()) {
+            log.info("JSch EdDSA配置: ssh-ed25519={}, ssh-ed448={}, keypairgen.eddsa={}",
+                    JSch.getConfig("ssh-ed25519"),
+                    JSch.getConfig("ssh-ed448"),
+                    JSch.getConfig("keypairgen.eddsa"));
+            checkSignatureAvailability("ssh-ed25519");
+            checkSignatureAvailability("ssh-ed448");
+            checkKeyPairGeneratorAvailability();
+        }
+    }
+
+    private static void checkSignatureAvailability(String algorithm) {
+        String className = JSch.getConfig(algorithm);
+        try {
+            Class<?> signatureClass = Class.forName(className);
+            Constructor<?> constructor = signatureClass.getDeclaredConstructor();
+            constructor.setAccessible(true);
+            Signature signature = (Signature) constructor.newInstance();
+            signature.init();
+            log.info("JSch签名算法可用: algorithm={}, class={}", algorithm, className);
+        } catch (Throwable e) {
+            log.error("JSch签名算法不可用: algorithm={}, class={}", algorithm, className, e);
+        }
+    }
+
+    private static void checkKeyPairGeneratorAvailability() {
+        String className = JSch.getConfig("keypairgen.eddsa");
+        try {
+            Class<?> keyPairGeneratorClass = Class.forName(className);
+            Constructor<?> constructor = keyPairGeneratorClass.getDeclaredConstructor();
+            constructor.setAccessible(true);
+            KeyPairGenEdDSA keyPairGenerator = (KeyPairGenEdDSA) constructor.newInstance();
+            keyPairGenerator.init("Ed25519", 256);
+            log.info("JSch EdDSA密钥生成器可用: class={}, pubKeyLength={}",
+                    className,
+                    keyPairGenerator.getPub() == null ? 0 : keyPairGenerator.getPub().length);
+        } catch (Throwable e) {
+            log.error("JSch EdDSA密钥生成器不可用: class={}", className, e);
+        }
     }
     
     @Override
@@ -309,6 +364,9 @@ public class JschConnection implements SshConnection {
 
         @Override
         public boolean isEnabled(int level) {
+            if (SshSmokeTestMode.isEnabled()) {
+                return true;
+            }
             return level >= Logger.WARN ? log.isWarnEnabled() : log.isDebugEnabled();
         }
 
@@ -320,6 +378,8 @@ public class JschConnection implements SshConnection {
                 log.warn("JSch: {}", safeMessage);
             } else if (level >= Logger.WARN) {
                 log.warn("JSch: {}", safeMessage);
+            } else if (SshSmokeTestMode.isEnabled()) {
+                log.info("JSch: {}", safeMessage);
             } else {
                 log.debug("JSch: {}", safeMessage);
             }

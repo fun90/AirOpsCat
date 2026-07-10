@@ -22,6 +22,10 @@ public class ServerAuthColumnMigration {
     AgroalDataSource dataSource;
 
     void onStart(@Observes StartupEvent event) {
+        if (SshSmokeTestMode.isEnabled()) {
+            log.info("SSH smoke test mode enabled, skipping server auth column migration");
+            return;
+        }
         ensureAuthColumnCanStoreEncryptedKeys();
     }
 

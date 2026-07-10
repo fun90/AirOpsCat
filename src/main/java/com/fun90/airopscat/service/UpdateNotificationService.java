@@ -2,6 +2,7 @@ package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.client.GitHubApiClient;
 import com.fun90.airopscat.config.AppConstants;
+import com.fun90.airopscat.config.SshSmokeTestMode;
 import com.fun90.airopscat.model.dto.GitHubReleaseDto;
 import com.fun90.airopscat.util.VersionUtil;
 import io.quarkus.runtime.StartupEvent;
@@ -37,6 +38,11 @@ public class UpdateNotificationService {
     ExecutorService blockingTaskExecutor;
 
     void onStart(@Observes StartupEvent event) {
+        if (SshSmokeTestMode.isEnabled()) {
+            log.info("SSH smoke test mode enabled, skipping update notification");
+            return;
+        }
+
         // 异步执行版本检查，避免阻塞应用启动
         CompletableFuture.runAsync(this::checkForUpdates, blockingTaskExecutor)
                 .exceptionally(throwable -> {
