@@ -368,8 +368,9 @@ public class AccountService {
 
         normalizeAndValidateUuid(account);
 
-        // 记录限速相关字段的旧值
+        // 记录会影响 sing-box 用户配置的旧值
         String oldAccountNo = existingAccount.getAccountNo();
+        Integer oldMaxIps = existingAccount.getMaxIps();
         Integer oldDownloadMbps = existingAccount.getDownloadMbps();
         Integer oldUploadMbps = existingAccount.getUploadMbps();
 
@@ -377,16 +378,18 @@ public class AccountService {
         copyNonNullProperties(account, existingAccount);
 
         // 允许显式清空的字段：copyNonNullProperties 会跳过 null，需在此单独覆盖
+        existingAccount.setMaxIps(account.getMaxIps());
         existingAccount.setDownloadMbps(account.getDownloadMbps());
         existingAccount.setUploadMbps(account.getUploadMbps());
 
         accountRepository.persist(existingAccount);
 
-        // 当 accountNo、downloadMbps 或 uploadMbps 发生变化时触发限速同步
+        // 当下发到 sing-box 用户配置的字段发生变化时触发同步
         boolean accountNoChanged = !Objects.equals(oldAccountNo, existingAccount.getAccountNo());
-        boolean mbpsChanged = !Objects.equals(oldDownloadMbps, existingAccount.getDownloadMbps())
+        boolean runtimeConfigChanged = !Objects.equals(oldMaxIps, existingAccount.getMaxIps())
+                || !Objects.equals(oldDownloadMbps, existingAccount.getDownloadMbps())
                 || !Objects.equals(oldUploadMbps, existingAccount.getUploadMbps());
-        if (accountNoChanged || mbpsChanged) {
+        if (accountNoChanged || runtimeConfigChanged) {
             rateLimitService.triggerAsyncSync();
         }
 

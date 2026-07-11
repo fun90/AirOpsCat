@@ -954,7 +954,7 @@ const accountTable = new DataTable({
                 uuid: this.newItem.uuid || null, // Will be generated on server if null
                 authCode: this.newItem.authCode || null, // Will be generated on server if null
                 maxConnections: this.newItem.maxConnections || null,
-                maxIps: this.newItem.maxIps || null,
+                maxIps: this.newItem.maxIps > 0 ? Number(this.newItem.maxIps) : null,
                 speed: this.newItem.speed || null,
                 bandwidth: this.newItem.bandwidth || null,
                 downloadMbps: this.newItem.downloadMbps > 0 ? this.newItem.downloadMbps : null,
@@ -976,7 +976,7 @@ const accountTable = new DataTable({
                 toDate: this.editedItem.toDate || null,
                 periodType: this.editedItem.periodType,
                 maxConnections: this.editedItem.maxConnections,
-                maxIps: this.editedItem.maxIps,
+                maxIps: this.editedItem.maxIps > 0 ? Number(this.editedItem.maxIps) : null,
                 speed: this.editedItem.speed,
                 bandwidth: this.editedItem.bandwidth,
                 downloadMbps: this.editedItem.downloadMbps > 0 ? this.editedItem.downloadMbps : null,
