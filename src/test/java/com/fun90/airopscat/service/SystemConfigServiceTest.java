@@ -24,6 +24,15 @@ class SystemConfigServiceTest {
         assertEquals(60, intervalMinutes);
     }
 
+    @Test
+    void shouldSupportAccountGuardTtlSecondsConfig() {
+        SystemConfigService service = new SystemConfigService(new EmptySystemConfigRepository(), null, new EmptyConfig());
+
+        int ttlSeconds = service.getIntValue("airopscat.account.guard.ttl-seconds", 10);
+
+        assertEquals(15, ttlSeconds);
+    }
+
     static class EmptySystemConfigRepository extends SystemConfigRepository {
         @Override
         public Optional<SystemConfig> findOptionalByConfigKey(String configKey) {
