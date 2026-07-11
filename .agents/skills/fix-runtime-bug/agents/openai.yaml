@@ -1,0 +1,4 @@
+interface:
+  display_name: "运行时 Bug 修复"
+  short_description: "从日志到复现、修复、验证、发版部署的项目流程"
+  default_prompt: "Use $fix-runtime-bug to diagnose a runtime error from logs, implement the fix, verify locally, and prepare release/deployment."
