@@ -5,5 +5,6 @@ public record NodeClient(
         String email,
         String flow,
         Integer downloadMbps,
-        Integer uploadMbps
+        Integer uploadMbps,
+        Integer maxIps
 ) {}

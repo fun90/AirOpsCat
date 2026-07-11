@@ -263,6 +263,7 @@ public class AccountService {
             dto.setNodeMultiple(account.getNodeMultiple());
             dto.setNodePrefix(account.getNodePrefix());
             dto.setMaxConnections(account.getMaxConnections());
+            dto.setMaxIps(account.getMaxIps());
             dto.setDownloadMbps(account.getDownloadMbps());
             dto.setUploadMbps(account.getUploadMbps());
 

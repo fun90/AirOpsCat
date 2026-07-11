@@ -45,6 +45,13 @@ public class Account {
     private Integer maxConnections;
 
     /**
+     * 账户跨节点总去重 IP 数上限（近似最大同时在用设备/地点数），
+     * 空或 <= 0 表示不限制。防共享主判据，独立于 maxConnections（连接数）。
+     */
+    @Column(name = "max_ips")
+    private Integer maxIps;
+
+    /**
      * 账号限速（KB/s），0 或 null 表示不限速
      */
     private Integer speed;
