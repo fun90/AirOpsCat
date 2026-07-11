@@ -184,6 +184,11 @@ public class SingBoxConfigBuilder {
         if (uploadMbps != null && uploadMbps > 0) {
             user.put("upload_mbps", uploadMbps);
         }
+        // 单节点兜底：账户最大 IP/设备数，静态下发（跨节点总量限制由 account-quota 配额表负责）
+        Integer maxIps = client.maxIps();
+        if (maxIps != null && maxIps > 0) {
+            user.put("max_ips", maxIps);
+        }
     }
 
     private List<Map<String, Object>> mergeUsers(List<Map<String, Object>> currentUsers,

@@ -334,7 +334,7 @@ public class DeploymentDataLoader {
 
     private NodeClient toVlessClient(Account account) {
         return new NodeClient(account.getUuid(), account.getAccountNo(), "xtls-rprx-vision",
-                account.getDownloadMbps(), account.getUploadMbps());
+                account.getDownloadMbps(), account.getUploadMbps(), account.getMaxIps());
     }
 
     private boolean supportsManagedClients(Node node) {
