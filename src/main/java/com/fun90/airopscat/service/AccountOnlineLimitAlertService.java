@@ -79,6 +79,7 @@ public class AccountOnlineLimitAlertService {
             }
         }
 
+        consecutiveExceedCounts.keySet().removeIf(accountNo -> !accountByNo.containsKey(accountNo));
         recoverInactiveAlerts(accountByNo, recordsByAccount, now);
     }
 
@@ -219,11 +220,13 @@ public class AccountOnlineLimitAlertService {
         for (AlertState state : alertStateRepository.findActiveByAlertType(ALERT_TYPE)) {
             Account account = accountByNo.get(state.getResourceKey());
             if (account == null || account.getMaxConnections() == null || account.getMaxConnections() <= 0) {
+                consecutiveExceedCounts.remove(state.getResourceKey());
                 recoverState(state, 0, 0, "账户已不再需要连接数超限告警", now);
                 continue;
             }
             int connectionCount = recordsByAccount.getOrDefault(account.getAccountNo(), List.of()).size();
             if (connectionCount <= account.getMaxConnections()) {
+                consecutiveExceedCounts.remove(account.getAccountNo());
                 recoverState(state, connectionCount, account.getMaxConnections(),
                         "当前连接数 " + connectionCount + "，限制 " + account.getMaxConnections(), now);
             }
