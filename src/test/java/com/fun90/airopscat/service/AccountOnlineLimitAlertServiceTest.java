@@ -37,6 +37,9 @@ class AccountOnlineLimitAlertServiceTest {
                 accountRepository, onlineIpService, alertStateRepository, barkService, configService);
 
         service.checkAndNotify();
+        assertEquals(0, alertStateRepository.states.size());
+        assertEquals(0, barkService.warningCount);
+
         service.checkAndNotify();
 
         assertEquals(1, alertStateRepository.states.size());
@@ -78,6 +81,35 @@ class AccountOnlineLimitAlertServiceTest {
         assertNotNull(state.getRecoveredTime());
         assertEquals(1, barkService.warningCount);
         assertEquals(0, barkService.infoCount);
+    }
+
+    @Test
+    void shouldClearConsecutiveCountWhenConnectionCountRecoversBetweenChecks() {
+        Account account = account(1L, "acct-001", 1);
+        FakeAccountRepository accountRepository = new FakeAccountRepository(List.of(account));
+        FakeAccountOnlineIpService onlineIpService = new FakeAccountOnlineIpService();
+        FakeAlertStateRepository alertStateRepository = new FakeAlertStateRepository();
+        FakeBarkService barkService = new FakeBarkService();
+        FakeSystemConfigService configService = new FakeSystemConfigService();
+        AccountOnlineLimitAlertService service = new AccountOnlineLimitAlertService(
+                accountRepository, onlineIpService, alertStateRepository, barkService, configService);
+
+        onlineIpService.records = List.of(record("conn-1", "10.0.0.1", "node-a"), record("conn-2", "10.0.0.2", "node-a"));
+        service.checkAndNotify();
+        assertEquals(0, alertStateRepository.states.size());
+
+        onlineIpService.records = List.of(record("conn-1", "10.0.0.1", "node-a"));
+        service.checkAndNotify();
+        assertEquals(0, alertStateRepository.states.size());
+
+        onlineIpService.records = List.of(record("conn-1", "10.0.0.1", "node-a"), record("conn-2", "10.0.0.2", "node-a"));
+        service.checkAndNotify();
+        assertEquals(0, alertStateRepository.states.size());
+        assertEquals(0, barkService.warningCount);
+
+        service.checkAndNotify();
+        assertEquals(1, alertStateRepository.states.size());
+        assertEquals(1, barkService.warningCount);
     }
 
     @Test
