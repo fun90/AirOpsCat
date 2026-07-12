@@ -192,7 +192,7 @@ AGENT_EOF
 write_systemd_unit() {
   log "写入 systemd 服务: ${AGENT_SERVICE}"
   # guard-sync 地址在安装期固化到服务环境；agent 脚本体保持与部署无关
-  local guard_sync_url="https://${AIROPSCAT_DOMAIN}/api/node/guard-sync"
+  local guard_sync_url="https://${AIROPSCAT_DOMAIN}/api/open/guard-sync"
   cat > "${AGENT_SERVICE}" <<UNIT_EOF
 [Unit]
 Description=AirOpsCat 账户防共享 guard agent
