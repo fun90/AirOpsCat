@@ -19,29 +19,15 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 账户防共享跨节点聚合器（合并请求方案的核心）。
+ * 账户防共享跨节点聚合器。
  *
- * <p>维护一张「每账户 → 每节点最近上报」的内存表，收到某节点的 guard-sync 上报时：
- * <ol>
- *   <li>用上报覆盖 {@code 表[各accountNo][nodeIp]} 这一格，刷新时间戳；</li>
- *   <li>只对本次上报涉及的账户实时求和：累加所有节点的连接数、合并所有节点的 IP
- *       集合去重，得到全局 totalConnections / totalIps；</li>
- *   <li>与 {@link Account#getMaxConnections()} / {@link Account#getMaxIps()} 比较，
- *       超限则计入本次响应的黑名单。</li>
- * </ol>
- *
- * <p><b>每格必须带 TTL</b>：某节点宕机或网络中断不再上报时，其旧数据不能永远累加进
- * 总量，否则会把已下线节点的连接长期算入导致误判。求和时跳过超 TTL 的过期格，另有
- * 低频清理任务剔除僵尸格（见 {@link #evictStaleNodes()}）。
- *
- * <p>内存表不落库：5 秒级高频，落库无必要；中心重启后由各 agent 在数个周期内重新
- * 上报重建。
+ * <p>收到节点 guard-sync 上报时，维护 accountNo -> nodeIp -> NodeStat 的内存表，
+ * 并按 TTL 跳过过期节点格，实时汇总总连接数与去重 IP 数。</p>
  */
 @Slf4j
 @ApplicationScoped
 public class AccountGuardAggregator {
 
-    /** 单节点上报的一格数据。 */
     private static final class NodeStat {
         final int connections;
         final Set<String> ips;
@@ -54,7 +40,6 @@ public class AccountGuardAggregator {
         }
     }
 
-    /** accountNo -> (nodeIp -> NodeStat)。外层与内层都用并发容器保证多节点并发上报安全。 */
     private final Map<String, Map<String, NodeStat>> table = new ConcurrentHashMap<>();
 
     private final AccountRepository accountRepository;
@@ -67,96 +52,105 @@ public class AccountGuardAggregator {
         this.systemConfigService = systemConfigService;
     }
 
-    /**
-     * 处理一次 guard-sync 上报：更新该节点的格，求和涉及账户，返回被阻断账户黑名单。
-     *
-     * @return accountNo -> 阻断明细；仅包含本次上报涉及且超总限的账户。
-     */
     public Map<String, GuardBlockedEntry> reportAndEvaluate(GuardSyncRequest request) {
+        return reportAndEvaluateWithStats(request).getBlockedAccounts();
+    }
+
+    public AccountGuardEvaluation reportAndEvaluateWithStats(GuardSyncRequest request) {
         String nodeIp = request.getNodeIp();
         long now = nowEpochSeconds();
         List<GuardSyncAccountReport> reports = request.getAccounts() == null
                 ? List.of() : request.getAccounts();
 
-        // 1) 更新本节点在各账户下的格。本次上报未提及的账户，需要清掉该节点的旧格
-        //    （表示该账户在此节点已无连接），避免旧数据滞留导致高估。
         Set<String> reportedAccountNos = new HashSet<>();
+        Set<String> affectedAccountNos = new HashSet<>();
         for (GuardSyncAccountReport report : reports) {
             String accountNo = report.getAccountNo();
             if (accountNo == null || accountNo.isBlank()) {
                 continue;
             }
             reportedAccountNos.add(accountNo);
+            affectedAccountNos.add(accountNo);
+
             Set<String> ips = report.getIps() == null ? Set.of() : new HashSet<>(report.getIps());
             int connections = Math.max(report.getConnections(), 0);
-            table.computeIfAbsent(accountNo, k -> new ConcurrentHashMap<>())
+            table.computeIfAbsent(accountNo, key -> new ConcurrentHashMap<>())
                     .put(nodeIp, new NodeStat(connections, ips, now));
         }
-        // 清除该节点在「本次未上报的账户」下的残留格
+
+        // 本节点这次未上报的账号，表示该账号在本节点已经没有连接，需要移除旧格。
         for (Map.Entry<String, Map<String, NodeStat>> entry : table.entrySet()) {
             if (!reportedAccountNos.contains(entry.getKey())) {
-                entry.getValue().remove(nodeIp);
+                NodeStat removed = entry.getValue().remove(nodeIp);
+                if (removed != null) {
+                    affectedAccountNos.add(entry.getKey());
+                }
             }
         }
 
-        if (reportedAccountNos.isEmpty()) {
-            return Map.of();
+        if (affectedAccountNos.isEmpty()) {
+            return new AccountGuardEvaluation(Map.of(), Map.of());
         }
 
-        // 2) 加载涉及账户的限制值
-        Map<String, Account> accountMap = loadAccounts(reportedAccountNos);
-
-        // 3) 求和 + 判定
+        Map<String, Account> accountMap = loadAccounts(affectedAccountNos);
         int ttl = getTtlSeconds();
         Map<String, GuardBlockedEntry> blocked = new HashMap<>();
-        for (String accountNo : reportedAccountNos) {
+        Map<String, AccountGuardStats> statsByAccountNo = new HashMap<>();
+
+        for (String accountNo : affectedAccountNos) {
             Account account = accountMap.get(accountNo);
             if (account == null) {
                 continue;
             }
-            GuardBlockedEntry entry = evaluateAccount(accountNo, account, now, ttl);
+            AccountGuardStats stats = calculateStats(accountNo, now, ttl);
+            statsByAccountNo.put(accountNo, stats);
+
+            // guard 响应仍只返回本次上报涉及账号的阻断结论。
+            if (!reportedAccountNos.contains(accountNo)) {
+                continue;
+            }
+            GuardBlockedEntry entry = evaluateAccount(account, stats);
             if (entry != null) {
                 blocked.put(accountNo, entry);
             }
         }
-        return blocked;
+
+        return new AccountGuardEvaluation(blocked, statsByAccountNo);
     }
 
-    /** 对单个账户跨节点求和并判定是否超总限；未超返回 null。 */
-    private GuardBlockedEntry evaluateAccount(String accountNo, Account account, long now, int ttl) {
+    private AccountGuardStats calculateStats(String accountNo, long now, int ttl) {
         Map<String, NodeStat> byNode = table.get(accountNo);
         if (byNode == null || byNode.isEmpty()) {
-            return null;
+            return new AccountGuardStats(accountNo, 0, 0, 0);
         }
 
         int totalConnections = 0;
         Set<String> totalIps = new HashSet<>();
+        int activeNodeCount = 0;
         for (NodeStat stat : byNode.values()) {
-            // 跳过超 TTL 的过期格（宕机 / 断连节点的旧数据不计入）
             if (now - stat.reportedAtEpochSeconds > ttl) {
                 continue;
             }
+            activeNodeCount++;
             totalConnections += stat.connections;
             totalIps.addAll(stat.ips);
         }
+        return new AccountGuardStats(accountNo, totalConnections, totalIps.size(), activeNodeCount);
+    }
 
-        // 连接数维度
+    private GuardBlockedEntry evaluateAccount(Account account, AccountGuardStats stats) {
         Integer maxConnections = account.getMaxConnections();
-        if (maxConnections != null && maxConnections > 0 && totalConnections > maxConnections) {
-            return new GuardBlockedEntry("connections", totalConnections, maxConnections);
+        if (maxConnections != null && maxConnections > 0 && stats.getTotalConnections() > maxConnections) {
+            return new GuardBlockedEntry("connections", stats.getTotalConnections(), maxConnections);
         }
-        // IP 数维度（防共享主判据）
+
         Integer maxIps = account.getMaxIps();
-        if (maxIps != null && maxIps > 0 && totalIps.size() > maxIps) {
-            return new GuardBlockedEntry("ips", totalIps.size(), maxIps);
+        if (maxIps != null && maxIps > 0 && stats.getTotalIps() > maxIps) {
+            return new GuardBlockedEntry("ips", stats.getTotalIps(), maxIps);
         }
         return null;
     }
 
-    /**
-     * 低频清理僵尸节点格：移除超 TTL 未上报的格，空账户条目一并删除。
-     * 由定时任务调用（不在 guard-sync 热路径）。
-     */
     public void evictStaleNodes() {
         long now = nowEpochSeconds();
         int ttl = getTtlSeconds();
@@ -170,7 +164,7 @@ public class AccountGuardAggregator {
             }
         }
         if (removed > 0) {
-            log.debug("guard 聚合表清理：移除空账户条目 {} 个", removed);
+            log.debug("guard 聚合表清理：移除空账号条目 {} 个", removed);
         }
     }
 
@@ -185,7 +179,6 @@ public class AccountGuardAggregator {
         return map;
     }
 
-    /** 配额表 TTL（秒），与响应中下发给 agent 的 ttlSeconds 一致。 */
     public int getTtlSeconds() {
         return Math.max(5, systemConfigService.getIntValue("airopscat.account.guard.ttl-seconds", 15));
     }
@@ -194,7 +187,6 @@ public class AccountGuardAggregator {
         return java.time.Instant.now().getEpochSecond();
     }
 
-    /** 仅供测试/诊断：当前聚合表中的账户数。 */
     int trackedAccountCount() {
         return table.size();
     }

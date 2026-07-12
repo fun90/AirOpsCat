@@ -1,15 +1,16 @@
 package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.ClientRequest;
-import com.fun90.airopscat.model.dto.guard.GuardBlockedEntry;
 import com.fun90.airopscat.model.dto.guard.GuardSyncRequest;
 import com.fun90.airopscat.model.dto.guard.GuardSyncResponse;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.service.AccountOnlineIpService;
+import com.fun90.airopscat.service.AccountOnlineLimitAlertService;
 import com.fun90.airopscat.service.SubscriptionService;
 import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.guard.AccountGuardAggregator;
+import com.fun90.airopscat.service.guard.AccountGuardEvaluation;
 import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -48,6 +49,9 @@ public class OpenController {
 
     @Inject
     AccountGuardAggregator accountGuardAggregator;
+
+    @Inject
+    AccountOnlineLimitAlertService accountOnlineLimitAlertService;
 
     @Inject
     AccountRepository accountRepository;
@@ -129,19 +133,24 @@ public class OpenController {
                     .build();
         }
 
-        Map<String, GuardBlockedEntry> blocked;
+        AccountGuardEvaluation evaluation;
         try {
-            blocked = accountGuardAggregator.reportAndEvaluate(request);
+            evaluation = accountGuardAggregator.reportAndEvaluateWithStats(request);
         } catch (Exception e) {
             log.warn("guard-sync 处理失败: nodeIp={}, error={}", request.getNodeIp(), e.getMessage(), e);
-            blocked = Map.of();
+            evaluation = new AccountGuardEvaluation(Map.of(), Map.of());
+        }
+        try {
+            accountOnlineLimitAlertService.checkAndNotifyFromGuard(evaluation.getStatsByAccountNo());
+        } catch (Exception e) {
+            log.warn("guard-sync 实时告警检查失败: nodeIp={}, error={}", request.getNodeIp(), e.getMessage(), e);
         }
 
         GuardSyncResponse response = new GuardSyncResponse();
         response.setSchemaVersion(GUARD_SCHEMA_VERSION);
         response.setGeneratedAtEpochSeconds(Instant.now().getEpochSecond());
         response.setTtlSeconds(accountGuardAggregator.getTtlSeconds());
-        response.setBlockedAccounts(blocked);
+        response.setBlockedAccounts(evaluation.getBlockedAccounts());
         return Response.ok(response).build();
     }
 

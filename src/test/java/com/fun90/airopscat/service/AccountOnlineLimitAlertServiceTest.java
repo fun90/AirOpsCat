@@ -5,6 +5,7 @@ import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AlertState;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AlertStateRepository;
+import com.fun90.airopscat.service.guard.AccountGuardStats;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -13,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -42,7 +44,7 @@ class AccountOnlineLimitAlertServiceTest {
         assertEquals("ACTIVE", state.getStatus());
         assertEquals(2.0, state.getLastValue());
         assertEquals(1.0, state.getThresholdValue());
-        assertEquals(2, state.getTriggerCount());
+        assertEquals(1, state.getTriggerCount());
         assertNotNull(state.getLastNotifiedTime());
         assertEquals(1, barkService.warningCount);
         assertTrue(barkService.lastWarningBody.contains("当前连接数: 2"));
@@ -64,6 +66,7 @@ class AccountOnlineLimitAlertServiceTest {
                 record("conn-2", "10.0.0.2", "node-a"),
                 record("conn-3", "10.0.0.3", "node-b"));
         service.checkAndNotify();
+        service.checkAndNotify();
 
         onlineIpService.records = List.of(record("conn-1", "10.0.0.1", "node-a"));
         service.checkAndNotify();
@@ -75,6 +78,53 @@ class AccountOnlineLimitAlertServiceTest {
         assertNotNull(state.getRecoveredTime());
         assertEquals(1, barkService.warningCount);
         assertEquals(0, barkService.infoCount);
+    }
+
+    @Test
+    void shouldUseGuardStatsToTriggerConnectionLimitAlert() {
+        Account account = account(1L, "acct-001", 1);
+        FakeAlertStateRepository alertStateRepository = new FakeAlertStateRepository();
+        FakeBarkService barkService = new FakeBarkService();
+        AccountOnlineLimitAlertService service = new AccountOnlineLimitAlertService(
+                new FakeAccountRepository(List.of(account)),
+                new FakeAccountOnlineIpService(),
+                alertStateRepository,
+                barkService,
+                new FakeSystemConfigService());
+
+        Map<String, AccountGuardStats> stats = Map.of(
+                "acct-001", new AccountGuardStats("acct-001", 2, 1, 1));
+
+        service.checkAndNotifyFromGuard(stats);
+        service.checkAndNotifyFromGuard(stats);
+
+        AlertState state = alertStateRepository.states.getFirst();
+        assertEquals("ACTIVE", state.getStatus());
+        assertEquals(2.0, state.getLastValue());
+        assertEquals(1.0, state.getThresholdValue());
+        assertEquals(1, barkService.warningCount);
+        assertTrue(barkService.lastWarningBody.contains("数据来源: guard 实时上报"));
+    }
+
+    @Test
+    void shouldRecoverGuardAlertWhenConnectionCountDrops() {
+        Account account = account(1L, "acct-001", 1);
+        FakeAlertStateRepository alertStateRepository = new FakeAlertStateRepository();
+        AccountOnlineLimitAlertService service = new AccountOnlineLimitAlertService(
+                new FakeAccountRepository(List.of(account)),
+                new FakeAccountOnlineIpService(),
+                alertStateRepository,
+                new FakeBarkService(),
+                new FakeSystemConfigService());
+
+        service.checkAndNotifyFromGuard(Map.of("acct-001", new AccountGuardStats("acct-001", 2, 1, 1)));
+        service.checkAndNotifyFromGuard(Map.of("acct-001", new AccountGuardStats("acct-001", 2, 1, 1)));
+        service.checkAndNotifyFromGuard(Map.of("acct-001", new AccountGuardStats("acct-001", 0, 0, 0)));
+
+        AlertState state = alertStateRepository.states.getFirst();
+        assertEquals("RECOVERED", state.getStatus());
+        assertEquals(0.0, state.getLastValue());
+        assertNotNull(state.getRecoveredTime());
     }
 
     private static Account account(Long id, String accountNo, int maxConnections) {
@@ -109,6 +159,13 @@ class AccountOnlineLimitAlertServiceTest {
         @Override
         public List<Account> findActiveConnectionLimitedAccounts(LocalDateTime now) {
             return accounts;
+        }
+
+        @Override
+        public List<Account> findByAccountNos(Set<String> accountNos) {
+            return accounts.stream()
+                    .filter(account -> accountNos.contains(account.getAccountNo()))
+                    .toList();
         }
     }
 
