@@ -5,12 +5,15 @@ import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AlertState;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AlertStateRepository;
+import com.fun90.airopscat.service.guard.AccountGuardStats;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -24,13 +27,11 @@ public class AccountOnlineLimitAlertService {
     private static final String ALERT_TYPE = "account-connection-limit";
     private static final String RESOURCE_TYPE = "account";
     private static final String STATUS_ACTIVE = "ACTIVE";
+    private static final String STATUS_ACKNOWLEDGED = "ACKNOWLEDGED";
     private static final String STATUS_RECOVERED = "RECOVERED";
     private static final String SEVERITY_WARNING = "WARNING";
     private static final int DEFAULT_CONSECUTIVE_TIMES = 2;
 
-    /**
-     * 记录每个账户连续超限的次数，未达到连续次数前不触发告警，账户恢复正常或不再受限时清零。
-     */
     private final Map<String, Integer> consecutiveExceedCounts = new ConcurrentHashMap<>();
 
     private final AccountRepository accountRepository;
@@ -54,7 +55,7 @@ public class AccountOnlineLimitAlertService {
 
     @Transactional
     public void checkAndNotify() {
-        if (!systemConfigService.getBooleanValue("airopscat.account.connection-limit.alert.enabled", true)) {
+        if (!isEnabled()) {
             log.debug("账户连接数超限告警已关闭");
             return;
         }
@@ -72,7 +73,7 @@ public class AccountOnlineLimitAlertService {
 
         for (Account account : accounts) {
             try {
-                checkAccount(account, recordsByAccount.getOrDefault(account.getAccountNo(), List.of()), now);
+                checkAccountFromOnlineRecords(account, recordsByAccount.getOrDefault(account.getAccountNo(), List.of()), now);
             } catch (Exception e) {
                 log.warn("账户连接数超限检查失败: accountNo={}, error={}", account.getAccountNo(), e.getMessage(), e);
             }
@@ -81,7 +82,54 @@ public class AccountOnlineLimitAlertService {
         recoverInactiveAlerts(accountByNo, recordsByAccount, now);
     }
 
-    private void checkAccount(Account account, List<AccountOnlineIpDto> records, LocalDateTime now) {
+    @Transactional
+    public void checkAndNotifyFromGuard(Map<String, AccountGuardStats> statsByAccountNo) {
+        if (!isEnabled()) {
+            log.debug("账户连接数超限告警已关闭，跳过 guard 实时告警");
+            return;
+        }
+        if (statsByAccountNo == null || statsByAccountNo.isEmpty()) {
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        List<String> accountNos = statsByAccountNo.keySet().stream()
+                .filter(Objects::nonNull)
+                .filter(accountNo -> !accountNo.isBlank())
+                .toList();
+        if (accountNos.isEmpty()) {
+            return;
+        }
+
+        Map<String, Account> accountByNo = loadAccounts(accountNos);
+        for (Map.Entry<String, AccountGuardStats> entry : statsByAccountNo.entrySet()) {
+            String accountNo = entry.getKey();
+            Account account = accountByNo.get(accountNo);
+            AccountGuardStats stats = entry.getValue();
+            try {
+                if (account == null || !isActiveConnectionLimited(account, now)) {
+                    recoverActiveAlertByAccountNo(accountNo, 0, 0, "账户已不再需要连接数超限告警", now);
+                    consecutiveExceedCounts.remove(accountNo);
+                    continue;
+                }
+                checkAccountFromGuard(account, stats, now);
+            } catch (Exception e) {
+                log.warn("guard 实时连接数告警检查失败: accountNo={}, error={}", accountNo, e.getMessage(), e);
+            }
+        }
+    }
+
+    private Map<String, Account> loadAccounts(List<String> accountNos) {
+        Map<String, Account> accountByNo = new HashMap<>();
+        for (Account account : accountRepository.findByAccountNos(new HashSet<>(accountNos))) {
+            if (account.getAccountNo() != null) {
+                accountByNo.put(account.getAccountNo(), account);
+            }
+        }
+        return accountByNo;
+    }
+
+    private void checkAccountFromOnlineRecords(Account account, List<AccountOnlineIpDto> records, LocalDateTime now) {
         int limit = account.getMaxConnections() == null ? 0 : account.getMaxConnections();
         if (limit <= 0) {
             consecutiveExceedCounts.remove(account.getAccountNo());
@@ -90,19 +138,40 @@ public class AccountOnlineLimitAlertService {
 
         int connectionCount = records.size();
         if (connectionCount > limit) {
-            int consecutiveTimes = consecutiveExceedCounts.merge(account.getAccountNo(), 1, Integer::sum);
-            int requiredTimes = getConsecutiveTimesThreshold();
-            if (consecutiveTimes >= requiredTimes) {
-                triggerAlert(account, records, limit, connectionCount, now);
-            } else {
-                log.debug("账户连接数超限，未达到连续{}次阈值，当前连续次数: {}, accountNo={}",
-                        requiredTimes, consecutiveTimes, account.getAccountNo());
-            }
+            triggerOrCount(account, limit, connectionCount, buildSummary(account, records, limit, connectionCount), now);
             return;
         }
 
         consecutiveExceedCounts.remove(account.getAccountNo());
         recoverAlert(account, connectionCount, limit, "当前连接数 " + connectionCount + "，限制 " + limit, now);
+    }
+
+    private void checkAccountFromGuard(Account account, AccountGuardStats stats, LocalDateTime now) {
+        int limit = account.getMaxConnections() == null ? 0 : account.getMaxConnections();
+        if (limit <= 0) {
+            consecutiveExceedCounts.remove(account.getAccountNo());
+            return;
+        }
+
+        int connectionCount = stats == null ? 0 : stats.getTotalConnections();
+        if (connectionCount > limit) {
+            triggerOrCount(account, limit, connectionCount, buildGuardSummary(account, stats, limit), now);
+            return;
+        }
+
+        consecutiveExceedCounts.remove(account.getAccountNo());
+        recoverAlert(account, connectionCount, limit, "当前连接数 " + connectionCount + "，限制 " + limit, now);
+    }
+
+    private void triggerOrCount(Account account, int limit, int connectionCount, String summary, LocalDateTime now) {
+        int consecutiveTimes = consecutiveExceedCounts.merge(account.getAccountNo(), 1, Integer::sum);
+        int requiredTimes = getConsecutiveTimesThreshold();
+        if (consecutiveTimes >= requiredTimes) {
+            triggerAlert(account, limit, connectionCount, summary, now);
+        } else {
+            log.debug("账户连接数超限，未达到连续 {} 次阈值，当前连续次数: {}, accountNo={}",
+                    requiredTimes, consecutiveTimes, account.getAccountNo());
+        }
     }
 
     private int getConsecutiveTimesThreshold() {
@@ -111,9 +180,9 @@ public class AccountOnlineLimitAlertService {
     }
 
     private void triggerAlert(Account account,
-                              List<AccountOnlineIpDto> records,
                               int limit,
                               int connectionCount,
+                              String summary,
                               LocalDateTime now) {
         String fingerprint = fingerprint(account);
         AlertState state = alertStateRepository
@@ -129,7 +198,7 @@ public class AccountOnlineLimitAlertService {
         state.setTriggerCount((state.getTriggerCount() == null ? 0 : state.getTriggerCount()) + 1);
         state.setLastValue((double) connectionCount);
         state.setThresholdValue((double) limit);
-        state.setSummary(buildSummary(account, records, limit, connectionCount));
+        state.setSummary(summary);
         persistIfNew(state);
 
         if (!shouldNotify(state, now)) {
@@ -161,6 +230,18 @@ public class AccountOnlineLimitAlertService {
         }
     }
 
+    private void recoverActiveAlertByAccountNo(String accountNo,
+                                               int connectionCount,
+                                               int limit,
+                                               String summary,
+                                               LocalDateTime now) {
+        for (AlertState state : alertStateRepository.findActiveByAlertType(ALERT_TYPE)) {
+            if (Objects.equals(state.getResourceKey(), accountNo)) {
+                recoverState(state, connectionCount, limit, summary, now);
+            }
+        }
+    }
+
     private void recoverAlert(Account account, int connectionCount, int limit, String summary, LocalDateTime now) {
         alertStateRepository.findByIdentity(ALERT_TYPE, RESOURCE_TYPE, account.getId(), fingerprint(account))
                 .filter(state -> STATUS_ACTIVE.equals(state.getStatus()))
@@ -185,7 +266,7 @@ public class AccountOnlineLimitAlertService {
     }
 
     private boolean shouldNotify(AlertState state, LocalDateTime now) {
-        if ("ACKNOWLEDGED".equals(state.getStatus())) {
+        if (STATUS_ACKNOWLEDGED.equals(state.getStatus())) {
             return false;
         }
         int intervalMinutes = Math.max(0, systemConfigService.getIntValue(
@@ -214,17 +295,46 @@ public class AccountOnlineLimitAlertService {
                 .distinct()
                 .count();
 
-        return "账户: " + account.getAccountNo()
-                + (account.getRemark() == null || account.getRemark().isBlank() ? "" : "（" + account.getRemark() + "）")
+        return accountTitle(account)
                 + "\n当前连接数: " + connectionCount
                 + "\n连接数限制: " + limit
                 + "\n去重客户端 IP 数: " + distinctIps;
+    }
+
+    private String buildGuardSummary(Account account, AccountGuardStats stats, int limit) {
+        int connectionCount = stats == null ? 0 : stats.getTotalConnections();
+        int totalIps = stats == null ? 0 : stats.getTotalIps();
+        int activeNodeCount = stats == null ? 0 : stats.getActiveNodeCount();
+        return accountTitle(account)
+                + "\n当前连接数: " + connectionCount
+                + "\n连接数限制: " + limit
+                + "\n去重客户端 IP 数: " + totalIps
+                + "\n活跃节点数: " + activeNodeCount
+                + "\n数据来源: guard 实时上报";
+    }
+
+    private String accountTitle(Account account) {
+        return "账户: " + account.getAccountNo()
+                + (account.getRemark() == null || account.getRemark().isBlank() ? "" : "（" + account.getRemark() + "）");
     }
 
     private void persistIfNew(AlertState state) {
         if (state.getId() == null) {
             alertStateRepository.persist(state);
         }
+    }
+
+    private boolean isEnabled() {
+        return systemConfigService.getBooleanValue("airopscat.account.connection-limit.alert.enabled", true);
+    }
+
+    private boolean isActiveConnectionLimited(Account account, LocalDateTime now) {
+        return account != null
+                && (account.getDisabled() == null || account.getDisabled() == 0)
+                && account.getAccountNo() != null
+                && account.getMaxConnections() != null
+                && account.getMaxConnections() > 0
+                && (account.getToDate() == null || account.getToDate().isAfter(now));
     }
 
     private String fingerprint(Account account) {
