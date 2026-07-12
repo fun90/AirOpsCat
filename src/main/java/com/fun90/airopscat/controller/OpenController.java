@@ -1,11 +1,15 @@
 package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.ClientRequest;
+import com.fun90.airopscat.model.dto.guard.GuardBlockedEntry;
+import com.fun90.airopscat.model.dto.guard.GuardSyncRequest;
+import com.fun90.airopscat.model.dto.guard.GuardSyncResponse;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.service.AccountOnlineIpService;
 import com.fun90.airopscat.service.SubscriptionService;
 import com.fun90.airopscat.service.SystemConfigService;
+import com.fun90.airopscat.service.guard.AccountGuardAggregator;
 import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -20,9 +24,11 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @Slf4j
@@ -35,9 +41,13 @@ public class OpenController {
     private static final String CONFIG_APPLE_ID = "airopscat.apple.id";
     private static final String CONFIG_APPLE_PWD = "airopscat.apple.pwd";
     private static final String CONFIG_API_TOKEN = "airopscat.api.token";
+    private static final int GUARD_SCHEMA_VERSION = 1;
 
     @Inject
     AccountOnlineIpService accountOnlineIpService;
+
+    @Inject
+    AccountGuardAggregator accountGuardAggregator;
 
     @Inject
     AccountRepository accountRepository;
@@ -101,6 +111,38 @@ public class OpenController {
     @Path("/bark-test/{secretKey}")
     public String barkTestPost(@PathParam("secretKey") String secretKey) {
         return createBarkTestResponse();
+    }
+
+    @POST
+    @Path("/guard-sync")
+    public Response guardSync(GuardSyncRequest request,
+                              @HeaderParam("Token") String requestToken) {
+        String expected = getApiToken();
+        if (expected != null && !expected.isBlank() && !Objects.equals(expected, requestToken)) {
+            return Response.status(Response.Status.UNAUTHORIZED)
+                    .entity(Map.of("error", "无效的 Token"))
+                    .build();
+        }
+        if (request == null || request.getNodeIp() == null || request.getNodeIp().isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "缺少 nodeIp"))
+                    .build();
+        }
+
+        Map<String, GuardBlockedEntry> blocked;
+        try {
+            blocked = accountGuardAggregator.reportAndEvaluate(request);
+        } catch (Exception e) {
+            log.warn("guard-sync 处理失败: nodeIp={}, error={}", request.getNodeIp(), e.getMessage(), e);
+            blocked = Map.of();
+        }
+
+        GuardSyncResponse response = new GuardSyncResponse();
+        response.setSchemaVersion(GUARD_SCHEMA_VERSION);
+        response.setGeneratedAtEpochSeconds(Instant.now().getEpochSecond());
+        response.setTtlSeconds(accountGuardAggregator.getTtlSeconds());
+        response.setBlockedAccounts(blocked);
+        return Response.ok(response).build();
     }
 
     private String createBarkTestResponse() {

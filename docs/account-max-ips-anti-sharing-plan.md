@@ -345,7 +345,7 @@ func WrapOnClose(next N.CloseHandlerFunc, l *Limiter, ip string) N.CloseHandlerF
 - **实现简单**：单端点、单次同步往返，agent 侧就是 POST → 拿 response → 原子写
   文件，无需管理两条通道的时序。
 
-新增端点 `POST /api/node/guard-sync`（需鉴权，见文末）。
+新增端点 `POST /api/open/guard-sync`（需鉴权，见文末）。
 
 **请求体**（agent 上报本节点实时快照）：
 
