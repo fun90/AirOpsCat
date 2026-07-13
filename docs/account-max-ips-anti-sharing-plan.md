@@ -55,33 +55,46 @@
 现有链路是「AirOpsCat 主动 SSH 拉取」，分钟级、开销重，无法支撑 5 秒同步。
 新方案把热路径数据流**反过来，改为节点推 + 中心下发**，SSH 退出热路径：
 
+```mermaid
+flowchart TB
+    subgraph Core["AirOpsCat 中心聚合层"]
+        Aggregate["带 TTL 的内存聚合表<br/>accountNo -> nodeId -> 连接数 / IP / 时间戳"]
+        Decide["实时求和跨节点总量<br/>比较 maxConnections 与总去重 IP 数"]
+        Aggregate --> Decide
+    end
+
+    subgraph NodeA["节点 A"]
+        AgentA["airopscat-guard-agent<br/>读取本机连接快照<br/>统计账户连接数与 IP 列表"]
+        QuotaA["/run/airopscat/account-quota.json<br/>原子写入中心结论"]
+        KernelA["sing-box 内核<br/>认证成功后读取本地配额表"]
+        AgentA --> QuotaA --> KernelA
+    end
+
+    subgraph NodeB["节点 B / 节点 N"]
+        AgentB["airopscat-guard-agent<br/>流程同节点 A"]
+        QuotaB["本地配额表"]
+        KernelB["sing-box 内核"]
+        AgentB --> QuotaB --> KernelB
+    end
+
+    AgentA -- "约每 5 秒 POST<br/>上报本节点连接/IP" --> Aggregate
+    Decide -- "同一 HTTP 响应<br/>返回该节点相关账户结论" --> AgentA
+    AgentB -- "约每 5 秒 POST<br/>上报本节点连接/IP" --> Aggregate
+    Decide -- "同一 HTTP 响应<br/>返回该节点相关账户结论" --> AgentB
+
+    KernelA --> GateA{"是否放行新连接？"}
+    GateA -- "账户超总连接/IP" --> RejectA["静默拒绝"]
+    GateA -- "单节点 max_ips / max_connections 超限" --> RejectA
+    GateA -- "未超限" --> RouteA["进入路由"]
 ```
-                    ┌───────────────────── AirOpsCat（中心聚合层）──────────────────────┐
-                    │  带 TTL 的内存聚合表：accountNo → {nodeId → 连接/IP + 时间戳}         │
-                    │  收到上报 → 更新该节点那一格 → 实时求和全局总量 → 与 maxConnections 比较 │
-                    │  同一响应回：该节点相关账户「是否超总连接数 / 是否超总 IP 数」结论        │
-                    └──────────────────▲──┬──────────────────────────────────────────────┘
-                                       │  │  单次 HTTP 往返（~5s）
-                       ① POST 上报本节点 │  │ ② 响应回全局聚合结论
-                        连接数/IP 列表    │  ▼
-        ┌─────────────────────────────┴─────┐          ┌──────────────────────────────────┐
-        │  节点 A：airopscat-guard-agent      │          │  节点 B：airopscat-guard-agent     │
-        │  1. 读本机 Clash API/快照，统计      │          │  （同 A）                          │
-        │     本节点各账户连接数 + IP          │          │                                    │
-        │  2. POST 上报，同一响应拿回配额结论   │          │                                    │
-        │  3. 原子写                          │          │                                    │
-        │     /run/airopscat/account-quota.json          │                                    │
-        └──────────────────┬────────────────┘          └──────────────────────────────────┘
-                           │ 读本地文件（无网络、无锁竞争）
-                           ▼
-        ┌──────────────────────────────────┐
-        │  sing-box 内核                     │
-        │  认证成功 → 查配额表：              │
-        │   · 该账户已被标记超总限 → 静默拒绝  │
-        │   · 单节点 max_ips 超限 → 静默拒绝   │
-        │   · 否则放行，进入路由              │
-        └──────────────────────────────────┘
-```
+
+| 环节 | 做什么 | 关键约束 |
+|------|--------|----------|
+| 节点 agent → AirOpsCat | 上报本节点按账户聚合后的连接数和客户端 IP 列表 | 约每 5 秒一次，SSH 不在热路径 |
+| AirOpsCat 中心 | 更新该节点分格，实时计算账户跨节点总连接数和总去重 IP 数 | 节点数据带 TTL，超时未上报则视为 0 |
+| AirOpsCat → 节点 agent | 在同一 HTTP 响应中返回该节点相关账户的超限结论 | 结论基于「含本次上报在内」的最新聚合 |
+| 节点 agent → 本地文件 | 原子写 `/run/airopscat/account-quota.json` | tmpfs，本地读，无网络依赖 |
+| sing-box 内核 | 认证成功后读取本地配额表，并叠加单节点兜底限制 | 超总限或单节点超限则静默拒绝，否则放行 |
 
 关键点：
 - **一次请求往返完成上报 + 取配额**。上报与下发合并为一个 `POST`，请求数减半，
