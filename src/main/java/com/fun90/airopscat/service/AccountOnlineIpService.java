@@ -1,9 +1,7 @@
 package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
-import com.fun90.airopscat.model.dto.ClientRequest;
 import com.fun90.airopscat.model.dto.guard.GuardOnlineConnectionReport;
-import com.fun90.airopscat.model.dto.singbox.SingBoxConnectionSnapshot;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AccountOnlineIp;
 import com.fun90.airopscat.model.entity.Node;
@@ -26,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -39,7 +36,6 @@ public class AccountOnlineIpService {
     private final NodeRepository nodeRepository;
     private final UserRepository userRepository;
     private final SystemConfigService systemConfigService;
-    private final Map<String, LocalDateTime> guardOnlineReportTimes = new ConcurrentHashMap<>();
 
     @Inject
     public AccountOnlineIpService(AccountOnlineIpRepository accountOnlineIpRepository,
@@ -52,42 +48,6 @@ public class AccountOnlineIpService {
         this.nodeRepository = nodeRepository;
         this.userRepository = userRepository;
         this.systemConfigService = systemConfigService;
-    }
-
-    /**
-     * 处理客户端在线状态更新
-     * 使用原子的 INSERT ... ON CONFLICT 操作，解决并发锁定问题
-     * @param request 客户端请求
-     * @param nodeIp 节点IP
-     */
-    @Transactional
-    public void updateOnlineStatus(ClientRequest request, String nodeIp) {
-        String accountNo = request.getAccountNo();
-        String clientIp = request.getClientIp();
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime offlineThresholdTime = now.minusMinutes(getCheckMinutes());
-
-        try {
-            accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, legacyConnectionId(clientIp, nodeIp),
-                    nodeIp, null, null, now, now, now, now, offlineThresholdTime);
-        } catch (Exception e) {
-            log.error("Failed to update online status for account {}: {}", accountNo, e.getMessage());
-            throw new RuntimeException("Failed to update online status for account " + accountNo, e);
-        }
-    }
-
-    /**
-     * 批量处理客户端在线状态更新
-     *
-     * @param requests 客户端请求列表
-     * @param nodeIp 节点IP
-     */
-    @Transactional
-    public void updateOnlineStatus(List<ClientRequest> requests, String nodeIp) {
-        requests.stream()
-            .filter(Objects::nonNull)
-            .filter(request -> request.getAccountNo() != null && request.getClientIp() != null)
-            .forEach(request -> updateOnlineStatus(request, nodeIp));
     }
 
     /**
@@ -171,71 +131,6 @@ public class AccountOnlineIpService {
     }
 
     /**
-     * 基于 Clash API 连接列表批量刷新在线状态
-     *
-     * @param serverIp    服务器 IP，写入 node_ip 字段
-     * @param connections Clash API 返回的连接快照列表
-     * @return 本轮成功 upsert 的记录数
-     */
-    @Transactional
-    public int refreshFromConnections(String serverIp, List<SingBoxConnectionSnapshot> connections) {
-        return refreshFromConnections(serverIp, connections, Map.of());
-    }
-
-    @Transactional
-    public int refreshFromConnections(String serverIp, List<SingBoxConnectionSnapshot> connections, Map<String, Node> nodeByTag) {
-        if (connections == null || connections.isEmpty()) {
-            return 0;
-        }
-
-        // 预先收集所有 authUser，批量校验账号是否存在，过滤落地节点公共账号等无效用户
-        Set<String> candidateNos = connections.stream()
-                .filter(c -> c.getMetadata() != null)
-                .map(c -> c.getMetadata().getAuthUser())
-                .filter(u -> u != null && !u.isBlank())
-                .collect(Collectors.toSet());
-        Set<String> validAccountNos = candidateNos.isEmpty() ? Set.of()
-                : new HashSet<>(accountRepository.findExistingAccountNos(new java.util.ArrayList<>(candidateNos)));
-
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime offlineThreshold = now.minusMinutes(getCheckMinutes());
-        Set<String> seen = new HashSet<>();
-        int count = 0;
-
-        for (SingBoxConnectionSnapshot conn : connections) {
-            if (conn.getMetadata() == null) {
-                continue;
-            }
-            String accountNo = conn.getMetadata().getAuthUser();
-            String clientIp = conn.getMetadata().getSourceIP();
-            if (accountNo == null || accountNo.isBlank() || clientIp == null || clientIp.isBlank()) {
-                continue;
-            }
-            if (!validAccountNos.contains(accountNo)) {
-                log.debug("refreshFromConnections 跳过无效账号: authUser={}, serverIp={}", accountNo, serverIp);
-                continue;
-            }
-            String nodeTag = normalizeBlank(conn.getMetadata().resolveNodeTag());
-            Node node = nodeTag == null || nodeByTag == null ? null : nodeByTag.get(nodeTag);
-            String connectionId = buildConnectionId(conn, accountNo, clientIp, serverIp, nodeTag);
-            String dedupeKey = accountNo + "\0" + connectionId + "\0" + serverIp;
-            if (!seen.add(dedupeKey)) {
-                continue;
-            }
-            LocalDateTime sessionStartTime = resolveConnectionStartTime(conn, now);
-            try {
-                accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, connectionId, serverIp,
-                        node == null ? null : node.getId(), nodeTag, now, sessionStartTime, now, now, offlineThreshold);
-                count++;
-            } catch (Exception e) {
-                log.error("refreshFromConnections upsert 失败: accountNo={}, clientIp={}, connectionId={}, serverIp={}",
-                        accountNo, clientIp, connectionId, serverIp, e);
-            }
-        }
-        return count;
-    }
-
-    /**
      * 基于 guard-sync 在线连接明细刷新在线状态。
      *
      * @param nodeIp      节点服务器 IP，写入 node_ip 字段
@@ -249,7 +144,6 @@ public class AccountOnlineIpService {
         }
 
         String normalizedNodeIp = nodeIp.trim();
-        guardOnlineReportTimes.put(normalizedNodeIp, LocalDateTime.now());
         if (connections.isEmpty()) {
             return 0;
         }
@@ -301,21 +195,6 @@ public class AccountOnlineIpService {
             }
         }
         return count;
-    }
-
-    public boolean isGuardOnlineReportFresh(String nodeIp) {
-        if (nodeIp == null || nodeIp.isBlank()) {
-            return false;
-        }
-        LocalDateTime lastReportTime = guardOnlineReportTimes.get(nodeIp);
-        if (lastReportTime == null) {
-            return false;
-        }
-        return lastReportTime.plusSeconds(getGuardOnlineFreshnessSeconds()).isAfter(LocalDateTime.now());
-    }
-
-    public Map<String, LocalDateTime> getGuardOnlineReportTimes() {
-        return Map.copyOf(guardOnlineReportTimes);
     }
 
     public List<AccountOnlineIpDto> getOnlineRecordsByNodeId(Long nodeId) {
@@ -525,32 +404,6 @@ public class AccountOnlineIpService {
         return node.getTag();
     }
 
-    private String buildConnectionId(SingBoxConnectionSnapshot conn,
-                                     String accountNo,
-                                     String clientIp,
-                                     String serverIp,
-                                     String nodeTag) {
-        String rawId = normalizeBlank(conn.getId());
-        if (rawId != null) {
-            return rawId;
-        }
-
-        String destinationIp = normalizeBlank(conn.getMetadata().getDestinationIP());
-        Integer destinationPort = conn.getMetadata().getDestinationPort();
-        return String.join("|",
-                "fallback",
-                accountNo,
-                clientIp,
-                Objects.toString(serverIp, ""),
-                Objects.toString(nodeTag, ""),
-                Objects.toString(destinationIp, ""),
-                Objects.toString(destinationPort, ""));
-    }
-
-    private LocalDateTime resolveConnectionStartTime(SingBoxConnectionSnapshot conn, LocalDateTime fallback) {
-        return resolveConnectionStartTime(conn.getStart(), fallback);
-    }
-
     private LocalDateTime resolveConnectionStartTime(String rawStart, LocalDateTime fallback) {
         String start = normalizeBlank(rawStart);
         if (start == null) {
@@ -566,10 +419,6 @@ public class AccountOnlineIpService {
                 return fallback;
             }
         }
-    }
-
-    private String legacyConnectionId(String clientIp, String nodeIp) {
-        return String.join("|", "legacy", Objects.toString(clientIp, ""), Objects.toString(nodeIp, ""));
     }
 
     private String buildGuardConnectionId(GuardOnlineConnectionReport conn,
@@ -599,10 +448,6 @@ public class AccountOnlineIpService {
 
     private int getCheckMinutes() {
         return Math.max(1, systemConfigService.getIntValue("airopscat.online.check-minutes", 10));
-    }
-
-    private int getGuardOnlineFreshnessSeconds() {
-        return Math.max(5, systemConfigService.getIntValue("airopscat.account.guard.online-freshness-seconds", 30));
     }
 
     private long elapsedMillis(long startedAt) {

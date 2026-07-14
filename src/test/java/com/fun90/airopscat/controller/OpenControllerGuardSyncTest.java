@@ -104,7 +104,7 @@ class OpenControllerGuardSyncTest {
 
     static class FakeAlertService extends AccountOnlineLimitAlertService {
         FakeAlertService() {
-            super(null, null, null, null, null);
+            super(null, null, null, null);
         }
 
         @Override

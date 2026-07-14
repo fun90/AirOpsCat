@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AccountOnlineIpServiceGuardTest {
 
@@ -44,7 +43,6 @@ class AccountOnlineIpServiceGuardTest {
         assertEquals(7L, record.getNodeId());
         assertEquals("node_7", record.getNodeTag());
         assertEquals(LocalDateTime.of(2026, 7, 14, 10, 0), record.getSessionStartTime());
-        assertTrue(service.isGuardOnlineReportFresh("192.0.2.10"));
     }
 
     private static GuardOnlineConnectionReport report(String accountNo,
@@ -116,7 +114,6 @@ class AccountOnlineIpServiceGuardTest {
         public int getIntValue(String key, int defaultValue) {
             return switch (key) {
                 case "airopscat.online.check-minutes" -> 10;
-                case "airopscat.account.guard.online-freshness-seconds" -> 30;
                 default -> defaultValue;
             };
         }
