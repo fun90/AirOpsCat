@@ -8,6 +8,7 @@ import com.fun90.airopscat.repository.AccountOnlineIpRepository;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.UserRepository;
+import jakarta.persistence.PessimisticLockException;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -65,6 +66,26 @@ class AccountOnlineIpServiceGuardTest {
         assertEquals(LocalDateTime.of(2026, 7, 14, 10, 0), record.getSessionStartTime());
     }
 
+    @Test
+    void shouldRetryGuardOnlineUpsertWhenDeadlockHappens() {
+        FakeAccountOnlineIpRepository onlineIpRepository = new FakeAccountOnlineIpRepository();
+        onlineIpRepository.failuresBeforeSuccess = 1;
+        AccountOnlineIpService service = new AccountOnlineIpService(
+                onlineIpRepository,
+                new FakeAccountRepository(),
+                new FakeNodeRepository(),
+                new UserRepository(),
+                new FakeSystemConfigService());
+
+        GuardOnlineAccountIpReport report = accountIpReport("acct-001", "node_7", List.of("203.0.113.10"));
+
+        int count = service.refreshFromGuardAccountIps("192.0.2.10", List.of(report));
+
+        assertEquals(1, count);
+        assertEquals(2, onlineIpRepository.attempts);
+        assertEquals(1, onlineIpRepository.records.size());
+    }
+
     private static GuardOnlineAccountIpReport accountIpReport(String accountNo,
                                                               String nodeTag,
                                                               List<String> clientIps) {
@@ -87,6 +108,8 @@ class AccountOnlineIpServiceGuardTest {
 
     static class FakeAccountOnlineIpRepository extends AccountOnlineIpRepository {
         final List<AccountOnlineIp> records = new ArrayList<>();
+        int attempts;
+        int failuresBeforeSuccess;
 
         @Override
         public void upsertOnlineStatus(String accountNo,
@@ -100,6 +123,11 @@ class AccountOnlineIpServiceGuardTest {
                                        LocalDateTime createTime,
                                        LocalDateTime updateTime,
                                        LocalDateTime offlineThresholdTime) {
+            attempts++;
+            if (failuresBeforeSuccess > 0) {
+                failuresBeforeSuccess--;
+                throw new PessimisticLockException("Deadlock found when trying to get lock; try restarting transaction");
+            }
             AccountOnlineIp record = new AccountOnlineIp();
             record.setAccountNo(accountNo);
             record.setClientIp(clientIp);

@@ -185,7 +185,7 @@ public class AccountOnlineIpRepository implements PanacheRepository<AccountOnlin
      * 使用 MySQL 原生 UPSERT 原子更新在线状态。
      * 如果距离上次续期超过离线阈值，则重新开始计算本次在线会话时间。
      */
-    @Transactional
+    @Transactional(Transactional.TxType.REQUIRES_NEW)
     public void upsertOnlineStatus(String accountNo,
                                    String clientIp,
                                    String connectionId,
