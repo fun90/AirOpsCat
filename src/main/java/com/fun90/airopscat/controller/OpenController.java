@@ -128,8 +128,8 @@ public class OpenController {
             log.warn("guard-sync 实时告警检查失败: nodeIp={}, error={}", request.getNodeIp(), e.getMessage(), e);
         }
         try {
-            if (request.getOnlineConnections() != null) {
-                int refreshed = accountOnlineIpService.refreshFromGuardConnections(request.getNodeIp(), request.getOnlineConnections());
+            if (request.getOnlineAccountIps() != null) {
+                int refreshed = accountOnlineIpService.refreshFromGuardAccountIps(request.getNodeIp(), request.getOnlineAccountIps());
                 log.debug("guard-sync 在线状态刷新完成: nodeIp={}, upsert={}", request.getNodeIp(), refreshed);
             }
         } catch (Exception e) {

@@ -135,8 +135,12 @@ flowchart TB
 
 - systemd 常驻进程，按间隔读本机 `127.0.0.1:${port}/connections`（Clash API）。
 - 按账户聚合连接数与去重 IP，通过 `guard-sync` 上报中心并取回全局配额结论。
-- 同一次 `/connections` 结果还生成 `onlineConnections` 明细，由中心写入
+- 同一次 `/connections` 结果还生成 `onlineAccountIps` 在线 IP 聚合记录，由中心写入
   `account_online_ip`，继续支撑按账户、节点、服务器三个维度的在线查询。
+- `onlineAccountIps.connections` 为可选连接引用，默认不发送；需要为后续按连接关闭
+  预热数据时，可开启 `guard_include_connection_refs`，携带 `connectionId` 与 `start`。
+- `guard-sync` 请求体使用 gzip 压缩上传，HTTP 头带 `Content-Encoding: gzip`，减少
+  JSON 字段名和重复 IP/账号带来的网络开销。
 - 原子写 `/run/airopscat/account-quota.json`（tmpfs），带 `schemaVersion`
   + `generatedAt` + `ttlSeconds`，内核据此判断数据新鲜度。
 - 使用 systemd 安装 / 重启 / 排错，不依赖旧在线连接快照文件。
@@ -375,9 +379,23 @@ func WrapOnClose(next N.CloseHandlerFunc, l *Limiter, ip string) N.CloseHandlerF
   "generatedAtEpochSeconds": 1778640000,
   "accounts": [
     { "accountNo": "A10001", "connections": 5, "ips": ["9.9.9.9", "8.8.8.8"] }
+  ],
+  "onlineAccountIps": [
+    {
+      "accountNo": "A10001",
+      "nodeTag": "node_7",
+      "clientIps": ["9.9.9.9", "8.8.8.8"],
+      "connections": [
+        { "clientIp": "9.9.9.9", "connectionId": "abc123", "start": "2026-07-14T10:00:00+08:00" }
+      ]
+    }
   ]
 }
 ```
+
+其中 `onlineAccountIps.connections` 是可选字段，默认不开启，避免高连接数场景重新回到
+逐连接大请求；开启后用于保留 `connectionId` 与 `start`，为后续按连接关闭能力预留。
+节点 agent 上传该请求体时使用 gzip 压缩，中心按 `Content-Encoding: gzip` 自动解压。
 
 **响应体**（中心回该节点涉及账户的全局聚合结论）：
 
@@ -486,16 +504,19 @@ Map<accountNo, Map<nodeIp, NodeStat>>
 **决策：部署独立 `airopscat-guard-agent`，不依赖旧连接快照 agent。**
 
 该 agent 周期读取本机 Clash API，统计各账户连接/IP，发 `guard-sync`，并原子写
-`account-quota.json`。同一个 `guard-sync` 请求还携带当前连接明细
-`onlineConnections`，中心据此刷新 `account_online_ip`。旧在线连接快照文件已从
+`account-quota.json`。同一个 `guard-sync` 请求还携带按账号与节点标识聚合的在线 IP
+`onlineAccountIps`，中心据此刷新 `account_online_ip`；可选的 `connections` 子字段用于
+预留 `connectionId` 与 `start`。旧在线连接快照文件已从
 在线刷新链路移除，中心 SSH/Clash API 采集只作为显式开启的过期回退路径。
 
 落地要点：
 
 - agent 每个采集周期（默认 10 秒，可按需调低到 5 秒）读取 `/connections`，按账户聚合出
   `{accountNo → connections + ipSet}`。
-- 用该聚合结果和在线连接明细发一次 `guard-sync`（§4.1），中心同步刷新
+- 用该聚合结果和在线 IP 聚合记录发一次 `guard-sync`（§4.1），中心同步刷新
   `account_online_ip`，拿到响应后原子写 `/run/airopscat/account-quota.json`。
+- `guard-sync` 请求体先写入临时文件并 gzip 压缩，再通过 `curl --data-binary` 上传，
+  避免 shell 变量承载二进制内容。
 - systemd 服务定义、安装/重启/排错流程由 `02-guard-agent.sh` 管理。
 
 ### 5.2 独立的 IP 上限字段：新增 `Account.maxIps`（已定）

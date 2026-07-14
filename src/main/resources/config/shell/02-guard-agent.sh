@@ -25,6 +25,7 @@ AIROPSCAT_API_TOKEN="${airopscat_api_token:-}"
 
 # 可调参数（如需自定义可在此覆盖）
 SYNC_INTERVAL_SECONDS="${guard_sync_interval:-10}"
+GUARD_INCLUDE_CONNECTION_REFS="${guard_include_connection_refs:-false}"
 SINGBOX_CONFIG="${singbox_config:-/etc/sing-box/config.json}"
 QUOTA_DIR="/run/airopscat"
 QUOTA_FILE="${QUOTA_DIR}/account-quota.json"
@@ -32,9 +33,10 @@ AGENT_BIN="/usr/local/bin/airopscat-guard-agent.sh"
 AGENT_SERVICE="/etc/systemd/system/airopscat-guard-agent.service"
 
 install_dependencies() {
-  # agent 依赖 jq 解析 Clash API JSON、curl 发起 HTTP
+  # agent 依赖 jq 解析 Clash API JSON、gzip 压缩请求体、curl 发起 HTTP
   local missing=()
   command -v jq >/dev/null 2>&1 || missing+=(jq)
+  command -v gzip >/dev/null 2>&1 || missing+=(gzip)
   command -v curl >/dev/null 2>&1 || missing+=(curl)
   if [[ ${#missing[@]} -eq 0 ]]; then
     return
@@ -72,8 +74,8 @@ write_agent_script() {
 #
 # 每个周期：
 #   1. 读本机 sing-box 配置解析 Clash API 端口与 secret
-#   2. GET /connections，按 authUser 聚合连接数与去重 sourceIP，同时生成在线连接明细
-#   3. POST guard-sync（带本节点数据与在线明细），取回全局配额黑名单
+#   2. GET /connections，按 authUser 聚合连接数与去重 sourceIP，同时生成在线 IP 聚合记录
+#   3. POST guard-sync（带本节点数据与在线 IP 聚合记录），取回全局配额黑名单
 #   4. 原子写入 /run/airopscat/account-quota.json 供内核读取
 #
 # 失败（Clash API 不可达、中心无响应、解析异常）时不覆盖旧文件，
@@ -87,6 +89,7 @@ SERVER_IP="${SERVER_IP:?}"
 GUARD_SYNC_URL="${GUARD_SYNC_URL:?}"
 AIROPSCAT_API_TOKEN="${AIROPSCAT_API_TOKEN:-}"
 SYNC_INTERVAL_SECONDS="${SYNC_INTERVAL_SECONDS:-10}"
+GUARD_INCLUDE_CONNECTION_REFS="${GUARD_INCLUDE_CONNECTION_REFS:-false}"
 SINGBOX_CONFIG="${SINGBOX_CONFIG:-/etc/sing-box/config.json}"
 QUOTA_DIR="${QUOTA_DIR:-/run/airopscat}"
 QUOTA_FILE="${QUOTA_FILE:-${QUOTA_DIR}/account-quota.json}"
@@ -116,11 +119,13 @@ sync_once() {
 
   # 将 /connections 转换为 guard-sync 请求体：
   #   accounts：按 metadata.authUser 分组 → connections 计数 + sourceIP 去重
-  #   onlineConnections：当前在线连接明细，供中心刷新 account_online_ip
+  #   onlineAccountIps：按账号与节点标识聚合的在线 IP，供中心刷新 account_online_ip
+  #   connections：可选连接引用，开启后为按连接关闭预留 connectionId/start
   #   过滤掉 authUser 或 sourceIP 为空的在线明细（落地节点公共账号等）
   local body
   body="$(printf '%s' "${conn_json}" | jq -c \
     --arg nodeIp "${SERVER_IP}" \
+    --arg includeConnectionRefs "${GUARD_INCLUDE_CONNECTION_REFS}" \
     --argjson now "$(date +%s)" '
     def node_tag:
       (.metadata.type // "")
@@ -129,14 +134,6 @@ sync_once() {
       .metadata.authUser != null and .metadata.authUser != "";
     def valid_source:
       .metadata.sourceIP != null and .metadata.sourceIP != "";
-    def online_record:
-      {
-        accountNo: .metadata.authUser,
-        clientIp: .metadata.sourceIP,
-        connectionId: (.id // ""),
-        nodeTag: node_tag,
-        start: (.start // "")
-      };
     [ .connections[]? | select(valid_user) ] as $validConnections |
     {
       nodeIp: $nodeIp,
@@ -152,11 +149,40 @@ sync_once() {
             ips: ( [ .[].sourceIP | select(. != "") ] | unique )
           })
       ),
-      onlineConnections: (
+      onlineAccountIps: (
         [ $validConnections[]
           | select(valid_source)
-          | online_record
+          | {
+              accountNo: .metadata.authUser,
+              nodeTag: node_tag,
+              clientIp: .metadata.sourceIP,
+              connectionId: (.id // ""),
+              start: (.start // "")
+            }
         ]
+        | group_by([.accountNo, .nodeTag])
+        | map({
+            accountNo: .[0].accountNo,
+            nodeTag: .[0].nodeTag,
+            clientIps: ( [ .[].clientIp ] | unique )
+          }
+          + (
+            if ($includeConnectionRefs | ascii_downcase | IN("1", "true", "yes", "on")) then
+              {
+                connections: (
+                  [ .[]
+                    | {
+                        clientIp: .clientIp,
+                        connectionId: .connectionId,
+                        start: .start
+                      }
+                  ]
+                )
+              }
+            else
+              {}
+            end
+          ))
       )
     }' 2>/dev/null || true)"
 
@@ -165,16 +191,30 @@ sync_once() {
     return
   fi
 
-  local resp token_header=()
+  local resp token_header=() body_file gzip_body
   if [[ -n "${AIROPSCAT_API_TOKEN}" ]]; then
     token_header=(-H "Token: ${AIROPSCAT_API_TOKEN}")
   fi
 
+  body_file="$(mktemp "${QUOTA_DIR}/.guard-sync-body.XXXXXX")" || return
+  gzip_body="$(mktemp "${QUOTA_DIR}/.guard-sync-body.XXXXXX.gz")" || {
+    rm -f "${body_file}"
+    return
+  }
+  printf '%s' "${body}" > "${body_file}"
+  if ! gzip -c "${body_file}" > "${gzip_body}"; then
+    log "压缩 guard-sync 请求体失败，跳过本轮"
+    rm -f "${body_file}" "${gzip_body}"
+    return
+  fi
+
   resp="$(curl -fsS --max-time 5 -X POST \
     -H "Content-Type: application/json" \
+    -H "Content-Encoding: gzip" \
     "${token_header[@]}" \
-    --data "${body}" \
+    --data-binary "@${gzip_body}" \
     "${GUARD_SYNC_URL}" 2>/dev/null || true)"
+  rm -f "${body_file}" "${gzip_body}"
   if [[ -z "${resp}" ]]; then
     log "guard-sync 无响应，跳过本轮（保留旧配额文件）"
     return
@@ -227,6 +267,7 @@ Environment=SERVER_IP=${SERVER_IP}
 Environment=GUARD_SYNC_URL=${guard_sync_url}
 Environment=AIROPSCAT_API_TOKEN=${AIROPSCAT_API_TOKEN}
 Environment=SYNC_INTERVAL_SECONDS=${SYNC_INTERVAL_SECONDS}
+Environment=GUARD_INCLUDE_CONNECTION_REFS=${GUARD_INCLUDE_CONNECTION_REFS}
 Environment=SINGBOX_CONFIG=${SINGBOX_CONFIG}
 Environment=QUOTA_DIR=${QUOTA_DIR}
 Environment=QUOTA_FILE=${QUOTA_FILE}

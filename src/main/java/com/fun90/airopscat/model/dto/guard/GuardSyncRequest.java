@@ -15,5 +15,5 @@ public class GuardSyncRequest {
     private String nodeIp;
     private Long generatedAtEpochSeconds;
     private List<GuardSyncAccountReport> accounts;
-    private List<GuardOnlineConnectionReport> onlineConnections;
+    private List<GuardOnlineAccountIpReport> onlineAccountIps;
 }

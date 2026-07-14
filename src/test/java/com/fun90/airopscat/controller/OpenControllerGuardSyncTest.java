@@ -1,6 +1,7 @@
 package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.guard.GuardBlockedEntry;
+import com.fun90.airopscat.model.dto.guard.GuardOnlineAccountIpReport;
 import com.fun90.airopscat.model.dto.guard.GuardSyncAccountReport;
 import com.fun90.airopscat.model.dto.guard.GuardSyncRequest;
 import com.fun90.airopscat.model.dto.guard.GuardSyncResponse;
@@ -41,7 +42,7 @@ class OpenControllerGuardSyncTest {
         GuardSyncRequest request = new GuardSyncRequest();
         request.setNodeIp("192.0.2.10");
         request.setAccounts(List.of(report("acct-001")));
-        request.setOnlineConnections(List.of());
+        request.setOnlineAccountIps(List.of(onlineIpReport("acct-001")));
 
         Response response = controller.guardSync(request, "token");
 
@@ -64,6 +65,14 @@ class OpenControllerGuardSyncTest {
         report.setAccountNo(accountNo);
         report.setConnections(1);
         report.setIps(List.of("203.0.113.10"));
+        return report;
+    }
+
+    private static GuardOnlineAccountIpReport onlineIpReport(String accountNo) {
+        GuardOnlineAccountIpReport report = new GuardOnlineAccountIpReport();
+        report.setAccountNo(accountNo);
+        report.setNodeTag("node_7");
+        report.setClientIps(List.of("203.0.113.10"));
         return report;
     }
 
@@ -94,7 +103,7 @@ class OpenControllerGuardSyncTest {
         }
 
         @Override
-        public int refreshFromGuardConnections(String nodeIp, java.util.List<com.fun90.airopscat.model.dto.guard.GuardOnlineConnectionReport> connections) {
+        public int refreshFromGuardAccountIps(String nodeIp, java.util.List<GuardOnlineAccountIpReport> onlineAccountIps) {
             if (fail) {
                 throw new IllegalStateException("boom");
             }
