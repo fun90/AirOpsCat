@@ -2,7 +2,6 @@
 
 ## Purpose
 定义账户管理页面与账户编辑接口中账户基础信息的维护行为，确保管理员可以安全修改账户 UUID，并让后续订阅、部署和搜索链路读取一致的账户标识。
-
 ## Requirements
 ### Requirement: 编辑账户 UUID
 系统 SHALL 允许管理员在账户管理页面的编辑弹窗中修改账户 UUID，并在保存成功后持久化该 UUID。
@@ -48,3 +47,19 @@
 #### Scenario: 搜索新 UUID
 - **WHEN** 账户 UUID 修改成功后管理员使用新 UUID 搜索账户
 - **THEN** 系统 MUST 能够返回该账户
+
+### Requirement: 账号编辑支持原生限速字段
+系统 SHALL 在账号创建和编辑接口中支持 `downloadMbps` 和 `uploadMbps` 两个可选整数字段（单位 Mbps），并在账号管理页面的编辑弹窗中展示对应输入框。
+
+#### Scenario: 编辑弹窗显示限速输入框
+- **WHEN** 管理员打开账号编辑弹窗
+- **THEN** 系统 MUST 显示下行限速（Mbps）和上行限速（Mbps）两个可选输入框，并回显当前账号的值
+
+#### Scenario: 提交合法的限速值
+- **WHEN** 管理员填写正整数的 `downloadMbps` 或 `uploadMbps` 并保存
+- **THEN** 系统 MUST 接受并持久化该值
+
+#### Scenario: 提交空值表示不限速
+- **WHEN** 管理员将限速输入框留空并保存
+- **THEN** 系统 MUST 将对应字段置为空（不限速）
+
