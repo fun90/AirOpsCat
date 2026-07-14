@@ -1,6 +1,5 @@
 package com.fun90.airopscat.controller;
 
-import com.fun90.airopscat.model.dto.ClientRequest;
 import com.fun90.airopscat.model.dto.guard.GuardSyncRequest;
 import com.fun90.airopscat.model.dto.guard.GuardSyncResponse;
 import com.fun90.airopscat.model.entity.Account;
@@ -27,7 +26,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -61,22 +59,6 @@ public class OpenController {
 
     @Inject
     SystemConfigService systemConfigService;
-
-    /**
-     * @deprecated 已由 Clash API 主动采集替代，此接口不再接受数据，返回 410 Gone。
-     *             确认线上节点无旧上报脚本依赖后可删除此方法及 ClientRequest。
-     */
-    @Deprecated
-    @POST
-    @Path("/account/online/{nodeIp}")
-    public Response access(List<ClientRequest> requests,
-                           @PathParam("nodeIp") String nodeIp,
-                           @HeaderParam("Token") String requestToken) {
-        log.warn("已废弃的在线上报接口被调用: nodeIp={}, 请移除节点侧上报脚本", nodeIp);
-        return Response.status(410)
-                .entity(Map.of("message", "此接口已废弃，在线状态现由服务端主动采集，请移除节点侧上报脚本"))
-                .build();
-    }
 
     @GET
     @Path("/docs-info/{authCode}")

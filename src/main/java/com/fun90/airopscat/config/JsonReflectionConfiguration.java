@@ -102,7 +102,6 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     // Configuration DTOs
     com.fun90.airopscat.model.dto.SshConfig.class,
     com.fun90.airopscat.model.dto.SubscrptionDto.class,
-    com.fun90.airopscat.model.dto.ClientRequest.class,
 
     // Other DTOs
     com.fun90.airopscat.model.dto.TagDto.class,

@@ -1,6 +1,5 @@
 package com.fun90.airopscat.service;
 
-import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AlertState;
 import com.fun90.airopscat.repository.AccountRepository;
@@ -18,8 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Slf4j
 @ApplicationScoped
@@ -35,52 +32,19 @@ public class AccountOnlineLimitAlertService {
     private final Map<String, Integer> consecutiveExceedCounts = new ConcurrentHashMap<>();
 
     private final AccountRepository accountRepository;
-    private final AccountOnlineIpService accountOnlineIpService;
     private final AlertStateRepository alertStateRepository;
     private final BarkService barkService;
     private final SystemConfigService systemConfigService;
 
     @Inject
     public AccountOnlineLimitAlertService(AccountRepository accountRepository,
-                                          AccountOnlineIpService accountOnlineIpService,
                                           AlertStateRepository alertStateRepository,
                                           BarkService barkService,
                                           SystemConfigService systemConfigService) {
         this.accountRepository = accountRepository;
-        this.accountOnlineIpService = accountOnlineIpService;
         this.alertStateRepository = alertStateRepository;
         this.barkService = barkService;
         this.systemConfigService = systemConfigService;
-    }
-
-    @Transactional
-    public void checkAndNotify() {
-        if (!isEnabled()) {
-            log.debug("账户连接数超限告警已关闭");
-            return;
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        List<Account> accounts = accountRepository.findActiveConnectionLimitedAccounts(now);
-        Map<String, Account> accountByNo = accounts.stream()
-                .filter(account -> account.getAccountNo() != null)
-                .collect(Collectors.toMap(Account::getAccountNo, Function.identity(), (left, right) -> left));
-
-        Map<String, List<AccountOnlineIpDto>> recordsByAccount = accountOnlineIpService
-                .getOnlineRecordsByAccountNos(accountByNo.keySet().stream().toList())
-                .stream()
-                .collect(Collectors.groupingBy(AccountOnlineIpDto::getAccountNo));
-
-        for (Account account : accounts) {
-            try {
-                checkAccountFromOnlineRecords(account, recordsByAccount.getOrDefault(account.getAccountNo(), List.of()), now);
-            } catch (Exception e) {
-                log.warn("账户连接数超限检查失败: accountNo={}, error={}", account.getAccountNo(), e.getMessage(), e);
-            }
-        }
-
-        consecutiveExceedCounts.keySet().removeIf(accountNo -> !accountByNo.containsKey(accountNo));
-        recoverInactiveAlerts(accountByNo, recordsByAccount, now);
     }
 
     @Transactional
@@ -128,23 +92,6 @@ public class AccountOnlineLimitAlertService {
             }
         }
         return accountByNo;
-    }
-
-    private void checkAccountFromOnlineRecords(Account account, List<AccountOnlineIpDto> records, LocalDateTime now) {
-        int limit = account.getMaxConnections() == null ? 0 : account.getMaxConnections();
-        if (limit <= 0) {
-            consecutiveExceedCounts.remove(account.getAccountNo());
-            return;
-        }
-
-        int connectionCount = records.size();
-        if (connectionCount > limit) {
-            triggerOrCount(account, limit, connectionCount, buildSummary(account, records, limit, connectionCount), now);
-            return;
-        }
-
-        consecutiveExceedCounts.remove(account.getAccountNo());
-        recoverAlert(account, connectionCount, limit, "当前连接数 " + connectionCount + "，限制 " + limit, now);
     }
 
     private void checkAccountFromGuard(Account account, AccountGuardStats stats, LocalDateTime now) {
@@ -214,25 +161,6 @@ public class AccountOnlineLimitAlertService {
         }
     }
 
-    private void recoverInactiveAlerts(Map<String, Account> accountByNo,
-                                       Map<String, List<AccountOnlineIpDto>> recordsByAccount,
-                                       LocalDateTime now) {
-        for (AlertState state : alertStateRepository.findActiveByAlertType(ALERT_TYPE)) {
-            Account account = accountByNo.get(state.getResourceKey());
-            if (account == null || account.getMaxConnections() == null || account.getMaxConnections() <= 0) {
-                consecutiveExceedCounts.remove(state.getResourceKey());
-                recoverState(state, 0, 0, "账户已不再需要连接数超限告警", now);
-                continue;
-            }
-            int connectionCount = recordsByAccount.getOrDefault(account.getAccountNo(), List.of()).size();
-            if (connectionCount <= account.getMaxConnections()) {
-                consecutiveExceedCounts.remove(account.getAccountNo());
-                recoverState(state, connectionCount, account.getMaxConnections(),
-                        "当前连接数 " + connectionCount + "，限制 " + account.getMaxConnections(), now);
-            }
-        }
-    }
-
     private void recoverActiveAlertByAccountNo(String accountNo,
                                                int connectionCount,
                                                int limit,
@@ -289,19 +217,6 @@ public class AccountOnlineLimitAlertService {
         state.setFirstTriggeredTime(now);
         state.setTriggerCount(0);
         return state;
-    }
-
-    private String buildSummary(Account account, List<AccountOnlineIpDto> records, int limit, int connectionCount) {
-        long distinctIps = records.stream()
-                .map(AccountOnlineIpDto::getClientIp)
-                .filter(Objects::nonNull)
-                .distinct()
-                .count();
-
-        return accountTitle(account)
-                + "\n当前连接数: " + connectionCount
-                + "\n连接数限制: " + limit
-                + "\n去重客户端 IP 数: " + distinctIps;
     }
 
     private String buildGuardSummary(Account account, AccountGuardStats stats, int limit) {
