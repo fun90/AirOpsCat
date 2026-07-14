@@ -54,7 +54,7 @@ description: 部署 AirOpsCat 指定版本到通过环境变量配置的生产�
 4. 执行部署脚本：
 
    ```bash
-   .codex/skills/deploy-airopscat-version/scripts/deploy_airopscat_version.sh <version>
+   .agents/skills/deploy-airopscat-version/scripts/deploy_airopscat_version.sh <version>
    ```
 
 5. 检查输出中的关键信号：
