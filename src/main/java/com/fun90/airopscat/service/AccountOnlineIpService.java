@@ -1,7 +1,8 @@
 package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
-import com.fun90.airopscat.model.dto.guard.GuardOnlineConnectionReport;
+import com.fun90.airopscat.model.dto.guard.GuardOnlineAccountIpReport;
+import com.fun90.airopscat.model.dto.guard.GuardOnlineConnectionRefReport;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AccountOnlineIp;
 import com.fun90.airopscat.model.entity.Node;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -131,30 +133,30 @@ public class AccountOnlineIpService {
     }
 
     /**
-     * 基于 guard-sync 在线连接明细刷新在线状态。
+     * 基于 guard-sync 账号在线 IP 聚合记录刷新在线状态。
      *
-     * @param nodeIp      节点服务器 IP，写入 node_ip 字段
-     * @param connections guard agent 上报的当前在线连接明细
+     * @param nodeIp         节点服务器 IP，写入 node_ip 字段
+     * @param onlineAccountIps guard agent 上报的账号在线 IP 聚合记录
      * @return 本轮成功 upsert 的记录数
      */
     @Transactional
-    public int refreshFromGuardConnections(String nodeIp, List<GuardOnlineConnectionReport> connections) {
-        if (nodeIp == null || nodeIp.isBlank() || connections == null) {
+    public int refreshFromGuardAccountIps(String nodeIp, List<GuardOnlineAccountIpReport> onlineAccountIps) {
+        if (nodeIp == null || nodeIp.isBlank() || onlineAccountIps == null) {
             return 0;
         }
 
         String normalizedNodeIp = nodeIp.trim();
-        if (connections.isEmpty()) {
+        if (onlineAccountIps.isEmpty()) {
             return 0;
         }
 
-        Set<String> candidateNos = connections.stream()
+        Set<String> candidateNos = onlineAccountIps.stream()
                 .filter(Objects::nonNull)
-                .map(GuardOnlineConnectionReport::getAccountNo)
+                .map(GuardOnlineAccountIpReport::getAccountNo)
                 .filter(u -> u != null && !u.isBlank())
                 .collect(Collectors.toSet());
         Set<String> validAccountNos = candidateNos.isEmpty() ? Set.of()
-                : new HashSet<>(accountRepository.findExistingAccountNos(new java.util.ArrayList<>(candidateNos)));
+                : new HashSet<>(accountRepository.findExistingAccountNos(new ArrayList<>(candidateNos)));
 
         Map<String, Node> nodeByTag = nodeRepository.findOnlineTrackableByServerIp(normalizedNodeIp).stream()
                 .collect(Collectors.toMap(Node::getTag, node -> node, (left, right) -> left));
@@ -164,34 +166,79 @@ public class AccountOnlineIpService {
         Set<String> seen = new HashSet<>();
         int count = 0;
 
-        for (GuardOnlineConnectionReport conn : connections) {
-            if (conn == null) {
+        for (GuardOnlineAccountIpReport report : onlineAccountIps) {
+            if (report == null) {
                 continue;
             }
-            String accountNo = normalizeBlank(conn.getAccountNo());
-            String clientIp = normalizeBlank(conn.getClientIp());
-            if (accountNo == null || clientIp == null) {
+            String accountNo = normalizeBlank(report.getAccountNo());
+            if (accountNo == null) {
                 continue;
             }
             if (!validAccountNos.contains(accountNo)) {
-                log.debug("refreshFromGuardConnections 跳过无效账号: authUser={}, nodeIp={}", accountNo, normalizedNodeIp);
+                log.debug("refreshFromGuardAccountIps 跳过无效账号: authUser={}, nodeIp={}", accountNo, normalizedNodeIp);
                 continue;
             }
-            String nodeTag = normalizeBlank(conn.getNodeTag());
+            String nodeTag = normalizeBlank(report.getNodeTag());
             Node node = nodeTag == null ? null : nodeByTag.get(nodeTag);
-            String connectionId = buildGuardConnectionId(conn, accountNo, clientIp, normalizedNodeIp, nodeTag);
-            String dedupeKey = accountNo + "\0" + connectionId + "\0" + normalizedNodeIp;
+            if (report.getConnections() != null && !report.getConnections().isEmpty()) {
+                count += refreshFromGuardConnectionRefs(report.getConnections(), accountNo, normalizedNodeIp, nodeTag,
+                        node, now, offlineThreshold, seen);
+                continue;
+            }
+            List<String> clientIps = report.getClientIps() == null ? List.of() : report.getClientIps();
+            for (String rawClientIp : clientIps) {
+                String clientIp = normalizeBlank(rawClientIp);
+                if (clientIp == null) {
+                    continue;
+                }
+                String dedupeKey = accountNo + "\0" + clientIp + "\0" + normalizedNodeIp + "\0" + Objects.toString(nodeTag, "");
+                if (!seen.add(dedupeKey)) {
+                    continue;
+                }
+                String connectionId = buildGuardAccountIpConnectionId(accountNo, clientIp, normalizedNodeIp, nodeTag);
+                try {
+                    accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, connectionId, normalizedNodeIp,
+                            node == null ? null : node.getId(), nodeTag, now, now, now, now, offlineThreshold);
+                    count++;
+                } catch (Exception e) {
+                    log.error("refreshFromGuardAccountIps upsert 失败: accountNo={}, clientIp={}, connectionId={}, nodeIp={}",
+                            accountNo, clientIp, connectionId, normalizedNodeIp, e);
+                }
+            }
+        }
+        return count;
+    }
+
+    private int refreshFromGuardConnectionRefs(List<GuardOnlineConnectionRefReport> connections,
+                                               String accountNo,
+                                               String nodeIp,
+                                               String nodeTag,
+                                               Node node,
+                                               LocalDateTime now,
+                                               LocalDateTime offlineThreshold,
+                                               Set<String> seen) {
+        int count = 0;
+        for (GuardOnlineConnectionRefReport connection : connections) {
+            if (connection == null) {
+                continue;
+            }
+            String clientIp = normalizeBlank(connection.getClientIp());
+            if (clientIp == null) {
+                continue;
+            }
+            String connectionId = buildGuardConnectionRefId(connection, accountNo, clientIp, nodeIp, nodeTag);
+            String dedupeKey = accountNo + "\0" + connectionId + "\0" + nodeIp;
             if (!seen.add(dedupeKey)) {
                 continue;
             }
-            LocalDateTime sessionStartTime = resolveConnectionStartTime(conn.getStart(), now);
+            LocalDateTime sessionStartTime = resolveConnectionStartTime(connection.getStart(), now);
             try {
-                accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, connectionId, normalizedNodeIp,
+                accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, connectionId, nodeIp,
                         node == null ? null : node.getId(), nodeTag, now, sessionStartTime, now, now, offlineThreshold);
                 count++;
             } catch (Exception e) {
-                log.error("refreshFromGuardConnections upsert 失败: accountNo={}, clientIp={}, connectionId={}, nodeIp={}",
-                        accountNo, clientIp, connectionId, normalizedNodeIp, e);
+                log.error("refreshFromGuardConnectionRefs upsert 失败: accountNo={}, clientIp={}, connectionId={}, nodeIp={}",
+                        accountNo, clientIp, connectionId, nodeIp, e);
             }
         }
         return count;
@@ -404,6 +451,30 @@ public class AccountOnlineIpService {
         return node.getTag();
     }
 
+    private String buildGuardAccountIpConnectionId(String accountNo,
+                                                   String clientIp,
+                                                   String nodeIp,
+                                                   String nodeTag) {
+        return String.join("|",
+                "guard-ip",
+                accountNo,
+                clientIp,
+                Objects.toString(nodeIp, ""),
+                Objects.toString(nodeTag, ""));
+    }
+
+    private String buildGuardConnectionRefId(GuardOnlineConnectionRefReport connection,
+                                             String accountNo,
+                                             String clientIp,
+                                             String nodeIp,
+                                             String nodeTag) {
+        String rawId = normalizeBlank(connection.getConnectionId());
+        if (rawId != null) {
+            return rawId;
+        }
+        return buildGuardAccountIpConnectionId(accountNo, clientIp, nodeIp, nodeTag);
+    }
+
     private LocalDateTime resolveConnectionStartTime(String rawStart, LocalDateTime fallback) {
         String start = normalizeBlank(rawStart);
         if (start == null) {
@@ -419,23 +490,6 @@ public class AccountOnlineIpService {
                 return fallback;
             }
         }
-    }
-
-    private String buildGuardConnectionId(GuardOnlineConnectionReport conn,
-                                          String accountNo,
-                                          String clientIp,
-                                          String nodeIp,
-                                          String nodeTag) {
-        String rawId = normalizeBlank(conn.getConnectionId());
-        if (rawId != null) {
-            return rawId;
-        }
-        return String.join("|",
-                "guard",
-                accountNo,
-                clientIp,
-                Objects.toString(nodeIp, ""),
-                Objects.toString(nodeTag, ""));
     }
 
     private String normalizeBlank(String value) {

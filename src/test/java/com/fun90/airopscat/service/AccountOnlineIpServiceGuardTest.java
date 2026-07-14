@@ -1,6 +1,7 @@
 package com.fun90.airopscat.service;
 
-import com.fun90.airopscat.model.dto.guard.GuardOnlineConnectionReport;
+import com.fun90.airopscat.model.dto.guard.GuardOnlineAccountIpReport;
+import com.fun90.airopscat.model.dto.guard.GuardOnlineConnectionRefReport;
 import com.fun90.airopscat.model.entity.AccountOnlineIp;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.repository.AccountOnlineIpRepository;
@@ -18,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class AccountOnlineIpServiceGuardTest {
 
     @Test
-    void shouldRefreshOnlineRecordsFromGuardConnectionsAndMapNode() {
+    void shouldRefreshOnlineRecordsFromGuardAccountIpsAndMapNode() {
         FakeAccountOnlineIpRepository onlineIpRepository = new FakeAccountOnlineIpRepository();
         AccountOnlineIpService service = new AccountOnlineIpService(
                 onlineIpRepository,
@@ -27,34 +28,59 @@ class AccountOnlineIpServiceGuardTest {
                 new UserRepository(),
                 new FakeSystemConfigService());
 
-        GuardOnlineConnectionReport valid = report("acct-001", "203.0.113.10", "conn-1", "node_7", "2026-07-14T10:00:00+08:00");
-        GuardOnlineConnectionReport missingIp = report("acct-001", "", "conn-2", "node_7", null);
-        GuardOnlineConnectionReport invalidAccount = report("missing", "203.0.113.11", "conn-3", "node_7", null);
+        GuardOnlineAccountIpReport valid = accountIpReport("acct-001", "node_7", List.of("203.0.113.10", "203.0.113.10", ""));
+        GuardOnlineAccountIpReport invalidAccount = accountIpReport("missing", "node_7", List.of("203.0.113.11"));
 
-        int count = service.refreshFromGuardConnections("192.0.2.10", List.of(valid, missingIp, invalidAccount));
+        int count = service.refreshFromGuardAccountIps("192.0.2.10", List.of(valid, invalidAccount));
 
         assertEquals(1, count);
         assertEquals(1, onlineIpRepository.records.size());
         AccountOnlineIp record = onlineIpRepository.records.getFirst();
         assertEquals("acct-001", record.getAccountNo());
         assertEquals("203.0.113.10", record.getClientIp());
-        assertEquals("conn-1", record.getConnectionId());
+        assertEquals("guard-ip|acct-001|203.0.113.10|192.0.2.10|node_7", record.getConnectionId());
         assertEquals("192.0.2.10", record.getNodeIp());
         assertEquals(7L, record.getNodeId());
         assertEquals("node_7", record.getNodeTag());
+    }
+
+    @Test
+    void shouldUseConnectionRefsWhenProvided() {
+        FakeAccountOnlineIpRepository onlineIpRepository = new FakeAccountOnlineIpRepository();
+        AccountOnlineIpService service = new AccountOnlineIpService(
+                onlineIpRepository,
+                new FakeAccountRepository(),
+                new FakeNodeRepository(),
+                new UserRepository(),
+                new FakeSystemConfigService());
+
+        GuardOnlineAccountIpReport report = accountIpReport("acct-001", "node_7", List.of("203.0.113.10"));
+        report.setConnections(List.of(connectionRef("203.0.113.10", "conn-1", "2026-07-14T10:00:00+08:00")));
+
+        int count = service.refreshFromGuardAccountIps("192.0.2.10", List.of(report));
+
+        assertEquals(1, count);
+        AccountOnlineIp record = onlineIpRepository.records.getFirst();
+        assertEquals("conn-1", record.getConnectionId());
         assertEquals(LocalDateTime.of(2026, 7, 14, 10, 0), record.getSessionStartTime());
     }
 
-    private static GuardOnlineConnectionReport report(String accountNo,
-                                                      String clientIp,
-                                                      String connectionId,
-                                                      String nodeTag,
-                                                      String start) {
-        GuardOnlineConnectionReport report = new GuardOnlineConnectionReport();
+    private static GuardOnlineAccountIpReport accountIpReport(String accountNo,
+                                                              String nodeTag,
+                                                              List<String> clientIps) {
+        GuardOnlineAccountIpReport report = new GuardOnlineAccountIpReport();
         report.setAccountNo(accountNo);
+        report.setNodeTag(nodeTag);
+        report.setClientIps(clientIps);
+        return report;
+    }
+
+    private static GuardOnlineConnectionRefReport connectionRef(String clientIp,
+                                                                String connectionId,
+                                                                String start) {
+        GuardOnlineConnectionRefReport report = new GuardOnlineConnectionRefReport();
         report.setClientIp(clientIp);
         report.setConnectionId(connectionId);
-        report.setNodeTag(nodeTag);
         report.setStart(start);
         return report;
     }

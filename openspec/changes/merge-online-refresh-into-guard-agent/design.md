@@ -18,7 +18,7 @@ guard 则是秒级节点推送；继续并存会造成重复解析、重复 SSH�
 - 让 `account_online_ip` 由节点推送刷新，降低中心 SSH 采集压力。
 - 保留现有在线页面、在线筛选、节点在线趋势、连接数告警的数据查询模型。
 - 保持账户、节点、服务器三个维度的在线连接查询能力和现有前端入口不变。
-- 对未升级节点提供可观测的过渡状态和可配置回退。
+- 对 agent 故障节点提供可观测状态和可配置回退。
 
 **Non-Goals:**
 
@@ -29,27 +29,32 @@ guard 则是秒级节点推送；继续并存会造成重复解析、重复 SSH�
 
 ## Decisions
 
-### 1. 在 `guard-sync` 请求中增加在线连接明细
+### 1. 在 `guard-sync` 请求中增加在线 IP 聚合记录
 
-`GuardSyncRequest` 保留现有 `accounts` 聚合字段，并新增 `onlineConnections` 明细字段。
-每条明细包含：
+`GuardSyncRequest` 保留现有 `accounts` 聚合字段，并新增 `onlineAccountIps` 聚合字段。
+每条记录包含：
 
 - `accountNo`
-- `clientIp`
-- `connectionId`
 - `nodeTag`
-- `start`
+- `clientIps`
+- `connections`（可选，包含 `clientIp`、`connectionId`、`start`）
 
-理由：防共享判定需要账户级聚合，在线页面需要连接级明细。让 agent 一次解析
-`/connections` 后同时生成两种视图，避免中心再拉取完整连接列表。
+理由：防共享判定需要账户级连接数和去重 IP，在线页面主要依赖账号、节点和客户端
+IP 可见性。让 agent 一次解析 `/connections` 后同时生成防共享聚合与在线 IP 聚合，
+避免在高连接数场景把每条连接都塞进 `guard-sync` 请求体。
 
-备选方案：只上报聚合数据，再由中心按需 SSH 获取明细。该方案不能刷新连接级在线
-记录，也无法支撑现有在线详情和在线时长。
+`connections` 默认不发送，只在 `guard_include_connection_refs` 开启时携带，用于为后续
+按连接关闭预留 `connectionId` 与 `start`，避免现在的高频同步默认回到逐连接大包。
+agent 上传 `guard-sync` 请求体时使用 gzip 压缩，中心按 `Content-Encoding: gzip`
+解压后再进入 JSON 反序列化。
+
+备选方案：继续上报逐连接明细。该方案能保留连接 ID 与开始时间，但请求体随连接数
+线性增长，连接很多时会明显增加中心入口流量和 JSON 解析压力。
 
 ### 2. `guard-sync` 同步刷新 `account_online_ip`
 
 中心处理 `guard-sync` 时，在完成 guard 聚合后调用在线刷新服务，把
-`onlineConnections` 写入 `account_online_ip`。节点标识仍按 `nodeTag` 映射到
+`onlineAccountIps` 写入 `account_online_ip`。节点标识仍按 `nodeTag` 映射到
 AirOpsCat `Node`。
 
 理由：现有页面和统计服务已经依赖 `account_online_ip`，复用它能把前端和大部分查询
@@ -90,20 +95,18 @@ AirOpsCat `Node`。
 
 ## Risks / Trade-offs
 
-- [Risk] `guard-sync` 请求体变大，连接数很高时增加中心入口压力 → Mitigation:
-  明细只包含在线刷新必要字段，并保留聚合字段避免中心重复聚合所有详情。
+- [Risk] `guard-sync` 请求体随在线 IP 数增长 → Mitigation:
+  在线刷新使用账号与节点维度的 IP 聚合记录；逐连接引用为显式开关，默认不上报；
+  请求体使用 gzip 压缩上传。
 - [Risk] 节点 agent 故障后在线状态不刷新 → Mitigation: 在线窗口自然过期，同时
   定时任务检查 guard 新鲜度并告警；必要时启用中心采集回退。
 - [Risk] `guard-sync` 同步写库影响响应时延 → Mitigation: 批量 upsert，失败时记录
   在线刷新错误但不影响返回配额结论；必要时后续改为队列异步写库。
-- [Risk] 老版本节点没有 `onlineConnections` 字段 → Mitigation: 中心兼容字段缺失，
-  只执行 guard 聚合，不刷新在线明细，并在新鲜度检查中暴露未升级状态。
-
 ## Migration Plan
 
-1. 先扩展中心 DTO 和 `guard-sync` 处理逻辑，兼容没有 `onlineConnections` 的老 agent。
-2. 更新 `02-guard-agent.sh`，从同一次 `/connections` 解析结果生成在线连接明细。
-3. 部署中心后逐批重装或重启节点 guard agent。
+1. 扩展中心 DTO 和 `guard-sync` 处理逻辑，消费 `onlineAccountIps` 聚合字段。
+2. 更新 `02-guard-agent.sh`，从同一次 `/connections` 解析结果生成在线 IP 聚合记录。
+3. 部署中心后重装或重启节点 guard agent。
 4. 观察 `account_online_ip` 刷新、新鲜度检查、在线页面和告警。
 5. 所有节点升级后，关闭中心 Clash API 回退采集。
 
