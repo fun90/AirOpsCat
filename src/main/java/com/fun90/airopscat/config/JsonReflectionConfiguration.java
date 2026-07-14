@@ -37,8 +37,6 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     com.fun90.airopscat.model.dto.singbox.SingBoxConnectionsResponse.class,
     com.fun90.airopscat.model.dto.singbox.SingBoxConnectionSnapshot.class,
     com.fun90.airopscat.model.dto.singbox.SingBoxConnectionMetadata.class,
-    com.fun90.airopscat.model.dto.singbox.NodeOnlineConnectionsSnapshot.class,
-    com.fun90.airopscat.model.dto.singbox.NodeOnlineConnectionRecord.class,
 
     // Account and User Related DTOs
     com.fun90.airopscat.model.dto.AccountDto.class,

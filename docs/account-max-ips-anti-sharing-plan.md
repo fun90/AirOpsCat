@@ -129,18 +129,18 @@ flowchart TB
 单节点兜底（3.4）完全复用此模式；跨节点配额判断（3.3）在同一注入点增加一次
 本地表查询。
 
-### 2.2 连接快照 agent（archive `add-node-connection-snapshot-source`）—— 节点侧 agent 模板
+### 2.2 guard agent —— 节点侧 agent 模板
 
-已有成熟范例 `airopscat-connection-snapshot-agent`：
+节点侧采用独立 `airopscat-guard-agent`：
 
 - systemd 常驻进程，按间隔读本机 `127.0.0.1:${port}/connections`（Clash API）。
-- 原子写 `/run/airopscat/*.json`（tmpfs），带 `schemaVersion` + `generatedAt`
-  + `ttlSeconds`，消费方据此判断数据新鲜度。
-- 与限速 agent 一起安装 / 重启 / 排错。
+- 按账户聚合连接数与去重 IP，通过 `guard-sync` 上报中心并取回全局配额结论。
+- 原子写 `/run/airopscat/account-quota.json`（tmpfs），带 `schemaVersion`
+  + `generatedAt` + `ttlSeconds`，内核据此判断数据新鲜度。
+- 使用 systemd 安装 / 重启 / 排错，不依赖旧在线连接快照文件。
 
-本方案的 `airopscat-guard-agent` 直接沿用这套形态（systemd + 原子写 + TTL），
-只是增加「上报」与「拉取配额」两个 HTTP 交互。**评估是否直接扩展快照 agent 而
-非新建**，避免节点上多一个高频读 Clash API 的进程（见 5.1）。
+防共享 guard 与旧在线连接快照功能解耦；当前落地脚本直接安装
+`airopscat-guard-agent.service`，不再要求节点生成 `/run/airopscat/online-connections.json`。
 
 ### 2.3 AirOpsCat 侧现有能力
 
@@ -478,23 +478,21 @@ Map<accountNo, Map<nodeIp, NodeStat>>
 
 ## 5. 关键实现决策（已确认）
 
-### 5.1 节点侧 agent：扩展现有快照 agent（已定）
+### 5.1 节点侧 agent：独立 guard agent（已定）
 
-**决策：扩展现有 `airopscat-connection-snapshot-agent`，不新建独立进程。**
+**决策：部署独立 `airopscat-guard-agent`，不依赖旧连接快照 agent。**
 
-该 agent 已在读本机 Clash API 出快照，本方案的 guard 职责（统计各账户连接/IP、
-发 `guard-sync`、原子写 `account-quota.json`）复用同一次 Clash API 读取结果，
-避免节点上出现第二个高频读 Clash API 的进程（万级连接下重复解析开销明显）。
+该 agent 周期读取本机 Clash API，统计各账户连接/IP，发 `guard-sync`，并原子写
+`account-quota.json`。旧在线连接快照文件已从在线刷新链路移除，后续如需减少中心
+SSH 采集压力，应把在线刷新并入 guard-sync，而不是恢复快照文件协议。
 
 落地要点：
 
-- agent 每个采集周期（默认沿用快照的 3 秒，或单独配一个 guard 周期，如 5 秒）
-  在解析完 `/connections` 后，额外按账户聚合出 `{accountNo → connections + ipSet}`。
+- agent 每个采集周期（如 5 秒）读取 `/connections`，按账户聚合出
+  `{accountNo → connections + ipSet}`。
 - 用该聚合结果发一次 `guard-sync`（§4.1），拿到响应后原子写
   `/run/airopscat/account-quota.json`。
-- guard 周期与快照输出周期可各自独立配置；若两者一致，一次 Clash API 读取同时
-  服务快照输出与 guard 上报，零额外读取开销。
-- systemd 服务定义、安装/重启/排错流程沿用现有快照 agent，不新增服务单元。
+- systemd 服务定义、安装/重启/排错流程由 `02-guard-agent.sh` 管理。
 
 ### 5.2 独立的 IP 上限字段：新增 `Account.maxIps`（已定）
 
