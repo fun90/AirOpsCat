@@ -24,7 +24,7 @@ AIROPSCAT_DOMAIN="${airopscat_domain:-}"
 AIROPSCAT_API_TOKEN="${airopscat_api_token:-}"
 
 # 可调参数（如需自定义可在此覆盖）
-SYNC_INTERVAL_SECONDS="${guard_sync_interval:-5}"
+SYNC_INTERVAL_SECONDS="${guard_sync_interval:-10}"
 SINGBOX_CONFIG="${singbox_config:-/etc/sing-box/config.json}"
 QUOTA_DIR="/run/airopscat"
 QUOTA_FILE="${QUOTA_DIR}/account-quota.json"
@@ -72,8 +72,8 @@ write_agent_script() {
 #
 # 每个周期：
 #   1. 读本机 sing-box 配置解析 Clash API 端口与 secret
-#   2. GET /connections，按 authUser 聚合连接数与去重 sourceIP
-#   3. POST guard-sync（带本节点数据），取回全局配额黑名单
+#   2. GET /connections，按 authUser 聚合连接数与去重 sourceIP，同时生成在线连接明细
+#   3. POST guard-sync（带本节点数据与在线明细），取回全局配额黑名单
 #   4. 原子写入 /run/airopscat/account-quota.json 供内核读取
 #
 # 失败（Clash API 不可达、中心无响应、解析异常）时不覆盖旧文件，
@@ -86,7 +86,7 @@ log() { printf '[%s] guard-agent: %s\n' "$(date '+%F %T')" "$*" >&2; }
 SERVER_IP="${SERVER_IP:?}"
 GUARD_SYNC_URL="${GUARD_SYNC_URL:?}"
 AIROPSCAT_API_TOKEN="${AIROPSCAT_API_TOKEN:-}"
-SYNC_INTERVAL_SECONDS="${SYNC_INTERVAL_SECONDS:-5}"
+SYNC_INTERVAL_SECONDS="${SYNC_INTERVAL_SECONDS:-10}"
 SINGBOX_CONFIG="${SINGBOX_CONFIG:-/etc/sing-box/config.json}"
 QUOTA_DIR="${QUOTA_DIR:-/run/airopscat}"
 QUOTA_FILE="${QUOTA_FILE:-${QUOTA_DIR}/account-quota.json}"
@@ -114,19 +114,35 @@ sync_once() {
     return
   fi
 
-  # 将 /connections 聚合为 guard-sync 请求体：
-  #   按 metadata.authUser 分组 → connections 计数 + sourceIP 去重
-  #   过滤掉 authUser 为空的连接（落地节点公共账号等）
+  # 将 /connections 转换为 guard-sync 请求体：
+  #   accounts：按 metadata.authUser 分组 → connections 计数 + sourceIP 去重
+  #   onlineConnections：当前在线连接明细，供中心刷新 account_online_ip
+  #   过滤掉 authUser 或 sourceIP 为空的在线明细（落地节点公共账号等）
   local body
   body="$(printf '%s' "${conn_json}" | jq -c \
     --arg nodeIp "${SERVER_IP}" \
     --argjson now "$(date +%s)" '
+    def node_tag:
+      (.metadata.type // "")
+      | if contains("/") then split("/")[-1] else "" end;
+    def valid_user:
+      .metadata.authUser != null and .metadata.authUser != "";
+    def valid_source:
+      .metadata.sourceIP != null and .metadata.sourceIP != "";
+    def online_record:
+      {
+        accountNo: .metadata.authUser,
+        clientIp: .metadata.sourceIP,
+        connectionId: (.id // ""),
+        nodeTag: node_tag,
+        start: (.start // "")
+      };
+    [ .connections[]? | select(valid_user) ] as $validConnections |
     {
       nodeIp: $nodeIp,
       generatedAtEpochSeconds: $now,
       accounts: (
-        [ .connections[]?
-          | select(.metadata.authUser != null and .metadata.authUser != "")
+        [ $validConnections[]
           | { authUser: .metadata.authUser, sourceIP: (.metadata.sourceIP // "") }
         ]
         | group_by(.authUser)
@@ -135,11 +151,17 @@ sync_once() {
             connections: length,
             ips: ( [ .[].sourceIP | select(. != "") ] | unique )
           })
+      ),
+      onlineConnections: (
+        [ $validConnections[]
+          | select(valid_source)
+          | online_record
+        ]
       )
     }' 2>/dev/null || true)"
 
   if [[ -z "${body}" ]]; then
-    log "聚合连接数据失败，跳过本轮"
+    log "生成 guard-sync 请求体失败，跳过本轮"
     return
   fi
 

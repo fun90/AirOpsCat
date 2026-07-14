@@ -2,6 +2,7 @@ package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
 import com.fun90.airopscat.model.dto.ClientRequest;
+import com.fun90.airopscat.model.dto.guard.GuardOnlineConnectionReport;
 import com.fun90.airopscat.model.dto.singbox.SingBoxConnectionSnapshot;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AccountOnlineIp;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -37,6 +39,7 @@ public class AccountOnlineIpService {
     private final NodeRepository nodeRepository;
     private final UserRepository userRepository;
     private final SystemConfigService systemConfigService;
+    private final Map<String, LocalDateTime> guardOnlineReportTimes = new ConcurrentHashMap<>();
 
     @Inject
     public AccountOnlineIpService(AccountOnlineIpRepository accountOnlineIpRepository,
@@ -230,6 +233,89 @@ public class AccountOnlineIpService {
             }
         }
         return count;
+    }
+
+    /**
+     * 基于 guard-sync 在线连接明细刷新在线状态。
+     *
+     * @param nodeIp      节点服务器 IP，写入 node_ip 字段
+     * @param connections guard agent 上报的当前在线连接明细
+     * @return 本轮成功 upsert 的记录数
+     */
+    @Transactional
+    public int refreshFromGuardConnections(String nodeIp, List<GuardOnlineConnectionReport> connections) {
+        if (nodeIp == null || nodeIp.isBlank() || connections == null) {
+            return 0;
+        }
+
+        String normalizedNodeIp = nodeIp.trim();
+        guardOnlineReportTimes.put(normalizedNodeIp, LocalDateTime.now());
+        if (connections.isEmpty()) {
+            return 0;
+        }
+
+        Set<String> candidateNos = connections.stream()
+                .filter(Objects::nonNull)
+                .map(GuardOnlineConnectionReport::getAccountNo)
+                .filter(u -> u != null && !u.isBlank())
+                .collect(Collectors.toSet());
+        Set<String> validAccountNos = candidateNos.isEmpty() ? Set.of()
+                : new HashSet<>(accountRepository.findExistingAccountNos(new java.util.ArrayList<>(candidateNos)));
+
+        Map<String, Node> nodeByTag = nodeRepository.findOnlineTrackableByServerIp(normalizedNodeIp).stream()
+                .collect(Collectors.toMap(Node::getTag, node -> node, (left, right) -> left));
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime offlineThreshold = now.minusMinutes(getCheckMinutes());
+        Set<String> seen = new HashSet<>();
+        int count = 0;
+
+        for (GuardOnlineConnectionReport conn : connections) {
+            if (conn == null) {
+                continue;
+            }
+            String accountNo = normalizeBlank(conn.getAccountNo());
+            String clientIp = normalizeBlank(conn.getClientIp());
+            if (accountNo == null || clientIp == null) {
+                continue;
+            }
+            if (!validAccountNos.contains(accountNo)) {
+                log.debug("refreshFromGuardConnections 跳过无效账号: authUser={}, nodeIp={}", accountNo, normalizedNodeIp);
+                continue;
+            }
+            String nodeTag = normalizeBlank(conn.getNodeTag());
+            Node node = nodeTag == null ? null : nodeByTag.get(nodeTag);
+            String connectionId = buildGuardConnectionId(conn, accountNo, clientIp, normalizedNodeIp, nodeTag);
+            String dedupeKey = accountNo + "\0" + connectionId + "\0" + normalizedNodeIp;
+            if (!seen.add(dedupeKey)) {
+                continue;
+            }
+            LocalDateTime sessionStartTime = resolveConnectionStartTime(conn.getStart(), now);
+            try {
+                accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, connectionId, normalizedNodeIp,
+                        node == null ? null : node.getId(), nodeTag, now, sessionStartTime, now, now, offlineThreshold);
+                count++;
+            } catch (Exception e) {
+                log.error("refreshFromGuardConnections upsert 失败: accountNo={}, clientIp={}, connectionId={}, nodeIp={}",
+                        accountNo, clientIp, connectionId, normalizedNodeIp, e);
+            }
+        }
+        return count;
+    }
+
+    public boolean isGuardOnlineReportFresh(String nodeIp) {
+        if (nodeIp == null || nodeIp.isBlank()) {
+            return false;
+        }
+        LocalDateTime lastReportTime = guardOnlineReportTimes.get(nodeIp);
+        if (lastReportTime == null) {
+            return false;
+        }
+        return lastReportTime.plusSeconds(getGuardOnlineFreshnessSeconds()).isAfter(LocalDateTime.now());
+    }
+
+    public Map<String, LocalDateTime> getGuardOnlineReportTimes() {
+        return Map.copyOf(guardOnlineReportTimes);
     }
 
     public List<AccountOnlineIpDto> getOnlineRecordsByNodeId(Long nodeId) {
@@ -462,7 +548,11 @@ public class AccountOnlineIpService {
     }
 
     private LocalDateTime resolveConnectionStartTime(SingBoxConnectionSnapshot conn, LocalDateTime fallback) {
-        String start = normalizeBlank(conn.getStart());
+        return resolveConnectionStartTime(conn.getStart(), fallback);
+    }
+
+    private LocalDateTime resolveConnectionStartTime(String rawStart, LocalDateTime fallback) {
+        String start = normalizeBlank(rawStart);
         if (start == null) {
             return fallback;
         }
@@ -482,6 +572,23 @@ public class AccountOnlineIpService {
         return String.join("|", "legacy", Objects.toString(clientIp, ""), Objects.toString(nodeIp, ""));
     }
 
+    private String buildGuardConnectionId(GuardOnlineConnectionReport conn,
+                                          String accountNo,
+                                          String clientIp,
+                                          String nodeIp,
+                                          String nodeTag) {
+        String rawId = normalizeBlank(conn.getConnectionId());
+        if (rawId != null) {
+            return rawId;
+        }
+        return String.join("|",
+                "guard",
+                accountNo,
+                clientIp,
+                Objects.toString(nodeIp, ""),
+                Objects.toString(nodeTag, ""));
+    }
+
     private String normalizeBlank(String value) {
         if (value == null) {
             return null;
@@ -492,6 +599,10 @@ public class AccountOnlineIpService {
 
     private int getCheckMinutes() {
         return Math.max(1, systemConfigService.getIntValue("airopscat.online.check-minutes", 10));
+    }
+
+    private int getGuardOnlineFreshnessSeconds() {
+        return Math.max(5, systemConfigService.getIntValue("airopscat.account.guard.online-freshness-seconds", 30));
     }
 
     private long elapsedMillis(long startedAt) {

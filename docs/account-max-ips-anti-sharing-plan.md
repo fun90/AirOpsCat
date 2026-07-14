@@ -47,8 +47,8 @@ agent 周期性上报，因此在一个同步窗口内，账户可能短暂创�
 
 | 决策项 | 结论 |
 |--------|------|
-| 执行架构 | AirOpsCat 聚合全局总量，**每 ~5 秒**把「各账户是否已超总限」同步到各节点；sing-box 认证时读本地配额表决定是否拒绝新连接 |
-| 同步通道 | **单次请求往返**：agent 每 ~5 秒 `POST` 上报本节点数据，中心在**同一响应**里回该节点相关账户的全局聚合结论。少一半请求、数据天然对齐（配额基于「含本次上报在内」的最新聚合） |
+| 执行架构 | AirOpsCat 聚合全局总量，默认**每 ~10 秒**把「各账户是否已超总限」同步到各节点；sing-box 认证时读本地配额表决定是否拒绝新连接 |
+| 同步通道 | **单次请求往返**：agent 默认每 ~10 秒 `POST` 上报本节点数据，中心在**同一响应**里回该节点相关账户的全局聚合结论。少一半请求、数据天然对齐（配额基于「含本次上报在内」的最新聚合） |
 | 中心聚合态 | 中心维护**带 TTL 的内存聚合表**（`accountNo → nodeId → 本节点连接/IP + 时间戳`）；每次上报只更新对应节点那一格，实时求和；节点超 TTL 未上报则其数据视为 0，防已下线节点旧数据永久累加 |
 | 节点侧载体 | **独立 agent** 负责上报本节点数据 + 接收配额并写本地文件；sing-box 内核只**读本地文件**，不直接与 AirOpsCat 通信 |
 | 内核单节点兜底 | **保留**。sing-box 额外支持单节点 `max_ips` / `max_connections` 硬上限，防单点被打爆，与跨节点总量配额是两道独立闸门 |
@@ -57,7 +57,7 @@ agent 周期性上报，因此在一个同步窗口内，账户可能短暂创�
 
 ### 1.5 数据流总览
 
-现有链路是「AirOpsCat 主动 SSH 拉取」，分钟级、开销重，无法支撑 5 秒同步。
+现有链路是「AirOpsCat 主动 SSH 拉取」，分钟级、开销重，无法支撑秒级同步。
 新方案把热路径数据流**反过来，改为节点推 + 中心下发**，SSH 退出热路径：
 
 ```mermaid
@@ -82,9 +82,9 @@ flowchart TB
         AgentB --> QuotaB --> KernelB
     end
 
-    AgentA -- "约每 5 秒 POST<br/>上报本节点连接/IP" --> Aggregate
+    AgentA -- "默认约每 10 秒 POST<br/>上报本节点连接/IP" --> Aggregate
     Decide -- "同一 HTTP 响应<br/>返回该节点相关账户结论" --> AgentA
-    AgentB -- "约每 5 秒 POST<br/>上报本节点连接/IP" --> Aggregate
+    AgentB -- "默认约每 10 秒 POST<br/>上报本节点连接/IP" --> Aggregate
     Decide -- "同一 HTTP 响应<br/>返回该节点相关账户结论" --> AgentB
 
     KernelA --> GateA{"是否放行新连接？"}
@@ -95,7 +95,7 @@ flowchart TB
 
 | 环节 | 做什么 | 关键约束 |
 |------|--------|----------|
-| 节点 agent → AirOpsCat | 上报本节点按账户聚合后的连接数和客户端 IP 列表 | 约每 5 秒一次，SSH 不在热路径 |
+| 节点 agent → AirOpsCat | 上报本节点按账户聚合后的连接数和客户端 IP 列表 | 默认约每 10 秒一次，SSH 不在热路径 |
 | AirOpsCat 中心 | 更新该节点分格，实时计算账户跨节点总连接数和总去重 IP 数 | 节点数据带 TTL，超时未上报则视为 0 |
 | AirOpsCat → 节点 agent | 在同一 HTTP 响应中返回该节点相关账户的超限结论 | 结论基于「含本次上报在内」的最新聚合 |
 | 节点 agent → 本地文件 | 原子写 `/run/airopscat/account-quota.json` | tmpfs，本地读，无网络依赖 |
@@ -135,6 +135,8 @@ flowchart TB
 
 - systemd 常驻进程，按间隔读本机 `127.0.0.1:${port}/connections`（Clash API）。
 - 按账户聚合连接数与去重 IP，通过 `guard-sync` 上报中心并取回全局配额结论。
+- 同一次 `/connections` 结果还生成 `onlineConnections` 明细，由中心写入
+  `account_online_ip`，继续支撑按账户、节点、服务器三个维度的在线查询。
 - 原子写 `/run/airopscat/account-quota.json`（tmpfs），带 `schemaVersion`
   + `generatedAt` + `ttlSeconds`，内核据此判断数据新鲜度。
 - 使用 systemd 安装 / 重启 / 排错，不依赖旧在线连接快照文件。
@@ -155,7 +157,7 @@ flowchart TB
   提供 override 机制。单节点 `max_ips` 兜底走同一条链路。
 - **采集调度**：`account-online-refresh` 任务为 `interval-minutes` 类型
   （cron `0 */N * * ?`），**最快每分钟一次**。这条链路继续用于分钟级的告警与
-  观测，**不承载 5 秒配额同步**（5 秒链路走 agent 推 / 拉，见 §4）。
+  观测，**不承载秒级配额同步**（秒级链路走 agent 推 / 拉，见 §4）。
 
 ### 2.4 关键机制确认
 
@@ -357,7 +359,7 @@ func WrapOnClose(next N.CloseHandlerFunc, l *Limiter, ip string) N.CloseHandlerF
 上报与配额下发**合并为同一个 HTTP 请求往返**：agent 在请求体带本节点实时数据，
 中心在响应体直接回该节点相关账户的配额结论。相比上行推 + 下行拉两条独立通道：
 
-- **请求数减半**：5 秒一次、N 个节点，合并后往返数减半，中心与网络压力都降。
+- **请求数减半**：默认 10 秒一次、N 个节点，合并后往返数减半，中心与网络压力都降。
 - **数据天然对齐**：响应里的配额基于「包含本次上报在内」的最新聚合结果，不存在
   「刚报完、但拉到的是上一轮配额」的时间错位。
 - **实现简单**：单端点、单次同步往返，agent 侧就是 POST → 拿 response → 原子写
@@ -423,13 +425,13 @@ Map<accountNo, Map<nodeIp, NodeStat>>
 - 求和时跳过 `now - reportedAt > TTL`（如 15 秒）的过期格；可由收到新上报时惰性
   剔除，或由一个低频清理任务定期清除。
 
-> 内存表不落库（5 秒级高频，落库无必要）；中心重启后由 agent 在数个周期内重新
+> 内存表不落库（秒级高频，落库无必要）；中心重启后由 agent 在数个周期内重新
 > 上报重建，无需持久化。
 
 ### 4.3 无需独立的聚合定时任务
 
 由于聚合与判定都在**收到 `guard-sync` 请求时同步完成**（4.2），中心**不需要**
-再跑一个独立的秒级 `@Scheduled` 聚合任务——每个节点自己的 5 秒上报就是聚合的
+再跑一个独立的秒级 `@Scheduled` 聚合任务——每个节点自己的周期上报就是聚合的
 驱动时钟。这比「上报入表 + 独立任务定时算配额 + agent 再来拉」少了一整条链路。
 
 > 唯一可选的后台任务是低频（如每 30 秒）清理超 TTL 的僵尸节点格，防止长期不上报
@@ -438,7 +440,7 @@ Map<accountNo, Map<nodeIp, NodeStat>>
 ### 4.4 单节点兜底字段下发（低频，随部署）
 
 `max_ips` / `max_connections` 单节点兜底是**静态配置**，随节点部署下发，不走
-5 秒热路径：
+秒级热路径：
 
 1. `NodeClient` record 增加 `Integer maxIps`、`Integer maxConnections`。
 2. `SingBoxConfigBuilder.putRateLimitFields` 复用为写入点，向 user JSON 追加
@@ -469,12 +471,13 @@ Map<accountNo, Map<nodeIp, NodeStat>>
 
 ### 4.7 分钟级告警继续作为观测层
 
-`AccountOnlineLimitAlertService` 与 `account-online-refresh`（分钟级 SSH 采集）
-继续运行，作为：
+`AccountOnlineLimitAlertService` 与 `account-online-refresh` 继续运行，作为：
 
 - **观测**：发现配置未下发到位、agent 异常、疑似共享账户，提供运营可见性。
-- **兜底**：agent 链路整体故障时，分钟级断连仍可作为最后防线（可选保留
-  `111b7e6` 的断连能力作为应急开关）。
+- **新鲜度检查**：确认各服务器 guard 在线明细仍在窗口内上报；默认不再主动 SSH
+  采集在线状态。
+- **显式回退**：只有开启 `airopscat.account.guard.online-fallback-clash-api-enabled`
+  且节点上报过期时，中心才通过 Clash API 临时补采在线状态。
 
 ## 5. 关键实现决策（已确认）
 
@@ -483,15 +486,16 @@ Map<accountNo, Map<nodeIp, NodeStat>>
 **决策：部署独立 `airopscat-guard-agent`，不依赖旧连接快照 agent。**
 
 该 agent 周期读取本机 Clash API，统计各账户连接/IP，发 `guard-sync`，并原子写
-`account-quota.json`。旧在线连接快照文件已从在线刷新链路移除，后续如需减少中心
-SSH 采集压力，应把在线刷新并入 guard-sync，而不是恢复快照文件协议。
+`account-quota.json`。同一个 `guard-sync` 请求还携带当前连接明细
+`onlineConnections`，中心据此刷新 `account_online_ip`。旧在线连接快照文件已从
+在线刷新链路移除，中心 SSH/Clash API 采集只作为显式开启的过期回退路径。
 
 落地要点：
 
-- agent 每个采集周期（如 5 秒）读取 `/connections`，按账户聚合出
+- agent 每个采集周期（默认 10 秒，可按需调低到 5 秒）读取 `/connections`，按账户聚合出
   `{accountNo → connections + ipSet}`。
-- 用该聚合结果发一次 `guard-sync`（§4.1），拿到响应后原子写
-  `/run/airopscat/account-quota.json`。
+- 用该聚合结果和在线连接明细发一次 `guard-sync`（§4.1），中心同步刷新
+  `account_online_ip`，拿到响应后原子写 `/run/airopscat/account-quota.json`。
 - systemd 服务定义、安装/重启/排错流程由 `02-guard-agent.sh` 管理。
 
 ### 5.2 独立的 IP 上限字段：新增 `Account.maxIps`（已定）
@@ -524,11 +528,11 @@ SSH 采集压力，应把在线刷新并入 guard-sync，而不是恢复快照�
 | 风险 | 说明 | 缓解 |
 |------|------|------|
 | 中心故障导致全量拒绝 | `guard-sync` 请求失败 / 无响应，本地表得不到刷新而过期 | 内核 fail-open：表过期即放行，中心故障不断网 |
-| 5 秒窗口内的短暂超额 | 同步有延迟，账户可在一个周期内短暂超总限。例如限制 3，节点 A / B 在下一次上报前分别新建连接，中心尚未下发 blocked 结论时，这些连接会先被放行 | 目标是「防持续共享」而非「零超额」；缩短同步周期、降低单节点 `max_connections` 兜底值，或改为中心同步授权才能进一步收紧 |
+| 同步窗口内的短暂超额 | 同步有延迟，账户可在一个周期内短暂超总限。例如限制 3，节点 A / B 在下一次上报前分别新建连接，中心尚未下发 blocked 结论时，这些连接会先被放行 | 目标是「防持续共享」而非「零超额」；缩短同步周期、降低单节点 `max_connections` 兜底值，或改为中心同步授权才能进一步收紧 |
 | CGNAT / 大内网出口 | 多设备共用一个公网 IP，IP 去重后算 1 个 | 安全方向偏差（宁漏放不误杀），可接受；连接数维度仍能约束 |
 | 移动网络 IP 切换 | 单设备漫游产生多 IP | 限额留冗余；旧连接关闭后 IP 从统计中消失 |
 | 上报端点被伪造 | 恶意上报可篡改聚合结果 | 端点鉴权（节点密钥 / mTLS） |
-| 内存聚合丢失 | 中心重启丢失聚合态 | 5 秒内由 agent 重新上报重建，无需持久化 |
+| 内存聚合丢失 | 中心重启丢失聚合态 | 由 agent 在下一个同步周期重新上报重建，无需持久化 |
 | agent 与内核数据不一致 | agent 统计与内核实际连接有偏差 | 均以本机 Clash API 为源；偏差在一个同步周期内收敛 |
 | 单节点计数泄漏 | 兜底 `Acquire` 后未 `Release` | 统一包裹 `onClose` 回收；单元测试覆盖异常路径 |
 
@@ -561,7 +565,7 @@ SSH 采集压力，应把在线刷新并入 guard-sync，而不是恢复快照�
    - 跨节点去重 IP 数超限 → 新 IP 连接被拒；
    - 单节点 `max_ips` 兜底：单节点内超限即拒（不依赖中心）；
    - 中心停机 → 表过期 → 内核 fail-open 放行，不断网；
-   - 恢复后 5 秒内配额重新生效。
+   - 恢复后在一个同步周期内配额重新生效。
 
 ## 8. 附：与已回退应用层方案（`111b7e6`）的关系
 

@@ -50,6 +50,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     // 账户防共享 guard-sync DTO（控制器请求/响应类型）
     com.fun90.airopscat.model.dto.guard.GuardSyncRequest.class,
     com.fun90.airopscat.model.dto.guard.GuardSyncAccountReport.class,
+    com.fun90.airopscat.model.dto.guard.GuardOnlineConnectionReport.class,
     com.fun90.airopscat.model.dto.guard.GuardSyncResponse.class,
     com.fun90.airopscat.model.dto.guard.GuardBlockedEntry.class,
 
