@@ -28,6 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @ApplicationScoped
 public class AccountGuardAggregator {
 
+    private static final int DEFAULT_TTL_SECONDS = 30;
+
     private static final class NodeStat {
         final int connections;
         final Set<String> ips;
@@ -199,7 +201,8 @@ public class AccountGuardAggregator {
     }
 
     public int getTtlSeconds() {
-        return Math.max(5, systemConfigService.getIntValue("airopscat.account.guard.ttl-seconds", 15));
+        return Math.max(5, systemConfigService.getIntValue(
+                "airopscat.account.guard.ttl-seconds", DEFAULT_TTL_SECONDS));
     }
 
     private long nowEpochSeconds() {

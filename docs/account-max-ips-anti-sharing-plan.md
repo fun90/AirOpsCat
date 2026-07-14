@@ -220,7 +220,7 @@ const (
 {
   "schemaVersion": 1,
   "generatedAtEpochSeconds": 1778640000,
-  "ttlSeconds": 15,
+  "ttlSeconds": 30,
   "blockedAccounts": {
     "A10001": { "reason": "connections", "total": 12, "limit": 10 },
     "A10002": { "reason": "ips", "total": 4, "limit": 3 }
@@ -403,7 +403,7 @@ func WrapOnClose(next N.CloseHandlerFunc, l *Limiter, ip string) N.CloseHandlerF
 {
   "schemaVersion": 1,
   "generatedAtEpochSeconds": 1778640000,
-  "ttlSeconds": 15,
+  "ttlSeconds": 30,
   "blockedAccounts": {
     "A10001": { "reason": "connections", "total": 12, "limit": 10 }
   }
@@ -440,7 +440,7 @@ Map<accountNo, Map<nodeIp, NodeStat>>
 
 - 某节点若宕机 / 网络中断不再上报，它那一格的旧数据**不能永远累加进总量**，
   否则会把已下线节点的连接数长期算入，导致账户被错误判超限。
-- 求和时跳过 `now - reportedAt > TTL`（如 15 秒）的过期格；可由收到新上报时惰性
+- 求和时跳过 `now - reportedAt > TTL`（默认 30 秒，为 10 秒同步周期的 3 倍）的过期格；可由收到新上报时惰性
   剔除，或由一个低频清理任务定期清除。
 
 > 内存表不落库（秒级高频，落库无必要）；中心重启后由 agent 在数个周期内重新

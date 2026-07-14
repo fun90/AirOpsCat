@@ -30,7 +30,7 @@ class SystemConfigServiceTest {
 
         int ttlSeconds = service.getIntValue("airopscat.account.guard.ttl-seconds", 10);
 
-        assertEquals(15, ttlSeconds);
+        assertEquals(30, ttlSeconds);
     }
 
     static class EmptySystemConfigRepository extends SystemConfigRepository {
