@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AccountGuardAggregator {
 
     private static final int DEFAULT_TTL_SECONDS = 30;
+    private static final int DEFAULT_CONSECUTIVE_TIMES = 2;
 
     private static final class NodeStat {
         final int connections;
@@ -43,6 +44,8 @@ public class AccountGuardAggregator {
     }
 
     private final Map<String, Map<String, NodeStat>> table = new ConcurrentHashMap<>();
+    private final Map<String, Integer> consecutiveExceedCounts = new ConcurrentHashMap<>();
+    private final Map<String, GuardBlockedEntry> blockedAccounts = new ConcurrentHashMap<>();
 
     private final AccountRepository accountRepository;
     private final SystemConfigService systemConfigService;
@@ -111,13 +114,60 @@ public class AccountGuardAggregator {
             if (!reportedAccountNos.contains(accountNo)) {
                 continue;
             }
-            GuardBlockedEntry entry = evaluateAccount(account, stats);
+            GuardBlockedEntry entry = blockedAccounts.get(accountNo);
             if (entry != null) {
                 blocked.put(accountNo, entry);
             }
         }
 
         return new AccountGuardEvaluation(blocked, statsByAccountNo);
+    }
+
+    /**
+     * 按中心统一采样周期评估所有已跟踪账户。只有连续超限达到配置次数后，
+     * 才将账户加入黑名单；任一采样周期恢复到限制内时立即清零并移出黑名单。
+     */
+    public AccountGuardEvaluation evaluateTrackedAccounts() {
+        Set<String> accountNos = new HashSet<>(table.keySet());
+        accountNos.addAll(consecutiveExceedCounts.keySet());
+        accountNos.addAll(blockedAccounts.keySet());
+        if (accountNos.isEmpty()) {
+            return new AccountGuardEvaluation(Map.of(), Map.of());
+        }
+
+        long now = nowEpochSeconds();
+        int ttl = getTtlSeconds();
+        int requiredTimes = getConsecutiveTimesThreshold();
+        Map<String, Account> accountMap = loadAccounts(accountNos);
+        Map<String, AccountGuardStats> statsByAccountNo = new HashMap<>();
+
+        for (String accountNo : accountNos) {
+            Account account = accountMap.get(accountNo);
+            if (account == null) {
+                consecutiveExceedCounts.remove(accountNo);
+                blockedAccounts.remove(accountNo);
+                continue;
+            }
+
+            AccountGuardStats stats = calculateStats(accountNo, now, ttl);
+            statsByAccountNo.put(accountNo, stats);
+            GuardBlockedEntry exceeded = evaluateAccount(account, stats);
+            if (exceeded == null) {
+                consecutiveExceedCounts.remove(accountNo);
+                blockedAccounts.remove(accountNo);
+                continue;
+            }
+
+            int consecutiveTimes = consecutiveExceedCounts.merge(
+                    accountNo,
+                    1,
+                    (current, increment) -> Math.min(requiredTimes, current + increment));
+            if (consecutiveTimes >= requiredTimes) {
+                blockedAccounts.put(accountNo, exceeded);
+            }
+        }
+
+        return new AccountGuardEvaluation(new HashMap<>(blockedAccounts), statsByAccountNo);
     }
 
     private AccountGuardStats calculateStats(String accountNo, long now, int ttl) {
@@ -203,6 +253,11 @@ public class AccountGuardAggregator {
     public int getTtlSeconds() {
         return Math.max(5, systemConfigService.getIntValue(
                 "airopscat.account.guard.ttl-seconds", DEFAULT_TTL_SECONDS));
+    }
+
+    private int getConsecutiveTimesThreshold() {
+        return Math.max(1, systemConfigService.getIntValue(
+                "airopscat.account.connection-limit.alert.consecutive-times", DEFAULT_CONSECUTIVE_TIMES));
     }
 
     private long nowEpochSeconds() {

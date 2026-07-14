@@ -426,15 +426,15 @@ Map<accountNo, Map<nodeIp, NodeStat>>
   NodeStat = { connections, ipSet, reportedAtEpochSeconds }
 ```
 
-处理一次 `guard-sync` 请求的步骤：
+`guard-sync` 请求只负责更新快照并返回已经确认的黑名单；中心每 10 秒统一采样一次：
 
 1. **更新**：用请求体覆盖 `聚合表[各accountNo][nodeIp]` 这一格，刷新 `reportedAt`。
-2. **求和**（只针对本请求涉及的账户，避免全表扫描）：对每个账户，累加所有节点
+2. **中心采样求和**：对每个账户，累加所有节点
    的 `connections`、合并所有节点的 `ipSet` 去重，得到全局 `totalConnections` /
    `totalIps`。
-3. **判定**：与 `Account.maxConnections`（连接数）及 IP 上限比较，超限则计入本次
-   响应的 `blockedAccounts`。
-4. **返回**：把结论写入响应体回给该节点 agent。
+3. **连续判定**：与 `Account.maxConnections`（连接数）及 IP 上限比较；连续超限
+   达到配置的采样次数后加入中心黑名单，任一采样周期恢复到限制内时立即移除。
+4. **返回**：后续 `guard-sync` 请求把已经确认的黑名单结论回给对应节点 agent。
 
 **每格必须带 TTL**——这是合并方案不出错的关键：
 
@@ -446,14 +446,14 @@ Map<accountNo, Map<nodeIp, NodeStat>>
 > 内存表不落库（秒级高频，落库无必要）；中心重启后由 agent 在数个周期内重新
 > 上报重建，无需持久化。
 
-### 4.3 无需独立的聚合定时任务
+### 4.3 中心统一采样任务
 
-由于聚合与判定都在**收到 `guard-sync` 请求时同步完成**（4.2），中心**不需要**
-再跑一个独立的秒级 `@Scheduled` 聚合任务——每个节点自己的周期上报就是聚合的
-驱动时钟。这比「上报入表 + 独立任务定时算配额 + agent 再来拉」少了一整条链路。
+中心使用每 10 秒执行一次的 `@Scheduled` 任务统一计算连续超限次数。这样同一周期
+内无论收到多少个服务器 agent 上报，每个账户都只累计一次，避免服务器数量改变
+连续超限阈值的实际含义。任务使用 `ConcurrentExecution.SKIP` 防止重叠执行。
 
-> 唯一可选的后台任务是低频（如每 30 秒）清理超 TTL 的僵尸节点格，防止长期不上报
-> 的节点在表中堆积；此任务不在热路径，用普通 `@Scheduled` 即可。
+另有低频（如每 30 秒）任务清理超 TTL 的僵尸节点格，防止长期不上报的节点在表中
+堆积；清理任务不参与连续超限次数累计。
 
 ### 4.4 单节点兜底字段下发（低频，随部署）
 
@@ -577,9 +577,9 @@ Map<accountNo, Map<nodeIp, NodeStat>>
 4. **中心开发**（AirOpsCat）：
    - **数据模型先行**：`account` 表 `max_ips` 列 Flyway 迁移 → `Account` 实体、
      `AccountDto`、`AccountRequest`、`NodeClient` 增 `maxIps`（§5.2）。
-   - `guard-sync` 端点（含鉴权）：更新该节点在内存聚合表中的格 → 实时求和
-     （剔除超 TTL 的僵尸节点格）→ 按 `maxConnections` / `maxIps` 双维度判定并在
-     同一响应回结论 → 低频清理任务 → 单节点兜底字段下发（`NodeClient` +
+   - `guard-sync` 端点（含鉴权）更新该节点在内存聚合表中的格；中心定时任务统一
+     求和（剔除超 TTL 的僵尸节点格），按 `maxConnections` / `maxIps` 双维度执行
+     连续超限判定；后续同步响应返回已确认黑名单 → 低频清理任务 → 单节点兜底字段下发（`NodeClient` +
      `SingBoxConfigBuilder`）→ 反射注册 → 账户页新增「最大 IP / 设备数」输入项。
 5. **联调验证**：
    - 同账户在**多个节点**合计超过 `maxConnections` → 新连接被内核静默拒绝；

@@ -5,7 +5,6 @@ import com.fun90.airopscat.model.dto.guard.GuardOnlineAccountIpReport;
 import com.fun90.airopscat.model.dto.guard.GuardSyncAccountReport;
 import com.fun90.airopscat.model.dto.guard.GuardSyncRequest;
 import com.fun90.airopscat.model.dto.guard.GuardSyncResponse;
-import com.fun90.airopscat.service.AccountOnlineLimitAlertService;
 import com.fun90.airopscat.service.AccountOnlineIpService;
 import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.guard.AccountGuardAggregator;
@@ -55,7 +54,6 @@ class OpenControllerGuardSyncTest {
         OpenController controller = new OpenController();
         controller.accountGuardAggregator = new FakeAggregator();
         controller.accountOnlineIpService = onlineIpService;
-        controller.accountOnlineLimitAlertService = new FakeAlertService();
         controller.systemConfigService = new FakeSystemConfigService();
         return controller;
     }
@@ -108,16 +106,6 @@ class OpenControllerGuardSyncTest {
                 throw new IllegalStateException("boom");
             }
             return 0;
-        }
-    }
-
-    static class FakeAlertService extends AccountOnlineLimitAlertService {
-        FakeAlertService() {
-            super(null, null, null, null);
-        }
-
-        @Override
-        public void checkAndNotifyFromGuard(Map<String, com.fun90.airopscat.service.guard.AccountGuardStats> statsByAccountNo) {
         }
     }
 
