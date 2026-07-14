@@ -17,6 +17,8 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
+import com.fun90.airopscat.service.guard.AccountGuardAggregator;
+import com.fun90.airopscat.service.guard.AccountGuardStats;
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -40,6 +42,9 @@ public class AccountService {
 
     @Inject
     AccountOnlineIpService accountOnlineIpService;
+
+    @Inject
+    AccountGuardAggregator accountGuardAggregator;
 
     @Inject
     SystemConfigService systemConfigService;
@@ -242,6 +247,10 @@ public class AccountService {
                         .filter(r -> r.getAccountNo() != null)
                         .collect(Collectors.groupingBy(AccountOnlineIpDto::getAccountNo));
 
+        Map<String, AccountGuardStats> guardStatsByAccountNo = accountNos.isEmpty() || accountGuardAggregator == null
+                ? Collections.emptyMap()
+                : accountGuardAggregator.snapshotStatsByAccountNos(accountNos);
+
         // 批量查询最后在线时间（历史记录兜底）
         Map<String, LocalDateTime> lastOnlineTimeMap = accountOnlineIpService.getLastOnlineTimeMap(accountNos);
 
@@ -300,7 +309,8 @@ public class AccountService {
             if (account.getAccountNo() != null) {
                 List<AccountOnlineIpDto> onlineConnections = onlineByAccountNo.getOrDefault(account.getAccountNo(), Collections.emptyList());
                 dto.setOnlineConnections(onlineConnections);
-                dto.setOnlineConnectionCount(onlineConnections.size());
+                AccountGuardStats guardStats = guardStatsByAccountNo.get(account.getAccountNo());
+                dto.setOnlineConnectionCount(guardStats == null ? onlineConnections.size() : guardStats.getTotalConnections());
 
                 // 最后在线时间：优先当前在线记录中最新的，否则取历史最大值
                 if (!onlineConnections.isEmpty()) {

@@ -138,6 +138,25 @@ public class AccountGuardAggregator {
         return new AccountGuardStats(accountNo, totalConnections, totalIps.size(), activeNodeCount);
     }
 
+    public Map<String, AccountGuardStats> snapshotStatsByAccountNos(List<String> accountNos) {
+        if (accountNos == null || accountNos.isEmpty()) {
+            return Map.of();
+        }
+        long now = nowEpochSeconds();
+        int ttl = getTtlSeconds();
+        Map<String, AccountGuardStats> result = new HashMap<>();
+        for (String accountNo : accountNos) {
+            if (accountNo == null || accountNo.isBlank()) {
+                continue;
+            }
+            AccountGuardStats stats = calculateStats(accountNo, now, ttl);
+            if (stats.getTotalConnections() > 0 || stats.getTotalIps() > 0 || stats.getActiveNodeCount() > 0) {
+                result.put(accountNo, stats);
+            }
+        }
+        return result;
+    }
+
     private GuardBlockedEntry evaluateAccount(Account account, AccountGuardStats stats) {
         Integer maxConnections = account.getMaxConnections();
         if (maxConnections != null && maxConnections > 0 && stats.getTotalConnections() > maxConnections) {
