@@ -13,9 +13,12 @@ import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.UserRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.persistence.LockTimeoutException;
+import jakarta.persistence.PessimisticLockException;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
+import java.sql.SQLTransientException;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -32,6 +35,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AccountOnlineIpService {
     private static final int DEFAULT_CLEANUP_BATCH_SIZE = 1000;
+    private static final int UPSERT_MAX_ATTEMPTS = 3;
+    private static final long UPSERT_RETRY_BACKOFF_MILLIS = 50L;
 
     private final AccountOnlineIpRepository accountOnlineIpRepository;
     private final AccountRepository accountRepository;
@@ -139,7 +144,6 @@ public class AccountOnlineIpService {
      * @param onlineAccountIps guard agent 上报的账号在线 IP 聚合记录
      * @return 本轮成功 upsert 的记录数
      */
-    @Transactional
     public int refreshFromGuardAccountIps(String nodeIp, List<GuardOnlineAccountIpReport> onlineAccountIps) {
         if (nodeIp == null || nodeIp.isBlank() || onlineAccountIps == null) {
             return 0;
@@ -196,13 +200,10 @@ public class AccountOnlineIpService {
                     continue;
                 }
                 String connectionId = buildGuardAccountIpConnectionId(accountNo, clientIp, normalizedNodeIp, nodeTag);
-                try {
-                    accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, connectionId, normalizedNodeIp,
-                            node == null ? null : node.getId(), nodeTag, now, now, now, now, offlineThreshold);
+                if (upsertOnlineStatusWithRetry(accountNo, clientIp, connectionId, normalizedNodeIp,
+                        node == null ? null : node.getId(), nodeTag, now, now, now, now, offlineThreshold,
+                        "refreshFromGuardAccountIps")) {
                     count++;
-                } catch (Exception e) {
-                    log.error("refreshFromGuardAccountIps upsert 失败: accountNo={}, clientIp={}, connectionId={}, nodeIp={}",
-                            accountNo, clientIp, connectionId, normalizedNodeIp, e);
                 }
             }
         }
@@ -232,13 +233,10 @@ public class AccountOnlineIpService {
                 continue;
             }
             LocalDateTime sessionStartTime = resolveConnectionStartTime(connection.getStart(), now);
-            try {
-                accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, connectionId, nodeIp,
-                        node == null ? null : node.getId(), nodeTag, now, sessionStartTime, now, now, offlineThreshold);
+            if (upsertOnlineStatusWithRetry(accountNo, clientIp, connectionId, nodeIp,
+                    node == null ? null : node.getId(), nodeTag, now, sessionStartTime, now, now, offlineThreshold,
+                    "refreshFromGuardConnectionRefs")) {
                 count++;
-            } catch (Exception e) {
-                log.error("refreshFromGuardConnectionRefs upsert 失败: accountNo={}, clientIp={}, connectionId={}, nodeIp={}",
-                        accountNo, clientIp, connectionId, nodeIp, e);
             }
         }
         return count;
@@ -254,6 +252,72 @@ public class AccountOnlineIpService {
         LocalDateTime checkStartTime = LocalDateTime.now().minusMinutes(getCheckMinutes());
         List<AccountOnlineIp> records = accountOnlineIpRepository.findByAccountNosAndLastOnlineTimeAfter(accountNos, checkStartTime);
         return convertToDtoList(records);
+    }
+
+    private boolean upsertOnlineStatusWithRetry(String accountNo,
+                                                String clientIp,
+                                                String connectionId,
+                                                String nodeIp,
+                                                Long nodeId,
+                                                String nodeTag,
+                                                LocalDateTime lastOnlineTime,
+                                                LocalDateTime sessionStartTime,
+                                                LocalDateTime createTime,
+                                                LocalDateTime updateTime,
+                                                LocalDateTime offlineThresholdTime,
+                                                String source) {
+        for (int attempt = 1; attempt <= UPSERT_MAX_ATTEMPTS; attempt++) {
+            try {
+                accountOnlineIpRepository.upsertOnlineStatus(accountNo, clientIp, connectionId, nodeIp,
+                        nodeId, nodeTag, lastOnlineTime, sessionStartTime, createTime, updateTime, offlineThresholdTime);
+                return true;
+            } catch (Exception e) {
+                if (isRetryableUpsertFailure(e) && attempt < UPSERT_MAX_ATTEMPTS) {
+                    log.warn("{} upsert 遇到并发锁冲突，准备重试: accountNo={}, clientIp={}, connectionId={}, nodeIp={}, attempt={}/{}, error={}",
+                            source, accountNo, clientIp, connectionId, nodeIp, attempt, UPSERT_MAX_ATTEMPTS, e.getMessage());
+                    sleepBeforeRetry(attempt);
+                    continue;
+                }
+                log.error("{} upsert 失败: accountNo={}, clientIp={}, connectionId={}, nodeIp={}, attempt={}/{}",
+                        source, accountNo, clientIp, connectionId, nodeIp, attempt, UPSERT_MAX_ATTEMPTS, e);
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private boolean isRetryableUpsertFailure(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof PessimisticLockException
+                    || current instanceof LockTimeoutException
+                    || current instanceof SQLTransientException) {
+                return true;
+            }
+            String simpleName = current.getClass().getSimpleName();
+            if (simpleName.contains("LockAcquisition") || simpleName.contains("TransactionRollback")) {
+                return true;
+            }
+            String message = current.getMessage();
+            if (message != null) {
+                String lowerMessage = message.toLowerCase();
+                if (lowerMessage.contains("deadlock found")
+                        || lowerMessage.contains("try restarting transaction")
+                        || lowerMessage.contains("lock wait timeout")) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private void sleepBeforeRetry(int attempt) {
+        try {
+            Thread.sleep(UPSERT_RETRY_BACKOFF_MILLIS * attempt);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**
