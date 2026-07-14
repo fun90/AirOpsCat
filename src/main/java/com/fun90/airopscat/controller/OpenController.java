@@ -145,6 +145,14 @@ public class OpenController {
         } catch (Exception e) {
             log.warn("guard-sync 实时告警检查失败: nodeIp={}, error={}", request.getNodeIp(), e.getMessage(), e);
         }
+        try {
+            if (request.getOnlineConnections() != null) {
+                int refreshed = accountOnlineIpService.refreshFromGuardConnections(request.getNodeIp(), request.getOnlineConnections());
+                log.debug("guard-sync 在线状态刷新完成: nodeIp={}, upsert={}", request.getNodeIp(), refreshed);
+            }
+        } catch (Exception e) {
+            log.warn("guard-sync 在线状态刷新失败: nodeIp={}, error={}", request.getNodeIp(), e.getMessage(), e);
+        }
 
         GuardSyncResponse response = new GuardSyncResponse();
         response.setSchemaVersion(GUARD_SCHEMA_VERSION);

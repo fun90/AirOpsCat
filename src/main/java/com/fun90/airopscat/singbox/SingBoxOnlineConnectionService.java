@@ -8,6 +8,7 @@ import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.AccountOnlineLimitAlertService;
 import com.fun90.airopscat.service.AccountOnlineIpService;
+import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
 import com.fun90.airopscat.service.ssh.ServerSshConfigFactory;
@@ -45,30 +46,47 @@ public class SingBoxOnlineConnectionService {
     @Inject
     AccountOnlineLimitAlertService accountOnlineLimitAlertService;
 
+    @Inject
+    SystemConfigService systemConfigService;
+
     public void refreshAllServers() {
         List<Server> servers = serverRepository.findMonitorableServers(LocalDate.now());
         if (servers.isEmpty()) {
-            log.debug("没有可采集的服务器，跳过在线账号刷新");
+            log.debug("没有可检查的服务器，跳过 guard 在线刷新新鲜度检查");
             return;
         }
 
-        int success = 0, failure = 0;
+        boolean fallbackEnabled = systemConfigService.getBooleanValue(
+                "airopscat.account.guard.online-fallback-clash-api-enabled", false);
+        int fresh = 0, stale = 0, fallbackSuccess = 0, fallbackFailure = 0;
         for (Server server : servers) {
+            String serverIp = server.getIp();
+            if (accountOnlineIpService.isGuardOnlineReportFresh(serverIp)) {
+                fresh++;
+                continue;
+            }
+            stale++;
+            log.warn("节点 guard 在线上报已过期或未上报: server={}({}), ip={}, fallback={}",
+                    server.getName(), server.getId(), serverIp, fallbackEnabled);
+            if (!fallbackEnabled) {
+                continue;
+            }
             try {
-                int count = refreshServer(server);
-                log.debug("在线账号采集完成: server={}({}), upsert={}", server.getName(), server.getId(), count);
-                success++;
+                int count = refreshServerByClashApi(server);
+                log.debug("guard 在线刷新回退采集完成: server={}({}), upsert={}", server.getName(), server.getId(), count);
+                fallbackSuccess++;
             } catch (Exception e) {
-                failure++;
-                log.warn("在线账号采集失败，跳过该服务器: server={}({}), error={}",
+                fallbackFailure++;
+                log.warn("guard 在线刷新回退采集失败，跳过该服务器: server={}({}), error={}",
                         server.getName(), server.getId(), e.getMessage());
             }
         }
-        log.info("在线账号刷新完成，服务器数={}, 成功={}, 失败={}", servers.size(), success, failure);
+        log.info("guard 在线刷新新鲜度检查完成，服务器数={}, 新鲜={}, 过期={}, 回退成功={}, 回退失败={}",
+                servers.size(), fresh, stale, fallbackSuccess, fallbackFailure);
         accountOnlineLimitAlertService.checkAndNotify();
     }
 
-    private int refreshServer(Server server) throws Exception {
+    private int refreshServerByClashApi(Server server) throws Exception {
         try (SshConnection connection = sshConnectionService.createConnection(serverSshConfigFactory.create(server))) {
             SingBoxConnectionsResponse response = clashApiClient.getConnections(connection);
             List<SingBoxConnectionSnapshot> connections = response == null || response.getConnections() == null

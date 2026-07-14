@@ -22,6 +22,14 @@ public class NodeRepository implements PanacheRepository<Node> {
                 serverId, NodeDeploymentStatus.DEPLOYED.getValue()).list();
     }
 
+    public List<Node> findOnlineTrackableByServerIp(String serverIp) {
+        if (serverIp == null || serverIp.isBlank()) {
+            return List.of();
+        }
+        return find("server.ip = ?1 and type = 0 and (disabled is null or disabled = 0) and deployed = ?2",
+                serverIp.trim(), NodeDeploymentStatus.DEPLOYED.getValue()).list();
+    }
+
     public List<Node> findByServerIdIn(List<Long> serverIds) {
         if (serverIds == null || serverIds.isEmpty()) {
             return List.of();
