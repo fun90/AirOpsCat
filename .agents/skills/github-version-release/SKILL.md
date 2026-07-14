@@ -1,9 +1,9 @@
 ---
-name: publish-version-tag
-description: 发布或重新发布版本 tag。用于用户要求发布某个版本、重发某个版本号、强制更新远端 tag，或要求先检查 pom.xml 版本号、必要时先改版本并 push 代码，再发布 tag 的 Git 发版流程时使用。
+name: github-version-release
+description: 发布或重新发布 GitHub 版本 tag。用于用户要求发布某个版本、重发某个版本号、强制更新 GitHub 远端 tag，或要求先检查 pom.xml 版本号、必要时先改版本并 push 代码，再发布 tag 的 GitHub 发版流程时使用。
 ---
 
-# Publish Version Tag
+# GitHub Version Release
 
 按项目约定发布或重新发布一个版本 tag。
 
