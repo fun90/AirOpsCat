@@ -16,9 +16,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.time.LocalDateTime;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 @ApplicationScoped
 public class UserService {
+
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
 
     private final UserRepository userRepository;
     private final AccountRepository accountRepository;
@@ -113,11 +117,40 @@ public class UserService {
 
     @Transactional
     public User saveUser(User user) {
+        if (user == null) {
+            throw new IllegalArgumentException("用户资料不能为空");
+        }
+
+        String email = normalizeEmail(user.getEmail());
+        if (!EMAIL_PATTERN.matcher(email).matches()) {
+            throw new IllegalArgumentException("请输入有效的邮箱地址");
+        }
+        if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
+            throw new UserEmailAlreadyExistsException("邮箱已存在");
+        }
+
+        String password = user.getPassword();
+        if (password == null || password.trim().length() < 6) {
+            throw new IllegalArgumentException("密码长度至少为 6 个字符");
+        }
+
+        user.setEmail(email);
+        user.setPassword(BcryptUtil.bcryptHash(password));
+        if (user.getRole() == null || user.getRole().isBlank()) {
+            user.setRole("VIP");
+        }
         if (user.getDisabled() == null) {
             user.setDisabled(0);
         }
         userRepository.persist(user);
         return user;
+    }
+
+    private String normalizeEmail(String email) {
+        if (email == null) {
+            throw new IllegalArgumentException("邮箱地址不能为空");
+        }
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     @Transactional

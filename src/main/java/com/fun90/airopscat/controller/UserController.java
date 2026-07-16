@@ -3,6 +3,7 @@ package com.fun90.airopscat.controller;
 import com.fun90.airopscat.model.dto.UserDto;
 import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.service.UserService;
+import com.fun90.airopscat.service.UserEmailAlreadyExistsException;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -61,8 +62,18 @@ public class UserController {
 
     @POST
     public Response createUser(User user) {
-        User savedUser = userService.saveUser(user);
-        return Response.ok(userService.convertToDto(savedUser)).build();
+        try {
+            User savedUser = userService.saveUser(user);
+            return Response.ok(userService.convertToDto(savedUser)).build();
+        } catch (UserEmailAlreadyExistsException e) {
+            return Response.status(Response.Status.CONFLICT)
+                    .entity(Map.of("message", e.getMessage()))
+                    .build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("message", e.getMessage()))
+                    .build();
+        }
     }
 
     @PUT

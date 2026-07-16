@@ -243,16 +243,24 @@ public class TagService {
 
         // 添加新的标签关联
         if (tagIds != null && !tagIds.isEmpty()) {
-            // 验证所有标签都存在
-            List<Tag> existingTags = tagRepository.list("id in ?1", tagIds);
-            if (existingTags.size() != tagIds.size()) {
-                throw new EntityNotFoundException("Some tags not found");
-            }
-            
+            validateAccountTagIds(tagIds);
+
             // 批量插入新的关联
             for (Long tagId : tagIds) {
                 tagRepository.insertAccountTag(accountId, tagId);
             }
+        }
+    }
+
+    public void validateAccountTagIds(List<Long> tagIds) {
+        if (tagIds == null || tagIds.isEmpty()) {
+            return;
+        }
+
+        Set<Long> uniqueTagIds = new HashSet<>(tagIds);
+        List<Tag> existingTags = tagRepository.list("id in ?1", uniqueTagIds);
+        if (existingTags.size() != uniqueTagIds.size()) {
+            throw new EntityNotFoundException("部分标签不存在");
         }
     }
 
@@ -312,4 +320,4 @@ public class TagService {
         stats.put("disabled", (long) tagRepository.findByDisabled(1).size());
         return stats;
     }
-} 
+}

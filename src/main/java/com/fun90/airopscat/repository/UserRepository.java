@@ -17,6 +17,10 @@ public class UserRepository implements PanacheRepository<User> {
         return find("email", email).firstResultOptional();
     }
 
+    public Optional<User> findByEmailIgnoreCase(String email) {
+        return find("lower(email) = ?1", email.toLowerCase(Locale.ROOT)).firstResultOptional();
+    }
+
     public List<User> findByRole(String role) {
         return find("role", role).list();
     }

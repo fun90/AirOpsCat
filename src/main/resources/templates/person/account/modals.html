@@ -1,20 +1,69 @@
 <!-- Create Account Modal -->
 <div class="modal modal-blur fade" id="account-createModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">新增</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="row">
+                <div class="mb-3">
+                    <label class="form-label required">用户来源</label>
+                    <div class="form-selectgroup">
+                        <label class="form-selectgroup-item">
+                            <input type="radio" name="account-user-mode" value="new" class="form-selectgroup-input" v-model="newItem.userMode">
+                            <span class="form-selectgroup-label">创建新用户</span>
+                        </label>
+                        <label class="form-selectgroup-item">
+                            <input type="radio" name="account-user-mode" value="existing" class="form-selectgroup-input" v-model="newItem.userMode">
+                            <span class="form-selectgroup-label">选择已有用户</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="row" v-show="newItem.userMode === 'new'">
                     <div class="col-md-6">
                         <div class="mb-3">
-                            <label class="form-label required">用户</label>
+                            <label class="form-label required">用户邮箱</label>
+                            <input type="email" class="form-control" :class="{ 'is-invalid': validationErrors.newUserEmail }"
+                                   placeholder="user@example.com" v-model="newItem.newUser.email">
+                            <div class="invalid-feedback" v-if="validationErrors.newUserEmail">{{ validationErrors.newUserEmail }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">用户密码</label>
+                            <input type="password" class="form-control" :class="{ 'is-invalid': validationErrors.newUserPassword }"
+                                   placeholder="不少于 6 位" v-model="newItem.newUser.password">
+                            <div class="invalid-feedback" v-if="validationErrors.newUserPassword">{{ validationErrors.newUserPassword }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">用户昵称</label>
+                            <input type="text" class="form-control" placeholder="用户昵称" v-model="newItem.newUser.nickName">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">用户角色</label>
+                            <select class="form-select" v-model="newItem.newUser.role">
+                                <option value="VIP">VIP</option>
+                                <option value="PARTNER">PARTNER</option>
+                                <option value="ADMIN">ADMIN</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row" v-show="newItem.userMode === 'existing'">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">已有用户</label>
                             <select id="user-search" class="form-select tom-select-hidden" :class="{ 'is-invalid': validationErrors.userId }"></select>
                             <div class="invalid-feedback" v-if="validationErrors.userId">{{ validationErrors.userId }}</div>
                         </div>
                     </div>
+                </div>
+                <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label required">账号</label>
@@ -22,6 +71,14 @@
                                 <input type="text" class="form-control" v-model="newItem.accountNo" placeholder="留空自动生成">
                                 <button class="btn" type="button" @click="generateAccountNo">生成</button>
                             </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label required">账号备注名</label>
+                            <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.remark }"
+                                   v-model="newItem.remark" placeholder="请输入账号备注名">
+                            <div class="invalid-feedback" v-if="validationErrors.remark">{{ validationErrors.remark }}</div>
                         </div>
                     </div>
                 </div>
@@ -54,8 +111,32 @@
                     </div>
                     <div class="col-md-6">
                         <div class="mb-3">
-                            <label class="form-label">到期时间</label>
-                            <input type="datetime-local" class="form-control" v-model="newItem.toDate">
+                            <label class="form-label required">到期时间</label>
+                            <input type="datetime-local" class="form-control" :class="{ 'is-invalid': validationErrors.toDate }" v-model="newItem.toDate">
+                            <div class="invalid-feedback" v-if="validationErrors.toDate">{{ validationErrors.toDate }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">首期金额</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" step="1" min="0" class="form-control" :class="{ 'is-invalid': validationErrors.amount }"
+                                       v-model="newItem.amount" placeholder="不填则不生成交易流水">
+                                <div class="invalid-feedback" v-if="validationErrors.amount">{{ validationErrors.amount }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">付款方式</label>
+                            <select class="form-select" :class="{ 'is-invalid': validationErrors.paymentMethod }" v-model="newItem.paymentMethod">
+                                <option value="">请选择付款方式</option>
+                                <option v-for="type in paymentMethods" :key="type.value" :value="type.value">{{ type.label }}</option>
+                            </select>
+                            <div class="invalid-feedback" v-if="validationErrors.paymentMethod">{{ validationErrors.paymentMethod }}</div>
                         </div>
                     </div>
                 </div>
@@ -110,12 +191,6 @@
                         <div class="mb-3">
                             <label class="form-label">级别</label>
                             <input type="number" class="form-control" v-model="newItem.level" min="0">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label">备注名</label>
-                            <input type="text" class="form-control" v-model="newItem.remark" placeholder="账户备注名">
                         </div>
                     </div>
                 </div>
@@ -991,6 +1066,51 @@
                 <button type="button" class="btn btn-outline-secondary" @click="refreshOnlineConnections">
                     <i class="ti ti-refresh"></i> 刷新
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mobile Account Actions Modal -->
+<div class="modal modal-blur fade" id="account-mobileActionsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-sm modal-dialog-centered modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title">账户操作</h5>
+                    <div class="text-muted small text-truncate" style="max-width: 240px;">
+                        {{ mobileActionAccount?.remark || mobileActionAccount?.accountNo }}
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="list-group list-group-flush">
+                    <button type="button" class="list-group-item list-group-item-action" @click="performMobileAction('edit')">
+                        <i class="ti ti-edit me-2"></i>编辑
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action" @click="performMobileAction('config')">
+                        <i class="ti ti-link me-2"></i>配置链接
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action" @click="performMobileAction('renew')">
+                        <i class="ti ti-calendar-plus me-2"></i>续期
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action" @click="performMobileAction('reset-auth')">
+                        <i class="ti ti-refresh me-2"></i>重置认证码
+                    </button>
+                    <button v-if="mobileActionAccount?.disabled === 0" type="button" class="list-group-item list-group-item-action" @click="performMobileAction('deploy')">
+                        <i class="ti ti-cloud-upload me-2"></i>部署到节点
+                    </button>
+                    <button v-if="mobileActionAccount?.disabled === 0" type="button" class="list-group-item list-group-item-action" @click="performMobileAction('disable')">
+                        <i class="ti ti-ban me-2"></i>禁用
+                    </button>
+                    <button v-else type="button" class="list-group-item list-group-item-action" @click="performMobileAction('enable')">
+                        <i class="ti ti-check me-2"></i>启用
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action text-danger" @click="performMobileAction('delete')">
+                        <i class="ti ti-trash me-2"></i>删除
+                    </button>
+                </div>
             </div>
         </div>
     </div>

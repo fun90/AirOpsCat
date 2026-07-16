@@ -1,6 +1,8 @@
 package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.dto.AccountDto;
+import com.fun90.airopscat.model.dto.AccountOnboardingRequest;
+import com.fun90.airopscat.model.dto.AccountOnboardingResponse;
 import com.fun90.airopscat.model.dto.AccountOnlineIpDto;
 import com.fun90.airopscat.model.dto.AccountRequest;
 import com.fun90.airopscat.model.dto.DeploymentResult;
@@ -11,25 +13,29 @@ import com.fun90.airopscat.model.enums.PaymentMethod;
 import com.fun90.airopscat.model.enums.PeriodType;
 import com.fun90.airopscat.model.enums.TransactionType;
 import com.fun90.airopscat.service.AccountOnlineIpService;
+import com.fun90.airopscat.service.AccountOnboardingService;
 import com.fun90.airopscat.service.AccountService;
 import com.fun90.airopscat.service.SubscriptionService;
 import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.TagService;
 import com.fun90.airopscat.service.TransactionService;
 import com.fun90.airopscat.service.UserService;
+import com.fun90.airopscat.service.UserEmailAlreadyExistsException;
 import com.fun90.airopscat.service.deployment.NodeDeploymentService;
+import com.fun90.airopscat.util.AccountTransactionDescriptionUtils;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.PersistenceException;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -42,6 +48,8 @@ public class AccountController {
 
     @Inject
     private AccountService accountService;
+    @Inject
+    AccountOnboardingService accountOnboardingService;
     @Inject
     private UserService userService;
     @Inject
@@ -212,6 +220,27 @@ public class AccountController {
         return Response.ok(savedAccount).build();
     }
 
+    @POST
+    @Path("/onboarding")
+    public Response onboardAccount(AccountOnboardingRequest request) {
+        try {
+            AccountOnboardingService.Result result = accountOnboardingService.onboard(request);
+            AccountOnboardingResponse response = new AccountOnboardingResponse(
+                    userService.convertToDto(result.user()),
+                    accountService.convertToDto(result.account()),
+                    result.transaction() == null ? null : transactionService.convertToDto(result.transaction()));
+            return Response.ok(response).build();
+        } catch (UserEmailAlreadyExistsException e) {
+            return error(Response.Status.CONFLICT, e.getMessage());
+        } catch (EntityNotFoundException e) {
+            return error(Response.Status.NOT_FOUND, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return error(Response.Status.BAD_REQUEST, e.getMessage());
+        } catch (PersistenceException e) {
+            return error(Response.Status.CONFLICT, "数据已存在或不符合唯一性约束");
+        }
+    }
+
     @PUT
     @Path("/{id}")
     public Response updateAccount(@PathParam("id") Long id, AccountRequest request) {
@@ -306,13 +335,14 @@ public class AccountController {
     ) {
         LocalDateTime parsedDate = LocalDateTime.parse(expiryDate);
         Account existingAccount = accountService.getAccountById(id);
+        if (existingAccount == null) {
+            return error(Response.Status.NOT_FOUND, "账户不存在");
+        }
         LocalDateTime baseDate = existingAccount != null ? existingAccount.getToDate() : null;
         LocalDateTime now = LocalDateTime.now();
         if (baseDate == null || baseDate.isBefore(now)) {
             baseDate = now;
         }
-
-        Account account = accountService.renewAccount(id, parsedDate);
 
         if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
             if (paymentMethod == null || paymentMethod.isBlank()) {
@@ -326,20 +356,18 @@ public class AccountController {
                         .build();
             }
 
-            YearMonth baseMonth = YearMonth.from(baseDate);
-            YearMonth newMonth = YearMonth.from(parsedDate);
-            int months = (newMonth.getYear() - baseMonth.getYear()) * 12
-                    + (newMonth.getMonthValue() - baseMonth.getMonthValue());
-            if (months < 0) {
-                months = 1;
-            }
+        }
+
+        Account account = accountService.renewAccount(id, parsedDate);
+
+        if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
 
             Transaction transaction = new Transaction();
             transaction.setType(TransactionType.INCOME.getValue());
             transaction.setAmount(amount);
             transaction.setBusinessTable("account");
             transaction.setBusinessId(account.getId());
-            transaction.setDescription("账号：" + months + "月");
+            transaction.setDescription(AccountTransactionDescriptionUtils.renewalDescription(baseDate, parsedDate));
             transaction.setRemark(account.getRemark());
             transaction.setPaymentMethod(paymentMethod);
             transactionService.saveTransaction(transaction);
@@ -347,6 +375,12 @@ public class AccountController {
 
         AccountDto dto = accountService.convertToDto(account);
         return Response.ok(dto).build();
+    }
+
+    private Response error(Response.Status status, String message) {
+        return Response.status(status)
+                .entity(Map.of("message", message == null ? "请求处理失败" : message))
+                .build();
     }
 
     @PATCH
