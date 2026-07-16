@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # @title: 安装账户防共享 guard agent
-# @description: 部署常驻 agent，周期读取本机 Clash API 统计各账户连接/IP，通过 guard-sync 上报并取回跨节点配额，原子写入 /run/airopscat/account-quota.json 供 sing-box 内核读取
+# @description: 部署 Python 常驻 agent，复用 HTTP/HTTPS 长连接读取本机 Clash API 并通过 guard-sync 上报账户连接/IP，原子写入跨节点配额文件
 
 set -euo pipefail
 
@@ -29,15 +29,13 @@ GUARD_INCLUDE_CONNECTION_REFS="${guard_include_connection_refs:-false}"
 SINGBOX_CONFIG="${singbox_config:-/etc/sing-box/config.json}"
 QUOTA_DIR="/run/airopscat"
 QUOTA_FILE="${QUOTA_DIR}/account-quota.json"
-AGENT_BIN="/usr/local/bin/airopscat-guard-agent.sh"
+AGENT_BIN="/usr/local/bin/airopscat-guard-agent.py"
 AGENT_SERVICE="/etc/systemd/system/airopscat-guard-agent.service"
 
 install_dependencies() {
-  # agent 依赖 jq 解析 Clash API JSON、gzip 压缩请求体、curl 发起 HTTP
+  # Python 标准库同时负责 JSON 聚合、gzip 压缩和 HTTP 长连接。
   local missing=()
-  command -v jq >/dev/null 2>&1 || missing+=(jq)
-  command -v gzip >/dev/null 2>&1 || missing+=(gzip)
-  command -v curl >/dev/null 2>&1 || missing+=(curl)
+  command -v python3 >/dev/null 2>&1 || missing+=(python3)
   if [[ ${#missing[@]} -eq 0 ]]; then
     return
   fi
@@ -69,7 +67,7 @@ write_agent_script() {
   log "写入 agent 脚本: ${AGENT_BIN}"
   # 用带引号的 heredoc，令 agent 脚本体保持字面量；运行期变量由 systemd 环境注入
   cat > "${AGENT_BIN}" <<'AGENT_EOF'
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 # AirOpsCat 账户防共享 guard agent（由 02-guard-agent.sh 安装，勿手工编辑）
 #
 # 每个周期：
@@ -81,172 +79,242 @@ write_agent_script() {
 # 失败（Clash API 不可达、中心无响应、解析异常）时不覆盖旧文件，
 # 由内核侧 TTL 过期后 fail-open，避免误断网。
 
-set -uo pipefail
+import gzip
+import http.client
+import json
+import os
+import ssl
+import sys
+import tempfile
+import time
+from urllib.parse import urlsplit
 
-log() { printf '[%s] guard-agent: %s\n' "$(date '+%F %T')" "$*" >&2; }
 
-SERVER_IP="${SERVER_IP:?}"
-GUARD_SYNC_URL="${GUARD_SYNC_URL:?}"
-AIROPSCAT_API_TOKEN="${AIROPSCAT_API_TOKEN:-}"
-SYNC_INTERVAL_SECONDS="${SYNC_INTERVAL_SECONDS:-10}"
-GUARD_INCLUDE_CONNECTION_REFS="${GUARD_INCLUDE_CONNECTION_REFS:-false}"
-SINGBOX_CONFIG="${SINGBOX_CONFIG:-/etc/sing-box/config.json}"
-QUOTA_DIR="${QUOTA_DIR:-/run/airopscat}"
-QUOTA_FILE="${QUOTA_FILE:-${QUOTA_DIR}/account-quota.json}"
-
-# 从本机 sing-box 配置解析 Clash API 监听地址与凭证（单一事实来源）
-resolve_clash_api() {
-  local controller secret
-  if [[ -f "${SINGBOX_CONFIG}" ]]; then
-    controller="$(jq -r '.experimental.clash_api.external_controller // empty' "${SINGBOX_CONFIG}" 2>/dev/null || true)"
-    secret="$(jq -r '.experimental.clash_api.secret // empty' "${SINGBOX_CONFIG}" 2>/dev/null || true)"
-  fi
-  CLASH_API_ADDR="${controller:-127.0.0.1:19191}"
-  CLASH_API_SECRET="${secret:-}"
+SERVER_IP = os.environ["SERVER_IP"]
+GUARD_SYNC_URL = os.environ["GUARD_SYNC_URL"]
+AIROPSCAT_API_TOKEN = os.environ.get("AIROPSCAT_API_TOKEN", "")
+SYNC_INTERVAL_SECONDS = max(1, int(os.environ.get("SYNC_INTERVAL_SECONDS", "10")))
+GUARD_INCLUDE_CONNECTION_REFS = os.environ.get("GUARD_INCLUDE_CONNECTION_REFS", "false").lower() in {
+    "1", "true", "yes", "on"
 }
+SINGBOX_CONFIG = os.environ.get("SINGBOX_CONFIG", "/etc/sing-box/config.json")
+QUOTA_DIR = os.environ.get("QUOTA_DIR", "/run/airopscat")
+QUOTA_FILE = os.environ.get("QUOTA_FILE", os.path.join(QUOTA_DIR, "account-quota.json"))
 
-sync_once() {
-  local conn_json auth_header=()
-  if [[ -n "${CLASH_API_SECRET}" ]]; then
-    auth_header=(-H "Authorization: Bearer ${CLASH_API_SECRET}")
-  fi
+RETRYABLE_ERRORS = (
+    http.client.HTTPException,
+    http.client.CannotSendRequest,
+    http.client.RemoteDisconnected,
+    BrokenPipeError,
+    ConnectionResetError,
+    TimeoutError,
+    ssl.SSLError,
+    OSError,
+)
+SYNC_ERRORS = RETRYABLE_ERRORS + (RuntimeError, TypeError, ValueError, AttributeError)
 
-  conn_json="$(curl -fsS --max-time 3 "${auth_header[@]}" "http://${CLASH_API_ADDR}/connections" 2>/dev/null || true)"
-  if [[ -z "${conn_json}" ]]; then
-    log "读取 Clash API 失败，跳过本轮（保留旧配额文件）"
-    return
-  fi
 
-  # 将 /connections 转换为 guard-sync 请求体：
-  #   accounts：按 metadata.authUser 分组 → connections 计数 + sourceIP 去重
-  #   onlineAccountIps：按账号与节点标识聚合的在线 IP，供中心刷新 account_online_ip
-  #   connections：可选连接引用，开启后为按连接关闭预留 connectionId/start
-  #   过滤掉 authUser 或 sourceIP 为空的在线明细（落地节点公共账号等）
-  local body
-  body="$(printf '%s' "${conn_json}" | jq -c \
-    --arg nodeIp "${SERVER_IP}" \
-    --arg includeConnectionRefs "${GUARD_INCLUDE_CONNECTION_REFS}" \
-    --argjson now "$(date +%s)" '
-    def node_tag:
-      (.metadata.type // "")
-      | if contains("/") then split("/")[-1] else "" end;
-    def valid_user:
-      .metadata.authUser != null and .metadata.authUser != "";
-    def valid_source:
-      .metadata.sourceIP != null and .metadata.sourceIP != "";
-    [ .connections[]? | select(valid_user) ] as $validConnections |
-    {
-      nodeIp: $nodeIp,
-      generatedAtEpochSeconds: $now,
-      accounts: (
-        [ $validConnections[]
-          | { authUser: .metadata.authUser, sourceIP: (.metadata.sourceIP // "") }
-        ]
-        | group_by(.authUser)
-        | map({
-            accountNo: .[0].authUser,
-            connections: length,
-            ips: ( [ .[].sourceIP | select(. != "") ] | unique )
-          })
-      ),
-      onlineAccountIps: (
-        [ $validConnections[]
-          | select(valid_source)
-          | {
-              accountNo: .metadata.authUser,
-              nodeTag: node_tag,
-              clientIp: .metadata.sourceIP,
-              connectionId: (.id // ""),
-              start: (.start // "")
+def log(message):
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] guard-agent: {message}", file=sys.stderr, flush=True)
+
+
+class PersistentHttpClient:
+    def __init__(self, base_url, timeout):
+        parsed = urlsplit(base_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValueError(f"无效的 HTTP 地址: {base_url}")
+        self.scheme = parsed.scheme
+        self.host = parsed.hostname
+        self.port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        self.base_path = parsed.path.rstrip("/")
+        self.timeout = timeout
+        self.connection = None
+
+    def close(self):
+        if self.connection is not None:
+            try:
+                self.connection.close()
+            except OSError:
+                pass
+            finally:
+                self.connection = None
+
+    def _connect(self):
+        if self.scheme == "https":
+            return http.client.HTTPSConnection(
+                self.host,
+                self.port,
+                timeout=self.timeout,
+                context=ssl.create_default_context(),
+            )
+        return http.client.HTTPConnection(self.host, self.port, timeout=self.timeout)
+
+    def request(self, method, path="", body=None, headers=None):
+        target = f"{self.base_path}{path}" or "/"
+        for attempt in range(2):
+            try:
+                if self.connection is None:
+                    self.connection = self._connect()
+                self.connection.request(method, target, body=body, headers=headers or {})
+                response = self.connection.getresponse()
+                payload = response.read()
+                status = response.status
+                if response.will_close:
+                    self.close()
+                return status, payload
+            except RETRYABLE_ERRORS:
+                self.close()
+                if attempt == 1:
+                    raise
+        raise RuntimeError("HTTP 请求重试失败")
+
+
+def resolve_clash_api():
+    controller = "127.0.0.1:19191"
+    secret = ""
+    try:
+        with open(SINGBOX_CONFIG, "r", encoding="utf-8") as config_file:
+            config = json.load(config_file)
+        clash_api = config.get("experimental", {}).get("clash_api", {})
+        controller = clash_api.get("external_controller") or controller
+        secret = clash_api.get("secret") or ""
+    except FileNotFoundError:
+        pass
+    except (OSError, TypeError, ValueError) as error:
+        log(f"读取 sing-box 配置失败，使用默认 Clash API: {error}")
+    if not controller.startswith(("http://", "https://")):
+        controller = f"http://{controller}"
+    return controller, secret
+
+
+def node_tag(metadata):
+    connection_type = metadata.get("type") or ""
+    return connection_type.rsplit("/", 1)[-1] if "/" in connection_type else ""
+
+
+def build_guard_request(snapshot):
+    accounts = {}
+    online_groups = {}
+    connections = snapshot.get("connections") or []
+    for connection in connections:
+        metadata = connection.get("metadata") or {}
+        account_no = metadata.get("authUser")
+        if account_no is None or account_no == "":
+            continue
+
+        source_ip = metadata.get("sourceIP") or ""
+        account = accounts.setdefault(account_no, {"connections": 0, "ips": set()})
+        account["connections"] += 1
+        if source_ip:
+            account["ips"].add(source_ip)
+
+            key = (account_no, node_tag(metadata))
+            online = online_groups.setdefault(key, {"clientIps": set(), "connections": []})
+            online["clientIps"].add(source_ip)
+            if GUARD_INCLUDE_CONNECTION_REFS:
+                online["connections"].append({
+                    "clientIp": source_ip,
+                    "connectionId": connection.get("id") or "",
+                    "start": connection.get("start") or "",
+                })
+
+    account_reports = [
+        {
+            "accountNo": account_no,
+            "connections": accounts[account_no]["connections"],
+            "ips": sorted(accounts[account_no]["ips"]),
+        }
+        for account_no in sorted(accounts)
+    ]
+
+    online_reports = []
+    for account_no, tag in sorted(online_groups):
+        group = online_groups[(account_no, tag)]
+        report = {
+            "accountNo": account_no,
+            "nodeTag": tag,
+            "clientIps": sorted(group["clientIps"]),
+        }
+        if GUARD_INCLUDE_CONNECTION_REFS:
+            report["connections"] = group["connections"]
+        online_reports.append(report)
+
+    return {
+        "nodeIp": SERVER_IP,
+        "generatedAtEpochSeconds": int(time.time()),
+        "accounts": account_reports,
+        "onlineAccountIps": online_reports,
+    }
+
+
+def write_quota_file(payload):
+    os.makedirs(QUOTA_DIR, exist_ok=True)
+    descriptor, temp_path = tempfile.mkstemp(prefix=".account-quota.", dir=QUOTA_DIR)
+    try:
+        with os.fdopen(descriptor, "wb") as temp_file:
+            temp_file.write(payload)
+        os.chmod(temp_path, 0o644)
+        os.replace(temp_path, QUOTA_FILE)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def main():
+    os.makedirs(QUOTA_DIR, exist_ok=True)
+    guard_client = PersistentHttpClient(GUARD_SYNC_URL, timeout=5)
+    clash_client = None
+    clash_url = None
+    clash_secret = None
+
+    log(f"启动：nodeIp={SERVER_IP}, interval={SYNC_INTERVAL_SECONDS}s, HTTPS 长连接已启用")
+    while True:
+        try:
+            resolved_url, resolved_secret = resolve_clash_api()
+            if resolved_url != clash_url or resolved_secret != clash_secret:
+                if clash_client is not None:
+                    clash_client.close()
+                clash_url = resolved_url
+                clash_secret = resolved_secret
+                clash_client = PersistentHttpClient(clash_url, timeout=3)
+                log(f"Clash API 已更新: {clash_url}")
+
+            clash_headers = {}
+            if clash_secret:
+                clash_headers["Authorization"] = f"Bearer {clash_secret}"
+            status, connection_payload = clash_client.request("GET", "/connections", headers=clash_headers)
+            if status < 200 or status >= 300:
+                raise RuntimeError(f"Clash API 返回 HTTP {status}")
+            snapshot = json.loads(connection_payload)
+
+            request_body = json.dumps(
+                build_guard_request(snapshot), ensure_ascii=False, separators=(",", ":")
+            ).encode("utf-8")
+            compressed_body = gzip.compress(request_body)
+            guard_headers = {
+                "Content-Type": "application/json",
+                "Content-Encoding": "gzip",
             }
-        ]
-        | group_by([.accountNo, .nodeTag])
-        | map({
-            accountNo: .[0].accountNo,
-            nodeTag: .[0].nodeTag,
-            clientIps: ( [ .[].clientIp ] | unique )
-          }
-          + (
-            if ($includeConnectionRefs | ascii_downcase | IN("1", "true", "yes", "on")) then
-              {
-                connections: (
-                  [ .[]
-                    | {
-                        clientIp: .clientIp,
-                        connectionId: .connectionId,
-                        start: .start
-                      }
-                  ]
-                )
-              }
-            else
-              {}
-            end
-          ))
-      )
-    }' 2>/dev/null || true)"
+            if AIROPSCAT_API_TOKEN:
+                guard_headers["Token"] = AIROPSCAT_API_TOKEN
 
-  if [[ -z "${body}" ]]; then
-    log "生成 guard-sync 请求体失败，跳过本轮"
-    return
-  fi
+            status, response_payload = guard_client.request(
+                "POST", body=compressed_body, headers=guard_headers
+            )
+            if status < 200 or status >= 300:
+                raise RuntimeError(f"guard-sync 返回 HTTP {status}")
+            response = json.loads(response_payload)
+            if not response.get("schemaVersion"):
+                raise ValueError("guard-sync 响应缺少 schemaVersion")
+            write_quota_file(response_payload)
+        except SYNC_ERRORS as error:
+            log(f"同步失败，跳过本轮（保留旧配额文件）: {error}")
+        time.sleep(SYNC_INTERVAL_SECONDS)
 
-  local resp token_header=() body_file gzip_body
-  if [[ -n "${AIROPSCAT_API_TOKEN}" ]]; then
-    token_header=(-H "Token: ${AIROPSCAT_API_TOKEN}")
-  fi
 
-  body_file="$(mktemp "${QUOTA_DIR}/.guard-sync-body.XXXXXX")" || return
-  gzip_body="$(mktemp "${QUOTA_DIR}/.guard-sync-body.XXXXXX.gz")" || {
-    rm -f "${body_file}"
-    return
-  }
-  printf '%s' "${body}" > "${body_file}"
-  if ! gzip -c "${body_file}" > "${gzip_body}"; then
-    log "压缩 guard-sync 请求体失败，跳过本轮"
-    rm -f "${body_file}" "${gzip_body}"
-    return
-  fi
-
-  resp="$(curl -fsS --max-time 5 -X POST \
-    -H "Content-Type: application/json" \
-    -H "Content-Encoding: gzip" \
-    "${token_header[@]}" \
-    --data-binary "@${gzip_body}" \
-    "${GUARD_SYNC_URL}" 2>/dev/null || true)"
-  rm -f "${body_file}" "${gzip_body}"
-  if [[ -z "${resp}" ]]; then
-    log "guard-sync 无响应，跳过本轮（保留旧配额文件）"
-    return
-  fi
-
-  # 校验响应是合法 JSON 且含 schemaVersion，避免把错误页写入配额文件
-  if ! printf '%s' "${resp}" | jq -e '.schemaVersion' >/dev/null 2>&1; then
-    log "guard-sync 响应非预期 JSON，跳过本轮"
-    return
-  fi
-
-  # 原子写入：临时文件 + mv，避免内核读到半写状态
-  local tmp
-  tmp="$(mktemp "${QUOTA_DIR}/.account-quota.XXXXXX")" || return
-  printf '%s' "${resp}" > "${tmp}"
-  chmod 0644 "${tmp}"
-  mv -f "${tmp}" "${QUOTA_FILE}"
-}
-
-main() {
-  mkdir -p "${QUOTA_DIR}"
-  resolve_clash_api
-  log "启动：nodeIp=${SERVER_IP}, clashApi=${CLASH_API_ADDR}, interval=${SYNC_INTERVAL_SECONDS}s"
-  while true; do
-    # 每轮重新解析，容忍 sing-box 配置在运行期变更
-    resolve_clash_api
-    sync_once
-    sleep "${SYNC_INTERVAL_SECONDS}"
-  done
-}
-
-main "$@"
+if __name__ == "__main__":
+    main()
 AGENT_EOF
   chmod 0755 "${AGENT_BIN}"
 }
