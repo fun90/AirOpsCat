@@ -515,8 +515,9 @@ Map<accountNo, Map<nodeIp, NodeStat>>
   `{accountNo → connections + ipSet}`。
 - 用该聚合结果和在线 IP 聚合记录发一次 `guard-sync`（§4.1），中心同步刷新
   `account_online_ip`，拿到响应后原子写 `/run/airopscat/account-quota.json`。
-- `guard-sync` 请求体先写入临时文件并 gzip 压缩，再通过 `curl --data-binary` 上传，
-  避免 shell 变量承载二进制内容。
+- agent 使用 Python 标准库在内存中生成并 gzip 压缩 `guard-sync` 请求体，通过常驻
+  `HTTPSConnection` 上传；正常情况下跨采集周期复用同一条 TLS 连接，服务端关闭连接
+  或发生网络异常时自动重连并重试一次。
 - systemd 服务定义、安装/重启/排错流程由 `02-guard-agent.sh` 管理。
 
 ### 5.2 独立的 IP 上限字段：新增 `Account.maxIps`（已定）
