@@ -3,6 +3,12 @@ import { formatDateTimeForLocal, formatRelativeTime, formatDateTimeFull } from '
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
 import { createRemoteSearchConfig, createUserSearch } from '/static/js/common/tom-select-helper.js';
+import {
+    buildInitialTransactionPayload,
+    buildOnboardingUserSource,
+    createAccountFormDefaults,
+    validateAccountOnboardingForm
+} from '/static/js/person/account-form-defaults.mjs';
 
 const DEFAULT_ACCOUNT_FILTERS = Object.freeze({
     userId: '',
@@ -65,6 +71,8 @@ const accountTable = new DataTable({
             paymentMethod: ''
         },
         resetAuthCodeModal: null,
+        mobileActionsModal: null,
+        mobileActionAccount: null,
         // 在线连接相关数据
         onlineConnectionsModal: null,
         onlineConnections: [],
@@ -90,26 +98,7 @@ const accountTable = new DataTable({
         },
         // 文档链接配置
         docsBaseUrl: '', // 将从后端获取
-        newItem: {
-            userId: '',
-            level: 0,
-            nodePrefix: '8',
-            fromDate: '',
-            toDate: '',
-            periodType: 'MONTHLY',
-            uuid: '',
-            authCode: '',
-            accountNo: '',
-            maxConnections: 0,
-            maxIps: null,
-            speed: 0,
-            bandwidth: 0,
-            downloadMbps: null,
-            uploadMbps: null,
-            disabled: false,
-            remark: '',
-            tagIds: []
-        },
+        newItem: createAccountFormDefaults(),
         editedItem: {
             id: null,
             userId: '',
@@ -137,6 +126,54 @@ const accountTable = new DataTable({
         deployModal: null,
     },
     methods: {
+        openMobileActions(account) {
+            this.mobileActionAccount = account;
+            if (!this.mobileActionsModal) {
+                this.mobileActionsModal = new Modal(document.getElementById('account-mobileActionsModal'));
+            }
+            this.mobileActionsModal.show();
+        },
+
+        performMobileAction(action) {
+            const account = this.mobileActionAccount;
+            if (!account) return;
+
+            const runAction = () => {
+                switch (action) {
+                    case 'edit':
+                        this.openEditModal(account);
+                        break;
+                    case 'config':
+                        this.openConfigUrlModal(account);
+                        break;
+                    case 'renew':
+                        this.openRenewAccountModal(account);
+                        break;
+                    case 'reset-auth':
+                        this.resetAuthCode(account);
+                        break;
+                    case 'deploy':
+                        this.confirmDeploy(account);
+                        break;
+                    case 'disable':
+                        this.toggleItemStatus(account, true);
+                        break;
+                    case 'enable':
+                        this.toggleItemStatus(account, false);
+                        break;
+                    case 'delete':
+                        this.confirmDelete(account);
+                        break;
+                    default:
+                        console.warn('未知的移动端账户操作:', action);
+                }
+            };
+
+            const modalElement = document.getElementById('account-mobileActionsModal');
+            modalElement.addEventListener('hidden.bs.modal', runAction, { once: true });
+            this.mobileActionsModal.hide();
+        },
+
         formatDateTimeFull(dateTime) {
             return formatDateTimeFull(dateTime);
         },
@@ -896,28 +933,8 @@ const accountTable = new DataTable({
 
         // Form validation and preparation
         validateCreateForm() {
-            let isValid = true;
-            this.validationErrors = {};
-
-            // UserID validation
-            if (!this.newItem.userId) {
-                this.validationErrors.userId = '请选择用户';
-                isValid = false;
-            }
-
-            // PeriodType validation
-            if (!this.newItem.periodType) {
-                this.validationErrors.periodType = '请选择统计周期类型';
-                isValid = false;
-            }
-
-            // NodeMultiple validation
-            if (!this.newItem.nodeMultiple) {
-                this.validationErrors.nodeMultiple = '请填写倍数';
-                isValid = false;
-            }
-
-            return isValid;
+            this.validationErrors = validateAccountOnboardingForm(this.newItem);
+            return Object.keys(this.validationErrors).length === 0;
         },
 
         validateEditForm() {
@@ -965,27 +982,46 @@ const accountTable = new DataTable({
             oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
             const oneMonthLaterFormat = formatDateTimeForLocal(oneMonthLater);
 
-            return {
-                userId: this.newItem.userId,
+            const account = {
                 accountNo: this.newItem.accountNo,
-                level: this.newItem.level || null,
-                nodeMultiple: this.newItem.nodeMultiple || null,
+                level: Number(this.newItem.level),
+                nodeMultiple: Number(this.newItem.nodeMultiple),
                 nodePrefix: this.newItem.nodePrefix || null,
                 fromDate: this.newItem.fromDate || localDateTimeFormat,
                 toDate: this.newItem.toDate || oneMonthLaterFormat,
                 periodType: this.newItem.periodType,
                 uuid: this.newItem.uuid || null, // Will be generated on server if null
                 authCode: this.newItem.authCode || null, // Will be generated on server if null
-                maxConnections: this.newItem.maxConnections || null,
+                maxConnections: Number(this.newItem.maxConnections),
                 maxIps: this.newItem.maxIps > 0 ? Number(this.newItem.maxIps) : null,
                 speed: this.newItem.speed || null,
-                bandwidth: this.newItem.bandwidth || null,
+                bandwidth: Number(this.newItem.bandwidth),
                 downloadMbps: this.newItem.downloadMbps > 0 ? this.newItem.downloadMbps : null,
                 uploadMbps: this.newItem.uploadMbps > 0 ? this.newItem.uploadMbps : null,
                 disabled: this.newItem.disabled ? 1 : 0,
-                remark: this.newItem.remark || null,
+                remark: this.newItem.remark.trim(),
                 tagIds: this.newItem.tagIds || []
             };
+
+            const userSource = buildOnboardingUserSource(this.newItem);
+            const transaction = buildInitialTransactionPayload(this.newItem);
+            return {
+                ...userSource,
+                account,
+                ...transaction
+            };
+        },
+
+        getCreateUrl() {
+            return '/api/admin/accounts/onboarding';
+        },
+
+        afterCreate(data) {
+            if (data && data.transaction) {
+                ToastUtils.show('Success', '账户已创建，首期交易流水已记录', 'success');
+            }
+            this.resetCreateForm();
+            this.validationErrors = {};
         },
 
         prepareUpdateData() {
@@ -1012,35 +1048,7 @@ const accountTable = new DataTable({
         },
 
         resetCreateForm() {
-            // Get current time
-            const now = new Date();
-            const localDateTimeFormat = formatDateTimeForLocal(now);
-
-            // Get one month later for default expiration
-            const oneMonthLater = new Date();
-            oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
-            const oneMonthLaterFormat = formatDateTimeForLocal(oneMonthLater);
-
-            this.newItem = {
-                userId: '',
-                accountNo: '',
-                level: 0,
-                nodePrefix: '8',
-                fromDate: localDateTimeFormat,
-                toDate: oneMonthLaterFormat,
-                periodType: 'MONTHLY',
-                uuid: '',
-                authCode: '',
-                maxConnections: 0,
-                maxIps: 0,
-                speed: 2048,
-                bandwidth: 0,
-                downloadMbps: null,
-                uploadMbps: null,
-                disabled: false,
-                remark: '',
-                tagIds: []
-            };
+            this.newItem = createAccountFormDefaults();
 
             // Reset search components
             if (this.userSearch) {

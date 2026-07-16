@@ -100,7 +100,7 @@
         </td>
         <td>
             <div class="btn-list flex-nowrap">
-                <div class="dropdown position-static">
+                <div class="dropdown position-static d-none d-md-block">
                     <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
                         操作
                     </button>
@@ -132,6 +132,9 @@
                         </a>
                     </div>
                 </div>
+                <button type="button" class="btn btn-sm d-md-none" @click="openMobileActions(account)">
+                    操作 <i class="ti ti-chevron-right ms-1"></i>
+                </button>
             </div>
         </td>
     </tr>
