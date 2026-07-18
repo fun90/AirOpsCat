@@ -24,7 +24,7 @@
 
 ## 4. 节点 guard agent
 
-- [x] 4.1 修改 `02-guard-agent.sh`，从同一次 `/connections` 解析结果生成 `onlineAccountIps`
+- [x] 4.1 修改 `08-guard-agent.sh`，从同一次 `/connections` 解析结果生成 `onlineAccountIps`
 - [x] 4.2 保持现有 `accounts` 聚合字段不变，确保防共享配额逻辑向后兼容
 - [x] 4.3 过滤缺少账号或客户端 IP 的记录，保留节点标识和去重客户端 IP
 - [x] 4.4 增加 `guard_include_connection_refs` 开关，默认不发送逐连接引用

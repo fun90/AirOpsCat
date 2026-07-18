@@ -68,7 +68,7 @@ write_agent_script() {
   # 用带引号的 heredoc，令 agent 脚本体保持字面量；运行期变量由 systemd 环境注入
   cat > "${AGENT_BIN}" <<'AGENT_EOF'
 #!/usr/bin/env python3
-# AirOpsCat 账户防共享 guard agent（由 02-guard-agent.sh 安装，勿手工编辑）
+# AirOpsCat 账户防共享 guard agent（由 08-guard-agent.sh 安装，勿手工编辑）
 #
 # 每个周期：
 #   1. 读本机 sing-box 配置解析 Clash API 端口与 secret

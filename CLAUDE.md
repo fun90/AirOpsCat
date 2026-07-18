@@ -79,6 +79,27 @@ java -Dquarkus.config.locations=./application.properties -jar target/quarkus-app
 - 用户反馈调试错误时，主动使用 IDEA MCP 读取控制台/错误日志，不等用户粘贴日志
 - 代码/配置与文档冲突时，以代码/配置为准
 
+## 服务器运维脚本目录约定
+
+`/Users/omg/Documents/Code/VPN/profile/airopscat/shell` 中的服务器运维脚本必须遵守以下目录约定：
+
+| 用途 | 统一目录 | 说明 |
+|------|----------|------|
+| 安装的可执行脚本 | `/opt/airopscat/scripts` | 仅存放由运维脚本生成、供 cron 或 systemd 调用的 AirOpsCat 脚本 |
+| 持久运行状态 | `/var/lib/airopscat` | 存放游标、检查点等需要跨进程或重启保留的数据 |
+| 脚本日志 | `/var/log/airopscat` | 存放 AirOpsCat 运维脚本自身的运行日志，不混入代理内核日志 |
+| 临时运行数据 | `/run/airopscat` | 存放 PID、锁和可在重启后丢失的数据 |
+| 下载缓存 | `/var/cache/airopscat` | 存放安装包等可重新下载的数据，安装完成后应主动删除无用缓存 |
+| 系统配置 | `/etc/airopscat` | 仅在需要持久化 AirOpsCat 专属配置时使用 |
+
+新增或修改服务器运维脚本时还必须遵守：
+
+- 文件名统一使用两位数字前缀且编号唯一，编号必须符合依赖执行顺序；不再使用的兼容、卸载或清理脚本应从活动脚本目录移除。
+- 不得把生成脚本、游标、临时文件或下载包写入 `/root`、当前工作目录或其他用户主目录。
+- 第三方软件的标准目录保持不变，例如 sing-box 配置与日志、Nginx 配置、TLS 证书等，不为追求形式统一而迁移。
+- cron 和 systemd 必须使用绝对路径；cron 任务应使用成对的 `# BEGIN AIROPSCAT ...`、`# END AIROPSCAT ...` 标记，便于幂等更新与精确卸载。
+- 安装脚本必须幂等创建目录并设置明确权限；卸载脚本只能删除自身已知文件，目录非空时不得递归删除。
+
 ## 编码要求
 
 - 所有文件必须使用 UTF-8；遵守 `.editorconfig` 中的字符集和换行符设置
