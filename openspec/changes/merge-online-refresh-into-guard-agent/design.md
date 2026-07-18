@@ -105,7 +105,7 @@ AirOpsCat `Node`。
 ## Migration Plan
 
 1. 扩展中心 DTO 和 `guard-sync` 处理逻辑，消费 `onlineAccountIps` 聚合字段。
-2. 更新 `02-guard-agent.sh`，从同一次 `/connections` 解析结果生成在线 IP 聚合记录。
+2. 更新 `08-guard-agent.sh`，从同一次 `/connections` 解析结果生成在线 IP 聚合记录。
 3. 部署中心后重装或重启节点 guard agent。
 4. 观察 `account_online_ip` 刷新、新鲜度检查、在线页面和告警。
 5. 所有节点升级后，关闭中心 Clash API 回退采集。
