@@ -9,12 +9,15 @@ import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
 import com.fun90.airopscat.service.ssh.ServerSshConfigFactory;
 import com.fun90.airopscat.util.JsonUtil;
+import com.fun90.airopscat.util.TrafficPeriodUtils;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,17 +40,20 @@ public class ServerVnstatStatsService {
     @Transactional
     public void collectFromServer(Server server) {
         try (SshConnection connection = sshConnectionService.createConnection(serverSshConfigFactory.create(server, 15000))) {
+            LocalDateTime now = LocalDateTime.now();
+            LocalDate periodStart = TrafficPeriodUtils.resolveServerPeriodStart(now, server.getBandwidthDate()).toLocalDate();
             String iface = detectIface(connection, server.getId());
-            String json = executeVnstat(connection, iface, server.getId());
+            String json = executeVnstat(connection, iface, periodStart, now.toLocalDate(), server.getId());
             if (json == null) {
                 return;
             }
-            VnstatMonth month = parseCurrentMonth(json, server.getId());
-            if (month == null) {
+            VnstatPeriodTotal periodTotal = parsePeriodTotal(json, server.getId());
+            if (periodTotal == null) {
                 return;
             }
-            insert(server.getId(), iface, month);
-            log.debug("vnstat 采集完成，serverId={}, iface={}, rx={}, tx={}", server.getId(), iface, month.rxBytes(), month.txBytes());
+            insert(server.getId(), iface, periodTotal, now);
+            log.debug("vnstat 采集完成，serverId={}, iface={}, periodStart={}, periodEnd={}, rx={}, tx={}",
+                    server.getId(), iface, periodStart, now.toLocalDate(), periodTotal.rxBytes(), periodTotal.txBytes());
         } catch (Exception e) {
             log.warn("vnstat 采集失败，serverId={}, error={}", server.getId(), e.getMessage());
         }
@@ -90,9 +96,10 @@ public class ServerVnstatStatsService {
         return "eth0";
     }
 
-    private String executeVnstat(SshConnection connection, String iface, Long serverId) {
+    private String executeVnstat(SshConnection connection, String iface, LocalDate periodStart,
+                                 LocalDate periodEnd, Long serverId) {
         try {
-            CommandResult result = connection.executeCommand("vnstat -i " + iface + " --json m 2>/dev/null");
+            CommandResult result = connection.executeCommand(buildPeriodQueryCommand(iface, periodStart, periodEnd));
             if (!result.isSuccess() || result.getStdout() == null || result.getStdout().isBlank()) {
                 log.debug("vnstat 未安装或无数据，serverId={}", serverId);
                 return null;
@@ -104,37 +111,55 @@ public class ServerVnstatStatsService {
         }
     }
 
-    private VnstatMonth parseCurrentMonth(String json, Long serverId) {
+    static String buildPeriodQueryCommand(String iface, LocalDate periodStart, LocalDate periodEnd) {
+        DateTimeFormatter formatter = DateTimeFormatter.ISO_LOCAL_DATE;
+        return "vnstat -i " + quoteShell(iface)
+                + " --json d --begin " + quoteShell(periodStart.format(formatter))
+                + " --end " + quoteShell(periodEnd.format(formatter))
+                + " 2>/dev/null";
+    }
+
+    static VnstatPeriodTotal parsePeriodTotal(String json, Long serverId) {
         try {
             JsonNode root = JsonUtil.toObject(json, JsonNode.class);
-            // jsonversion 2（vnstat 2.6+）单位为字节；jsonversion 1（旧版）单位为 KiB
+            // jsonversion 2（vnstat 2.x）单位为字节；jsonversion 1（旧版）单位为 KiB
             boolean isBytesFormat = "2".equals(root.path("jsonversion").asText("1"));
 
             JsonNode interfaces = root.path("interfaces");
             if (!interfaces.isArray() || interfaces.isEmpty()) {
                 return null;
             }
-            JsonNode months = interfaces.get(0).path("traffic").path("month");
-            if (!months.isArray() || months.isEmpty()) {
+            JsonNode traffic = interfaces.get(0).path("traffic");
+            JsonNode days = traffic.path("day");
+            if (!days.isArray()) {
+                days = traffic.path("days");
+            }
+            if (!days.isArray()) {
                 return null;
             }
-            // vnstat 返回的最后一条是当前月
-            JsonNode current = months.get(months.size() - 1);
-            long rx = current.path("rx").asLong(0);
-            long tx = current.path("tx").asLong(0);
-            if (!isBytesFormat) {
-                rx = rx * 1024L;
-                tx = tx * 1024L;
+
+            long rx = 0L;
+            long tx = 0L;
+            for (JsonNode day : days) {
+                rx = Math.addExact(rx, day.path("rx").asLong(0));
+                tx = Math.addExact(tx, day.path("tx").asLong(0));
             }
-            return new VnstatMonth(rx, tx);
+            if (!isBytesFormat) {
+                rx = Math.multiplyExact(rx, 1024L);
+                tx = Math.multiplyExact(tx, 1024L);
+            }
+            return new VnstatPeriodTotal(rx, tx);
         } catch (Exception e) {
             log.warn("解析 vnstat JSON 失败，serverId={}, error={}", serverId, e.getMessage());
             return null;
         }
     }
 
-    private void insert(Long serverId, String iface, VnstatMonth month) {
-        LocalDateTime now = LocalDateTime.now();
+    private static String quoteShell(String value) {
+        return "'" + value.replace("'", "'\"'\"'") + "'";
+    }
+
+    private void insert(Long serverId, String iface, VnstatPeriodTotal periodTotal, LocalDateTime now) {
         int year = now.getYear();
         int monthValue = now.getMonthValue();
         ServerVnstatStats stats = new ServerVnstatStats();
@@ -142,8 +167,8 @@ public class ServerVnstatStatsService {
         stats.setIface(iface);
         stats.setPeriodYear((short) year);
         stats.setPeriodMonth((byte) monthValue);
-        stats.setRxBytes(month.rxBytes());
-        stats.setTxBytes(month.txBytes());
+        stats.setRxBytes(periodTotal.rxBytes());
+        stats.setTxBytes(periodTotal.txBytes());
         stats.setSampledAt(now);
         repository.persist(stats);
     }
@@ -152,5 +177,5 @@ public class ServerVnstatStatsService {
 
     public record VnstatSnapshotData(LocalDateTime sampledAt, long rxBytes, long txBytes) {}
 
-    private record VnstatMonth(long rxBytes, long txBytes) {}
+    record VnstatPeriodTotal(long rxBytes, long txBytes) {}
 }

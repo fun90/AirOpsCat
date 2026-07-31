@@ -458,7 +458,7 @@ public class ProgrammaticTaskManager {
                 "vnstat-traffic-collect",
                 "vnstat-traffic-collect",
                 "vnstat 流量采集",
-                "通过 vnstat 采集服务器 OS 网卡月度流量，作为监控周期流量的权威数据源。",
+                "通过 vnstat 按服务器业务周期汇总 OS 网卡流量，作为监控周期流量的权威数据源。",
                 "monitor",
                 "监控与在线状态",
                 33,

@@ -36,11 +36,18 @@ install_packages() {
 }
 
 install_vnstat() {
-  local billing_day="${bandwidth_day:-1}"
+  if ! vnstat --longhelp 2>&1 | grep -q -- '--begin'; then
+    log "错误: 当前 vnstat 不支持区间查询，请升级到 vnstat 2.x"
+    return 1
+  fi
 
-  log "配置 vnstat 计费周期起始日为 ${billing_day}"
+  log "配置 vnstat 日统计保留 90 天，由 AirOpsCat 按业务周期汇总"
   if [[ -f /etc/vnstat.conf ]]; then
-    sed -i "s/^MonthRotate .*/MonthRotate ${billing_day}/" /etc/vnstat.conf
+    if grep -qE '^[[:space:]]*DailyDays[[:space:]]+' /etc/vnstat.conf; then
+      sed -i -E 's/^[[:space:]]*DailyDays[[:space:]]+.*/DailyDays 90/' /etc/vnstat.conf
+    else
+      printf '\nDailyDays 90\n' >> /etc/vnstat.conf
+    fi
   fi
 
   local iface
@@ -49,7 +56,8 @@ install_vnstat() {
   iface="${iface:-eth0}"
   log "检测到出口网卡: ${iface}，注册至 vnstat"
 
-  systemctl enable --now vnstat
+  systemctl enable vnstat
+  systemctl restart vnstat
   vnstat --add -i "${iface}" 2>/dev/null || true
 }
 

@@ -12,11 +12,11 @@ public final class TrafficPeriodUtils {
     }
 
     public static LocalDateTime resolveServerPeriodStart(LocalDateTime referenceTime, LocalDateTime resetTime) {
-        return resolveMonthlyPeriod(referenceTime, resetTime).start();
+        return resolveMonthlyPeriod(atStartOfDay(referenceTime), atStartOfDay(resetTime)).start();
     }
 
     public static LocalDateTime resolveServerPeriodEnd(LocalDateTime referenceTime, LocalDateTime resetTime) {
-        return resolveMonthlyPeriod(referenceTime, resetTime).end();
+        return resolveMonthlyPeriod(atStartOfDay(referenceTime), atStartOfDay(resetTime)).end();
     }
 
     public static LocalDateTime resolveAccountPeriodStart(LocalDateTime referenceTime, LocalDateTime resetTime, String periodType) {
@@ -63,6 +63,10 @@ public final class TrafficPeriodUtils {
 
     private static LocalTime resolveResetTimeOfDay(LocalDateTime resetTime) {
         return resetTime != null ? resetTime.toLocalTime() : LocalTime.MIDNIGHT;
+    }
+
+    private static LocalDateTime atStartOfDay(LocalDateTime value) {
+        return value != null ? value.toLocalDate().atStartOfDay() : null;
     }
 
     private record PeriodBounds(LocalDateTime start, LocalDateTime end) {
