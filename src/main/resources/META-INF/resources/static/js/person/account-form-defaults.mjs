@@ -1,3 +1,27 @@
+const PASSWORD_CHARSET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const PASSWORD_LENGTH = 16;
+
+/**
+ * 生成随机密码，优先使用加密安全随机源，缺失时退回 Math.random
+ */
+export function generateRandomPassword(length = PASSWORD_LENGTH) {
+    const values = new Uint32Array(length);
+    const cryptoObj = globalThis.crypto;
+    if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+        cryptoObj.getRandomValues(values);
+    } else {
+        for (let i = 0; i < length; i++) {
+            values[i] = Math.floor(Math.random() * 4294967296);
+        }
+    }
+
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += PASSWORD_CHARSET.charAt(values[i] % PASSWORD_CHARSET.length);
+    }
+    return result;
+}
+
 function formatBeijingDateTimeForLocal(date) {
     if (!date) return '';
 
@@ -22,7 +46,7 @@ export function createAccountFormDefaults(now = new Date()) {
         userId: '',
         newUser: {
             email: '',
-            password: '',
+            password: generateRandomPassword(),
             nickName: '',
             role: 'VIP',
             disabled: false
@@ -37,11 +61,11 @@ export function createAccountFormDefaults(now = new Date()) {
         uuid: '',
         authCode: '',
         maxConnections: 100,
-        maxIps: 3,
+        maxIps: 2,
         speed: 2048,
         bandwidth: 500,
-        downloadMbps: 20,
-        uploadMbps: 10,
+        downloadMbps: 12,
+        uploadMbps: 8,
         disabled: false,
         remark: '',
         tagIds: [],
