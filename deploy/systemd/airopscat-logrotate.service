@@ -1,0 +1,6 @@
+[Unit]
+Description=AirOpsCat 日志轮转
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/logrotate /etc/logrotate.d/airopscat
