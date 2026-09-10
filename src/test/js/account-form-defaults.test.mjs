@@ -14,10 +14,10 @@ test('账户新增默认值完整且每次返回独立对象', () => {
     const second = createAccountFormDefaults(now);
 
     assert.equal(first.maxConnections, 100);
-    assert.equal(first.maxIps, 3);
+    assert.equal(first.maxIps, 2);
     assert.equal(first.bandwidth, 500);
-    assert.equal(first.downloadMbps, 20);
-    assert.equal(first.uploadMbps, 10);
+    assert.equal(first.downloadMbps, 12);
+    assert.equal(first.uploadMbps, 8);
     assert.equal(first.level, 4);
     assert.equal(first.nodeMultiple, 2);
     assert.equal(first.amount, '');
@@ -29,6 +29,10 @@ test('账户新增默认值完整且每次返回独立对象', () => {
     assert.equal(Object.hasOwn(first.newUser, 'remark'), false);
     assert.equal(first.fromDate, '2026-07-16T10:00');
     assert.equal(first.toDate, '2026-08-16T10:00');
+
+    assert.equal(first.newUser.password.length, 16);
+    assert.match(first.newUser.password, /^[A-Za-z0-9]{16}$/);
+    assert.notEqual(first.newUser.password, second.newUser.password);
 
     first.newUser.email = 'changed@example.com';
     first.tagIds.push(1);
