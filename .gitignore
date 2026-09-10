@@ -51,4 +51,5 @@ backup/
 docs/htb-too-many-events/
 
 .claude/worktrees
+.claude/skills
 .codegraph/
