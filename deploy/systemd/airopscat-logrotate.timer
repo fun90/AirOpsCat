@@ -1,0 +1,12 @@
+[Unit]
+Description=每小时检查 AirOpsCat 日志轮转
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5m
+AccuracySec=1m
+Unit=airopscat-logrotate.service
+
+[Install]
+WantedBy=timers.target
