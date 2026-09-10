@@ -37,7 +37,7 @@ guard agent 已经在节点本机以秒级周期读取同一份连接列表。�
 - 后端：`OpenController.guardSync`、guard DTO、`AccountOnlineIpService`、
   `AccountOnlineRefreshTask`、`ProgrammaticTaskManager`、在线告警与节点在线统计。
 - API 兼容：保留账户、节点、服务器在线连接查询接口，不改变前端调用路径。
-- 节点脚本：`src/main/resources/config/shell/08-guard-agent.sh` 需要在聚合账号总量的
+- 节点脚本：`src/main/resources/config/shell/06-guard-agent.sh` 需要在聚合账号总量的
   同时生成在线连接明细。
 - 数据库：复用 `account_online_ip`，不新增在线状态表；可能需要记录节点最后
   guard 上报时间的轻量状态。
