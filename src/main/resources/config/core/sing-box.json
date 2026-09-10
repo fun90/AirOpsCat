@@ -32,6 +32,12 @@
     ],
     "strategy": "ipv4_only"
   },
+  "http_clients": [
+    {
+      "tag": "default-http-client",
+      "detour": "default-direct"
+    }
+  ],
   "inbounds": [
     {#if hasExtraInbounds}
     {extraInbounds}
@@ -51,26 +57,22 @@
   ],
   "route": {
     "auto_detect_interface": true,
+    "default_http_client": "default-http-client",
     "rules": [
       {
         "action": "sniff"
-      },
-      {
-        "action": "resolve",
-        "strategy": "prefer_ipv4"
       },
       {
         "port": 53,
         "action": "hijack-dns"
       },
       {
-        "ip_is_private": true,
-        "action": "reject"
+        "action": "resolve",
+        "strategy": "prefer_ipv4"
       },
       {
-        "domain_suffix": [ "gstatic.com", "google.com" ],
-        "action": "route",
-        "outbound": "default-direct"
+        "ip_is_private": true,
+        "action": "reject"
       }{#if hasExtraRouteRules},
       {extraRouteRules}
       {/if}
@@ -81,14 +83,14 @@
         "type": "remote",
         "format": "binary",
         "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/refs/heads/rule-set/geoip-cn.srs",
-        "download_detour": "default-direct"
+        "http_client": "default-http-client"
       },
       {
         "tag": "geosite-cn",
         "type": "remote",
         "format": "binary",
         "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/refs/heads/rule-set/geosite-cn.srs",
-        "download_detour": "default-direct"
+        "http_client": "default-http-client"
       }{#if hasExtraRuleSets},
       {extraRuleSets}
       {/if}

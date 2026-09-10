@@ -5,6 +5,12 @@
     "output": "",
     "timestamp": false
   },
+  "http_clients": [
+    {
+      "tag": "default-http-client",
+      "detour": "🎯 全球直连"
+    }
+  ],
   "inbounds": [
     {
       "type": "tun",
@@ -253,97 +259,101 @@
         "type": "remote",
         "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/private.srs",
         "format": "binary",
-        "download_detour": "🎯 全球直连"
+        "http_client": "default-http-client"
       },
       {
         "tag": "GeoSite-Private",
         "type": "remote",
         "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/private.srs",
         "format": "binary",
-        "download_detour": "🎯 全球直连"
+        "http_client": "default-http-client"
       },
       {
         "tag": "GeoIP-CN",
         "type": "remote",
         "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
         "format": "binary",
-        "download_detour": "🎯 全球直连"
+        "http_client": "default-http-client"
       },
       {
         "tag": "GeoSite-CN",
         "type": "remote",
         "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs",
         "format": "binary",
-        "download_detour": "🎯 全球直连"
+        "http_client": "default-http-client"
       },
       {
         "tag": "GeoLocation-!CN",
         "type": "remote",
         "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-!cn.srs",
         "format": "binary",
-        "download_detour": "🎯 全球直连"
+        "http_client": "default-http-client"
       },
       {
         "tag": "geosite-apple",
         "type": "remote",
         "format": "binary",
         "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/apple.srs",
-        "download_detour": "🎯 全球直连"
+        "http_client": "default-http-client"
       },
       {
         "tag": "geosite-microsoft",
         "type": "remote",
         "format": "binary",
         "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/microsoft.srs",
-        "download_detour": "🎯 全球直连"
+        "http_client": "default-http-client"
       },
       {
         "tag": "geosite-onedrive",
         "type": "remote",
         "format": "binary",
         "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/onedrive.srs",
-        "download_detour": "🎯 全球直连"
+        "http_client": "default-http-client"
       },
       {
         "tag": "geoip-apple",
         "type": "remote",
         "format": "binary",
         "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo-lite/geoip/apple.srs",
-        "download_detour": "🎯 全球直连"
+        "http_client": "default-http-client"
       }
     ],
     "auto_detect_interface": true,
+    "default_http_client": "default-http-client",
+    "default_domain_resolver": {
+      "server": "defaultDns",
+      "strategy": "ipv4_only",
+      "disable_cache": true
+    },
     "final": "🐟 漏网之鱼"
   },
   "dns": {
     "servers": [
       {
+        "type": "https",
         "tag": "proxyDns",
-        "address": "https://cloudflare-dns.com/dns-query",
-        "address_resolver": "defaultDns",
-        "address_strategy": "ipv4_only",
-        "detour": "🚀 节点选择"
+        "server": "cloudflare-dns.com",
+        "detour": "🚀 节点选择",
+        "domain_resolver": {
+          "server": "defaultDns",
+          "strategy": "ipv4_only",
+          "disable_cache": true
+        }
       },
       {
+        "type": "udp",
         "tag": "localDns",
-        "address": "223.5.5.5",
-        "address_resolver": "defaultDns",
-        "address_strategy": "ipv4_only",
+        "server": "223.5.5.5",
         "detour": "🎯 全球直连"
       },
       {
+        "type": "udp",
         "tag": "defaultDns",
-        "address": "223.5.5.5",
-        "address_strategy": "ipv4_only",
+        "server": "223.5.5.5",
         "detour": "🎯 全球直连"
       }
     ],
     "rules": [
-      {
-        "outbound": "any",
-        "server": "defaultDns",
-        "disable_cache": true
-      },
       {
         "clash_mode": "direct",
         "server": "localDns"

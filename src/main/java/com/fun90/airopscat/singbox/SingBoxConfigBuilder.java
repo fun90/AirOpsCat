@@ -513,7 +513,7 @@ public class SingBoxConfigBuilder {
         ruleSet.put("type", "remote");
         ruleSet.put("format", "binary");
         ruleSet.put("url", url);
-        ruleSet.put("download_detour", "default-direct");
+        ruleSet.put("http_client", "default-http-client");
         return ruleSet;
     }
 
