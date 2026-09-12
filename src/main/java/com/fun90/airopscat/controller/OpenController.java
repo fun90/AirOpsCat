@@ -3,8 +3,10 @@ package com.fun90.airopscat.controller;
 import com.fun90.airopscat.model.dto.guard.GuardSyncRequest;
 import com.fun90.airopscat.model.dto.guard.GuardSyncResponse;
 import com.fun90.airopscat.model.entity.Account;
+import com.fun90.airopscat.model.entity.AccountTrafficStats;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.service.AccountOnlineIpService;
+import com.fun90.airopscat.service.AccountTrafficStatsService;
 import com.fun90.airopscat.service.SubscriptionService;
 import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.service.guard.AccountGuardAggregator;
@@ -24,7 +26,12 @@ import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -40,9 +47,14 @@ public class OpenController {
     private static final String CONFIG_APPLE_PWD = "airopscat.apple.pwd";
     private static final String CONFIG_API_TOKEN = "airopscat.api.token";
     private static final int GUARD_SCHEMA_VERSION = 1;
+    private static final long BYTES_PER_GB = 1024L * 1024L * 1024L;
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     @Inject
     AccountOnlineIpService accountOnlineIpService;
+
+    @Inject
+    AccountTrafficStatsService accountTrafficStatsService;
 
     @Inject
     AccountGuardAggregator accountGuardAggregator;
@@ -59,14 +71,27 @@ public class OpenController {
     @GET
     @Path("/docs-info/{authCode}")
     public Response getDocsInfo(@PathParam("authCode") String authCode) {
-        Optional<Account> accountOpt = accountRepository.findByAuthCode(authCode);
-        if (accountOpt.isEmpty() || !accountOpt.get().isActive()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("error", "无效的认证码，账户不存在"))
-                    .build();
+        Optional<Account> accountOpt = findActiveAccount(authCode);
+        if (accountOpt.isEmpty()) {
+            return invalidAuthCodeResponse();
         }
+        return Response.ok(buildDocsInfo(accountOpt.get())).build();
+    }
 
-        Account account = accountOpt.get();
+    private Optional<Account> findActiveAccount(String authCode) {
+        if (authCode == null || authCode.isBlank()) {
+            return Optional.empty();
+        }
+        return accountRepository.findByAuthCode(authCode).filter(Account::isActive);
+    }
+
+    private Response invalidAuthCodeResponse() {
+        return Response.status(Response.Status.BAD_REQUEST)
+                .entity(Map.of("error", "无效的认证码，账户不存在"))
+                .build();
+    }
+
+    private Map<String, Object> buildDocsInfo(Account account) {
         Map<String, String> subscriptionUrls = Map.of(
                 "windows", subscriptionService.getConfigUrl(account, "windows", "clash-verge"),
                 "linux", subscriptionService.getConfigUrl(account, "linux", "clash-verge"),
@@ -80,7 +105,30 @@ public class OpenController {
         result.put("appleId", getAppleId());
         result.put("applePwd", getApplePwd());
         result.put("nickName", account.getRemark());
-        return Response.ok(result).build();
+        result.put("usage", buildUsage(account));
+        return result;
+    }
+
+    /**
+     * 当前周期流量与账户到期信息；totalBytes 为 null 表示不限量，expireDate 为 null 表示长期有效。
+     */
+    private Map<String, Object> buildUsage(Account account) {
+        List<AccountTrafficStats> currentStats =
+                accountTrafficStatsService.getStatsByAccountAndCurrentTime(account.getId(), LocalDateTime.now());
+        AccountTrafficStats stats = currentStats.isEmpty() ? null : currentStats.getFirst();
+        long usedBytes = stats == null ? 0L
+                : Objects.requireNonNullElse(stats.getUploadBytes(), 0L) + Objects.requireNonNullElse(stats.getDownloadBytes(), 0L);
+        Long quotaGb = accountTrafficStatsService.getEffectiveBandwidth(account.getId());
+
+        Map<String, Object> usage = new HashMap<>();
+        usage.put("usedBytes", usedBytes);
+        usage.put("totalBytes", quotaGb == null ? null : quotaGb * BYTES_PER_GB);
+        usage.put("resetDate", stats == null || stats.getPeriodEnd() == null ? null : stats.getPeriodEnd().format(DATE_FORMATTER));
+        LocalDateTime toDate = account.getToDate();
+        usage.put("expireDate", toDate == null ? null : toDate.format(DATE_FORMATTER));
+        usage.put("remainingDays", toDate == null ? null
+                : Math.max(0L, ChronoUnit.DAYS.between(LocalDate.now(), toDate.toLocalDate())));
+        return usage;
     }
 
     @GET
