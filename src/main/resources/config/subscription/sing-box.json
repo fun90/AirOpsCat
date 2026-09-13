@@ -7,8 +7,7 @@
   },
   "http_clients": [
     {
-      "tag": "default-http-client",
-      "detour": "🎯 全球直连"
+      "tag": "default-http-client"
     }
   ],
   "inbounds": [
@@ -343,14 +342,12 @@
       {
         "type": "udp",
         "tag": "localDns",
-        "server": "223.5.5.5",
-        "detour": "🎯 全球直连"
+        "server": "223.5.5.5"
       },
       {
         "type": "udp",
         "tag": "defaultDns",
-        "server": "223.5.5.5",
-        "detour": "🎯 全球直连"
+        "server": "223.5.5.5"
       }
     ],
     "rules": [
