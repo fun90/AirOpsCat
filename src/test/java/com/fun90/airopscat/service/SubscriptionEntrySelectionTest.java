@@ -73,6 +73,21 @@ class SubscriptionEntrySelectionTest {
         assertEquals("香港-1", entries.getFirst().getName());
     }
 
+    @Test
+    void duplicateNamesGetIncreasingNumbersInOrder() {
+        List<NodeDto> nodes = new java.util.ArrayList<>();
+        for (String name : List.of("香港-1", "香港-1", "香港-2", "香港-1")) {
+            NodeDto dto = new NodeDto();
+            dto.setName(name);
+            nodes.add(dto);
+        }
+
+        SubscriptionService.ensureUniqueNames(nodes);
+
+        assertEquals(List.of("香港-1", "香港-3", "香港-2", "香港-4"),
+                nodes.stream().map(NodeDto::getName).toList());
+    }
+
     private static SubscriptionCandidate candidate(Long id, int priority, int exposed, String host) {
         NodeServer placement = new NodeServer();
         placement.setId(id);
