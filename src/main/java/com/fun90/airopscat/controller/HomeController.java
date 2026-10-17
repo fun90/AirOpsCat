@@ -5,6 +5,7 @@ import com.fun90.airopscat.service.ConsolePageRegistry;
 import io.quarkus.qute.Engine;
 import io.quarkus.qute.Template;
 import io.quarkus.security.Authenticated;
+import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -38,6 +39,9 @@ public class HomeController {
 
     @Inject
     ConsolePageRegistry pageRegistry;
+
+    @Inject
+    SecurityIdentity securityIdentity;
 
     @GET
     @Path("/dashboard")
@@ -102,6 +106,7 @@ public class HomeController {
         Map<String, Object> data = new HashMap<>();
         data.put("appName", appName);
         data.put("appVersion", appVersion);
+        data.put("userEmail", securityIdentity.getPrincipal().getName());
         data.put("currentModuleKey", page.moduleKey());
         data.put("menuGroups", pageRegistry.getMenuGroups());
         data.put("moduleTitle", page.moduleTitle());

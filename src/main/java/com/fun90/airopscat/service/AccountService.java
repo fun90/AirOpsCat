@@ -9,6 +9,7 @@ import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
 import com.fun90.airopscat.repository.UserRepository;
 import com.fun90.airopscat.service.ratelimit.RateLimitService;
+import com.fun90.airopscat.util.TrafficPeriodUtils;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -298,6 +299,10 @@ public class AccountService {
             if (currentStats != null) {
                 dto.setPeriodStart(currentStats.getPeriodStart());
                 dto.setPeriodEnd(currentStats.getPeriodEnd());
+            } else if (account.getToDate() != null && account.getPeriodType() != null) {
+                // 当前周期还没有统计记录时，按统计记录相同的规则推算周期
+                dto.setPeriodStart(TrafficPeriodUtils.resolveAccountPeriodStart(now, account.getToDate(), account.getPeriodType()));
+                dto.setPeriodEnd(TrafficPeriodUtils.resolveAccountPeriodEnd(now, account.getToDate(), account.getPeriodType()));
             }
             AccountTrafficLimitService.EffectiveMbpsLimit mbpsLimit =
                     accountTrafficLimitService.resolveEffectiveMbps(account, currentStats);

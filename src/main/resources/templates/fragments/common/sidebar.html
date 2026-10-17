@@ -31,14 +31,9 @@
                             <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"></path>
                         </svg>
                     </div>
-                    <div class="d-none d-xl-block ps-2">
-                        <div>管理员</div>
-                        <div class="mt-1 small text-secondary">系统管理员</div>
-                    </div>
                 </a>
                 <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
-                    <a href="#" class="dropdown-item">个人资料</a>
-                    <a href="#" class="dropdown-item">设置</a>
+                    <span class="dropdown-item-text text-secondary small">{userEmail}</span>
                     <div class="dropdown-divider"></div>
                     <a href="/api/logout" class="dropdown-item">退出登录</a>
                 </div>
@@ -88,6 +83,15 @@
                 </li>
                 {/for}
             </ul>
+
+            <div class="mt-auto py-3 d-none d-lg-block">
+                <div class="text-secondary small text-truncate mb-2" title="{userEmail}">
+                    <i class="ti ti-user"></i> {userEmail}
+                </div>
+                <a href="/api/logout" class="btn btn-outline-secondary w-100">
+                    <i class="ti ti-logout"></i> 退出登录
+                </a>
+            </div>
         </div>
     </div>
 </aside>

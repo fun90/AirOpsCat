@@ -150,43 +150,6 @@ public class AccountController {
         return Response.ok(accountService.getAccountsStats()).build();
     }
 
-    @GET
-    @Path("/my-accounts")
-    public Response getMyAccounts(
-            @QueryParam("page") @DefaultValue("1") int page,
-            @QueryParam("size") @DefaultValue("10") int size,
-            @QueryParam("search") String search
-    ) {
-        // 获取当前登录用户
-        if (securityIdentity.isAnonymous()) {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
-        }
-
-        String email = securityIdentity.getPrincipal().getName();
-        User currentUser = userService.getByEmail(email);
-        if (currentUser == null) {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
-        }
-
-        // 获取当前用户的账户
-        PanacheQuery<Account> accountQuery = accountService.getAccountPage(search, currentUser.getId(), null, null);
-        accountQuery.page(Page.of(page - 1, size));
-
-        // Convert to DTOs
-        List<Account> accounts = accountQuery.list();
-        List<AccountDto> accountDtos = accountService.convertToDtoList(accounts);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("records", accountDtos);
-        response.put("total", accountQuery.count());
-        response.put("pages", accountQuery.pageCount());
-        response.put("current", page);
-        response.put("size", size);
-        response.put("user", currentUser);
-
-        return Response.ok(response).build();
-    }
-
     @POST
     public Response createAccount(AccountRequest request) {
         // 创建Account实体

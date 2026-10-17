@@ -1,377 +1,278 @@
-// 用户面板数据管理
-import { copyToClipboard as copyTextToClipboard } from '/static/js/common/common.js';
+// 用户面板：仅展示当前登录用户自己的账户，数据来自 /api/me/accounts
+import { Modal } from '/static/tabler/js/tabler.esm.min.js';
+import { copyToClipboard as copyText, formatDateTimeFull } from '/static/js/common/common.js';
 
-const userPanelData = {
-    // 数据状态
-    accounts: [],
-    currentAccount: null,
-    selectedAccountId: '',
-    selectedPlatform: 'android',
-    loading: false,
-    
-    // 平台配置数据
-    platformConfigs: {
-        android: {
-            title: 'Android 客户端配置',
-            defaultClient: 'clash-meta',
-            clients: [
-                { name: 'clash-meta', title: 'Clash Meta for Android' },
-                { name: 'sing-box', title: 'sing-box' }
-            ],
-            steps: [
-                '下载并安装 Clash Meta for Android',
-                '打开应用，点击"配置"',
-                '点击右上角"+"号，选择"新建配置"',
-                '选择"从URL导入"，粘贴上述订阅链接',
-                '点击"下载"，等待配置加载完成',
-                '返回主界面，点击"启动"开始使用'
-            ]
-        },
-        harmony: {
-            title: 'HarmonyOS 客户端配置',
-            defaultClient: 'clash-meta',
-            clients: [
-                { name: 'clash-meta', title: 'Clash Meta for HarmonyOS' },
-                { name: 'sing-box', title: 'sing-box' }
-            ],
-            steps: [
-                '在华为应用市场下载 Clash Meta',
-                '打开应用，点击"配置"',
-                '点击右上角"+"号，选择"新建配置"',
-                '选择"从URL导入"，粘贴上述订阅链接',
-                '点击"下载"，等待配置加载完成',
-                '返回主界面，点击"启动"开始使用'
-            ]
-        },
-        ios: {
-            title: 'iOS 客户端配置',
-            defaultClient: 'shadowrocket',
-            clients: [
-                { name: 'shadowrocket', title: 'Shadowrocket' },
-                { name: 'stash', title: 'Stash' },
-                { name: 'loon', title: 'Loon' },
-                { name: 'sing-box', title: 'sing-box' }
-            ],
-            steps: [
-                '在 App Store 下载 Shadowrocket',
-                '打开应用，点击右上角"+"号',
-                '选择"订阅"，粘贴上述订阅链接',
-                '点击"保存"，等待配置加载完成',
-                '在主界面点击"连接"开始使用'
-            ]
-        },
-        windows: {
-            title: 'Windows 客户端配置',
-            defaultClient: 'clash-verge',
-            clients: [
-                { name: 'clash-verge', title: 'Clash Verge' },
-                { name: 'sing-box', title: 'sing-box' }
-            ],
-            steps: [
-                '下载并安装 Clash Verge for Windows',
-                '打开应用，点击"配置"',
-                '点击"新建配置"，选择"从URL导入"',
-                '粘贴上述订阅链接，点击"下载"',
-                '等待配置加载完成，点击"启动"',
-                '在系统托盘右键点击图标，选择"设置为系统代理"'
-            ]
-        },
-        macos: {
-            title: 'macOS 客户端配置',
-            defaultClient: 'clash-verge',
-            clients: [
-                { name: 'clash-verge', title: 'Clash Verge' },
-                { name: 'sing-box', title: 'sing-box' }
-            ],
-            steps: [
-                '下载并安装 Clash Verge for macOS',
-                '打开应用，点击"配置"',
-                '点击"新建配置"，选择"从URL导入"',
-                '粘贴上述订阅链接，点击"下载"',
-                '等待配置加载完成，点击"启动"',
-                '在菜单栏点击图标，选择"设置为系统代理"'
-            ]
-        },
-        linux: {
-            title: 'Linux 客户端配置',
-            defaultClient: 'clash-verge',
-            clients: [
-                { name: 'clash-verge', title: 'Clash Verge' },
-                { name: 'sing-box', title: 'sing-box' }
-            ],
-            steps: [
-                '下载并安装 Clash Verge for Linux',
-                '打开应用，点击"配置"',
-                '点击"新建配置"，选择"从URL导入"',
-                '粘贴上述订阅链接，点击"下载"',
-                '等待配置加载完成，点击"启动"',
-                '在系统托盘右键点击图标，选择"设置为系统代理"'
-            ]
-        }
-    },
-    
-    // 初始化
-    mounted() {
-        this.loadAccounts();
-    },
-    
-    // 加载用户账户列表
-    async loadAccounts() {
-        this.loading = true;
-        try {
-            const response = await fetch('/api/admin/accounts/my-accounts?size=100');
-            if (response.ok) {
-                const data = await response.json();
-                this.accounts = data.records || [];
-                
-                // 如果有账户，默认选择第一个
-                if (this.accounts.length > 0 && !this.selectedAccountId) {
-                    this.selectedAccountId = this.accounts[0].id;
-                    await this.loadAccountInfo();
-                }
-            } else {
-                console.error('Failed to load accounts');
-                this.showToast('加载账户列表失败', 'error');
-            }
-        } catch (error) {
-            console.error('Error loading accounts:', error);
-            this.showToast('加载账户列表失败', 'error');
-        } finally {
-            this.loading = false;
-        }
-    },
-    
-    // 刷新账户列表
-    async refreshAccounts() {
-        await this.loadAccounts();
-        this.showToast('账户列表已刷新', 'success');
-    },
-    
-    // 加载指定账户的详细信息
-    async loadAccountInfo() {
-        if (!this.selectedAccountId) {
-            this.currentAccount = null;
-            return;
-        }
-        
-        this.loading = true;
-        try {
-            const response = await fetch(`/api/admin/accounts/${this.selectedAccountId}`);
-            if (response.ok) {
-                this.currentAccount = await response.json();
-            } else {
-                console.error('Failed to load account info');
-                this.showToast('加载账户信息失败', 'error');
-            }
-        } catch (error) {
-            console.error('Error loading account info:', error);
-            this.showToast('加载账户信息失败', 'error');
-        } finally {
-            this.loading = false;
-        }
-    },
-    
-    // 处理账户选择变化
-    async onAccountChange() {
-        if (this.selectedAccountId) {
-            await this.loadAccountInfo();
-        } else {
-            this.currentAccount = null;
-        }
-    },
-    
-    // 获取特定平台的订阅URL
-    getSubscriptionUrl(osName, appName) {
-        if (!this.currentAccount) return '';
-        const baseUrl = window.location.origin;
-        return `${baseUrl}/subscribe/config/${this.currentAccount.authCode}/${osName}/${appName}`;
-    },
-    
-    // 获取导入链接
-    getImportUrl(platform, client) {
-        const subscriptionUrl = this.getSubscriptionUrl(platform, client);
-        const encodedUrl = encodeURIComponent(subscriptionUrl);
-        
-        switch (client) {
-            case 'clash-meta':
-            case 'clash-verge':
-                return `clash://install-config?url=${encodedUrl}`;
-            case 'stash':
-                return `stash://install-config?url=${encodedUrl}`;
-            case 'loon':
-                return `loon://import?sub=${encodedUrl}`;
-            case 'shadowrocket':
-                return `shadowrocket://add/${encodedUrl}`;
-            default:
-                return '#';
-        }
-    },
-    
-    // 获取平台标题
-    getPlatformTitle() {
-        const config = this.platformConfigs[this.selectedPlatform];
-        return config ? config.title : '';
-    },
-    
-    // 获取默认客户端
-    getDefaultClient() {
-        const config = this.platformConfigs[this.selectedPlatform];
-        return config ? config.defaultClient : 'clash-meta';
-    },
-    
-    // 获取配置步骤
-    getConfigSteps() {
-        const config = this.platformConfigs[this.selectedPlatform];
-        return config ? config.steps : [];
-    },
-    
-    // 获取其他客户端
-    getOtherClients() {
-        const config = this.platformConfigs[this.selectedPlatform];
-        if (!config) return [];
-        
-        return config.clients.filter(client => client.name !== config.defaultClient);
-    },
-    
-    // 复制到剪贴板
-    async copyToClipboard(text) {
-        try {
-            await copyTextToClipboard(text);
-            this.showToast('已复制到剪贴板', 'success');
-        } catch (error) {
-            console.error('Failed to copy to clipboard:', error);
-            this.showToast('复制失败', 'danger');
-        }
-    },
+const GB = 1024 * 1024 * 1024;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-    // 导入配置到客户端
-    importConfig(platform, client) {
-        const subscriptionUrl = this.getSubscriptionUrl(platform, client);
-        const encodedUrl = encodeURIComponent(subscriptionUrl);
+const SCHEMES = {
+    'clash-meta': (url) => `clash://install-config?url=${url}`,
+    'clash-verge': (url) => `clash://install-config?url=${url}`,
+    stash: (url) => `stash://install-config?url=${url}`,
+    loon: (url) => `loon://import?sub=${url}`,
+    shadowrocket: (url) => `shadowrocket://add/${url}`
+};
 
-        let importUrl;
-        switch (client) {
-            case 'clash-meta':
-            case 'clash-verge':
-                importUrl = `clash://install-config?url=${encodedUrl}`;
-                break;
-            case 'stash':
-                importUrl = `stash://install-config?url=${encodedUrl}`;
-                break;
-            case 'loon':
-                importUrl = `loon://import?sub=${encodedUrl}`;
-                break;
-            case 'shadowrocket':
-                importUrl = `shadowrocket://add/${encodedUrl}`;
-                break;
-            default:
-                this.showToast('不支持的客户端类型', 'error');
-                return;
-        }
-        console.log(importUrl);
-        // 尝试打开客户端应用
-        window.open(importUrl, '_blank');
+const clashSteps = (install) => [
+    install,
+    '打开应用，进入"配置"页面',
+    '选择"新建配置 / 从 URL 导入"，粘贴上方订阅链接并下载',
+    '返回主界面，启动代理即可使用'
+];
 
-        // 显示提示信息
-        setTimeout(() => {
-            this.showToast('正在尝试打开客户端应用，如果没有自动打开，请手动复制订阅链接', 'info');
-        }, 1000);
+const platformConfigs = {
+    android: {
+        name: 'Android',
+        defaultClient: 'clash-meta',
+        clients: [{ name: 'clash-meta', title: 'Clash Meta' }, { name: 'sing-box', title: 'sing-box' }],
+        steps: clashSteps('下载并安装 Clash Meta for Android')
     },
-
-    // 格式化日期
-    formatDate(dateString) {
-        if (!dateString) return '';
-        const date = new Date(dateString);
-        return date.toLocaleString('zh-CN', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+    harmony: {
+        name: 'HarmonyOS',
+        defaultClient: 'clash-meta',
+        clients: [{ name: 'clash-meta', title: 'Clash Meta' }, { name: 'sing-box', title: 'sing-box' }],
+        steps: clashSteps('在华为应用市场下载 Clash Meta')
     },
-    
-    // 格式化字节数
-    formatBytes(bytes) {
-        if (bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    ios: {
+        name: 'iOS',
+        defaultClient: 'shadowrocket',
+        clients: [
+            { name: 'shadowrocket', title: 'Shadowrocket' },
+            { name: 'stash', title: 'Stash' },
+            { name: 'loon', title: 'Loon' },
+            { name: 'sing-box', title: 'sing-box' }
+        ],
+        steps: [
+            '在 App Store 下载所选客户端',
+            '打开应用，点击右上角"+"，选择"订阅 / 从 URL 导入"',
+            '粘贴上方订阅链接并保存，等待配置加载完成',
+            '回到主界面，点击"连接"开始使用'
+        ]
     },
-    
-    // 获取到期时间样式类
-    getExpiryClass() {
-        if (!this.currentAccount || !this.currentAccount.daysUntilExpiration) return '';
-        
-        const days = this.currentAccount.daysUntilExpiration;
-        if (days <= 0) return 'text-danger fw-bold';
-        if (days <= 7) return 'text-warning fw-bold';
-        if (days <= 30) return 'text-info';
-        return 'text-success';
+    windows: {
+        name: 'Windows',
+        defaultClient: 'clash-verge',
+        clients: [{ name: 'clash-verge', title: 'Clash Verge' }, { name: 'sing-box', title: 'sing-box' }],
+        steps: [...clashSteps('下载并安装 Clash Verge for Windows'), '在系统托盘右键图标，选择"系统代理"']
     },
-
-    // 计算上传流量百分比
-    getUploadPercentage() {
-        if (!this.currentAccount || !this.currentAccount.bandwidth || this.currentAccount.bandwidth <= 0) return 0;
-        
-        const totalBandwidthBytes = this.currentAccount.bandwidth * 1024 * 1024 * 1024;
-        return Math.min((this.currentAccount.usedUploadBytes / totalBandwidthBytes) * 100, 100);
+    macos: {
+        name: 'macOS',
+        defaultClient: 'clash-verge',
+        clients: [{ name: 'clash-verge', title: 'Clash Verge' }, { name: 'sing-box', title: 'sing-box' }],
+        steps: [...clashSteps('下载并安装 Clash Verge for macOS'), '在菜单栏点击图标，选择"系统代理"']
     },
-
-    // 计算下载流量百分比
-    getDownloadPercentage() {
-        if (!this.currentAccount || !this.currentAccount.bandwidth || this.currentAccount.bandwidth <= 0) return 0;
-        
-        const totalBandwidthBytes = this.currentAccount.bandwidth * 1024 * 1024 * 1024;
-        return Math.min((this.currentAccount.usedDownloadBytes / totalBandwidthBytes) * 100, 100);
-    },
-    
-    // 计算剩余流量百分比
-    getFreePercentage() {
-        if (!this.currentAccount || !this.currentAccount.bandwidth || this.currentAccount.bandwidth <= 0) return 0;
-        
-        const totalBandwidthBytes = this.currentAccount.bandwidth * 1024 * 1024 * 1024;
-        const usedBytes = this.currentAccount.totalUsedBytes;
-        const freeBytes = Math.max(0, totalBandwidthBytes - usedBytes);
-        return Math.min((freeBytes / totalBandwidthBytes) * 100, 100);
-    },
-    
-    // 计算剩余流量字节数
-    getFreeBytes() {
-        if (!this.currentAccount || !this.currentAccount.bandwidth || this.currentAccount.bandwidth <= 0) return 0;
-        
-        const totalBandwidthBytes = this.currentAccount.bandwidth * 1024 * 1024 * 1024;
-        const usedBytes = this.currentAccount.totalUsedBytes;
-        return Math.max(0, totalBandwidthBytes - usedBytes);
-    },
-    
-    // 获取流量使用状态
-    getUsageStatus() {
-        if (!this.currentAccount || !this.currentAccount.bandwidth || this.currentAccount.bandwidth <= 0) {
-            return { class: 'text-success', icon: 'check' };
-        }
-        
-        const totalBandwidthBytes = this.currentAccount.bandwidth * 1024 * 1024 * 1024;
-        const usedBytes = this.currentAccount.totalUsedBytes;
-        const percentage = Math.min((usedBytes / totalBandwidthBytes) * 100, 100);
-        
-        if (percentage >= 90) return { class: 'text-danger', icon: 'warning' };
-        if (percentage >= 75) return { class: 'text-warning', icon: 'alert' };
-        if (percentage >= 50) return { class: 'text-info', icon: 'info' };
-        return { class: 'text-success', icon: 'check' };
-    },
-    
-    // 显示提示消息
-    showToast(message, type = 'info') {
-        // 使用全局的ToastUtils或简单的alert
-        if (typeof ToastUtils !== 'undefined') {
-            ToastUtils.show('提示', message, type);
-        } else {
-            alert(message);
-        }
+    linux: {
+        name: 'Linux',
+        defaultClient: 'clash-verge',
+        clients: [{ name: 'clash-verge', title: 'Clash Verge' }, { name: 'sing-box', title: 'sing-box' }],
+        steps: clashSteps('下载并安装 Clash Verge for Linux')
     }
 };
 
-// 创建petite-vue应用
-PetiteVue.createApp(userPanelData).mount('#userPanel'); 
+const toast = (type, message) => (window.ToastUtils ? window.ToastUtils[type](message, '提示') : alert(message));
+
+const userPanel = {
+    accounts: [],
+    selectedId: null,
+    account: null,
+    selectedPlatform: 'android',
+    selectedClient: 'clash-meta',
+    loading: false,
+    loaded: false,
+    loadError: '',
+    resetting: false,
+    platformConfigs,
+    platformList: Object.entries(platformConfigs).map(([key, config]) => ({ key, name: config.name })),
+
+    mounted() {
+        this.selectPlatform(this.detectPlatform());
+        this.load();
+    },
+
+    // 按浏览器环境预选平台
+    detectPlatform() {
+        const ua = navigator.userAgent;
+        if (/HarmonyOS/i.test(ua)) return 'harmony';
+        if (/Android/i.test(ua)) return 'android';
+        if (/iPhone|iPad|iPod/i.test(ua)) return 'ios';
+        if (/Windows/i.test(ua)) return 'windows';
+        if (/Mac/i.test(ua)) return 'macos';
+        if (/Linux/i.test(ua)) return 'linux';
+        return 'android';
+    },
+
+    async load(manual = false) {
+        this.loading = true;
+        this.loadError = '';
+        try {
+            const response = await fetch('/api/me/accounts');
+            if (response.status === 401) {
+                window.location.href = '/login';
+                return;
+            }
+            if (!response.ok) {
+                throw new Error(`服务器返回 ${response.status}`);
+            }
+            this.accounts = await response.json();
+            if (!this.accounts.some((item) => item.id === this.selectedId)) {
+                this.selectedId = this.accounts[0]?.id ?? null;
+            }
+            this.syncAccount();
+            this.loaded = true;
+            if (manual) toast('success', '已刷新');
+        } catch (error) {
+            console.error('Failed to load accounts:', error);
+            this.loadError = error.message || '请稍后重试';
+        } finally {
+            this.loading = false;
+        }
+    },
+
+    // petite-vue 不支持 getter 响应式，account 在数据变化后显式同步
+    syncAccount() {
+        this.account = this.accounts.find((item) => item.id === this.selectedId) ?? null;
+    },
+
+    platform() {
+        return platformConfigs[this.selectedPlatform];
+    },
+
+    client() {
+        const clients = this.platform().clients;
+        return clients.find((item) => item.name === this.selectedClient) ?? clients[0];
+    },
+
+    selectPlatform(key) {
+        this.selectedPlatform = key;
+        this.selectedClient = platformConfigs[key].defaultClient;
+    },
+
+    subscriptionUrl() {
+        if (!this.account) return '';
+        return `${window.location.origin}/subscribe/config/${this.account.authCode}/${this.selectedPlatform}/${this.client().name}`;
+    },
+
+    importUrl() {
+        const build = SCHEMES[this.client().name];
+        return build ? build(encodeURIComponent(this.subscriptionUrl())) : '';
+    },
+
+    importConfig() {
+        window.location.href = this.importUrl();
+        setTimeout(() => toast('info', '如果客户端没有自动打开，请复制订阅链接手动导入'), 1000);
+    },
+
+    async copy(text) {
+        try {
+            await copyText(text);
+            toast('success', '已复制到剪贴板');
+        } catch (error) {
+            console.error('Failed to copy:', error);
+            toast('error', '复制失败，请手动选择复制');
+        }
+    },
+
+    openResetModal() {
+        Modal.getOrCreateInstance(document.getElementById('resetSubscriptionModal')).show();
+    },
+
+    async resetSubscription() {
+        if (!this.account || this.resetting) return;
+        this.resetting = true;
+        try {
+            const response = await fetch(`/api/me/accounts/${this.account.id}/reset-auth`, { method: 'POST' });
+            if (!response.ok) {
+                throw new Error((await response.json().catch(() => ({}))).message || `服务器返回 ${response.status}`);
+            }
+            const updated = await response.json();
+            this.accounts = this.accounts.map((item) => (item.id === updated.id ? updated : item));
+            this.syncAccount();
+            Modal.getOrCreateInstance(document.getElementById('resetSubscriptionModal')).hide();
+            toast('success', '订阅链接已重置，请使用新链接重新导入客户端');
+        } catch (error) {
+            console.error('Failed to reset subscription:', error);
+            toast('error', `重置失败：${error.message}`);
+        } finally {
+            this.resetting = false;
+        }
+    },
+
+    // 账户状态
+    status() {
+        const account = this.account;
+        if (account.disabled === 1) return { text: '已禁用', color: 'red' };
+        if (this.expiry().expired) return { text: '已到期', color: 'red' };
+        if (account.trafficOverQuotaLimited) return { text: '流量已用尽', color: 'orange' };
+        return { text: '正常', color: 'green' };
+    },
+
+    expiry() {
+        const toDate = this.account.toDate;
+        if (!toDate) return { text: '', class: '', expired: false };
+        const days = Math.ceil((new Date(toDate).getTime() - Date.now()) / DAY_MS);
+        if (days <= 0) return { text: '已到期', class: 'text-danger', expired: true };
+        if (days <= 7) return { text: `剩余 ${days} 天`, class: 'text-warning', expired: false, soon: true };
+        return { text: `剩余 ${days} 天`, class: 'text-secondary', expired: false };
+    },
+
+    traffic() {
+        const account = this.account;
+        const used = account.totalUsedBytes || 0;
+        const quota = (account.effectiveBandwidth || 0) * GB;
+        if (quota <= 0) return { limited: false, used };
+        const percent = Math.min((used / quota) * 100, 100);
+        return {
+            limited: true,
+            used,
+            quotaText: this.formatBytes(quota),
+            free: Math.max(quota - used, 0),
+            percent,
+            uploadPercent: Math.min(((account.usedUploadBytes || 0) / quota) * 100, 100),
+            downloadPercent: Math.min(((account.usedDownloadBytes || 0) / quota) * 100, 100),
+            class: percent >= 90 ? 'text-danger' : percent >= 75 ? 'text-warning' : 'text-success'
+        };
+    },
+
+    alerts() {
+        const list = [];
+        if (this.account.disabled === 1) {
+            list.push({ type: 'danger', icon: 'ti-ban', text: '账户已被禁用，订阅暂不可用，请联系管理员。' });
+        }
+        if (this.expiry().expired) {
+            list.push({ type: 'danger', icon: 'ti-calendar-off', text: '账户已到期，请联系管理员续费。' });
+        } else if (this.expiry().soon) {
+            list.push({ type: 'warning', icon: 'ti-calendar-time', text: `账户将在 ${this.expiry().text.replace('剩余 ', '')}后到期，请及时续费。` });
+        }
+        if (this.account.trafficOverQuotaLimited) {
+            list.push({ type: 'danger', icon: 'ti-chart-pie-off', text: '本周期流量已用尽，下个统计周期自动恢复。' });
+        } else if (this.traffic().limited && this.traffic().percent >= 90) {
+            list.push({ type: 'warning', icon: 'ti-alert-triangle', text: '本周期流量即将用尽。' });
+        }
+        return list;
+    },
+
+    speedText() {
+        const { downloadMbps, uploadMbps } = this.account;
+        const parts = [];
+        if (downloadMbps > 0) parts.push(`下行 ${downloadMbps} Mbps`);
+        if (uploadMbps > 0) parts.push(`上行 ${uploadMbps} Mbps`);
+        return parts.join(' / ') || '不限速';
+    },
+
+    formatDate(value) {
+        return formatDateTimeFull(value);
+    },
+
+    formatDay(value) {
+        return formatDateTimeFull(value).slice(0, 10);
+    },
+
+    formatBytes(bytes) {
+        if (!bytes || bytes < 0) return '0 B';
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+        return `${parseFloat((bytes / Math.pow(1024, i)).toFixed(2))} ${units[i]}`;
+    }
+};
+
+PetiteVue.createApp(userPanel).mount('#app');
