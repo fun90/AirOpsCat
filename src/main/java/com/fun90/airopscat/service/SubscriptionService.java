@@ -321,6 +321,7 @@ public class SubscriptionService {
             }
             Server server = serverMap.get(snapshot.getServerId());
             NodeDto dto = toSubscriptionNodeDto(snapshot, server, accessHostMap.get(snapshot.getAccessHostId()));
+            dto.setName(availableNodeMap.get(placement.getNodeId()).getName());
             dto.setNodeServerId(placement.getId());
             dto.setPriority(placement.getPriority());
             candidatesByNodeId.computeIfAbsent(placement.getNodeId(), id -> new ArrayList<>())
@@ -424,7 +425,6 @@ public class SubscriptionService {
         dto.setLevel(snapshot.getLevel());
         dto.setDeployed(NodeDeploymentStatus.DEPLOYED.getValue());
         dto.setDisabled(snapshot.getDisabled());
-        dto.setName(snapshot.getName());
         dto.setRemark(snapshot.getRemark());
         dto.setAccessHost(accessHost != null ? accessHost.getHost() : null);
 
