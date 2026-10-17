@@ -303,6 +303,8 @@ public class SubscriptionService {
                         .collect(Collectors.toMap(ServerHost::getId, host -> host));
         Map<Long, String> hostOverrides = accountNodeSubscriptionDomainBindingService.findSubscriptionHostOverrides(
                 accountId, nodeIds);
+        Map<Long, Set<Long>> placementSelections = accountNodeSubscriptionDomainBindingService
+                .findSubscriptionPlacementSelections(accountId, nodeIds);
         List<Long> dnsRecordIds = availableNodeMap.values().stream()
                 .map(Node::getDnsRecordId)
                 .filter(Objects::nonNull)
@@ -330,6 +332,7 @@ public class SubscriptionService {
         for (Node availableNode : availableNodeMap.values()) {
             nodes.addAll(selectSubscriptionEntries(
                     candidatesByNodeId.getOrDefault(availableNode.getId(), List.of()),
+                    placementSelections.get(availableNode.getId()),
                     hostOverrides.get(availableNode.getId()),
                     dnsHosts.get(availableNode.getDnsRecordId())));
         }
@@ -364,14 +367,19 @@ public class SubscriptionService {
     record SubscriptionCandidate(NodeServer placement, NodeDto dto) {}
 
     /**
-     * 订阅条目规则：账号级域名绑定 > 节点 DNS 记录 > 每个暴露的部署位各一条。
+     * 订阅条目规则：账号级域名绑定 > 账号选定的部署位各一条 > 节点 DNS 记录 > 每个暴露的部署位各一条。
+     * 账号选定部署位后只在其中输出；选定的部署位均不可用时该节点不输出。
      *
      * @param candidates 启用且已部署、带部署快照的部署位
+     * @param selectedPlacementIds 账号订阅定制的部署位，null 或空表示未定制
      */
     static List<NodeDto> selectSubscriptionEntries(List<SubscriptionCandidate> candidates,
+                                                   Set<Long> selectedPlacementIds,
                                                    String hostOverride,
                                                    String dnsHost) {
+        boolean customized = selectedPlacementIds != null && !selectedPlacementIds.isEmpty();
         List<SubscriptionCandidate> sorted = candidates.stream()
+                .filter(candidate -> !customized || selectedPlacementIds.contains(candidate.placement().getId()))
                 .sorted(Comparator.comparing(SubscriptionCandidate::placement, NodeServerRepository.PRIORITY_ORDER))
                 .toList();
         if (sorted.isEmpty()) {
@@ -381,6 +389,10 @@ public class SubscriptionService {
             NodeDto dto = sorted.getFirst().dto();
             dto.setServerHost(hostOverride);
             return List.of(dto);
+        }
+        // 选定部署位不受 exposed 和节点 DNS 限制，逐个输出
+        if (customized) {
+            return sorted.stream().map(SubscriptionCandidate::dto).toList();
         }
         List<SubscriptionCandidate> exposed = sorted.stream()
                 .filter(candidate -> candidate.placement().exposedFlag())

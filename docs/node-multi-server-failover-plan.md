@@ -33,7 +33,7 @@
 | 流量采集 | `traffic-stats-collect` 任务，默认 `0 */15 * * * ?` | 第二期在采集后触发切换检查 |
 | 流量告警 | `ServerTrafficThresholdNotifier`，阈值默认 `0.85`，支持 0-1 或 0-100 写法 | 第二期复用阈值读取与归一化 |
 | DNS 记录 | `DomainDnsRecord`，Cloudflare `batchChangeRecords`；`DomainDnsScheduleTask` 每分钟按时段改内容并整域 push | 第二期参照该模式改记录内容 |
-| 账号级订阅域名 | `AccountNodeSubscriptionDomainBinding`（账号 + 节点 → DNS 记录） | 保留，优先级最高 |
+| 账号级订阅定制 | `AccountNodeSubscriptionDomainBinding`（账号 + 节点 → 可选 DNS 记录 + 可选展示部署位） | 保留，优先级最高 |
 
 ## 3. 数据模型（第一期）
 

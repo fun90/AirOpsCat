@@ -81,7 +81,9 @@ const accountTable = new DataTable({
         accountDetailsModal: null,
         subscriptionDomainBindings: [],
         subscriptionDomainBindingsLoading: false,
-        subscriptionDomainBindingModal: null,
+        subscriptionCustomizationModal: null,
+        subscriptionCustomizationAccount: null,
+        subscriptionDomainBindingEditing: false,
         subscriptionDomainBindingNodeSearch: null,
         subscriptionDomainBindingDomainSearch: null,
         subscriptionDomainBindingForm: {
@@ -93,6 +95,8 @@ const accountTable = new DataTable({
             nodePort: null,
             domainDnsRecordId: '',
             fullName: '',
+            placements: [],
+            nodeServerIds: [],
             enabled: 1,
             remark: ''
         },
@@ -210,10 +214,6 @@ const accountTable = new DataTable({
                     this.editUserSearch.addOption({ id: this.editedItem.userId, nickName: this.editedItem.nickName || '' });
                     this.editUserSearch.setValue(this.editedItem.userId, true);
                 }
-            });
-
-            document.getElementById('subscriptionDomainBindingModal').addEventListener('show.bs.modal', () => {
-                this.initializeSubscriptionDomainBindingSearches();
             });
         },
 
@@ -421,7 +421,6 @@ const accountTable = new DataTable({
         // 查看账号详情
         viewAccountDetails(account) {
             this.selectedItem = account;
-            this.fetchSubscriptionDomainBindings(account.id);
             this.accountDetailsModal = new Modal(document.getElementById('accountDetailsModal'));
             this.accountDetailsModal.show();
         },
@@ -449,7 +448,10 @@ const accountTable = new DataTable({
                         displayName: this.formatBindingNode(node)
                     })),
                     onChange: (value) => {
+                        const node = value ? this.subscriptionDomainBindingNodeSearch.options[value] : null;
                         this.subscriptionDomainBindingForm.nodeId = value || '';
+                        this.subscriptionDomainBindingForm.placements = this.getSelectablePlacements(node);
+                        this.subscriptionDomainBindingForm.nodeServerIds = [];
                     }
                 })
             );
@@ -464,6 +466,7 @@ const accountTable = new DataTable({
                     searchField: ['fullName'],
                     placeholder: '搜索DNS记录完整域名...',
                     minQueryLength: 1,
+                    plugins: ['clear_button'],
                     render: {
                         option: (data, escape) => `<div>
                             <div>${escape(data.fullName || '')}</div>
@@ -524,7 +527,7 @@ const accountTable = new DataTable({
             fetch(`/api/admin/account-node-subscription-domain-bindings/accounts/${accountId}`)
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('获取订阅域名绑定失败');
+                        throw new Error('获取订阅定制失败');
                     }
                     return response.json();
                 })
@@ -533,15 +536,23 @@ const accountTable = new DataTable({
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    ToastUtils.show('Error', error.message || '获取订阅域名绑定失败', 'danger');
+                    ToastUtils.show('Error', error.message || '获取订阅定制失败', 'danger');
                 })
                 .finally(() => {
                     this.subscriptionDomainBindingsLoading = false;
                 });
         },
 
-        openSubscriptionDomainBindingModal(binding) {
-            if (!this.selectedItem || !this.selectedItem.id) {
+        openSubscriptionCustomizationModal(account) {
+            this.subscriptionCustomizationAccount = account;
+            this.subscriptionDomainBindingEditing = false;
+            this.fetchSubscriptionDomainBindings(account.id);
+            this.subscriptionCustomizationModal = new Modal(document.getElementById('subscriptionCustomizationModal'));
+            this.subscriptionCustomizationModal.show();
+        },
+
+        editSubscriptionDomainBinding(binding) {
+            if (!this.subscriptionCustomizationAccount) {
                 return;
             }
             this.subscriptionDomainBindingForm = binding ? {
@@ -552,6 +563,8 @@ const accountTable = new DataTable({
                 nodeServerHost: binding.nodeServerHost || '',
                 nodePort: binding.nodePort || null,
                 domainDnsRecordId: binding.domainDnsRecordId || '',
+                placements: this.getSelectablePlacements({ placements: binding.nodePlacements }),
+                nodeServerIds: [...(binding.nodeServerIds || [])],
                 domainId: binding.domainId || '',
                 fullName: binding.fullName || '',
                 domain: binding.domain || '',
@@ -560,19 +573,21 @@ const accountTable = new DataTable({
                 remark: binding.remark || ''
             } : {
                 id: null,
-                accountId: this.selectedItem.id,
+                accountId: this.subscriptionCustomizationAccount.id,
                 nodeId: '',
                 nodeName: '',
                 nodeServerHost: '',
                 nodePort: null,
                 domainDnsRecordId: '',
                 fullName: '',
+                placements: [],
+                nodeServerIds: [],
                 enabled: 1,
                 remark: ''
             };
             this.validationErrors = {};
-            this.subscriptionDomainBindingModal = new Modal(document.getElementById('subscriptionDomainBindingModal'));
-            this.subscriptionDomainBindingModal.show();
+            this.subscriptionDomainBindingEditing = true;
+            this.initializeSubscriptionDomainBindingSearches();
         },
 
         validateSubscriptionDomainBindingForm() {
@@ -580,14 +595,15 @@ const accountTable = new DataTable({
             if (!this.subscriptionDomainBindingForm.nodeId) {
                 this.validationErrors.subscriptionDomainNodeId = '请选择节点';
             }
-            if (!this.subscriptionDomainBindingForm.domainDnsRecordId) {
-                this.validationErrors.subscriptionDomainDomainId = '请选择DNS记录';
+            if (this.subscriptionDomainBindingForm.nodeId && !this.subscriptionDomainBindingForm.domainDnsRecordId
+                && this.subscriptionDomainBindingForm.nodeServerIds.length === 0) {
+                this.validationErrors.subscriptionDomainTarget = '请选择展示的部署位或DNS记录';
             }
             return Object.keys(this.validationErrors).length === 0;
         },
 
         saveSubscriptionDomainBinding() {
-            if (!this.validateSubscriptionDomainBindingForm() || !this.selectedItem) {
+            if (!this.validateSubscriptionDomainBindingForm() || !this.subscriptionCustomizationAccount) {
                 return;
             }
 
@@ -598,9 +614,11 @@ const accountTable = new DataTable({
                 },
                 body: JSON.stringify({
                     id: this.subscriptionDomainBindingForm.id,
-                    accountId: this.selectedItem.id,
+                    accountId: this.subscriptionCustomizationAccount.id,
                     nodeId: Number(this.subscriptionDomainBindingForm.nodeId),
-                    domainDnsRecordId: Number(this.subscriptionDomainBindingForm.domainDnsRecordId),
+                    domainDnsRecordId: this.subscriptionDomainBindingForm.domainDnsRecordId
+                        ? Number(this.subscriptionDomainBindingForm.domainDnsRecordId) : null,
+                    nodeServerIds: this.subscriptionDomainBindingForm.nodeServerIds.map(Number),
                     enabled: Number(this.subscriptionDomainBindingForm.enabled || 0),
                     remark: this.subscriptionDomainBindingForm.remark || null
                 })
@@ -608,19 +626,19 @@ const accountTable = new DataTable({
                 .then(response => {
                     if (!response.ok) {
                         return response.json().then(data => {
-                            throw new Error(data.message || '保存订阅域名绑定失败');
+                            throw new Error(data.message || '保存订阅定制失败');
                         });
                     }
                     return response.json();
                 })
                 .then(() => {
-                    this.subscriptionDomainBindingModal.hide();
-                    this.fetchSubscriptionDomainBindings(this.selectedItem.id);
-                    ToastUtils.show('Success', '订阅域名绑定已保存', 'success');
+                    this.subscriptionDomainBindingEditing = false;
+                    this.fetchSubscriptionDomainBindings(this.subscriptionCustomizationAccount.id);
+                    ToastUtils.show('Success', '订阅定制已保存', 'success');
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    ToastUtils.show('Error', error.message || '保存订阅域名绑定失败', 'danger');
+                    ToastUtils.show('Error', error.message || '保存订阅定制失败', 'danger');
                 });
         },
 
@@ -631,17 +649,17 @@ const accountTable = new DataTable({
             })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('更新订阅域名绑定状态失败');
+                        throw new Error('更新订阅定制状态失败');
                     }
                     return response.json();
                 })
                 .then(() => {
-                    this.fetchSubscriptionDomainBindings(this.selectedItem.id);
-                    ToastUtils.show('Success', '订阅域名绑定状态已更新', 'success');
+                    this.fetchSubscriptionDomainBindings(this.subscriptionCustomizationAccount.id);
+                    ToastUtils.show('Success', '订阅定制状态已更新', 'success');
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    ToastUtils.show('Error', error.message || '更新订阅域名绑定状态失败', 'danger');
+                    ToastUtils.show('Error', error.message || '更新订阅定制状态失败', 'danger');
                 });
         },
 
@@ -654,16 +672,16 @@ const accountTable = new DataTable({
             })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('删除订阅域名绑定失败');
+                        throw new Error('删除订阅定制失败');
                     }
                 })
                 .then(() => {
-                    this.fetchSubscriptionDomainBindings(this.selectedItem.id);
-                    ToastUtils.show('Success', '订阅域名绑定已删除', 'success');
+                    this.fetchSubscriptionDomainBindings(this.subscriptionCustomizationAccount.id);
+                    ToastUtils.show('Success', '订阅定制已删除', 'success');
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    ToastUtils.show('Error', error.message || '删除订阅域名绑定失败', 'danger');
+                    ToastUtils.show('Error', error.message || '删除订阅定制失败', 'danger');
                 });
         },
 
@@ -675,6 +693,32 @@ const accountTable = new DataTable({
             const host = node.nodeServerHost || node.serverHost || node.serverIp || '-';
             const port = node.nodePort || node.port;
             return `${name} (${host}${port ? ':' + port : ''})`;
+        },
+
+        // 待删除部署位不可选
+        getSelectablePlacements(node) {
+            return ((node && node.placements) || []).filter(placement => placement.deployed !== 2);
+        },
+
+        formatBindingPlacement(placement) {
+            const server = placement.serverName || placement.serverIp || `服务器#${placement.serverId}`;
+            const host = placement.accessHost || placement.serverHost || placement.serverIp || '';
+            const flags = [
+                placement.enabled === 0 ? '已停用' : '',
+                placement.exposed === 0 ? '不暴露' : ''
+            ].filter(Boolean).join('、');
+            return `${server}${host ? ' (' + host + ')' : ''} · 优先级 ${placement.priority ?? 0}${flags ? ' · ' + flags : ''}`;
+        },
+
+        formatBindingPlacements(binding) {
+            const ids = binding.nodeServerIds || [];
+            if (ids.length === 0) {
+                return '默认';
+            }
+            return ids.map(id => {
+                const placement = (binding.nodePlacements || []).find(item => item.id === id);
+                return placement ? (placement.serverName || placement.serverIp || `#${id}`) : `#${id}`;
+            }).join('、');
         },
 
         getBindingEnabledBadgeClass(binding) {
@@ -1096,7 +1140,6 @@ const accountTable = new DataTable({
         afterUpdate(data) {
             if (this.selectedItem && this.selectedItem.id === data.id) {
                 this.selectedItem = data;
-                this.fetchSubscriptionDomainBindings(data.id);
             }
         },
 

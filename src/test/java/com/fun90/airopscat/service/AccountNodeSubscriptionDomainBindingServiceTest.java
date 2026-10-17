@@ -7,16 +7,19 @@ import com.fun90.airopscat.model.entity.DomainDnsRecord;
 import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.repository.AccountNodeSubscriptionDomainBindingRepository;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.DomainDnsRecordRepository;
 import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.NodeServerRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -79,6 +82,38 @@ class AccountNodeSubscriptionDomainBindingServiceTest {
         assertEquals(0, repository.persistCount);
     }
 
+    @Test
+    void savesSelectedPlacementsWithoutDnsRecord() {
+        var original = binding(10L, 1L, 2L);
+        var request = request(10L, 1L, 2L);
+        request.setDomainDnsRecordId(null);
+        request.setNodeServerIds(List.of(21L));
+
+        service(new BindingRepository(original)).save(request);
+
+        assertEquals(null, original.getDomainDnsRecordId());
+        assertEquals(Set.of(21L), original.getNodeServerIds());
+    }
+
+    @Test
+    void rejectsPlacementOfAnotherNode() {
+        var original = binding(10L, 1L, 2L);
+        var request = request(10L, 1L, 2L);
+        request.setNodeServerIds(List.of(31L));
+
+        assertThrows(IllegalArgumentException.class, () -> service(new BindingRepository(original)).save(request));
+        assertEquals(Set.of(), original.getNodeServerIds());
+    }
+
+    @Test
+    void requiresDnsRecordOrPlacements() {
+        var request = request(10L, 1L, 2L);
+        request.setDomainDnsRecordId(null);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service(new BindingRepository(binding(10L, 1L, 2L))).save(request));
+    }
+
     private static AccountNodeSubscriptionDomainBindingService service(BindingRepository bindings) {
         var accounts = new AccountRepository() {
             @Override
@@ -117,7 +152,17 @@ class AccountNodeSubscriptionDomainBindingServiceTest {
                 return items.stream().map(node -> NodeConverter.toDto(node, List.of(), List.of())).toList();
             }
         };
-        return new AccountNodeSubscriptionDomainBindingService(bindings, accounts, nodes, null, records, nodeService, tags);
+        var service = new AccountNodeSubscriptionDomainBindingService(bindings, accounts, nodes, null, records, nodeService, tags);
+        service.nodeServerRepository = new NodeServerRepository() {
+            @Override
+            public List<NodeServer> findByNodeId(Long nodeId) {
+                NodeServer placement = new NodeServer();
+                placement.setId(nodeId * 10 + 1);
+                placement.setNodeId(nodeId);
+                return List.of(placement);
+            }
+        };
+        return service;
     }
 
     private static AccountNodeSubscriptionDomainBindingRequest request(Long id, Long accountId, Long nodeId) {

@@ -727,6 +727,14 @@ public class NodeService {
             placement.setDeployed(NodeDeploymentStatus.PENDING_DELETE.getValue());
             return;
         }
+        deletePlacement(placement);
+    }
+
+    private void deletePlacement(NodeServer placement) {
+        // 同时清理账户订阅定制中引用的该部署位
+        nodeServerRepository.getEntityManager()
+                .createNativeQuery("DELETE FROM account_node_subscription_placement WHERE node_server_id = ?1")
+                .setParameter(1, placement.getId()).executeUpdate();
         nodeServerRepository.delete(placement);
     }
 
@@ -740,7 +748,7 @@ public class NodeService {
             return;
         }
         nodeDeploymentRepository.deleteByNodeServerId(nodeServerId);
-        nodeServerRepository.delete(placement);
+        deletePlacement(placement);
         nodeServerRepository.flush();
         if (nodeServerRepository.findByNodeId(placement.getNodeId()).isEmpty()) {
             physicallyDeleteNode(placement.getNodeId());
@@ -754,6 +762,9 @@ public class NodeService {
         }
         tagRepository.deleteAllNodeTagsByNodeId(id);
         nodeDeploymentRepository.deleteByNodeId(id);
+        nodeServerRepository.getEntityManager().createNativeQuery("DELETE FROM account_node_subscription_placement "
+                        + "WHERE node_server_id IN (SELECT id FROM node_server WHERE node_id = ?1)")
+                .setParameter(1, id).executeUpdate();
         nodeServerRepository.delete("nodeId", id);
         nodeRepository.deleteById(id);
     }

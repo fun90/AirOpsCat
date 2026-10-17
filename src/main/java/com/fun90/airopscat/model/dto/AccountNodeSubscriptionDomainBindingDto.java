@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class AccountNodeSubscriptionDomainBindingDto {
@@ -15,6 +16,8 @@ public class AccountNodeSubscriptionDomainBindingDto {
     private String nodeName;
     private String nodeServerHost;
     private Integer nodePort;
+    private List<NodeServerDto> nodePlacements;
+    private List<Long> nodeServerIds;
     private Long domainDnsRecordId;
     private Long domainId;
     private String fullName;

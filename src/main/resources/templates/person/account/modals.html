@@ -707,78 +707,6 @@
                         </div>
                     </div>
 
-                    <div class="row mt-4">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h3 class="card-title">
-                                        <i class="ti ti-world-www me-2"></i>
-                                        订阅域名
-                                    </h3>
-                                    <div class="card-actions">
-                                        <button type="button" class="btn btn-sm btn-outline-primary" @click="openSubscriptionDomainBindingModal(null)">
-                                            <i class="ti ti-plus me-1"></i>添加
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="card-body">
-                                    <div class="text-muted small mb-3">
-                                        订阅域名只影响该账户订阅中展示的节点连接地址，不触发节点部署。
-                                    </div>
-                                    <div v-if="subscriptionDomainBindingsLoading" class="text-center py-3">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Loading...</span>
-                                        </div>
-                                    </div>
-                                    <div v-else-if="subscriptionDomainBindings.length === 0" class="text-muted">
-                                        暂无订阅域名绑定
-                                    </div>
-                                    <div v-else class="table-responsive">
-                                        <table class="table table-vcenter">
-                                            <thead>
-                                                <tr>
-                                                    <th>节点</th>
-                                                    <th>DNS记录</th>
-                                                    <th>状态</th>
-                                                    <th>更新时间</th>
-                                                    <th class="w-1">操作</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr v-for="binding in subscriptionDomainBindings" :key="binding.id">
-                                                    <td>{{ formatBindingNode(binding) }}</td>
-                                                    <td>
-                                                        <span class="fw-medium">{{ binding.fullName || '-' }}</span>
-                                                        <div v-if="binding.domain" class="text-muted small">{{ binding.domain }}</div>
-                                                        <div v-if="binding.remark" class="text-muted small">{{ binding.remark }}</div>
-                                                    </td>
-                                                    <td>
-                                                        <span class="badge" :class="getBindingEnabledBadgeClass(binding)">
-                                                            {{ binding.enabled === 1 ? '启用' : '禁用' }}
-                                                        </span>
-                                                    </td>
-                                                    <td>{{ formatDate(binding.updateTime || binding.createTime) }}</td>
-                                                    <td>
-                                                        <div class="btn-list flex-nowrap">
-                                                            <button type="button" class="btn btn-sm btn-ghost-secondary" @click="openSubscriptionDomainBindingModal(binding)" title="编辑">
-                                                                <i class="ti ti-edit"></i>
-                                                            </button>
-                                                            <button type="button" class="btn btn-sm btn-ghost-secondary" @click="toggleSubscriptionDomainBinding(binding)" :title="binding.enabled === 1 ? '禁用' : '启用'">
-                                                                <i class="ti" :class="binding.enabled === 1 ? 'ti-player-pause' : 'ti-player-play'"></i>
-                                                            </button>
-                                                            <button type="button" class="btn btn-sm btn-ghost-danger" @click="deleteSubscriptionDomainBinding(binding)" title="删除">
-                                                                <i class="ti ti-trash"></i>
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -794,22 +722,86 @@
     </div>
 </div>
 
-<!-- Subscription Domain Binding Modal -->
-<div class="modal modal-blur fade" id="subscriptionDomainBindingModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+<!-- Subscription Customization Modal -->
+<div class="modal modal-blur fade" id="subscriptionCustomizationModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">订阅域名绑定</h5>
+                <h5 class="modal-title">
+                    订阅定制
+                    <span v-if="subscriptionCustomizationAccount" class="text-secondary ms-2">{{ subscriptionCustomizationAccount.accountNo }}</span>
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" v-show="!subscriptionDomainBindingEditing">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="text-muted small">订阅定制只影响该账户订阅中展示的部署位和连接地址，不触发节点部署。</div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" @click="editSubscriptionDomainBinding(null)">
+                        <i class="ti ti-plus me-1"></i>添加
+                    </button>
+                </div>
+                <div v-if="subscriptionDomainBindingsLoading" class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div v-else-if="subscriptionDomainBindings.length === 0" class="text-muted">
+                    暂无订阅定制
+                </div>
+                <div v-else class="table-responsive">
+                    <table class="table table-vcenter">
+                        <thead>
+                            <tr>
+                                <th>节点</th>
+                                <th>展示部署位</th>
+                                <th>DNS记录</th>
+                                <th>状态</th>
+                                <th>更新时间</th>
+                                <th class="w-1">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="binding in subscriptionDomainBindings" :key="binding.id">
+                                <td>{{ formatBindingNode(binding) }}</td>
+                                <td>{{ formatBindingPlacements(binding) }}</td>
+                                <td>
+                                    <span class="fw-medium">{{ binding.fullName || '-' }}</span>
+                                    <div v-if="binding.domain" class="text-muted small">{{ binding.domain }}</div>
+                                    <div v-if="binding.remark" class="text-muted small">{{ binding.remark }}</div>
+                                </td>
+                                <td>
+                                    <span class="badge" :class="getBindingEnabledBadgeClass(binding)">
+                                        {{ binding.enabled === 1 ? '启用' : '禁用' }}
+                                    </span>
+                                </td>
+                                <td>{{ formatDate(binding.updateTime || binding.createTime) }}</td>
+                                <td>
+                                    <div class="btn-list flex-nowrap">
+                                        <button type="button" class="btn btn-sm btn-ghost-secondary" @click="editSubscriptionDomainBinding(binding)" title="编辑">
+                                            <i class="ti ti-edit"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-ghost-secondary" @click="toggleSubscriptionDomainBinding(binding)" :title="binding.enabled === 1 ? '禁用' : '启用'">
+                                            <i class="ti" :class="binding.enabled === 1 ? 'ti-player-pause' : 'ti-player-play'"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-ghost-danger" @click="deleteSubscriptionDomainBinding(binding)" title="删除">
+                                            <i class="ti ti-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-body" v-show="subscriptionDomainBindingEditing">
                 <div class="alert alert-info">
                     <div class="d-flex">
                         <div>
                             <i class="ti ti-info-circle"></i>
                         </div>
                         <div class="ms-2">
-                            该配置只覆盖订阅中当前账户看到的节点连接地址，不改变节点部署和节点用户列表。
+                            该配置只影响当前账户订阅中看到的部署位和连接地址，不改变节点部署和节点用户列表。
+                            选定的部署位逐个输出（不受“暴露”限制），均不可用时该节点不输出；同时选择 DNS 记录时只输出一条，使用该域名。
                         </div>
                     </div>
                 </div>
@@ -827,7 +819,7 @@
                     </div>
                     <div class="col-md-6">
                         <div class="mb-3">
-                            <label class="form-label required">DNS记录</label>
+                            <label class="form-label">DNS记录</label>
                             <select id="subscription-domain-domain-search"
                                     class="form-select tom-select-hidden"
                                     :class="{ 'is-invalid': validationErrors.subscriptionDomainDomainId }"></select>
@@ -838,6 +830,21 @@
                     </div>
                 </div>
                 <div class="mb-3">
+                    <label class="form-label">展示部署位</label>
+                    <div v-if="subscriptionDomainBindingForm.placements.length === 0" class="text-muted small">请先选择节点</div>
+                    <div v-else>
+                        <label v-for="placement in subscriptionDomainBindingForm.placements" :key="placement.id" class="form-check">
+                            <input type="checkbox" class="form-check-input" :value="placement.id"
+                                   v-model="subscriptionDomainBindingForm.nodeServerIds">
+                            <span class="form-check-label">{{ formatBindingPlacement(placement) }}</span>
+                        </label>
+                        <div class="form-hint">不勾选时沿用默认规则。</div>
+                    </div>
+                    <div class="invalid-feedback d-block" v-if="validationErrors.subscriptionDomainTarget">
+                        {{ validationErrors.subscriptionDomainTarget }}
+                    </div>
+                </div>
+                <div class="mb-3">
                     <label class="form-label">备注</label>
                     <input type="text" class="form-control" v-model="subscriptionDomainBindingForm.remark" placeholder="可选">
                 </div>
@@ -845,12 +852,15 @@
                     <input class="form-check-input" type="checkbox"
                            :checked="subscriptionDomainBindingForm.enabled === 1"
                            @change="subscriptionDomainBindingForm.enabled = $event.target.checked ? 1 : 0">
-                    <span class="form-check-label">启用绑定</span>
+                    <span class="form-check-label">启用定制</span>
                 </label>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary" @click="saveSubscriptionDomainBinding">保存</button>
+                <template v-if="subscriptionDomainBindingEditing">
+                    <button type="button" class="btn btn-link link-secondary" @click="subscriptionDomainBindingEditing = false">返回</button>
+                    <button type="button" class="btn btn-primary" @click="saveSubscriptionDomainBinding">保存</button>
+                </template>
+                <button v-else type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
             </div>
         </div>
     </div>

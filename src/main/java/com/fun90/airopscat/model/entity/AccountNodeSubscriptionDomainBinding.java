@@ -1,6 +1,8 @@
 package com.fun90.airopscat.model.entity;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -17,6 +19,8 @@ import lombok.Data;
 import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Data
 @Entity
@@ -44,8 +48,15 @@ public class AccountNodeSubscriptionDomainBinding {
     @Column(name = "node_id", nullable = false)
     private Long nodeId;
 
-    @Column(name = "domain_dns_record_id", nullable = false)
+    /** 为空时不覆盖连接地址，仅按选定部署位定制 */
+    @Column(name = "domain_dns_record_id")
     private Long domainDnsRecordId;
+
+    /** 订阅中展示的部署位；为空时沿用默认规则 */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "account_node_subscription_placement", joinColumns = @JoinColumn(name = "binding_id"))
+    @Column(name = "node_server_id", nullable = false)
+    private Set<Long> nodeServerIds = new LinkedHashSet<>();
 
     private Integer enabled = 1;
 

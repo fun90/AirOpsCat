@@ -6,6 +6,7 @@ import com.fun90.airopscat.service.SubscriptionService.SubscriptionCandidate;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -17,7 +18,7 @@ class SubscriptionEntrySelectionTest {
         List<NodeDto> entries = SubscriptionService.selectSubscriptionEntries(List.of(
                 candidate(2L, 20, 1, "hk2.example.com"),
                 candidate(1L, 10, 0, "hk1.example.com")
-        ), "bind.example.com", "dns.example.com");
+        ), null, "bind.example.com", "dns.example.com");
 
         assertEquals(1, entries.size());
         assertEquals(1L, entries.getFirst().getNodeServerId());
@@ -30,7 +31,7 @@ class SubscriptionEntrySelectionTest {
         List<NodeDto> entries = SubscriptionService.selectSubscriptionEntries(List.of(
                 candidate(1L, 10, 0, "hk1.example.com"),
                 candidate(2L, 20, 1, "hk2.example.com")
-        ), null, "dns.example.com");
+        ), null, null, "dns.example.com");
 
         assertEquals(1, entries.size());
         assertEquals(1L, entries.getFirst().getNodeServerId());
@@ -38,7 +39,7 @@ class SubscriptionEntrySelectionTest {
 
         assertTrue(SubscriptionService.selectSubscriptionEntries(List.of(
                 candidate(1L, 10, 0, "hk1.example.com")
-        ), null, "dns.example.com").isEmpty());
+        ), null, null, "dns.example.com").isEmpty());
     }
 
     @Test
@@ -47,7 +48,7 @@ class SubscriptionEntrySelectionTest {
                 candidate(3L, 30, 1, "hk3.example.com"),
                 candidate(1L, 10, 1, "hk1.example.com"),
                 candidate(2L, 20, 0, "hk2.example.com")
-        ), null, null);
+        ), null, null, null);
 
         assertEquals(List.of(1L, 3L), entries.stream().map(NodeDto::getNodeServerId).toList());
         assertEquals(List.of("香港-1", "香港-1"), entries.stream().map(NodeDto::getName).toList());
@@ -58,10 +59,41 @@ class SubscriptionEntrySelectionTest {
     void singleExposedPlacementKeepsNodeName() {
         List<NodeDto> entries = SubscriptionService.selectSubscriptionEntries(List.of(
                 candidate(1L, 10, 1, "hk1.example.com")
-        ), null, null);
+        ), null, null, null);
 
         assertEquals(1, entries.size());
         assertEquals("香港-1", entries.getFirst().getName());
+    }
+
+    @Test
+    void selectedPlacementsOutputEachRegardlessOfExposedAndDns() {
+        List<NodeDto> entries = SubscriptionService.selectSubscriptionEntries(List.of(
+                candidate(3L, 30, 0, "hk3.example.com"),
+                candidate(1L, 10, 1, "hk1.example.com"),
+                candidate(2L, 20, 0, "hk2.example.com")
+        ), Set.of(3L, 2L), null, "dns.example.com");
+
+        assertEquals(List.of(2L, 3L), entries.stream().map(NodeDto::getNodeServerId).toList());
+        assertEquals("hk2.example.com", entries.getFirst().getServerHost());
+    }
+
+    @Test
+    void accountBindingUsesFirstSelectedPlacement() {
+        List<NodeDto> entries = SubscriptionService.selectSubscriptionEntries(List.of(
+                candidate(1L, 10, 1, "hk1.example.com"),
+                candidate(2L, 20, 1, "hk2.example.com")
+        ), Set.of(2L), "bind.example.com", null);
+
+        assertEquals(1, entries.size());
+        assertEquals(2L, entries.getFirst().getNodeServerId());
+        assertEquals("bind.example.com", entries.getFirst().getServerHost());
+    }
+
+    @Test
+    void unavailableSelectionOutputsNothing() {
+        assertTrue(SubscriptionService.selectSubscriptionEntries(List.of(
+                candidate(1L, 10, 1, "hk1.example.com")
+        ), Set.of(9L), "bind.example.com", "dns.example.com").isEmpty());
     }
 
     @Test
