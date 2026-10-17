@@ -597,6 +597,7 @@ const accountTable = new DataTable({
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
+                    id: this.subscriptionDomainBindingForm.id,
                     accountId: this.selectedItem.id,
                     nodeId: Number(this.subscriptionDomainBindingForm.nodeId),
                     domainDnsRecordId: Number(this.subscriptionDomainBindingForm.domainDnsRecordId),

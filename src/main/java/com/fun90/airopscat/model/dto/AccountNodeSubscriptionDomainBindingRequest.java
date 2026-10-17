@@ -4,6 +4,7 @@ import lombok.Data;
 
 @Data
 public class AccountNodeSubscriptionDomainBindingRequest {
+    private Long id;
     private Long accountId;
     private Long nodeId;
     private Long domainDnsRecordId;

@@ -74,9 +74,20 @@ public class AccountNodeSubscriptionDomainBindingService {
         ensureNodeBelongsToAccount(request.getAccountId(), request.getNodeId());
         ensureDomainDnsRecordExists(request.getDomainDnsRecordId());
 
-        AccountNodeSubscriptionDomainBinding binding = bindingRepository
-                .findByAccountIdAndNodeId(request.getAccountId(), request.getNodeId())
-                .orElseGet(AccountNodeSubscriptionDomainBinding::new);
+        AccountNodeSubscriptionDomainBinding binding;
+        if (request.getId() != null) {
+            binding = findExisting(request.getId());
+            if (!Objects.equals(binding.getAccountId(), request.getAccountId())) {
+                throw new IllegalArgumentException("绑定不属于该账户");
+            }
+            if (bindingRepository.findByAccountIdAndNodeId(request.getAccountId(), request.getNodeId())
+                    .filter(existing -> !Objects.equals(existing.getId(), binding.getId())).isPresent()) {
+                throw new IllegalArgumentException("该节点已有订阅域名绑定");
+            }
+        } else {
+            binding = bindingRepository.findByAccountIdAndNodeId(request.getAccountId(), request.getNodeId())
+                    .orElseGet(AccountNodeSubscriptionDomainBinding::new);
+        }
 
         binding.setAccountId(request.getAccountId());
         binding.setNodeId(request.getNodeId());
