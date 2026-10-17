@@ -5,15 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>登录 - {appName ?: 'AirOpsCat'}</title>
     <link rel="icon" href="/static/img/favicon.png"/>
+    <script src="/static/js/common/theme.js"></script>
     <!-- Tabler UI CSS -->
     <link rel="stylesheet" href="/static/tabler/css/tabler.min.css">
     <link rel="stylesheet" href="/static/tabler/css/tabler-icons.min.css">
 
     <style>
-        body {
-            background-color: #f5f7fb;
-        }
-
         .login-logo {
             height: 96px;
             max-width: 100%;
@@ -26,7 +23,10 @@
     <div class="container container-tight py-4">
 
         <div class="text-center mb-4">
-            <img src="/static/img/logo-light.png" class="login-logo" alt="{appName ?: 'AirOpsCat'}">
+            <picture>
+                <source srcset="/static/img/logo-dark.png" media="(prefers-color-scheme: dark)">
+                <img src="/static/img/logo-light.png" class="login-logo" alt="{appName ?: 'AirOpsCat'}">
+            </picture>
         </div>
 
         <div class="card card-md">

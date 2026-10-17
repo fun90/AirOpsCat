@@ -1,4 +1,4 @@
-<aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
+<aside class="navbar navbar-vertical navbar-expand-lg">
     <div class="container-fluid">
         <button
                 class="navbar-toggler"
@@ -12,9 +12,12 @@
             <span class="navbar-toggler-icon"></span>
         </button>
 
-        <div class="navbar-brand navbar-brand-autodark">
-            <a href="." aria-label="Tabler">
-                <img src="/static/img/logo.png" style="height: 80px;" class="logo-responsive" alt="Logo" id="logo" />
+        <div class="navbar-brand">
+            <a href="." aria-label="AirOpsCat">
+                <picture>
+                    <source srcset="/static/img/logo-dark.png" media="(prefers-color-scheme: dark)" />
+                    <img src="/static/img/logo-light.png" style="height: 80px;" class="logo-responsive" alt="AirOpsCat" id="logo" />
+                </picture>
             </a>
         </div>
 

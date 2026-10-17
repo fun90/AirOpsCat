@@ -3,7 +3,6 @@ import ApexCharts from '/static/js/apexcharts.js';
 function getCurrentThemeMode() {
     return (
         document.documentElement.getAttribute('data-bs-theme') ||
-        window.localStorage.getItem('tabler-theme') ||
         'light'
     );
 }

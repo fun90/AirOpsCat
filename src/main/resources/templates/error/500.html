@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>500 服务器错误 - {appName ?: 'AirOpsCat'}</title>
+    <script src="/static/js/common/theme.js"></script>
     <!-- Tabler Core CSS -->
     <link rel="stylesheet" href="/static/tabler/css/tabler.min.css">
     <style>
@@ -12,7 +13,6 @@
             display: flex;
             flex-direction: column;
             min-height: 100vh;
-            background-color: #f5f7fb;
         }
         .page {
             flex: 1;
@@ -30,18 +30,18 @@
             font-weight: bold;
             line-height: 1;
             margin-bottom: 1rem;
-            color: #d63939;
+            color: var(--tblr-danger);
         }
         .error-title {
             font-size: 2rem;
             font-weight: 500;
             margin-bottom: 1rem;
-            color: #232e3c;
+            color: var(--tblr-body-color);
         }
         .error-description {
             font-size: 1.125rem;
             margin-bottom: 2rem;
-            color: #626976;
+            color: var(--tblr-secondary-color);
         }
     </style>
 </head>
