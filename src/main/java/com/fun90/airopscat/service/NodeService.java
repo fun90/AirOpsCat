@@ -446,6 +446,8 @@ public class NodeService {
         normalizeAndValidateNodeProtocol(node);
         validateNode(node, targetPlacements);
         boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node, tagSet, tagsUpdated);
+        // 标签只影响本节点用户，不影响引用它作出站的代理节点
+        boolean outboundConfigChanged = hasSubstantialChanges(existingNode, node, null, false);
         Optional<NodeServer> previousEffective = NodeServerRepository.resolveEffective(existingPlacements)
                 .map(this::copyPlacementKey);
 
@@ -459,7 +461,7 @@ public class NodeService {
         if (hasSubstantialChanges) {
             markNodePendingDeploy(existingNode.getId());
         }
-        markReferencingNodesIfEffectiveChanged(existingNode, previousEffective);
+        markReferencingNodesIfChanged(existingNode, previousEffective, outboundConfigChanged);
 
         if (existingNode.getOutId() != null) {
             Node outNode = nodeRepository.findById(existingNode.getOutId());
@@ -508,17 +510,23 @@ public class NodeService {
         return copy;
     }
 
-    // 落地节点的生效部署位变化后，引用它作出站的代理节点需重新部署
-    private void markReferencingNodesIfEffectiveChanged(Node node, Optional<NodeServer> previousEffective) {
+    // 落地节点的配置或生效部署位变化后，引用它作出站的代理节点需重新部署
+    private void markReferencingNodesIfChanged(Node node, Optional<NodeServer> previousEffective, boolean configChanged) {
         if (!Objects.equals(node.getType(), NodeType.LANDING.getValue())) {
             return;
         }
         Optional<NodeServer> currentEffective = nodeServerRepository.findEffectiveByNodeId(node.getId());
-        boolean changed = previousEffective.isPresent() != currentEffective.isPresent()
+        boolean effectiveChanged = previousEffective.isPresent() != currentEffective.isPresent()
                 || previousEffective.isPresent()
                 && (!Objects.equals(previousEffective.get().getServerId(), currentEffective.get().getServerId())
                 || !Objects.equals(previousEffective.get().getAccessHostId(), currentEffective.get().getAccessHostId()));
-        if (changed) {
+        if (configChanged || effectiveChanged) {
+            markReferencingNodesPendingDeploy(node);
+        }
+    }
+
+    void markReferencingNodesPendingDeploy(Node node) {
+        if (Objects.equals(node.getType(), NodeType.LANDING.getValue())) {
             nodeRepository.findByOutId(node.getId()).forEach(proxy -> markNodePendingDeploy(proxy.getId()));
         }
     }
@@ -775,6 +783,7 @@ public class NodeService {
         if (node != null) {
             node.setDisabled(disabled ? 1 : 0);
             markNodePendingDeploy(id);
+            markReferencingNodesPendingDeploy(node);
             return node;
         }
         return null;
