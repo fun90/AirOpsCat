@@ -3,10 +3,14 @@ package com.fun90.airopscat.security;
 import io.quarkus.security.identity.AuthenticationRequestContext;
 import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.security.identity.SecurityIdentityAugmentor;
+import io.quarkus.vertx.http.runtime.security.HttpSecurityUtils;
 import io.smallrye.mutiny.Uni;
+import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.Map;
 
 /**
  * 用户状态检查增强器
@@ -18,6 +22,9 @@ public class UserStatusAugmentor implements SecurityIdentityAugmentor {
 
     @Inject
     UserStatusService userStatusService;
+
+    @Inject
+    RememberMeService rememberMeService;
 
     @Inject
     AuthenticationHandler authenticationHandler;
@@ -46,6 +53,24 @@ public class UserStatusAugmentor implements SecurityIdentityAugmentor {
                 log.error("Error in user status augmentor for user: {}",  identity.getPrincipal().getName(), e);
                 throw e;
             }
+        });
+    }
+
+    /**
+     * 表单登录成功且勾选"记住我"时下发 cookie；在表单认证结束响应之前执行
+     */
+    @Override
+    public Uni<SecurityIdentity> augment(SecurityIdentity identity, AuthenticationRequestContext context,
+                                         Map<String, Object> attributes) {
+        return augment(identity, context).chain(result -> {
+            RoutingContext rc = HttpSecurityUtils.getRoutingContextAttribute(attributes);
+            if (result.isAnonymous() || rc == null || !rememberMeService.isLoginWithRemember(rc)) {
+                return Uni.createFrom().item(result);
+            }
+            return context.runBlocking(() -> {
+                rememberMeService.issueCookie(rc, result.getPrincipal().getName());
+                return result;
+            });
         });
     }
 

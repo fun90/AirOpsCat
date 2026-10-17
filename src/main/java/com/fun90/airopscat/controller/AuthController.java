@@ -1,6 +1,7 @@
 package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.entity.User;
+import com.fun90.airopscat.security.RememberMeService;
 import com.fun90.airopscat.service.UserService;
 import io.quarkus.security.identity.SecurityIdentity;
 import io.smallrye.common.annotation.Blocking;
@@ -14,6 +15,8 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+
+import java.net.URI;
 
 @ApplicationScoped
 @Path("/api")
@@ -54,10 +57,11 @@ public class AuthController {
                 context.session().destroy();
             }
             
-            // 返回成功响应，并清除认证cookie
-            return Response.ok()
-                    .entity("{\"message\": \"Logged out successfully\"}")
+            // 清除认证 cookie 与"记住我"cookie，回到登录页
+            return Response.status(Response.Status.FOUND)
+                    .location(URI.create("/login"))
                     .header("Set-Cookie", "quarkus-credential=; Path=/; Max-Age=0; SameSite=Strict")
+                    .header("Set-Cookie", RememberMeService.COOKIE_NAME + "=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax")
                     .build();
         } catch (Exception e) {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
