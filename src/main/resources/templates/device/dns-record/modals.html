@@ -19,6 +19,35 @@
                     <div class="invalid-feedback" v-if="validationErrors.name">{{ validationErrors.name }}</div>
                 </div>
                 <div class="mb-3">
+                    <label class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" v-model="newItem.scheduleEnabled">
+                        <span class="form-check-label">按时段自动切换内容（Asia/Shanghai）</span>
+                    </label>
+                </div>
+                <div v-if="newItem.scheduleEnabled" class="mb-3">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label required">时段开始</label>
+                            <input type="time" class="form-control" v-model="newItem.scheduleStart">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label required">时段结束（不含）</label>
+                            <input type="time" class="form-control" v-model="newItem.scheduleEnd">
+                        </div>
+                    </div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-6">
+                            <label class="form-label required">时段内内容</label>
+                            <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.scheduleContentIn }" v-model="newItem.scheduleContentIn" placeholder="IP1">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label required">时段外内容</label>
+                            <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.scheduleContentOut }" v-model="newItem.scheduleContentOut" placeholder="IP2">
+                        </div>
+                    </div>
+                    <div class="form-hint mt-1">每分钟检查并推送；结束早于开始表示跨零点。DNS 缓存会让切换延迟约一个 TTL，建议 TTL 设为 60–300。</div>
+                </div>
+                <div class="mb-3" v-if="!newItem.scheduleEnabled">
                     <label class="form-label required">内容</label>
                     <textarea class="form-control" rows="3" :class="{ 'is-invalid': validationErrors.content }" v-model="newItem.content" placeholder="IP、别名或文本内容"></textarea>
                     <div class="invalid-feedback" v-if="validationErrors.content">{{ validationErrors.content }}</div>
@@ -71,6 +100,35 @@
                     <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.name }" v-model="editedItem.name">
                 </div>
                 <div class="mb-3">
+                    <label class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" v-model="editedItem.scheduleEnabled">
+                        <span class="form-check-label">按时段自动切换内容（Asia/Shanghai）</span>
+                    </label>
+                </div>
+                <div v-if="editedItem.scheduleEnabled" class="mb-3">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label required">时段开始</label>
+                            <input type="time" class="form-control" v-model="editedItem.scheduleStart">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label required">时段结束（不含）</label>
+                            <input type="time" class="form-control" v-model="editedItem.scheduleEnd">
+                        </div>
+                    </div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-6">
+                            <label class="form-label required">时段内内容</label>
+                            <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.scheduleContentIn }" v-model="editedItem.scheduleContentIn" placeholder="IP1">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label required">时段外内容</label>
+                            <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.scheduleContentOut }" v-model="editedItem.scheduleContentOut" placeholder="IP2">
+                        </div>
+                    </div>
+                    <div class="form-hint mt-1">每分钟检查并推送；结束早于开始表示跨零点。DNS 缓存会让切换延迟约一个 TTL，建议 TTL 设为 60–300。</div>
+                </div>
+                <div class="mb-3" v-if="!editedItem.scheduleEnabled">
                     <label class="form-label required">内容</label>
                     <textarea class="form-control" rows="3" :class="{ 'is-invalid': validationErrors.content }" v-model="editedItem.content"></textarea>
                 </div>

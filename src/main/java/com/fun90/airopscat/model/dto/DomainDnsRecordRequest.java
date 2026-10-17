@@ -12,4 +12,9 @@ public class DomainDnsRecordRequest {
     private Boolean proxied;
     private Integer priority;
     private String remark;
+    private Boolean scheduleEnabled;
+    private String scheduleStart;
+    private String scheduleEnd;
+    private String scheduleContentIn;
+    private String scheduleContentOut;
 }

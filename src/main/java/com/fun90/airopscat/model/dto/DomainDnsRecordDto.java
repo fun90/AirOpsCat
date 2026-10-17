@@ -20,6 +20,11 @@ public class DomainDnsRecordDto {
     private Integer priority;
     private DnsRecordStatus status;
     private String remark;
+    private Boolean scheduleEnabled;
+    private String scheduleStart;
+    private String scheduleEnd;
+    private String scheduleContentIn;
+    private String scheduleContentOut;
     private String bizTagsJson;
     private String extensionJson;
     private String rawData;

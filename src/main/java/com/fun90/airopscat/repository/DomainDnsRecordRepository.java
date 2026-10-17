@@ -35,6 +35,10 @@ public class DomainDnsRecordRepository implements PanacheRepository<DomainDnsRec
         delete("domainId", domainId);
     }
 
+    public List<DomainDnsRecord> findScheduled() {
+        return list("scheduleEnabled = true and status <> ?1", DnsRecordStatus.PENDING_DELETE);
+    }
+
     public List<DomainDnsRecord> findByDnsProviderConfigId(Long dnsProviderConfigId) {
         return find("dnsProviderConfigId", dnsProviderConfigId).list();
     }

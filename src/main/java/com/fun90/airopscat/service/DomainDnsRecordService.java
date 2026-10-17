@@ -19,14 +19,22 @@ import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 @ApplicationScoped
 public class DomainDnsRecordService {
 
     private static final List<String> ALLOWED_SORT_FIELDS = List.of("type", "name", "content", "updateTime", "createTime");
+
+    private static final ZoneId SCHEDULE_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final Pattern HH_MM = Pattern.compile("([01]\\d|2[0-3]):[0-5]\\d");
 
     private final DomainDnsRecordRepository domainDnsRecordRepository;
     private final AccountNodeSubscriptionDomainBindingRepository bindingRepository;
@@ -85,6 +93,11 @@ public class DomainDnsRecordService {
         dto.setPriority(entity.getPriority());
         dto.setStatus(entity.getStatus());
         dto.setRemark(entity.getRemark());
+        dto.setScheduleEnabled(entity.getScheduleEnabled());
+        dto.setScheduleStart(entity.getScheduleStart());
+        dto.setScheduleEnd(entity.getScheduleEnd());
+        dto.setScheduleContentIn(entity.getScheduleContentIn());
+        dto.setScheduleContentOut(entity.getScheduleContentOut());
         dto.setBizTagsJson(entity.getBizTagsJson());
         dto.setExtensionJson(entity.getExtensionJson());
         dto.setRawData(entity.getRawData());
@@ -105,7 +118,7 @@ public class DomainDnsRecordService {
         entity.setName(request.getName().trim());
         entity.setFullName(buildFullName(domain, request));
         entity.setType(request.getType().trim().toUpperCase());
-        entity.setContent(request.getContent().trim());
+        applyContent(entity, request);
         entity.setTtl(request.getTtl());
         entity.setProxied(request.getProxied());
         entity.setPriority(request.getPriority());
@@ -126,7 +139,7 @@ public class DomainDnsRecordService {
         entity.setName(request.getName().trim());
         entity.setFullName(buildFullName(domain, request));
         entity.setType(request.getType().trim().toUpperCase());
-        entity.setContent(request.getContent().trim());
+        applyContent(entity, request);
         entity.setTtl(request.getTtl());
         entity.setProxied(request.getProxied());
         entity.setPriority(request.getPriority());
@@ -246,9 +259,68 @@ public class DomainDnsRecordService {
         if (request.getType() == null || request.getType().isBlank()) {
             throw new IllegalArgumentException("记录类型不能为空");
         }
-        if (request.getContent() == null || request.getContent().isBlank()) {
+        if (!Boolean.TRUE.equals(request.getScheduleEnabled())
+                && (request.getContent() == null || request.getContent().isBlank())) {
             throw new IllegalArgumentException("记录内容不能为空");
         }
+    }
+
+    /** 启用时段计划时 content 由计划决定，忽略请求中的 content */
+    private void applyContent(DomainDnsRecord entity, DomainDnsRecordRequest request) {
+        boolean scheduled = Boolean.TRUE.equals(request.getScheduleEnabled());
+        entity.setScheduleEnabled(scheduled);
+        if (!scheduled) {
+            entity.setContent(request.getContent().trim());
+            return;
+        }
+        if (!isHhMm(request.getScheduleStart()) || !isHhMm(request.getScheduleEnd())
+                || request.getScheduleStart().equals(request.getScheduleEnd())) {
+            throw new IllegalArgumentException("时段起止时间需为不同的 HH:mm");
+        }
+        if (isBlank(request.getScheduleContentIn()) || isBlank(request.getScheduleContentOut())) {
+            throw new IllegalArgumentException("时段内与时段外的记录内容均不能为空");
+        }
+        entity.setScheduleStart(request.getScheduleStart());
+        entity.setScheduleEnd(request.getScheduleEnd());
+        entity.setScheduleContentIn(request.getScheduleContentIn().trim());
+        entity.setScheduleContentOut(request.getScheduleContentOut().trim());
+        entity.setContent(entity.scheduledContent(LocalTime.now(SCHEDULE_ZONE)));
+    }
+
+    private boolean isHhMm(String value) {
+        return value != null && HH_MM.matcher(value).matches();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    /** 按当前时间刷新所有时段计划记录的内容，返回需要推送的域名 ID */
+    @Transactional
+    public Set<Long> applySchedules() {
+        LocalTime now = LocalTime.now(SCHEDULE_ZONE);
+        Set<Long> domainIds = new HashSet<>();
+        for (DomainDnsRecord record : domainDnsRecordRepository.findScheduled()) {
+            String target = record.scheduledContent(now);
+            boolean changed = !target.equals(record.getContent());
+            if (changed) {
+                record.setContent(target);
+                if (record.getStatus() != DnsRecordStatus.PENDING_CREATE) {
+                    record.setStatus(DnsRecordStatus.PENDING_UPDATE);
+                }
+            }
+            // 上次推送失败的 PENDING_UPDATE 也要重试
+            if (changed || record.getStatus() == DnsRecordStatus.PENDING_UPDATE) {
+                domainIds.add(record.getDomainId());
+            }
+        }
+        for (Long domainId : domainIds) {
+            Domain domain = domainRepository.findById(domainId);
+            if (domain != null) {
+                markDomainNotSynced(domain);
+            }
+        }
+        return domainIds;
     }
 
     private Domain requireBoundDomain(Long domainId) {

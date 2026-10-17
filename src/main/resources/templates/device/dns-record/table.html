@@ -44,6 +44,9 @@
         <td>
             <div class="d-flex flex-column">
                 <span class="fw-medium text-break">{{ record.content }}</span>
+                <span v-if="record.scheduleEnabled" class="badge bg-purple-lt align-self-start mt-1">
+                    {{ record.scheduleStart }}–{{ record.scheduleEnd }} → {{ record.scheduleContentIn }}，其余 → {{ record.scheduleContentOut }}
+                </span>
                 <span class="text-secondary small d-lg-none">
                     TTL {{ record.ttl || '-' }}
                     <span v-if="record.priority !== null && record.priority !== undefined"> · 优先级 {{ record.priority }}</span>

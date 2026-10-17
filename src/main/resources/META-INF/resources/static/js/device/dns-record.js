@@ -47,7 +47,12 @@ const dnsRecordTable = new DataTable({
             ttl: 300,
             proxied: false,
             priority: null,
-            remark: ''
+            remark: '',
+            scheduleEnabled: false,
+            scheduleStart: '00:00',
+            scheduleEnd: '07:00',
+            scheduleContentIn: '',
+            scheduleContentOut: ''
         },
         editedItem: {
             id: null,
@@ -57,7 +62,12 @@ const dnsRecordTable = new DataTable({
             ttl: 300,
             proxied: false,
             priority: null,
-            remark: ''
+            remark: '',
+            scheduleEnabled: false,
+            scheduleStart: '00:00',
+            scheduleEnd: '07:00',
+            scheduleContentIn: '',
+            scheduleContentOut: ''
         }
     },
     methods: {
@@ -348,7 +358,20 @@ const dnsRecordTable = new DataTable({
                 this.validationErrors.name = '记录名称不能为空';
                 isValid = false;
             }
-            if (!form.content || !form.content.trim()) {
+            if (form.scheduleEnabled) {
+                if (!form.scheduleContentIn || !form.scheduleContentIn.trim()) {
+                    this.validationErrors.scheduleContentIn = '时段内内容不能为空';
+                    isValid = false;
+                }
+                if (!form.scheduleContentOut || !form.scheduleContentOut.trim()) {
+                    this.validationErrors.scheduleContentOut = '时段外内容不能为空';
+                    isValid = false;
+                }
+                if (!form.scheduleStart || !form.scheduleEnd || form.scheduleStart === form.scheduleEnd) {
+                    ToastUtils.show('Error', '时段起止时间需不同', 'danger');
+                    isValid = false;
+                }
+            } else if (!form.content || !form.content.trim()) {
                 this.validationErrors.content = '记录内容不能为空';
                 isValid = false;
             }
@@ -363,7 +386,12 @@ const dnsRecordTable = new DataTable({
                 ttl: 300,
                 proxied: false,
                 priority: null,
-                remark: ''
+                remark: '',
+                scheduleEnabled: false,
+                scheduleStart: '00:00',
+                scheduleEnd: '07:00',
+                scheduleContentIn: '',
+                scheduleContentOut: ''
             };
         },
 
@@ -376,7 +404,12 @@ const dnsRecordTable = new DataTable({
                 ttl: record.ttl || '',
                 proxied: record.proxied === true,
                 priority: record.priority || '',
-                remark: record.remark || ''
+                remark: record.remark || '',
+                scheduleEnabled: record.scheduleEnabled === true,
+                scheduleStart: record.scheduleStart || '00:00',
+                scheduleEnd: record.scheduleEnd || '07:00',
+                scheduleContentIn: record.scheduleContentIn || '',
+                scheduleContentOut: record.scheduleContentOut || ''
             };
         },
 
@@ -392,7 +425,12 @@ const dnsRecordTable = new DataTable({
             return {
                 type: form.type,
                 name: form.name.trim(),
-                content: form.content.trim(),
+                content: (form.content || '').trim(),
+                scheduleEnabled: form.scheduleEnabled === true,
+                scheduleStart: form.scheduleStart,
+                scheduleEnd: form.scheduleEnd,
+                scheduleContentIn: form.scheduleContentIn,
+                scheduleContentOut: form.scheduleContentOut,
                 ttl: form.ttl === '' ? null : Number(form.ttl),
                 proxied: form.proxied,
                 priority: form.priority === '' ? null : Number(form.priority),
