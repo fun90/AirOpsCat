@@ -38,7 +38,8 @@ public class NodeDto {
     private Integer deployed;
     private Integer disabled;
     private String name;
-    private Integer no;
+    // 生效部署位的优先级，用于显示名后缀
+    private Integer priority;
     private String remark;
     private Integer onlineConnectionCount;
     private LocalDateTime createTime;

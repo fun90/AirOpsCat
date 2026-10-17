@@ -21,7 +21,6 @@ public class NodeDeploymentVersionSnapshotDto {
     private Integer level;
     private Integer disabled;
     private String name;
-    private Integer no;
     private String remark;
     private List<Long> tagIds;
 }

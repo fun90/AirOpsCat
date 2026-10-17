@@ -330,7 +330,6 @@ public class NodeController {
             nodeCopy.setLevel(existingNode.getLevel());
             nodeCopy.setDisabled(existingNode.getDisabled());
             nodeCopy.setRemark(existingNode.getRemark());
-            nodeCopy.setNo(existingNode.getNo());
             nodeCopy.setName(existingNode.getName() != null ? existingNode.getName() + " (Copy)" : "Copy of Node " + id);
 
             // 复制部署位；端口需在所有部署服务器上可用，DNS 绑定不复制（一条记录只能绑定一个节点）

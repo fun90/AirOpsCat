@@ -226,8 +226,8 @@ public class NodeService {
         }
 
         return switch (sortBy) {
-            case "name" -> ascending ? Sort.by("name", "no").ascending() : Sort.by("name", "no").descending();
-            case "outbound" -> ascending ? Sort.by("outId", "name", "no").ascending() : Sort.by("outId", "name", "no").descending();
+            case "name" -> ascending ? Sort.by("name").ascending() : Sort.by("name").descending();
+            case "outbound" -> ascending ? Sort.by("outId", "name").ascending() : Sort.by("outId", "name").descending();
             default -> Sort.by("createTime").descending();
         };
     }
@@ -314,10 +314,6 @@ public class NodeService {
     }
 
     private void validateNode(Node node, List<NodeServer> placements) {
-        if (nodeRepository.existsByNameAndNoAndIdNot(node.getName(), node.getNo(), node.getId())) {
-            throw new IllegalArgumentException("名称与编号重复：" + node.getName() + " " + node.getNo());
-        }
-
         if (placements.stream().noneMatch(NodeServer::enabledFlag)) {
             throw new IllegalArgumentException("至少需要一个启用的部署服务器");
         }
@@ -682,7 +678,6 @@ public class NodeService {
 
     private void copyNonNullProperties(Node src, Node target) {
         if (src.getName() != null) target.setName(src.getName());
-        if (src.getNo() != null) target.setNo(src.getNo());
         if (src.getRemark() != null) target.setRemark(src.getRemark());
         if (src.getType() != null) target.setType(src.getType());
         if (src.getPort() != null) target.setPort(src.getPort());

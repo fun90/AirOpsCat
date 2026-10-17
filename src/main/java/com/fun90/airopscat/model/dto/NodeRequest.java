@@ -18,7 +18,6 @@ public class NodeRequest {
     private Integer level;
     private Integer disabled;
     private String name;
-    private Integer no;
     private String remark;
     private List<Long> tagIds; // 标签ID列表
     private Long dnsRecordId;

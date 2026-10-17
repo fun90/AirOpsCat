@@ -309,7 +309,7 @@ public class NodeOnlineAccountStatsService {
             dto.setNodeId(node.id());
             dto.setNodeName(node.name());
             dto.setNodeDisplayName(formatNodeName(node));
-            dto.setNodeNo(node.no());
+            dto.setNodePriority(node.priority());
             dto.setProtocol(node.protocol());
             dto.setServerIp(node.serverIp());
             dto.setServerHost(node.serverIp());
@@ -362,7 +362,7 @@ public class NodeOnlineAccountStatsService {
         dto.setNodeId(node.id());
         dto.setNodeName(node.name());
         dto.setNodeDisplayName(formatNodeName(node));
-        dto.setNodeNo(node.no());
+        dto.setNodePriority(node.priority());
         dto.setProtocol(node.protocol());
         dto.setServerIp(node.serverIp());
         dto.setServerHost(node.serverIp());
@@ -410,11 +410,12 @@ public class NodeOnlineAccountStatsService {
             return null;
         }
         Object[] row = (Object[]) entityManager.createNativeQuery("""
-                        select n.id, n.name, n.no, n.protocol, s.ip
+                        select n.id, n.name, p.priority, n.protocol, s.ip
                         from node n
-                        left join server s on s.id = (
-                            select ns.server_id from node_server ns
+                        left join node_server p on p.id = (
+                            select ns.id from node_server ns
                             where ns.node_id = n.id order by ns.priority, ns.id limit 1)
+                        left join server s on s.id = p.server_id
                         where n.id = ?1
                         """)
                 .setParameter(1, nodeId)
@@ -436,11 +437,12 @@ public class NodeOnlineAccountStatsService {
     @SuppressWarnings("unchecked")
     private Map<Long, NodeStatsTarget> findAllNodeStatsTargets() {
         List<Object[]> rows = entityManager.createNativeQuery("""
-                        select n.id, n.name, n.no, n.protocol, s.ip
+                        select n.id, n.name, p.priority, n.protocol, s.ip
                         from node n
-                        left join server s on s.id = (
-                            select ns.server_id from node_server ns
+                        left join node_server p on p.id = (
+                            select ns.id from node_server ns
                             where ns.node_id = n.id order by ns.priority, ns.id limit 1)
+                        left join server s on s.id = p.server_id
                         """)
                 .getResultList();
         Map<Long, NodeStatsTarget> result = new HashMap<>();
@@ -461,14 +463,14 @@ public class NodeOnlineAccountStatsService {
     }
 
     private String formatNodeName(NodeStatsTarget node) {
-        if (node.name() != null && !node.name().isBlank() && node.no() != null) {
-            return node.name() + "-" + node.no();
+        if (node.name() != null && !node.name().isBlank() && node.priority() != null) {
+            return node.name() + "-" + node.priority();
         }
         if (node.name() != null && !node.name().isBlank()) {
             return node.name();
         }
-        if (node.no() != null) {
-            return String.valueOf(node.no());
+        if (node.priority() != null) {
+            return String.valueOf(node.priority());
         }
         return "#" + node.id();
     }
@@ -488,7 +490,7 @@ public class NodeOnlineAccountStatsService {
     private record NodeStatsTarget(
             Long id,
             String name,
-            Integer no,
+            Integer priority,
             String protocol,
             String serverIp
     ) {

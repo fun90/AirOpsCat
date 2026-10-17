@@ -36,7 +36,7 @@ public class NodeObfuscator {
      * 对单个节点按倍数生成多个混淆副本
      */
     private static List<NodeDto> obfuscateNode(NodeDto original, int multiple, String prefix) {
-        int startIndex = original.getNo() * 10;
+        int startIndex = Math.max(0, original.getPriority() == null ? 0 : original.getPriority()) * 10;
         List<NodeDto> result = new ArrayList<>(multiple);
 
         for (int i = 0; i < multiple; i++) {
@@ -87,7 +87,7 @@ public class NodeObfuscator {
         copy.setDeployed(src.getDeployed());
         copy.setDisabled(src.getDisabled());
         copy.setName(src.getName());
-        copy.setNo(src.getNo());
+        copy.setPriority(src.getPriority());
         copy.setRemark(src.getRemark());
         copy.setCreateTime(src.getCreateTime());
         copy.setUpdateTime(src.getUpdateTime());

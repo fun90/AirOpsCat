@@ -279,7 +279,6 @@ public class NodeDeploymentVersionService {
         snapshot.setLevel(node.getLevel());
         snapshot.setDisabled(node.getDisabled());
         snapshot.setName(node.getName());
-        snapshot.setNo(node.getNo());
         snapshot.setRemark(node.getRemark());
         snapshot.setTagIds(tags.stream().map(Tag::getId).toList());
         return snapshot;
@@ -305,7 +304,6 @@ public class NodeDeploymentVersionService {
         node.setLevel(snapshot.getLevel());
         node.setDisabled(snapshot.getDisabled());
         node.setName(snapshot.getName());
-        node.setNo(snapshot.getNo());
         node.setRemark(snapshot.getRemark());
         return node;
     }

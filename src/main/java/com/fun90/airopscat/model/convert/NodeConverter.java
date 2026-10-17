@@ -24,7 +24,6 @@ public class NodeConverter {
         // Manual property copying instead of BeanUtils
         dto.setId(node.getId());
         dto.setName(node.getName());
-        dto.setNo(node.getNo());
         dto.setType(node.getType());
         dto.setPort(node.getPort());
         dto.setProtocol(node.getProtocol());
@@ -48,6 +47,7 @@ public class NodeConverter {
                 .or(() -> sortedPlacements.stream().findFirst())
                 .ifPresent(placement -> {
             dto.setNodeServerId(placement.getId());
+            dto.setPriority(placement.getPriority());
             dto.setServerId(placement.getServerId());
             dto.setAccessHostId(placement.getAccessHostId());
             dto.setAccessHost(placement.getAccessHost() != null ? placement.getAccessHost().getHost() : null);
@@ -120,7 +120,6 @@ public class NodeConverter {
         node.setLevel(request.getLevel());
         node.setDisabled(request.getDisabled());
         node.setName(request.getName());
-        node.setNo(request.getNo());
         node.setRemark(request.getRemark());
         node.setDnsRecordId(request.getDnsRecordId());
 

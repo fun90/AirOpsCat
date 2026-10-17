@@ -31,13 +31,6 @@
                                     <div class="invalid-feedback" v-if="validationErrors.name">{{ validationErrors.name }}</div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label required">节点编号</label>
-                                    <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.no }" v-model="newItem.no" min="1">
-                                    <div class="invalid-feedback" v-if="validationErrors.no">{{ validationErrors.no }}</div>
-                                </div>
-                            </div>
                         </div>
                         <div class="row mt-3">
                             <div class="col-md-4">
@@ -394,13 +387,6 @@
                                     <label class="form-label required">节点名称</label>
                                     <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.name }" v-model="editedItem.name">
                                     <div class="invalid-feedback" v-if="validationErrors.name">{{ validationErrors.name }}</div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label required">节点编号</label>
-                                    <input type="number" class="form-control" :class="{ 'is-invalid': validationErrors.no }" v-model="editedItem.no" min="1">
-                                    <div class="invalid-feedback" v-if="validationErrors.no">{{ validationErrors.no }}</div>
                                 </div>
                             </div>
                         </div>
@@ -803,7 +789,7 @@
                 <h5 class="modal-title">
                     部署历史
                     <span v-if="deploymentHistoryNode" class="text-secondary ms-2">
-                        {{ (deploymentHistoryNode.name && deploymentHistoryNode.no) ? deploymentHistoryNode.name + '-' + deploymentHistoryNode.no : ('节点 #' + deploymentHistoryNode.id) }}
+                        {{ deploymentHistoryNode.name ? deploymentHistoryNode.name : ('节点 #' + deploymentHistoryNode.id) }}
                     </span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -931,8 +917,8 @@
                                         <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().level ?? '-' }}</div>
                                     </div>
                                     <div class="col-md-3">
-                                        <div class="text-secondary small">名称 / 编号</div>
-                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().name || '-' }} / {{ getDeploymentVersionSnapshot().no || '-' }}</div>
+                                        <div class="text-secondary small">名称</div>
+                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().name || '-' }}</div>
                                     </div>
                                     <div class="col-md-3">
                                         <div class="text-secondary small">状态</div>

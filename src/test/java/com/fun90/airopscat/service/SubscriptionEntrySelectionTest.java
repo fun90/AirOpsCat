@@ -69,8 +69,8 @@ class SubscriptionEntrySelectionTest {
     void duplicatedPlacementNamesStayUniqueAfterObfuscation() {
         NodeDto first = candidate(1L, 10, 1, "香港", "hk1.example.com", "HK1").dto();
         NodeDto second = candidate(2L, 20, 1, "香港", "hk2.example.com", "HK2").dto();
-        first.setNo(0);
-        second.setNo(0);
+        first.setPriority(0);
+        second.setPriority(0);
         List<NodeDto> entries = NodeObfuscator.obfuscate(List.of(first, second), 2, "");
 
         SubscriptionService.ensureUniqueNames(entries);

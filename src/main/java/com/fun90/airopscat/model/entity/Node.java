@@ -54,8 +54,6 @@ public class Node {
     
     private String name;
 
-    private Integer no;
-
     private String remark;
 
     // 绑定后订阅只输出一条，host 为该记录域名

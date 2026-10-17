@@ -71,9 +71,4 @@ public class NodeRepository implements PanacheRepository<Node> {
     public long countDisabledNodes() {
         return count("disabled = 1");
     }
-
-    // 检查名称和编号是否已被使用
-    public boolean existsByNameAndNoAndIdNot(String name, Integer no, Long id) {
-        return count("name = ?1 and no = ?2 and id != ?3", name, no, id) > 0;
-    }
 }

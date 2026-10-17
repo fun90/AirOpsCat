@@ -10,6 +10,7 @@ import com.fun90.airopscat.model.entity.User;
 import com.fun90.airopscat.repository.AccountOnlineIpRepository;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.repository.UserRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -41,6 +42,7 @@ public class AccountOnlineIpService {
     private final AccountOnlineIpRepository accountOnlineIpRepository;
     private final AccountRepository accountRepository;
     private final NodeRepository nodeRepository;
+    private final NodeServerRepository nodeServerRepository;
     private final UserRepository userRepository;
     private final SystemConfigService systemConfigService;
 
@@ -48,11 +50,13 @@ public class AccountOnlineIpService {
     public AccountOnlineIpService(AccountOnlineIpRepository accountOnlineIpRepository,
                                  AccountRepository accountRepository,
                                  NodeRepository nodeRepository,
+                                 NodeServerRepository nodeServerRepository,
                                  UserRepository userRepository,
                                  SystemConfigService systemConfigService) {
         this.accountOnlineIpRepository = accountOnlineIpRepository;
         this.accountRepository = accountRepository;
         this.nodeRepository = nodeRepository;
+        this.nodeServerRepository = nodeServerRepository;
         this.userRepository = userRepository;
         this.systemConfigService = systemConfigService;
     }
@@ -390,9 +394,10 @@ public class AccountOnlineIpService {
         Map<String, Account> accountMap = getAccountMap(records);
         Map<Long, User> userMap = getUserMap(accountMap.values());
         Map<Long, Node> nodeMap = getNodeMap(records);
+        Map<Long, Integer> nodePriorities = getNodePriorities(nodeMap.keySet());
 
         return records.stream()
-                .map(record -> convertToDto(record, accountMap, userMap, nodeMap))
+                .map(record -> convertToDto(record, accountMap, userMap, nodeMap, nodePriorities))
                 .collect(Collectors.toList());
     }
 
@@ -402,7 +407,8 @@ public class AccountOnlineIpService {
     private AccountOnlineIpDto convertToDto(AccountOnlineIp record,
                                            Map<String, Account> accountMap,
                                            Map<Long, User> userMap,
-                                           Map<Long, Node> nodeMap) {
+                                           Map<Long, Node> nodeMap,
+                                           Map<Long, Integer> nodePriorities) {
         AccountOnlineIpDto dto = new AccountOnlineIpDto();
         dto.setId(record.getId());
         dto.setAccountNo(record.getAccountNo());
@@ -431,7 +437,7 @@ public class AccountOnlineIpService {
 
         Node node = record.getNodeId() == null ? null : nodeMap.get(record.getNodeId());
         if (node != null) {
-            dto.setNodeName(formatNodeName(node));
+            dto.setNodeName(formatNodeName(node, nodePriorities.get(node.getId())));
         }
 
         return dto;
@@ -502,15 +508,28 @@ public class AccountOnlineIpService {
                 .collect(Collectors.toMap(Node::getId, node -> node));
     }
 
-    private String formatNodeName(Node node) {
-        if (node.getName() != null && !node.getName().isBlank() && node.getNo() != null) {
-            return node.getName() + "-" + node.getNo();
+    private Map<Long, Integer> getNodePriorities(java.util.Collection<Long> nodeIds) {
+        if (nodeIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Integer> result = new java.util.HashMap<>();
+        nodeServerRepository.findByNodeIds(new java.util.ArrayList<>(nodeIds)).stream()
+                .collect(Collectors.groupingBy(placement -> placement.getNodeId()))
+                .forEach((nodeId, placements) -> NodeServerRepository.resolveEffective(placements)
+                        .or(() -> placements.stream().min(NodeServerRepository.PRIORITY_ORDER))
+                        .ifPresent(placement -> result.put(nodeId, placement.getPriority())));
+        return result;
+    }
+
+    private String formatNodeName(Node node, Integer priority) {
+        if (node.getName() != null && !node.getName().isBlank() && priority != null) {
+            return node.getName() + "-" + priority;
         }
         if (node.getName() != null && !node.getName().isBlank()) {
             return node.getName();
         }
-        if (node.getNo() != null) {
-            return String.valueOf(node.getNo());
+        if (priority != null) {
+            return String.valueOf(priority);
         }
         return node.getTag();
     }

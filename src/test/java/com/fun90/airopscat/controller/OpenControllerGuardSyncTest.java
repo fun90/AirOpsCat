@@ -96,7 +96,7 @@ class OpenControllerGuardSyncTest {
         private final boolean fail;
 
         FakeOnlineIpService(boolean fail) {
-            super(null, null, null, null, null);
+            super(null, null, null, null, null, null);
             this.fail = fail;
         }
 

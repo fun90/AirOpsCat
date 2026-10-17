@@ -334,11 +334,6 @@ export function createNodeFormMethods() {
                 isValid = false;
             }
 
-            if (!item.no) {
-                this.validationErrors.no = '请填写节点编号';
-                isValid = false;
-            }
-
             if (item.type === null || item.type === undefined) {
                 this.validationErrors.type = '请选择节点类型';
                 isValid = false;
@@ -394,7 +389,6 @@ export function createNodeFormMethods() {
                     level: this.newItem.level || 0,
                     disabled: this.newItem.disabled ? 1 : 0,
                     name: this.newItem.name || null,
-                    no: this.newItem.no || null,
                     remark: this.newItem.remark || null,
                     inbound: inboundConfig,
                     outId: this.newItem.outId || null,
@@ -430,7 +424,6 @@ export function createNodeFormMethods() {
                     level: this.editedItem.level || 0,
                     disabled: this.editedItem.disabled,
                     name: this.editedItem.name || null,
-                    no: this.editedItem.no || null,
                     remark: this.editedItem.remark || null,
                     inbound: this.editedNodeInbound,
                     outId: this.editedItem.outId === 0 ? null : this.editedItem.outId,
@@ -456,7 +449,6 @@ export function createNodeFormMethods() {
                 level: 0,
                 disabled: false,
                 name: null,
-                no: null,
                 remark: '',
                 inbound: null,
                 outId: null,
@@ -528,7 +520,6 @@ export function createNodeFormMethods() {
                 level: node.level || 0,
                 disabled: node.disabled,
                 name: node.name || null,
-                no: node.no || null,
                 remark: node.remark || '',
                 inbound: node.inbound,
                 outId: !node.outId ? 0 : node.outId,

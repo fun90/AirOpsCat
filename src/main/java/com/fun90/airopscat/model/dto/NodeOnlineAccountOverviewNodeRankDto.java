@@ -9,7 +9,7 @@ public class NodeOnlineAccountOverviewNodeRankDto {
     private Long nodeId;
     private String nodeName;
     private String nodeDisplayName;
-    private Integer nodeNo;
+    private Integer nodePriority;
     private String protocol;
     private String serverIp;
     private String serverHost;
