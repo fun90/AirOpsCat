@@ -632,13 +632,13 @@ WHERE config_type IS NULL OR trim(config_type) = '' OR lower(trim(config_type)) 
 
 重点更新：
 
-- `CLAUDE.md` 中“协议/核心支持”描述：改为 sing-box 内核，支持多种 sing-box 协议。
+- `AGENTS.md` 中“协议/核心支持”描述：改为 sing-box 内核，支持多种 sing-box 协议。
 - `docs/how-to-add-console-module.md` 中示例“sing-box / xray 模板”描述。
 - 节点管理相关文档中“切换内核”改为历史能力或删除。
 
 验证：
 
-- `rg "切换内核|xray / sing-box|sing-box / xray|xray、sing-box|xray/sing-box" CLAUDE.md docs` 只剩历史文档或迁移说明。
+- `rg "切换内核|xray / sing-box|sing-box / xray|xray、sing-box|xray/sing-box" AGENTS.md docs` 只剩历史文档或迁移说明。
 
 ---
 

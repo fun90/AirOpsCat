@@ -483,7 +483,7 @@ Map<accountNo, Map<nodeIp, NodeStat>>
 
 ### 4.6 原生镜像反射注册（必查项）
 
-按 `CLAUDE.md`，新增/修改用作控制器请求/响应、Qute 模板参数或经 `JsonUtil`
+按 `AGENTS.md`，新增/修改用作控制器请求/响应、Qute 模板参数或经 `JsonUtil`
 序列化的类，必须在 `JsonReflectionConfiguration` 注册。本方案新增的上报 DTO、
 配额 DTO、`NodeClient` 结构变化等均需确认注册。
 
