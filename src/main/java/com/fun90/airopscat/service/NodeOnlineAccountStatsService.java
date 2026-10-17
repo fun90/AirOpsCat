@@ -412,7 +412,9 @@ public class NodeOnlineAccountStatsService {
         Object[] row = (Object[]) entityManager.createNativeQuery("""
                         select n.id, n.name, n.no, n.protocol, s.ip
                         from node n
-                        left join server s on s.id = n.server_id
+                        left join server s on s.id = (
+                            select ns.server_id from node_server ns
+                            where ns.node_id = n.id order by ns.priority, ns.id limit 1)
                         where n.id = ?1
                         """)
                 .setParameter(1, nodeId)
@@ -436,7 +438,9 @@ public class NodeOnlineAccountStatsService {
         List<Object[]> rows = entityManager.createNativeQuery("""
                         select n.id, n.name, n.no, n.protocol, s.ip
                         from node n
-                        left join server s on s.id = n.server_id
+                        left join server s on s.id = (
+                            select ns.server_id from node_server ns
+                            where ns.node_id = n.id order by ns.priority, ns.id limit 1)
                         """)
                 .getResultList();
         Map<Long, NodeStatsTarget> result = new HashMap<>();

@@ -8,9 +8,6 @@ import java.util.Map;
 @Data
 public class NodeRequest {
     private Long id;
-    private Long serverId;
-    private String nodeGroup;
-    private Long accessHostId;
     private Integer port;
     private String protocol;
     private String coreType;
@@ -24,4 +21,6 @@ public class NodeRequest {
     private Integer no;
     private String remark;
     private List<Long> tagIds; // 标签ID列表
+    private Long dnsRecordId;
+    private List<NodeServerRequest> placements;
 } 

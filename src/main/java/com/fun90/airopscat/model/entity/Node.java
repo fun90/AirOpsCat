@@ -15,13 +15,9 @@ import java.util.Set;
 @Table(
         name = "node",
         indexes = {
-                @Index(name = "idx_node_server_id", columnList = "server_id"),
-                @Index(name = "idx_node_access_host_id", columnList = "access_host_id"),
                 @Index(name = "idx_node_out_id", columnList = "out_id"),
-                @Index(name = "idx_node_node_group", columnList = "node_group"),
                 @Index(name = "idx_node_type_core_type", columnList = "type,core_type"),
-                @Index(name = "idx_node_deployed_id", columnList = "deployed,id"),
-                @Index(name = "idx_node_server_port", columnList = "server_id,port")
+                @Index(name = "idx_node_dns_record_id", columnList = "dns_record_id")
         }
 )
 @DynamicUpdate
@@ -29,13 +25,8 @@ public class Node {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
-    @Column(name = "server_id")
-    private Long serverId;
 
-    @Column(name = "access_host_id")
-    private Long accessHostId;
-    
+
     private Integer port;
 
     // 代理协议：VLESS、Hysteria2、Socks、Shadowsocks、ShadowTLS
@@ -59,28 +50,17 @@ public class Node {
     
     private Integer level;
 
-    // 0:待部署,1:已部署,2:待删除
-    private Integer deployed;
-
     private Integer disabled;
     
     private String name;
 
     private Integer no;
 
-    @Column(name = "node_group")
-    private String nodeGroup;
-    
     private String remark;
-    
-//    @ManyToOne(fetch = FetchType.LAZY)
-    @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REFRESH})
-    @JoinColumn(name = "server_id", insertable = false, updatable = false)
-    private Server server;
 
-    @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REFRESH})
-    @JoinColumn(name = "access_host_id", insertable = false, updatable = false)
-    private ServerHost accessHost;
+    // 绑定后订阅只输出一条，host 为该记录域名
+    @Column(name = "dns_record_id")
+    private Long dnsRecordId;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "out_id", insertable = false, updatable = false)

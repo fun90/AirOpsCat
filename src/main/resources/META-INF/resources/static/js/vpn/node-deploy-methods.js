@@ -34,14 +34,18 @@ export function createNodeDeployMethods() {
                 });
         },
 
-        viewDeploymentVersion(version) {
-            if (!this.deploymentHistoryNode || !version) {
+        getDeploymentVersionQuery(nodeServerId) {
+            return nodeServerId ? `?nodeServerId=${encodeURIComponent(nodeServerId)}` : '';
+        },
+
+        viewDeploymentVersion(versionItem) {
+            if (!this.deploymentHistoryNode || !versionItem?.version) {
                 return;
             }
 
             this.loadingDeploymentVersionDetail = true;
             this.deploymentVersionDetail = null;
-            fetch(`/api/admin/nodes/${this.deploymentHistoryNode.id}/deployment-versions/${version}`)
+            fetch(`/api/admin/nodes/${this.deploymentHistoryNode.id}/deployment-versions/${versionItem.version}${this.getDeploymentVersionQuery(versionItem.nodeServerId)}`)
                 .then(async response => {
                     if (!response.ok) {
                         const error = await response.json().catch(() => ({ message: '获取版本详情失败' }));
@@ -50,7 +54,11 @@ export function createNodeDeployMethods() {
                     return response.json();
                 })
                 .then(data => {
-                    this.deploymentVersionDetail = data;
+                    this.deploymentVersionDetail = {
+                        ...data,
+                        nodeServerId: versionItem.nodeServerId,
+                        serverName: versionItem.serverName
+                    };
                     this.deploymentVersionDetailModal = new Modal(document.getElementById('node-deploymentVersionDetailModal'));
                     this.deploymentVersionDetailModal.show();
                 })
@@ -69,7 +77,7 @@ export function createNodeDeployMethods() {
             }
 
             this.restoringDeploymentVersion = true;
-            fetch(`/api/admin/nodes/${this.deploymentHistoryNode.id}/deployment-versions/${this.deploymentVersionDetail.version}/restore`, {
+            fetch(`/api/admin/nodes/${this.deploymentHistoryNode.id}/deployment-versions/${this.deploymentVersionDetail.version}/restore${this.getDeploymentVersionQuery(this.deploymentVersionDetail.nodeServerId)}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

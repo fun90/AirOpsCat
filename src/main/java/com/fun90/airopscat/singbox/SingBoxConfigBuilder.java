@@ -5,7 +5,7 @@ import com.fun90.airopscat.model.dto.deployment.NodeDeploymentSnapshot;
 import com.fun90.airopscat.model.dto.deployment.RouteRuleSnapshot;
 import com.fun90.airopscat.model.dto.deployment.ServerSnapshot;
 import com.fun90.airopscat.model.dto.deployment.NodeClient;
-import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.enums.RouteRuleType;
 import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.util.ConfigFileReader;
@@ -39,13 +39,13 @@ public class SingBoxConfigBuilder {
 
     public record RateLimitOverride(Integer downloadMbps, Integer uploadMbps) {}
 
-    public String build(DeploymentServerContext ctx, List<Node> nodes) {
-        return build(ctx, nodes, Collections.emptyMap());
+    public String build(DeploymentServerContext ctx, List<NodeServer> placements) {
+        return build(ctx, placements, Collections.emptyMap());
     }
 
-    public String build(DeploymentServerContext ctx, List<Node> nodes, Map<String, RateLimitOverride> overrides) {
-        List<NodeDeploymentSnapshot> snapshots = nodes.stream()
-                .map(Node::getId)
+    public String build(DeploymentServerContext ctx, List<NodeServer> placements, Map<String, RateLimitOverride> overrides) {
+        List<NodeDeploymentSnapshot> snapshots = placements.stream()
+                .map(NodeServer::getNodeId)
                 .map(ctx.nodeSnapshotMap()::get)
                 .filter(Objects::nonNull)
                 .toList();

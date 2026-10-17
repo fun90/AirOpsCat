@@ -269,8 +269,6 @@ TABLE_MAPPINGS: "OrderedDict[str, OrderedDict[str, str]]" = OrderedDict(
         "node": OrderedDict(
             {
                 "id": raw("id"),
-                "server_id": raw("server_id"),
-                "access_host_id": raw("access_host_id"),
                 "port": raw("port"),
                 "protocol": raw("protocol"),
                 "core_type": raw("core_type"),
@@ -279,12 +277,26 @@ TABLE_MAPPINGS: "OrderedDict[str, OrderedDict[str, str]]" = OrderedDict(
                 "out_id": raw("out_id"),
                 "rule": json_expr("rule"),
                 "level": raw("level"),
-                "deployed": raw("deployed"),
                 "disabled": raw("disabled"),
                 "name": raw("name"),
                 "no": raw("no"),
-                "node_group": raw("node_group"),
                 "remark": raw("remark"),
+                "dns_record_id": raw("dns_record_id"),
+                "create_time": raw("create_time"),
+                "update_time": raw("update_time"),
+            }
+        ),
+        "node_server": OrderedDict(
+            {
+                "id": raw("id"),
+                "node_id": raw("node_id"),
+                "server_id": raw("server_id"),
+                "access_host_id": raw("access_host_id"),
+                "exposed": raw("exposed"),
+                "priority": raw("priority"),
+                "enabled": raw("enabled"),
+                "name": raw("name"),
+                "deployed": raw("deployed"),
                 "create_time": raw("create_time"),
                 "update_time": raw("update_time"),
             }
@@ -293,11 +305,11 @@ TABLE_MAPPINGS: "OrderedDict[str, OrderedDict[str, str]]" = OrderedDict(
             {
                 "id": raw("id"),
                 "node_id": raw("node_id"),
+                "node_server_id": raw("node_server_id"),
                 "version": raw("version"),
                 "snapshot_hash": raw("snapshot_hash"),
                 "snapshot_json": json_expr("snapshot_json"),
                 "server_id": raw("server_id"),
-                "node_group": raw("node_group"),
                 "core_type": raw("core_type"),
                 "protocol": raw("protocol"),
                 "type": raw("type"),
@@ -312,11 +324,11 @@ TABLE_MAPPINGS: "OrderedDict[str, OrderedDict[str, str]]" = OrderedDict(
             {
                 "id": raw("id"),
                 "node_id": raw("node_id"),
+                "node_server_id": raw("node_server_id"),
                 "version": raw("version"),
                 "snapshot_hash": raw("snapshot_hash"),
                 "snapshot_json": json_expr("snapshot_json"),
                 "server_id": raw("server_id"),
-                "node_group": raw("node_group"),
                 "core_type": raw("core_type"),
                 "protocol": raw("protocol"),
                 "type": raw("type"),

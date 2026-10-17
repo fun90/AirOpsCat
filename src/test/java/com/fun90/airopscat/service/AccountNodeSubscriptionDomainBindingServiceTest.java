@@ -4,6 +4,8 @@ import com.fun90.airopscat.model.dto.AccountNodeSubscriptionDomainBindingRequest
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AccountNodeSubscriptionDomainBinding;
 import com.fun90.airopscat.model.entity.DomainDnsRecord;
+import com.fun90.airopscat.model.convert.NodeConverter;
+import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.repository.AccountNodeSubscriptionDomainBindingRepository;
 import com.fun90.airopscat.repository.AccountRepository;
@@ -109,7 +111,13 @@ class AccountNodeSubscriptionDomainBindingServiceTest {
                 return List.of(nodes.findById(2L), nodes.findById(3L));
             }
         };
-        return new AccountNodeSubscriptionDomainBindingService(bindings, accounts, nodes, null, records, null, tags);
+        var nodeService = new NodeService() {
+            @Override
+            public List<NodeDto> toNodeDtos(List<Node> items) {
+                return items.stream().map(node -> NodeConverter.toDto(node, List.of(), List.of())).toList();
+            }
+        };
+        return new AccountNodeSubscriptionDomainBindingService(bindings, accounts, nodes, null, records, nodeService, tags);
     }
 
     private static AccountNodeSubscriptionDomainBindingRequest request(Long id, Long accountId, Long nodeId) {

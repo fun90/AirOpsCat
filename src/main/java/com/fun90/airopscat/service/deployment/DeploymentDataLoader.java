@@ -8,14 +8,14 @@ import com.fun90.airopscat.model.dto.deployment.ServerSnapshot;
 import com.fun90.airopscat.model.dto.deployment.NodeClient;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
-import com.fun90.airopscat.service.NodeGroupService;
 import com.fun90.airopscat.service.RouteRuleService;
-import com.fun90.airopscat.util.JsonUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.RequiredArgsConstructor;
 
@@ -41,33 +41,26 @@ public class DeploymentDataLoader {
     private final ServerRepository serverRepository;
     private final TagRepository tagRepository;
     private final RouteRuleService routeRuleService;
-    private final NodeGroupService nodeGroupService;
-    public DeploymentPreload load(List<Node> inputNodes) {
-        List<Node> expandedInputNodes = nodeGroupService.expandWithRelatedGroups(inputNodes);
-        List<Long> targetServerIds = collectTargetServerIds(expandedInputNodes);
-        List<Node> relatedNodes = nodeGroupService.expandWithRelatedGroups(nodeRepository.findByServerIdIn(targetServerIds));
-        Map<Long, List<RouteRuleSnapshot>> routeRulesByServerId = routeRuleService.getEnabledSnapshotsByServerIds(targetServerIds);
-        List<RouteRuleSnapshot> routeRuleSnapshots = routeRulesByServerId.values().stream()
-                .flatMap(List::stream)
+    private final NodeServerRepository nodeServerRepository;
+    public DeploymentPreload load(List<NodeServer> inputPlacements) {
+        List<Long> targetServerIds = inputPlacements.stream()
+                .map(NodeServer::getServerId)
+                .filter(Objects::nonNull)
                 .distinct()
                 .toList();
-
-        Map<Long, Server> serverMap = loadServerMap(targetServerIds, relatedNodes, routeRuleSnapshots);
+        Map<Long, List<NodeServer>> placementsByServerId = nodeServerRepository.findByServerIds(targetServerIds).stream()
+                .collect(Collectors.groupingBy(NodeServer::getServerId, LinkedHashMap::new, Collectors.toList()));
+        Map<Long, List<RouteRuleSnapshot>> routeRulesByServerId = routeRuleService.getEnabledSnapshotsByServerIds(targetServerIds);
+        Map<Long, Server> serverMap = serverRepository.findByIdIn(targetServerIds).stream()
+                .collect(Collectors.toMap(Server::getId, server -> server));
         ensureServersExist(targetServerIds, serverMap);
-
-        List<Node> deployableRelatedNodes = filterDeployableNodes(relatedNodes);
-        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap = buildNodeSnapshotMap(deployableRelatedNodes, routeRuleSnapshots, serverMap);
-        Map<Long, List<Node>> nodesByServerId = groupNodesByDeploymentServer(targetServerIds, relatedNodes);
 
         Map<Long, DeploymentServerContext> serverContexts = new LinkedHashMap<>();
         for (Long serverId : targetServerIds) {
-            Server server = serverMap.get(serverId);
-            serverContexts.put(serverId, new DeploymentServerContext(
-                    server,
-                    nodesByServerId.getOrDefault(serverId, Collections.emptyList()),
-                    new ServerSnapshot(server.getTransitConfig(), routeRulesByServerId.getOrDefault(serverId, Collections.emptyList())),
-                    nodeSnapshotMap
-            ));
+            serverContexts.put(serverId, buildServerContext(
+                    serverMap.get(serverId),
+                    placementsByServerId.getOrDefault(serverId, Collections.emptyList()),
+                    routeRulesByServerId.getOrDefault(serverId, Collections.emptyList())));
         }
 
         return new DeploymentPreload(targetServerIds, serverContexts);
@@ -78,83 +71,23 @@ public class DeploymentDataLoader {
         if (server == null) {
             throw new IllegalArgumentException("服务器不存在, serverId: " + serverId);
         }
+        List<RouteRuleSnapshot> routeRuleSnapshots = routeRuleService.getEnabledSnapshotsByServerIds(List.of(serverId))
+                .getOrDefault(serverId, Collections.emptyList());
+        return buildServerContext(server, nodeServerRepository.findByServerId(serverId), routeRuleSnapshots);
+    }
 
-        List<Long> targetServerIds = List.of(serverId);
-        List<Node> relatedNodes = nodeGroupService.expandWithRelatedGroups(nodeRepository.findByServerId(serverId));
-        Map<Long, List<RouteRuleSnapshot>> routeRulesByServerId = routeRuleService.getEnabledSnapshotsByServerIds(targetServerIds);
-        List<RouteRuleSnapshot> routeRuleSnapshots = routeRulesByServerId.getOrDefault(serverId, Collections.emptyList());
-
-        List<Node> filteredNodes = relatedNodes.isEmpty() ? Collections.emptyList() : relatedNodes;
-        List<Node> deployableFilteredNodes = filterDeployableNodes(filteredNodes);
-
-        Map<Long, Server> serverMap = loadServerMap(targetServerIds, deployableFilteredNodes, routeRuleSnapshots);
-        ensureServersExist(targetServerIds, serverMap);
-
-        Map<Long, NodeDeploymentSnapshot> nodeSnapshotMap = buildNodeSnapshotMap(deployableFilteredNodes, routeRuleSnapshots, serverMap);
+    private DeploymentServerContext buildServerContext(Server server,
+                                                       List<NodeServer> placements,
+                                                       List<RouteRuleSnapshot> routeRuleSnapshots) {
+        List<NodeServer> deployablePlacements = placements.stream()
+                .filter(placement -> !NodeDeploymentStatus.isPendingDelete(placement.getDeployed()))
+                .toList();
         return new DeploymentServerContext(
                 server,
-                groupNodesByDeploymentServer(targetServerIds, filteredNodes).getOrDefault(serverId, Collections.emptyList()),
+                placements,
                 new ServerSnapshot(server.getTransitConfig(), routeRuleSnapshots),
-                nodeSnapshotMap
+                buildNodeSnapshotMap(server, deployablePlacements, routeRuleSnapshots)
         );
-    }
-
-    private List<Long> collectTargetServerIds(List<Node> nodes) {
-        Set<Long> serverIds = new LinkedHashSet<>();
-        for (Node node : nodes) {
-            if (node.getServerId() != null) {
-                serverIds.add(node.getServerId());
-            }
-        }
-        return new ArrayList<>(serverIds);
-    }
-
-    private List<Node> filterDeployableNodes(List<Node> nodes) {
-        if (nodes == null || nodes.isEmpty()) {
-            return Collections.emptyList();
-        }
-        return nodes.stream()
-                .filter(node -> !NodeDeploymentStatus.isPendingDelete(node.getDeployed()))
-                .toList();
-    }
-
-    private Map<Long, Server> loadServerMap(List<Long> targetServerIds,
-                                            List<Node> relatedNodes,
-                                            List<RouteRuleSnapshot> routeRuleSnapshots) {
-        Set<Long> outboundNodeIds = new LinkedHashSet<>(relatedNodes.stream()
-                .map(Node::getOutId)
-                .filter(Objects::nonNull)
-                .toList());
-        outboundNodeIds.addAll(routeRuleSnapshots.stream()
-                .map(RouteRuleSnapshot::outboundNodeId)
-                .filter(Objects::nonNull)
-                .toList());
-
-        Map<Long, Node> outNodeMap = nodeRepository.findByIdIn(new ArrayList<>(outboundNodeIds)).stream()
-                .collect(Collectors.toMap(Node::getId, node -> node));
-
-        Set<Long> allServerIds = new LinkedHashSet<>(targetServerIds);
-        outNodeMap.values().stream()
-                .map(Node::getServerId)
-                .filter(Objects::nonNull)
-                .forEach(allServerIds::add);
-
-        return serverRepository.findByIdIn(new ArrayList<>(allServerIds)).stream()
-                .collect(Collectors.toMap(Server::getId, server -> server));
-    }
-
-    private Map<Long, List<Node>> groupNodesByDeploymentServer(List<Long> targetServerIds, List<Node> relatedNodes) {
-        Set<Long> targetServerIdSet = new LinkedHashSet<>(targetServerIds);
-        Map<Long, List<Node>> grouped = new LinkedHashMap<>();
-        for (Long serverId : targetServerIds) {
-            grouped.put(serverId, new ArrayList<>());
-        }
-        for (Node node : relatedNodes) {
-            if (targetServerIdSet.contains(node.getServerId())) {
-                grouped.computeIfAbsent(node.getServerId(), id -> new ArrayList<>()).add(node);
-            }
-        }
-        return grouped;
     }
 
     private void ensureServersExist(List<Long> targetServerIds, Map<Long, Server> serverMap) {
@@ -165,127 +98,96 @@ public class DeploymentDataLoader {
         }
     }
 
-    private Map<Long, NodeDeploymentSnapshot> buildNodeSnapshotMap(List<Node> relatedNodes,
-                                                                   List<RouteRuleSnapshot> routeRuleSnapshots,
-                                                                   Map<Long, Server> serverMap) {
-        Set<Long> extraNodeIds = routeRuleSnapshots.stream()
+    /**
+     * 同一服务器上 nodeId 唯一，快照按 nodeId 建；路由规则引用的落地节点取其生效部署位的服务器。
+     */
+    private Map<Long, NodeDeploymentSnapshot> buildNodeSnapshotMap(Server server,
+                                                                   List<NodeServer> placements,
+                                                                   List<RouteRuleSnapshot> routeRuleSnapshots) {
+        Map<Long, NodeServer> placementByNodeId = placements.stream()
+                .collect(Collectors.toMap(NodeServer::getNodeId, placement -> placement, (left, right) -> left, LinkedHashMap::new));
+        Set<Long> routeNodeIds = routeRuleSnapshots.stream()
                 .map(RouteRuleSnapshot::outboundNodeId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        Map<Long, Node> snapshotNodeMap = relatedNodes.stream()
-                .collect(Collectors.toMap(Node::getId, node -> node, (left, right) -> left, LinkedHashMap::new));
-        if (!extraNodeIds.isEmpty()) {
-            nodeRepository.findByIdIn(new ArrayList<>(extraNodeIds)).stream()
-                    .filter(node -> !NodeDeploymentStatus.isPendingDelete(node.getDeployed()))
-                    .forEach(node -> snapshotNodeMap.putIfAbsent(node.getId(), node));
-        }
-        List<Node> snapshotNodes = new ArrayList<>(snapshotNodeMap.values());
 
-        if (snapshotNodes.isEmpty()) {
+        Set<Long> snapshotNodeIds = new LinkedHashSet<>(placementByNodeId.keySet());
+        snapshotNodeIds.addAll(routeNodeIds);
+        if (snapshotNodeIds.isEmpty()) {
             return Collections.emptyMap();
         }
-
-        List<Long> outNodeIds = snapshotNodes.stream()
-                .map(Node::getOutId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        Map<Long, Node> outNodeMap = nodeRepository.findByIdIn(outNodeIds).stream()
+        Map<Long, Node> nodeMap = nodeRepository.findByIdIn(new ArrayList<>(snapshotNodeIds)).stream()
                 .collect(Collectors.toMap(Node::getId, node -> node));
 
-        Map<Long, List<NodeClient>> nodeClientsMap = buildNodeClientsMap(snapshotNodes);
-        Map<Long, List<NodeClient>> mergedNodeClientsMap = buildAssociatedNodeClientsMap(snapshotNodes, nodeClientsMap);
+        Set<Long> outNodeIds = new LinkedHashSet<>(routeNodeIds);
+        placementByNodeId.keySet().stream()
+                .map(nodeMap::get)
+                .filter(Objects::nonNull)
+                .map(Node::getOutId)
+                .filter(Objects::nonNull)
+                .forEach(outNodeIds::add);
+        List<Long> missingOutNodeIds = outNodeIds.stream().filter(id -> !nodeMap.containsKey(id)).toList();
+        nodeRepository.findByIdIn(missingOutNodeIds).forEach(node -> nodeMap.put(node.getId(), node));
+        Map<Long, NodeServer> effectiveOutPlacements = new HashMap<>();
+        nodeServerRepository.groupByNodeIds(new ArrayList<>(outNodeIds)).forEach((nodeId, nodePlacements) ->
+                NodeServerRepository.resolveEffective(nodePlacements)
+                        .ifPresent(placement -> effectiveOutPlacements.put(nodeId, placement)));
+
+        List<Node> localNodes = placementByNodeId.keySet().stream().map(nodeMap::get).filter(Objects::nonNull).toList();
+        Map<Long, List<NodeClient>> nodeClientsMap = buildNodeClientsMap(localNodes);
 
         Map<Long, NodeDeploymentSnapshot> snapshots = new HashMap<>();
-        for (Node node : snapshotNodes) {
-            Node outNode = outNodeMap.get(node.getOutId());
-            if (outNode != null && !serverMap.containsKey(outNode.getServerId())) {
-                throw new IllegalArgumentException("出站服务器不存在: " + outNode.getServerId());
+        for (Node node : localNodes) {
+            NodeServer placement = placementByNodeId.get(node.getId());
+            boolean disabled = Objects.equals(node.getDisabled(), 1) || !placement.enabledFlag();
+            snapshots.put(node.getId(), toSnapshot(node, server.getIp(), disabled ? 1 : 0,
+                    nodeMap.get(node.getOutId()), effectiveOutPlacements.get(node.getOutId()),
+                    nodeClientsMap.getOrDefault(node.getId(), Collections.emptyList())));
+        }
+        for (Long routeNodeId : routeNodeIds) {
+            Node node = nodeMap.get(routeNodeId);
+            NodeServer effective = effectiveOutPlacements.get(routeNodeId);
+            if (node == null || effective == null || snapshots.containsKey(routeNodeId)) {
+                continue;
             }
-
-            Server server = node.getServerId() == null ? null : serverMap.get(node.getServerId());
-            Server outServer = outNode == null ? null : serverMap.get(outNode.getServerId());
-            snapshots.put(node.getId(), new NodeDeploymentSnapshot(
-                    node.getId(),
-                    node.getCoreType(),
-                    node.getProtocol(),
-                    server == null ? null : server.getIp(),
-                    node.getPort(),
-                    node.getDisabled(),
-                    node.getInbound(),
-                    node.getOutId(),
-                    node.getTag(),
-                    outNode == null ? null : outNode.getCoreType(),
-                    outNode == null ? null : outNode.getProtocol(),
-                    outNode == null ? null : outNode.getTag(),
-                    outNode == null ? null : outNode.getInbound(),
-                    outServer == null ? null : outServer.getIp(),
-                    outNode == null ? null : outNode.getPort(),
-                    mergedNodeClientsMap.getOrDefault(node.getId(), Collections.emptyList())
-            ));
+            // 路由出站只用到节点自身的入站与地址
+            snapshots.put(routeNodeId, toSnapshot(node, serverIp(effective), node.getDisabled(),
+                    null, null, Collections.emptyList()));
         }
         return snapshots;
     }
 
-    private List<NodeClient> mergeClients(List<NodeClient> currentClients, List<NodeClient> primaryClients) {
-        Map<String, NodeClient> merged = new LinkedHashMap<>();
-        for (NodeClient client : currentClients) {
-            merged.put(client.id(), client);
+    private NodeDeploymentSnapshot toSnapshot(Node node,
+                                              String serverIp,
+                                              Integer disabled,
+                                              Node outNode,
+                                              NodeServer outPlacement,
+                                              List<NodeClient> clients) {
+        if (outNode != null && outPlacement == null) {
+            throw new IllegalArgumentException("出站节点没有可用的部署服务器: " + outNode.getId());
         }
-        for (NodeClient client : primaryClients) {
-            merged.put(client.id(), client);
-        }
-        return new ArrayList<>(merged.values());
+        return new NodeDeploymentSnapshot(
+                node.getId(),
+                node.getCoreType(),
+                node.getProtocol(),
+                serverIp,
+                node.getPort(),
+                disabled,
+                node.getInbound(),
+                node.getOutId(),
+                node.getTag(),
+                outNode == null ? null : outNode.getCoreType(),
+                outNode == null ? null : outNode.getProtocol(),
+                outNode == null ? null : outNode.getTag(),
+                outNode == null ? null : outNode.getInbound(),
+                outNode == null ? null : serverIp(outPlacement),
+                outNode == null ? null : outNode.getPort(),
+                clients
+        );
     }
 
-    private Map<Long, List<NodeClient>> buildAssociatedNodeClientsMap(List<Node> snapshotNodes,
-                                                                      Map<Long, List<NodeClient>> nodeClientsMap) {
-        if (snapshotNodes.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-        Map<Long, List<NodeClient>> mergedClientsByNodeId = new HashMap<>();
-        Map<String, List<NodeClient>> mergedClientsByGroup = new HashMap<>();
-        for (Node node : snapshotNodes) {
-            String nodeGroup = node.getNodeGroup() == null ? null : node.getNodeGroup().trim();
-            if (nodeGroup == null || nodeGroup.isBlank()) {
-                mergedClientsByNodeId.put(node.getId(), new ArrayList<>(nodeClientsMap.getOrDefault(node.getId(), Collections.emptyList())));
-                continue;
-            }
-
-            List<NodeClient> mergedClients = mergedClientsByGroup.computeIfAbsent(nodeGroup, group -> {
-                List<NodeClient> clients = new ArrayList<>();
-                snapshotNodes.stream()
-                        .filter(candidate -> group.equals(Objects.toString(candidate.getNodeGroup(), "").trim()))
-                        .forEach(candidate -> clients.addAll(nodeClientsMap.getOrDefault(candidate.getId(), Collections.emptyList())));
-                return mergeClients(Collections.emptyList(), clients);
-            });
-            mergedClientsByNodeId.put(node.getId(), mergedClients);
-        }
-        return mergedClientsByNodeId;
-    }
-
-    private List<Map<String, Object>> mergeUserMaps(List<Map<String, Object>> currentUsers,
-                                                    List<Map<String, Object>> extraUsers,
-                                                    String... preferredKeys) {
-        Map<String, Map<String, Object>> merged = new LinkedHashMap<>();
-        for (Map<String, Object> user : currentUsers) {
-            merged.put(resolveUserKey(user, preferredKeys), new LinkedHashMap<>(user));
-        }
-        for (Map<String, Object> user : extraUsers) {
-            merged.put(resolveUserKey(user, preferredKeys), new LinkedHashMap<>(user));
-        }
-        return new ArrayList<>(merged.values());
-    }
-
-    private String resolveUserKey(Map<String, Object> user, String... preferredKeys) {
-        for (String preferredKey : preferredKeys) {
-            Object value = user.get(preferredKey);
-            if (value != null && !Objects.toString(value, "").isBlank()) {
-                return preferredKey + ":" + value;
-            }
-        }
-        return JsonUtil.toJsonString(user);
+    private String serverIp(NodeServer placement) {
+        return placement == null || placement.getServer() == null ? null : placement.getServer().getIp();
     }
 
     private Map<Long, List<NodeClient>> buildNodeClientsMap(List<Node> nodes) {

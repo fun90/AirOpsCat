@@ -37,8 +37,8 @@
 - 启用 / 禁用节点
 - 获取服务器列表、落地节点列表、可用端口
 - 根据 `coreType + protocol` 生成默认 inbound 配置
-- 节点组候选查询、组配置继承与锁定
-- 校验当前服务器端口冲突和节点组服务器冲突
+- 部署位（`node_server`）维护：一个节点部署到多台服务器，配置只维护一份
+- 校验每个启用部署位所在服务器的端口冲突、订阅 DNS 记录约束
 - 节点复制
 - 单节点部署、强制重部署、批量部署
 - 基于 sing-box 的默认入站配置生成和部署配置构建
@@ -70,10 +70,10 @@
 ### 3.2 后端核心
 
 - 业务服务：`src/main/java/com/fun90/airopscat/service/NodeService.java`
-- 节点组规则服务：`src/main/java/com/fun90/airopscat/service/NodeGroupService.java`
 - 部署服务：`src/main/java/com/fun90/airopscat/service/deployment/NodeDeploymentService.java`
 - 数据模型：
   - `src/main/java/com/fun90/airopscat/model/entity/Node.java`
+  - `src/main/java/com/fun90/airopscat/model/entity/NodeServer.java`
   - `src/main/java/com/fun90/airopscat/model/dto/NodeRequest.java`
   - `src/main/java/com/fun90/airopscat/model/dto/NodeDto.java`
   - `src/main/java/com/fun90/airopscat/model/convert/NodeConverter.java`
@@ -101,9 +101,7 @@
 
 `Node` 实体里，真正决定节点行为的字段是：
 
-- `serverId`：主服务器
-- `nodeGroup`：节点组名称
-- `port`：节点端口
+- `port`：节点端口，所有部署位共用
 - `protocol`：协议
 - `coreType`：内核类型，当前固定为 `sing-box`，字段保留用于历史数据兼容
 - `type`：节点类型
@@ -113,9 +111,20 @@
 - `outId`：出站节点引用
 - `rule`：JSON 字符串，存放节点路由规则
 - `level`：级别
-- `deployed`：部署状态
 - `disabled`：启用状态
+- `dnsRecordId`：订阅 DNS 记录，绑定后订阅只输出一条，地址为该记录域名
 - `name` + `no`：业务标识
+
+部署相关字段在 `NodeServer`（表 `node_server`，一个节点 + 一台服务器一行）：
+
+- `serverId`、`accessHostId`：部署服务器与接入域名
+- `exposed`：未绑定 DNS 时是否出现在订阅
+- `priority`：越小越优先，决定订阅排序与生效部署位
+- `enabled`：0 表示不部署到该服务器
+- `name`：订阅显示名覆盖
+- `deployed`：部署状态，节点列表展示各部署位的汇总
+
+详细设计见 `docs/node-multi-server-failover-plan.md`。
 
 ### 4.2 前端页面反映出的业务规则
 
@@ -125,10 +134,9 @@
 - 协议可选项由节点类型决定，内核固定为 `sing-box`。
 - 创建和编辑时不再允许用户选择或修改内核。
 - 代理节点可以选择落地节点作为 `outId`。
-- 支持节点组，加入已有组时会继承组内已有节点的协议、端口、入站、出站配置。
-- 节点组只能包含相同节点类型、且不在同一服务器上的节点。
-- 输入一个新的节点组名时，当前节点作为组首节点保留可编辑配置。
-- 部署任一组内节点时会联动部署同组节点，并把组内有效用户集合合并到每个节点的部署快照里。
+- 部署服务器表格维护部署位；同一节点不能重复选择同一服务器，至少一个启用部署位。
+- 部署按部署位进行：部署节点会重建其部署位所在服务器的完整配置；移除的部署位标为待删除，部署后删除。
+- 订阅：账号级订阅域名绑定 > 节点 DNS 记录（单条）> 每个暴露的部署位各一条。
 - inbound / rule 允许用户直接编辑 JSON。
 - 节点复制时需要重新分配端口，避免冲突。
 - 禁用节点或编辑关键部署字段后，节点会回到“未部署”状态。
@@ -196,33 +204,20 @@
 
 ## 6. 后端关键约束
 
-### 6.1 `NodeService` 与 `NodeGroupService` 的分工
-
-当前代码已经把节点主流程和节点组规则拆开：
-
-- `NodeService`
-- `NodeGroupService`
+### 6.1 `NodeService` 职责
 
 `NodeService` 核心职责：
 
-- 分页查询与筛选
+- 分页查询与筛选（服务器筛选语义为“部署位包含该服务器”）
 - 统计信息聚合
-- 端口冲突校验
+- 按部署位所在服务器校验端口冲突
 - 名称 + 编号唯一性校验
-- 服务器存在性校验
+- 部署位校验与同步（新增、修改、移除标待删除）
+- 订阅 DNS 记录校验
 - `coreType` 标准化
 - `protocol` 是否与 `nodeType + coreType` 匹配的校验
 - 创建 / 更新 / 删除 / 启停
 - 获取默认 inbound 配置
-
-`NodeGroupService` 核心职责：
-
-- `nodeGroup` 归一化
-- 节点组约束校验
-- 加入已有组时对齐协议、端口、入站、出站
-- 节点组候选项和配置查询
-- 节点组部署范围展开
-- 节点组变更后的同组节点 `deployed=0` 标记
 
 ### 6.2 协议支持矩阵
 
@@ -247,20 +242,20 @@
 
 `updateNode` 里有一个关键设计：
 
-如果修改了部署相关字段，节点会被标记为 `deployed = 0`。
+如果修改了部署相关字段，节点的所有未待删除部署位会被标记为 `deployed = 0`。
 
 当前判定为“实质性变更”的字段包括：
 
 - `port`
 - `type`
-- `serverId`
-- `nodeGroup`
 - `inbound`
 - `rule`
 - `outId`
 - `level`
 - `tags`
 - `disabled`
+
+部署位自身的 `accessHostId`、`enabled` 变化只标记该部署位；落地节点的生效部署位变化会标记引用它的代理节点。
 
 这决定了 Codex 在实现新功能时，必须特别小心：
 
@@ -273,7 +268,7 @@
 - `node.js`
   - DataTable 入口、列表与筛选主胶水
 - `node-form-methods.js`
-  - 新建 / 编辑表单、节点组联动、端口与协议处理、表单校验
+  - 新建 / 编辑表单、部署服务器表格、端口与协议处理、表单校验
 - `node-deploy-methods.js`
   - 单节点部署、批量部署、勾选态管理
 

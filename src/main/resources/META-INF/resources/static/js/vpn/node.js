@@ -30,31 +30,13 @@ const nodeTable = new DataTable({
         filters: { ...DEFAULT_NODE_FILTERS },
         servers: [],
         landingNodes: [],
-        nodeGroupOptions: [],
-        editNodeGroupOptions: [],
         nodeTypes: [],
         coreTypes: [],
         protocolTypes: [],
         availableTags: [],
         serverFilterSearches: [],
-        createNodeGroupSelect: null,
-        editNodeGroupSelect: null,
-        nodeGroupSyncHighlight: {
-            create: { protocol: false, port: false, inbound: false, outbound: false },
-            edit: { protocol: false, port: false, inbound: false, outbound: false }
-        },
-        nodeGroupSyncMessage: {
-            create: '',
-            edit: ''
-        },
-        nodeGroupConfigLockState: {
-            create: false,
-            edit: false
-        },
-        nodeGroupSyncTimers: {
-            create: null,
-            edit: null
-        },
+        createDnsRecordSelect: null,
+        editDnsRecordSelect: null,
         stats: {
             total: 0,
             active: 0,
@@ -62,9 +44,8 @@ const nodeTable = new DataTable({
             landing: 0
         },
         newItem: {
-            serverId: '',
-            nodeGroup: '',
-            accessHostId: '',
+            placements: [],
+            dnsRecordId: '',
             port: null,
             coreType: 'sing-box',
             protocol: 'vless',
@@ -128,7 +109,7 @@ const nodeTable = new DataTable({
             this.fetchProtocolTypes();
             this.fetchAvailableTags();
             this.initializeSearchComponents();
-            this.initializeNodeGroupSelectHooks();
+            this.initializeDnsRecordSelectHooks();
         },
 
         afterFetch() {
@@ -202,22 +183,14 @@ const nodeTable = new DataTable({
             }, 100);
         },
 
-        initializeNodeGroupSelectHooks() {
-            const createModal = document.getElementById('node-createModal');
-            if (createModal) {
-                createModal.addEventListener('shown.bs.modal', () => {
-                    this.initializeNodeGroupSelect(false);
-                });
-                createModal.addEventListener('hidden.bs.modal', () => this.destroyNodeGroupSelect(false));
-            }
-
-            const editModal = document.getElementById('node-editModal');
-            if (editModal) {
-                editModal.addEventListener('shown.bs.modal', () => {
-                    this.initializeNodeGroupSelect(true);
-                });
-                editModal.addEventListener('hidden.bs.modal', () => this.destroyNodeGroupSelect(true));
-            }
+        initializeDnsRecordSelectHooks() {
+            [['node-createModal', false], ['node-editModal', true]].forEach(([modalId, isEdit]) => {
+                const modal = document.getElementById(modalId);
+                if (modal) {
+                    modal.addEventListener('shown.bs.modal', () => this.initializeDnsRecordSelect(isEdit));
+                    modal.addEventListener('hidden.bs.modal', () => this.destroyDnsRecordSelect(isEdit));
+                }
+            });
         },
 
         formatServerDisplayLabel(server) {
@@ -252,15 +225,18 @@ const nodeTable = new DataTable({
             return server.hosts;
         },
 
-        syncAccessHostSelection(item) {
-            if (!item || !item.serverId) {
-                item.accessHostId = '';
+        syncAccessHostSelection(placement) {
+            if (!placement) {
+                return;
+            }
+            if (!placement.serverId) {
+                placement.accessHostId = '';
                 return;
             }
 
-            const availableHosts = this.getServerHosts(item.serverId);
-            if (!availableHosts.some(host => String(host.id || '') === String(item.accessHostId))) {
-                item.accessHostId = '';
+            const availableHosts = this.getServerHosts(placement.serverId);
+            if (!availableHosts.some(host => String(host.id || '') === String(placement.accessHostId))) {
+                placement.accessHostId = '';
             }
         },
 
@@ -293,291 +269,83 @@ const nodeTable = new DataTable({
                     }
 
                     this.syncServerFilterSearches();
-                    if (this.servers.length > 0 && !this.newItem.serverId) {
-                        this.newItem.serverId = this.servers[0].id;
+                    if (this.servers.length > 0 && !this.newItem.placements.length) {
+                        this.newItem.placements.push(this.createPlacement(this.servers[0].id));
                     }
-                    this.syncAccessHostSelection(this.newItem);
-                    if (this.editedItem) {
-                        this.syncAccessHostSelection(this.editedItem);
-                    }
+                    [this.newItem, this.editedItem].forEach(item => {
+                        (item?.placements || []).forEach(placement => this.syncAccessHostSelection(placement));
+                    });
                 })
                 .catch(error => {
                     console.error('Error fetching servers:', error);
                 });
         },
 
-        fetchNodeGroupOptions(item, isEdit = false, keyword = '') {
-            const optionKey = isEdit ? 'editNodeGroupOptions' : 'nodeGroupOptions';
-            if (!item || item.type === '' || item.type === null || item.type === undefined) {
-                this[optionKey] = [];
-                this.refreshNodeGroupSelect(isEdit);
-                return;
-            }
-
-            const excludeId = isEdit ? (item.id || '') : '';
-            const serverId = item.serverId || '';
-            const query = keyword ? `&keyword=${encodeURIComponent(keyword)}` : '';
-            return fetch(`/api/admin/nodes/group-options?type=${encodeURIComponent(item.type)}&excludeId=${encodeURIComponent(excludeId)}&serverId=${encodeURIComponent(serverId)}${query}`)
-                .then(response => response.json())
-                .then(data => {
-                    this[optionKey] = Array.isArray(data) ? data : [];
-                    if (!item?.nodeGroup || !this[optionKey].some(option => option.value === item.nodeGroup)) {
-                        this.setNodeGroupConfigLocked(isEdit, false);
-                    }
-                    this.refreshNodeGroupSelect(isEdit);
-                    return this[optionKey];
-                })
-                .catch(error => {
-                    console.error('Error fetching node groups:', error);
-                    this[optionKey] = [];
-                    this.setNodeGroupConfigLocked(isEdit, false);
-                    this.refreshNodeGroupSelect(isEdit);
-                    return [];
-                });
+        getDnsRecordSelectId(isEdit = false) {
+            return isEdit ? 'node-dns-record-select-edit' : 'node-dns-record-select-create';
         },
 
-        getSelectableNodeGroups(isEdit = false) {
-            const optionKey = isEdit ? 'editNodeGroupOptions' : 'nodeGroupOptions';
-            return this[optionKey] || [];
-        },
-
-        getNodeGroupSelectId(isEdit = false) {
-            return isEdit ? 'node-group-select-edit' : 'node-group-select-create';
-        },
-
-        destroyNodeGroupSelect(isEdit = false) {
-            const instanceKey = isEdit ? 'editNodeGroupSelect' : 'createNodeGroupSelect';
+        destroyDnsRecordSelect(isEdit = false) {
+            const instanceKey = isEdit ? 'editDnsRecordSelect' : 'createDnsRecordSelect';
             if (this[instanceKey]) {
                 this[instanceKey].destroy();
                 this[instanceKey] = null;
             }
         },
 
-        buildNodeGroupSelectOptions(isEdit = false) {
+        initializeDnsRecordSelect(isEdit = false) {
+            const selectElement = document.getElementById(this.getDnsRecordSelectId(isEdit));
+            if (!selectElement || typeof TomSelect === 'undefined') {
+                return;
+            }
+            this.destroyDnsRecordSelect(isEdit);
             const item = isEdit ? this.editedItem : this.newItem;
-            const options = this.getSelectableNodeGroups(isEdit).slice(0, 10).map(group => ({
-                value: group.value,
-                label: group.label
+            const instanceKey = isEdit ? 'editDnsRecordSelect' : 'createDnsRecordSelect';
+            this[instanceKey] = new TomSelect(selectElement, createRemoteSearchConfig({
+                apiUrl: '/api/admin/domain-dns-records',
+                valueField: 'id',
+                labelField: 'fullName',
+                searchField: ['fullName'],
+                placeholder: '不绑定（每个暴露的部署位输出一条）',
+                minQueryLength: 1,
+                render: {
+                    option: (data, escape) => `<div>
+                        <div>${escape(data.fullName || '')}</div>
+                        <div class="text-muted small">${escape(data.type || '')}${data.domain ? ` · ${escape(data.domain)}` : ''}</div>
+                    </div>`,
+                    item: (data, escape) => `<div>${escape(data.fullName || '')}</div>`
+                },
+                onChange: (value) => {
+                    item.dnsRecordId = value || '';
+                }
             }));
-            if (item?.nodeGroup && !options.some(option => option.value === item.nodeGroup)) {
-                options.unshift({
-                    value: item.nodeGroup,
-                    label: item.nodeGroup
-                });
-            }
-            return options.slice(0, 10);
-        },
-
-        fetchNodeGroupConfig(item, isEdit = false) {
-            if (!item?.nodeGroup || item.type === '' || item.type === null || item.type === undefined) {
-                return Promise.resolve({ exists: false });
-            }
-
-            const excludeId = isEdit ? (item.id || '') : '';
-            return fetch(`/api/admin/nodes/group-config?nodeGroup=${encodeURIComponent(item.nodeGroup)}&type=${encodeURIComponent(item.type)}&serverId=${encodeURIComponent(item.serverId || '')}&excludeId=${encodeURIComponent(excludeId)}`)
-                .then(response => response.json())
-                .catch(error => {
-                    console.error('Error fetching node group config:', error);
-                    return { exists: false };
-                });
-        },
-
-        applyNodeGroupConfig(item, config, isEdit = false) {
-            if (!item || !config?.exists || !config?.compatible) {
-                return;
-            }
-
-            const changedFields = [];
-            if (item.protocol !== config.protocol) {
-                item.protocol = config.protocol || '';
-                changedFields.push('protocol');
-            }
-            if (item.port !== config.port) {
-                item.port = config.port ?? null;
-                changedFields.push('port');
-            }
-
-            const normalizedOutId = config.outId ?? (item.type === 0 ? 0 : null);
-            if (item.outId !== normalizedOutId) {
-                item.outId = normalizedOutId;
-                changedFields.push('outbound');
-            }
-
-            const inboundConfig = config.inbound || {};
-            const inboundJson = JSON.stringify(inboundConfig, null, 2);
-            if (isEdit) {
-                if (this.editedNodeInboundJson !== inboundJson) {
-                    this.editedNodeInbound = inboundConfig;
-                    this.editedNodeInboundJson = inboundJson;
-                    changedFields.push('inbound');
-                }
-                this.checkEditPortAvailability();
-            } else {
-                if (this.newNodeInboundJson !== inboundJson) {
-                    this.newNodeInbound = inboundConfig;
-                    this.newNodeInboundJson = inboundJson;
-                    changedFields.push('inbound');
-                }
-                this.checkPortAvailability();
-            }
-
-            if (changedFields.length > 0) {
-                this.flashNodeGroupSyncFeedback(isEdit, changedFields, config.referenceNodeName);
-            }
-            this.setNodeGroupConfigLocked(isEdit, !!config.lockConfig);
-        },
-
-        handleNodeGroupChange(value, isEdit = false) {
-            const item = isEdit ? this.editedItem : this.newItem;
-            if (!item) {
-                return;
-            }
-
-            item.nodeGroup = value || '';
-            this.clearNodeGroupSyncFeedback(isEdit);
-            this.setNodeGroupConfigLocked(isEdit, false);
-            if (!item.nodeGroup) {
-                return;
-            }
-
-            const optionList = this.getSelectableNodeGroups(isEdit);
-            const isExistingGroup = optionList.some(option => option.value === item.nodeGroup);
-            if (!isExistingGroup) {
-                return;
-            }
-
-            this.fetchNodeGroupConfig(item, isEdit).then(config => {
-                if (config?.exists && config?.compatible) {
-                    this.applyNodeGroupConfig(item, config, isEdit);
-                    return;
-                }
-                this.setNodeGroupConfigLocked(isEdit, false);
-                if (config?.message) {
-                    ToastUtils.show('Warning', config.message, 'warning');
-                }
-            });
-        },
-
-        flashNodeGroupSyncFeedback(isEdit = false, changedFields = [], referenceNodeName = '') {
-            const mode = isEdit ? 'edit' : 'create';
-            const nextState = { protocol: false, port: false, inbound: false, outbound: false };
-            changedFields.forEach(field => {
-                if (Object.prototype.hasOwnProperty.call(nextState, field)) {
-                    nextState[field] = true;
-                }
-            });
-            this.nodeGroupSyncHighlight = {
-                ...this.nodeGroupSyncHighlight,
-                [mode]: nextState
-            };
-            this.nodeGroupSyncMessage = {
-                ...this.nodeGroupSyncMessage,
-                [mode]: referenceNodeName
-                    ? `已按节点组配置同步，来源节点：${referenceNodeName}`
-                    : '已按节点组配置同步'
-            };
-
-            if (this.nodeGroupSyncTimers[mode]) {
-                clearTimeout(this.nodeGroupSyncTimers[mode]);
-            }
-            this.nodeGroupSyncTimers[mode] = setTimeout(() => this.clearNodeGroupSyncFeedback(isEdit, true), 2200);
-        },
-
-        clearNodeGroupSyncFeedback(isEdit = false, preserveMessage = false) {
-            const mode = isEdit ? 'edit' : 'create';
-            this.nodeGroupSyncHighlight = {
-                ...this.nodeGroupSyncHighlight,
-                [mode]: { protocol: false, port: false, inbound: false, outbound: false }
-            };
-            if (!preserveMessage) {
-                this.nodeGroupSyncMessage = {
-                    ...this.nodeGroupSyncMessage,
-                    [mode]: ''
-                };
-            }
-            if (this.nodeGroupSyncTimers[mode]) {
-                clearTimeout(this.nodeGroupSyncTimers[mode]);
-                this.nodeGroupSyncTimers[mode] = null;
+            if (item.dnsRecordId) {
+                this[instanceKey].addOption({ id: item.dnsRecordId, fullName: item.dnsRecordName || String(item.dnsRecordId) });
+                this[instanceKey].setValue(item.dnsRecordId, true);
             }
         },
 
-        isNodeGroupFieldHighlighted(isEdit = false, field) {
-            const mode = isEdit ? 'edit' : 'create';
-            return !!this.nodeGroupSyncHighlight?.[mode]?.[field];
-        },
-
-        setNodeGroupConfigLocked(isEdit = false, locked = false) {
-            const mode = isEdit ? 'edit' : 'create';
-            this.nodeGroupConfigLockState = {
-                ...this.nodeGroupConfigLockState,
-                [mode]: !!locked
-            };
-        },
-
-        isNodeGroupConfigLocked(isEdit = false) {
-            const mode = isEdit ? 'edit' : 'create';
-            return !!this.nodeGroupConfigLockState?.[mode];
-        },
-
-        getNodeGroupFieldClass(isEdit = false, field) {
-            return {
-                'bg-blue-lt border border-blue rounded-3 p-2': this.isNodeGroupFieldHighlighted(isEdit, field)
-            };
-        },
-
-        initializeNodeGroupSelect(isEdit = false) {
-            const item = isEdit ? this.editedItem : this.newItem;
-            if (!item) {
-                return;
+        getPlacementBadgeClass(placement) {
+            if (placement.enabled === 0) {
+                return 'bg-secondary-lt';
             }
-
-            this.$nextTick(() => {
-                const selectElement = document.getElementById(this.getNodeGroupSelectId(isEdit));
-                if (!selectElement) {
-                    return;
-                }
-
-                this.destroyNodeGroupSelect(isEdit);
-                const instanceKey = isEdit ? 'editNodeGroupSelect' : 'createNodeGroupSelect';
-                this[instanceKey] = new TomSelect(selectElement, withTomSelectSearchClear({
-                    valueField: 'value',
-                    labelField: 'label',
-                    searchField: ['label', 'value'],
-                    placeholder: '请输入或选择节点组',
-                    options: this.buildNodeGroupSelectOptions(isEdit),
-                    items: item.nodeGroup ? [item.nodeGroup] : [],
-                    maxItems: 1,
-                    maxOptions: 10,
-                    create: (input) => {
-                        const value = (input || '').trim();
-                        return value ? { value, label: value } : false;
-                    },
-                    openOnFocus: true,
-                    preload: false,
-                    load: (query, callback) => {
-                        this.fetchNodeGroupOptions(item, isEdit, query).then(options => callback(options)).catch(() => callback());
-                    },
-                    onChange: (value) => {
-                        this.handleNodeGroupChange(value, isEdit);
-                    }
-                }));
-
-                this[instanceKey].refreshOptions(false);
-            });
+            if (placement.deployed === NODE_DEPLOYMENT_STATUS.PENDING_DELETE) {
+                return 'bg-danger-lt';
+            }
+            if (placement.deployed !== NODE_DEPLOYMENT_STATUS.DEPLOYED) {
+                return 'bg-warning-lt';
+            }
+            return placement.exposed === 0 ? 'bg-azure-lt' : 'bg-success-lt';
         },
 
-        refreshNodeGroupSelect(isEdit = false) {
-            const instanceKey = isEdit ? 'editNodeGroupSelect' : 'createNodeGroupSelect';
-            const item = isEdit ? this.editedItem : this.newItem;
-            if (!item || !this[instanceKey]) {
-                return;
-            }
-
-            const options = this.buildNodeGroupSelectOptions(isEdit);
-            this[instanceKey].clearOptions();
-            this[instanceKey].addOptions(options);
-            this[instanceKey].setValue(item.nodeGroup || '', true);
-            this[instanceKey].refreshOptions(false);
+        getPlacementTitle(placement) {
+            const parts = [
+                placement.serverHost || placement.serverIp || '',
+                placement.enabled === 0 ? '已停用' : this.getDeploymentStatusLabel(placement.deployed),
+                placement.exposed === 0 ? '不暴露' : '暴露',
+                `优先级 ${placement.priority ?? 0}`
+            ];
+            return parts.filter(Boolean).join(' · ');
         },
 
         onFilterChange() {

@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 @Data
 @Entity
-@Table(name = "node_deployment")
+@Table(name = "node_deployment", indexes = @Index(name = "idx_node_deployment_node_id", columnList = "node_id"))
 @DynamicUpdate
 public class NodeDeployment {
 
@@ -16,8 +16,11 @@ public class NodeDeployment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "node_id", nullable = false, unique = true)
+    @Column(name = "node_id", nullable = false)
     private Long nodeId;
+
+    @Column(name = "node_server_id", unique = true)
+    private Long nodeServerId;
 
     @Column(nullable = false)
     private Integer version;
@@ -30,9 +33,6 @@ public class NodeDeployment {
 
     @Column(name = "server_id")
     private Long serverId;
-
-    @Column(name = "node_group")
-    private String nodeGroup;
 
     @Column(name = "core_type")
     private String coreType;

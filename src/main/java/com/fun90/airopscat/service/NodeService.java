@@ -3,8 +3,9 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.DefaultConfigDto;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.convert.NodeConverter;
+import com.fun90.airopscat.model.entity.DomainDnsRecord;
 import com.fun90.airopscat.model.entity.Node;
-import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.CoreType;
@@ -12,8 +13,10 @@ import com.fun90.airopscat.model.enums.NodeBatchTagUpdateMode;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.ProtocolType;
+import com.fun90.airopscat.repository.DomainDnsRecordRepository;
 import com.fun90.airopscat.repository.NodeDeploymentRepository;
 import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.ServerHostRepository;
 import com.fun90.airopscat.repository.TagRepository;
@@ -36,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.TreeMap;
@@ -67,7 +71,10 @@ public class NodeService {
     SingBoxDefaultInboundFactory singBoxDefaultInboundFactory;
 
     @Inject
-    NodeGroupService nodeGroupService;
+    NodeServerRepository nodeServerRepository;
+
+    @Inject
+    DomainDnsRecordRepository domainDnsRecordRepository;
 
     @Inject
     AccountOnlineIpService accountOnlineIpService;
@@ -93,16 +100,13 @@ public class NodeService {
         }
 
         if (serverIds != null && !serverIds.trim().isEmpty()) {
-            String[] idArray = serverIds.split(",");
-            if (idArray.length == 1) {
-                query.append(" and serverId = :serverId");
-                params.put("serverId", Long.parseLong(idArray[0].trim()));
-            } else {
-                List<Long> idList = Arrays.stream(idArray)
-                        .map(String::trim)
-                        .map(Long::parseLong)
-                        .collect(Collectors.toList());
-                query.append(" and serverId in :serverIds");
+            List<Long> idList = Arrays.stream(serverIds.split(","))
+                    .map(String::trim)
+                    .filter(id -> !id.isEmpty())
+                    .map(Long::parseLong)
+                    .collect(Collectors.toList());
+            if (!idList.isEmpty()) {
+                query.append(" and id in (select ns.nodeId from NodeServer ns where ns.serverId in :serverIds)");
                 params.put("serverIds", idList);
             }
         }
@@ -132,18 +136,32 @@ public class NodeService {
             params.put("disabled", disabled ? 1 : 0);
         }
 
-        if (deploymentStatus != null) {
-            query.append(" and deployed = :deploymentStatus");
-            params.put("deploymentStatus", NodeDeploymentStatus.fromValue(deploymentStatus).getValue());
-        } else if (deployed != null) {
-            query.append(" and deployed = :deployed");
-            params.put("deployed", deployed
-                    ? NodeDeploymentStatus.DEPLOYED.getValue()
-                    : NodeDeploymentStatus.PENDING_DEPLOY.getValue());
+        NodeDeploymentStatus status = deploymentStatus != null
+                ? NodeDeploymentStatus.fromValue(deploymentStatus)
+                : deployed == null ? null : (deployed ? NodeDeploymentStatus.DEPLOYED : NodeDeploymentStatus.PENDING_DEPLOY);
+        if (status != null) {
+            appendDeploymentStatusCondition(query, params, status);
         }
 
         Sort sort = buildSort(sortBy, sortOrder);
         return nodeRepository.find(query.toString(), sort, params);
+    }
+
+    // 与 NodeServerRepository.aggregateStatus 的汇总规则保持一致
+    private void appendDeploymentStatusCondition(StringBuilder query, Map<String, Object> params, NodeDeploymentStatus status) {
+        if (status != NodeDeploymentStatus.PENDING_DELETE) {
+            params.put("statusDeployed", NodeDeploymentStatus.DEPLOYED.getValue());
+        }
+        if (status != NodeDeploymentStatus.DEPLOYED) {
+            params.put("statusPendingDelete", NodeDeploymentStatus.PENDING_DELETE.getValue());
+        }
+        String notDeployed = " in (select ns.nodeId from NodeServer ns where ns.deployed <> :statusDeployed)";
+        String notPendingDelete = " in (select ns.nodeId from NodeServer ns where ns.deployed <> :statusPendingDelete)";
+        switch (status) {
+            case DEPLOYED -> query.append(" and id not").append(notDeployed);
+            case PENDING_DELETE -> query.append(" and id not").append(notPendingDelete);
+            default -> query.append(" and id").append(notDeployed).append(" and id").append(notPendingDelete);
+        }
     }
 
     private void appendSearchConditions(StringBuilder query, Map<String, Object> params, String search) {
@@ -158,8 +176,6 @@ public class NodeService {
 
         searchConditions.add("name = :searchExact");
         searchConditions.add("name like :searchPrefix");
-        searchConditions.add("nodeGroup = :searchExact");
-        searchConditions.add("nodeGroup like :searchPrefix");
         searchConditions.add("remark like :searchContains");
 
         List<Long> matchedServerIds = mergeIds(
@@ -167,13 +183,13 @@ public class NodeService {
                 serverHostRepository.findServerIdsByKeyword(keyword, 200)
         );
         if (!matchedServerIds.isEmpty()) {
-            searchConditions.add("serverId in :matchedServerIds");
+            searchConditions.add("id in (select ns.nodeId from NodeServer ns where ns.serverId in :matchedServerIds)");
             params.put("matchedServerIds", matchedServerIds);
         }
 
         List<Long> matchedAccessHostIds = serverHostRepository.findIdsByKeyword(keyword, 200);
         if (!matchedAccessHostIds.isEmpty()) {
-            searchConditions.add("accessHostId in :matchedAccessHostIds");
+            searchConditions.add("id in (select ns.nodeId from NodeServer ns where ns.accessHostId in :matchedAccessHostIds)");
             params.put("matchedAccessHostIds", matchedAccessHostIds);
         }
 
@@ -211,8 +227,6 @@ public class NodeService {
 
         return switch (sortBy) {
             case "name" -> ascending ? Sort.by("name", "no").ascending() : Sort.by("name", "no").descending();
-            case "server" -> ascending ? Sort.by("serverId").ascending() : Sort.by("serverId").descending();
-            case "nodeGroup" -> ascending ? Sort.by("nodeGroup", "name", "no").ascending() : Sort.by("nodeGroup", "name", "no").descending();
             case "outbound" -> ascending ? Sort.by("outId", "name", "no").ascending() : Sort.by("outId", "name", "no").descending();
             default -> Sort.by("createTime").descending();
         };
@@ -227,14 +241,36 @@ public class NodeService {
         if (node == null) {
             return null;
         }
-        return NodeConverter.toDto(node);
+        return toNodeDtos(List.of(node)).getFirst();
     }
 
     public List<NodeDto> toNodeDtos(List<Node> nodes) {
         if (nodes == null || nodes.isEmpty()) {
             return List.of();
         }
-        return nodes.stream().map(NodeConverter::toDto).toList();
+        Set<Long> nodeIds = new LinkedHashSet<>();
+        Set<Long> dnsRecordIds = new LinkedHashSet<>();
+        for (Node node : nodes) {
+            nodeIds.add(node.getId());
+            if (node.getOutId() != null) {
+                nodeIds.add(node.getOutId());
+            }
+            if (node.getDnsRecordId() != null) {
+                dnsRecordIds.add(node.getDnsRecordId());
+            }
+        }
+        Map<Long, List<NodeServer>> placementsByNodeId = nodeServerRepository.groupByNodeIds(new ArrayList<>(nodeIds));
+        Map<Long, String> dnsRecordNames = domainDnsRecordRepository.findByIdIn(new ArrayList<>(dnsRecordIds)).stream()
+                .collect(Collectors.toMap(DomainDnsRecord::getId, record -> Objects.toString(record.getFullName(), record.getName())));
+        return nodes.stream()
+                .map(node -> {
+                    NodeDto dto = NodeConverter.toDto(node,
+                            placementsByNodeId.getOrDefault(node.getId(), List.of()),
+                            node.getOutId() == null ? List.of() : placementsByNodeId.getOrDefault(node.getOutId(), List.of()));
+                    dto.setDnsRecordName(dnsRecordNames.get(node.getDnsRecordId()));
+                    return dto;
+                })
+                .toList();
     }
 
     public void fillOnlineConnectionCounts(List<NodeDto> nodeDtos) {
@@ -255,6 +291,10 @@ public class NodeService {
         return nodeRepository.findByType(nodeType.getValue());
     }
 
+    public List<NodeServer> getPlacements(Long nodeId) {
+        return nodeServerRepository.findByNodeId(nodeId);
+    }
+
     public List<Node> getNodesByServer(Long serverId) {
         return nodeRepository.findByServerId(serverId);
     }
@@ -269,61 +309,68 @@ public class NodeService {
         return stats;
     }
 
-    public boolean isPortAvailable(Long serverId, Integer port, Long nodeId) {
-        if (serverId == null || port == null) {
-            return true;
-        }
-        if (nodeId == null) {
-            return !nodeRepository.existsByServerIdAndPort(serverId, port);
-        }
-        return !nodeRepository.existsByServerIdAndPortAndIdNot(serverId, port, nodeId);
-    }
-
     public boolean isNodePortsAvailable(Long serverId, Integer port, Long nodeId) {
-        return isNodePortsAvailable(serverId, port, nodeId, List.of());
+        return !nodeServerRepository.existsPortConflict(serverId, port, nodeId);
     }
 
-    public boolean isNodePortsAvailable(Long serverId, Integer port, Long nodeId, List<Long> excludedIds) {
-        if (serverId == null || port == null) {
-            return true;
-        }
-
-        List<Long> effectiveExcludedIds = new ArrayList<>();
-        if (excludedIds != null) {
-            effectiveExcludedIds.addAll(excludedIds.stream().filter(Objects::nonNull).toList());
-        }
-        if (nodeId != null) {
-            effectiveExcludedIds.add(nodeId);
-        }
-        return !nodeRepository.existsByServerIdAndPortAndIdNotIn(serverId, port, effectiveExcludedIds);
-    }
-
-    private void validateNodeServersAndPorts(Node node, List<Node> groupNodes) {
+    private void validateNode(Node node, List<NodeServer> placements) {
         if (nodeRepository.existsByNameAndNoAndIdNot(node.getName(), node.getNo(), node.getId())) {
             throw new IllegalArgumentException("名称与编号重复：" + node.getName() + " " + node.getNo());
         }
 
-        if (node.getServerId() != null && serverRepository.findById(node.getServerId()) == null) {
-            throw new EntityNotFoundException("Server with ID " + node.getServerId() + " not found");
+        if (placements.stream().noneMatch(NodeServer::enabledFlag)) {
+            throw new IllegalArgumentException("至少需要一个启用的部署服务器");
         }
 
-        if (node.getAccessHostId() != null) {
-            ServerHost accessHost = serverHostService.getHostById(node.getAccessHostId());
-            if (accessHost == null) {
-                throw new EntityNotFoundException("Access host not found");
+        Set<Long> serverIds = new LinkedHashSet<>();
+        for (NodeServer placement : placements) {
+            if (placement.getServerId() == null) {
+                throw new IllegalArgumentException("部署服务器不能为空");
             }
-            if (!Objects.equals(accessHost.getServerId(), node.getServerId())) {
-                throw new IllegalArgumentException("节点接入 host 必须属于当前主服务器");
+            if (!serverIds.add(placement.getServerId())) {
+                throw new IllegalArgumentException("同一节点不能重复选择同一服务器");
+            }
+            if (serverRepository.findById(placement.getServerId()) == null) {
+                throw new EntityNotFoundException("Server with ID " + placement.getServerId() + " not found");
+            }
+            if (placement.getAccessHostId() != null) {
+                ServerHost accessHost = serverHostService.getHostById(placement.getAccessHostId());
+                if (accessHost == null) {
+                    throw new EntityNotFoundException("Access host not found");
+                }
+                if (!Objects.equals(accessHost.getServerId(), placement.getServerId())) {
+                    throw new IllegalArgumentException("接入 host 必须属于对应的部署服务器");
+                }
+            }
+            if (placement.enabledFlag() && node.getPort() != null
+                    && !isNodePortsAvailable(placement.getServerId(), node.getPort(), node.getId())) {
+                throw new IllegalArgumentException("Port " + node.getPort() + " is already in use on server " + placement.getServerId());
             }
         }
 
-        List<Long> excludedNodeIds = groupNodes == null ? List.of() : groupNodes.stream()
-                .map(Node::getId)
-                .filter(Objects::nonNull)
-                .toList();
-        if (node.getServerId() != null && node.getPort() != null
-                && !isNodePortsAvailable(node.getServerId(), node.getPort(), node.getId(), excludedNodeIds)) {
-            throw new IllegalArgumentException("Port " + node.getPort() + " is already in use on the server");
+        validateDnsRecord(node);
+    }
+
+    private void validateDnsRecord(Node node) {
+        if (node.getDnsRecordId() == null) {
+            return;
+        }
+        DomainDnsRecord record = domainDnsRecordRepository.findById(node.getDnsRecordId());
+        if (record == null) {
+            throw new EntityNotFoundException("订阅 DNS 记录不存在");
+        }
+        String recordType = Objects.toString(record.getType(), "").toUpperCase(Locale.ROOT);
+        if (!"A".equals(recordType) && !"CNAME".equals(recordType)) {
+            throw new IllegalArgumentException("订阅 DNS 记录类型只能是 A 或 CNAME");
+        }
+        if (Boolean.TRUE.equals(record.getProxied())) {
+            throw new IllegalArgumentException("订阅 DNS 记录不能开启 Cloudflare 代理");
+        }
+        if (Boolean.TRUE.equals(record.getScheduleEnabled())) {
+            throw new IllegalArgumentException("订阅 DNS 记录不能开启时段计划");
+        }
+        if (nodeRepository.existsByDnsRecordIdAndIdNot(node.getDnsRecordId(), node.getId())) {
+            throw new IllegalArgumentException("订阅 DNS 记录已被其他节点绑定");
         }
     }
 
@@ -357,29 +404,28 @@ public class NodeService {
     }
 
     @Transactional
-    public Node saveNode(Node node, String nodeGroup) {
-        if (node.getDeployed() == null) {
-            markPendingDeploy(node);
-        }
-
+    public Node saveNode(Node node, List<NodeServer> placements) {
         normalizeAndValidateNodeProtocol(node);
-        node.setNodeGroup(nodeGroupService.normalizeNodeGroup(nodeGroup));
-        List<Node> groupNodes = nodeGroupService.validateNodeGroup(node);
-        nodeGroupService.alignNodeToGroupConfiguration(node, groupNodes);
-        validateNodeServersAndPorts(node, groupNodes);
+        validateNode(node, placements);
 
         nodeRepository.persist(node);
-        nodeGroupService.markGroupNodesUndeployed(node.getNodeGroup(), node.getId());
+        for (NodeServer placement : placements) {
+            placement.setNodeId(node.getId());
+            placement.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
+            nodeServerRepository.persist(placement);
+        }
         return node;
     }
 
+    /**
+     * @param placements 为 null 时保留现有部署位，仅更新节点配置
+     */
     @Transactional
-    public Node updateNode(Node node, String nodeGroup, Set<Tag> tagSet, boolean tagsUpdated) {
+    public Node updateNode(Node node, List<NodeServer> placements, Set<Tag> tagSet, boolean tagsUpdated) {
         Node existingNode = nodeRepository.findById(node.getId());
         if (existingNode == null) {
             throw new EntityNotFoundException("Node not found");
         }
-        String previousNodeGroup = nodeGroupService.normalizeNodeGroup(existingNode.getNodeGroup());
 
         if (node.getCoreType() != null
                 && existingNode.getCoreType() != null
@@ -387,27 +433,28 @@ public class NodeService {
             throw new IllegalArgumentException("当前系统仅支持 sing-box 内核，内核类型不可修改");
         }
 
+        List<NodeServer> existingPlacements = nodeServerRepository.findByNodeId(existingNode.getId());
+        List<NodeServer> targetPlacements = placements != null ? placements : existingPlacements.stream()
+                .filter(placement -> !NodeDeploymentStatus.isPendingDelete(placement.getDeployed()))
+                .toList();
+
         normalizeAndValidateNodeProtocol(node);
-        node.setNodeGroup(nodeGroupService.normalizeNodeGroup(nodeGroup));
-        List<Node> groupNodes = nodeGroupService.validateNodeGroup(node);
-        validateNodeServersAndPorts(node, groupNodes);
+        validateNode(node, targetPlacements);
         boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node, tagSet, tagsUpdated);
+        Optional<NodeServer> previousEffective = NodeServerRepository.resolveEffective(existingPlacements)
+                .map(this::copyPlacementKey);
 
         copyNonNullProperties(node, existingNode);
         existingNode.setOutId(node.getOutId());
+        existingNode.setDnsRecordId(node.getDnsRecordId());
 
+        if (placements != null) {
+            syncPlacements(existingNode.getId(), existingPlacements, placements);
+        }
         if (hasSubstantialChanges) {
-            markPendingDeploy(existingNode);
+            markNodePendingDeploy(existingNode.getId());
         }
-
-        if (existingNode.getServerId() != null) {
-            Server server = serverRepository.findById(existingNode.getServerId());
-            existingNode.setServer(server);
-        }
-
-        existingNode.setAccessHost(existingNode.getAccessHostId() != null
-                ? serverHostService.getHostById(existingNode.getAccessHostId())
-                : null);
+        markReferencingNodesIfEffectiveChanged(existingNode, previousEffective);
 
         if (existingNode.getOutId() != null) {
             Node outNode = nodeRepository.findById(existingNode.getOutId());
@@ -415,71 +462,61 @@ public class NodeService {
         } else {
             existingNode.setOutNode(null);
         }
-
-        nodeGroupService.syncPeerNodesToReference(existingNode, groupNodes);
-        nodeGroupService.markAffectedGroupNodesUndeployed(previousNodeGroup, existingNode.getNodeGroup(), existingNode.getId());
         return existingNode;
     }
 
-    @Transactional
-    public Map<String, Integer> batchUpdateNodeTags(List<Long> nodeIds, List<Long> tagIds) {
-        if (nodeIds == null || nodeIds.isEmpty()) {
-            throw new IllegalArgumentException("请选择要调整标签的节点");
-        }
-
-        List<Long> uniqueNodeIds = nodeIds.stream()
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        if (uniqueNodeIds.isEmpty()) {
-            throw new IllegalArgumentException("请选择要调整标签的节点");
-        }
-
-        List<Node> nodes = nodeRepository.findByIdIn(uniqueNodeIds);
-        if (nodes.size() != uniqueNodeIds.size()) {
-            throw new EntityNotFoundException("部分节点不存在，无法批量调整标签");
-        }
-
-        List<Long> normalizedTagIds = tagIds == null
-                ? List.of()
-                : tagIds.stream().filter(Objects::nonNull).distinct().toList();
-        List<Tag> resolvedTags = normalizedTagIds.isEmpty()
-                ? List.of()
-                : tagRepository.list("id in ?1", normalizedTagIds);
-        if (resolvedTags.size() != normalizedTagIds.size()) {
-            throw new EntityNotFoundException("部分标签不存在，无法批量调整");
-        }
-
-        Map<Long, Tag> tagMap = resolvedTags.stream()
-                .collect(Collectors.toMap(Tag::getId, tag -> tag));
-        LinkedHashSet<Tag> updatedTags = normalizedTagIds.stream()
-                .map(tagMap::get)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-
-        int updatedCount = 0;
-        int unchangedCount = 0;
-        for (Node node : nodes) {
-            Set<Long> currentTagIds = node.getTags() == null
-                    ? Set.of()
-                    : node.getTags().stream()
-                    .map(Tag::getId)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet());
-
-            if (currentTagIds.equals(new LinkedHashSet<>(normalizedTagIds))) {
-                unchangedCount++;
+    private void syncPlacements(Long nodeId, List<NodeServer> existingPlacements, List<NodeServer> placements) {
+        Map<Long, NodeServer> existingByServerId = existingPlacements.stream()
+                .collect(Collectors.toMap(NodeServer::getServerId, placement -> placement));
+        Set<Long> targetServerIds = new LinkedHashSet<>();
+        for (NodeServer target : placements) {
+            targetServerIds.add(target.getServerId());
+            NodeServer existing = existingByServerId.get(target.getServerId());
+            if (existing == null) {
+                target.setNodeId(nodeId);
+                target.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
+                nodeServerRepository.persist(target);
                 continue;
             }
-
-            node.setTags(new LinkedHashSet<>(updatedTags));
-            markPendingDeploy(node);
-            updatedCount++;
+            boolean deployChanged = !Objects.equals(existing.getAccessHostId(), target.getAccessHostId())
+                    || existing.enabledFlag() != target.enabledFlag()
+                    || NodeDeploymentStatus.isPendingDelete(existing.getDeployed());
+            existing.setAccessHostId(target.getAccessHostId());
+            existing.setExposed(target.getExposed());
+            existing.setPriority(target.getPriority());
+            existing.setEnabled(target.getEnabled());
+            existing.setName(target.getName());
+            if (deployChanged) {
+                existing.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
+            }
         }
+        for (NodeServer existing : existingPlacements) {
+            if (!targetServerIds.contains(existing.getServerId())) {
+                removeOrMarkPlacementDeleted(existing);
+            }
+        }
+    }
 
-        Map<String, Integer> result = new HashMap<>();
-        result.put("updatedCount", updatedCount);
-        result.put("unchangedCount", unchangedCount);
-        return result;
+    private NodeServer copyPlacementKey(NodeServer placement) {
+        NodeServer copy = new NodeServer();
+        copy.setServerId(placement.getServerId());
+        copy.setAccessHostId(placement.getAccessHostId());
+        return copy;
+    }
+
+    // 落地节点的生效部署位变化后，引用它作出站的代理节点需重新部署
+    private void markReferencingNodesIfEffectiveChanged(Node node, Optional<NodeServer> previousEffective) {
+        if (!Objects.equals(node.getType(), NodeType.LANDING.getValue())) {
+            return;
+        }
+        Optional<NodeServer> currentEffective = nodeServerRepository.findEffectiveByNodeId(node.getId());
+        boolean changed = previousEffective.isPresent() != currentEffective.isPresent()
+                || previousEffective.isPresent()
+                && (!Objects.equals(previousEffective.get().getServerId(), currentEffective.get().getServerId())
+                || !Objects.equals(previousEffective.get().getAccessHostId(), currentEffective.get().getAccessHostId()));
+        if (changed) {
+            nodeRepository.findByOutId(node.getId()).forEach(proxy -> markNodePendingDeploy(proxy.getId()));
+        }
     }
 
     @Transactional
@@ -534,7 +571,7 @@ public class NodeService {
                     .filter(Objects::nonNull)
                     .collect(Collectors.toCollection(LinkedHashSet::new));
             node.setTags(targetTags);
-            markPendingDeploy(node);
+            markNodePendingDeploy(node.getId());
             updatedCount++;
         }
 
@@ -572,8 +609,6 @@ public class NodeService {
 
     private String buildSubstantialChangeSignature(Node node, Set<Tag> tagSet, boolean includeTags) {
         StringJoiner joiner = new StringJoiner("|");
-        joiner.add("serverId=" + normalizeValue(node.getServerId()));
-        joiner.add("accessHostId=" + normalizeValue(node.getAccessHostId()));
         joiner.add("port=" + normalizeValue(node.getPort()));
         joiner.add("type=" + normalizeValue(node.getType()));
         joiner.add("protocol=" + normalizeText(node.getProtocol()));
@@ -582,7 +617,6 @@ public class NodeService {
         joiner.add("rule=" + normalizeJson(node.getRule()));
         joiner.add("outId=" + normalizeValue(node.getOutId()));
         joiner.add("level=" + normalizeValue(node.getLevel()));
-        joiner.add("nodeGroup=" + normalizeNodeGroup(node.getNodeGroup()));
         joiner.add("disabled=" + normalizeValue(node.getDisabled()));
         if (includeTags) {
             joiner.add("tags=" + normalizeTags(tagSet));
@@ -596,11 +630,6 @@ public class NodeService {
 
     private String normalizeText(String value) {
         return value == null ? "" : value.trim();
-    }
-
-    private String normalizeNodeGroup(String nodeGroup) {
-        String normalizedGroup = nodeGroupService.normalizeNodeGroup(nodeGroup);
-        return normalizedGroup == null ? "" : normalizedGroup;
     }
 
     private String normalizeJson(String json) {
@@ -655,8 +684,6 @@ public class NodeService {
         if (src.getName() != null) target.setName(src.getName());
         if (src.getNo() != null) target.setNo(src.getNo());
         if (src.getRemark() != null) target.setRemark(src.getRemark());
-        if (src.getServerId() != null) target.setServerId(src.getServerId());
-        target.setAccessHostId(src.getAccessHostId());
         if (src.getType() != null) target.setType(src.getType());
         if (src.getPort() != null) target.setPort(src.getPort());
         if (src.getProtocol() != null) target.setProtocol(src.getProtocol());
@@ -664,36 +691,57 @@ public class NodeService {
         if (src.getInbound() != null) target.setInbound(src.getInbound());
         if (src.getRule() != null) target.setRule(src.getRule());
         if (src.getLevel() != null) target.setLevel(src.getLevel());
-        target.setNodeGroup(src.getNodeGroup());
         if (src.getTags() != null) target.setTags(src.getTags());
         if (src.getDisabled() != null) target.setDisabled(src.getDisabled());
-        if (src.getDeployed() != null) target.setDeployed(src.getDeployed());
         target.setOutId(src.getOutId());
     }
 
-    private Node loadNode(Long nodeId, String label) {
-        Node node = nodeRepository.findById(nodeId);
-        if (node == null) {
-            throw new EntityNotFoundException(label + " with ID " + nodeId + " not found");
-        }
-        return node;
-    }
-
+    /**
+     * @return 删除后的节点部署状态汇总；节点已被物理删除时返回 null
+     */
     @Transactional
-    public Node deleteNode(Long id) {
+    public Integer deleteNode(Long id) {
         Node node = nodeRepository.findById(id);
         if (node == null) {
             return null;
         }
-        if (NodeDeploymentStatus.isDeployed(node.getDeployed())) {
-            node.setDeployed(NodeDeploymentStatus.PENDING_DELETE.getValue());
-            return node;
+        List<NodeServer> placements = nodeServerRepository.findByNodeId(id);
+        placements.forEach(this::removeOrMarkPlacementDeleted);
+        List<NodeServer> remaining = nodeServerRepository.findByNodeId(id);
+        if (remaining.isEmpty()) {
+            physicallyDeleteNode(id);
+            return null;
         }
-        if (NodeDeploymentStatus.isPendingDelete(node.getDeployed())) {
-            return node;
+        return NodeServerRepository.aggregateStatus(remaining);
+    }
+
+    // 已部署过的部署位需先从服务器移除入站，未部署过的直接删除
+    private void removeOrMarkPlacementDeleted(NodeServer placement) {
+        boolean everDeployed = NodeDeploymentStatus.isDeployed(placement.getDeployed())
+                || NodeDeploymentStatus.isPendingDelete(placement.getDeployed())
+                || nodeDeploymentRepository.findByNodeServerId(placement.getId()).isPresent();
+        if (everDeployed) {
+            placement.setDeployed(NodeDeploymentStatus.PENDING_DELETE.getValue());
+            return;
         }
-        physicallyDeleteNode(id);
-        return node;
+        nodeServerRepository.delete(placement);
+    }
+
+    /**
+     * 部署位入站已从服务器移除后删除部署位；最后一个部署位删除后删除节点。
+     */
+    @Transactional
+    public void physicallyDeletePlacement(Long nodeServerId) {
+        NodeServer placement = nodeServerRepository.findById(nodeServerId);
+        if (placement == null) {
+            return;
+        }
+        nodeDeploymentRepository.deleteByNodeServerId(nodeServerId);
+        nodeServerRepository.delete(placement);
+        nodeServerRepository.flush();
+        if (nodeServerRepository.findByNodeId(placement.getNodeId()).isEmpty()) {
+            physicallyDeleteNode(placement.getNodeId());
+        }
     }
 
     @Transactional
@@ -703,6 +751,7 @@ public class NodeService {
         }
         tagRepository.deleteAllNodeTagsByNodeId(id);
         nodeDeploymentRepository.deleteByNodeId(id);
+        nodeServerRepository.delete("nodeId", id);
         nodeRepository.deleteById(id);
     }
 
@@ -711,17 +760,21 @@ public class NodeService {
         Node node = nodeRepository.findById(id);
         if (node != null) {
             node.setDisabled(disabled ? 1 : 0);
-            markPendingDeploy(node);
+            markNodePendingDeploy(id);
             return node;
         }
         return null;
     }
 
-    public void markPendingDeploy(Node node) {
-        if (node == null || NodeDeploymentStatus.isPendingDelete(node.getDeployed())) {
+    public void markNodePendingDeploy(Long nodeId) {
+        nodeServerRepository.findByNodeId(nodeId).forEach(this::markPendingDeploy);
+    }
+
+    public void markPendingDeploy(NodeServer placement) {
+        if (placement == null || NodeDeploymentStatus.isPendingDelete(placement.getDeployed())) {
             return;
         }
-        node.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
+        placement.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
     }
 
     public List<Map<String, Object>> getNodeTypeOptions() {
@@ -759,13 +812,10 @@ public class NodeService {
                 .collect(Collectors.toList());
     }
 
-    public Integer getAvailablePort(Long serverId) {
-        List<Node> nodes = nodeRepository.findByServerId(serverId);
-
-        Set<Integer> usedPorts = nodes.stream()
-                .map(Node::getPort)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+    public Integer getAvailablePort(List<Long> serverIds) {
+        Set<Integer> usedPorts = serverIds.stream()
+                .flatMap(serverId -> nodeServerRepository.findPortsByServerId(serverId).stream())
+                .collect(Collectors.toSet());
 
         int port = 10000;
         while (usedPorts.contains(port)) {

@@ -16,8 +16,8 @@ public class NodeDeploymentHistoryRepository implements PanacheRepository<NodeDe
         return find("nodeId = ?1 order by version desc", nodeId).list();
     }
 
-    public Optional<NodeDeploymentHistory> findByNodeIdAndVersion(Long nodeId, Integer version) {
-        return find("nodeId = ?1 and version = ?2", nodeId, version).firstResultOptional();
+    public Optional<NodeDeploymentHistory> findByNodeServerIdAndVersion(Long nodeServerId, Integer version) {
+        return find("nodeServerId = ?1 and version = ?2", nodeServerId, version).firstResultOptional();
     }
 
     @Transactional

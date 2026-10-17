@@ -6,15 +6,19 @@ import com.fun90.airopscat.model.dto.NodeDeploymentVersionSnapshotDto;
 import com.fun90.airopscat.model.dto.SubscrptionDto;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.AccountTrafficStats;
+import com.fun90.airopscat.model.entity.DomainDnsRecord;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeDeployment;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
+import com.fun90.airopscat.repository.DomainDnsRecordRepository;
 import com.fun90.airopscat.repository.NodeDeploymentRepository;
+import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.repository.ServerHostRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.util.ConfigFileReader;
@@ -37,6 +41,8 @@ public class SubscriptionService {
     private final AccountTrafficStatsRepository accountTrafficRepository;
     private final AccountTrafficStatsService accountTrafficStatsService;
     private final NodeDeploymentRepository nodeDeploymentRepository;
+    private final NodeServerRepository nodeServerRepository;
+    private final DomainDnsRecordRepository domainDnsRecordRepository;
     private final ServerRepository serverRepository;
     private final ServerHostRepository serverHostRepository;
     private final TagService tagService;
@@ -51,6 +57,8 @@ public class SubscriptionService {
             AccountTrafficStatsRepository accountTrafficRepository,
             AccountTrafficStatsService accountTrafficStatsService,
             NodeDeploymentRepository nodeDeploymentRepository,
+            NodeServerRepository nodeServerRepository,
+            DomainDnsRecordRepository domainDnsRecordRepository,
             ServerRepository serverRepository,
             ServerHostRepository serverHostRepository,
             TagService tagService,
@@ -62,6 +70,8 @@ public class SubscriptionService {
         this.accountTrafficRepository = accountTrafficRepository;
         this.accountTrafficStatsService = accountTrafficStatsService;
         this.nodeDeploymentRepository = nodeDeploymentRepository;
+        this.nodeServerRepository = nodeServerRepository;
+        this.domainDnsRecordRepository = domainDnsRecordRepository;
         this.serverRepository = serverRepository;
         this.serverHostRepository = serverHostRepository;
         this.tagService = tagService;
@@ -250,32 +260,33 @@ public class SubscriptionService {
     }
 
     private List<NodeDto> loadAvailableSubscriptionNodes(Long accountId) {
-        List<Node> availableNodes = tagService.getAvailableNodesByAccount(accountId);
-        if (availableNodes.isEmpty()) {
-            return List.of();
-        }
-
-        Map<Long, Node> availableNodeMap = availableNodes.stream()
+        Map<Long, Node> availableNodeMap = tagService.getAvailableNodesByAccount(accountId).stream()
                 .filter(Objects::nonNull)
-                .filter(node -> NodeDeploymentStatus.isDeployed(node.getDeployed()))
+                .filter(node -> !Objects.equals(node.getDisabled(), 1))
+                .filter(node -> Objects.equals(node.getType(), NodeType.PROXY.getValue()))
                 .collect(Collectors.toMap(Node::getId, node -> node, (left, right) -> left, LinkedHashMap::new));
         if (availableNodeMap.isEmpty()) {
             return List.of();
         }
-        List<NodeDeployment> deployments = nodeDeploymentRepository.findByNodeIds(new ArrayList<>(availableNodeMap.keySet()));
-        if (deployments.isEmpty()) {
+        List<Long> nodeIds = new ArrayList<>(availableNodeMap.keySet());
+        List<NodeServer> placements = nodeServerRepository.findByNodeIds(nodeIds).stream()
+                .filter(NodeServer::enabledFlag)
+                .filter(placement -> NodeDeploymentStatus.isDeployed(placement.getDeployed()))
+                .toList();
+        Map<Long, NodeDeploymentVersionSnapshotDto> snapshotByPlacementId = new HashMap<>();
+        for (NodeDeployment deployment : nodeDeploymentRepository.findByNodeIds(nodeIds)) {
+            NodeDeploymentVersionSnapshotDto snapshot = toDeploymentSnapshot(deployment);
+            if (snapshot != null && deployment.getNodeServerId() != null) {
+                snapshotByPlacementId.put(deployment.getNodeServerId(), snapshot);
+            }
+        }
+        if (snapshotByPlacementId.isEmpty()) {
             return List.of();
         }
 
-        Map<Long, NodeDeploymentVersionSnapshotDto> snapshotMap = new HashMap<>();
         Set<Long> serverIds = new LinkedHashSet<>();
         Set<Long> accessHostIds = new LinkedHashSet<>();
-        for (NodeDeployment deployment : deployments) {
-            NodeDeploymentVersionSnapshotDto snapshot = toDeploymentSnapshot(deployment);
-            if (snapshot == null || snapshot.getNodeId() == null) {
-                continue;
-            }
-            snapshotMap.put(snapshot.getNodeId(), snapshot);
+        for (NodeDeploymentVersionSnapshotDto snapshot : snapshotByPlacementId.values()) {
             if (snapshot.getServerId() != null) {
                 serverIds.add(snapshot.getServerId());
             }
@@ -283,7 +294,6 @@ public class SubscriptionService {
                 accessHostIds.add(snapshot.getAccessHostId());
             }
         }
-
         Map<Long, Server> serverMap = serverRepository.findByIdIn(new ArrayList<>(serverIds)).stream()
                 .collect(Collectors.toMap(Server::getId, server -> server));
         Map<Long, ServerHost> accessHostMap = accessHostIds.isEmpty()
@@ -291,33 +301,84 @@ public class SubscriptionService {
                 : serverHostRepository.list("id in ?1", new ArrayList<>(accessHostIds)).stream()
                         .collect(Collectors.toMap(ServerHost::getId, host -> host));
         Map<Long, String> hostOverrides = accountNodeSubscriptionDomainBindingService.findSubscriptionHostOverrides(
-                accountId, new ArrayList<>(availableNodeMap.keySet()));
+                accountId, nodeIds);
+        List<Long> dnsRecordIds = availableNodeMap.values().stream()
+                .map(Node::getDnsRecordId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, String> dnsHosts = domainDnsRecordRepository.findByIdIn(dnsRecordIds).stream()
+                .filter(record -> record.getFullName() != null && !record.getFullName().isBlank())
+                .collect(Collectors.toMap(DomainDnsRecord::getId, DomainDnsRecord::getFullName));
 
-        List<NodeDto> nodes = new ArrayList<>();
-        for (Node availableNode : availableNodeMap.values()) {
-            NodeDeploymentVersionSnapshotDto snapshot = snapshotMap.get(availableNode.getId());
+        Map<Long, List<SubscriptionCandidate>> candidatesByNodeId = new LinkedHashMap<>();
+        for (NodeServer placement : placements) {
+            NodeDeploymentVersionSnapshotDto snapshot = snapshotByPlacementId.get(placement.getId());
             if (snapshot == null) {
                 continue;
             }
+            Server server = serverMap.get(snapshot.getServerId());
+            NodeDto dto = toSubscriptionNodeDto(snapshot, server, accessHostMap.get(snapshot.getAccessHostId()));
+            dto.setNodeServerId(placement.getId());
+            candidatesByNodeId.computeIfAbsent(placement.getNodeId(), id -> new ArrayList<>())
+                    .add(new SubscriptionCandidate(placement, dto, server == null ? null : server.getName()));
+        }
 
-            NodeDto nodeDto = toSubscriptionNodeDto(
-                    snapshot,
-                    serverMap.get(snapshot.getServerId()),
-                    accessHostMap.get(snapshot.getAccessHostId())
-            );
-            if (nodeDto.getDisabled() != null && nodeDto.getDisabled() == 1) {
-                continue;
-            }
-            if (!Objects.equals(nodeDto.getType(), NodeType.PROXY.getValue())) {
-                continue;
-            }
-            String hostOverride = hostOverrides.get(nodeDto.getId());
-            if (hostOverride != null && !hostOverride.isBlank()) {
-                nodeDto.setServerHost(hostOverride);
-            }
-            nodes.add(nodeDto);
+        List<NodeDto> nodes = new ArrayList<>();
+        for (Node availableNode : availableNodeMap.values()) {
+            nodes.addAll(selectSubscriptionEntries(
+                    candidatesByNodeId.getOrDefault(availableNode.getId(), List.of()),
+                    hostOverrides.get(availableNode.getId()),
+                    dnsHosts.get(availableNode.getDnsRecordId())));
         }
         return nodes;
+    }
+
+    record SubscriptionCandidate(NodeServer placement, NodeDto dto, String serverName) {}
+
+    /**
+     * 订阅条目规则：账号级域名绑定 > 节点 DNS 记录 > 每个暴露的部署位各一条。
+     *
+     * @param candidates 启用且已部署、带部署快照的部署位
+     */
+    static List<NodeDto> selectSubscriptionEntries(List<SubscriptionCandidate> candidates,
+                                                   String hostOverride,
+                                                   String dnsHost) {
+        List<SubscriptionCandidate> sorted = candidates.stream()
+                .sorted(Comparator.comparing(SubscriptionCandidate::placement, NodeServerRepository.PRIORITY_ORDER))
+                .toList();
+        if (sorted.isEmpty()) {
+            return List.of();
+        }
+        if (hostOverride != null && !hostOverride.isBlank()) {
+            NodeDto dto = sorted.getFirst().dto();
+            dto.setServerHost(hostOverride);
+            return List.of(dto);
+        }
+        List<SubscriptionCandidate> exposed = sorted.stream()
+                .filter(candidate -> candidate.placement().exposedFlag())
+                .toList();
+        if (dnsHost != null) {
+            if (exposed.isEmpty()) {
+                return List.of();
+            }
+            NodeDto dto = sorted.getFirst().dto();
+            dto.setServerHost(dnsHost);
+            return List.of(dto);
+        }
+        boolean multiple = exposed.size() > 1;
+        return exposed.stream()
+                .map(candidate -> {
+                    NodeDto dto = candidate.dto();
+                    String placementName = candidate.placement().getName();
+                    if (placementName != null && !placementName.isBlank()) {
+                        dto.setName(placementName);
+                    } else if (multiple) {
+                        dto.setName(dto.getName() + "-" + Objects.toString(candidate.serverName(), String.valueOf(dto.getServerId())));
+                    }
+                    return dto;
+                })
+                .toList();
     }
 
     private NodeDeploymentVersionSnapshotDto toDeploymentSnapshot(NodeDeployment deployment) {
@@ -332,7 +393,6 @@ public class SubscriptionService {
         dto.setId(snapshot.getNodeId());
         dto.setServerId(snapshot.getServerId());
         dto.setAccessHostId(snapshot.getAccessHostId());
-        dto.setNodeGroup(snapshot.getNodeGroup());
         dto.setPort(snapshot.getPort());
         dto.setProtocol(snapshot.getProtocol());
         dto.setCoreType(snapshot.getCoreType());

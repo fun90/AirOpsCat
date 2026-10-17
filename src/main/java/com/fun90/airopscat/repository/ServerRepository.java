@@ -64,10 +64,11 @@ public class ServerRepository implements PanacheRepository<Server> {
                 "where (s.disabled = 0 or s.disabled is null) " +
                 "and (s.external = 0 or s.external is null) " +
                 "and (s.expireDate is null or s.expireDate >= ?1) " +
-                "and exists (select n.id from Node n " +
-                "where n.serverId = s.id " +
+                "and exists (select ns.id from NodeServer ns, Node n " +
+                "where n.id = ns.nodeId and ns.serverId = s.id " +
                 "and (n.disabled = 0 or n.disabled is null) " +
-                "and n.deployed = ?2)",
+                "and (ns.enabled = 1 or ns.enabled is null) " +
+                "and ns.deployed = ?2)",
                 date, NodeDeploymentStatus.DEPLOYED.getValue()).list();
     }
 
@@ -81,10 +82,11 @@ public class ServerRepository implements PanacheRepository<Server> {
                                 "and (s.disabled = 0 or s.disabled is null) " +
                                 "and (s.external = 0 or s.external is null) " +
                                 "and (s.expireDate is null or s.expireDate >= :date) " +
-                                "and exists (select n.id from Node n " +
-                                "where n.serverId = s.id " +
+                                "and exists (select ns.id from NodeServer ns, Node n " +
+                                "where n.id = ns.nodeId and ns.serverId = s.id " +
                                 "and (n.disabled = 0 or n.disabled is null) " +
-                                "and n.deployed = :deployed)",
+                                "and (ns.enabled = 1 or ns.enabled is null) " +
+                                "and ns.deployed = :deployed)",
                         Long.class)
                 .setParameter("serverId", serverId)
                 .setParameter("date", date)

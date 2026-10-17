@@ -10,8 +10,22 @@ import java.util.Optional;
 @ApplicationScoped
 public class NodeDeploymentRepository implements PanacheRepository<NodeDeployment> {
 
-    public Optional<NodeDeployment> findByNodeId(Long nodeId) {
-        return find("nodeId", nodeId).firstResultOptional();
+    public List<NodeDeployment> findByNodeId(Long nodeId) {
+        return find("nodeId", nodeId).list();
+    }
+
+    public Optional<NodeDeployment> findByNodeServerId(Long nodeServerId) {
+        if (nodeServerId == null) {
+            return Optional.empty();
+        }
+        return find("nodeServerId", nodeServerId).firstResultOptional();
+    }
+
+    public long deleteByNodeServerId(Long nodeServerId) {
+        if (nodeServerId == null) {
+            return 0;
+        }
+        return delete("nodeServerId", nodeServerId);
     }
 
     public List<NodeDeployment> findByNodeIds(List<Long> nodeIds) {

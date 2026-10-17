@@ -65,16 +65,13 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label required">服务器</label>
-                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.serverId }" v-model="newItem.serverId" @change="onServerChange">
-                                        <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
-                                    </select>
-                                    <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.serverId }}</div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label required">端口</label>
+                                    <label class="form-label required">端口
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p class='mb-0'>所有部署服务器使用同一端口，需在每台启用的服务器上可用。</p>">?</span>
+                                    </label>
                                     <div class="input-group has-validation">
                                         <input type="number" class="form-control"
                                                :class="{
@@ -82,9 +79,8 @@
                                                    'is-valid': !validationErrors.port && portCheckMessage === '端口可用'
                                                }"
                                                @input="schedulePortAvailabilityCheck"
-                                               :disabled="isNodeGroupConfigLocked(false)"
                                                v-model="newItem.port" min="1" max="65535">
-                                        <button class="btn" type="button" @click="getAvailablePort" :disabled="isNodeGroupConfigLocked(false)">自动获取</button>
+                                        <button class="btn" type="button" @click="getAvailablePort">自动获取</button>
                                     </div>
                                     <div class="invalid-feedback" v-if="validationErrors.port">{{ validationErrors.port }}</div>
                                     <small class="form-hint d-flex align-items-center gap-1"
@@ -96,44 +92,95 @@
                                     </small>
                                 </div>
                             </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">订阅 DNS 记录
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p>绑定后订阅只输出一条，地址为该记录域名，至少需要一个暴露的部署位。</p><p class='mb-0'>记录类型只能是 A 或 CNAME，且不能开启 Cloudflare 代理或时段计划。</p>">?</span>
+                                    </label>
+                                    <select id="node-dns-record-select-create" class="form-select tom-select-hidden"></select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <label class="form-label required mb-0">部署服务器
+                                    <span class="form-help"
+                                          data-bs-toggle="popover"
+                                          data-bs-placement="top"
+                                          data-bs-html="true"
+                                          data-bs-content="<p>同一份节点配置部署到多台服务器。</p><p>暴露：未绑定 DNS 记录时是否出现在订阅；优先级越小越靠前。</p><p class='mb-0'>显示名为空且有多个暴露部署位时，订阅名称为“节点名-服务器名”。</p>">?</span>
+                                </label>
+                                <button type="button" class="btn btn-sm btn-outline-primary ms-auto" @click="addPlacement(newItem, false)" :disabled="newItem.placements.length >= servers.length">
+                                    <i class="ti ti-plus me-1"></i>添加服务器
+                                </button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-vcenter mb-0">
+                                    <thead>
+                                    <tr>
+                                        <th>服务器</th>
+                                        <th>接入 Host</th>
+                                        <th class="w-1">暴露</th>
+                                        <th style="width: 6rem;">优先级</th>
+                                        <th class="w-1">启用</th>
+                                        <th>显示名</th>
+                                        <th class="w-1">状态</th>
+                                        <th class="w-1"></th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr v-for="(placement, index) in newItem.placements" :key="placement.id || ('new-' + index)">
+                                        <td style="min-width: 10rem;">
+                                            <select class="form-select form-select-sm" v-model="placement.serverId" @change="onPlacementServerChange(newItem, placement, false)">
+                                                <option value="">请选择</option>
+                                                <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
+                                            </select>
+                                        </td>
+                                        <td style="min-width: 9rem;">
+                                            <select class="form-select form-select-sm" v-model="placement.accessHostId" @change="onPlacementAccessHostChange(newItem, placement, false)">
+                                                <option value="">服务器主 host</option>
+                                                <option v-for="host in getServerHosts(placement.serverId)" :key="host.id || host.host" :value="host.id || ''">
+                                                    {{ host.host }}
+                                                    <template v-if="host.isPrimary === 1"> (主)</template>
+                                                </option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <label class="form-check form-switch m-0">
+                                                <input class="form-check-input" type="checkbox" v-model="placement.exposed">
+                                            </label>
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm" v-model="placement.priority">
+                                        </td>
+                                        <td>
+                                            <label class="form-check form-switch m-0">
+                                                <input class="form-check-input" type="checkbox" v-model="placement.enabled" @change="schedulePlacementPortCheck(false)">
+                                            </label>
+                                        </td>
+                                        <td style="min-width: 7rem;">
+                                            <input type="text" class="form-control form-control-sm" v-model="placement.name" placeholder="默认">
+                                        </td>
+                                        <td class="text-nowrap">
+                                            <span v-if="placement.id" class="badge" :class="isDeployed(placement) ? 'bg-success-lt' : 'bg-warning-lt'">{{ getDeploymentStatusLabel(placement.deployed) }}</span>
+                                            <span v-else class="badge bg-secondary-lt">新增</span>
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-ghost-danger btn-icon" title="移除" @click="removePlacement(newItem, index, false)">
+                                                <i class="ti ti-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="text-danger small mt-1" v-if="validationErrors.placements">{{ validationErrors.placements }}</div>
                         </div>
                         <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">接入 Host
-                                        <span class="form-help"
-                                              data-bs-toggle="popover"
-                                              data-bs-placement="top"
-                                              data-bs-html="true"
-                                              data-bs-content="<p class='mb-0'>用于订阅和节点地址展示；留空时自动使用服务器主 host。</p>">?</span>
-                                    </label>
-                                    <select class="form-select" v-model="newItem.accessHostId" @change="['vless', 'hysteria2'].includes(newItem.protocol) && onProtocolChange()">
-                                        <option value="">使用服务器主 host</option>
-                                        <option v-for="host in getServerHosts(newItem.serverId)" :key="host.id || host.host" :value="host.id || ''">
-                                            {{ host.host }}
-                                            <template v-if="host.isPrimary === 1"> (主)</template>
-                                        </option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">节点组
-                                        <span class="form-help"
-                                              data-bs-toggle="popover"
-                                              data-bs-placement="top"
-                                              data-bs-html="true"
-                                              data-bs-content="<p>节点组只能单选或直接输入。</p><p>输入的节点组存在则加入该组，并在保存时自动更新为组内已有配置。</p><p class='mb-0'>输入的节点组不存在则以当前配置创建新组。</p>">?</span>
-                                    </label>
-                                    <select id="node-group-select-create" class="form-select tom-select-hidden"></select>
-                                    <div class="alert alert-primary mt-2 mb-0 py-2 px-3" v-if="nodeGroupSyncMessage.create">
-                                        <div class="d-flex align-items-center gap-2">
-                                            <i class="ti ti-bolt text-primary"></i>
-                                            <span>{{ nodeGroupSyncMessage.create }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label">级别</label>
@@ -165,9 +212,9 @@
                     <div class="tab-pane" id="tabs-inbound">
                         <div class="row mt-3">
                             <div class="col-md-6">
-                                <div class="mb-3" :class="getNodeGroupFieldClass(false, 'protocol')">
+                                <div class="mb-3">
                                     <label class="form-label required">协议</label>
-                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="newItem.protocol" @change="onProtocolChange" :disabled="isNodeGroupConfigLocked(false)">
+                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="newItem.protocol" @change="onProtocolChange">
                                         <option v-for="protocol in getAvailableProtocols(newItem)" :key="protocol.value" :value="protocol.value">{{ protocol.label }}</option>
                                     </select>
                                     <div class="invalid-feedback" v-if="validationErrors.protocol">{{ validationErrors.protocol }}</div>
@@ -177,7 +224,7 @@
                                 <div class="mb-3">
                                     <label class="form-label">&nbsp;</label>
                                     <div>
-                                        <button type="button" class="btn btn-outline-primary" @click="onProtocolChange" :disabled="isNodeGroupConfigLocked(false)">
+                                        <button type="button" class="btn btn-outline-primary" @click="onProtocolChange">
                                             <i class="ti ti-refresh me-1"></i>重新生成配置
                                         </button>
                                     </div>
@@ -187,7 +234,7 @@
 
                         <div class="row mt-3">
                             <div class="col-md-12">
-                                <div class="mb-3" :class="getNodeGroupFieldClass(false, 'inbound')">
+                                <div class="mb-3">
                                     <label class="form-label">高级配置 (JSON)
                                         <span class="form-help"
                                               data-bs-toggle="popover"
@@ -195,7 +242,7 @@
                                               data-bs-html="true"
                                               data-bs-content="<p class='mb-0'>可以追加协议特有的其他配置参数。</p>">?</span>
                                     </label>
-                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="newNodeInboundJson" placeholder='{"key": "value"}' :readonly="isNodeGroupConfigLocked(false) ? true : null"></textarea>
+                                    <textarea class="form-control font-monospace" data-bs-toggle="autosize" v-model="newNodeInboundJson" placeholder='{"key": "value"}'></textarea>
                                 </div>
                             </div>
                         </div>
@@ -203,7 +250,7 @@
                     <div class="tab-pane" id="tabs-outbound" v-if="newItem.type === 0">
                         <div class="row mt-3">
                             <div class="col-md-12">
-                                <div class="mb-3" :class="getNodeGroupFieldClass(false, 'outbound')">
+                                <div class="mb-3">
                                     <label class="form-label">出站配置
                                         <span class="form-help"
                                               data-bs-toggle="popover"
@@ -211,7 +258,7 @@
                                               data-bs-html="true"
                                               data-bs-content="<p class='mb-0'>用于配置节点的出口。</p>">?</span>
                                     </label>
-                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="newItem.outId" :disabled="isNodeGroupConfigLocked(false)">
+                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.outId }" v-model="newItem.outId">
                                         <option value="null">直连</option>
                                         <option v-for="node in landingNodes" :key="node.id" :value="node.id">{{ node.name }}({{ node.serverHost }}:{{ node.port }})</option>
                                     </select>
@@ -390,16 +437,13 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label required">服务器</label>
-                                    <select class="form-select" :class="{ 'is-invalid': validationErrors.serverId }" v-model="editedItem.serverId" @change="onEditServerChange">
-                                        <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
-                                    </select>
-                                    <div class="invalid-feedback" v-if="validationErrors.serverId">{{ validationErrors.serverId }}</div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label required">端口</label>
+                                    <label class="form-label required">端口
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p class='mb-0'>所有部署服务器使用同一端口，需在每台启用的服务器上可用。</p>">?</span>
+                                    </label>
                                     <div class="input-group has-validation">
                                         <input type="number" class="form-control"
                                                :class="{
@@ -420,44 +464,95 @@
                                     </small>
                                 </div>
                             </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">订阅 DNS 记录
+                                        <span class="form-help"
+                                              data-bs-toggle="popover"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              data-bs-content="<p>绑定后订阅只输出一条，地址为该记录域名，至少需要一个暴露的部署位。</p><p class='mb-0'>记录类型只能是 A 或 CNAME，且不能开启 Cloudflare 代理或时段计划。</p>">?</span>
+                                    </label>
+                                    <select id="node-dns-record-select-edit" class="form-select tom-select-hidden"></select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <label class="form-label required mb-0">部署服务器
+                                    <span class="form-help"
+                                          data-bs-toggle="popover"
+                                          data-bs-placement="top"
+                                          data-bs-html="true"
+                                          data-bs-content="<p>同一份节点配置部署到多台服务器。</p><p>暴露：未绑定 DNS 记录时是否出现在订阅；优先级越小越靠前。</p><p class='mb-0'>显示名为空且有多个暴露部署位时，订阅名称为“节点名-服务器名”。</p>">?</span>
+                                </label>
+                                <button type="button" class="btn btn-sm btn-outline-primary ms-auto" @click="addPlacement(editedItem, true)" :disabled="editedItem.placements.length >= servers.length">
+                                    <i class="ti ti-plus me-1"></i>添加服务器
+                                </button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-vcenter mb-0">
+                                    <thead>
+                                    <tr>
+                                        <th>服务器</th>
+                                        <th>接入 Host</th>
+                                        <th class="w-1">暴露</th>
+                                        <th style="width: 6rem;">优先级</th>
+                                        <th class="w-1">启用</th>
+                                        <th>显示名</th>
+                                        <th class="w-1">状态</th>
+                                        <th class="w-1"></th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr v-for="(placement, index) in editedItem.placements" :key="placement.id || ('new-' + index)">
+                                        <td style="min-width: 10rem;">
+                                            <select class="form-select form-select-sm" v-model="placement.serverId" @change="onPlacementServerChange(editedItem, placement, true)">
+                                                <option value="">请选择</option>
+                                                <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
+                                            </select>
+                                        </td>
+                                        <td style="min-width: 9rem;">
+                                            <select class="form-select form-select-sm" v-model="placement.accessHostId" @change="onPlacementAccessHostChange(editedItem, placement, true)">
+                                                <option value="">服务器主 host</option>
+                                                <option v-for="host in getServerHosts(placement.serverId)" :key="host.id || host.host" :value="host.id || ''">
+                                                    {{ host.host }}
+                                                    <template v-if="host.isPrimary === 1"> (主)</template>
+                                                </option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <label class="form-check form-switch m-0">
+                                                <input class="form-check-input" type="checkbox" v-model="placement.exposed">
+                                            </label>
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm" v-model="placement.priority">
+                                        </td>
+                                        <td>
+                                            <label class="form-check form-switch m-0">
+                                                <input class="form-check-input" type="checkbox" v-model="placement.enabled" @change="schedulePlacementPortCheck(true)">
+                                            </label>
+                                        </td>
+                                        <td style="min-width: 7rem;">
+                                            <input type="text" class="form-control form-control-sm" v-model="placement.name" placeholder="默认">
+                                        </td>
+                                        <td class="text-nowrap">
+                                            <span v-if="placement.id" class="badge" :class="isDeployed(placement) ? 'bg-success-lt' : 'bg-warning-lt'">{{ getDeploymentStatusLabel(placement.deployed) }}</span>
+                                            <span v-else class="badge bg-secondary-lt">新增</span>
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-ghost-danger btn-icon" title="移除" @click="removePlacement(editedItem, index, true)">
+                                                <i class="ti ti-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="text-danger small mt-1" v-if="validationErrors.placements">{{ validationErrors.placements }}</div>
                         </div>
                         <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">接入 Host
-                                        <span class="form-help"
-                                              data-bs-toggle="popover"
-                                              data-bs-placement="top"
-                                              data-bs-html="true"
-                                              data-bs-content="<p class='mb-0'>用于订阅和节点地址展示；留空时自动使用服务器主 host。</p>">?</span>
-                                    </label>
-                                    <select class="form-select" v-model="editedItem.accessHostId" @change="['vless', 'hysteria2'].includes(editedItem.protocol) && onEditProtocolChange">
-                                        <option value="">使用服务器主 host</option>
-                                        <option v-for="host in getServerHosts(editedItem.serverId)" :key="host.id || host.host" :value="host.id || ''">
-                                            {{ host.host }}
-                                            <template v-if="host.isPrimary === 1"> (主)</template>
-                                        </option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">节点组
-                                        <span class="form-help"
-                                              data-bs-toggle="popover"
-                                              data-bs-placement="top"
-                                              data-bs-html="true"
-                                              data-bs-content="<p>节点组只能单选或直接输入。</p><p>输入的节点组存在则加入该组，并在保存时自动更新为组内已有配置。</p><p class='mb-0'>输入的节点组不存在则以当前配置创建新组。</p>">?</span>
-                                    </label>
-                                    <select id="node-group-select-edit" class="form-select tom-select-hidden"></select>
-                                    <div class="alert alert-primary mt-2 mb-0 py-2 px-3" v-if="nodeGroupSyncMessage.edit">
-                                        <div class="d-flex align-items-center gap-2">
-                                            <i class="ti ti-bolt text-primary"></i>
-                                            <span>{{ nodeGroupSyncMessage.edit }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label">级别</label>
@@ -487,15 +582,9 @@
                         </div>
                     </div>
                     <div class="tab-pane" id="edit-tabs-inbound">
-                        <div class="alert alert-info mt-3 mb-0 py-2 px-3" v-if="isNodeGroupConfigLocked(true) && editedItem.nodeGroup">
-                            <div class="d-flex align-items-center gap-2">
-                                <i class="ti ti-info-circle text-info"></i>
-                                <span>保存时，协议、端口、入站和出站设置将同步到节点组「{{ editedItem.nodeGroup }}」内的其他节点。</span>
-                            </div>
-                        </div>
                         <div class="row mt-3">
                             <div class="col-md-6">
-                                <div class="mb-3" :class="getNodeGroupFieldClass(true, 'protocol')">
+                                <div class="mb-3">
                                     <label class="form-label required">协议</label>
                                     <select class="form-select" :class="{ 'is-invalid': validationErrors.protocol }" v-model="editedItem.protocol" @change="onEditProtocolChange">
                                         <option v-for="protocol in getAvailableProtocols(editedItem)" :key="protocol.value" :value="protocol.value">{{ protocol.label }}</option>
@@ -507,7 +596,7 @@
 
                         <div class="row mt-3">
                             <div class="col-md-12">
-                                <div class="mb-3" :class="getNodeGroupFieldClass(true, 'inbound')">
+                                <div class="mb-3">
                                     <label class="form-label">高级配置 (JSON)
                                         <span class="form-help"
                                               data-bs-toggle="popover"
@@ -523,7 +612,7 @@
                     <div class="tab-pane" id="edit-tabs-outbound" v-if="editedItem.type === 0">
                         <div class="row mt-3">
                             <div class="col-md-12">
-                                <div class="mb-3" :class="getNodeGroupFieldClass(true, 'outbound')">
+                                <div class="mb-3">
                                     <label class="form-label">出站配置
                                         <span class="form-help"
                                               data-bs-toggle="popover"
@@ -737,6 +826,7 @@
                         <thead>
                         <tr>
                             <th>版本</th>
+                            <th>服务器</th>
                             <th>配置摘要</th>
                             <th>部署时间</th>
                             <th>归档时间</th>
@@ -744,26 +834,26 @@
                         </tr>
                         </thead>
                         <tbody>
-                        <tr v-for="item in deploymentVersions" :key="item.version">
+                        <tr v-for="item in deploymentVersions" :key="(item.nodeServerId || 0) + '-' + item.version">
                             <td>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="badge" :class="item.current ? 'bg-success-lt' : 'bg-secondary-lt'">v{{ item.version }}</span>
                                     <span v-if="item.current" class="badge bg-azure-lt">当前</span>
                                 </div>
                             </td>
+                            <td>{{ item.serverName || item.serverId || '-' }}</td>
                             <td>
                                 <div class="d-flex flex-column gap-1">
                                     <div class="fw-medium">{{ item.protocol }}</div>
                                     <div class="text-secondary small">
                                         {{ getDeploymentVersionTypeLabel(item.type) || '-' }} · 端口 {{ item.port || '-' }}
-                                        <span v-if="item.nodeGroup"> · 组 {{ item.nodeGroup }}</span>
                                     </div>
                                 </div>
                             </td>
                             <td>{{ formatDate(item.deployedAt) || '-' }}</td>
                             <td>{{ item.archivedAt ? formatDate(item.archivedAt) : '-' }}</td>
                             <td>
-                                <button class="btn btn-sm btn-outline-primary" type="button" @click="viewDeploymentVersion(item.version)">
+                                <button class="btn btn-sm btn-outline-primary" type="button" @click="viewDeploymentVersion(item)">
                                     详情
                                 </button>
                             </td>
@@ -817,12 +907,8 @@
                                         <div class="fw-medium mt-1">{{ deploymentVersionDetail && deploymentVersionDetail.archivedAt ? formatDate(deploymentVersionDetail.archivedAt) : '-' }}</div>
                                     </div>
                                     <div class="col-md-3">
-                                        <div class="text-secondary small">节点组</div>
-                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().nodeGroup || '-' }}</div>
-                                    </div>
-                                    <div class="col-md-3">
                                         <div class="text-secondary small">服务器</div>
-                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().serverId || '-' }}</div>
+                                        <div class="fw-medium mt-1">{{ deploymentVersionDetail.serverName || getDeploymentVersionSnapshot().serverId || '-' }}</div>
                                     </div>
                                     <div class="col-md-3">
                                         <div class="text-secondary small">接入 Host</div>

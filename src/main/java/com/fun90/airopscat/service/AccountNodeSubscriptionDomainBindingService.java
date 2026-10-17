@@ -1,6 +1,5 @@
 package com.fun90.airopscat.service;
 
-import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.AccountNodeSubscriptionDomainBindingDto;
 import com.fun90.airopscat.model.dto.AccountNodeSubscriptionDomainBindingRequest;
 import com.fun90.airopscat.model.dto.NodeDto;
@@ -151,9 +150,10 @@ public class AccountNodeSubscriptionDomainBindingService {
         String keyword = normalizeBlank(search);
         String lowerKeyword = keyword == null ? null : keyword.toLowerCase(Locale.ROOT);
 
-        List<NodeDto> records = tagService.getAvailableNodesByAccount(accountId).stream()
+        List<Node> availableNodes = tagService.getAvailableNodesByAccount(accountId).stream()
                 .sorted(Comparator.comparing(node -> normalizeSortText(node.getName())))
-                .map(NodeConverter::toDto)
+                .toList();
+        List<NodeDto> records = nodeService.toNodeDtos(availableNodes).stream()
                 .filter(dto -> lowerKeyword == null || matchesNode(dto, lowerKeyword))
                 .limit(limit)
                 .toList();
@@ -234,8 +234,8 @@ public class AccountNodeSubscriptionDomainBindingService {
         Map<Long, Account> accountMap = accountIds.isEmpty() ? Collections.emptyMap()
                 : accountRepository.find("id in ?1", accountIds).list().stream()
                 .collect(Collectors.toMap(Account::getId, account -> account));
-        Map<Long, Node> nodeMap = nodeRepository.findByIdIn(nodeIds).stream()
-                .collect(Collectors.toMap(Node::getId, node -> node));
+        Map<Long, NodeDto> nodeMap = nodeService.toNodeDtos(nodeRepository.findByIdIn(nodeIds)).stream()
+                .collect(Collectors.toMap(NodeDto::getId, node -> node));
         Map<Long, DomainDnsRecord> recordMap = domainDnsRecordRepository.findByIdIn(recordIds).stream()
                 .collect(Collectors.toMap(DomainDnsRecord::getId, record -> record));
         List<Long> domainIds = recordMap.values().stream()
@@ -259,14 +259,15 @@ public class AccountNodeSubscriptionDomainBindingService {
 
     private AccountNodeSubscriptionDomainBindingDto toDto(AccountNodeSubscriptionDomainBinding binding) {
         Account account = null;
-        Node node = null;
+        NodeDto node = null;
         DomainDnsRecord record = null;
         Domain domain = null;
         if (binding.getAccountId() != null) {
             account = accountRepository.findById(binding.getAccountId());
         }
         if (binding.getNodeId() != null) {
-            node = nodeRepository.findById(binding.getNodeId());
+            Node entity = nodeRepository.findById(binding.getNodeId());
+            node = entity == null ? null : nodeService.toNodeDtos(List.of(entity)).getFirst();
         }
         if (binding.getDomainDnsRecordId() != null) {
             record = domainDnsRecordRepository.findById(binding.getDomainDnsRecordId());
@@ -279,7 +280,7 @@ public class AccountNodeSubscriptionDomainBindingService {
 
     private AccountNodeSubscriptionDomainBindingDto toDto(AccountNodeSubscriptionDomainBinding binding,
                                                           Account account,
-                                                          Node node,
+                                                          NodeDto node,
                                                           DomainDnsRecord record,
                                                           Domain domain) {
         AccountNodeSubscriptionDomainBindingDto dto = new AccountNodeSubscriptionDomainBindingDto();
@@ -297,9 +298,8 @@ public class AccountNodeSubscriptionDomainBindingService {
             dto.setAccountRemark(account.getRemark());
         }
         if (node != null) {
-            NodeDto nodeDto = NodeConverter.toDto(node);
             dto.setNodeName(node.getName());
-            dto.setNodeServerHost(nodeDto.getServerHost());
+            dto.setNodeServerHost(node.getServerHost());
             dto.setNodePort(node.getPort());
         }
         if (record != null) {

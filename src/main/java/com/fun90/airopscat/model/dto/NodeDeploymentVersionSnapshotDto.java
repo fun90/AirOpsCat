@@ -8,8 +8,8 @@ import java.util.Map;
 @Data
 public class NodeDeploymentVersionSnapshotDto {
     private Long nodeId;
+    private Long nodeServerId;
     private Long serverId;
-    private String nodeGroup;
     private Long accessHostId;
     private Integer port;
     private String protocol;

@@ -3,13 +3,13 @@ package com.fun90.airopscat.service.deployment;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
-import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.model.dto.deployment.CoreDeploymentExecution;
 import com.fun90.airopscat.model.dto.deployment.DeploymentPreload;
-import com.fun90.airopscat.service.NodeGroupService;
 import com.fun90.airopscat.service.SystemConfigService;
 import com.fun90.airopscat.singbox.SingBoxConfigBuilder;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -32,9 +32,8 @@ import java.util.function.Supplier;
 @ApplicationScoped
 public class NodeDeploymentService {
 
-    private final NodeRepository nodeRepository;
+    private final NodeServerRepository nodeServerRepository;
     private final TagRepository tagRepository;
-    private final NodeGroupService nodeGroupService;
     private final SystemConfigService systemConfigService;
     private final DeploymentDataLoader dataLoader;
     private final CoreDeploymentExecutor deploymentExecutor;
@@ -42,17 +41,15 @@ public class NodeDeploymentService {
     private final ExecutorService blockingTaskExecutor;
 
     @Inject
-    public NodeDeploymentService(NodeRepository nodeRepository,
+    public NodeDeploymentService(NodeServerRepository nodeServerRepository,
                                  TagRepository tagRepository,
-                                 NodeGroupService nodeGroupService,
                                  SystemConfigService systemConfigService,
                                  DeploymentDataLoader dataLoader,
                                  CoreDeploymentExecutor deploymentExecutor,
                                  SingBoxConfigBuilder singBoxConfigBuilder,
                                  @Named("deploymentTaskExecutor") ExecutorService blockingTaskExecutor) {
-        this.nodeRepository = nodeRepository;
+        this.nodeServerRepository = nodeServerRepository;
         this.tagRepository = tagRepository;
-        this.nodeGroupService = nodeGroupService;
         this.systemConfigService = systemConfigService;
         this.dataLoader = dataLoader;
         this.deploymentExecutor = deploymentExecutor;
@@ -73,12 +70,15 @@ public class NodeDeploymentService {
     @Transactional
     public List<DeploymentResult> deployNodes(List<Long> nodeIds) {
         try {
-            List<Node> pendingNodes = nodeGroupService.expandWithRelatedGroups(getPendingDeploymentNodes(nodeIds));
-            if (pendingNodes.isEmpty()) {
+            List<NodeServer> pendingPlacements = nodeServerRepository.findByDeployedIn(List.of(
+                    NodeDeploymentStatus.PENDING_DEPLOY.getValue(),
+                    NodeDeploymentStatus.PENDING_DELETE.getValue()
+            ), nodeIds);
+            if (pendingPlacements.isEmpty()) {
                 log.info("No pending deployment nodes found");
                 return Collections.emptyList();
             }
-            return processNodesByServer(pendingNodes);
+            return processPlacementsByServer(pendingPlacements);
         } catch (Exception e) {
             log.error("Deploy nodes failed", e);
             throw new RuntimeException("节点部署失败: " + e.getMessage(), e);
@@ -88,41 +88,22 @@ public class NodeDeploymentService {
     @Transactional
     public List<DeploymentResult> deployNodesForcibly(List<Node> nodes) {
         try {
-            return processNodesByServer(nodeGroupService.expandWithRelatedGroups(nodes));
+            List<Long> nodeIds = nodes.stream().map(Node::getId).filter(Objects::nonNull).distinct().toList();
+            if (nodeIds.isEmpty()) {
+                return Collections.emptyList();
+            }
+            return processPlacementsByServer(nodeServerRepository.findByNodeIds(nodeIds));
         } catch (Exception e) {
             log.error("Force deploy nodes failed", e);
             throw new RuntimeException("节点部署失败: " + e.getMessage(), e);
         }
     }
 
-    @Transactional
-    public List<DeploymentResult> deployAssociationGroupByNodeIds(List<Long> nodeIds) {
-        if (nodeIds == null || nodeIds.isEmpty()) {
-            return Collections.emptyList();
-        }
-        List<Node> groupNodes = nodeGroupService.expandWithRelatedGroups(nodeRepository.findByIdIn(nodeIds));
-        if (groupNodes.isEmpty()) {
-            groupNodes = nodeRepository.findByIdIn(nodeIds);
-        }
-        return deployNodesForcibly(groupNodes);
-    }
-
-    private List<Node> getPendingDeploymentNodes(List<Long> nodeIds) {
-        List<Integer> deployableStatuses = List.of(
-                NodeDeploymentStatus.PENDING_DEPLOY.getValue(),
-                NodeDeploymentStatus.PENDING_DELETE.getValue()
-        );
-        if (nodeIds != null && !nodeIds.isEmpty()) {
-            return nodeRepository.findByDeployedInAndIdIn(deployableStatuses, nodeIds);
-        }
-        return nodeRepository.findByDeployedIn(deployableStatuses);
-    }
-
-    private List<DeploymentResult> processNodesByServer(List<Node> nodes) {
-        DeploymentPreload preload = dataLoader.load(nodes);
+    private List<DeploymentResult> processPlacementsByServer(List<NodeServer> placements) {
+        DeploymentPreload preload = dataLoader.load(placements);
         ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
         List<DeploymentServerContext> serverContexts = preload.serverContexts().values().stream()
-                .filter(ctx -> !ctx.nodes().isEmpty())
+                .filter(ctx -> !ctx.placements().isEmpty())
                 .filter(ctx -> ctx.server().getDisabled() != 1)
                 .toList();
         if (serverContexts.isEmpty()) {
@@ -187,7 +168,7 @@ public class NodeDeploymentService {
 
         Map<String, String> configs = new LinkedHashMap<>();
         try {
-            configs.put("sing-box", singBoxConfigBuilder.build(ctx, ctx.nodes()));
+            configs.put("sing-box", singBoxConfigBuilder.build(ctx, ctx.placements()));
         } catch (UnsupportedOperationException e) {
             log.warn("Skip preview for unsupported sing-box config on server {}", serverId);
         }

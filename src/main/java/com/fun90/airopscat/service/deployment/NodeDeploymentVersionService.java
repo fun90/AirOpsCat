@@ -6,11 +6,14 @@ import com.fun90.airopscat.model.dto.NodeDeploymentVersionSnapshotDto;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeDeployment;
 import com.fun90.airopscat.model.entity.NodeDeploymentHistory;
+import com.fun90.airopscat.model.entity.NodeServer;
+import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.Tag;
-import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.NodeDeploymentHistoryRepository;
 import com.fun90.airopscat.repository.NodeDeploymentRepository;
 import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.NodeServerRepository;
+import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.SystemConfigService;
@@ -24,9 +27,12 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Slf4j
@@ -41,87 +47,96 @@ public class NodeDeploymentVersionService {
     private final NodeDeploymentRepository nodeDeploymentRepository;
     private final NodeDeploymentHistoryRepository nodeDeploymentHistoryRepository;
     private final NodeRepository nodeRepository;
+    private final NodeServerRepository nodeServerRepository;
+    private final ServerRepository serverRepository;
     private final TagRepository tagRepository;
     private final TagService tagService;
     private final NodeService nodeService;
     private final SystemConfigService systemConfigService;
 
     @Transactional
-    public void recordSuccessfulDeployments(List<Node> nodes) {
-        if (nodes == null || nodes.isEmpty()) {
+    public void recordSuccessfulDeployments(List<NodeServer> placements) {
+        if (placements == null || placements.isEmpty()) {
             return;
         }
 
-        for (Node node : nodes) {
-            if (node == null || node.getId() == null) {
+        for (NodeServer placement : placements) {
+            if (placement == null || placement.getId() == null) {
                 continue;
             }
-            Node currentNode = nodeRepository.findById(node.getId());
+            NodeServer currentPlacement = nodeServerRepository.findById(placement.getId());
+            Node currentNode = currentPlacement == null ? null : nodeRepository.findById(currentPlacement.getNodeId());
             if (currentNode == null) {
                 continue;
             }
-            upsertCurrentVersion(currentNode);
+            upsertCurrentVersion(currentNode, currentPlacement);
         }
     }
 
     public List<NodeDeploymentVersionDto> listVersions(Long nodeId) {
         ensureNodeExists(nodeId);
 
+        Map<Long, String> serverNames = new HashMap<>();
         List<NodeDeploymentVersionDto> versions = new ArrayList<>();
-        nodeDeploymentRepository.findByNodeId(nodeId)
+        nodeDeploymentRepository.findByNodeId(nodeId).stream()
                 .map(this::toCurrentVersionDto)
-                .ifPresent(versions::add);
+                .forEach(versions::add);
         nodeDeploymentHistoryRepository.findByNodeIdOrderByVersionDesc(nodeId).stream()
                 .map(this::toHistoryVersionDto)
                 .forEach(versions::add);
+        versions.forEach(dto -> dto.setServerName(serverNames.computeIfAbsent(dto.getServerId(), this::resolveServerName)));
+        versions.sort(Comparator.comparing((NodeDeploymentVersionDto dto) -> Objects.toString(dto.getServerName(), ""))
+                .thenComparing(dto -> dto.getNodeServerId() == null ? Long.MAX_VALUE : dto.getNodeServerId())
+                .thenComparing(NodeDeploymentVersionDto::isCurrent, Comparator.reverseOrder())
+                .thenComparing(NodeDeploymentVersionDto::getVersion, Comparator.reverseOrder()));
         return versions;
     }
 
-    public NodeDeploymentVersionDetailDto getVersionDetail(Long nodeId, Integer version) {
+    public NodeDeploymentVersionDetailDto getVersionDetail(Long nodeId, Long nodeServerId, Integer version) {
         ensureNodeExists(nodeId);
         if (version == null || version < 1) {
             throw new IllegalArgumentException("版本号无效");
         }
+        Long effectiveNodeServerId = resolveVersionNodeServerId(nodeId, nodeServerId);
 
-        NodeDeployment current = nodeDeploymentRepository.findByNodeId(nodeId).orElse(null);
+        NodeDeployment current = nodeDeploymentRepository.findByNodeServerId(effectiveNodeServerId).orElse(null);
         if (current != null && version.equals(current.getVersion())) {
             return toCurrentDetailDto(current);
         }
 
-        NodeDeploymentHistory history = nodeDeploymentHistoryRepository.findByNodeIdAndVersion(nodeId, version)
+        NodeDeploymentHistory history = nodeDeploymentHistoryRepository.findByNodeServerIdAndVersion(effectiveNodeServerId, version)
+                .filter(item -> nodeId.equals(item.getNodeId()))
                 .orElseThrow(() -> new EntityNotFoundException("部署版本不存在"));
         return toHistoryDetailDto(history);
     }
 
+    private Long resolveVersionNodeServerId(Long nodeId, Long nodeServerId) {
+        if (nodeServerId != null) {
+            return nodeServerId;
+        }
+        List<NodeDeployment> deployments = nodeDeploymentRepository.findByNodeId(nodeId);
+        if (deployments.size() == 1) {
+            return deployments.getFirst().getNodeServerId();
+        }
+        throw new IllegalArgumentException("节点有多个部署位，请指定 nodeServerId");
+    }
+
     @Transactional
-    public Node restoreVersion(Long nodeId, Integer version) {
+    public Node restoreVersion(Long nodeId, Long nodeServerId, Integer version) {
         ensureNodeExists(nodeId);
-        NodeDeploymentVersionDetailDto detail = getVersionDetail(nodeId, version);
+        NodeDeploymentVersionDetailDto detail = getVersionDetail(nodeId, nodeServerId, version);
         NodeDeploymentVersionSnapshotDto snapshot = detail.getSnapshot();
         if (snapshot == null) {
             throw new IllegalArgumentException("部署版本快照为空，无法还原");
         }
 
+        // 只还原节点配置，部署位与订阅 DNS 绑定保持现状
         Node restoredNode = toNode(snapshot);
+        restoredNode.setDnsRecordId(nodeRepository.findById(nodeId).getDnsRecordId());
         Set<Tag> restoredTags = toTagSet(snapshot.getTagIds());
-        Node updatedNode = nodeService.updateNode(restoredNode, snapshot.getNodeGroup(), restoredTags, true);
+        Node updatedNode = nodeService.updateNode(restoredNode, null, restoredTags, true);
         tagService.updateNodeTags(nodeId, snapshot.getTagIds());
         return updatedNode;
-    }
-
-    @Transactional
-    public int initializeFromLegacyDeployedNodes() {
-        if (nodeDeploymentRepository.count() > 0) {
-            return 0;
-        }
-
-        List<Node> deployedNodes = nodeRepository.findByDeployed(NodeDeploymentStatus.DEPLOYED.getValue());
-        if (deployedNodes.isEmpty()) {
-            return 0;
-        }
-
-        recordSuccessfulDeployments(deployedNodes);
-        return deployedNodes.size();
     }
 
     @Transactional
@@ -149,16 +164,16 @@ public class NodeDeploymentVersionService {
         return totalDeleted;
     }
 
-    private void upsertCurrentVersion(Node node) {
+    private void upsertCurrentVersion(Node node, NodeServer placement) {
         List<Tag> currentTags = tagRepository.findByNodeId(node.getId());
-        NodeDeploymentVersionSnapshotDto snapshot = toSnapshotDto(node, currentTags);
+        NodeDeploymentVersionSnapshotDto snapshot = toSnapshotDto(node, placement, currentTags);
         String snapshotJson = JsonUtil.toJsonString(snapshot);
-        NodeDeployment currentDeployment = nodeDeploymentRepository.findByNodeId(node.getId()).orElse(null);
+        NodeDeployment currentDeployment = nodeDeploymentRepository.findByNodeServerId(placement.getId()).orElse(null);
         LocalDateTime deployedAt = LocalDateTime.now();
 
         if (currentDeployment == null) {
             NodeDeployment deployment = new NodeDeployment();
-            fillCurrentDeployment(deployment, node, snapshotJson, 1, deployedAt);
+            fillCurrentDeployment(deployment, node, placement, snapshotJson, 1, deployedAt);
             nodeDeploymentRepository.persist(deployment);
             return;
         }
@@ -169,24 +184,26 @@ public class NodeDeploymentVersionService {
         );
         Node previousNode = toNode(previousSnapshot);
         previousNode.setTags(toTagSet(previousSnapshot.getTagIds()));
-        boolean changed = nodeService.hasSubstantialChanges(previousNode, node, new LinkedHashSet<>(currentTags), true);
+        boolean changed = nodeService.hasSubstantialChanges(previousNode, node, new LinkedHashSet<>(currentTags), true)
+                || !Objects.equals(previousSnapshot.getServerId(), placement.getServerId())
+                || !Objects.equals(previousSnapshot.getAccessHostId(), placement.getAccessHostId());
         if (!changed) {
-            fillCurrentDeployment(currentDeployment, node, snapshotJson, currentDeployment.getVersion(), deployedAt);
+            fillCurrentDeployment(currentDeployment, node, placement, snapshotJson, currentDeployment.getVersion(), deployedAt);
             return;
         }
 
         archiveCurrentDeployment(currentDeployment);
-        fillCurrentDeployment(currentDeployment, node, snapshotJson, currentDeployment.getVersion() + 1, deployedAt);
+        fillCurrentDeployment(currentDeployment, node, placement, snapshotJson, currentDeployment.getVersion() + 1, deployedAt);
     }
 
     private void archiveCurrentDeployment(NodeDeployment currentDeployment) {
         NodeDeploymentHistory history = new NodeDeploymentHistory();
         history.setNodeId(currentDeployment.getNodeId());
+        history.setNodeServerId(currentDeployment.getNodeServerId());
         history.setVersion(currentDeployment.getVersion());
         history.setSnapshotHash(currentDeployment.getSnapshotHash());
         history.setSnapshotJson(currentDeployment.getSnapshotJson());
         history.setServerId(currentDeployment.getServerId());
-        history.setNodeGroup(currentDeployment.getNodeGroup());
         history.setCoreType(currentDeployment.getCoreType());
         history.setProtocol(currentDeployment.getProtocol());
         history.setType(currentDeployment.getType());
@@ -228,15 +245,16 @@ public class NodeDeploymentVersionService {
 
     private void fillCurrentDeployment(NodeDeployment deployment,
                                        Node node,
+                                       NodeServer placement,
                                        String snapshotJson,
                                        Integer version,
                                        LocalDateTime deployedAt) {
         deployment.setNodeId(node.getId());
+        deployment.setNodeServerId(placement.getId());
         deployment.setVersion(version);
         deployment.setSnapshotHash(snapshotJson == null ? "" : nodeService.md5Hex(snapshotJson));
         deployment.setSnapshotJson(snapshotJson);
-        deployment.setServerId(node.getServerId());
-        deployment.setNodeGroup(node.getNodeGroup());
+        deployment.setServerId(placement.getServerId());
         deployment.setCoreType(node.getCoreType());
         deployment.setProtocol(node.getProtocol());
         deployment.setType(node.getType());
@@ -245,12 +263,12 @@ public class NodeDeploymentVersionService {
         deployment.setDeployedAt(deployedAt);
     }
 
-    private NodeDeploymentVersionSnapshotDto toSnapshotDto(Node node, List<Tag> tags) {
+    private NodeDeploymentVersionSnapshotDto toSnapshotDto(Node node, NodeServer placement, List<Tag> tags) {
         NodeDeploymentVersionSnapshotDto snapshot = new NodeDeploymentVersionSnapshotDto();
         snapshot.setNodeId(node.getId());
-        snapshot.setServerId(node.getServerId());
-        snapshot.setNodeGroup(node.getNodeGroup());
-        snapshot.setAccessHostId(node.getAccessHostId());
+        snapshot.setNodeServerId(placement.getId());
+        snapshot.setServerId(placement.getServerId());
+        snapshot.setAccessHostId(placement.getAccessHostId());
         snapshot.setPort(node.getPort());
         snapshot.setProtocol(node.getProtocol());
         snapshot.setCoreType(node.getCoreType());
@@ -277,9 +295,6 @@ public class NodeDeploymentVersionService {
     private Node toNode(NodeDeploymentVersionSnapshotDto snapshot) {
         Node node = new Node();
         node.setId(snapshot.getNodeId());
-        node.setServerId(snapshot.getServerId());
-        node.setNodeGroup(snapshot.getNodeGroup());
-        node.setAccessHostId(snapshot.getAccessHostId());
         node.setPort(snapshot.getPort());
         node.setProtocol(snapshot.getProtocol());
         node.setCoreType(snapshot.getCoreType());
@@ -306,8 +321,8 @@ public class NodeDeploymentVersionService {
         NodeDeploymentVersionDto dto = new NodeDeploymentVersionDto();
         dto.setVersion(deployment.getVersion());
         dto.setCurrent(true);
+        dto.setNodeServerId(deployment.getNodeServerId());
         dto.setServerId(deployment.getServerId());
-        dto.setNodeGroup(deployment.getNodeGroup());
         dto.setCoreType(deployment.getCoreType());
         dto.setProtocol(deployment.getProtocol());
         dto.setType(deployment.getType());
@@ -321,8 +336,8 @@ public class NodeDeploymentVersionService {
         NodeDeploymentVersionDto dto = new NodeDeploymentVersionDto();
         dto.setVersion(history.getVersion());
         dto.setCurrent(false);
+        dto.setNodeServerId(history.getNodeServerId());
         dto.setServerId(history.getServerId());
-        dto.setNodeGroup(history.getNodeGroup());
         dto.setCoreType(history.getCoreType());
         dto.setProtocol(history.getProtocol());
         dto.setType(history.getType());
@@ -350,6 +365,14 @@ public class NodeDeploymentVersionService {
         dto.setArchivedAt(history.getArchivedAt());
         dto.setSnapshot(JsonUtil.toObject(history.getSnapshotJson(), NodeDeploymentVersionSnapshotDto.class));
         return dto;
+    }
+
+    private String resolveServerName(Long serverId) {
+        Server server = serverId == null ? null : serverRepository.findById(serverId);
+        if (server == null) {
+            return null;
+        }
+        return server.getName() == null || server.getName().isBlank() ? server.getIp() : server.getName();
     }
 
     private void ensureNodeExists(Long nodeId) {

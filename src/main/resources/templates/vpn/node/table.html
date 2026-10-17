@@ -10,18 +10,7 @@
                     <i :class="getSortIcon('name')" :style="{ opacity: isSortActive('name') ? 1 : 0.45 }"></i>
                 </button>
             </th>
-            <th>
-                <button type="button" class="btn btn-link p-0 text-decoration-none" @click="toggleSort('server')">
-                    服务器
-                    <i :class="getSortIcon('server')" :style="{ opacity: isSortActive('server') ? 1 : 0.45 }"></i>
-                </button>
-            </th>
-            <th class="d-none d-xl-table-cell">
-                <button type="button" class="btn btn-link p-0 text-decoration-none" @click="toggleSort('nodeGroup')">
-                    节点组
-                    <i :class="getSortIcon('nodeGroup')" :style="{ opacity: isSortActive('nodeGroup') ? 1 : 0.45 }"></i>
-                </button>
-            </th>
+            <th>部署服务器</th>
             <th class="d-none d-lg-table-cell">
                 <button type="button" class="btn btn-link p-0 text-decoration-none" @click="toggleSort('outbound')">
                     出站
@@ -61,15 +50,16 @@
             </div>
         </td>
         <td>
-            <div class="d-flex flex-column">
-                <span class="fw-medium">{{ node.serverIp || '-' }}</span>
-                <span v-if="node.serverHost" class="text-secondary small text-break">{{ node.serverHost }}</span>
-                <span v-if="node.accessHost && node.accessHost !== node.serverHost" class="text-secondary small text-break">接入 Host: {{ node.accessHost }}</span>
+            <div class="d-flex flex-wrap gap-1" style="max-width: 20rem;">
+                <span v-for="placement in node.placements" :key="placement.id"
+                      class="badge" :class="getPlacementBadgeClass(placement)" :title="getPlacementTitle(placement)">
+                    <i v-if="placement.exposed !== 0 && placement.enabled !== 0" class="ti ti-eye me-1"></i>{{ placement.serverName || placement.serverIp || placement.serverId }}<template v-if="placement.deployed !== 1 && placement.enabled !== 0"> · {{ getDeploymentStatusLabel(placement.deployed) }}</template>
+                </span>
+                <span v-if="!node.placements || node.placements.length === 0" class="text-secondary">-</span>
             </div>
-        </td>
-        <td class="d-none d-xl-table-cell">
-            <span class="fw-medium" v-if="node.nodeGroup">{{ node.nodeGroup }}</span>
-            <span v-else class="text-secondary">-</span>
+            <div v-if="node.dnsRecordName" class="text-secondary small text-break mt-1">
+                <i class="ti ti-world me-1"></i>{{ node.dnsRecordName }}
+            </div>
         </td>
         <td class="d-none d-lg-table-cell">
             <div class="d-flex flex-column">

@@ -6,20 +6,23 @@ import com.fun90.airopscat.model.enums.NodeType;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 @Data
 public class NodeDto {
     private Long id;
+    // 主部署位（订阅条目为该条目对应部署位）的服务器信息
+    private Long nodeServerId;
     private Long serverId;
     private String serverIp;
     private String serverHost;
     private Long accessHostId;
     private String accessHost;
-    private String nodeGroup;
     private Integer port;
     private String protocol;
     private String coreType;
@@ -41,6 +44,9 @@ public class NodeDto {
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
     private Set<Tag> tags = new HashSet<>();
+    private Long dnsRecordId;
+    private String dnsRecordName;
+    private List<NodeServerDto> placements = new ArrayList<>();
 
 
     // 辅助方法：获取tag

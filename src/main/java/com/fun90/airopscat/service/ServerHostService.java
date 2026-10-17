@@ -3,7 +3,7 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.ServerHostDto;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerHost;
-import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.repository.ServerHostRepository;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -22,15 +22,15 @@ public class ServerHostService {
 
     private final ServerHostRepository serverHostRepository;
     private final ServerRepository serverRepository;
-    private final NodeRepository nodeRepository;
+    private final NodeServerRepository nodeServerRepository;
 
     @Inject
     public ServerHostService(ServerHostRepository serverHostRepository,
                              ServerRepository serverRepository,
-                             NodeRepository nodeRepository) {
+                             NodeServerRepository nodeServerRepository) {
         this.serverHostRepository = serverHostRepository;
         this.serverRepository = serverRepository;
-        this.nodeRepository = nodeRepository;
+        this.nodeServerRepository = nodeServerRepository;
     }
 
     public List<ServerHost> getHostsByServerId(Long serverId) {
@@ -181,7 +181,7 @@ public class ServerHostService {
                 .filter(id -> !retainedIds.contains(id))
                 .toList();
         if (!removedHostIds.isEmpty()) {
-            nodeRepository.clearAccessHostIds(removedHostIds);
+            nodeServerRepository.clearAccessHostIds(removedHostIds);
             serverHostRepository.deleteByIds(removedHostIds);
         }
 
@@ -194,7 +194,7 @@ public class ServerHostService {
         if (serverId == null) {
             return;
         }
-        nodeRepository.clearAccessHostIdsByServerId(serverId);
+        nodeServerRepository.clearAccessHostIdsByServerId(serverId);
         serverHostRepository.deleteByServerId(serverId);
     }
 

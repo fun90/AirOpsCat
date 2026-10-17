@@ -2,15 +2,14 @@ package com.fun90.airopscat.service.deployment;
 
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.deployment.CoreDeploymentExecution;
-import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
-import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.NodeServerRepository;
 import org.junit.jupiter.api.Test;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -19,53 +18,50 @@ class CoreDeploymentExecutorTest {
 
     @Test
     void shouldPersistDeploymentResultWithoutSavingLargeConfigBody() {
-        TestNodeRepository nodeRepository = new TestNodeRepository();
+        TestNodeServerRepository nodeServerRepository = new TestNodeServerRepository();
         TestNodeDeploymentVersionService versionService = new TestNodeDeploymentVersionService();
         CoreDeploymentExecutor executor = new CoreDeploymentExecutor(
-                null, nodeRepository, null, versionService, null, null, null, null, null);
+                null, nodeServerRepository, null, versionService, null, null, null, null, null);
 
         Server server = new Server();
         server.setId(7L);
-        Node node = new Node();
-        node.setId(8L);
-        node.setServerId(7L);
-        node.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
-        nodeRepository.nodes.put(node.getId(), node);
+        NodeServer placement = new NodeServer();
+        placement.setId(9L);
+        placement.setNodeId(8L);
+        placement.setServerId(7L);
+        placement.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
         String largeConfig = "x".repeat(70 * 1024);
 
         List<DeploymentResult> results = executor.persist(
-                CoreDeploymentExecution.success(server, "sing-box", List.of(node), largeConfig));
+                CoreDeploymentExecution.success(server, "sing-box", List.of(placement), largeConfig));
 
         assertEquals(1, results.size());
         assertTrue(results.getFirst().isSuccess());
-        assertEquals(NodeDeploymentStatus.DEPLOYED.getValue(), node.getDeployed());
-        assertEquals(List.of(node), versionService.recordedNodes);
+        assertEquals(8L, results.getFirst().getNodeId());
+        assertEquals(NodeDeploymentStatus.DEPLOYED.getValue(), placement.getDeployed());
+        assertEquals(List.of(placement), nodeServerRepository.persisted);
+        assertEquals(List.of(placement), versionService.recordedPlacements);
     }
 
-    static class TestNodeRepository extends NodeRepository {
-        final Map<Long, Node> nodes = new HashMap<>();
+    static class TestNodeServerRepository extends NodeServerRepository {
+        final List<NodeServer> persisted = new ArrayList<>();
 
         @Override
-        public void persist(Node node) {
-            nodes.put(node.getId(), node);
-        }
-
-        @Override
-        public Node findById(Long id) {
-            return nodes.get(id);
+        public void persist(NodeServer placement) {
+            persisted.add(placement);
         }
     }
 
     static class TestNodeDeploymentVersionService extends NodeDeploymentVersionService {
-        List<Node> recordedNodes = List.of();
+        List<NodeServer> recordedPlacements = List.of();
 
         TestNodeDeploymentVersionService() {
-            super(null, null, null, null, null, null, null);
+            super(null, null, null, null, null, null, null, null, null);
         }
 
         @Override
-        public void recordSuccessfulDeployments(List<Node> nodes) {
-            recordedNodes = nodes;
+        public void recordSuccessfulDeployments(List<NodeServer> placements) {
+            recordedPlacements = placements;
         }
     }
 }

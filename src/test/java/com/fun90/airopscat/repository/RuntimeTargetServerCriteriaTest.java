@@ -1,6 +1,6 @@
 package com.fun90.airopscat.repository;
 
-import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import org.junit.jupiter.api.Test;
@@ -34,13 +34,12 @@ class RuntimeTargetServerCriteriaTest {
         assertFalse(matches(server, List.of(node(NodeDeploymentStatus.DEPLOYED, 0)), today));
     }
 
-    private static boolean matches(Server server, List<Node> nodes, LocalDate today) {
+    private static boolean matches(Server server, List<NodeServer> placements, LocalDate today) {
         boolean validServer = (server.getDisabled() == null || server.getDisabled() == 0)
                 && (server.getExternal() == null || server.getExternal() == 0)
                 && (server.getExpireDate() == null || !server.getExpireDate().isBefore(today));
-        return validServer && nodes.stream().anyMatch(node ->
-                (node.getDisabled() == null || node.getDisabled() == 0)
-                        && NodeDeploymentStatus.isDeployed(node.getDeployed()));
+        return validServer && placements.stream().anyMatch(placement ->
+                placement.enabledFlag() && NodeDeploymentStatus.isDeployed(placement.getDeployed()));
     }
 
     private static Server activeServer(LocalDate today) {
@@ -51,10 +50,11 @@ class RuntimeTargetServerCriteriaTest {
         return server;
     }
 
-    private static Node node(NodeDeploymentStatus status, Integer disabled) {
-        Node node = new Node();
-        node.setDeployed(status.getValue());
-        node.setDisabled(disabled);
-        return node;
+    // 节点禁用与部署位停用在查询中等价，这里用部署位 enabled 表示
+    private static NodeServer node(NodeDeploymentStatus status, Integer disabled) {
+        NodeServer placement = new NodeServer();
+        placement.setDeployed(status.getValue());
+        placement.setEnabled(disabled == 1 ? 0 : 1);
+        return placement;
     }
 }

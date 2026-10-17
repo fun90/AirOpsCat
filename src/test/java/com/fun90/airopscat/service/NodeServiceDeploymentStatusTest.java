@@ -1,6 +1,6 @@
 package com.fun90.airopscat.service;
 
-import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import org.junit.jupiter.api.Test;
 
@@ -9,24 +9,24 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class NodeServiceDeploymentStatusTest {
 
     @Test
-    void shouldMarkNormalNodeAsPendingDeploy() {
+    void shouldMarkNormalPlacementAsPendingDeploy() {
         NodeService service = new NodeService();
-        Node node = new Node();
-        node.setDeployed(NodeDeploymentStatus.DEPLOYED.getValue());
+        NodeServer placement = new NodeServer();
+        placement.setDeployed(NodeDeploymentStatus.DEPLOYED.getValue());
 
-        service.markPendingDeploy(node);
+        service.markPendingDeploy(placement);
 
-        assertEquals(NodeDeploymentStatus.PENDING_DEPLOY.getValue(), node.getDeployed());
+        assertEquals(NodeDeploymentStatus.PENDING_DEPLOY.getValue(), placement.getDeployed());
     }
 
     @Test
     void shouldNotOverwritePendingDeleteStatusWhenMarkingPendingDeploy() {
         NodeService service = new NodeService();
-        Node node = new Node();
-        node.setDeployed(NodeDeploymentStatus.PENDING_DELETE.getValue());
+        NodeServer placement = new NodeServer();
+        placement.setDeployed(NodeDeploymentStatus.PENDING_DELETE.getValue());
 
-        service.markPendingDeploy(node);
+        service.markPendingDeploy(placement);
 
-        assertEquals(NodeDeploymentStatus.PENDING_DELETE.getValue(), node.getDeployed());
+        assertEquals(NodeDeploymentStatus.PENDING_DELETE.getValue(), placement.getDeployed());
     }
 }

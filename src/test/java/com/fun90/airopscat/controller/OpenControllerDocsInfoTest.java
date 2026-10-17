@@ -125,7 +125,7 @@ class OpenControllerDocsInfoTest {
 
     static class FakeSubscriptionService extends SubscriptionService {
         FakeSubscriptionService() {
-            super(null, null, null, null, null, null, null, null, null, null, null);
+            super(null, null, null, null, null, null, null, null, null, null, null, null, null);
         }
 
         @Override

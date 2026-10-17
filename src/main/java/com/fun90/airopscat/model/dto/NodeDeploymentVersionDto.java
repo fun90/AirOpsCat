@@ -8,8 +8,9 @@ import java.time.LocalDateTime;
 public class NodeDeploymentVersionDto {
     private Integer version;
     private boolean current;
+    private Long nodeServerId;
     private Long serverId;
-    private String nodeGroup;
+    private String serverName;
     private String coreType;
     private String protocol;
     private Integer type;

@@ -8,7 +8,7 @@ import com.fun90.airopscat.model.dto.ServerDto;
 import com.fun90.airopscat.model.dto.ServerHostDto;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerHost;
-import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.repository.RouteRuleRepository;
 import com.fun90.airopscat.repository.ServerHostRepository;
 import com.fun90.airopscat.model.enums.ServerAuthType;
@@ -38,7 +38,7 @@ public class ServerService {
 
     private final ServerRepository serverRepository;
     private final ServerHostRepository serverHostRepository;
-    private final NodeRepository nodeRepository;
+    private final NodeServerRepository nodeServerRepository;
     private final RouteRuleRepository routeRuleRepository;
     private final ObjectMapper objectMapper;
     private final ServerHostService serverHostService;
@@ -50,7 +50,7 @@ public class ServerService {
     @Inject
     public ServerService(ServerRepository serverRepository,
                          ServerHostRepository serverHostRepository,
-                         NodeRepository nodeRepository,
+                         NodeServerRepository nodeServerRepository,
                          RouteRuleRepository routeRuleRepository,
                          ObjectMapper objectMapper,
                          ServerHostService serverHostService,
@@ -60,7 +60,7 @@ public class ServerService {
                          ServerSshConfigFactory serverSshConfigFactory) {
         this.serverRepository = serverRepository;
         this.serverHostRepository = serverHostRepository;
-        this.nodeRepository = nodeRepository;
+        this.nodeServerRepository = nodeServerRepository;
         this.routeRuleRepository = routeRuleRepository;
         this.objectMapper = objectMapper;
         this.serverHostService = serverHostService;
@@ -371,7 +371,7 @@ public class ServerService {
 
     @Transactional
     public void deleteServer(Long id) {
-        if (nodeRepository.count("serverId", id) > 0) {
+        if (nodeServerRepository.countByServerId(id) > 0) {
             throw new IllegalStateException("服务器下还有节点，不能删除");
         }
         routeRuleRepository.deleteServerBindings(id);

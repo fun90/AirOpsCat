@@ -6,11 +6,13 @@ import com.fun90.airopscat.model.dto.RouteRuleDto;
 import com.fun90.airopscat.model.dto.RouteRuleRequest;
 import com.fun90.airopscat.model.dto.deployment.RouteRuleSnapshot;
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.RouteRule;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.RouteRuleType;
 import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.repository.RouteRuleRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
@@ -37,16 +39,19 @@ public class RouteRuleService {
     private final RouteRuleRepository routeRuleRepository;
     private final ServerRepository serverRepository;
     private final NodeRepository nodeRepository;
+    private final NodeServerRepository nodeServerRepository;
     private final ObjectMapper objectMapper;
 
     @Inject
     public RouteRuleService(RouteRuleRepository routeRuleRepository,
                             ServerRepository serverRepository,
                             NodeRepository nodeRepository,
+                            NodeServerRepository nodeServerRepository,
                             ObjectMapper objectMapper) {
         this.routeRuleRepository = routeRuleRepository;
         this.serverRepository = serverRepository;
         this.nodeRepository = nodeRepository;
+        this.nodeServerRepository = nodeServerRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -173,12 +178,9 @@ public class RouteRuleService {
         Node outboundNode = nodeRepository.findById(routeRule.getOutboundNodeId());
         if (outboundNode != null) {
             dto.setOutboundNodeName(buildNodeLabel(outboundNode));
-            if (outboundNode.getServerId() != null) {
-                Server outboundServer = serverRepository.findById(outboundNode.getServerId());
-                if (outboundServer != null) {
-                    dto.setOutboundServerLabel(buildServerLabel(outboundServer));
-                }
-            }
+            nodeServerRepository.findEffectiveByNodeId(outboundNode.getId())
+                    .map(NodeServer::getServer)
+                    .ifPresent(outboundServer -> dto.setOutboundServerLabel(buildServerLabel(outboundServer)));
         }
         return dto;
     }

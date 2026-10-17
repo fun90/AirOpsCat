@@ -1,6 +1,5 @@
 package com.fun90.airopscat.controller;
 
-import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.AccountDto;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.dto.TagDto;
@@ -8,6 +7,7 @@ import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.service.AccountService;
+import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.TagService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
@@ -33,6 +33,9 @@ public class TagController {
     
     @Inject
     AccountService accountService;
+
+    @Inject
+    NodeService nodeService;
 
     @GET
     public Response getTagPage(
@@ -202,9 +205,7 @@ public class TagController {
     @Path("/{tagId}/nodes")
     public Response getNodesByTag(@PathParam("tagId") Long tagId) {
         List<Node> nodes = tagService.getNodesByTag(tagId);
-        List<NodeDto> nodeDtos = nodes.stream()
-                .map(NodeConverter::toDto)
-                .collect(Collectors.toList());
+        List<NodeDto> nodeDtos = nodeService.toNodeDtos(nodes);
         return Response.ok(nodeDtos).build();
     }
     
@@ -243,9 +244,7 @@ public class TagController {
     @Path("/accounts/{accountId}/available-nodes")
     public Response getAvailableNodesByAccount(@PathParam("accountId") Long accountId) {
         List<Node> nodes = tagService.getAvailableNodesByAccount(accountId);
-        List<NodeDto> nodeDtos = nodes.stream()
-                .map(NodeConverter::toDto)
-                .collect(Collectors.toList());
+        List<NodeDto> nodeDtos = nodeService.toNodeDtos(nodes);
         return Response.ok(nodeDtos).build();
     }
     

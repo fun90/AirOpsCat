@@ -214,7 +214,7 @@ public class RateLimitService {
         try {
             DeploymentServerContext ctx = deploymentDataLoader.loadForServer(server.getId());
             Map<String, SingBoxConfigBuilder.RateLimitOverride> overrides = buildOverrides(ctx);
-            String config = singBoxConfigBuilder.build(ctx, ctx.nodes(), overrides);
+            String config = singBoxConfigBuilder.build(ctx, ctx.placements(), overrides);
             withConnection(server, connection -> {
                 List<CoreManagementResult> results = coreManagementService.executeOperations(
                         CORE_TYPE_SING_BOX,

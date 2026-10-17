@@ -19,6 +19,9 @@ public class NodeDeploymentHistory {
     @Column(name = "node_id", nullable = false)
     private Long nodeId;
 
+    @Column(name = "node_server_id")
+    private Long nodeServerId;
+
     @Column(nullable = false)
     private Integer version;
 
@@ -30,9 +33,6 @@ public class NodeDeploymentHistory {
 
     @Column(name = "server_id")
     private Long serverId;
-
-    @Column(name = "node_group")
-    private String nodeGroup;
 
     @Column(name = "core_type")
     private String coreType;

@@ -4,11 +4,11 @@ import com.fun90.airopscat.model.dto.CoreManagementResult;
 import com.fun90.airopscat.model.dto.DeploymentResult;
 import com.fun90.airopscat.model.dto.deployment.CoreDeploymentExecution;
 import com.fun90.airopscat.model.dto.deployment.DeploymentServerContext;
-import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.enums.CoreOperation;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
-import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.core.CoreManagementService;
 import com.fun90.airopscat.service.ratelimit.RateLimitService;
@@ -25,7 +25,6 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
@@ -36,7 +35,7 @@ public class CoreDeploymentExecutor {
 
     private static final String CORE_TYPE_SING_BOX = "sing-box";
     private final CoreManagementService coreManagementService;
-    private final NodeRepository nodeRepository;
+    private final NodeServerRepository nodeServerRepository;
     private final SingBoxConfigBuilder singBoxConfigBuilder;
     private final NodeDeploymentVersionService nodeDeploymentVersionService;
     private final NodeService nodeService;
@@ -47,7 +46,7 @@ public class CoreDeploymentExecutor {
 
     @Inject
     public CoreDeploymentExecutor(CoreManagementService coreManagementService,
-                                  NodeRepository nodeRepository,
+                                  NodeServerRepository nodeServerRepository,
                                   SingBoxConfigBuilder singBoxConfigBuilder,
                                   NodeDeploymentVersionService nodeDeploymentVersionService,
                                   NodeService nodeService,
@@ -56,7 +55,7 @@ public class CoreDeploymentExecutor {
                                   RateLimitService rateLimitService,
                                   @Named("deploymentTaskExecutor") ExecutorService executorService) {
         this.coreManagementService = coreManagementService;
-        this.nodeRepository = nodeRepository;
+        this.nodeServerRepository = nodeServerRepository;
         this.singBoxConfigBuilder = singBoxConfigBuilder;
         this.nodeDeploymentVersionService = nodeDeploymentVersionService;
         this.nodeService = nodeService;
@@ -72,28 +71,28 @@ public class CoreDeploymentExecutor {
     @ActivateRequestContext
     public List<CoreDeploymentExecution> executeForServer(DeploymentServerContext ctx) {
         Server server = ctx.server();
-        log.info("Deploy nodes for server {}({}), count={}", server.getName(), server.getId(), ctx.nodes().size());
+        log.info("Deploy nodes for server {}({}), count={}", server.getName(), server.getId(), ctx.placements().size());
 
         List<CoreDeploymentExecution> results = new ArrayList<>();
         long startTime = System.nanoTime();
         if (!shouldDeployRemotely(server)) {
-            results.add(executeConfigBuilder(ctx, ctx.nodes(), null));
+            results.add(executeConfigBuilder(ctx, ctx.placements(), null));
             logServerDeploymentSummary(server, results, startTime);
             return results;
         }
 
         try (SshConnection connection = createConnection(server)) {
-            results.add(executeConfigBuilder(ctx, ctx.nodes(), connection));
+            results.add(executeConfigBuilder(ctx, ctx.placements(), connection));
         } catch (Exception e) {
             log.error("Create deployment SSH connection failed for server {}", server.getName(), e);
-            results.add(CoreDeploymentExecution.failure(server, CORE_TYPE_SING_BOX, ctx.nodes(), e.getMessage()));
+            results.add(CoreDeploymentExecution.failure(server, CORE_TYPE_SING_BOX, ctx.placements(), e.getMessage()));
         }
         logServerDeploymentSummary(server, results, startTime);
         return results;
     }
 
     private CoreDeploymentExecution executeConfigBuilder(DeploymentServerContext ctx,
-                                                         List<Node> nodes,
+                                                         List<NodeServer> nodes,
                                                          SshConnection connection) {
         Server server = ctx.server();
         try {
@@ -110,7 +109,7 @@ public class CoreDeploymentExecutor {
         }
     }
 
-    String buildConfig(DeploymentServerContext ctx, List<Node> nodes) {
+    String buildConfig(DeploymentServerContext ctx, List<NodeServer> nodes) {
         if (rateLimitService.isEnabled()) {
             return singBoxConfigBuilder.build(ctx, nodes, rateLimitService.buildOverrides(ctx));
         }
@@ -181,57 +180,39 @@ public class CoreDeploymentExecutor {
 
     public List<DeploymentResult> persist(CoreDeploymentExecution execution) {
         if (!execution.success()) {
-            return execution.nodes().stream()
-                    .map(node -> toFailureResult(node, execution.message()))
+            return execution.placements().stream()
+                    .map(placement -> toResult(placement, false, execution.message()))
                     .collect(Collectors.toList());
         }
-        List<DeploymentResult> results = updateNodeDeploymentStatus(execution.nodes(), execution.server().getId());
-        nodeDeploymentVersionService.recordSuccessfulDeployments(
-                results.stream()
-                        .filter(DeploymentResult::isSuccess)
-                        .map(result -> nodeRepository.findById(result.getNodeId()))
-                        .filter(Objects::nonNull)
-                        .filter(node -> !NodeDeploymentStatus.isPendingDelete(node.getDeployed()))
-                        .toList()
-        );
-        return results;
-    }
-
-    private List<DeploymentResult> updateNodeDeploymentStatus(List<Node> nodes, Long serverId) {
         List<DeploymentResult> results = new ArrayList<>();
-        for (Node node : nodes) {
+        List<NodeServer> deployedPlacements = new ArrayList<>();
+        Long serverId = execution.server().getId();
+        for (NodeServer placement : execution.placements()) {
             try {
-                if (serverId.equals(node.getServerId())) {
-                    if (NodeDeploymentStatus.isPendingDelete(node.getDeployed())) {
-                        nodeService.physicallyDeleteNode(node.getId());
+                if (serverId.equals(placement.getServerId())) {
+                    if (NodeDeploymentStatus.isPendingDelete(placement.getDeployed())) {
+                        nodeService.physicallyDeletePlacement(placement.getId());
                     } else {
-                        node.setDeployed(NodeDeploymentStatus.DEPLOYED.getValue());
-                        nodeRepository.persist(node);
+                        placement.setDeployed(NodeDeploymentStatus.DEPLOYED.getValue());
+                        nodeServerRepository.persist(placement);
+                        deployedPlacements.add(placement);
                     }
                 }
-                results.add(toSuccessResult(node, "节点部署成功"));
+                results.add(toResult(placement, true, "节点部署成功"));
             } catch (Exception e) {
-                log.error("Update node {} deployment status failed", node.getId(), e);
-                results.add(toFailureResult(node, "状态更新失败: " + e.getMessage()));
+                log.error("Update node placement {} deployment status failed", placement.getId(), e);
+                results.add(toResult(placement, false, "状态更新失败: " + e.getMessage()));
             }
         }
+        nodeDeploymentVersionService.recordSuccessfulDeployments(deployedPlacements);
         return results;
     }
 
-    private DeploymentResult toSuccessResult(Node node, String message) {
+    private DeploymentResult toResult(NodeServer placement, boolean success, String message) {
         DeploymentResult result = new DeploymentResult();
-        result.setNodeId(node.getId());
-        result.setServerId(node.getServerId());
-        result.setSuccess(true);
-        result.setMessage(message);
-        return result;
-    }
-
-    private DeploymentResult toFailureResult(Node node, String message) {
-        DeploymentResult result = new DeploymentResult();
-        result.setNodeId(node.getId());
-        result.setServerId(node.getServerId());
-        result.setSuccess(false);
+        result.setNodeId(placement.getNodeId());
+        result.setServerId(placement.getServerId());
+        result.setSuccess(success);
         result.setMessage(message);
         return result;
     }

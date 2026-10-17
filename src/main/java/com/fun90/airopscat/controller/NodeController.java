@@ -9,11 +9,11 @@ import com.fun90.airopscat.model.dto.NodeDeploymentVersionDto;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.dto.NodeRequest;
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
-import com.fun90.airopscat.service.NodeGroupService;
 import com.fun90.airopscat.service.AccountOnlineIpService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentVersionService;
@@ -55,9 +55,6 @@ public class NodeController {
     
     @Inject
     TagService tagService;
-
-    @Inject
-    NodeGroupService nodeGroupService;
 
     @Inject
     NodeDeploymentVersionService nodeDeploymentVersionService;
@@ -133,24 +130,6 @@ public class NodeController {
     }
 
     @GET
-    @Path("/group-options")
-    public Response getNodeGroupOptions(@QueryParam("type") Integer type,
-                                        @QueryParam("excludeId") Long excludeId,
-                                        @QueryParam("serverId") Long serverId,
-                                        @QueryParam("keyword") String keyword) {
-        return Response.ok(nodeGroupService.getNodeGroupOptions(type, excludeId, serverId, keyword)).build();
-    }
-
-    @GET
-    @Path("/group-config")
-    public Response getNodeGroupConfig(@QueryParam("nodeGroup") String nodeGroup,
-                                       @QueryParam("type") Integer type,
-                                       @QueryParam("serverId") Long serverId,
-                                       @QueryParam("excludeId") Long excludeId) {
-        return Response.ok(nodeGroupService.getNodeGroupConfig(nodeGroup, type, serverId, excludeId)).build();
-    }
-    
-    @GET
     @Path("/types")
     public Response getNodeTypes() {
         return Response.ok(nodeService.getNodeTypeOptions()).build();
@@ -176,9 +155,14 @@ public class NodeController {
     
     @GET
     @Path("/available-port")
-    public Response getAvailablePort(@QueryParam("serverId") Long serverId) {
+    public Response getAvailablePort(@QueryParam("serverId") String serverIds) {
+        List<Long> ids = serverIds == null ? List.of() : Arrays.stream(serverIds.split(","))
+                .map(String::trim)
+                .filter(id -> !id.isEmpty())
+                .map(Long::parseLong)
+                .toList();
         Map<String, Integer> response = new HashMap<>();
-        response.put("port", nodeService.getAvailablePort(serverId));
+        response.put("port", nodeService.getAvailablePort(ids));
         return Response.ok(response).build();
     }
     
@@ -213,7 +197,7 @@ public class NodeController {
         try {
             // 使用 NodeConverter 转换请求为实体
             Node node = NodeConverter.fromRequest(request);
-            Node savedNode = nodeService.saveNode(node, request.getNodeGroup());
+            Node savedNode = nodeService.saveNode(node, NodeConverter.placementsFromRequest(request));
             
             // 处理标签关联
             if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
@@ -238,7 +222,8 @@ public class NodeController {
             if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
                 tagSet = request.getTagIds().stream().map(tid -> tagService.getTagById(tid)).collect(Collectors.toSet());
             }
-            Node updatedNode = nodeService.updateNode(node, request.getNodeGroup(), tagSet, request.getTagIds() != null);
+            List<NodeServer> placements = request.getPlacements() == null ? null : NodeConverter.placementsFromRequest(request);
+            Node updatedNode = nodeService.updateNode(node, placements, tagSet, request.getTagIds() != null);
             
             // 处理标签关联
             if (request.getTagIds() != null) {
@@ -262,15 +247,15 @@ public class NodeController {
         }
 
         try {
-            Node deletedNode = nodeService.deleteNode(id);
-            String message = deletedNode != null && NodeDeploymentStatus.isPendingDelete(deletedNode.getDeployed())
-                    ? "节点已标记为待删除，部署成功后将移除"
+            Integer deployed = nodeService.deleteNode(id);
+            String message = deployed != null
+                    ? "节点已标记为待删除，部署成功后将从服务器移除"
                     : "删除成功";
-            return Response.ok(Map.of(
-                    "id", id,
-                    "deployed", deletedNode == null ? null : deletedNode.getDeployed(),
-                    "message", message
-            )).build();
+            Map<String, Object> response = new HashMap<>();
+            response.put("id", id);
+            response.put("deployed", deployed);
+            response.put("message", message);
+            return Response.ok(response).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
@@ -336,10 +321,6 @@ public class NodeController {
 
             // Create a copy of the node manually to avoid shared references
             Node nodeCopy = new Node();
-
-            // Copy basic properties manually
-            nodeCopy.setServerId(existingNode.getServerId());
-            nodeCopy.setAccessHostId(existingNode.getAccessHostId());
             nodeCopy.setProtocol(existingNode.getProtocol());
             nodeCopy.setCoreType(existingNode.getCoreType());
             nodeCopy.setType(existingNode.getType());
@@ -349,29 +330,27 @@ public class NodeController {
             nodeCopy.setLevel(existingNode.getLevel());
             nodeCopy.setDisabled(existingNode.getDisabled());
             nodeCopy.setRemark(existingNode.getRemark());
+            nodeCopy.setNo(existingNode.getNo());
+            nodeCopy.setName(existingNode.getName() != null ? existingNode.getName() + " (Copy)" : "Copy of Node " + id);
 
-            nodeCopy.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
+            // 复制部署位；端口需在所有部署服务器上可用，DNS 绑定不复制（一条记录只能绑定一个节点）
+            List<NodeServer> placements = nodeService.getPlacements(id).stream()
+                    .filter(placement -> !NodeDeploymentStatus.isPendingDelete(placement.getDeployed()))
+                    .map(placement -> {
+                        NodeServer copy = new NodeServer();
+                        copy.setServerId(placement.getServerId());
+                        copy.setAccessHostId(placement.getAccessHostId());
+                        copy.setExposed(placement.getExposed());
+                        copy.setPriority(placement.getPriority());
+                        copy.setEnabled(placement.getEnabled());
+                        copy.setName(placement.getName());
+                        return copy;
+                    })
+                    .toList();
+            nodeCopy.setPort(nodeService.getAvailablePort(placements.stream().map(NodeServer::getServerId).toList()));
 
-            // Modify the name to indicate it's a copy
-            if (existingNode.getName() != null) {
-                nodeCopy.setName(existingNode.getName() + " (Copy)");
-            } else {
-                nodeCopy.setName("Copy of Node " + id);
-            }
-
-            // The port must be unique per server, so get a new available port
-            if (nodeCopy.getServerId() != null) {
-                Integer availablePort = nodeService.getAvailablePort(nodeCopy.getServerId());
-                nodeCopy.setPort(availablePort);
-            }
-
-            // Don't copy tags - let the new node start without any tags
-            // Don't copy server/outNode references - they will be loaded by JPA automatically
-
-            // Save the new node
-            nodeCopy.setNodeGroup(null);
-            Node savedNode = nodeService.saveNode(nodeCopy, null);
-            return Response.ok(savedNode).build();
+            Node savedNode = nodeService.saveNode(nodeCopy, placements);
+            return Response.ok(nodeService.getNodeDtoById(savedNode.getId())).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
@@ -439,9 +418,11 @@ public class NodeController {
 
     @GET
     @Path("/{id}/deployment-versions/{version}")
-    public Response getDeploymentVersionDetail(@PathParam("id") Long id, @PathParam("version") Integer version) {
+    public Response getDeploymentVersionDetail(@PathParam("id") Long id,
+                                               @PathParam("version") Integer version,
+                                               @QueryParam("nodeServerId") Long nodeServerId) {
         try {
-            NodeDeploymentVersionDetailDto detail = nodeDeploymentVersionService.getVersionDetail(id, version);
+            NodeDeploymentVersionDetailDto detail = nodeDeploymentVersionService.getVersionDetail(id, nodeServerId, version);
             return Response.ok(detail).build();
         } catch (IllegalArgumentException | EntityNotFoundException e) {
             Map<String, String> error = new HashMap<>();
@@ -454,9 +435,10 @@ public class NodeController {
     @Path("/{id}/deployment-versions/{version}/restore")
     public Response restoreDeploymentVersion(@PathParam("id") Long id,
                                              @PathParam("version") Integer version,
+                                             @QueryParam("nodeServerId") Long nodeServerId,
                                              NodeDeploymentRestoreRequest request) {
         try {
-            Node restoredNode = nodeDeploymentVersionService.restoreVersion(id, version);
+            Node restoredNode = nodeDeploymentVersionService.restoreVersion(id, nodeServerId, version);
             if (request != null && Boolean.TRUE.equals(request.getRedeploy())) {
                 nodeDeploymentService.deployNodesForcibly(Collections.singletonList(restoredNode));
             }
@@ -490,7 +472,7 @@ public class NodeController {
         long successCount = results.stream().filter(DeploymentResult::isSuccess).count();
         long failureCount = results.size() - successCount;
         boolean overallSuccess = failureCount == 0 && requestedNodeResult.isSuccess();
-        String summary = String.format("节点组共部署 %d 个节点，成功 %d 个，失败 %d 个。", results.size(), successCount, failureCount);
+        String summary = String.format("共部署 %d 个部署位，成功 %d 个，失败 %d 个。", results.size(), successCount, failureCount);
         String detailMessage = requestedNodeResult.getMessage();
         String mergedMessage = detailMessage == null || detailMessage.isBlank()
                 ? summary

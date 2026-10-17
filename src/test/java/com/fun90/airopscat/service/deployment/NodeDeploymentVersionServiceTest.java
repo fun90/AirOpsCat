@@ -31,7 +31,7 @@ class NodeDeploymentVersionServiceTest {
         int batchSizeUsed;
 
         TestableNodeDeploymentVersionService(List<Integer> deleteResults) {
-            super(null, null, null, null, null, null, null);
+            super(null, null, null, null, null, null, null, null, null);
             this.deleteResults = new ArrayList<>(deleteResults);
         }
 

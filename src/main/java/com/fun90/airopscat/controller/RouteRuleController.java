@@ -1,6 +1,5 @@
 package com.fun90.airopscat.controller;
 
-import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.dto.RouteRuleRequest;
 import com.fun90.airopscat.model.entity.RouteRule;
@@ -101,11 +100,10 @@ public class RouteRuleController {
     @GET
     @Path("/landing-nodes")
     public Response getLandingNodes(@QueryParam("coreType") String coreType) {
-        List<NodeDto> nodes = nodeService.getNodeByType(NodeType.LANDING).stream()
+        List<NodeDto> nodes = nodeService.toNodeDtos(nodeService.getNodeByType(NodeType.LANDING).stream()
                 .filter(node -> node.getDisabled() == null || node.getDisabled() == 0)
                 .filter(node -> node.getCoreType() == null || "sing-box".equalsIgnoreCase(node.getCoreType()))
-                .map(NodeConverter::toDto)
-                .toList();
+                .toList());
         return Response.ok(nodes).build();
     }
 
