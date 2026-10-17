@@ -37,6 +37,8 @@ public class AccountDto {
     private Long usedDownloadBytes;  // 已使用下载流量
     private Long totalUsedBytes;     // 总使用流量
     private Double usagePercentage;  // 使用百分比
+    private LocalDateTime periodStart; // 当前统计周期开始时间，无当前周期统计时为 null
+    private LocalDateTime periodEnd;   // 当前统计周期结束时间（不含）
     
     // 在线连接信息
     private Integer onlineConnectionCount;

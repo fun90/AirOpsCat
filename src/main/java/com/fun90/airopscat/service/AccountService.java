@@ -295,6 +295,10 @@ public class AccountService {
                     ? currentStats.getBandwidthQuota()
                     : (account.getBandwidth() != null ? account.getBandwidth().longValue() : null);
             dto.setEffectiveBandwidth(effectiveBandwidth);
+            if (currentStats != null) {
+                dto.setPeriodStart(currentStats.getPeriodStart());
+                dto.setPeriodEnd(currentStats.getPeriodEnd());
+            }
             AccountTrafficLimitService.EffectiveMbpsLimit mbpsLimit =
                     accountTrafficLimitService.resolveEffectiveMbps(account, currentStats);
             dto.setTrafficOverQuotaLimited(mbpsLimit.trafficOverQuotaLimited());

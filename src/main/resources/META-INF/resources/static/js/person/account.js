@@ -178,6 +178,17 @@ const accountTable = new DataTable({
             this.mobileActionsModal.hide();
         },
 
+        getTrafficTooltip(account) {
+            const parts = [];
+            if (account.effectiveBandwidth) {
+                parts.push(`使用率: ${Math.round(account.usagePercentage || 0)}%`);
+            }
+            if (account.periodStart && account.periodEnd) {
+                parts.push(`周期: ${formatDateTimeFull(account.periodStart)} ~ ${formatDateTimeFull(account.periodEnd)}`);
+            }
+            return parts.join('，') || null;
+        },
+
         formatDateTimeFull(dateTime) {
             return formatDateTimeFull(dateTime);
         },

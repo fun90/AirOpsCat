@@ -57,7 +57,7 @@
         </td>
         <td>
             <div v-if="account.effectiveBandwidth"
-                 :title="`使用率: $\{Math.round(account.usagePercentage || 0)\}%`"
+                 :title="getTrafficTooltip(account)"
                  data-bs-toggle="tooltip"
                  data-bs-placement="top"
                  style="cursor: pointer; max-width: 125px;">
@@ -77,7 +77,7 @@
                     </div>
                 </div>
             </div>
-            <div v-else>
+            <div v-else :title="getTrafficTooltip(account)">
                 {{ formatBytes(account.totalUsedBytes) }}
             </div>
         </td>
