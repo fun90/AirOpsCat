@@ -95,6 +95,11 @@
                                               data-bs-content="<p>绑定后订阅只输出一条，地址为该记录域名，至少需要一个暴露的部署位。</p><p class='mb-0'>记录类型只能是 A 或 CNAME，且不能开启 Cloudflare 代理或时段计划。</p>">?</span>
                                     </label>
                                     <select id="node-dns-record-select-create" class="form-select tom-select-hidden"></select>
+                                    <label v-if="newItem.dnsRecordId" class="form-check mt-2 mb-0">
+                                        <input class="form-check-input" type="checkbox" v-model="newItem.failoverEnabled">
+                                        <span class="form-check-label">流量超阈值时自动切换解析</span>
+                                        <small class="form-hint d-block">服务器当期流量达到「流量告警阈值」后解析自动切到下一个部署位，周期重置后切回；记录 TTL 建议 60 秒，使用证书的协议需让证书覆盖该域名且在各部署服务器可用。手动切换前请先关闭本选项。</small>
+                                    </label>
                                 </div>
                             </div>
                         </div>
@@ -457,6 +462,11 @@
                                               data-bs-content="<p>绑定后订阅只输出一条，地址为该记录域名，至少需要一个暴露的部署位。</p><p class='mb-0'>记录类型只能是 A 或 CNAME，且不能开启 Cloudflare 代理或时段计划。</p>">?</span>
                                     </label>
                                     <select id="node-dns-record-select-edit" class="form-select tom-select-hidden"></select>
+                                    <label v-if="editedItem.dnsRecordId" class="form-check mt-2 mb-0">
+                                        <input class="form-check-input" type="checkbox" v-model="editedItem.failoverEnabled">
+                                        <span class="form-check-label">流量超阈值时自动切换解析</span>
+                                        <small class="form-hint d-block">服务器当期流量达到「流量告警阈值」后解析自动切到下一个部署位，周期重置后切回；记录 TTL 建议 60 秒，使用证书的协议需让证书覆盖该域名且在各部署服务器可用。手动切换前请先关闭本选项。</small>
+                                    </label>
                                 </div>
                             </div>
                         </div>
@@ -520,8 +530,13 @@
                                         <td class="text-nowrap">
                                             <span v-if="placement.id" class="badge" :class="isDeployed(placement) ? 'bg-success-lt' : 'bg-warning-lt'">{{ getDeploymentStatusLabel(placement.deployed) }}</span>
                                             <span v-else class="badge bg-secondary-lt">新增</span>
+                                            <span v-if="editedItem.dnsRecordId && placement.id && placement.id === editedItem.activeNodeServerId" class="badge bg-blue-lt ms-1">解析中</span>
                                         </td>
-                                        <td>
+                                        <td class="text-nowrap">
+                                            <button v-if="editedItem.dnsRecordId && placement.id && placement.id !== editedItem.activeNodeServerId && isDeployed(placement) && placement.enabled && placement.exposed"
+                                                    type="button" class="btn btn-sm btn-ghost-primary btn-icon" title="将解析切换到此部署位" @click="switchActivePlacement(placement)">
+                                                <i class="ti ti-arrows-exchange"></i>
+                                            </button>
                                             <button type="button" class="btn btn-sm btn-ghost-danger btn-icon" title="移除" @click="removePlacement(editedItem, index, true)">
                                                 <i class="ti ti-trash"></i>
                                             </button>

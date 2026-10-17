@@ -1,0 +1,106 @@
+<div class="page-body" id="system-log-app" v-scope @vue:mounted="initialize">
+    <div class="container-xl">
+        <div class="card">
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs">
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" :class="{ active: !filters.category }" @click.prevent="selectCategory('')">全部</a>
+                    </li>
+                    <li class="nav-item" v-for="item in categories" :key="item.value">
+                        <a href="#" class="nav-link" :class="{ active: filters.category === item.value }" @click.prevent="selectCategory(item.value)">{{ item.label }}</a>
+                    </li>
+                </ul>
+                <div class="card-actions">
+                    <button class="btn btn-outline-primary" type="button" @click="refresh()">
+                        <i class="ti ti-refresh me-1"></i>刷新
+                    </button>
+                </div>
+            </div>
+
+            <div class="card-body border-bottom">
+                <div class="row g-2">
+                    <div class="col-12 col-md-3">
+                        <input type="datetime-local" class="form-control" v-model="filters.startTime">
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <input type="datetime-local" class="form-control" v-model="filters.endTime">
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <select class="form-select" v-model="filters.level">
+                            <option value="">全部级别</option>
+                            <option value="INFO">信息</option>
+                            <option value="WARN">警告</option>
+                            <option value="ERROR">错误</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <input type="text" class="form-control" placeholder="关键字" v-model="filters.keyword" @keyup.enter="search">
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <div class="btn-list flex-nowrap">
+                            <button class="btn btn-primary flex-fill" type="button" @click="search">
+                                <i class="ti ti-search me-1"></i>查询
+                            </button>
+                            <button class="btn btn-outline-secondary" type="button" @click="resetFilters">
+                                <i class="ti ti-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body" v-if="loading">
+                <div class="placeholder-glow">
+                    <span class="placeholder col-12 mb-2"></span>
+                    <span class="placeholder col-10 mb-2"></span>
+                    <span class="placeholder col-8"></span>
+                </div>
+            </div>
+
+            <div v-else>
+                <div class="table-responsive">
+                    <table class="table table-vcenter card-table">
+                        <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>分类</th>
+                            <th>级别</th>
+                            <th>对象</th>
+                            <th>内容</th>
+                            <th class="w-1"></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="log in logs" :key="log.id">
+                            <td class="text-nowrap">{{ formatDateTime(log.createTime) }}</td>
+                            <td class="text-nowrap"><span class="badge bg-secondary-lt">{{ categoryLabel(log.category) }}</span></td>
+                            <td><span class="badge" :class="levelBadgeClass(log.level)">{{ levelLabel(log.level) }}</span></td>
+                            <td class="text-nowrap">{{ log.resourceName || '-' }}</td>
+                            <td class="text-wrap">
+                                <div>{{ log.message }}</div>
+                                <pre v-if="expandedId === log.id" class="mt-2 mb-0 small">{{ formatDetail(log.detail) }}</pre>
+                            </td>
+                            <td>
+                                <button v-if="log.detail" type="button" class="btn btn-sm btn-ghost-secondary btn-icon" title="详情" @click="toggleDetail(log.id)">
+                                    <i class="ti" :class="expandedId === log.id ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="empty py-5" v-if="!logs.length">
+                    <div class="empty-icon">
+                        <i class="ti ti-file-search icon"></i>
+                    </div>
+                    <p class="empty-title">暂无系统日志</p>
+                </div>
+
+                <div v-if="totalPages > 0">
+                    {#include pagination-controls /}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

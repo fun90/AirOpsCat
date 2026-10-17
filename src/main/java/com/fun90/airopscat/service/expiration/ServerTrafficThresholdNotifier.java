@@ -183,7 +183,10 @@ public class ServerTrafficThresholdNotifier implements MonitorNotifier {
         return (name != null && !name.isBlank()) ? name + " (" + ip + ")" : ip;
     }
 
-    private double normalizeThreshold(double value) {
+    public static final String TRAFFIC_THRESHOLD_KEY = "airopscat.server.monitor.alert.traffic-threshold";
+
+    /** 阈值支持 0-1 或 0-100 写法，非正数视为 100% */
+    public static double normalizeThreshold(double value) {
         if (value <= 0) return 1.0;
         if (value > 1) return value / 100.0;
         return value;

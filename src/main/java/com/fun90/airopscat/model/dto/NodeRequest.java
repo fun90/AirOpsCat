@@ -21,5 +21,6 @@ public class NodeRequest {
     private String remark;
     private List<Long> tagIds; // 标签ID列表
     private Long dnsRecordId;
+    private Integer failoverEnabled;
     private List<NodeServerRequest> placements;
 } 

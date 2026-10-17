@@ -225,3 +225,18 @@
 - 迁移的 `disabled`：未分组节点禁用状态保留在节点上，部署位启用；分组节点任一成员启用则逻辑节点启用，成员禁用转为对应部署位停用。
 - 迁移 SQL：`db/migration/V2026101701__merge_node_group_into_node_server.sql`（第 5.3 步 2），`V2026101702__drop_legacy_node_group_columns.sql`（第 5.3 步 5，稳定后执行）；只读检查为 `scripts/node_group_merge_precheck.sql`。`NodeServer` 实体不映射 `legacy_node_id`，该列只供迁移使用。
 - 移除了只在空 `node_deployment` 表时运行的旧数据初始化（`initializeFromLegacyDeployedNodes`）。
+
+## 10. 第二期实现说明
+
+与上文不同或上文未明确的处理：
+
+- 新增 `node.failover_enabled`、`node.active_node_server_id`（`schema-management.strategy=update` 自动建，无迁移 SQL）。切换日志不再单独建表，写入通用的 `system_log`（分类 `NODE_FAILOVER`，`detail` 为 JSON：`reason`、`fromNodeServerId`、`toNodeServerId`、`fromUsage`、`toUsage`、`dnsContent`、`success`），控制台“系统 → 系统日志”查看。保留天数 `airopscat.system-log.retention-days`（默认 90），由定时任务 `system-log-cleanup` 清理。新增日志来源：在 `SystemLogCategory` 加一项，调用 `SystemLogService.record` / `recordIndependently`。
+- 入口 `NodeFailoverService.checkAll()`，由 `TrafficStatsTask.collectUserTrafficStats` 采集结束后调用；每个节点独立事务，失败日志单独提交。阈值读取与归一化共用 `ServerTrafficThresholdNotifier.normalizeThreshold`（已改为 public static）。
+- 8.1 已确认：`DomainDnsPullService.pull` 会用远端记录覆盖本地所有已匹配记录并置为 `SYNCED`，会吞掉其他待推送的本地修改。因此切换不走整域 `push` + `pull`，而是新增 `DomainDnsPushService.pushRecordContent`：只 PATCH 这一条记录并本地置为 `SYNCED`。记录未同步（无 `externalRecordId`）或有待推送的创建/删除时拒绝切换。
+- 目标部署位的候选为启用、已部署、`exposed=1`。尚未记录 `active_node_server_id` 时，若解析内容本就等于目标则只补记，不推送。
+- `reason`：手动为 `MANUAL`；来源部署位使用率 ≥ 阈值为 `THRESHOLD`，否则为 `RESET`（来源未记录时也记为 `RESET`）。
+- 全部候选超阈值只在首次告警，该节点重新有可用目标后才会再次告警；该状态在内存中，重启后重置。
+- 订阅：节点绑定 DNS 记录时，单条输出的快照取 `active_node_server_id` 对应部署位，不在候选中则回退到优先级最高的。账号级域名绑定仍取优先级最高的部署位，不受自动切换影响。
+- 落地节点不参与自动切换，`NodeServerRepository.resolveEffective` 保持按优先级取值。
+- 接口：`POST /api/admin/nodes/{id}/failover/switch`（`nodeServerId`）手动切换；日志接口为 `GET /api/admin/system-logs`（`category`、`level`、`keyword`、`startTime`、`endTime`、分页）和 `/categories`。节点表单在绑定 DNS 后出现“自动切换”开关，编辑表单的部署位行显示“解析中”标记和切换按钮。
+- 未实现：开启自动切换时校验 TLS 证书是否覆盖该域名（表单只给出文字提示）。

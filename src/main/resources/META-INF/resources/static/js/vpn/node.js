@@ -562,6 +562,32 @@ const nodeTable = new DataTable({
                 });
         },
 
+        switchActivePlacement(placement) {
+            if (!this.editedItem?.id || !placement?.id) return;
+
+            fetch(`/api/admin/nodes/${this.editedItem.id}/failover/switch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nodeServerId: placement.id })
+            })
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data.message || '切换失败');
+                    }
+                    return data;
+                })
+                .then(data => {
+                    this.editedItem.activeNodeServerId = placement.id;
+                    this.fetchRecords();
+                    ToastUtils.show('Success', data.message || '已切换', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '切换失败', 'danger');
+                });
+        },
+
         copyNode(node) {
             if (!node.id) return;
 

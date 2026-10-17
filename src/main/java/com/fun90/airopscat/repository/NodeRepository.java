@@ -45,6 +45,12 @@ public class NodeRepository implements PanacheRepository<Node> {
         return find("outId", outId).list();
     }
 
+    /** 开启了自动切换、绑定 DNS 的启用代理节点 */
+    public List<Long> findFailoverNodeIds() {
+        return find("failoverEnabled = 1 and type = 0 and dnsRecordId is not null "
+                + "and (disabled is null or disabled = 0)").stream().map(Node::getId).toList();
+    }
+
     public boolean existsByDnsRecordIdAndIdNot(Long dnsRecordId, Long id) {
         if (dnsRecordId == null) {
             return false;

@@ -54,6 +54,10 @@ class TrafficStatsTaskTest {
         }
 
         @Override
+        void checkNodeFailover() {
+        }
+
+        @Override
         SshConnection createConnection(Server server) {
             return new NoopSshConnection();
         }

@@ -45,6 +45,7 @@ public class ProgrammaticTaskManager {
     private final AccountTrafficStatsCleanupTask accountTrafficStatsCleanupTask;
     private final ServerTrafficStatsCleanupTask serverTrafficStatsCleanupTask;
     private final SystemRequestLogCleanupTask systemRequestLogCleanupTask;
+    private final SystemLogCleanupTask systemLogCleanupTask;
     private final AccountOnlineIpCleanupTask accountOnlineIpCleanupTask;
     private final NodeOnlineAccountStatsTask nodeOnlineAccountStatsTask;
     private final VnstatCollectTask vnstatCollectTask;
@@ -66,6 +67,7 @@ public class ProgrammaticTaskManager {
                                    AccountTrafficStatsCleanupTask accountTrafficStatsCleanupTask,
                                    ServerTrafficStatsCleanupTask serverTrafficStatsCleanupTask,
                                    SystemRequestLogCleanupTask systemRequestLogCleanupTask,
+                                   SystemLogCleanupTask systemLogCleanupTask,
                                    AccountOnlineIpCleanupTask accountOnlineIpCleanupTask,
                                    NodeOnlineAccountStatsTask nodeOnlineAccountStatsTask,
                                    VnstatCollectTask vnstatCollectTask) {
@@ -82,6 +84,7 @@ public class ProgrammaticTaskManager {
         this.accountTrafficStatsCleanupTask = accountTrafficStatsCleanupTask;
         this.serverTrafficStatsCleanupTask = serverTrafficStatsCleanupTask;
         this.systemRequestLogCleanupTask = systemRequestLogCleanupTask;
+        this.systemLogCleanupTask = systemLogCleanupTask;
         this.accountOnlineIpCleanupTask = accountOnlineIpCleanupTask;
         this.nodeOnlineAccountStatsTask = nodeOnlineAccountStatsTask;
         this.vnstatCollectTask = vnstatCollectTask;
@@ -453,6 +456,20 @@ public class ProgrammaticTaskManager {
                 0L,
                 Scheduled.ConcurrentExecution.SKIP,
                 systemRequestLogCleanupTask::cleanupExpiredLogs
+        ));
+        definitions.put("system-log-cleanup", task(
+                "system-log-cleanup",
+                "system-log-cleanup",
+                "系统日志清理",
+                "按保留天数清理过期系统日志。",
+                "scheduled",
+                "定时任务",
+                146,
+                SCHEDULE_TYPE_CRON,
+                "airopscat.system-log.cleanup.cron",
+                0L,
+                Scheduled.ConcurrentExecution.SKIP,
+                systemLogCleanupTask::cleanupExpiredLogs
         ));
         definitions.put("vnstat-traffic-collect", task(
                 "vnstat-traffic-collect",

@@ -8,6 +8,7 @@ import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.AccountTrafficOverQuotaService;
 import com.fun90.airopscat.service.AccountTrafficStatsService;
 import com.fun90.airopscat.service.BarkService;
+import com.fun90.airopscat.service.NodeFailoverService;
 import com.fun90.airopscat.service.ServerTrafficStatsService;
 import com.fun90.airopscat.service.ssh.SshConnection;
 import com.fun90.airopscat.service.ssh.SshConnectionService;
@@ -54,6 +55,9 @@ public class TrafficStatsTask {
     @Inject
     BarkService barkService;
 
+    @Inject
+    NodeFailoverService nodeFailoverService;
+
     public void collectUserTrafficStats() {
         long startedAt = System.nanoTime();
         log.info("开始执行定时任务：收集用户流量统计");
@@ -93,11 +97,21 @@ public class TrafficStatsTask {
                         String.format("流量统计收集完成，成功: %d, 跳过: %d, 失败: %d",
                                 successCount, skippedCount, failureCount));
             }
+
+            checkNodeFailover();
         } catch (Exception e) {
             log.error("执行流量统计任务时发生错误", e);
             sendErrorNotification("AirOpsCat 流量统计失败", "执行流量统计任务时发生错误: " + e.getMessage());
         } finally {
             log.info("流量统计任务执行完成，耗时: {} ms", elapsedMillis(startedAt));
+        }
+    }
+
+    void checkNodeFailover() {
+        try {
+            nodeFailoverService.checkAll();
+        } catch (Exception e) {
+            log.error("执行节点自动切换检查时发生错误", e);
         }
     }
 

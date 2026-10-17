@@ -331,7 +331,8 @@ public class SystemConfigService {
                 item("airopscat.account.traffic.cleanup.batch-size", "账户流量清理批大小", "账户流量明细单批删除数量。", INPUT_NUMBER, true, false, false, true, "1000", "1000"),
                 item("airopscat.server.traffic.retention-days", "服务器流量保留天数", "服务器流量明细保留天数。", INPUT_NUMBER, true, false, false, true, "180", "180"),
                 item("airopscat.server.traffic.cleanup.batch-size", "服务器流量清理批大小", "服务器流量明细单批删除数量。", INPUT_NUMBER, true, false, false, true, "1000", "1000"),
-                item("airopscat.request-log.retention-days", "请求日志保留天数", "系统请求日志自动清理时保留的天数。", INPUT_NUMBER, true, false, false, true, "30", "30")
+                item("airopscat.request-log.retention-days", "请求日志保留天数", "系统请求日志自动清理时保留的天数。", INPUT_NUMBER, true, false, false, true, "30", "30"),
+                item("airopscat.system-log.retention-days", "系统日志保留天数", "系统日志（节点切换等）自动清理时保留的天数。", INPUT_NUMBER, true, false, false, true, "90", "90")
         ));
 
         groups.put("backup", group(
@@ -360,6 +361,7 @@ public class SystemConfigService {
                 item("airopscat.account.traffic.cleanup.cron", "账户流量清理 Cron", "清理过期账户流量明细的调度表达式。", INPUT_TEXT, true, false, false, true, "0 40 3 * * ?", "0 40 3 * * ?"),
                 item("airopscat.server.traffic.cleanup.cron", "服务器流量清理 Cron", "清理过期服务器流量明细的调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 4 * * ?", "0 0 4 * * ?"),
                 item("airopscat.request-log.cleanup.cron", "请求日志清理 Cron", "清理过期系统请求日志的调度表达式。", INPUT_TEXT, true, false, false, true, "0 30 3 * * ?", "0 30 3 * * ?"),
+                item("airopscat.system-log.cleanup.cron", "系统日志清理 Cron", "清理过期系统日志的调度表达式。", INPUT_TEXT, true, false, false, true, "0 50 3 * * ?", "0 50 3 * * ?"),
                 item("airopscat.core.config.cleanup.cron", "内核配置清理 Cron", "清理内核配置旧备份文件的调度表达式。", INPUT_TEXT, true, false, false, true, "0 0 8 * * ?", "0 0 8 * * ?")
         ));
 

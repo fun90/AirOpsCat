@@ -18,7 +18,7 @@ class SubscriptionEntrySelectionTest {
         List<NodeDto> entries = SubscriptionService.selectSubscriptionEntries(List.of(
                 candidate(2L, 20, 1, "hk2.example.com"),
                 candidate(1L, 10, 0, "hk1.example.com")
-        ), null, "bind.example.com", "dns.example.com");
+        ), null, "bind.example.com", "dns.example.com", null);
 
         assertEquals(1, entries.size());
         assertEquals(1L, entries.getFirst().getNodeServerId());
@@ -31,7 +31,7 @@ class SubscriptionEntrySelectionTest {
         List<NodeDto> entries = SubscriptionService.selectSubscriptionEntries(List.of(
                 candidate(1L, 10, 0, "hk1.example.com"),
                 candidate(2L, 20, 1, "hk2.example.com")
-        ), null, null, "dns.example.com");
+        ), null, null, "dns.example.com", null);
 
         assertEquals(1, entries.size());
         assertEquals(1L, entries.getFirst().getNodeServerId());
@@ -39,7 +39,23 @@ class SubscriptionEntrySelectionTest {
 
         assertTrue(SubscriptionService.selectSubscriptionEntries(List.of(
                 candidate(1L, 10, 0, "hk1.example.com")
-        ), null, null, "dns.example.com").isEmpty());
+        ), null, null, "dns.example.com", null).isEmpty());
+    }
+
+    @Test
+    void dnsRecordUsesActivePlacementSnapshot() {
+        List<NodeDto> entries = SubscriptionService.selectSubscriptionEntries(List.of(
+                candidate(1L, 10, 1, "hk1.example.com"),
+                candidate(2L, 20, 1, "hk2.example.com")
+        ), null, null, "dns.example.com", 2L);
+
+        assertEquals(1, entries.size());
+        assertEquals(2L, entries.getFirst().getNodeServerId());
+
+        // 生效部署位已不可用时回退到优先级最高的
+        assertEquals(1L, SubscriptionService.selectSubscriptionEntries(List.of(
+                candidate(1L, 10, 1, "hk1.example.com")
+        ), null, null, "dns.example.com", 9L).getFirst().getNodeServerId());
     }
 
     @Test
@@ -48,7 +64,7 @@ class SubscriptionEntrySelectionTest {
                 candidate(3L, 30, 1, "hk3.example.com"),
                 candidate(1L, 10, 1, "hk1.example.com"),
                 candidate(2L, 20, 0, "hk2.example.com")
-        ), null, null, null);
+        ), null, null, null, null);
 
         assertEquals(List.of(1L, 3L), entries.stream().map(NodeDto::getNodeServerId).toList());
         assertEquals(List.of("香港-1", "香港-1"), entries.stream().map(NodeDto::getName).toList());
@@ -59,7 +75,7 @@ class SubscriptionEntrySelectionTest {
     void singleExposedPlacementKeepsNodeName() {
         List<NodeDto> entries = SubscriptionService.selectSubscriptionEntries(List.of(
                 candidate(1L, 10, 1, "hk1.example.com")
-        ), null, null, null);
+        ), null, null, null, null);
 
         assertEquals(1, entries.size());
         assertEquals("香港-1", entries.getFirst().getName());
@@ -71,7 +87,7 @@ class SubscriptionEntrySelectionTest {
                 candidate(3L, 30, 0, "hk3.example.com"),
                 candidate(1L, 10, 1, "hk1.example.com"),
                 candidate(2L, 20, 0, "hk2.example.com")
-        ), Set.of(3L, 2L), null, "dns.example.com");
+        ), Set.of(3L, 2L), null, "dns.example.com", null);
 
         assertEquals(List.of(2L, 3L), entries.stream().map(NodeDto::getNodeServerId).toList());
         assertEquals("hk2.example.com", entries.getFirst().getServerHost());
@@ -82,7 +98,7 @@ class SubscriptionEntrySelectionTest {
         List<NodeDto> entries = SubscriptionService.selectSubscriptionEntries(List.of(
                 candidate(1L, 10, 1, "hk1.example.com"),
                 candidate(2L, 20, 1, "hk2.example.com")
-        ), Set.of(2L), "bind.example.com", null);
+        ), Set.of(2L), "bind.example.com", null, null);
 
         assertEquals(1, entries.size());
         assertEquals(2L, entries.getFirst().getNodeServerId());
@@ -93,7 +109,7 @@ class SubscriptionEntrySelectionTest {
     void unavailableSelectionOutputsNothing() {
         assertTrue(SubscriptionService.selectSubscriptionEntries(List.of(
                 candidate(1L, 10, 1, "hk1.example.com")
-        ), Set.of(9L), "bind.example.com", "dns.example.com").isEmpty());
+        ), Set.of(9L), "bind.example.com", "dns.example.com", null).isEmpty());
     }
 
     @Test

@@ -7,6 +7,7 @@ import com.fun90.airopscat.model.dto.NodeDeploymentRestoreRequest;
 import com.fun90.airopscat.model.dto.NodeDeploymentVersionDetailDto;
 import com.fun90.airopscat.model.dto.NodeDeploymentVersionDto;
 import com.fun90.airopscat.model.dto.NodeDto;
+import com.fun90.airopscat.model.dto.NodeFailoverSwitchRequest;
 import com.fun90.airopscat.model.dto.NodeRequest;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeServer;
@@ -15,6 +16,7 @@ import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.service.AccountOnlineIpService;
+import com.fun90.airopscat.service.NodeFailoverService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentVersionService;
 import com.fun90.airopscat.service.NodeService;
@@ -61,6 +63,9 @@ public class NodeController {
 
     @Inject
     AccountOnlineIpService accountOnlineIpService;
+
+    @Inject
+    NodeFailoverService nodeFailoverService;
 
     @GET
     public Response getNodePage(
@@ -395,6 +400,19 @@ public class NodeController {
                     "unchangedCount", result.getOrDefault("unchangedCount", 0)
             )).build();
         } catch (IllegalArgumentException | EntityNotFoundException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
+        }
+    }
+
+    @POST
+    @Path("/{id}/failover/switch")
+    public Response switchFailover(@PathParam("id") Long id, NodeFailoverSwitchRequest request) {
+        try {
+            String message = nodeFailoverService.switchManually(id, request == null ? null : request.getNodeServerId());
+            return Response.ok(Map.of("message", message)).build();
+        } catch (IllegalArgumentException | IllegalStateException | EntityNotFoundException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
             return Response.status(Response.Status.BAD_REQUEST).entity(error).build();

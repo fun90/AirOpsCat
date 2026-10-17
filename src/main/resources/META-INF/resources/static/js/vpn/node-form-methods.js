@@ -381,6 +381,7 @@ export function createNodeFormMethods() {
                 return {
                     placements: this.preparePlacementData(this.newItem),
                     dnsRecordId: this.newItem.dnsRecordId || null,
+                    failoverEnabled: this.newItem.dnsRecordId && this.newItem.failoverEnabled ? 1 : 0,
                     port: this.newItem.port,
                     coreType: 'sing-box',
                     protocol: this.newItem.protocol,
@@ -416,6 +417,7 @@ export function createNodeFormMethods() {
                     id: this.editedItem.id,
                     placements: this.preparePlacementData(this.editedItem),
                     dnsRecordId: this.editedItem.dnsRecordId || null,
+                    failoverEnabled: this.editedItem.dnsRecordId && this.editedItem.failoverEnabled ? 1 : 0,
                     port: this.editedItem.port,
                     coreType: 'sing-box',
                     protocol: this.editedItem.protocol,
@@ -441,6 +443,7 @@ export function createNodeFormMethods() {
             this.newItem = {
                 placements: [this.createPlacement(this.servers.length > 0 ? this.servers[0].id : '')],
                 dnsRecordId: '',
+                failoverEnabled: false,
                 port: null,
                 coreType: 'sing-box',
                 protocol: 'vless',
@@ -511,6 +514,8 @@ export function createNodeFormMethods() {
                 placements,
                 dnsRecordId: node.dnsRecordId || '',
                 dnsRecordName: node.dnsRecordName || '',
+                failoverEnabled: node.failoverEnabled === 1,
+                activeNodeServerId: node.activeNodeServerId || null,
                 port: node.port,
                 coreType: node.coreType,
                 protocol: node.protocol,

@@ -61,6 +61,14 @@ public class Node {
     @Column(name = "dns_record_id")
     private Long dnsRecordId;
 
+    // 1:流量超阈值时自动切换 DNS 指向的部署位，仅代理节点且绑定了 DNS 记录时可开启
+    @Column(name = "failover_enabled")
+    private Integer failoverEnabled;
+
+    // 当前 DNS 指向的部署位，为空时按优先级取默认
+    @Column(name = "active_node_server_id")
+    private Long activeNodeServerId;
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "out_id", insertable = false, updatable = false)
     private Node outNode;

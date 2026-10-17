@@ -37,6 +37,7 @@ public class NodeConverter {
         dto.setCreateTime(node.getCreateTime());
         dto.setUpdateTime(node.getUpdateTime());
         dto.setDnsRecordId(node.getDnsRecordId());
+        dto.setFailoverEnabled(node.getFailoverEnabled());
 
         // 设置类型描述
         dto.setTypeDescription(node.getTypeDescription());
@@ -44,6 +45,12 @@ public class NodeConverter {
         List<NodeServer> sortedPlacements = placements == null ? List.of()
                 : placements.stream().sorted(NodeServerRepository.PRIORITY_ORDER).toList();
         dto.setPlacements(sortedPlacements.stream().map(NodeConverter::toPlacementDto).toList());
+        // 自动切换下 DNS 指向的部署位；记录的部署位已不存在时回退到默认生效部署位
+        dto.setActiveNodeServerId(sortedPlacements.stream()
+                .filter(placement -> Objects.equals(placement.getId(), node.getActiveNodeServerId()))
+                .findFirst()
+                .or(() -> NodeServerRepository.resolveEffective(sortedPlacements))
+                .map(NodeServer::getId).orElse(null));
         NodeServerRepository.resolveEffective(sortedPlacements)
                 .or(() -> sortedPlacements.stream().findFirst())
                 .ifPresent(placement -> {
@@ -122,6 +129,7 @@ public class NodeConverter {
         node.setName(request.getName());
         node.setRemark(request.getRemark());
         node.setDnsRecordId(request.getDnsRecordId());
+        node.setFailoverEnabled(request.getFailoverEnabled());
 
         return node;
     }

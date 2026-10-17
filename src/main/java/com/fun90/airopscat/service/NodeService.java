@@ -352,6 +352,16 @@ public class NodeService {
         }
 
         validateDnsRecord(node);
+        validateFailover(node);
+    }
+
+    private void validateFailover(Node node) {
+        if (!Objects.equals(node.getFailoverEnabled(), 1)) {
+            return;
+        }
+        if (!Objects.equals(node.getType(), NodeType.PROXY.getValue()) || node.getDnsRecordId() == null) {
+            throw new IllegalArgumentException("自动切换仅支持绑定了订阅 DNS 记录的代理节点");
+        }
     }
 
     private void validateDnsRecord(Node node) {
@@ -453,7 +463,11 @@ public class NodeService {
 
         copyNonNullProperties(node, existingNode);
         existingNode.setOutId(node.getOutId());
+        if (!Objects.equals(existingNode.getDnsRecordId(), node.getDnsRecordId())) {
+            existingNode.setActiveNodeServerId(null);
+        }
         existingNode.setDnsRecordId(node.getDnsRecordId());
+        existingNode.setFailoverEnabled(node.getDnsRecordId() == null ? 0 : node.getFailoverEnabled());
 
         if (placements != null) {
             syncPlacements(existingNode.getId(), existingPlacements, placements);

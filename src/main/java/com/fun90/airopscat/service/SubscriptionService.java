@@ -334,7 +334,8 @@ public class SubscriptionService {
                     candidatesByNodeId.getOrDefault(availableNode.getId(), List.of()),
                     placementSelections.get(availableNode.getId()),
                     hostOverrides.get(availableNode.getId()),
-                    dnsHosts.get(availableNode.getDnsRecordId())));
+                    dnsHosts.get(availableNode.getDnsRecordId()),
+                    availableNode.getActiveNodeServerId()));
         }
         ensureUniqueNames(nodes);
         return nodes;
@@ -372,11 +373,13 @@ public class SubscriptionService {
      *
      * @param candidates 启用且已部署、带部署快照的部署位
      * @param selectedPlacementIds 账号订阅定制的部署位，null 或空表示未定制
+     * @param activePlacementId 自动切换下 DNS 当前指向的部署位；节点 DNS 单条输出时优先用它的快照，不在候选中则取优先级最高的
      */
     static List<NodeDto> selectSubscriptionEntries(List<SubscriptionCandidate> candidates,
                                                    Set<Long> selectedPlacementIds,
                                                    String hostOverride,
-                                                   String dnsHost) {
+                                                   String dnsHost,
+                                                   Long activePlacementId) {
         boolean customized = selectedPlacementIds != null && !selectedPlacementIds.isEmpty();
         List<SubscriptionCandidate> sorted = candidates.stream()
                 .filter(candidate -> !customized || selectedPlacementIds.contains(candidate.placement().getId()))
@@ -385,6 +388,9 @@ public class SubscriptionService {
         if (sorted.isEmpty()) {
             return List.of();
         }
+        SubscriptionCandidate single = sorted.stream()
+                .filter(candidate -> Objects.equals(candidate.placement().getId(), activePlacementId))
+                .findFirst().orElse(sorted.getFirst());
         if (hostOverride != null && !hostOverride.isBlank()) {
             NodeDto dto = sorted.getFirst().dto();
             dto.setServerHost(hostOverride);
@@ -401,7 +407,7 @@ public class SubscriptionService {
             if (exposed.isEmpty()) {
                 return List.of();
             }
-            NodeDto dto = sorted.getFirst().dto();
+            NodeDto dto = single.dto();
             dto.setServerHost(dnsHost);
             return List.of(dto);
         }

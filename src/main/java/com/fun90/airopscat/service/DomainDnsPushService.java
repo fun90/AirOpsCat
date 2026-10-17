@@ -21,6 +21,7 @@ import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @ApplicationScoped
@@ -47,21 +48,8 @@ public class DomainDnsPushService {
 
     @Transactional
     public DomainDnsPushResponse push(Long domainId) {
-        Domain domain = domainRepository.findById(domainId);
-        if (domain == null) {
-            throw new EntityNotFoundException("域名不存在");
-        }
-        if (domain.getDnsProviderConfigId() == null) {
-            throw new IllegalStateException("当前域名尚未绑定 DNS 服务商");
-        }
-
-        DnsProviderConfig providerConfig = dnsProviderConfigRepository.findById(domain.getDnsProviderConfigId());
-        if (providerConfig == null) {
-            throw new EntityNotFoundException("DNS 服务商不存在");
-        }
-        if (providerConfig.getStatus() != DnsProviderConfigStatus.ENABLED) {
-            throw new IllegalStateException("当前 DNS 服务商未启用");
-        }
+        Domain domain = requireDomain(domainId);
+        DnsProviderConfig providerConfig = requireProviderConfig(domain);
 
         List<DomainDnsRecord> pendingRecords = domainDnsRecordRepository.findPendingByDomainId(domainId);
         if (pendingRecords.isEmpty()) {
@@ -95,6 +83,53 @@ public class DomainDnsPushService {
             domain.setDnsSyncStatus(DnsSyncStatus.SYNC_FAILED);
             throw e;
         }
+    }
+
+    /**
+     * 只更新一条已同步记录的内容。不走整域推送与拉取：拉取会用远端覆盖其他尚未推送的本地修改。
+     */
+    @Transactional
+    public void pushRecordContent(Long domainId, Long recordId, String content) {
+        Domain domain = requireDomain(domainId);
+        DnsProviderConfig providerConfig = requireProviderConfig(domain);
+        DomainDnsRecord record = domainDnsRecordRepository.findById(recordId);
+        if (record == null || !domainId.equals(record.getDomainId())) {
+            throw new EntityNotFoundException("DNS 记录不存在");
+        }
+        if (record.getExternalRecordId() == null || record.getExternalRecordId().isBlank()
+                || record.getStatus() == DnsRecordStatus.PENDING_CREATE
+                || record.getStatus() == DnsRecordStatus.PENDING_DELETE) {
+            throw new IllegalStateException("DNS 记录尚未同步或有待推送的创建/删除，请先在域名页处理");
+        }
+        record.setContent(content);
+        DnsBatchChangeRequest request = new DnsBatchChangeRequest();
+        request.getPatches().add(toBatchItem(record));
+        dnsProviderClientRegistry.getClient(providerConfig.getProviderType())
+                .batchChangeRecords(providerConfig, domain, request);
+        record.setStatus(DnsRecordStatus.SYNCED);
+        record.setLastSyncTime(LocalDateTime.now());
+    }
+
+    private Domain requireDomain(Long domainId) {
+        Domain domain = domainRepository.findById(domainId);
+        if (domain == null) {
+            throw new EntityNotFoundException("域名不存在");
+        }
+        if (domain.getDnsProviderConfigId() == null) {
+            throw new IllegalStateException("当前域名尚未绑定 DNS 服务商");
+        }
+        return domain;
+    }
+
+    private DnsProviderConfig requireProviderConfig(Domain domain) {
+        DnsProviderConfig providerConfig = dnsProviderConfigRepository.findById(domain.getDnsProviderConfigId());
+        if (providerConfig == null) {
+            throw new EntityNotFoundException("DNS 服务商不存在");
+        }
+        if (providerConfig.getStatus() != DnsProviderConfigStatus.ENABLED) {
+            throw new IllegalStateException("当前 DNS 服务商未启用");
+        }
+        return providerConfig;
     }
 
     private DnsBatchChangeRequest buildBatchRequest(List<DomainDnsRecord> pendingRecords) {
