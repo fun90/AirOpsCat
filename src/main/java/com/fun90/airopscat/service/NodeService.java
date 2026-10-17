@@ -14,6 +14,7 @@ import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.ProtocolType;
 import com.fun90.airopscat.repository.DomainDnsRecordRepository;
+import com.fun90.airopscat.repository.AccountNodeSubscriptionDomainBindingRepository;
 import com.fun90.airopscat.repository.NodeDeploymentRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.NodeServerRepository;
@@ -33,6 +34,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -75,6 +77,9 @@ public class NodeService {
     NodeServerRepository nodeServerRepository;
 
     @Inject
+    AccountNodeSubscriptionDomainBindingRepository bindingRepository;
+
+    @Inject
     DomainDnsRecordRepository domainDnsRecordRepository;
 
     @Inject
@@ -113,7 +118,7 @@ public class NodeService {
         }
 
         if (nodeTagId != null) {
-            query.append(" and id in (select n.id from Node n join n.tags t where t.id = :nodeTagId)");
+            query.append(" and id in (select ns.nodeId from NodeServer ns join ns.tags t where t.id = :nodeTagId)");
             params.put("nodeTagId", nodeTagId);
         }
 
@@ -320,6 +325,59 @@ public class NodeService {
         }
     }
 
+    private void resolvePlacementTags(List<NodeServer> placements) {
+        placements.stream().filter(placement -> placement.getTags() == null)
+                .forEach(placement -> placement.setTags(new HashSet<>()));
+        Set<Long> ids = placements.stream().flatMap(placement -> placement.getTags().stream())
+                .map(Tag::getId).collect(Collectors.toSet());
+        Map<Long, Tag> resolved = ids.isEmpty() ? Map.of() : tagRepository.list("id in ?1", ids).stream()
+                .collect(Collectors.toMap(Tag::getId, tag -> tag));
+        if (resolved.size() != ids.size()) {
+            throw new IllegalArgumentException("部分部署位标签不存在");
+        }
+        for (NodeServer placement : placements) {
+            placement.setTags(placement.getTags().stream().map(tag -> resolved.get(tag.getId()))
+                    .collect(Collectors.toCollection(LinkedHashSet::new)));
+        }
+    }
+
+    private void validatePlacementTagsForDns(Node node, List<NodeServer> placements) {
+        boolean hasSharedDns = node.getDnsRecordId() != null
+                || node.getId() != null && bindingRepository.findByNodeId(node.getId()).stream()
+                .anyMatch(binding -> Objects.equals(binding.getEnabled(), 1));
+        if (!hasSharedDns) {
+            return;
+        }
+        if (!sameTags(placements.stream().filter(NodeServer::enabledFlag)
+                .map(placement -> placement.getTags().stream().map(Tag::getId).collect(Collectors.toSet()))
+                .toList())) {
+            throw new IllegalArgumentException("共享 DNS 的启用部署位必须使用相同标签");
+        }
+    }
+
+    public void validateSharedDnsTags(Long nodeId) {
+        Node node = nodeRepository.findById(nodeId);
+        if (node == null) {
+            throw new EntityNotFoundException("节点不存在");
+        }
+        validatePlacementTagsForDns(node, nodeServerRepository.findByNodeId(nodeId).stream()
+                .filter(placement -> !NodeDeploymentStatus.isPendingDelete(placement.getDeployed())).toList());
+    }
+
+    public void validateUniformPlacementTags(Long nodeId) {
+        List<NodeServer> placements = nodeServerRepository.findByNodeId(nodeId).stream()
+                .filter(placement -> !NodeDeploymentStatus.isPendingDelete(placement.getDeployed())).toList();
+        if (!sameTags(placements.stream().filter(NodeServer::enabledFlag)
+                .map(placement -> placement.getTags().stream().map(Tag::getId).collect(Collectors.toSet()))
+                .toList())) {
+            throw new IllegalArgumentException("账号订阅域名绑定要求所有启用部署位使用相同标签");
+        }
+    }
+
+    static boolean sameTags(List<Set<Long>> tagSets) {
+        return tagSets.stream().distinct().count() <= 1;
+    }
+
     private void validateNode(Node node, List<NodeServer> placements) {
         if (node.getName() == null || node.getName().isBlank()) {
             throw new IllegalArgumentException("节点名称不能为空");
@@ -362,6 +420,7 @@ public class NodeService {
         }
 
         validateDnsRecord(node);
+        validatePlacementTagsForDns(node, placements);
     }
 
     private void validateDnsRecord(Node node) {
@@ -421,6 +480,7 @@ public class NodeService {
         node.setName(NodeName.withNumber(node.getName()));
         normalizePlacementNames(placements);
         normalizeAndValidateNodeProtocol(node);
+        resolvePlacementTags(placements);
         validateNode(node, placements);
 
         nodeRepository.persist(node);
@@ -436,7 +496,7 @@ public class NodeService {
      * @param placements 为 null 时保留现有部署位，仅更新节点配置
      */
     @Transactional
-    public Node updateNode(Node node, List<NodeServer> placements, Set<Tag> tagSet, boolean tagsUpdated) {
+    public Node updateNode(Node node, List<NodeServer> placements) {
         Node existingNode = nodeRepository.findById(node.getId());
         if (existingNode == null) {
             throw new EntityNotFoundException("Node not found");
@@ -456,8 +516,19 @@ public class NodeService {
         node.setName(NodeName.withNumber(node.getName() == null ? existingNode.getName() : node.getName()));
         normalizePlacementNames(targetPlacements);
         normalizeAndValidateNodeProtocol(node);
+        if (placements != null) {
+            Map<Long, NodeServer> existingByServerId = existingPlacements.stream()
+                    .collect(Collectors.toMap(NodeServer::getServerId, placement -> placement));
+            for (NodeServer placement : placements) {
+                if (placement.getTags() == null) {
+                    NodeServer previous = existingByServerId.get(placement.getServerId());
+                    placement.setTags(previous == null ? new HashSet<>() : new HashSet<>(previous.getTags()));
+                }
+            }
+            resolvePlacementTags(placements);
+        }
         validateNode(node, targetPlacements);
-        boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node, tagSet, tagsUpdated);
+        boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node);
         Optional<NodeServer> previousEffective = NodeServerRepository.resolveEffective(existingPlacements)
                 .map(this::copyPlacementKey);
 
@@ -497,7 +568,11 @@ public class NodeService {
             }
             boolean deployChanged = !Objects.equals(existing.getAccessHostId(), target.getAccessHostId())
                     || existing.enabledFlag() != target.enabledFlag()
+                    || !existing.getTags().stream().map(Tag::getId).collect(Collectors.toSet())
+                            .equals(target.getTags().stream().map(Tag::getId).collect(Collectors.toSet()))
                     || NodeDeploymentStatus.isPendingDelete(existing.getDeployed());
+            existing.getTags().clear();
+            existing.getTags().addAll(target.getTags());
             existing.setAccessHostId(target.getAccessHostId());
             existing.setExposed(target.getExposed());
             existing.setPriority(target.getPriority());
@@ -575,20 +650,43 @@ public class NodeService {
         int updatedCount = 0;
         int unchangedCount = 0;
         for (Node node : nodes) {
-            LinkedHashSet<Long> currentTagIds = extractNodeTagIds(node);
-            LinkedHashSet<Long> targetTagIds = resolveTargetTagIds(currentTagIds, selectedTagIds, normalizedMode);
-
-            if (currentTagIds.equals(targetTagIds)) {
+            List<NodeServer> placements = nodeServerRepository.findByNodeId(node.getId()).stream()
+                    .filter(placement -> !NodeDeploymentStatus.isPendingDelete(placement.getDeployed()))
+                    .toList();
+            List<Set<Tag>> targets = new ArrayList<>();
+            boolean changed = false;
+            for (NodeServer placement : placements) {
+                LinkedHashSet<Long> currentTagIds = placement.getTags().stream().map(Tag::getId)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+                LinkedHashSet<Long> targetTagIds = resolveTargetTagIds(currentTagIds, selectedTagIds, normalizedMode);
+                changed |= !currentTagIds.equals(targetTagIds);
+                Map<Long, Tag> availableTags = new HashMap<>(tagMap);
+                placement.getTags().forEach(tag -> availableTags.put(tag.getId(), tag));
+                targets.add(targetTagIds.stream().map(availableTags::get).collect(Collectors.toSet()));
+            }
+            if (!changed) {
                 unchangedCount++;
                 continue;
             }
-
-            LinkedHashSet<Tag> targetTags = targetTagIds.stream()
-                    .map(tagMap::get)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toCollection(LinkedHashSet::new));
-            node.setTags(targetTags);
-            markNodePendingDeploy(node.getId());
+            if (node.getDnsRecordId() != null || bindingRepository.findByNodeId(node.getId()).stream()
+                    .anyMatch(binding -> Objects.equals(binding.getEnabled(), 1))) {
+                List<Set<Long>> activeTags = java.util.stream.IntStream.range(0, placements.size())
+                        .filter(index -> placements.get(index).enabledFlag())
+                        .mapToObj(index -> targets.get(index).stream().map(Tag::getId).collect(Collectors.toSet()))
+                        .toList();
+                if (!sameTags(activeTags)) {
+                    throw new IllegalArgumentException("共享 DNS 的启用部署位必须使用相同标签");
+                }
+            }
+            for (int index = 0; index < placements.size(); index++) {
+                NodeServer placement = placements.get(index);
+                if (!placement.getTags().stream().map(Tag::getId).collect(Collectors.toSet())
+                        .equals(targets.get(index).stream().map(Tag::getId).collect(Collectors.toSet()))) {
+                    placement.getTags().clear();
+                    placement.getTags().addAll(targets.get(index));
+                    markPendingDeploy(placement);
+                }
+            }
             updatedCount++;
         }
 
@@ -596,16 +694,6 @@ public class NodeService {
         result.put("updatedCount", updatedCount);
         result.put("unchangedCount", unchangedCount);
         return result;
-    }
-
-    private LinkedHashSet<Long> extractNodeTagIds(Node node) {
-        if (node.getTags() == null) {
-            return new LinkedHashSet<>();
-        }
-        return node.getTags().stream()
-                .map(Tag::getId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private LinkedHashSet<Long> resolveTargetTagIds(LinkedHashSet<Long> currentTagIds,
@@ -619,12 +707,11 @@ public class NodeService {
         return new LinkedHashSet<>(selectedTagIds);
     }
 
-    public boolean hasSubstantialChanges(Node oldNode, Node newNode, Set<Tag> newTagSet, boolean tagsUpdated) {
-        return !buildSubstantialChangeSignature(oldNode, oldNode.getTags(), tagsUpdated).equals(
-                buildSubstantialChangeSignature(newNode, newTagSet, tagsUpdated));
+    public boolean hasSubstantialChanges(Node oldNode, Node newNode) {
+        return !buildSubstantialChangeSignature(oldNode).equals(buildSubstantialChangeSignature(newNode));
     }
 
-    private String buildSubstantialChangeSignature(Node node, Set<Tag> tagSet, boolean includeTags) {
+    private String buildSubstantialChangeSignature(Node node) {
         StringJoiner joiner = new StringJoiner("|");
         joiner.add("port=" + normalizeValue(node.getPort()));
         joiner.add("type=" + normalizeValue(node.getType()));
@@ -635,9 +722,6 @@ public class NodeService {
         // 编辑表单总会提交 level/disabled 的默认值，null 与 0 视为相同，避免仅改部署位属性也触发重新部署
         joiner.add("level=" + (node.getLevel() == null ? 0 : node.getLevel()));
         joiner.add("disabled=" + (node.getDisabled() == null ? 0 : node.getDisabled()));
-        if (includeTags) {
-            joiner.add("tags=" + normalizeTags(tagSet));
-        }
         return md5Hex(joiner.toString());
     }
 
@@ -675,18 +759,6 @@ public class NodeService {
         return value;
     }
 
-    private String normalizeTags(Set<Tag> tagSet) {
-        if (tagSet == null || tagSet.isEmpty()) {
-            return "";
-        }
-        return tagSet.stream()
-                .map(Tag::getId)
-                .filter(Objects::nonNull)
-                .sorted()
-                .map(String::valueOf)
-                .collect(Collectors.joining(","));
-    }
-
     public String md5Hex(String source) {
         try {
             MessageDigest messageDigest = MessageDigest.getInstance("MD5");
@@ -707,7 +779,6 @@ public class NodeService {
         if (src.getInbound() != null) target.setInbound(src.getInbound());
         if (src.getRule() != null) target.setRule(src.getRule());
         if (src.getLevel() != null) target.setLevel(src.getLevel());
-        if (src.getTags() != null) target.setTags(src.getTags());
         if (src.getDisabled() != null) target.setDisabled(src.getDisabled());
         target.setOutId(src.getOutId());
     }
@@ -765,6 +836,7 @@ public class NodeService {
         if (id == null) {
             return;
         }
+        tagRepository.deleteAllPlacementTagsByNodeId(id);
         tagRepository.deleteAllNodeTagsByNodeId(id);
         nodeDeploymentRepository.deleteByNodeId(id);
         nodeServerRepository.delete("nodeId", id);

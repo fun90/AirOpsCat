@@ -65,6 +65,7 @@ public class Node {
     @JoinColumn(name = "out_id", insertable = false, updatable = false)
     private Node outNode;
     
+    // 旧 node_tag 只供迁移及回滚；访问权限读取 NodeServer.tags
     @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
         name = "node_tag",

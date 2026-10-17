@@ -2,6 +2,8 @@ package com.fun90.airopscat.model.dto;
 
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class NodeServerDto {
     private Long id;
@@ -16,5 +18,6 @@ public class NodeServerDto {
     private Integer priority;
     private Integer enabled;
     private String name;
+    private List<Long> tagIds;
     private Integer deployed;
 }

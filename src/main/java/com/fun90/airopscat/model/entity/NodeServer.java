@@ -5,6 +5,8 @@ import lombok.Data;
 import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * 部署位：逻辑节点部署到某台服务器的实例。
@@ -49,6 +51,13 @@ public class NodeServer {
 
     // 0:待部署,1:已部署,2:待删除
     private Integer deployed;
+
+    // 账号访问权限按部署位分配
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "node_server_tag",
+            joinColumns = @JoinColumn(name = "node_server_id"),
+            inverseJoinColumns = @JoinColumn(name = "tag_id"))
+    private Set<Tag> tags = new HashSet<>();
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "server_id", insertable = false, updatable = false)

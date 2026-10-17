@@ -136,17 +136,13 @@ export function createNodeDeployMethods() {
             }
 
             const selectedNodes = this.records.filter(node => this.selectedNodeIds.includes(node.id));
-            const normalizedTagSets = selectedNodes.map(node => {
-                const tags = Array.isArray(node.tags) ? node.tags : Array.from(node.tags || []);
-                return tags
-                    .map(tag => Number(tag.id))
-                    .filter(tagId => !Number.isNaN(tagId))
-                    .sort((left, right) => left - right);
-            });
+            const normalizedTagSets = selectedNodes.flatMap(node => (node.placements || []).filter(placement => placement.deployed !== 2).map(placement =>
+                [...(placement.tagIds || [])].map(Number).sort((left, right) => left - right)
+            ));
             const hasSameTagSet = normalizedTagSets.every(tagIds =>
                 JSON.stringify(tagIds) === JSON.stringify(normalizedTagSets[0] || [])
             );
-            this.batchTagForm.mode = 'REPLACE';
+            this.batchTagForm.mode = hasSameTagSet ? 'REPLACE' : 'APPEND';
             this.batchTagForm.tagIds = hasSameTagSet ? [...(normalizedTagSets[0] || [])] : [];
             this.batchTagModal = new Modal(document.getElementById('node-batchTagModal'));
             this.batchTagModal.show();
@@ -154,9 +150,9 @@ export function createNodeDeployMethods() {
 
         getBatchTagModeDescription() {
             if (this.batchTagForm.mode === 'APPEND') {
-                return '保存后会在所选节点现有标签的基础上新增下面勾选的标签；已有标签会保留，实际变更的节点会被标记为待部署。';
+                return '保存后会在所选节点各部署位现有标签的基础上新增下面勾选的标签；已有标签会保留，实际变更的部署位会被标记为待部署。';
             }
-            return '保存后会将所选节点的标签整体替换为下面勾选的结果，并将这些节点标记为待部署。';
+            return '保存后会将所选节点各部署位的标签分别替换为下面勾选的结果，并将这些部署位标记为待部署。';
         },
 
         getBatchTagModeActionLabel() {

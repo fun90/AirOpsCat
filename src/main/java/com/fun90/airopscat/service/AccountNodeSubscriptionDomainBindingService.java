@@ -72,6 +72,9 @@ public class AccountNodeSubscriptionDomainBindingService {
         ensureNodeExists(request.getNodeId());
         ensureNodeBelongsToAccount(request.getAccountId(), request.getNodeId());
         ensureDomainDnsRecordExists(request.getDomainDnsRecordId());
+        if (request.getEnabled() == null || request.getEnabled() == 1) {
+            nodeService.validateUniformPlacementTags(request.getNodeId());
+        }
 
         AccountNodeSubscriptionDomainBinding binding;
         if (request.getId() != null) {
@@ -103,6 +106,9 @@ public class AccountNodeSubscriptionDomainBindingService {
     @Transactional
     public AccountNodeSubscriptionDomainBindingDto setEnabled(Long id, boolean enabled) {
         AccountNodeSubscriptionDomainBinding binding = findExisting(id);
+        if (enabled) {
+            nodeService.validateUniformPlacementTags(binding.getNodeId());
+        }
         binding.setEnabled(enabled ? 1 : 0);
         return toDto(binding);
     }

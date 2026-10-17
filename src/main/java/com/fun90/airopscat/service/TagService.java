@@ -3,9 +3,12 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.TagDto;
 import com.fun90.airopscat.model.entity.Account;
 import com.fun90.airopscat.model.entity.Node;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.NodeRepository;
+import com.fun90.airopscat.repository.NodeServerRepository;
+import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.TagRepository;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -21,6 +24,9 @@ public class TagService {
     private final TagRepository tagRepository;
     private final NodeRepository nodeRepository;
     private final AccountRepository accountRepository;
+
+    @Inject
+    NodeServerRepository nodeServerRepository;
 
     @Inject
     public TagService(TagRepository tagRepository, NodeRepository nodeRepository, AccountRepository accountRepository) {
@@ -123,8 +129,14 @@ public class TagService {
             throw new EntityNotFoundException("Tag not found");
         }
         
-        // Remove associations using direct repository operations to avoid lazy loading
-        // The associations will be automatically removed by cascade operations
+        // 删除标签前清理账号及部署位关联，并标记受影响的部署位
+        markAffectedPlacements(List.of(id));
+        tagRepository.getEntityManager().createNativeQuery("DELETE FROM node_server_tag WHERE tag_id = ?1")
+                .setParameter(1, id).executeUpdate();
+        tagRepository.getEntityManager().createNativeQuery("DELETE FROM node_tag WHERE tag_id = ?1")
+                .setParameter(1, id).executeUpdate();
+        tagRepository.getEntityManager().createNativeQuery("DELETE FROM account_tag WHERE tag_id = ?1")
+                .setParameter(1, id).executeUpdate();
         tagRepository.deleteById(id);
     }
 
@@ -151,11 +163,11 @@ public class TagService {
         }
 
         // 检查关联是否已经存在，避免重复插入
-        List<Tag> existingTags = tagRepository.findByNodeId(nodeId);
-        boolean alreadyExists = existingTags.stream().anyMatch(tag -> tag.getId().equals(tagId));
-        
-        if (!alreadyExists) {
-            tagRepository.insertNodeTag(nodeId, tagId);
+        for (NodeServer placement : nodeServerRepository.findByNodeId(nodeId)) {
+            if (placement.getTags().stream().noneMatch(tag -> tag.getId().equals(tagId))) {
+                placement.getTags().add(tagRepository.findById(tagId));
+                markPending(placement);
+            }
         }
     }
 
@@ -169,8 +181,11 @@ public class TagService {
             throw new EntityNotFoundException("Tag not found");
         }
 
-        // 直接删除关联记录
-        tagRepository.deleteNodeTag(nodeId, tagId);
+        for (NodeServer placement : nodeServerRepository.findByNodeId(nodeId)) {
+            if (placement.getTags().removeIf(tag -> tag.getId().equals(tagId))) {
+                markPending(placement);
+            }
+        }
     }
 
     @Transactional
@@ -189,6 +204,7 @@ public class TagService {
         
         if (!alreadyExists) {
             tagRepository.insertAccountTag(accountId, tagId);
+            markAffectedPlacements(List.of(tagId));
         }
     }
 
@@ -202,8 +218,11 @@ public class TagService {
             throw new EntityNotFoundException("Tag not found");
         }
 
-        // 直接删除关联记录
-        tagRepository.deleteAccountTag(accountId, tagId);
+        // 已有关联才需要更新部署配置
+        if (tagRepository.findByAccountId(accountId).stream().anyMatch(tag -> tag.getId().equals(tagId))) {
+            tagRepository.deleteAccountTag(accountId, tagId);
+            markAffectedPlacements(List.of(tagId));
+        }
     }
 
     @Transactional
@@ -213,21 +232,11 @@ public class TagService {
             throw new EntityNotFoundException("Node not found");
         }
 
-        // 删除现有的标签关联
-        tagRepository.deleteAllNodeTagsByNodeId(nodeId);
-
-        // 添加新的标签关联
-        if (tagIds != null && !tagIds.isEmpty()) {
-            // 验证所有标签都存在
-            List<Tag> existingTags = tagRepository.list("id in ?1", tagIds);
-            if (existingTags.size() != tagIds.size()) {
-                throw new EntityNotFoundException("Some tags not found");
-            }
-            
-            // 批量插入新的关联
-            for (Long tagId : tagIds) {
-                tagRepository.insertNodeTag(nodeId, tagId);
-            }
+        List<Long> normalized = tagIds == null ? List.of() : tagIds.stream().filter(Objects::nonNull).distinct().toList();
+        validateAccountTagIds(normalized);
+        Set<Tag> target = normalized.isEmpty() ? Set.of() : new HashSet<>(tagRepository.list("id in ?1", normalized));
+        for (NodeServer placement : nodeServerRepository.findByNodeId(nodeId)) {
+            updatePlacementTags(placement, target);
         }
     }
 
@@ -238,18 +247,45 @@ public class TagService {
             throw new EntityNotFoundException("Account not found");
         }
 
-        // 删除现有的标签关联
-        tagRepository.deleteAllAccountTagsByAccountId(accountId);
-
-        // 添加新的标签关联
-        if (tagIds != null && !tagIds.isEmpty()) {
-            validateAccountTagIds(tagIds);
-
-            // 批量插入新的关联
-            for (Long tagId : tagIds) {
-                tagRepository.insertAccountTag(accountId, tagId);
-            }
+        List<Long> normalized = tagIds == null ? List.of() : tagIds.stream().filter(Objects::nonNull).distinct().toList();
+        validateAccountTagIds(normalized);
+        List<Long> previous = tagRepository.findByAccountId(accountId).stream().map(Tag::getId).toList();
+        if (new HashSet<>(previous).equals(new HashSet<>(normalized))) {
+            return;
         }
+        List<Long> affectedTagIds = new ArrayList<>(previous);
+        affectedTagIds.addAll(normalized);
+        markAffectedPlacements(affectedTagIds);
+        tagRepository.deleteAllAccountTagsByAccountId(accountId);
+        for (Long tagId : normalized) {
+            tagRepository.insertAccountTag(accountId, tagId);
+        }
+    }
+
+    public void updatePlacementTags(NodeServer placement, Set<Tag> target) {
+        Set<Long> before = placement.getTags().stream().map(Tag::getId).collect(java.util.stream.Collectors.toSet());
+        Set<Long> after = target.stream().map(Tag::getId).collect(java.util.stream.Collectors.toSet());
+        if (!before.equals(after)) {
+            placement.getTags().clear();
+            placement.getTags().addAll(target);
+            markPending(placement);
+        }
+    }
+
+    private void markPending(NodeServer placement) {
+        if (!NodeDeploymentStatus.isPendingDelete(placement.getDeployed())) {
+            placement.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
+        }
+    }
+
+    private void markAffectedPlacements(List<Long> tagIds) {
+        if (tagIds.isEmpty()) {
+            return;
+        }
+        List<NodeServer> placements = nodeServerRepository.getEntityManager().createQuery(
+                "select distinct ns from NodeServer ns join ns.tags t where t.id in :tagIds", NodeServer.class)
+                .setParameter("tagIds", tagIds).getResultList();
+        placements.forEach(this::markPending);
     }
 
     public void validateAccountTagIds(List<Long> tagIds) {

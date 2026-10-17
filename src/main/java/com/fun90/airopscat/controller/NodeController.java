@@ -11,7 +11,6 @@ import com.fun90.airopscat.model.dto.NodeRequest;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
-import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.service.AccountOnlineIpService;
@@ -20,7 +19,6 @@ import com.fun90.airopscat.service.deployment.NodeDeploymentVersionService;
 import com.fun90.airopscat.service.NodeService;
 import com.fun90.airopscat.service.ServerHostService;
 import com.fun90.airopscat.service.ServerService;
-import com.fun90.airopscat.service.TagService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.panache.common.Page;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -53,9 +51,6 @@ public class NodeController {
     @Inject
     NodeDeploymentService nodeDeploymentService;
     
-    @Inject
-    TagService tagService;
-
     @Inject
     NodeDeploymentVersionService nodeDeploymentVersionService;
 
@@ -198,12 +193,6 @@ public class NodeController {
             // 使用 NodeConverter 转换请求为实体
             Node node = NodeConverter.fromRequest(request);
             Node savedNode = nodeService.saveNode(node, NodeConverter.placementsFromRequest(request));
-            
-            // 处理标签关联
-            if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
-                tagService.updateNodeTags(savedNode.getId(), request.getTagIds());
-            }
-            
             return Response.ok(nodeService.getNodeDtoById(savedNode.getId())).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
@@ -218,18 +207,8 @@ public class NodeController {
         try {
             // 使用 NodeConverter 转换请求为实体，并设置 ID
             Node node = NodeConverter.fromRequest(request, id);
-            Set<Tag> tagSet = new HashSet<>();
-            if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
-                tagSet = request.getTagIds().stream().map(tid -> tagService.getTagById(tid)).collect(Collectors.toSet());
-            }
             List<NodeServer> placements = request.getPlacements() == null ? null : NodeConverter.placementsFromRequest(request);
-            Node updatedNode = nodeService.updateNode(node, placements, tagSet, request.getTagIds() != null);
-            
-            // 处理标签关联
-            if (request.getTagIds() != null) {
-                tagService.updateNodeTags(updatedNode.getId(), request.getTagIds());
-            }
-            
+            Node updatedNode = nodeService.updateNode(node, placements);
             return Response.ok(nodeService.getNodeDtoById(updatedNode.getId())).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
@@ -343,6 +322,7 @@ public class NodeController {
                         copy.setPriority(placement.getPriority());
                         copy.setEnabled(placement.getEnabled());
                         copy.setName(placement.getName());
+                        copy.setTags(new HashSet<>(placement.getTags()));
                         return copy;
                     })
                     .toList();

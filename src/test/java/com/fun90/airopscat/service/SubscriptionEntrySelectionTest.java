@@ -9,9 +9,18 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SubscriptionEntrySelectionTest {
+
+    @Test
+    void placementAuthorizationKeepsServersSeparate() {
+        assertTrue(SubscriptionService.isAuthorizedPlacement(List.of(1L, 2L), java.util.Set.of(2L)));
+        assertTrue(SubscriptionService.isAuthorizedPlacement(List.of(2L), java.util.Set.of(2L, 3L)));
+        assertFalse(SubscriptionService.isAuthorizedPlacement(List.of(1L), java.util.Set.of(2L)));
+        assertFalse(SubscriptionService.isAuthorizedPlacement(List.of(), java.util.Set.of(2L)));
+    }
 
     @Test
     void accountBindingOutputsSingleEntryFromEffectivePlacement() {

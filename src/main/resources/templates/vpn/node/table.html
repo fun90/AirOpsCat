@@ -57,6 +57,9 @@
                 </span>
                 <span v-if="!node.placements || node.placements.length === 0" class="text-secondary">-</span>
             </div>
+            <div v-for="placement in node.placements" :key="'tags-' + placement.id" class="text-secondary small text-break mt-1">
+                {{ placement.serverName || placement.serverIp || placement.serverId }}：{{ (placement.tagIds || []).map(id => getTagNameById(id)).join('、') || '无标签' }}
+            </div>
             <div v-if="node.dnsRecordName" class="text-secondary small text-break mt-1">
                 <i class="ti ti-world me-1"></i>{{ node.dnsRecordName }}
             </div>

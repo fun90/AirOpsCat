@@ -86,6 +86,7 @@ export function createNodeFormMethods() {
                 priority,
                 enabled: true,
                 name: '',
+                tagIds: [],
                 deployed: null
             };
         },
@@ -94,8 +95,10 @@ export function createNodeFormMethods() {
             const usedServerIds = new Set(item.placements.map(placement => String(placement.serverId)));
             const server = this.servers.find(candidate => !usedServerIds.has(String(candidate.id)));
             const maxPriority = item.placements.reduce((max, placement) => Math.max(max, Number(placement.priority) || 0), -10);
-            item.placements.push(this.createPlacement(server ? server.id : '', maxPriority + 10));
-            this.onPlacementServerChange(item, item.placements[item.placements.length - 1], isEdit);
+            const placement = this.createPlacement(server ? server.id : '', maxPriority + 10);
+            placement.tagIds = [...(this.getPrimaryPlacement(item)?.tagIds || [])];
+            item.placements.push(placement);
+            this.onPlacementServerChange(item, placement, isEdit);
         },
 
         removePlacement(item, index, isEdit = false) {
@@ -308,6 +311,13 @@ export function createNodeFormMethods() {
             if (!placements.some(placement => placement.enabled)) {
                 return '至少需要一个启用的部署服务器';
             }
+            if (item.dnsRecordId) {
+                const tagSets = placements.filter(placement => placement.enabled)
+                    .map(placement => [...(placement.tagIds || [])].map(Number).sort((a, b) => a - b).join(','));
+                if (new Set(tagSets).size > 1) {
+                    return '共享 DNS 的启用部署位必须使用相同标签';
+                }
+            }
             return '';
         },
 
@@ -362,7 +372,8 @@ export function createNodeFormMethods() {
                 exposed: placement.exposed ? 1 : 0,
                 priority: Number(placement.priority) || 0,
                 enabled: placement.enabled ? 1 : 0,
-                name: placement.name || null
+                name: placement.name || null,
+                tagIds: placement.tagIds || []
             }));
         },
 
@@ -392,8 +403,7 @@ export function createNodeFormMethods() {
                     remark: this.newItem.remark || null,
                     inbound: inboundConfig,
                     outId: this.newItem.outId || null,
-                    rule: ruleConfig,
-                    tagIds: this.newItem.tagIds || []
+                    rule: ruleConfig
                 };
             } catch (e) {
                 console.error('Error parsing JSON:', e);
@@ -427,8 +437,7 @@ export function createNodeFormMethods() {
                     remark: this.editedItem.remark || null,
                     inbound: this.editedNodeInbound,
                     outId: this.editedItem.outId === 0 ? null : this.editedItem.outId,
-                    rule: ruleConfig,
-                    tagIds: this.editedItem.tagIds || []
+                    rule: ruleConfig
                 };
             } catch (e) {
                 console.error('Error parsing JSON:', e);
@@ -452,8 +461,7 @@ export function createNodeFormMethods() {
                 remark: '',
                 inbound: null,
                 outId: null,
-                rule: null,
-                tagIds: []
+                rule: null
             };
 
             this.newNodeInbound = {
@@ -469,18 +477,6 @@ export function createNodeFormMethods() {
             }
         },
 
-        loadNodeTags(nodeId) {
-            fetch(`/api/admin/tags/nodes/${nodeId}`)
-                .then(response => response.json())
-                .then(data => {
-                    this.editedItem.tagIds = data.map(tag => tag.id);
-                })
-                .catch(error => {
-                    console.error('Error loading node tags:', error);
-                    this.editedItem.tagIds = [];
-                });
-        },
-
         prepareEditForm(node) {
             this.fetchLandingNodes();
             this.editedNodeInbound = node.inbound || { protocol: 'vless' };
@@ -492,8 +488,6 @@ export function createNodeFormMethods() {
                 clearTimeout(this.editPortCheckTimer);
                 this.editPortCheckTimer = null;
             }
-            this.loadNodeTags(node.id);
-
             // 待删除的部署位正在移除，不在表单中展示；再次添加同一服务器即可恢复
             const placements = (node.placements || [])
                 .filter(placement => placement.deployed !== 2)
@@ -505,6 +499,7 @@ export function createNodeFormMethods() {
                     priority: placement.priority ?? 0,
                     enabled: placement.enabled !== 0,
                     name: placement.name || '',
+                    tagIds: [...(placement.tagIds || [])],
                     deployed: placement.deployed
                 }));
 
@@ -523,8 +518,7 @@ export function createNodeFormMethods() {
                 remark: node.remark || '',
                 inbound: node.inbound,
                 outId: !node.outId ? 0 : node.outId,
-                rule: node.rule,
-                tagIds: []
+                rule: node.rule
             };
         }
     };

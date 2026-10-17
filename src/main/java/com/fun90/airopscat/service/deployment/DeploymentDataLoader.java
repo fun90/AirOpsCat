@@ -134,7 +134,7 @@ public class DeploymentDataLoader {
                         .ifPresent(placement -> effectiveOutPlacements.put(nodeId, placement)));
 
         List<Node> localNodes = placementByNodeId.keySet().stream().map(nodeMap::get).filter(Objects::nonNull).toList();
-        Map<Long, List<NodeClient>> nodeClientsMap = buildNodeClientsMap(localNodes);
+        Map<Long, List<NodeClient>> nodeClientsMap = buildNodeClientsMap(localNodes, placementByNodeId);
 
         Map<Long, NodeDeploymentSnapshot> snapshots = new HashMap<>();
         for (Node node : localNodes) {
@@ -190,7 +190,7 @@ public class DeploymentDataLoader {
         return placement == null || placement.getServer() == null ? null : placement.getServer().getIp();
     }
 
-    private Map<Long, List<NodeClient>> buildNodeClientsMap(List<Node> nodes) {
+    Map<Long, List<NodeClient>> buildNodeClientsMap(List<Node> nodes, Map<Long, NodeServer> placementByNodeId) {
         List<Node> nodesWithManagedClients = nodes.stream()
                 .filter(this::supportsManagedClients)
                 .toList();
@@ -199,10 +199,11 @@ public class DeploymentDataLoader {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        List<Long> nodeIds = nodesWithManagedClients.stream().map(Node::getId).toList();
-        Map<Long, List<Long>> nodeTagIdsMap = tagRepository.findTagIdsByNodeIds(nodeIds);
+        List<Long> placementIds = nodesWithManagedClients.stream()
+                .map(node -> placementByNodeId.get(node.getId()).getId()).toList();
+        Map<Long, List<Long>> placementTagIdsMap = tagRepository.findTagIdsByPlacementIds(placementIds);
 
-        List<Long> allTagIds = nodeTagIdsMap.values().stream()
+        List<Long> allTagIds = placementTagIdsMap.values().stream()
                 .flatMap(List::stream)
                 .distinct()
                 .toList();
@@ -219,7 +220,7 @@ public class DeploymentDataLoader {
             }
 
             Set<Long> accountIds = new LinkedHashSet<>();
-            for (Long tagId : nodeTagIdsMap.getOrDefault(node.getId(), Collections.emptyList())) {
+            for (Long tagId : placementTagIdsMap.getOrDefault(placementByNodeId.get(node.getId()).getId(), Collections.emptyList())) {
                 accountIds.addAll(tagAccountIdsMap.getOrDefault(tagId, Collections.emptyList()));
             }
 
