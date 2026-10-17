@@ -23,6 +23,7 @@ import com.fun90.airopscat.repository.ServerHostRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.util.ConfigFileReader;
 import com.fun90.airopscat.util.JsonUtil;
+import com.fun90.airopscat.util.NodeName;
 import com.fun90.airopscat.util.NodeObfuscator;
 import com.fun90.airopscat.util.TemplateUtil;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -321,9 +322,8 @@ public class SubscriptionService {
             }
             Server server = serverMap.get(snapshot.getServerId());
             NodeDto dto = toSubscriptionNodeDto(snapshot, server, accessHostMap.get(snapshot.getAccessHostId()));
-            dto.setName(availableNodeMap.get(placement.getNodeId()).getName());
+            dto.setName(NodeName.withNumber(availableNodeMap.get(placement.getNodeId()).getName()));
             dto.setNodeServerId(placement.getId());
-            dto.setPriority(placement.getPriority());
             candidatesByNodeId.computeIfAbsent(placement.getNodeId(), id -> new ArrayList<>())
                     .add(new SubscriptionCandidate(placement, dto, server == null ? null : server.getName()));
         }
@@ -346,10 +346,10 @@ public class SubscriptionService {
             if (seen.add(name)) {
                 continue;
             }
-            String base = name + "-" + node.getNodeServerId();
-            String unique = base;
+            String base = NodeName.base(name) + "-" + node.getNodeServerId();
+            String unique = base + "-" + NodeName.number(name);
             for (int suffix = 2; !reserved.add(unique); suffix++) {
-                unique = base + "-" + suffix;
+                unique = base + "-" + suffix + "-" + NodeName.number(name);
             }
             node.setName(unique);
         }
@@ -393,9 +393,11 @@ public class SubscriptionService {
                     NodeDto dto = candidate.dto();
                     String placementName = candidate.placement().getName();
                     if (placementName != null && !placementName.isBlank()) {
-                        dto.setName(placementName);
+                        dto.setName(NodeName.withNumber(placementName));
                     } else if (multiple) {
-                        dto.setName(dto.getName() + "-" + Objects.toString(candidate.serverName(), String.valueOf(dto.getServerId())));
+                        dto.setName(NodeName.base(dto.getName()) + "-"
+                                + Objects.toString(candidate.serverName(), String.valueOf(dto.getServerId()))
+                                + "-" + NodeName.number(dto.getName()));
                     }
                     return dto;
                 })

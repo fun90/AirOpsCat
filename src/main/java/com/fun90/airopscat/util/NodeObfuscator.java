@@ -2,6 +2,7 @@ package com.fun90.airopscat.util;
 
 import com.fun90.airopscat.model.dto.NodeDto;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,12 +37,12 @@ public class NodeObfuscator {
      * 对单个节点按倍数生成多个混淆副本
      */
     private static List<NodeDto> obfuscateNode(NodeDto original, int multiple, String prefix) {
-        int startIndex = Math.max(0, original.getPriority() == null ? 0 : original.getPriority()) * 10;
+        BigInteger startIndex = NodeName.number(original.getName()).multiply(BigInteger.TEN);
         List<NodeDto> result = new ArrayList<>(multiple);
 
         for (int i = 0; i < multiple; i++) {
             NodeDto copy = deepCopy(original);
-            int currentIndex = startIndex + i;
+            BigInteger currentIndex = startIndex.add(BigInteger.valueOf(i));
 
             // 替换 name 中的 {数字} 为新编号，没有则追加
             copy.setName(buildName(original.getName(), currentIndex, prefix));
@@ -56,8 +57,8 @@ public class NodeObfuscator {
     /**
      * 构建新的 name：将编号拼接到最后
      */
-    private static String buildName(String originalName, int index, String prefix) {
-        return originalName + "-" + prefix + index;
+    private static String buildName(String originalName, BigInteger index, String prefix) {
+        return NodeName.base(originalName) + "-" + prefix + index;
     }
 
     /**
@@ -87,7 +88,6 @@ public class NodeObfuscator {
         copy.setDeployed(src.getDeployed());
         copy.setDisabled(src.getDisabled());
         copy.setName(src.getName());
-        copy.setPriority(src.getPriority());
         copy.setRemark(src.getRemark());
         copy.setCreateTime(src.getCreateTime());
         copy.setUpdateTime(src.getUpdateTime());

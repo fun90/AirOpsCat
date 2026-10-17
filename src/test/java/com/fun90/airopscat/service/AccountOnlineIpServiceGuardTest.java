@@ -7,7 +7,6 @@ import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.repository.AccountOnlineIpRepository;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.NodeRepository;
-import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.repository.UserRepository;
 import jakarta.persistence.PessimisticLockException;
 import org.junit.jupiter.api.Test;
@@ -27,7 +26,6 @@ class AccountOnlineIpServiceGuardTest {
                 onlineIpRepository,
                 new FakeAccountRepository(),
                 new FakeNodeRepository(),
-                new NodeServerRepository(),
                 new UserRepository(),
                 new FakeSystemConfigService());
 
@@ -54,7 +52,6 @@ class AccountOnlineIpServiceGuardTest {
                 onlineIpRepository,
                 new FakeAccountRepository(),
                 new FakeNodeRepository(),
-                new NodeServerRepository(),
                 new UserRepository(),
                 new FakeSystemConfigService());
 
@@ -77,7 +74,6 @@ class AccountOnlineIpServiceGuardTest {
                 onlineIpRepository,
                 new FakeAccountRepository(),
                 new FakeNodeRepository(),
-                new NodeServerRepository(),
                 new UserRepository(),
                 new FakeSystemConfigService());
 

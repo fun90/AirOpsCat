@@ -9,6 +9,7 @@ import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.util.JsonUtil;
+import com.fun90.airopscat.util.NodeName;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -23,7 +24,7 @@ public class NodeConverter {
         
         // Manual property copying instead of BeanUtils
         dto.setId(node.getId());
-        dto.setName(node.getName());
+        dto.setName(NodeName.withNumber(node.getName()));
         dto.setType(node.getType());
         dto.setPort(node.getPort());
         dto.setProtocol(node.getProtocol());
@@ -47,7 +48,6 @@ public class NodeConverter {
                 .or(() -> sortedPlacements.stream().findFirst())
                 .ifPresent(placement -> {
             dto.setNodeServerId(placement.getId());
-            dto.setPriority(placement.getPriority());
             dto.setServerId(placement.getServerId());
             dto.setAccessHostId(placement.getAccessHostId());
             dto.setAccessHost(placement.getAccessHost() != null ? placement.getAccessHost().getHost() : null);
@@ -154,7 +154,7 @@ public class NodeConverter {
         dto.setExposed(placement.getExposed());
         dto.setPriority(placement.getPriority());
         dto.setEnabled(placement.getEnabled());
-        dto.setName(placement.getName());
+        dto.setName(NodeName.withNumber(placement.getName()));
         dto.setDeployed(placement.getDeployed());
         if (placement.getServer() != null) {
             dto.setServerName(placement.getServer().getName());

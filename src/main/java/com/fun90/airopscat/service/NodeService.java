@@ -46,6 +46,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import com.fun90.airopscat.util.JsonUtil;
+import com.fun90.airopscat.util.NodeName;
 
 @ApplicationScoped
 public class NodeService {
@@ -313,13 +314,29 @@ public class NodeService {
         return !nodeServerRepository.existsPortConflict(serverId, port, nodeId);
     }
 
+    private void normalizePlacementNames(List<NodeServer> placements) {
+        for (NodeServer placement : placements) {
+            placement.setName(NodeName.withNumber(placement.getName()));
+        }
+    }
+
     private void validateNode(Node node, List<NodeServer> placements) {
+        if (node.getName() == null || node.getName().isBlank()) {
+            throw new IllegalArgumentException("节点名称不能为空");
+        }
+        if (node.getName().codePointCount(0, node.getName().length()) > 257) {
+            throw new IllegalArgumentException("节点名称不能超过 257 个字符");
+        }
         if (placements.stream().noneMatch(NodeServer::enabledFlag)) {
             throw new IllegalArgumentException("至少需要一个启用的部署服务器");
         }
 
         Set<Long> serverIds = new LinkedHashSet<>();
         for (NodeServer placement : placements) {
+            if (placement.getName() != null
+                    && placement.getName().codePointCount(0, placement.getName().length()) > 257) {
+                throw new IllegalArgumentException("部署位显示名不能超过 257 个字符");
+            }
             if (placement.getServerId() == null) {
                 throw new IllegalArgumentException("部署服务器不能为空");
             }
@@ -401,6 +418,8 @@ public class NodeService {
 
     @Transactional
     public Node saveNode(Node node, List<NodeServer> placements) {
+        node.setName(NodeName.withNumber(node.getName()));
+        normalizePlacementNames(placements);
         normalizeAndValidateNodeProtocol(node);
         validateNode(node, placements);
 
@@ -434,6 +453,8 @@ public class NodeService {
                 .filter(placement -> !NodeDeploymentStatus.isPendingDelete(placement.getDeployed()))
                 .toList();
 
+        node.setName(NodeName.withNumber(node.getName() == null ? existingNode.getName() : node.getName()));
+        normalizePlacementNames(targetPlacements);
         normalizeAndValidateNodeProtocol(node);
         validateNode(node, targetPlacements);
         boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node, tagSet, tagsUpdated);

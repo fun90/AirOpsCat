@@ -33,8 +33,8 @@
                     <span class="badge flex-shrink-0" :class="getTypeBadgeClass(node.type)">
                         {{ (node.type == 1) ? 'L' : 'P' }}
                     </span>
-                    <div class="fw-medium text-truncate flex-grow-1" :title="(node.name && node.priority != null) ? node.name + '-' + node.priority : (node.name || '-')">
-                        {{ (node.name && node.priority != null) ? node.name + '-' + node.priority : (node.name || '-') }}
+                    <div class="fw-medium text-truncate flex-grow-1" :title="node.name || '-'">
+                        {{ node.name || '-' }}
                     </div>
                 </div>
                 <div class="text-secondary small d-flex align-items-center flex-wrap gap-2">

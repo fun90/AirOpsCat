@@ -26,8 +26,8 @@
                         <div class="row mt-3">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">节点名称</label>
-                                    <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.name }" v-model="newItem.name">
+                                    <label class="form-label required">节点名称</label>
+                                    <input type="text" class="form-control" placeholder="例如：香港-1（省略编号默认为 1）" :class="{ 'is-invalid': validationErrors.name }" v-model="newItem.name">
                                     <div class="invalid-feedback" v-if="validationErrors.name">{{ validationErrors.name }}</div>
                                 </div>
                             </div>
@@ -105,7 +105,7 @@
                                           data-bs-toggle="popover"
                                           data-bs-placement="top"
                                           data-bs-html="true"
-                                          data-bs-content="<p>同一份节点配置部署到多台服务器。</p><p>暴露：未绑定 DNS 记录时是否出现在订阅；优先级越小越靠前。</p><p class='mb-0'>显示名为空且有多个暴露部署位时，订阅名称为“节点名-服务器名”。</p>">?</span>
+                                          data-bs-content="<p>同一份节点配置部署到多台服务器。</p><p>暴露：未绑定 DNS 记录时是否出现在订阅；优先级越小越靠前。</p><p class='mb-0'>显示名为空且有多个暴露部署位时，订阅名称为“节点名-服务器名-编号”；名称省略编号时默认为 1。</p>">?</span>
                                 </label>
                                 <button type="button" class="btn btn-sm btn-outline-primary ms-auto" @click="addPlacement(newItem, false)" :disabled="newItem.placements.length >= servers.length">
                                     <i class="ti ti-plus me-1"></i>添加服务器
@@ -156,7 +156,7 @@
                                             </label>
                                         </td>
                                         <td style="min-width: 7rem;">
-                                            <input type="text" class="form-control form-control-sm" v-model="placement.name" placeholder="默认">
+                                            <input type="text" class="form-control form-control-sm" v-model="placement.name" placeholder="可选，如备用-2">
                                         </td>
                                         <td class="text-nowrap">
                                             <span v-if="placement.id" class="badge" :class="isDeployed(placement) ? 'bg-success-lt' : 'bg-warning-lt'">{{ getDeploymentStatusLabel(placement.deployed) }}</span>
@@ -385,7 +385,7 @@
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label class="form-label required">节点名称</label>
-                                    <input type="text" class="form-control" :class="{ 'is-invalid': validationErrors.name }" v-model="editedItem.name">
+                                    <input type="text" class="form-control" placeholder="例如：香港-1（省略编号默认为 1）" :class="{ 'is-invalid': validationErrors.name }" v-model="editedItem.name">
                                     <div class="invalid-feedback" v-if="validationErrors.name">{{ validationErrors.name }}</div>
                                 </div>
                             </div>
@@ -470,7 +470,7 @@
                                           data-bs-toggle="popover"
                                           data-bs-placement="top"
                                           data-bs-html="true"
-                                          data-bs-content="<p>同一份节点配置部署到多台服务器。</p><p>暴露：未绑定 DNS 记录时是否出现在订阅；优先级越小越靠前。</p><p class='mb-0'>显示名为空且有多个暴露部署位时，订阅名称为“节点名-服务器名”。</p>">?</span>
+                                          data-bs-content="<p>同一份节点配置部署到多台服务器。</p><p>暴露：未绑定 DNS 记录时是否出现在订阅；优先级越小越靠前。</p><p class='mb-0'>显示名为空且有多个暴露部署位时，订阅名称为“节点名-服务器名-编号”；名称省略编号时默认为 1。</p>">?</span>
                                 </label>
                                 <button type="button" class="btn btn-sm btn-outline-primary ms-auto" @click="addPlacement(editedItem, true)" :disabled="editedItem.placements.length >= servers.length">
                                     <i class="ti ti-plus me-1"></i>添加服务器
@@ -521,7 +521,7 @@
                                             </label>
                                         </td>
                                         <td style="min-width: 7rem;">
-                                            <input type="text" class="form-control form-control-sm" v-model="placement.name" placeholder="默认">
+                                            <input type="text" class="form-control form-control-sm" v-model="placement.name" placeholder="可选，如备用-2">
                                         </td>
                                         <td class="text-nowrap">
                                             <span v-if="placement.id" class="badge" :class="isDeployed(placement) ? 'bg-success-lt' : 'bg-warning-lt'">{{ getDeploymentStatusLabel(placement.deployed) }}</span>

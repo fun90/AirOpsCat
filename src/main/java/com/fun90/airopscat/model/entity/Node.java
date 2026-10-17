@@ -52,6 +52,7 @@ public class Node {
 
     private Integer disabled;
     
+    @Column(length = 257)
     private String name;
 
     private String remark;

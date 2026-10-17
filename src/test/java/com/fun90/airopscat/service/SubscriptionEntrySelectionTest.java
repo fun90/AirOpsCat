@@ -23,7 +23,7 @@ class SubscriptionEntrySelectionTest {
         assertEquals(1, entries.size());
         assertEquals(1L, entries.getFirst().getNodeServerId());
         assertEquals("bind.example.com", entries.getFirst().getServerHost());
-        assertEquals("香港", entries.getFirst().getName());
+        assertEquals("香港-1", entries.getFirst().getName());
     }
 
     @Test
@@ -51,7 +51,7 @@ class SubscriptionEntrySelectionTest {
         ), null, null);
 
         assertEquals(List.of(1L, 3L), entries.stream().map(NodeDto::getNodeServerId).toList());
-        assertEquals(List.of("香港-HK1", "香港备用"), entries.stream().map(NodeDto::getName).toList());
+        assertEquals(List.of("香港-HK1-1", "香港备用-1"), entries.stream().map(NodeDto::getName).toList());
         assertEquals("hk1.example.com", entries.getFirst().getServerHost());
     }
 
@@ -62,20 +62,29 @@ class SubscriptionEntrySelectionTest {
         ), null, null);
 
         assertEquals(1, entries.size());
-        assertEquals("香港", entries.getFirst().getName());
+        assertEquals("香港-1", entries.getFirst().getName());
+    }
+
+    @Test
+    void placementNameKeepsItsOwnNumber() {
+        List<NodeDto> entries = SubscriptionService.selectSubscriptionEntries(List.of(
+                candidate(1L, 99, 1, "东京-7", "jp.example.com", "JP")
+        ), null, null);
+
+        assertEquals("东京-7", entries.getFirst().getName());
     }
 
     @Test
     void duplicatedPlacementNamesStayUniqueAfterObfuscation() {
         NodeDto first = candidate(1L, 10, 1, "香港", "hk1.example.com", "HK1").dto();
         NodeDto second = candidate(2L, 20, 1, "香港", "hk2.example.com", "HK2").dto();
-        first.setPriority(0);
-        second.setPriority(0);
+        first.setName("香港-3");
+        second.setName("香港-3");
         List<NodeDto> entries = NodeObfuscator.obfuscate(List.of(first, second), 2, "");
 
         SubscriptionService.ensureUniqueNames(entries);
 
-        assertEquals(List.of("香港-0", "香港-1", "香港-0-2", "香港-1-2"),
+        assertEquals(List.of("香港-30", "香港-31", "香港-2-30", "香港-2-31"),
                 entries.stream().map(NodeDto::getName).toList());
     }
 
@@ -88,7 +97,7 @@ class SubscriptionEntrySelectionTest {
         placement.setName(name);
         NodeDto dto = new NodeDto();
         dto.setNodeServerId(id);
-        dto.setName("香港");
+        dto.setName("香港-1");
         dto.setServerHost(host);
         return new SubscriptionCandidate(placement, dto, serverName);
     }
