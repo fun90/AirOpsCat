@@ -3,6 +3,7 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.service.SubscriptionService.SubscriptionCandidate;
+import com.fun90.airopscat.util.NodeObfuscator;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -62,6 +63,20 @@ class SubscriptionEntrySelectionTest {
 
         assertEquals(1, entries.size());
         assertEquals("香港", entries.getFirst().getName());
+    }
+
+    @Test
+    void duplicatedPlacementNamesStayUniqueAfterObfuscation() {
+        NodeDto first = candidate(1L, 10, 1, "香港", "hk1.example.com", "HK1").dto();
+        NodeDto second = candidate(2L, 20, 1, "香港", "hk2.example.com", "HK2").dto();
+        first.setNo(0);
+        second.setNo(0);
+        List<NodeDto> entries = NodeObfuscator.obfuscate(List.of(first, second), 2, "");
+
+        SubscriptionService.ensureUniqueNames(entries);
+
+        assertEquals(List.of("香港-0", "香港-1", "香港-0-2", "香港-1-2"),
+                entries.stream().map(NodeDto::getName).toList());
     }
 
     private static SubscriptionCandidate candidate(Long id, int priority, int exposed, String name, String host, String serverName) {

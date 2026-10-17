@@ -125,6 +125,7 @@ public class SubscriptionService {
         if (account.getNodeMultiple() != null) {
             activeNodes = NodeObfuscator.obfuscate(activeNodes, account.getNodeMultiple(), account.getNodePrefix());
         }
+        ensureUniqueNames(activeNodes);
 
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("account", account);
@@ -182,6 +183,7 @@ public class SubscriptionService {
         if (account.getNodeMultiple() != null) {
             activeNodes = NodeObfuscator.obfuscate(activeNodes, account.getNodeMultiple(), account.getNodePrefix());
         }
+        ensureUniqueNames(activeNodes);
 
         // 根据应用类型生成配置
         String content = generateConfigByApp(account, activeNodes, osName, appName, params);
@@ -332,6 +334,23 @@ public class SubscriptionService {
                     dnsHosts.get(availableNode.getDnsRecordId())));
         }
         return nodes;
+    }
+
+    static void ensureUniqueNames(List<NodeDto> nodes) {
+        Set<String> reserved = nodes.stream().map(NodeDto::getName).collect(Collectors.toSet());
+        Set<String> seen = new HashSet<>();
+        for (NodeDto node : nodes) {
+            String name = node.getName();
+            if (seen.add(name)) {
+                continue;
+            }
+            String base = name + "-" + node.getNodeServerId();
+            String unique = base;
+            for (int suffix = 2; !reserved.add(unique); suffix++) {
+                unique = base + "-" + suffix;
+            }
+            node.setName(unique);
+        }
     }
 
     record SubscriptionCandidate(NodeServer placement, NodeDto dto, String serverName) {}
