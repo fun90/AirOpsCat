@@ -120,7 +120,6 @@
                                         <th class="w-1">暴露</th>
                                         <th style="width: 6rem;">优先级</th>
                                         <th class="w-1">启用</th>
-                                        <th>标签</th>
                                         <th class="w-1">状态</th>
                                         <th class="w-1"></th>
                                     </tr>
@@ -155,13 +154,6 @@
                                                 <input class="form-check-input" type="checkbox" v-model="placement.enabled" @change="schedulePlacementPortCheck(false)">
                                             </label>
                                         </td>
-                                        <td style="min-width: 11rem;">
-                                            <div class="d-flex flex-column gap-1" style="max-height: 8rem; overflow-y: auto;">
-                                                <label v-for="tag in availableTags" :key="tag.id" class="form-check m-0">
-                                                    <input type="checkbox" class="form-check-input" :value="tag.id" v-model="placement.tagIds">
-                                                    <span class="form-check-label">{{ tag.name }}</span>
-                                                </label>
-                                            </div>
                                         </td>
                                         <td class="text-nowrap">
                                             <span v-if="placement.id" class="badge" :class="isDeployed(placement) ? 'bg-success-lt' : 'bg-warning-lt'">{{ getDeploymentStatusLabel(placement.deployed) }}</span>
@@ -183,6 +175,20 @@
                                 <div class="mb-3">
                                     <label class="form-label">级别</label>
                                     <input type="number" class="form-control" v-model="newItem.level" min="0">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">标签</label>
+                            <div class="row">
+                                <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
+                                    <label class="form-check">
+                                        <input type="checkbox" class="form-check-input" :value="tag.id" v-model="newItem.tagIds">
+                                        <span class="form-check-label d-flex align-items-center">
+                                            <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
+                                            {{ tag.name }}
+                                        </span>
+                                    </label>
                                 </div>
                             </div>
                         </div>
@@ -476,7 +482,6 @@
                                         <th class="w-1">暴露</th>
                                         <th style="width: 6rem;">优先级</th>
                                         <th class="w-1">启用</th>
-                                        <th>标签</th>
                                         <th class="w-1">状态</th>
                                         <th class="w-1"></th>
                                     </tr>
@@ -511,13 +516,6 @@
                                                 <input class="form-check-input" type="checkbox" v-model="placement.enabled" @change="schedulePlacementPortCheck(true)">
                                             </label>
                                         </td>
-                                        <td style="min-width: 11rem;">
-                                            <div class="d-flex flex-column gap-1" style="max-height: 8rem; overflow-y: auto;">
-                                                <label v-for="tag in availableTags" :key="tag.id" class="form-check m-0">
-                                                    <input type="checkbox" class="form-check-input" :value="tag.id" v-model="placement.tagIds">
-                                                    <span class="form-check-label">{{ tag.name }}</span>
-                                                </label>
-                                            </div>
                                         </td>
                                         <td class="text-nowrap">
                                             <span v-if="placement.id" class="badge" :class="isDeployed(placement) ? 'bg-success-lt' : 'bg-warning-lt'">{{ getDeploymentStatusLabel(placement.deployed) }}</span>
@@ -539,6 +537,20 @@
                                 <div class="mb-3">
                                     <label class="form-label">级别</label>
                                     <input type="number" class="form-control" v-model="editedItem.level" min="0">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">标签</label>
+                            <div class="row">
+                                <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
+                                    <label class="form-check">
+                                        <input type="checkbox" class="form-check-input" :value="tag.id" v-model="editedItem.tagIds">
+                                        <span class="form-check-label d-flex align-items-center">
+                                            <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
+                                            {{ tag.name }}
+                                        </span>
+                                    </label>
                                 </div>
                             </div>
                         </div>
@@ -725,7 +737,7 @@
                         <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
                             <div>
                                 <div class="fw-medium">当前模式：{{ batchTagForm.mode === 'APPEND' ? '新增' : '覆盖' }}</div>
-                                <div class="text-secondary small">已选择 {{ selectedNodeIds.length }} 个当前页节点；将调整这些节点的所有部署位。</div>
+                                <div class="text-secondary small">已选择 {{ selectedNodeIds.length }} 个当前页节点。</div>
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 <span class="small" :class="batchTagForm.mode === 'REPLACE' ? 'fw-bold text-body' : 'text-secondary'">覆盖</span>
@@ -740,7 +752,6 @@
                             </div>
                         </div>
                     </div>
-                    <div class="text-secondary small mt-2">{{ getBatchTagModeDescription() }}</div>
                 </div>
                 <div class="row">
                     <div v-for="tag in availableTags" :key="tag.id" class="col-md-6 mb-2">

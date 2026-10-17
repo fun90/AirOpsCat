@@ -343,8 +343,7 @@ const nodeTable = new DataTable({
                 placement.serverHost || placement.serverIp || '',
                 placement.enabled === 0 ? '已停用' : this.getDeploymentStatusLabel(placement.deployed),
                 placement.exposed === 0 ? '不暴露' : '暴露',
-                `优先级 ${placement.priority ?? 0}`,
-                `标签 ${((placement.tagIds || []).map(id => this.getTagNameById(id))).join('、') || '无'}`
+                `优先级 ${placement.priority ?? 0}`
             ];
             return parts.filter(Boolean).join(' · ');
         },

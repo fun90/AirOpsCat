@@ -5,7 +5,6 @@ import com.fun90.airopscat.model.dto.NodeRequest;
 import com.fun90.airopscat.model.dto.NodeServerDto;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeServer;
-import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.repository.NodeServerRepository;
@@ -16,7 +15,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 @Slf4j
 public class NodeConverter {
@@ -85,9 +83,16 @@ public class NodeConverter {
             dto.setRule(JsonUtil.toObject(node.getRule(), Map.class));
         }
 
-        // 列表聚合展示部署位标签，授权仍逐部署位判断
-        dto.setTags(sortedPlacements.stream().flatMap(placement -> placement.getTags().stream())
-                .collect(Collectors.toSet()));
+        // 设置标签信息 - 使用安全的方式访问避免LazyInitializationException
+        try {
+            if (node.getTags() != null) {
+                dto.setTags(node.getTags());
+            }
+        } catch (org.hibernate.LazyInitializationException e) {
+            // 当Hibernate session关闭时，优雅地处理懒加载异常
+            log.debug("Tags lazy loading failed for node {}, skipping tags", node.getId());
+            // 不设置标签信息
+        }
 
         return dto;
     }
@@ -134,16 +139,6 @@ public class NodeConverter {
                     placement.setExposed(item.getExposed() == null || item.getExposed() != 0 ? 1 : 0);
                     placement.setPriority(item.getPriority() == null ? 0 : item.getPriority());
                     placement.setEnabled(item.getEnabled() == null || item.getEnabled() != 0 ? 1 : 0);
-                    List<Long> requestedTags = item.getTagIds() == null ? request.getTagIds() : item.getTagIds();
-                    if (requestedTags != null) {
-                        placement.setTags(requestedTags.stream().filter(Objects::nonNull).map(id -> {
-                            Tag tag = new Tag();
-                            tag.setId(id);
-                            return tag;
-                        }).collect(Collectors.toSet()));
-                    } else {
-                        placement.setTags(null);
-                    }
                     return placement;
                 })
                 .toList();
@@ -158,7 +153,6 @@ public class NodeConverter {
         dto.setExposed(placement.getExposed());
         dto.setPriority(placement.getPriority());
         dto.setEnabled(placement.getEnabled());
-        dto.setTagIds(placement.getTags().stream().map(Tag::getId).sorted().toList());
         dto.setDeployed(placement.getDeployed());
         if (placement.getServer() != null) {
             dto.setServerName(placement.getServer().getName());

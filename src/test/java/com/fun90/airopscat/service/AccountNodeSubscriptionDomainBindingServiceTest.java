@@ -113,11 +113,6 @@ class AccountNodeSubscriptionDomainBindingServiceTest {
         };
         var nodeService = new NodeService() {
             @Override
-            public void validateUniformPlacementTags(Long nodeId) {
-                // 此组测试只验证绑定记录本身的行为
-            }
-
-            @Override
             public List<NodeDto> toNodeDtos(List<Node> items) {
                 return items.stream().map(node -> NodeConverter.toDto(node, List.of(), List.of())).toList();
             }

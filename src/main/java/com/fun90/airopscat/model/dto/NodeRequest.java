@@ -19,7 +19,7 @@ public class NodeRequest {
     private Integer disabled;
     private String name;
     private String remark;
-    private List<Long> tagIds; // 兼容旧请求：未提供 placements[].tagIds 时应用到所有部署位
+    private List<Long> tagIds; // 标签ID列表
     private Long dnsRecordId;
     private List<NodeServerRequest> placements;
 } 

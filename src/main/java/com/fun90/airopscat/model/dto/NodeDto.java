@@ -42,7 +42,6 @@ public class NodeDto {
     private Integer onlineConnectionCount;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
-    // 列表聚合展示所有部署位标签；订阅和下发账号按部署位标签判断
     private Set<Tag> tags = new HashSet<>();
     private Long dnsRecordId;
     private String dnsRecordName;

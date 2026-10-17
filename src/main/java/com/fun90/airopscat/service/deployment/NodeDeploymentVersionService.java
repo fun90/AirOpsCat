@@ -100,7 +100,7 @@ public class NodeDeploymentVersionService {
         Long effectiveNodeServerId = resolveVersionNodeServerId(nodeId, nodeServerId);
 
         NodeDeployment current = nodeDeploymentRepository.findByNodeServerId(effectiveNodeServerId).orElse(null);
-        if (current != null && nodeId.equals(current.getNodeId()) && version.equals(current.getVersion())) {
+        if (current != null && version.equals(current.getVersion())) {
             return toCurrentDetailDto(current);
         }
 
@@ -133,14 +133,9 @@ public class NodeDeploymentVersionService {
         // 只还原节点配置，部署位与订阅 DNS 绑定保持现状
         Node restoredNode = toNode(snapshot);
         restoredNode.setDnsRecordId(nodeRepository.findById(nodeId).getDnsRecordId());
-        Node updatedNode = nodeService.updateNode(restoredNode, null);
-        Long effectivePlacementId = resolveVersionNodeServerId(nodeId, nodeServerId);
-        NodeServer placement = nodeServerRepository.findById(effectivePlacementId);
-        if (placement == null || !nodeId.equals(placement.getNodeId())) {
-            throw new EntityNotFoundException("部署位不存在");
-        }
-        tagService.updatePlacementTags(placement, toTagSet(snapshot.getTagIds()));
-        nodeService.validateSharedDnsTags(nodeId);
+        Set<Tag> restoredTags = toTagSet(snapshot.getTagIds());
+        Node updatedNode = nodeService.updateNode(restoredNode, null, restoredTags, true);
+        tagService.updateNodeTags(nodeId, snapshot.getTagIds());
         return updatedNode;
     }
 
@@ -170,7 +165,7 @@ public class NodeDeploymentVersionService {
     }
 
     private void upsertCurrentVersion(Node node, NodeServer placement) {
-        List<Tag> currentTags = new ArrayList<>(placement.getTags());
+        List<Tag> currentTags = tagRepository.findByNodeId(node.getId());
         NodeDeploymentVersionSnapshotDto snapshot = toSnapshotDto(node, placement, currentTags);
         String snapshotJson = JsonUtil.toJsonString(snapshot);
         NodeDeployment currentDeployment = nodeDeploymentRepository.findByNodeServerId(placement.getId()).orElse(null);
@@ -188,9 +183,8 @@ public class NodeDeploymentVersionService {
                 NodeDeploymentVersionSnapshotDto.class
         );
         Node previousNode = toNode(previousSnapshot);
-        boolean changed = nodeService.hasSubstantialChanges(previousNode, node)
-                || !new LinkedHashSet<>(previousSnapshot.getTagIds() == null ? List.of() : previousSnapshot.getTagIds())
-                        .equals(new LinkedHashSet<>(currentTags.stream().map(Tag::getId).toList()))
+        previousNode.setTags(toTagSet(previousSnapshot.getTagIds()));
+        boolean changed = nodeService.hasSubstantialChanges(previousNode, node, new LinkedHashSet<>(currentTags), true)
                 || !Objects.equals(previousSnapshot.getServerId(), placement.getServerId())
                 || !Objects.equals(previousSnapshot.getAccessHostId(), placement.getAccessHostId());
         if (!changed) {

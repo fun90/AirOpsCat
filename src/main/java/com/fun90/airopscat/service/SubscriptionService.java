@@ -21,7 +21,6 @@ import com.fun90.airopscat.repository.NodeDeploymentRepository;
 import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.repository.ServerHostRepository;
 import com.fun90.airopscat.repository.ServerRepository;
-import com.fun90.airopscat.repository.TagRepository;
 import com.fun90.airopscat.util.ConfigFileReader;
 import com.fun90.airopscat.util.JsonUtil;
 import com.fun90.airopscat.util.NodeName;
@@ -49,8 +48,6 @@ public class SubscriptionService {
     private final ServerRepository serverRepository;
     private final ServerHostRepository serverHostRepository;
     private final TagService tagService;
-    @Inject
-    TagRepository tagRepository;
     private final AccountNodeSubscriptionDomainBindingService accountNodeSubscriptionDomainBindingService;
     private final TemplateUtil templateUtil;
     private final ConfigFileReader configFileReader;
@@ -273,14 +270,7 @@ public class SubscriptionService {
             return List.of();
         }
         List<Long> nodeIds = new ArrayList<>(availableNodeMap.keySet());
-        Set<Long> accountTagIds = tagService.getTagsByAccount(accountId).stream()
-                .map(com.fun90.airopscat.model.entity.Tag::getId).collect(Collectors.toSet());
-        List<NodeServer> eligiblePlacements = nodeServerRepository.findByNodeIds(nodeIds);
-        Map<Long, List<Long>> tagIdsByPlacementId = tagRepository.findTagIdsByPlacementIds(
-                eligiblePlacements.stream().map(NodeServer::getId).toList());
-        List<NodeServer> placements = eligiblePlacements.stream()
-                .filter(placement -> isAuthorizedPlacement(
-                        tagIdsByPlacementId.getOrDefault(placement.getId(), List.of()), accountTagIds))
+        List<NodeServer> placements = nodeServerRepository.findByNodeIds(nodeIds).stream()
                 .filter(NodeServer::enabledFlag)
                 .filter(placement -> NodeDeploymentStatus.isDeployed(placement.getDeployed()))
                 .toList();
@@ -369,10 +359,6 @@ public class SubscriptionService {
             } while (!used.add(unique));
             node.setName(unique);
         }
-    }
-
-    static boolean isAuthorizedPlacement(List<Long> placementTagIds, Set<Long> accountTagIds) {
-        return placementTagIds.stream().anyMatch(accountTagIds::contains);
     }
 
     record SubscriptionCandidate(NodeServer placement, NodeDto dto) {}

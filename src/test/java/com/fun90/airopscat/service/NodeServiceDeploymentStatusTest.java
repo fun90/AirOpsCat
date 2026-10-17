@@ -4,20 +4,9 @@ import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-import java.util.Set;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NodeServiceDeploymentStatusTest {
-
-    @Test
-    void sharedDnsRequiresIdenticalPlacementTags() {
-        assertTrue(NodeService.sameTags(List.of(Set.of(1L, 2L), Set.of(2L, 1L))));
-        assertFalse(NodeService.sameTags(List.of(Set.of(1L), Set.of(2L))));
-    }
 
     @Test
     void shouldMarkNormalPlacementAsPendingDeploy() {
