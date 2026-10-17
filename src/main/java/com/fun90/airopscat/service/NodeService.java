@@ -603,7 +603,7 @@ public class NodeService {
     }
 
     public boolean hasSubstantialChanges(Node oldNode, Node newNode, Set<Tag> newTagSet, boolean tagsUpdated) {
-        return !buildSubstantialChangeSignature(oldNode, oldNode.getTags(), true).equals(
+        return !buildSubstantialChangeSignature(oldNode, oldNode.getTags(), tagsUpdated).equals(
                 buildSubstantialChangeSignature(newNode, newTagSet, tagsUpdated));
     }
 
@@ -612,12 +612,12 @@ public class NodeService {
         joiner.add("port=" + normalizeValue(node.getPort()));
         joiner.add("type=" + normalizeValue(node.getType()));
         joiner.add("protocol=" + normalizeText(node.getProtocol()));
-        joiner.add("coreType=" + normalizeText(node.getCoreType()));
         joiner.add("inbound=" + normalizeJson(node.getInbound()));
         joiner.add("rule=" + normalizeJson(node.getRule()));
         joiner.add("outId=" + normalizeValue(node.getOutId()));
-        joiner.add("level=" + normalizeValue(node.getLevel()));
-        joiner.add("disabled=" + normalizeValue(node.getDisabled()));
+        // 编辑表单总会提交 level/disabled 的默认值，null 与 0 视为相同，避免仅改部署位属性也触发重新部署
+        joiner.add("level=" + (node.getLevel() == null ? 0 : node.getLevel()));
+        joiner.add("disabled=" + (node.getDisabled() == null ? 0 : node.getDisabled()));
         if (includeTags) {
             joiner.add("tags=" + normalizeTags(tagSet));
         }
