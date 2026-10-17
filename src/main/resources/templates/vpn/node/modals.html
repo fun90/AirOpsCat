@@ -105,7 +105,7 @@
                                           data-bs-toggle="popover"
                                           data-bs-placement="top"
                                           data-bs-html="true"
-                                          data-bs-content="<p>同一份节点配置部署到多台服务器。</p><p>暴露：未绑定 DNS 记录时是否出现在订阅；优先级越小越靠前。</p><p class='mb-0'>显示名为空且有多个暴露部署位时，订阅名称为“节点名-服务器名-编号”；名称省略编号时默认为 1。</p>">?</span>
+                                          data-bs-content="<p>同一份节点配置部署到多台服务器。</p><p class='mb-0'>暴露：未绑定 DNS 记录时是否出现在订阅；优先级越小越靠前。</p>">?</span>
                                 </label>
                                 <button type="button" class="btn btn-sm btn-outline-primary ms-auto" @click="addPlacement(newItem, false)" :disabled="newItem.placements.length >= servers.length">
                                     <i class="ti ti-plus me-1"></i>添加服务器
@@ -120,7 +120,6 @@
                                         <th class="w-1">暴露</th>
                                         <th style="width: 6rem;">优先级</th>
                                         <th class="w-1">启用</th>
-                                        <th>显示名</th>
                                         <th>标签</th>
                                         <th class="w-1">状态</th>
                                         <th class="w-1"></th>
@@ -155,9 +154,6 @@
                                             <label class="form-check form-switch m-0">
                                                 <input class="form-check-input" type="checkbox" v-model="placement.enabled" @change="schedulePlacementPortCheck(false)">
                                             </label>
-                                        </td>
-                                        <td style="min-width: 7rem;">
-                                            <input type="text" class="form-control form-control-sm" v-model="placement.name" placeholder="可选，如备用-2">
                                         </td>
                                         <td style="min-width: 11rem;">
                                             <div class="d-flex flex-column gap-1" style="max-height: 8rem; overflow-y: auto;">
@@ -465,7 +461,7 @@
                                           data-bs-toggle="popover"
                                           data-bs-placement="top"
                                           data-bs-html="true"
-                                          data-bs-content="<p>同一份节点配置部署到多台服务器。</p><p>暴露：未绑定 DNS 记录时是否出现在订阅；优先级越小越靠前。</p><p class='mb-0'>显示名为空且有多个暴露部署位时，订阅名称为“节点名-服务器名-编号”；名称省略编号时默认为 1。</p>">?</span>
+                                          data-bs-content="<p>同一份节点配置部署到多台服务器。</p><p class='mb-0'>暴露：未绑定 DNS 记录时是否出现在订阅；优先级越小越靠前。</p>">?</span>
                                 </label>
                                 <button type="button" class="btn btn-sm btn-outline-primary ms-auto" @click="addPlacement(editedItem, true)" :disabled="editedItem.placements.length >= servers.length">
                                     <i class="ti ti-plus me-1"></i>添加服务器
@@ -480,7 +476,6 @@
                                         <th class="w-1">暴露</th>
                                         <th style="width: 6rem;">优先级</th>
                                         <th class="w-1">启用</th>
-                                        <th>显示名</th>
                                         <th>标签</th>
                                         <th class="w-1">状态</th>
                                         <th class="w-1"></th>
@@ -515,9 +510,6 @@
                                             <label class="form-check form-switch m-0">
                                                 <input class="form-check-input" type="checkbox" v-model="placement.enabled" @change="schedulePlacementPortCheck(true)">
                                             </label>
-                                        </td>
-                                        <td style="min-width: 7rem;">
-                                            <input type="text" class="form-control form-control-sm" v-model="placement.name" placeholder="可选，如备用-2">
                                         </td>
                                         <td style="min-width: 11rem;">
                                             <div class="d-flex flex-column gap-1" style="max-height: 8rem; overflow-y: auto;">

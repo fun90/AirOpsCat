@@ -11,6 +11,5 @@ public class NodeServerRequest {
     private Integer exposed;
     private Integer priority;
     private Integer enabled;
-    private String name;
     private List<Long> tagIds;
 }

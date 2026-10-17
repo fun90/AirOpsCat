@@ -134,7 +134,6 @@ public class NodeConverter {
                     placement.setExposed(item.getExposed() == null || item.getExposed() != 0 ? 1 : 0);
                     placement.setPriority(item.getPriority() == null ? 0 : item.getPriority());
                     placement.setEnabled(item.getEnabled() == null || item.getEnabled() != 0 ? 1 : 0);
-                    placement.setName(item.getName() == null || item.getName().isBlank() ? null : item.getName().trim());
                     List<Long> requestedTags = item.getTagIds() == null ? request.getTagIds() : item.getTagIds();
                     if (requestedTags != null) {
                         placement.setTags(requestedTags.stream().filter(Objects::nonNull).map(id -> {
@@ -159,7 +158,6 @@ public class NodeConverter {
         dto.setExposed(placement.getExposed());
         dto.setPriority(placement.getPriority());
         dto.setEnabled(placement.getEnabled());
-        dto.setName(NodeName.withNumber(placement.getName()));
         dto.setTagIds(placement.getTags().stream().map(Tag::getId).sorted().toList());
         dto.setDeployed(placement.getDeployed());
         if (placement.getServer() != null) {

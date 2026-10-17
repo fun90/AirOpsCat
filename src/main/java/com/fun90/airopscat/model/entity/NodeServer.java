@@ -45,10 +45,6 @@ public class NodeServer {
     // 0 表示不部署到该服务器
     private Integer enabled;
 
-    // 订阅显示名覆盖
-    @Column(length = 257)
-    private String name;
-
     // 0:待部署,1:已部署,2:待删除
     private Integer deployed;
 

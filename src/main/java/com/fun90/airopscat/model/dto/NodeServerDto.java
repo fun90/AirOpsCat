@@ -17,7 +17,6 @@ public class NodeServerDto {
     private Integer exposed;
     private Integer priority;
     private Integer enabled;
-    private String name;
     private List<Long> tagIds;
     private Integer deployed;
 }

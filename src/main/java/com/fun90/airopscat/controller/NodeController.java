@@ -321,7 +321,6 @@ public class NodeController {
                         copy.setExposed(placement.getExposed());
                         copy.setPriority(placement.getPriority());
                         copy.setEnabled(placement.getEnabled());
-                        copy.setName(placement.getName());
                         copy.setTags(new HashSet<>(placement.getTags()));
                         return copy;
                     })

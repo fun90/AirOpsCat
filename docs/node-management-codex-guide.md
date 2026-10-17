@@ -121,7 +121,6 @@
 - `exposed`：未绑定 DNS 时是否出现在订阅
 - `priority`：越小越优先，决定订阅排序与生效部署位
 - `enabled`：0 表示不部署到该服务器
-- `name`：订阅显示名覆盖
 - `deployed`：部署状态，节点列表展示各部署位的汇总
 
 详细设计见 `docs/node-multi-server-failover-plan.md`。

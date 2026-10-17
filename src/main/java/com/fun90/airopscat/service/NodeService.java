@@ -319,12 +319,6 @@ public class NodeService {
         return !nodeServerRepository.existsPortConflict(serverId, port, nodeId);
     }
 
-    private void normalizePlacementNames(List<NodeServer> placements) {
-        for (NodeServer placement : placements) {
-            placement.setName(NodeName.withNumber(placement.getName()));
-        }
-    }
-
     private void resolvePlacementTags(List<NodeServer> placements) {
         placements.stream().filter(placement -> placement.getTags() == null)
                 .forEach(placement -> placement.setTags(new HashSet<>()));
@@ -391,10 +385,6 @@ public class NodeService {
 
         Set<Long> serverIds = new LinkedHashSet<>();
         for (NodeServer placement : placements) {
-            if (placement.getName() != null
-                    && placement.getName().codePointCount(0, placement.getName().length()) > 257) {
-                throw new IllegalArgumentException("部署位显示名不能超过 257 个字符");
-            }
             if (placement.getServerId() == null) {
                 throw new IllegalArgumentException("部署服务器不能为空");
             }
@@ -478,7 +468,6 @@ public class NodeService {
     @Transactional
     public Node saveNode(Node node, List<NodeServer> placements) {
         node.setName(NodeName.withNumber(node.getName()));
-        normalizePlacementNames(placements);
         normalizeAndValidateNodeProtocol(node);
         resolvePlacementTags(placements);
         validateNode(node, placements);
@@ -514,7 +503,6 @@ public class NodeService {
                 .toList();
 
         node.setName(NodeName.withNumber(node.getName() == null ? existingNode.getName() : node.getName()));
-        normalizePlacementNames(targetPlacements);
         normalizeAndValidateNodeProtocol(node);
         if (placements != null) {
             Map<Long, NodeServer> existingByServerId = existingPlacements.stream()
@@ -577,7 +565,6 @@ public class NodeService {
             existing.setExposed(target.getExposed());
             existing.setPriority(target.getPriority());
             existing.setEnabled(target.getEnabled());
-            existing.setName(target.getName());
             if (deployChanged) {
                 existing.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
             }

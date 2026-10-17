@@ -372,7 +372,6 @@ export function createNodeFormMethods() {
                 exposed: placement.exposed ? 1 : 0,
                 priority: Number(placement.priority) || 0,
                 enabled: placement.enabled ? 1 : 0,
-                name: placement.name || null,
                 tagIds: placement.tagIds || []
             }));
         },
@@ -498,7 +497,6 @@ export function createNodeFormMethods() {
                     exposed: placement.exposed !== 0,
                     priority: placement.priority ?? 0,
                     enabled: placement.enabled !== 0,
-                    name: placement.name || '',
                     tagIds: [...(placement.tagIds || [])],
                     deployed: placement.deployed
                 }));

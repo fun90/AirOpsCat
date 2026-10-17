@@ -129,7 +129,6 @@ public class SubscriptionService {
         if (account.getNodeMultiple() != null) {
             activeNodes = NodeObfuscator.obfuscate(activeNodes, account.getNodeMultiple(), account.getNodePrefix());
         }
-        ensureUniqueNames(activeNodes);
 
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("account", account);
@@ -187,9 +186,7 @@ public class SubscriptionService {
         if (account.getNodeMultiple() != null) {
             activeNodes = NodeObfuscator.obfuscate(activeNodes, account.getNodeMultiple(), account.getNodePrefix());
         }
-        ensureUniqueNames(activeNodes);
 
-        // 根据应用类型生成配置
         String content = generateConfigByApp(account, activeNodes, osName, appName, params);
         if (content == null) {
             return ApiResponseDto.error("生成配置文件失败，不支持的应用类型: " + appName);
@@ -335,7 +332,7 @@ public class SubscriptionService {
             dto.setName(NodeName.withNumber(availableNodeMap.get(placement.getNodeId()).getName()));
             dto.setNodeServerId(placement.getId());
             candidatesByNodeId.computeIfAbsent(placement.getNodeId(), id -> new ArrayList<>())
-                    .add(new SubscriptionCandidate(placement, dto, server == null ? null : server.getName()));
+                    .add(new SubscriptionCandidate(placement, dto));
         }
 
         List<NodeDto> nodes = new ArrayList<>();
@@ -352,24 +349,7 @@ public class SubscriptionService {
         return placementTagIds.stream().anyMatch(accountTagIds::contains);
     }
 
-    static void ensureUniqueNames(List<NodeDto> nodes) {
-        Set<String> reserved = nodes.stream().map(NodeDto::getName).collect(Collectors.toSet());
-        Set<String> seen = new HashSet<>();
-        for (NodeDto node : nodes) {
-            String name = node.getName();
-            if (seen.add(name)) {
-                continue;
-            }
-            String base = NodeName.base(name) + "-" + node.getNodeServerId();
-            String unique = base + "-" + NodeName.number(name);
-            for (int suffix = 2; !reserved.add(unique); suffix++) {
-                unique = base + "-" + suffix + "-" + NodeName.number(name);
-            }
-            node.setName(unique);
-        }
-    }
-
-    record SubscriptionCandidate(NodeServer placement, NodeDto dto, String serverName) {}
+    record SubscriptionCandidate(NodeServer placement, NodeDto dto) {}
 
     /**
      * 订阅条目规则：账号级域名绑定 > 节点 DNS 记录 > 每个暴露的部署位各一条。
@@ -401,21 +381,7 @@ public class SubscriptionService {
             dto.setServerHost(dnsHost);
             return List.of(dto);
         }
-        boolean multiple = exposed.size() > 1;
-        return exposed.stream()
-                .map(candidate -> {
-                    NodeDto dto = candidate.dto();
-                    String placementName = candidate.placement().getName();
-                    if (placementName != null && !placementName.isBlank()) {
-                        dto.setName(NodeName.withNumber(placementName));
-                    } else if (multiple) {
-                        dto.setName(NodeName.base(dto.getName()) + "-"
-                                + Objects.toString(candidate.serverName(), String.valueOf(dto.getServerId()))
-                                + "-" + NodeName.number(dto.getName()));
-                    }
-                    return dto;
-                })
-                .toList();
+        return exposed.stream().map(SubscriptionCandidate::dto).toList();
     }
 
     private NodeDeploymentVersionSnapshotDto toDeploymentSnapshot(NodeDeployment deployment) {
