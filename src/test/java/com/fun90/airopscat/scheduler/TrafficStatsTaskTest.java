@@ -54,7 +54,7 @@ class TrafficStatsTaskTest {
         }
 
         @Override
-        void checkNodeFailover() {
+        void checkServerFailover() {
         }
 
         @Override

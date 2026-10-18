@@ -20,7 +20,6 @@ public class NodeRequest {
     private String name;
     private String remark;
     private List<Long> tagIds; // 标签ID列表
-    private Long dnsRecordId;
-    private Integer failoverEnabled;
+    private String region;
     private List<NodeServerRequest> placements;
 } 

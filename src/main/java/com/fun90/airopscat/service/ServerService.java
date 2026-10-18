@@ -5,12 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.dto.CommandResult;
 import com.fun90.airopscat.model.dto.ServerConnectionTestResult;
 import com.fun90.airopscat.model.dto.ServerDto;
-import com.fun90.airopscat.model.dto.ServerHostDto;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerHost;
+import com.fun90.airopscat.repository.NodeDeploymentHistoryRepository;
 import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.repository.RouteRuleRepository;
 import com.fun90.airopscat.repository.ServerHostRepository;
+import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.ServerAuthType;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.service.ssh.ServerSshConfigFactory;
@@ -46,6 +48,12 @@ public class ServerService {
     private final ServerTrafficStatsService serverTrafficStatsService;
     private final SshConnectionService sshConnectionService;
     private final ServerSshConfigFactory serverSshConfigFactory;
+
+    @Inject
+    NodePlacementSyncService placementSyncService;
+
+    @Inject
+    NodeDeploymentHistoryRepository nodeDeploymentHistoryRepository;
 
     @Inject
     public ServerService(ServerRepository serverRepository,
@@ -225,6 +233,8 @@ public class ServerService {
         dto.setHost(primaryHost);
         dto.setPrimaryHost(primaryHost);
         dto.setName(server.getName());
+        dto.setRegion(server.getRegion());
+        dto.setServerType(server.getServerType());
         dto.setSupplier(server.getSupplier());
         dto.setAuthType(server.getAuthType());
         dto.setAuth(server.getAuth());
@@ -271,9 +281,11 @@ public class ServerService {
         if (server.getSshPort() == null) {
             server.setSshPort(22); // 默认SSH端口
         }
+        if (server.getServerType() == null) {
+            server.setServerType(NodeType.PROXY.getValue());
+        }
 
         serverRepository.persist(server);
-        serverHostService.syncHosts(server, serverDto.getHosts(), serverDto.getHost());
         return server;
     }
 
@@ -287,7 +299,6 @@ public class ServerService {
 
         // Allow optional fields to be cleared during edit operations.
         copyNonNullProperties(server, existingServer);
-        serverHostService.syncHosts(existingServer, serverDto.getHosts(), serverDto.getHost());
 
         // No need to call save/persist for updates in Panache
         return existingServer;
@@ -304,7 +315,8 @@ public class ServerService {
         if (src.getCpuCores() != null) target.setCpuCores(src.getCpuCores());
         if (src.getDisabled() != null) target.setDisabled(src.getDisabled());
         if (src.getExternal() != null) target.setExternal(src.getExternal());
-        target.setHost(src.getHost());
+        if (src.getServerType() != null) target.setServerType(src.getServerType());
+        target.setRegion(src.getRegion());
         target.setName(src.getName());
         target.setSupplier(src.getSupplier());
         target.setPrice(src.getPrice());
@@ -324,7 +336,8 @@ public class ServerService {
         server.setAuthType(dto.getAuthType());
         server.setAuth(dto.getAuth());
         server.setSshPort(dto.getSshPort());
-        server.setHost(resolvePrimaryHost(dto));
+        server.setRegion(dto.getRegion() == null || dto.getRegion().isBlank() ? null : dto.getRegion().trim());
+        server.setServerType(dto.getServerType());
         server.setName(dto.getName());
         server.setSupplier(dto.getSupplier());
         server.setPrice(dto.getPrice());
@@ -341,23 +354,6 @@ public class ServerService {
         return server;
     }
 
-    private String resolvePrimaryHost(ServerDto dto) {
-        if (dto.getHosts() != null) {
-            for (ServerHostDto hostDto : dto.getHosts()) {
-                if (hostDto != null && hostDto.getHost() != null && !hostDto.getHost().isBlank()) {
-                    return hostDto.getHost().trim();
-                }
-            }
-        }
-        if (dto.getPrimaryHost() != null && !dto.getPrimaryHost().isBlank()) {
-            return dto.getPrimaryHost().trim();
-        }
-        if (dto.getHost() != null && !dto.getHost().isBlank()) {
-            return dto.getHost().trim();
-        }
-        return null;
-    }
-
     private String writeJson(Map<String, Object> value) {
         if (value == null || value.isEmpty()) {
             return null;
@@ -369,12 +365,27 @@ public class ServerService {
         }
     }
 
+    /** 已有的服务器地区（含已禁用的），供地区下拉复用 */
+    public List<String> getRegions() {
+        return serverRepository.getEntityManager()
+                .createQuery("select distinct s.region from Server s where s.region is not null and s.region <> '' order by s.region", String.class)
+                .getResultList();
+    }
+
     @Transactional
     public void deleteServer(Long id) {
-        if (nodeServerRepository.countByServerId(id) > 0) {
-            throw new IllegalStateException("服务器下还有节点，不能删除");
+        List<NodeServer> placements = nodeServerRepository.findByServerId(id);
+        if (placements.stream().anyMatch(placementSyncService::isEverDeployed)) {
+            throw new IllegalStateException("服务器下还有已部署的节点，不能删除");
         }
+        // 从未部署的部署位由地区和类型自动生成，随服务器一起清理（含账户订阅定制引用、域名绑定）
+        placements.forEach(placementSyncService::delete);
+        // 解除服务器绑定的域名，记录本身保留
+        serverRepository.getEntityManager()
+                .createQuery("update DomainDnsRecord set serverId = null where serverId = ?1")
+                .setParameter(1, id).executeUpdate();
         routeRuleRepository.deleteServerBindings(id);
+        nodeDeploymentHistoryRepository.deleteByServerId(id);
         serverMonitorStatsService.deleteByServerId(id);
         serverTrafficStatsService.deleteByServerId(id);
         serverHostService.deleteHostsByServerId(id);

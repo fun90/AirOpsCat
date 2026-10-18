@@ -23,7 +23,7 @@ public class NodeRepository implements PanacheRepository<Node> {
         }
         return find("type = 0 and (disabled is null or disabled = 0) and id in ("
                         + "select ns.nodeId from NodeServer ns where ns.server.ip = ?1 "
-                        + "and (ns.enabled is null or ns.enabled = 1) and ns.deployed = ?2)",
+                        + "and ns.deployed = ?2)",
                 serverIp.trim(), NodeDeploymentStatus.DEPLOYED.getValue()).list();
     }
 
@@ -43,19 +43,6 @@ public class NodeRepository implements PanacheRepository<Node> {
             return List.of();
         }
         return find("outId", outId).list();
-    }
-
-    /** 开启了自动切换、绑定 DNS 的启用代理节点 */
-    public List<Long> findFailoverNodeIds() {
-        return find("failoverEnabled = 1 and type = 0 and dnsRecordId is not null "
-                + "and (disabled is null or disabled = 0)").stream().map(Node::getId).toList();
-    }
-
-    public boolean existsByDnsRecordIdAndIdNot(Long dnsRecordId, Long id) {
-        if (dnsRecordId == null) {
-            return false;
-        }
-        return count("dnsRecordId = ?1 and id != ?2", dnsRecordId, id == null ? -1L : id) > 0;
     }
 
     public long fillEmptyCoreType(String coreType) {

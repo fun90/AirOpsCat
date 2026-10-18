@@ -11,15 +11,13 @@ import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeDeployment;
 import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
-import com.fun90.airopscat.model.entity.ServerHost;
+import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.AccountTrafficStatsRepository;
-import com.fun90.airopscat.repository.DomainDnsRecordRepository;
 import com.fun90.airopscat.repository.NodeDeploymentRepository;
 import com.fun90.airopscat.repository.NodeServerRepository;
-import com.fun90.airopscat.repository.ServerHostRepository;
 import com.fun90.airopscat.repository.ServerRepository;
 import com.fun90.airopscat.util.ConfigFileReader;
 import com.fun90.airopscat.util.JsonUtil;
@@ -44,9 +42,7 @@ public class SubscriptionService {
     private final AccountTrafficStatsService accountTrafficStatsService;
     private final NodeDeploymentRepository nodeDeploymentRepository;
     private final NodeServerRepository nodeServerRepository;
-    private final DomainDnsRecordRepository domainDnsRecordRepository;
     private final ServerRepository serverRepository;
-    private final ServerHostRepository serverHostRepository;
     private final TagService tagService;
     private final AccountNodeSubscriptionDomainBindingService accountNodeSubscriptionDomainBindingService;
     private final TemplateUtil templateUtil;
@@ -60,9 +56,7 @@ public class SubscriptionService {
             AccountTrafficStatsService accountTrafficStatsService,
             NodeDeploymentRepository nodeDeploymentRepository,
             NodeServerRepository nodeServerRepository,
-            DomainDnsRecordRepository domainDnsRecordRepository,
             ServerRepository serverRepository,
-            ServerHostRepository serverHostRepository,
             TagService tagService,
             AccountNodeSubscriptionDomainBindingService accountNodeSubscriptionDomainBindingService,
             TemplateUtil templateUtil,
@@ -73,9 +67,7 @@ public class SubscriptionService {
         this.accountTrafficStatsService = accountTrafficStatsService;
         this.nodeDeploymentRepository = nodeDeploymentRepository;
         this.nodeServerRepository = nodeServerRepository;
-        this.domainDnsRecordRepository = domainDnsRecordRepository;
         this.serverRepository = serverRepository;
-        this.serverHostRepository = serverHostRepository;
         this.tagService = tagService;
         this.accountNodeSubscriptionDomainBindingService = accountNodeSubscriptionDomainBindingService;
         this.templateUtil = templateUtil;
@@ -271,7 +263,6 @@ public class SubscriptionService {
         }
         List<Long> nodeIds = new ArrayList<>(availableNodeMap.keySet());
         List<NodeServer> placements = nodeServerRepository.findByNodeIds(nodeIds).stream()
-                .filter(NodeServer::enabledFlag)
                 .filter(placement -> NodeDeploymentStatus.isDeployed(placement.getDeployed()))
                 .toList();
         Map<Long, NodeDeploymentVersionSnapshotDto> snapshotByPlacementId = new HashMap<>();
@@ -286,33 +277,17 @@ public class SubscriptionService {
         }
 
         Set<Long> serverIds = new LinkedHashSet<>();
-        Set<Long> accessHostIds = new LinkedHashSet<>();
         for (NodeDeploymentVersionSnapshotDto snapshot : snapshotByPlacementId.values()) {
             if (snapshot.getServerId() != null) {
                 serverIds.add(snapshot.getServerId());
             }
-            if (snapshot.getAccessHostId() != null) {
-                accessHostIds.add(snapshot.getAccessHostId());
-            }
         }
         Map<Long, Server> serverMap = serverRepository.findByIdIn(new ArrayList<>(serverIds)).stream()
                 .collect(Collectors.toMap(Server::getId, server -> server));
-        Map<Long, ServerHost> accessHostMap = accessHostIds.isEmpty()
-                ? Collections.emptyMap()
-                : serverHostRepository.list("id in ?1", new ArrayList<>(accessHostIds)).stream()
-                        .collect(Collectors.toMap(ServerHost::getId, host -> host));
         Map<Long, String> hostOverrides = accountNodeSubscriptionDomainBindingService.findSubscriptionHostOverrides(
                 accountId, nodeIds);
         Map<Long, Set<Long>> placementSelections = accountNodeSubscriptionDomainBindingService
                 .findSubscriptionPlacementSelections(accountId, nodeIds);
-        List<Long> dnsRecordIds = availableNodeMap.values().stream()
-                .map(Node::getDnsRecordId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        Map<Long, String> dnsHosts = domainDnsRecordRepository.findByIdIn(dnsRecordIds).stream()
-                .filter(record -> record.getFullName() != null && !record.getFullName().isBlank())
-                .collect(Collectors.toMap(DomainDnsRecord::getId, DomainDnsRecord::getFullName));
 
         Map<Long, List<SubscriptionCandidate>> candidatesByNodeId = new LinkedHashMap<>();
         for (NodeServer placement : placements) {
@@ -321,7 +296,7 @@ public class SubscriptionService {
                 continue;
             }
             Server server = serverMap.get(snapshot.getServerId());
-            NodeDto dto = toSubscriptionNodeDto(snapshot, server, accessHostMap.get(snapshot.getAccessHostId()));
+            NodeDto dto = toSubscriptionNodeDto(snapshot, server, placement.getAccessHost());
             dto.setName(NodeName.withNumber(availableNodeMap.get(placement.getNodeId()).getName()));
             dto.setNodeServerId(placement.getId());
             candidatesByNodeId.computeIfAbsent(placement.getNodeId(), id -> new ArrayList<>())
@@ -333,9 +308,7 @@ public class SubscriptionService {
             nodes.addAll(selectSubscriptionEntries(
                     candidatesByNodeId.getOrDefault(availableNode.getId(), List.of()),
                     placementSelections.get(availableNode.getId()),
-                    hostOverrides.get(availableNode.getId()),
-                    dnsHosts.get(availableNode.getDnsRecordId()),
-                    availableNode.getActiveNodeServerId()));
+                    hostOverrides.get(availableNode.getId())));
         }
         ensureUniqueNames(nodes);
         return nodes;
@@ -368,18 +341,15 @@ public class SubscriptionService {
     record SubscriptionCandidate(NodeServer placement, NodeDto dto) {}
 
     /**
-     * 订阅条目规则：账号级域名绑定 > 账号选定的部署位各一条 > 节点 DNS 记录 > 每个暴露的部署位各一条。
+     * 订阅条目规则：账号级域名绑定 > 账号选定的部署位各一条 > 每个暴露的部署位各一条。
      * 账号选定部署位后只在其中输出；选定的部署位均不可用时该节点不输出。
      *
-     * @param candidates 启用且已部署、带部署快照的部署位
+     * @param candidates 已部署、带部署快照的部署位
      * @param selectedPlacementIds 账号订阅定制的部署位，null 或空表示未定制
-     * @param activePlacementId 自动切换下 DNS 当前指向的部署位；节点 DNS 单条输出时优先用它的快照，不在候选中则取优先级最高的
      */
     static List<NodeDto> selectSubscriptionEntries(List<SubscriptionCandidate> candidates,
                                                    Set<Long> selectedPlacementIds,
-                                                   String hostOverride,
-                                                   String dnsHost,
-                                                   Long activePlacementId) {
+                                                   String hostOverride) {
         boolean customized = selectedPlacementIds != null && !selectedPlacementIds.isEmpty();
         List<SubscriptionCandidate> sorted = candidates.stream()
                 .filter(candidate -> !customized || selectedPlacementIds.contains(candidate.placement().getId()))
@@ -388,30 +358,19 @@ public class SubscriptionService {
         if (sorted.isEmpty()) {
             return List.of();
         }
-        SubscriptionCandidate single = sorted.stream()
-                .filter(candidate -> Objects.equals(candidate.placement().getId(), activePlacementId))
-                .findFirst().orElse(sorted.getFirst());
         if (hostOverride != null && !hostOverride.isBlank()) {
             NodeDto dto = sorted.getFirst().dto();
             dto.setServerHost(hostOverride);
             return List.of(dto);
         }
-        // 选定部署位不受 exposed 和节点 DNS 限制，逐个输出
+        // 选定部署位不受 exposed 限制，逐个输出
         if (customized) {
             return sorted.stream().map(SubscriptionCandidate::dto).toList();
         }
-        List<SubscriptionCandidate> exposed = sorted.stream()
+        return sorted.stream()
                 .filter(candidate -> candidate.placement().exposedFlag())
+                .map(SubscriptionCandidate::dto)
                 .toList();
-        if (dnsHost != null) {
-            if (exposed.isEmpty()) {
-                return List.of();
-            }
-            NodeDto dto = single.dto();
-            dto.setServerHost(dnsHost);
-            return List.of(dto);
-        }
-        return exposed.stream().map(SubscriptionCandidate::dto).toList();
     }
 
     private NodeDeploymentVersionSnapshotDto toDeploymentSnapshot(NodeDeployment deployment) {
@@ -421,11 +380,11 @@ public class SubscriptionService {
         return JsonUtil.toObject(deployment.getSnapshotJson(), NodeDeploymentVersionSnapshotDto.class);
     }
 
-    private NodeDto toSubscriptionNodeDto(NodeDeploymentVersionSnapshotDto snapshot, Server server, ServerHost accessHost) {
+    private NodeDto toSubscriptionNodeDto(NodeDeploymentVersionSnapshotDto snapshot, Server server, DomainDnsRecord accessHost) {
         NodeDto dto = new NodeDto();
         dto.setId(snapshot.getNodeId());
         dto.setServerId(snapshot.getServerId());
-        dto.setAccessHostId(snapshot.getAccessHostId());
+        dto.setAccessHostId(accessHost != null ? accessHost.getId() : null);
         dto.setPort(snapshot.getPort());
         dto.setProtocol(snapshot.getProtocol());
         dto.setCoreType(snapshot.getCoreType());
@@ -438,25 +397,12 @@ public class SubscriptionService {
         dto.setDeployed(NodeDeploymentStatus.DEPLOYED.getValue());
         dto.setDisabled(snapshot.getDisabled());
         dto.setRemark(snapshot.getRemark());
-        dto.setAccessHost(accessHost != null ? accessHost.getHost() : null);
+        dto.setAccessHost(accessHost != null ? accessHost.getFullName() : null);
 
         if (server != null) {
             dto.setServerIp(server.getIp());
-            dto.setServerHost(resolveEffectiveHost(accessHost, server));
+            dto.setServerHost(NodeConverter.resolveEffectiveHost(accessHost, server));
         }
         return dto;
-    }
-
-    private String resolveEffectiveHost(ServerHost accessHost, Server server) {
-        if (accessHost != null && accessHost.getHost() != null && !accessHost.getHost().isBlank()) {
-            return accessHost.getHost();
-        }
-        if (server == null) {
-            return null;
-        }
-        if (server.getHost() != null && !server.getHost().isBlank()) {
-            return server.getHost();
-        }
-        return server.getIp();
     }
 }

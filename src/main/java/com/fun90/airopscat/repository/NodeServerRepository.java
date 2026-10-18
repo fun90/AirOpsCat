@@ -58,6 +58,13 @@ public class NodeServerRepository implements PanacheRepository<NodeServer> {
         return find("deployed in ?1 and nodeId in ?2", statuses, nodeIds).list();
     }
 
+    public boolean existsByAccessHostIdAndIdNot(Long accessHostId, Long excludeId) {
+        if (accessHostId == null) {
+            return false;
+        }
+        return count("accessHostId = ?1 and id <> ?2", accessHostId, excludeId == null ? -1L : excludeId) > 0;
+    }
+
     public long countByServerId(Long serverId) {
         return serverId == null ? 0 : count("serverId", serverId);
     }
@@ -89,37 +96,14 @@ public class NodeServerRepository implements PanacheRepository<NodeServer> {
                 .getResultList();
     }
 
-    public long clearAccessHostIds(List<Long> accessHostIds) {
-        if (accessHostIds == null || accessHostIds.isEmpty()) {
-            return 0;
-        }
-        return update("accessHostId = null where accessHostId in ?1", accessHostIds);
-    }
-
-    public int clearAccessHostIdsByServerId(Long serverId) {
-        if (serverId == null) {
-            return 0;
-        }
-        return getEntityManager().createNativeQuery("""
-                        UPDATE node_server
-                        SET access_host_id = NULL
-                        WHERE access_host_id IN (
-                            SELECT id FROM server_host WHERE server_id = ?1
-                        )
-                        """)
-                .setParameter(1, serverId)
-                .executeUpdate();
-    }
-
     /**
-     * 生效部署位：启用、未待删除、priority 最小。第二期改为优先取 active_node_server_id。
+     * 生效部署位：未待删除、priority 最小。
      */
     public static Optional<NodeServer> resolveEffective(List<NodeServer> placements) {
         if (placements == null) {
             return Optional.empty();
         }
         return placements.stream()
-                .filter(NodeServer::enabledFlag)
                 .filter(placement -> !NodeDeploymentStatus.isPendingDelete(placement.getDeployed()))
                 .min(PRIORITY_ORDER);
     }

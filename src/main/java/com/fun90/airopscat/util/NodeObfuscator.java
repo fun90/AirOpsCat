@@ -74,7 +74,6 @@ public class NodeObfuscator {
         copy.setAccessHostId(src.getAccessHostId());
         copy.setAccessHost(src.getAccessHost());
         copy.setNodeServerId(src.getNodeServerId());
-        copy.setDnsRecordId(src.getDnsRecordId());
         copy.setPort(src.getPort());
         copy.setProtocol(src.getProtocol());
         copy.setCoreType(src.getCoreType());

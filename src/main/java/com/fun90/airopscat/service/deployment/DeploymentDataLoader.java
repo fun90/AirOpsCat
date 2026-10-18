@@ -139,7 +139,7 @@ public class DeploymentDataLoader {
         Map<Long, NodeDeploymentSnapshot> snapshots = new HashMap<>();
         for (Node node : localNodes) {
             NodeServer placement = placementByNodeId.get(node.getId());
-            boolean disabled = Objects.equals(node.getDisabled(), 1) || !placement.enabledFlag();
+            boolean disabled = Objects.equals(node.getDisabled(), 1);
             snapshots.put(node.getId(), toSnapshot(node, server.getIp(), disabled ? 1 : 0,
                     nodeMap.get(node.getOutId()), effectiveOutPlacements.get(node.getOutId()),
                     nodeClientsMap.getOrDefault(node.getId(), Collections.emptyList())));

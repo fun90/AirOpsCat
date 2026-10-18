@@ -42,8 +42,11 @@ const serverTable = new DataTable({
             periodStartDate: '',
             periodEndDate: ''
         },
-        hostsText: '',
-        editHostsText: '',
+        regionOptions: [],
+        serverDomains: [],
+        serverLegacyHosts: [],
+        serverDomainsLoading: false,
+        serverDetailModal: null,
         transitConfigJson: '',
         coreConfigJson: '',
         editTransitConfigJson: '',
@@ -58,8 +61,8 @@ const serverTable = new DataTable({
                 username: 'root',
                 authType: 'PASSWORD',
                 auth: '',
-                host: '',
-                hosts: [],
+                region: '',
+                serverType: 0,
                 name: '',
                 expireDate: '',
                 bandwidthDate: '',
@@ -367,9 +370,8 @@ const serverTable = new DataTable({
                 username: this.newItem.username || 'root',
                 authType: this.newItem.authType,
                 auth: this.newItem.auth,
-                host: this.getPrimaryHostFromText(this.hostsText) || this.newItem.host || null,
-                primaryHost: this.getPrimaryHostFromText(this.hostsText) || this.newItem.host || null,
-                hosts: this.parseHostsText(this.hostsText),
+                region: this.newItem.region || null,
+                serverType: this.newItem.serverType ?? 0,
                 name: this.newItem.name || null,
                 expireDate: this.newItem.expireDate || null,
                 bandwidthDate: this.normalizeDateTimeLocalValue(this.newItem.bandwidthDate),
@@ -408,9 +410,8 @@ const serverTable = new DataTable({
                 username: this.editedItem.username || 'root',
                 authType: this.editedItem.authType,
                 auth: this.editedItem.auth,
-                host: this.getPrimaryHostFromText(this.editHostsText) || this.editedItem.host || null,
-                primaryHost: this.getPrimaryHostFromText(this.editHostsText) || this.editedItem.host || null,
-                hosts: this.parseHostsText(this.editHostsText),
+                region: this.editedItem.region || null,
+                serverType: this.editedItem.serverType ?? 0,
                 name: this.editedItem.name || null,
                 expireDate: this.editedItem.expireDate || null,
                 bandwidthDate: this.normalizeDateTimeLocalValue(this.editedItem.bandwidthDate),
@@ -438,8 +439,8 @@ const serverTable = new DataTable({
                 username: 'root',
                 authType: this.authTypes.length > 0 ? this.authTypes[0].value : 'PASSWORD',
                 auth: '',
-                host: '',
-                hosts: [],
+                region: '',
+                serverType: 0,
                 name: '',
                 expireDate: oneMonthLaterFormat,
                 supplier: '',
@@ -455,7 +456,6 @@ const serverTable = new DataTable({
 
             this.transitConfigJson = '';
             this.coreConfigJson = '';
-            this.hostsText = '';
         },
 
         prepareEditForm(server) {
@@ -464,7 +464,6 @@ const serverTable = new DataTable({
                 JSON.stringify(server.transitConfig, null, 2) : '';
             this.editCoreConfigJson = server.coreConfig ?
                 JSON.stringify(server.coreConfig, null, 2) : '';
-            this.editHostsText = this.serializeHosts(server.hosts, server.host);
             this.editPasswordVisible = false;
 
             return {
@@ -474,8 +473,8 @@ const serverTable = new DataTable({
                 username: server.username || 'root',
                 authType: server.authType,
                 auth: server.auth,
-                host: server.primaryHost || server.host || '',
-                hosts: server.hosts || [],
+                region: server.region || '',
+                serverType: server.serverType ?? 0,
                 name: server.name || '',
                 expireDate: this.formatDateInput(server.expireDate),
                 bandwidthDate: this.formatDateTimeLocalInput(server.bandwidthDate),
@@ -495,36 +494,52 @@ const serverTable = new DataTable({
             this.editPasswordVisible = !this.editPasswordVisible;
         },
 
-        parseHostsText(text) {
-            const values = (text || '')
-                .split(/\r?\n/)
-                .map(item => item.trim())
-                .filter(Boolean);
-
-            return values.map((host, index) => ({
-                host,
-                isPrimary: index === 0 ? 1 : 0,
-                enabled: 1,
-                sort: index
-            }));
+        getServerTypeLabel(serverType) {
+            return serverType === 1 ? '落地服务器' : '代理服务器';
         },
 
-        getPrimaryHostFromText(text) {
-            const hosts = this.parseHostsText(text);
-            return hosts.length > 0 ? hosts[0].host : null;
-        },
+        openDetailModal(server) {
+            this.selectedItem = server;
+            this.serverDomains = [];
+            this.serverLegacyHosts = [];
+            this.serverDomainsLoading = true;
 
-        serializeHosts(hosts, fallbackHost) {
-            if (Array.isArray(hosts) && hosts.length > 0) {
-                return hosts
-                    .map(host => host?.host)
-                    .filter(Boolean)
-                    .join('\n');
+            if (!this.serverDetailModal) {
+                this.serverDetailModal = new Modal(document.getElementById('serverDetailModal'));
             }
-            return fallbackHost || '';
+            this.serverDetailModal.show();
+
+            fetch(`/api/admin/servers/${server.id}/domains`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('获取绑定域名失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    this.serverDomains = data.domains || [];
+                    this.serverLegacyHosts = data.legacyHosts || [];
+                })
+                .catch(error => {
+                    console.error('Error fetching server domains:', error);
+                    ToastUtils.show('Error', error.message || '获取绑定域名失败', 'danger');
+                })
+                .finally(() => {
+                    this.serverDomainsLoading = false;
+                });
+        },
+
+        fetchRegionOptions() {
+            fetch('/api/admin/servers/regions')
+                .then(response => response.json())
+                .then(regions => {
+                    this.regionOptions = regions;
+                })
+                .catch(error => console.error('Error fetching regions:', error));
         },
 
         afterFetch(data) {
+            this.fetchRegionOptions();
             // Additional processing after fetch
             if (data.supplierStats) {
                 this.supplierStats = data.supplierStats;

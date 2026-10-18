@@ -53,12 +53,9 @@
             <div class="d-flex flex-wrap gap-1" style="max-width: 20rem;">
                 <span v-for="placement in node.placements" :key="placement.id"
                       class="badge" :class="getPlacementBadgeClass(placement)" :title="getPlacementTitle(placement)">
-                    <i v-if="node.dnsRecordId && placement.id === node.activeNodeServerId" class="ti ti-world-share me-1" title="DNS 当前解析到此部署位"></i><i v-else-if="placement.exposed !== 0 && placement.enabled !== 0" class="ti ti-eye me-1"></i>{{ placement.serverName || placement.serverIp || placement.serverId }}<template v-if="placement.deployed !== 1 && placement.enabled !== 0"> · {{ getDeploymentStatusLabel(placement.deployed) }}</template>
+                    <i v-if="placement.exposed !== 0" class="ti ti-eye me-1"></i>{{ placement.serverName || placement.serverIp || placement.serverId }}<template v-if="placement.deployed !== 1"> · {{ getDeploymentStatusLabel(placement.deployed) }}</template>
                 </span>
                 <span v-if="!node.placements || node.placements.length === 0" class="text-secondary">-</span>
-            </div>
-            <div v-if="node.dnsRecordName" class="text-secondary small text-break mt-1">
-                <i class="ti ti-world me-1"></i>{{ node.dnsRecordName }}<span v-if="node.failoverEnabled === 1" class="badge bg-blue-lt ms-1">自动切换</span>
             </div>
         </td>
         <td class="d-none d-lg-table-cell">

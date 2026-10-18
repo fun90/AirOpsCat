@@ -20,6 +20,18 @@ public class NodeDeploymentHistoryRepository implements PanacheRepository<NodeDe
         return find("nodeServerId = ?1 and version = ?2", nodeServerId, version).firstResultOptional();
     }
 
+    public long deleteByServerId(Long serverId) {
+        return serverId == null ? 0 : delete("serverId", serverId);
+    }
+
+    public long deleteByNodeId(Long nodeId) {
+        return nodeId == null ? 0 : delete("nodeId", nodeId);
+    }
+
+    public long deleteByNodeServerId(Long nodeServerId) {
+        return nodeServerId == null ? 0 : delete("nodeServerId", nodeServerId);
+    }
+
     @Transactional
     public int deleteExpiredHistoryBatch(LocalDateTime cutoffTime, int keepLatestPerNode, int batchSize) {
         return getEntityManager().createNativeQuery("""

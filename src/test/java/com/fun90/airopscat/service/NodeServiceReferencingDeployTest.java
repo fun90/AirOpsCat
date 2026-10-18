@@ -90,6 +90,11 @@ class NodeServiceReferencingDeployTest {
                 return new Server();
             }
         };
+        nodeService.placementSyncService = new NodePlacementSyncService() {
+            @Override
+            public void syncNode(Node node, boolean strict) {
+            }
+        };
         return nodeService;
     }
 
@@ -100,6 +105,7 @@ class NodeServiceReferencingDeployTest {
         node.setType(type.getValue());
         node.setProtocol("shadowsocks");
         node.setPort(443);
+        node.setRegion("香港");
         node.setOutId(outId);
         node.setTags(new java.util.HashSet<>());
         return node;
@@ -110,7 +116,6 @@ class NodeServiceReferencingDeployTest {
         placement.setId(id);
         placement.setNodeId(nodeId);
         placement.setServerId(100L + nodeId);
-        placement.setEnabled(1);
         placement.setDeployed(DEPLOYED);
         return placement;
     }

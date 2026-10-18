@@ -106,6 +106,8 @@ public class DomainDnsPullService {
             }
         }
 
+        adoptPushedRecords(localRecords, localRecordMap, remoteRecords);
+
         Set<Long> syncedRecordIds = new HashSet<>();
         for (DnsProviderRecord remoteRecord : remoteRecords) {
             DomainDnsRecord localRecord = hasText(remoteRecord.getExternalRecordId())
@@ -136,6 +138,41 @@ public class DomainDnsPullService {
             }
         }
         return hasRetainedPendingDeleteRecords;
+    }
+
+    /**
+     * 本地新建的记录推送后没有外部 ID，按 完整域名+类型+内容 认领远端记录，
+     * 保留本地记录 ID，避免部署位、账户订阅域名等引用随记录被删而失效。
+     */
+    private void adoptPushedRecords(List<DomainDnsRecord> localRecords,
+                                    Map<String, DomainDnsRecord> localRecordMap,
+                                    List<DnsProviderRecord> remoteRecords) {
+        Map<String, DomainDnsRecord> pendingByKey = new HashMap<>();
+        for (DomainDnsRecord localRecord : localRecords) {
+            if (!hasText(localRecord.getExternalRecordId()) && localRecord.getStatus() != DnsRecordStatus.PENDING_DELETE) {
+                pendingByKey.putIfAbsent(adoptKey(localRecord.getFullName(), localRecord.getType(), localRecord.getContent()), localRecord);
+            }
+        }
+        if (pendingByKey.isEmpty()) {
+            return;
+        }
+        for (DnsProviderRecord remoteRecord : remoteRecords) {
+            if (!hasText(remoteRecord.getExternalRecordId()) || localRecordMap.containsKey(remoteRecord.getExternalRecordId())) {
+                continue;
+            }
+            DomainDnsRecord pending = pendingByKey.remove(
+                    adoptKey(remoteRecord.getFullName(), remoteRecord.getType(), remoteRecord.getContent()));
+            if (pending != null) {
+                pending.setExternalRecordId(remoteRecord.getExternalRecordId());
+                localRecordMap.put(remoteRecord.getExternalRecordId(), pending);
+            }
+        }
+    }
+
+    private String adoptKey(String fullName, String type, String content) {
+        return (fullName == null ? "" : fullName.trim().toLowerCase()) + "|"
+                + (type == null ? "" : type.trim().toUpperCase()) + "|"
+                + (content == null ? "" : content.trim());
     }
 
     private void fillRecord(DomainDnsRecord entity,

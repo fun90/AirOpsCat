@@ -35,8 +35,9 @@ const nodeTable = new DataTable({
         protocolTypes: [],
         availableTags: [],
         serverFilterSearches: [],
-        createDnsRecordSelect: null,
-        editDnsRecordSelect: null,
+        domainOptions: [],
+        regionOptions: [],
+        placementPreviewTimer: null,
         stats: {
             total: 0,
             active: 0,
@@ -45,7 +46,7 @@ const nodeTable = new DataTable({
         },
         newItem: {
             placements: [],
-            dnsRecordId: '',
+            region: '',
             port: null,
             coreType: 'sing-box',
             protocol: 'vless',
@@ -77,6 +78,8 @@ const nodeTable = new DataTable({
         viewConfigModal: null,
         batchDeployModal: null,
         batchTagModal: null,
+        batchDeleteModal: null,
+        batchDeleting: false,
         batchActionDropdown: null,
         batchActionDropdownCloseTimer: null,
         deploymentHistoryModal: null,
@@ -109,7 +112,8 @@ const nodeTable = new DataTable({
             this.fetchProtocolTypes();
             this.fetchAvailableTags();
             this.initializeSearchComponents();
-            this.initializeDnsRecordSelectHooks();
+            this.fetchDomainOptions();
+            this.fetchRegionOptions();
         },
 
         afterFetch() {
@@ -183,16 +187,6 @@ const nodeTable = new DataTable({
             }, 100);
         },
 
-        initializeDnsRecordSelectHooks() {
-            [['node-createModal', false], ['node-editModal', true]].forEach(([modalId, isEdit]) => {
-                const modal = document.getElementById(modalId);
-                if (modal) {
-                    modal.addEventListener('shown.bs.modal', () => this.initializeDnsRecordSelect(isEdit));
-                    modal.addEventListener('hidden.bs.modal', () => this.destroyDnsRecordSelect(isEdit));
-                }
-            });
-        },
-
         formatServerDisplayLabel(server) {
             if (!server) {
                 return '';
@@ -215,29 +209,6 @@ const nodeTable = new DataTable({
             }
 
             return ip;
-        },
-
-        getServerHosts(serverId) {
-            const server = this.servers.find(item => String(item.id) === String(serverId));
-            if (!server || !Array.isArray(server.hosts)) {
-                return [];
-            }
-            return server.hosts;
-        },
-
-        syncAccessHostSelection(placement) {
-            if (!placement) {
-                return;
-            }
-            if (!placement.serverId) {
-                placement.accessHostId = '';
-                return;
-            }
-
-            const availableHosts = this.getServerHosts(placement.serverId);
-            if (!availableHosts.some(host => String(host.id || '') === String(placement.accessHostId))) {
-                placement.accessHostId = '';
-            }
         },
 
         syncServerFilterSearches(serverItem = null) {
@@ -269,66 +240,32 @@ const nodeTable = new DataTable({
                     }
 
                     this.syncServerFilterSearches();
-                    if (this.servers.length > 0 && !this.newItem.placements.length) {
-                        this.newItem.placements.push(this.createPlacement(this.servers[0].id));
-                    }
-                    [this.newItem, this.editedItem].forEach(item => {
-                        (item?.placements || []).forEach(placement => this.syncAccessHostSelection(placement));
-                    });
                 })
                 .catch(error => {
                     console.error('Error fetching servers:', error);
                 });
         },
 
-        getDnsRecordSelectId(isEdit = false) {
-            return isEdit ? 'node-dns-record-select-edit' : 'node-dns-record-select-create';
+        fetchRegionOptions() {
+            fetch('/api/admin/servers/regions')
+                .then(response => response.json())
+                .then(regions => {
+                    this.regionOptions = regions;
+                })
+                .catch(error => console.error('Error fetching regions:', error));
         },
 
-        destroyDnsRecordSelect(isEdit = false) {
-            const instanceKey = isEdit ? 'editDnsRecordSelect' : 'createDnsRecordSelect';
-            if (this[instanceKey]) {
-                this[instanceKey].destroy();
-                this[instanceKey] = null;
-            }
-        },
-
-        initializeDnsRecordSelect(isEdit = false) {
-            const selectElement = document.getElementById(this.getDnsRecordSelectId(isEdit));
-            if (!selectElement || typeof TomSelect === 'undefined') {
-                return;
-            }
-            this.destroyDnsRecordSelect(isEdit);
-            const item = isEdit ? this.editedItem : this.newItem;
-            const instanceKey = isEdit ? 'editDnsRecordSelect' : 'createDnsRecordSelect';
-            this[instanceKey] = new TomSelect(selectElement, createRemoteSearchConfig({
-                apiUrl: '/api/admin/domain-dns-records',
-                valueField: 'id',
-                labelField: 'fullName',
-                searchField: ['fullName'],
-                placeholder: '不绑定（每个暴露的部署位输出一条）',
-                minQueryLength: 1,
-                render: {
-                    option: (data, escape) => `<div>
-                        <div>${escape(data.fullName || '')}</div>
-                        <div class="text-muted small">${escape(data.type || '')}${data.domain ? ` · ${escape(data.domain)}` : ''}</div>
-                    </div>`,
-                    item: (data, escape) => `<div>${escape(data.fullName || '')}</div>`
-                },
-                onChange: (value) => {
-                    item.dnsRecordId = value || '';
-                }
-            }));
-            if (item.dnsRecordId) {
-                this[instanceKey].addOption({ id: item.dnsRecordId, fullName: item.dnsRecordName || String(item.dnsRecordId) });
-                this[instanceKey].setValue(item.dnsRecordId, true);
-            }
+        // 新建部署位域名时可选的域名
+        fetchDomainOptions() {
+            fetch('/api/admin/domains?size=500')
+                .then(response => response.json())
+                .then(data => {
+                    this.domainOptions = data.records || [];
+                })
+                .catch(error => console.error('Error fetching domains:', error));
         },
 
         getPlacementBadgeClass(placement) {
-            if (placement.enabled === 0) {
-                return 'bg-secondary-lt';
-            }
             if (placement.deployed === NODE_DEPLOYMENT_STATUS.PENDING_DELETE) {
                 return 'bg-danger-lt';
             }
@@ -340,8 +277,9 @@ const nodeTable = new DataTable({
 
         getPlacementTitle(placement) {
             const parts = [
-                placement.serverHost || placement.serverIp || '',
-                placement.enabled === 0 ? '已停用' : this.getDeploymentStatusLabel(placement.deployed),
+                placement.serverIp || '',
+                placement.accessHost || '',
+                this.getDeploymentStatusLabel(placement.deployed),
                 placement.exposed === 0 ? '不暴露' : '暴露',
                 `优先级 ${placement.priority ?? 0}`
             ];
@@ -559,32 +497,6 @@ const nodeTable = new DataTable({
                 .catch(error => {
                     console.error('Error:', error);
                     ToastUtils.show('Error', error.message || '删除失败', 'danger');
-                });
-        },
-
-        switchActivePlacement(placement) {
-            if (!this.editedItem?.id || !placement?.id) return;
-
-            fetch(`/api/admin/nodes/${this.editedItem.id}/failover/switch`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nodeServerId: placement.id })
-            })
-                .then(async response => {
-                    const data = await response.json().catch(() => ({}));
-                    if (!response.ok) {
-                        throw new Error(data.message || '切换失败');
-                    }
-                    return data;
-                })
-                .then(data => {
-                    this.editedItem.activeNodeServerId = placement.id;
-                    this.fetchRecords();
-                    ToastUtils.show('Success', data.message || '已切换', 'success');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    ToastUtils.show('Error', error.message || '切换失败', 'danger');
                 });
         },
 

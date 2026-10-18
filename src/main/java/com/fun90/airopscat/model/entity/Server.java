@@ -43,6 +43,14 @@ public class Server {
     private String auth;
     
     private String host;
+
+    // 地区，节点按地区和类型自动关联服务器
+    @Column(length = 64)
+    private String region;
+
+    // 0:代理服务器，1:落地服务器，取值同 NodeType
+    @Column(name = "server_type")
+    private Integer serverType;
     
     private String name;
     

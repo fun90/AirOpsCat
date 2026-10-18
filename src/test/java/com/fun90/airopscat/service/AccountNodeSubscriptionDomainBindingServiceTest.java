@@ -8,14 +8,17 @@ import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeServer;
+import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.repository.AccountNodeSubscriptionDomainBindingRepository;
 import com.fun90.airopscat.repository.AccountRepository;
 import com.fun90.airopscat.repository.DomainDnsRecordRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.NodeServerRepository;
+import com.fun90.airopscat.repository.ServerRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -83,38 +86,114 @@ class AccountNodeSubscriptionDomainBindingServiceTest {
     }
 
     @Test
-    void savesSelectedPlacementsWithoutDnsRecord() {
+    void savesSelectedPlacementWithoutDnsRecord() {
         var original = binding(10L, 1L, 2L);
         var request = request(10L, 1L, 2L);
         request.setDomainDnsRecordId(null);
-        request.setNodeServerIds(List.of(21L));
 
-        service(new BindingRepository(original)).save(request);
+        var domains = new DomainStub();
+        service(new BindingRepository(original), domains).save(request);
 
         assertEquals(null, original.getDomainDnsRecordId());
         assertEquals(Set.of(21L), original.getNodeServerIds());
+        assertEquals(List.of(6L), domains.released);
+    }
+
+    @Test
+    void bindsSelectedRecordToPlacementServer() {
+        var original = binding(10L, 1L, 2L);
+        var domains = new DomainStub();
+
+        service(new BindingRepository(original), domains).save(request(10L, 1L, 2L));
+
+        assertEquals(7L, original.getDomainDnsRecordId());
+        assertEquals(List.of(7L), domains.bound);
+        assertEquals(List.of(6L), domains.released);
+    }
+
+    @Test
+    void keepsRecordAlreadyBoundToSameServer() {
+        var original = binding(10L, 1L, 2L);
+        original.setDomainDnsRecordId(7L);
+        var domains = new DomainStub();
+
+        service(new BindingRepository(original), domains).save(request(10L, 1L, 2L));
+
+        assertEquals(List.of(), domains.bound);
+        assertEquals(List.of(), domains.released);
+    }
+
+    @Test
+    void createsNewRecordWhenRequested() {
+        var original = binding(10L, 1L, 2L);
+        var request = request(10L, 1L, 2L);
+        request.setDomainDnsRecordId(null);
+        request.setNewDomainId(5L);
+        request.setNewSubdomain("us1");
+
+        var domains = new DomainStub();
+        service(new BindingRepository(original), domains).save(request);
+
+        assertEquals(88L, original.getDomainDnsRecordId());
+        assertEquals(List.of("us1"), domains.created);
     }
 
     @Test
     void rejectsPlacementOfAnotherNode() {
         var original = binding(10L, 1L, 2L);
         var request = request(10L, 1L, 2L);
-        request.setNodeServerIds(List.of(31L));
+        request.setNodeServerId(31L);
 
         assertThrows(IllegalArgumentException.class, () -> service(new BindingRepository(original)).save(request));
         assertEquals(Set.of(), original.getNodeServerIds());
     }
 
     @Test
-    void requiresDnsRecordOrPlacements() {
+    void requiresPlacement() {
         var request = request(10L, 1L, 2L);
-        request.setDomainDnsRecordId(null);
+        request.setNodeServerId(null);
 
         assertThrows(IllegalArgumentException.class,
                 () -> service(new BindingRepository(binding(10L, 1L, 2L))).save(request));
     }
 
+    // 记录对 ServerDomainService 的调用；用匿名子类，避免被 Quarkus 当作第二个 bean
+    private static class DomainStub {
+        final List<Long> bound = new ArrayList<>();
+        final List<Long> released = new ArrayList<>();
+        final List<String> created = new ArrayList<>();
+
+        ServerDomainService service() {
+            return new ServerDomainService() {
+                @Override
+                public DomainDnsRecord bindExisting(Long recordId, Server server, Long excludePlacementId, Long excludeBindingId) {
+                    bound.add(recordId);
+                    DomainDnsRecord record = new DomainDnsRecord();
+                    record.setId(recordId);
+                    return record;
+                }
+
+                @Override
+                public DomainDnsRecord createARecord(Long domainId, String subdomain, Server server) {
+                    created.add(subdomain);
+                    DomainDnsRecord record = new DomainDnsRecord();
+                    record.setId(88L);
+                    return record;
+                }
+
+                @Override
+                public void releaseIfUnused(Long recordId) {
+                    released.add(recordId);
+                }
+            };
+        }
+    }
+
     private static AccountNodeSubscriptionDomainBindingService service(BindingRepository bindings) {
+        return service(bindings, new DomainStub());
+    }
+
+    private static AccountNodeSubscriptionDomainBindingService service(BindingRepository bindings, DomainStub domains) {
         var accounts = new AccountRepository() {
             @Override
             public Account findById(Long id) {
@@ -137,6 +216,7 @@ class AccountNodeSubscriptionDomainBindingServiceTest {
                 DomainDnsRecord record = new DomainDnsRecord();
                 record.setId(id);
                 record.setFullName("example.test");
+                record.setServerId(2L);
                 return record;
             }
         };
@@ -159,9 +239,19 @@ class AccountNodeSubscriptionDomainBindingServiceTest {
                 NodeServer placement = new NodeServer();
                 placement.setId(nodeId * 10 + 1);
                 placement.setNodeId(nodeId);
+                placement.setServerId(nodeId);
                 return List.of(placement);
             }
         };
+        service.serverRepository = new ServerRepository() {
+            @Override
+            public Server findById(Long id) {
+                Server server = new Server();
+                server.setId(id);
+                return server;
+            }
+        };
+        service.serverDomainService = domains.service();
         return service;
     }
 
@@ -170,6 +260,7 @@ class AccountNodeSubscriptionDomainBindingServiceTest {
         request.setId(id);
         request.setAccountId(accountId);
         request.setNodeId(nodeId);
+        request.setNodeServerId(nodeId * 10 + 1);
         request.setDomainDnsRecordId(7L);
         return request;
     }
@@ -205,6 +296,10 @@ class AccountNodeSubscriptionDomainBindingServiceTest {
         @Override
         public void persist(AccountNodeSubscriptionDomainBinding binding) {
             persistCount++;
+        }
+
+        @Override
+        public void flush() {
         }
     }
 }

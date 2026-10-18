@@ -67,7 +67,6 @@ public class ServerRepository implements PanacheRepository<Server> {
                 "and exists (select ns.id from NodeServer ns, Node n " +
                 "where n.id = ns.nodeId and ns.serverId = s.id " +
                 "and (n.disabled = 0 or n.disabled is null) " +
-                "and (ns.enabled = 1 or ns.enabled is null) " +
                 "and ns.deployed = ?2)",
                 date, NodeDeploymentStatus.DEPLOYED.getValue()).list();
     }
@@ -85,7 +84,6 @@ public class ServerRepository implements PanacheRepository<Server> {
                                 "and exists (select ns.id from NodeServer ns, Node n " +
                                 "where n.id = ns.nodeId and ns.serverId = s.id " +
                                 "and (n.disabled = 0 or n.disabled is null) " +
-                                "and (ns.enabled = 1 or ns.enabled is null) " +
                                 "and ns.deployed = :deployed)",
                         Long.class)
                 .setParameter("serverId", serverId)

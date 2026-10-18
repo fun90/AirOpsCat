@@ -42,13 +42,21 @@ public class AccountNodeSubscriptionDomainBindingRepository implements PanacheRe
         if (domainDnsRecordId == null) {
             return false;
         }
-        return count("domainDnsRecordId", domainDnsRecordId) > 0;
+        return count("domainDnsRecordId", domainDnsRecordId) > 0 || referencedByPlacements(List.of(domainDnsRecordId));
     }
 
     public boolean existsByDomainDnsRecordIds(List<Long> domainDnsRecordIds) {
         if (domainDnsRecordIds == null || domainDnsRecordIds.isEmpty()) {
             return false;
         }
-        return count("domainDnsRecordId in ?1", domainDnsRecordIds) > 0;
+        return count("domainDnsRecordId in ?1", domainDnsRecordIds) > 0 || referencedByPlacements(domainDnsRecordIds);
+    }
+
+    // 记录同样可能被节点部署位引用（node_server.access_host_id），两处引用都不允许删除
+    private boolean referencedByPlacements(List<Long> domainDnsRecordIds) {
+        return getEntityManager()
+                .createQuery("select count(ns.id) from NodeServer ns where ns.accessHostId in :ids", Long.class)
+                .setParameter("ids", domainDnsRecordIds)
+                .getSingleResult() > 0;
     }
 }

@@ -158,7 +158,7 @@ public class DomainDnsRecordService {
         Domain domain = requireBoundDomain(domainId);
         DomainDnsRecord entity = requireRecord(domainId, recordId);
         if (bindingRepository.existsByDomainDnsRecordId(recordId)) {
-            throw new IllegalStateException("DNS 记录已绑定到账户节点订阅域名，请先解绑后再删除");
+            throw new IllegalStateException("DNS 记录已被节点部署位或账户订阅域名引用，请先解绑后再删除");
         }
 
         if (entity.getStatus() == DnsRecordStatus.PENDING_CREATE) {

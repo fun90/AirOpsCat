@@ -1,3 +1,4 @@
+import { choiceFromText, domainIdFromText, INVALID_CHOICE } from '/static/js/common/domain-choice.js';
 import { DataTable } from '/static/js/common/data-table.js';
 import { formatDateTimeForLocal, formatRelativeTime, formatDateTimeFull } from '/static/js/common/common.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
@@ -85,7 +86,7 @@ const accountTable = new DataTable({
         subscriptionCustomizationAccount: null,
         subscriptionDomainBindingEditing: false,
         subscriptionDomainBindingNodeSearch: null,
-        subscriptionDomainBindingDomainSearch: null,
+        subscriptionDomainOptions: [],
         subscriptionDomainBindingForm: {
             id: null,
             accountId: null,
@@ -93,10 +94,14 @@ const accountTable = new DataTable({
             nodeName: '',
             nodeServerHost: '',
             nodePort: null,
-            domainDnsRecordId: '',
-            fullName: '',
+            nodeServerId: '',
+            domainText: '',
+            domainChoice: '',
+            newDomainText: '',
+            newDomainId: '',
+            newSubdomain: '',
+            availableDomains: [],
             placements: [],
-            nodeServerIds: [],
             enabled: 1,
             remark: ''
         },
@@ -149,6 +154,9 @@ const accountTable = new DataTable({
                         break;
                     case 'config':
                         this.openConfigUrlModal(account);
+                        break;
+                    case 'subscription':
+                        this.openSubscriptionCustomizationModal(account);
                         break;
                     case 'renew':
                         this.openRenewAccountModal(account);
@@ -440,9 +448,6 @@ const accountTable = new DataTable({
             if (this.subscriptionDomainBindingNodeSearch) {
                 this.subscriptionDomainBindingNodeSearch.destroy();
             }
-            if (this.subscriptionDomainBindingDomainSearch) {
-                this.subscriptionDomainBindingDomainSearch.destroy();
-            }
 
             const availableNodeApiUrl = `/api/admin/account-node-subscription-domain-bindings/accounts/${this.subscriptionDomainBindingForm.accountId}/available-nodes`;
             this.subscriptionDomainBindingNodeSearch = new TomSelect(
@@ -462,34 +467,12 @@ const accountTable = new DataTable({
                         const node = value ? this.subscriptionDomainBindingNodeSearch.options[value] : null;
                         this.subscriptionDomainBindingForm.nodeId = value || '';
                         this.subscriptionDomainBindingForm.placements = this.getSelectablePlacements(node);
-                        this.subscriptionDomainBindingForm.nodeServerIds = [];
+                        this.subscriptionDomainBindingForm.nodeServerId = '';
+                        this.onBindingPlacementChange();
                     }
                 })
             );
             this.loadDefaultSubscriptionDomainNodes(availableNodeApiUrl);
-
-            this.subscriptionDomainBindingDomainSearch = new TomSelect(
-                document.getElementById('subscription-domain-domain-search'),
-                createRemoteSearchConfig({
-                    apiUrl: '/api/admin/domain-dns-records',
-                    valueField: 'id',
-                    labelField: 'fullName',
-                    searchField: ['fullName'],
-                    placeholder: '搜索DNS记录完整域名...',
-                    minQueryLength: 1,
-                    plugins: ['clear_button'],
-                    render: {
-                        option: (data, escape) => `<div>
-                            <div>${escape(data.fullName || '')}</div>
-                            <div class="text-muted small">${escape(data.type || '')}${data.domain ? ` · ${escape(data.domain)}` : ''}</div>
-                        </div>`,
-                        item: (data, escape) => `<div>${escape(data.fullName || '')}</div>`
-                    },
-                    onChange: (value) => {
-                        this.subscriptionDomainBindingForm.domainDnsRecordId = value || '';
-                    }
-                })
-            );
 
             const form = this.subscriptionDomainBindingForm;
             if (form.nodeId) {
@@ -498,15 +481,6 @@ const accountTable = new DataTable({
                     displayName: this.formatBindingNode(form)
                 });
                 this.subscriptionDomainBindingNodeSearch.setValue(form.nodeId, true);
-            }
-            if (form.domainDnsRecordId) {
-                this.subscriptionDomainBindingDomainSearch.addOption({
-                    id: form.domainDnsRecordId,
-                    fullName: form.fullName || '',
-                    type: form.recordType || '',
-                    domain: form.domain || ''
-                });
-                this.subscriptionDomainBindingDomainSearch.setValue(form.domainDnsRecordId, true);
             }
         },
 
@@ -573,13 +547,19 @@ const accountTable = new DataTable({
                 nodeName: binding.nodeName || '',
                 nodeServerHost: binding.nodeServerHost || '',
                 nodePort: binding.nodePort || null,
-                domainDnsRecordId: binding.domainDnsRecordId || '',
-                placements: this.getSelectablePlacements({ placements: binding.nodePlacements }),
-                nodeServerIds: [...(binding.nodeServerIds || [])],
-                domainId: binding.domainId || '',
+                nodeServerId: binding.nodeServerId || '',
+                domainText: binding.fullName || '',
+                domainChoice: binding.domainDnsRecordId ? String(binding.domainDnsRecordId) : '',
+                newDomainText: '',
+                domainDnsRecordId: binding.domainDnsRecordId || null,
+                originalServerId: ((binding.nodePlacements || []).find(item => item.id === binding.nodeServerId) || {}).serverId ?? null,
                 fullName: binding.fullName || '',
-                domain: binding.domain || '',
-                recordType: binding.recordType || '',
+                newDomainId: '',
+                newSubdomain: '',
+                // 先放入当前域名，保证下拉在可选列表加载完成前就能显示选中项
+                availableDomains: binding.domainDnsRecordId
+                    ? [{ id: binding.domainDnsRecordId, fullName: binding.fullName || String(binding.domainDnsRecordId) }] : [],
+                placements: this.getSelectablePlacements({ placements: binding.nodePlacements }),
                 enabled: binding.enabled == null ? 1 : binding.enabled,
                 remark: binding.remark || ''
             } : {
@@ -589,16 +569,27 @@ const accountTable = new DataTable({
                 nodeName: '',
                 nodeServerHost: '',
                 nodePort: null,
-                domainDnsRecordId: '',
+                nodeServerId: '',
+                domainText: '',
+                domainChoice: '',
+                newDomainText: '',
+                domainDnsRecordId: null,
+                originalServerId: null,
                 fullName: '',
+                newDomainId: '',
+                newSubdomain: '',
+                availableDomains: [],
                 placements: [],
-                nodeServerIds: [],
                 enabled: 1,
                 remark: ''
             };
             this.validationErrors = {};
             this.subscriptionDomainBindingEditing = true;
             this.initializeSubscriptionDomainBindingSearches();
+            this.fetchSubscriptionDomainOptions();
+            if (binding && binding.nodeServerId) {
+                this.loadBindingAvailableDomains();
+            }
         },
 
         validateSubscriptionDomainBindingForm() {
@@ -606,9 +597,13 @@ const accountTable = new DataTable({
             if (!this.subscriptionDomainBindingForm.nodeId) {
                 this.validationErrors.subscriptionDomainNodeId = '请选择节点';
             }
-            if (this.subscriptionDomainBindingForm.nodeId && !this.subscriptionDomainBindingForm.domainDnsRecordId
-                && this.subscriptionDomainBindingForm.nodeServerIds.length === 0) {
-                this.validationErrors.subscriptionDomainTarget = '请选择展示的部署位或DNS记录';
+            const form = this.subscriptionDomainBindingForm;
+            if (form.nodeId && !form.nodeServerId) {
+                this.validationErrors.subscriptionDomainTarget = '请选择展示的部署位';
+            } else if (form.domainChoice === INVALID_CHOICE) {
+                this.validationErrors.subscriptionDomainDomainId = '请从列表中选择域名，或留空';
+            } else if (form.domainChoice === '__new__' && (!form.newDomainId || !(form.newSubdomain || '').trim())) {
+                this.validationErrors.subscriptionDomainDomainId = '请选择域名并填写子域名';
             }
             return Object.keys(this.validationErrors).length === 0;
         },
@@ -627,9 +622,13 @@ const accountTable = new DataTable({
                     id: this.subscriptionDomainBindingForm.id,
                     accountId: this.subscriptionCustomizationAccount.id,
                     nodeId: Number(this.subscriptionDomainBindingForm.nodeId),
-                    domainDnsRecordId: this.subscriptionDomainBindingForm.domainDnsRecordId
-                        ? Number(this.subscriptionDomainBindingForm.domainDnsRecordId) : null,
-                    nodeServerIds: this.subscriptionDomainBindingForm.nodeServerIds.map(Number),
+                    nodeServerId: Number(this.subscriptionDomainBindingForm.nodeServerId),
+                    domainDnsRecordId: /^\d+$/.test(this.subscriptionDomainBindingForm.domainChoice)
+                        ? Number(this.subscriptionDomainBindingForm.domainChoice) : null,
+                    newDomainId: this.subscriptionDomainBindingForm.domainChoice === '__new__'
+                        ? Number(this.subscriptionDomainBindingForm.newDomainId) : null,
+                    newSubdomain: this.subscriptionDomainBindingForm.domainChoice === '__new__'
+                        ? this.subscriptionDomainBindingForm.newSubdomain.trim() : null,
                     enabled: Number(this.subscriptionDomainBindingForm.enabled || 0),
                     remark: this.subscriptionDomainBindingForm.remark || null
                 })
@@ -714,22 +713,75 @@ const accountTable = new DataTable({
         formatBindingPlacement(placement) {
             const server = placement.serverName || placement.serverIp || `服务器#${placement.serverId}`;
             const host = placement.accessHost || placement.serverHost || placement.serverIp || '';
-            const flags = [
-                placement.enabled === 0 ? '已停用' : '',
-                placement.exposed === 0 ? '不暴露' : ''
-            ].filter(Boolean).join('、');
+            const flags = placement.exposed === 0 ? '不暴露' : '';
             return `${server}${host ? ' (' + host + ')' : ''} · 优先级 ${placement.priority ?? 0}${flags ? ' · ' + flags : ''}`;
         },
 
         formatBindingPlacements(binding) {
-            const ids = binding.nodeServerIds || [];
-            if (ids.length === 0) {
+            const id = binding.nodeServerId;
+            if (!id) {
                 return '默认';
             }
-            return ids.map(id => {
-                const placement = (binding.nodePlacements || []).find(item => item.id === id);
-                return placement ? (placement.serverName || placement.serverIp || `#${id}`) : `#${id}`;
-            }).join('、');
+            const placement = (binding.nodePlacements || []).find(item => item.id === id);
+            return placement ? (placement.serverName || placement.serverIp || `#${id}`) : `#${id}`;
+        },
+
+        fetchSubscriptionDomainOptions() {
+            fetch('/api/admin/domains?size=500')
+                .then(response => response.json())
+                .then(data => {
+                    this.subscriptionDomainOptions = data.records || [];
+                })
+                .catch(error => console.error('Error fetching domains:', error));
+        },
+
+        // 换部署位后域名需重新选择：域名只能绑定到所选部署位的服务器
+        onBindingPlacementChange() {
+            const form = this.subscriptionDomainBindingForm;
+            const placement = form.placements.find(item => String(item.id) === String(form.nodeServerId));
+            if (!placement) {
+                form.availableDomains = [];
+                form.domainText = '';
+                form.domainChoice = '';
+                return;
+            }
+            if (form.domainDnsRecordId && String(form.domainChoice) === String(form.domainDnsRecordId)
+                && form.originalServerId === placement.serverId) {
+                return;
+            }
+            form.domainText = '';
+            form.domainChoice = '';
+            this.loadBindingAvailableDomains();
+        },
+
+        onBindingDomainInput() {
+            const form = this.subscriptionDomainBindingForm;
+            form.domainChoice = choiceFromText(form.domainText, form.availableDomains);
+        },
+
+        onBindingNewDomainInput() {
+            const form = this.subscriptionDomainBindingForm;
+            form.newDomainId = domainIdFromText(form.newDomainText, this.subscriptionDomainOptions);
+        },
+
+        loadBindingAvailableDomains() {
+            const form = this.subscriptionDomainBindingForm;
+            const placement = form.placements.find(item => String(item.id) === String(form.nodeServerId));
+            if (!placement) {
+                return;
+            }
+            fetch(`/api/admin/servers/${encodeURIComponent(placement.serverId)}/available-domains`)
+                .then(response => response.ok ? response.json() : [])
+                .then(records => {
+                    // 编辑时保留当前域名；它已被自己引用，不在可选列表中
+                    const list = records.slice();
+                    if (form.domainDnsRecordId && !list.some(record => record.id === form.domainDnsRecordId)
+                        && form.originalServerId === placement.serverId) {
+                        list.unshift({ id: form.domainDnsRecordId, fullName: form.fullName || String(form.domainDnsRecordId) });
+                    }
+                    this.subscriptionDomainBindingForm.availableDomains = list;
+                })
+                .catch(error => console.error('Error fetching available domains:', error));
         },
 
         getBindingEnabledBadgeClass(binding) {

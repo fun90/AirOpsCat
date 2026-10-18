@@ -58,6 +58,21 @@ public class ServerController {
     @Inject
     SingBoxOnlineConnectionService singBoxOnlineConnectionService;
 
+    @Inject
+    com.fun90.airopscat.service.ServerDomainService serverDomainService;
+
+    @Inject
+    com.fun90.airopscat.service.NodePlacementSyncService nodePlacementSyncService;
+
+    // 服务器的地区、类型、启用状态变化后，节点的部署位随之增删；失败不影响服务器本身的保存
+    private void syncNodePlacements() {
+        try {
+            nodePlacementSyncService.syncAll();
+        } catch (RuntimeException e) {
+            org.slf4j.LoggerFactory.getLogger(ServerController.class).error("同步节点部署位失败", e);
+        }
+    }
+
     @GET
     public Response getServerPage(
             @QueryParam("page") @DefaultValue("1") int page,
@@ -103,6 +118,31 @@ public class ServerController {
             return Response.ok(dto).build();
         }
         return Response.status(Response.Status.NOT_FOUND).build();
+    }
+
+    @GET
+    @Path("/regions")
+    public Response getRegions() {
+        return Response.ok(serverService.getRegions()).build();
+    }
+
+    @GET
+    @Path("/{id}/domains")
+    public Response getServerDomains(@PathParam("id") Long id) {
+        if (serverService.getServerById(id) == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        return Response.ok(serverDomainService.getDomains(id)).build();
+    }
+
+    @GET
+    @Path("/{id}/available-domains")
+    public Response getAvailableDomains(@PathParam("id") Long id) {
+        com.fun90.airopscat.model.entity.Server server = serverService.getServerById(id);
+        if (server == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        return Response.ok(serverDomainService.getAvailableRecords(server)).build();
     }
 
     @GET
@@ -165,6 +205,7 @@ public class ServerController {
     @POST
     public Response createServer(ServerDto server) {
         Server savedServer = serverService.saveServer(server);
+        syncNodePlacements();
         return Response.ok(serverService.convertToDto(savedServer)).build();
     }
 
@@ -178,6 +219,7 @@ public class ServerController {
 
         server.setId(id);
         Server updatedServer = serverService.updateServer(server);
+        syncNodePlacements();
         ServerDto dto = serverService.convertToDto(updatedServer);
         return Response.ok(dto).build();
     }
@@ -260,13 +302,13 @@ public class ServerController {
         if (existingServer == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        if (!nodeService.getNodesByServer(id).isEmpty()) {
+        try {
+            serverService.deleteServer(id);
+        } catch (IllegalStateException e) {
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("message", "服务器下还有节点，不能删除"))
+                    .entity(Map.of("message", e.getMessage()))
                     .build();
         }
-
-        serverService.deleteServer(id);
         return Response.ok().build();
     }
 
@@ -275,6 +317,7 @@ public class ServerController {
     public Response enableServer(@PathParam("id") Long id) {
         Server server = serverService.toggleServerStatus(id, false);
         if (server != null) {
+            syncNodePlacements();
             Map<String, Object> response = new HashMap<>();
             response.put("id", id);
             response.put("disabled", 0);

@@ -9,6 +9,8 @@ import com.fun90.airopscat.model.entity.Domain;
 import com.fun90.airopscat.model.entity.DomainDnsRecord;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeServer;
+import com.fun90.airopscat.model.entity.Server;
+import com.fun90.airopscat.model.enums.DnsRecordStatus;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.AccountNodeSubscriptionDomainBindingRepository;
 import com.fun90.airopscat.repository.AccountRepository;
@@ -16,6 +18,7 @@ import com.fun90.airopscat.repository.DomainDnsRecordRepository;
 import com.fun90.airopscat.repository.DomainRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.NodeServerRepository;
+import com.fun90.airopscat.repository.ServerRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
@@ -44,6 +47,12 @@ public class AccountNodeSubscriptionDomainBindingService {
 
     @Inject
     NodeServerRepository nodeServerRepository;
+
+    @Inject
+    ServerRepository serverRepository;
+
+    @Inject
+    ServerDomainService serverDomainService;
 
     @Inject
     public AccountNodeSubscriptionDomainBindingService(AccountNodeSubscriptionDomainBindingRepository bindingRepository,
@@ -78,10 +87,7 @@ public class AccountNodeSubscriptionDomainBindingService {
         ensureAccountExists(request.getAccountId());
         ensureNodeExists(request.getNodeId());
         ensureNodeBelongsToAccount(request.getAccountId(), request.getNodeId());
-        if (request.getDomainDnsRecordId() != null) {
-            ensureDomainDnsRecordExists(request.getDomainDnsRecordId());
-        }
-        List<Long> nodeServerIds = normalizePlacementIds(request);
+        NodeServer placement = requirePlacement(request);
 
         AccountNodeSubscriptionDomainBinding binding;
         if (request.getId() != null) {
@@ -98,18 +104,44 @@ public class AccountNodeSubscriptionDomainBindingService {
                     .orElseGet(AccountNodeSubscriptionDomainBinding::new);
         }
 
+        Long previousRecordId = binding.getDomainDnsRecordId();
+        Long recordId = resolveRecordId(request, binding, serverRepository.findById(placement.getServerId()));
+
         binding.setAccountId(request.getAccountId());
         binding.setNodeId(request.getNodeId());
-        binding.setDomainDnsRecordId(request.getDomainDnsRecordId());
+        binding.setDomainDnsRecordId(recordId);
         binding.getNodeServerIds().clear();
-        binding.getNodeServerIds().addAll(nodeServerIds);
+        binding.getNodeServerIds().add(placement.getId());
         binding.setEnabled(request.getEnabled() == null ? 1 : request.getEnabled());
         binding.setRemark(normalizeBlank(request.getRemark()));
 
         if (binding.getId() == null) {
             bindingRepository.persist(binding);
         }
+        if (!Objects.equals(previousRecordId, recordId)) {
+            bindingRepository.flush();
+            serverDomainService.releaseIfUnused(previousRecordId);
+        }
         return toDto(binding);
+    }
+
+    // 域名绑定到所选部署位的服务器；存量已绑定同一服务器的记录保持不变，其余按“选已有 / 新建”校验
+    private Long resolveRecordId(AccountNodeSubscriptionDomainBindingRequest request,
+                                 AccountNodeSubscriptionDomainBinding binding, Server server) {
+        if (request.getNewDomainId() != null) {
+            return serverDomainService.createARecord(request.getNewDomainId(), request.getNewSubdomain(), server).getId();
+        }
+        Long recordId = request.getDomainDnsRecordId();
+        if (recordId == null) {
+            return null;
+        }
+        if (Objects.equals(recordId, binding.getDomainDnsRecordId())) {
+            DomainDnsRecord current = domainDnsRecordRepository.findById(recordId);
+            if (current != null && Objects.equals(current.getServerId(), server.getId())) {
+                return recordId;
+            }
+        }
+        return serverDomainService.bindExisting(recordId, server, null, binding.getId()).getId();
     }
 
     @Transactional
@@ -121,9 +153,11 @@ public class AccountNodeSubscriptionDomainBindingService {
 
     @Transactional
     public void delete(Long id) {
-        if (!bindingRepository.deleteById(id)) {
-            throw new EntityNotFoundException("账户节点订阅域名绑定不存在");
-        }
+        AccountNodeSubscriptionDomainBinding binding = findExisting(id);
+        Long recordId = binding.getDomainDnsRecordId();
+        bindingRepository.delete(binding);
+        bindingRepository.flush();
+        serverDomainService.releaseIfUnused(recordId);
     }
 
     public Map<Long, String> findSubscriptionHostOverrides(Long accountId, List<Long> nodeIds) {
@@ -148,7 +182,9 @@ public class AccountNodeSubscriptionDomainBindingService {
         Map<Long, String> overrides = new HashMap<>();
         for (AccountNodeSubscriptionDomainBinding binding : bindings) {
             DomainDnsRecord record = recordMap.get(binding.getDomainDnsRecordId());
-            String host = record == null ? null : normalizeBlank(record.getFullName());
+            // 新建的记录推送成功前解析不到，订阅暂用部署位的默认地址
+            String host = record == null || record.getStatus() != DnsRecordStatus.SYNCED
+                    ? null : normalizeBlank(record.getFullName());
             if (host != null) {
                 overrides.put(binding.getNodeId(), host);
             }
@@ -203,26 +239,17 @@ public class AccountNodeSubscriptionDomainBindingService {
         if (request.getNodeId() == null) {
             throw new IllegalArgumentException("节点不能为空");
         }
-        boolean hasPlacements = request.getNodeServerIds() != null
-                && request.getNodeServerIds().stream().anyMatch(Objects::nonNull);
-        if (request.getDomainDnsRecordId() == null && !hasPlacements) {
-            throw new IllegalArgumentException("请选择DNS记录或展示的部署位");
+        if (request.getNodeServerId() == null) {
+            throw new IllegalArgumentException("请选择展示的部署位");
         }
     }
 
-    private List<Long> normalizePlacementIds(AccountNodeSubscriptionDomainBindingRequest request) {
-        if (request.getNodeServerIds() == null) {
-            return List.of();
-        }
-        List<Long> ids = request.getNodeServerIds().stream().filter(Objects::nonNull).distinct().toList();
-        Set<Long> nodePlacementIds = nodeServerRepository.findByNodeId(request.getNodeId()).stream()
+    private NodeServer requirePlacement(AccountNodeSubscriptionDomainBindingRequest request) {
+        return nodeServerRepository.findByNodeId(request.getNodeId()).stream()
                 .filter(placement -> !NodeDeploymentStatus.isPendingDelete(placement.getDeployed()))
-                .map(NodeServer::getId)
-                .collect(Collectors.toSet());
-        if (!nodePlacementIds.containsAll(ids)) {
-            throw new IllegalArgumentException("部署位不属于该节点");
-        }
-        return ids;
+                .filter(placement -> Objects.equals(placement.getId(), request.getNodeServerId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("部署位不属于该节点"));
     }
 
     private void ensureAccountExists(Long accountId) {
@@ -243,13 +270,6 @@ public class AccountNodeSubscriptionDomainBindingService {
                 .anyMatch(id -> Objects.equals(id, nodeId));
         if (!belongs) {
             throw new IllegalArgumentException("节点不属于该账户");
-        }
-    }
-
-    private void ensureDomainDnsRecordExists(Long recordId) {
-        DomainDnsRecord record = recordId == null ? null : domainDnsRecordRepository.findById(recordId);
-        if (record == null || normalizeBlank(record.getFullName()) == null) {
-            throw new EntityNotFoundException("DNS记录不存在");
         }
     }
 
@@ -330,7 +350,7 @@ public class AccountNodeSubscriptionDomainBindingService {
         dto.setAccountId(binding.getAccountId());
         dto.setNodeId(binding.getNodeId());
         dto.setDomainDnsRecordId(binding.getDomainDnsRecordId());
-        dto.setNodeServerIds(List.copyOf(binding.getNodeServerIds()));
+        dto.setNodeServerId(binding.getNodeServerIds().stream().findFirst().orElse(null));
         dto.setEnabled(binding.getEnabled());
         dto.setRemark(binding.getRemark());
         dto.setCreateTime(binding.getCreateTime());
@@ -351,6 +371,7 @@ public class AccountNodeSubscriptionDomainBindingService {
             dto.setFullName(record.getFullName());
             dto.setRecordName(record.getName());
             dto.setRecordType(record.getType());
+            dto.setRecordStatus(record.getStatus() == null ? null : record.getStatus().name());
         }
         if (domain != null) {
             dto.setDomain(domain.getDomain());

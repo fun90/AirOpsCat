@@ -153,7 +153,7 @@ public class DomainDnsBindingService {
                 .map(DomainDnsRecord::getId)
                 .toList();
         if (bindingRepository.existsByDomainDnsRecordIds(recordIds)) {
-            throw new IllegalStateException("域名下存在已绑定到账户节点订阅域名的 DNS 记录，请先解绑后再操作");
+            throw new IllegalStateException("域名下存在被节点部署位或账户订阅域名引用的 DNS 记录，请先解绑后再操作");
         }
     }
 }

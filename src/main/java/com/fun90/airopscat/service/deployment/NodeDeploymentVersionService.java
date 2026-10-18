@@ -130,9 +130,8 @@ public class NodeDeploymentVersionService {
             throw new IllegalArgumentException("部署版本快照为空，无法还原");
         }
 
-        // 只还原节点配置，部署位与订阅 DNS 绑定保持现状
+        // 只还原节点配置，部署位与域名保持现状
         Node restoredNode = toNode(snapshot);
-        restoredNode.setDnsRecordId(nodeRepository.findById(nodeId).getDnsRecordId());
         Set<Tag> restoredTags = toTagSet(snapshot.getTagIds());
         Node updatedNode = nodeService.updateNode(restoredNode, null, restoredTags, true);
         tagService.updateNodeTags(nodeId, snapshot.getTagIds());
@@ -185,8 +184,7 @@ public class NodeDeploymentVersionService {
         Node previousNode = toNode(previousSnapshot);
         previousNode.setTags(toTagSet(previousSnapshot.getTagIds()));
         boolean changed = nodeService.hasSubstantialChanges(previousNode, node, new LinkedHashSet<>(currentTags), true)
-                || !Objects.equals(previousSnapshot.getServerId(), placement.getServerId())
-                || !Objects.equals(previousSnapshot.getAccessHostId(), placement.getAccessHostId());
+                || !Objects.equals(previousSnapshot.getServerId(), placement.getServerId());
         if (!changed) {
             fillCurrentDeployment(currentDeployment, node, placement, snapshotJson, currentDeployment.getVersion(), deployedAt);
             return;

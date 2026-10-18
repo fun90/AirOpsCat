@@ -43,11 +43,7 @@ public class NodeDto {
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
     private Set<Tag> tags = new HashSet<>();
-    private Long dnsRecordId;
-    private Integer failoverEnabled;
-    // 自动切换下 DNS 当前指向的部署位
-    private Long activeNodeServerId;
-    private String dnsRecordName;
+    private String region;
     private List<NodeServerDto> placements = new ArrayList<>();
 
 

@@ -20,6 +20,8 @@ public class ServerDto {
     private String host;
     private String primaryHost;
     private List<ServerHostDto> hosts;
+    private String region;
+    private Integer serverType;
     private String name;
     private LocalDate expireDate;
     private LocalDateTime bandwidthDate;

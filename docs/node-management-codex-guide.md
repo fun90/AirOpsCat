@@ -123,7 +123,7 @@
 - `enabled`：0 表示不部署到该服务器
 - `deployed`：部署状态，节点列表展示各部署位的汇总
 
-详细设计见 `docs/node-multi-server-failover-plan.md`。
+详细设计见 `docs/node-multi-server-deployment-plan.md`。
 
 ### 4.2 前端页面反映出的业务规则
 

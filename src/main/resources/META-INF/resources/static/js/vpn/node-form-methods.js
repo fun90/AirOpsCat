@@ -1,3 +1,7 @@
+import { choiceFromText, domainIdFromText, INVALID_CHOICE } from '/static/js/common/domain-choice.js';
+
+let placementUid = 0;
+
 export function createNodeFormMethods() {
     return {
         fetchLandingNodes() {
@@ -60,6 +64,7 @@ export function createNodeFormMethods() {
                 this.newItem.outId = null;
             }
             this.syncProtocolSelection(this.newItem, false);
+            this.refreshPlacementPreview();
         },
 
         onCoreTypeChange() {
@@ -77,38 +82,49 @@ export function createNodeFormMethods() {
             this.syncProtocolSelection(this.editedItem, true);
         },
 
-        createPlacement(serverId = '', priority = 0) {
+        createPlacement(server, priority = 0) {
             return {
+                uid: `p${++placementUid}`,
                 id: null,
-                serverId,
-                accessHostId: '',
+                serverId: server.id,
+                serverName: server.name || server.ip || String(server.id),
+                domainText: '',
+                domainChoice: '',
+                newDomainText: '',
+                newDomainId: '',
+                newSubdomain: '',
+                availableDomains: [],
+                accessHostStatus: null,
                 exposed: true,
                 priority,
-                enabled: true,
-                name: '',
                 deployed: null
             };
         },
 
-        addPlacement(item, isEdit = false) {
-            const usedServerIds = new Set(item.placements.map(placement => String(placement.serverId)));
-            const server = this.servers.find(candidate => !usedServerIds.has(String(candidate.id)));
-            const maxPriority = item.placements.reduce((max, placement) => Math.max(max, Number(placement.priority) || 0), -10);
-            item.placements.push(this.createPlacement(server ? server.id : '', maxPriority + 10));
-            this.onPlacementServerChange(item, item.placements[item.placements.length - 1], isEdit);
+        // 部署位的可选域名：服务器上未被引用的 A 记录；编辑时保留自身当前域名
+        loadPlacementDomains(placement) {
+            fetch(`/api/admin/servers/${encodeURIComponent(placement.serverId)}/available-domains`)
+                .then(response => response.ok ? response.json() : [])
+                .then(records => {
+                    const list = records.slice();
+                    if (placement.accessHostId && !list.some(record => record.id === placement.accessHostId)) {
+                        list.unshift({ id: placement.accessHostId, fullName: placement.accessHost || String(placement.accessHostId) });
+                    }
+                    // 请求发出时对象可能还不是响应式的，回填要落在表单当前持有的那个对象上
+                    const target = [this.newItem, this.editedItem]
+                        .flatMap(item => item?.placements || [])
+                        .find(candidate => candidate.uid === placement.uid);
+                    if (target) {
+                        target.availableDomains = list;
+                    }
+                })
+                .catch(error => console.error('Error fetching available domains:', error));
         },
 
-        removePlacement(item, index, isEdit = false) {
-            item.placements.splice(index, 1);
-            this.schedulePlacementPortCheck(isEdit);
-        },
-
-        // 主部署位：启用且 priority 最小，用于生成默认入站配置
+        // 主部署位：priority 最小，用于生成默认入站配置
         getPrimaryPlacement(item) {
-            const placements = (item?.placements || []).filter(placement => placement.serverId);
-            const enabled = placements.filter(placement => placement.enabled);
-            const candidates = enabled.length ? enabled : placements;
-            return candidates.slice().sort((a, b) => (Number(a.priority) || 0) - (Number(b.priority) || 0))[0] || null;
+            return (item?.placements || []).slice()
+                .sort((a, b) => (Number(a.priority) || 0) - (Number(b.priority) || 0))[0] || null;
         },
 
         getServerLabel(serverId) {
@@ -116,13 +132,58 @@ export function createNodeFormMethods() {
             return server ? this.formatServerDisplayLabel(server) : String(serverId || '');
         },
 
-        onPlacementServerChange(item, placement, isEdit = false) {
-            this.syncAccessHostSelection(placement);
-            this.schedulePlacementPortCheck(isEdit);
+        // 新建节点：按地区和类型预览会自动关联的服务器，保留已填写的域名、暴露和优先级
+        refreshPlacementPreview() {
+            const item = this.newItem;
+            const region = (item.region || '').trim();
+            if (!region) {
+                item.placements = [];
+                this.schedulePlacementPortCheck(false);
+                return;
+            }
+            fetch(`/api/admin/nodes/matching-servers?region=${encodeURIComponent(region)}&type=${encodeURIComponent(item.type ?? 0)}`)
+                .then(response => response.json())
+                .then(servers => {
+                    if ((item.region || '').trim() !== region) {
+                        return;
+                    }
+                    const previous = new Map(item.placements.map(placement => [placement.serverId, placement]));
+                    item.placements = servers.map((server, index) => {
+                        const placement = previous.get(server.id) || this.createPlacement(server, index);
+                        if (!previous.has(server.id)) {
+                            this.loadPlacementDomains(placement);
+                        }
+                        return placement;
+                    });
+                    this.schedulePlacementPortCheck(false);
+                    this.onPrimaryPlacementChanged(item, false);
+                })
+                .catch(error => console.error('Error fetching matching servers:', error));
         },
 
-        onPlacementAccessHostChange(item, placement, isEdit = false) {
-            if (placement === this.getPrimaryPlacement(item) && ['vless', 'hysteria2'].includes(item.protocol)) {
+        onNewRegionChange() {
+            clearTimeout(this.placementPreviewTimer);
+            this.placementPreviewTimer = setTimeout(() => this.refreshPlacementPreview(), 300);
+        },
+
+        onPlacementDomainInput(item, placement, isEdit = false) {
+            placement.domainChoice = choiceFromText(placement.domainText, placement.availableDomains);
+            this.onPlacementDomainChange(item, placement, isEdit);
+        },
+
+        onPlacementNewDomainInput(placement) {
+            placement.newDomainId = domainIdFromText(placement.newDomainText, this.domainOptions);
+        },
+
+        onPlacementDomainChange(item, placement, isEdit = false) {
+            if (placement === this.getPrimaryPlacement(item)) {
+                this.onPrimaryPlacementChanged(item, isEdit);
+            }
+        },
+
+        // 主部署位或其域名变化时，重新生成依赖服务器名的默认入站
+        onPrimaryPlacementChanged(item, isEdit) {
+            if (['vless', 'hysteria2'].includes(item.protocol)) {
                 isEdit ? this.onEditProtocolChange() : this.onProtocolChange();
             }
         },
@@ -144,7 +205,7 @@ export function createNodeFormMethods() {
                 this[timerKey] = null;
             }
 
-            const serverIds = this.getEnabledPlacementServerIds(item);
+            const serverIds = this.getPlacementServerIds(item);
             if (!serverIds.length || !item?.port) {
                 this[messageKey] = '';
                 return;
@@ -156,10 +217,8 @@ export function createNodeFormMethods() {
             }, 300);
         },
 
-        getEnabledPlacementServerIds(item) {
-            return [...new Set((item?.placements || [])
-                .filter(placement => placement.enabled && placement.serverId)
-                .map(placement => placement.serverId))];
+        getPlacementServerIds(item) {
+            return [...new Set((item?.placements || []).map(placement => placement.serverId))];
         },
 
         checkPlacementPorts(item, serverIds, messageKey) {
@@ -188,9 +247,9 @@ export function createNodeFormMethods() {
         },
 
         fillAvailablePort(item, isEdit = false) {
-            const serverIds = this.getEnabledPlacementServerIds(item);
+            const serverIds = this.getPlacementServerIds(item);
             if (!serverIds.length) {
-                ToastUtils.show('Warning', '请先添加部署服务器', 'warning');
+                ToastUtils.show('Warning', '暂无关联的部署服务器，请先填写地区', 'warning');
                 return;
             }
 
@@ -211,7 +270,7 @@ export function createNodeFormMethods() {
             const coreType = this.getDefaultInboundCoreType(item);
             return `/api/admin/nodes/default-inbound?protocol=${encodeURIComponent(item.protocol || '')}`
                 + `&serverId=${encodeURIComponent(primary?.serverId || '')}`
-                + `&accessHostId=${encodeURIComponent(primary?.accessHostId || '')}`
+                + `&accessHostId=${encodeURIComponent(/^\d+$/.test(primary?.domainChoice || '') ? primary.domainChoice : '')}`
                 + `&coreType=${encodeURIComponent(coreType)}`;
         },
 
@@ -295,18 +354,13 @@ export function createNodeFormMethods() {
         },
 
         validatePlacements(item) {
-            const placements = item.placements || [];
-            if (!placements.length) {
-                return '请添加部署服务器';
-            }
-            if (placements.some(placement => !placement.serverId)) {
-                return '请为每个部署位选择服务器';
-            }
-            if (new Set(placements.map(placement => String(placement.serverId))).size !== placements.length) {
-                return '同一节点不能重复选择同一服务器';
-            }
-            if (!placements.some(placement => placement.enabled)) {
-                return '至少需要一个启用的部署服务器';
+            for (const placement of item.placements || []) {
+                if (placement.domainChoice === INVALID_CHOICE) {
+                    return `请为 ${placement.serverName} 从列表中选择域名，或留空`;
+                }
+                if (placement.domainChoice === '__new__' && (!placement.newDomainId || !(placement.newSubdomain || '').trim())) {
+                    return `请为 ${placement.serverName} 选择域名并填写子域名`;
+                }
             }
             return '';
         },
@@ -314,6 +368,11 @@ export function createNodeFormMethods() {
         validateNodeForm(item) {
             let isValid = true;
             this.validationErrors = {};
+
+            if (!(item.region || '').trim()) {
+                this.validationErrors.region = '请填写地区';
+                isValid = false;
+            }
 
             const placementError = this.validatePlacements(item);
             if (placementError) {
@@ -356,13 +415,17 @@ export function createNodeFormMethods() {
         },
 
         preparePlacementData(item) {
-            return (item.placements || []).map(placement => ({
-                serverId: placement.serverId,
-                accessHostId: placement.accessHostId || null,
-                exposed: placement.exposed ? 1 : 0,
-                priority: Number(placement.priority) || 0,
-                enabled: placement.enabled ? 1 : 0,
-            }));
+            return (item.placements || []).map(placement => {
+                const isNew = placement.domainChoice === '__new__';
+                return {
+                    serverId: placement.serverId,
+                    accessHostId: /^\d+$/.test(placement.domainChoice || '') ? Number(placement.domainChoice) : null,
+                    newDomainId: isNew ? Number(placement.newDomainId) : null,
+                    newSubdomain: isNew ? placement.newSubdomain.trim() : null,
+                    exposed: placement.exposed ? 1 : 0,
+                    priority: Number(placement.priority) || 0
+                };
+            });
         },
 
         prepareCreateData() {
@@ -380,8 +443,7 @@ export function createNodeFormMethods() {
 
                 return {
                     placements: this.preparePlacementData(this.newItem),
-                    dnsRecordId: this.newItem.dnsRecordId || null,
-                    failoverEnabled: this.newItem.dnsRecordId && this.newItem.failoverEnabled ? 1 : 0,
+                    region: (this.newItem.region || '').trim(),
                     port: this.newItem.port,
                     coreType: 'sing-box',
                     protocol: this.newItem.protocol,
@@ -416,8 +478,7 @@ export function createNodeFormMethods() {
                 return {
                     id: this.editedItem.id,
                     placements: this.preparePlacementData(this.editedItem),
-                    dnsRecordId: this.editedItem.dnsRecordId || null,
-                    failoverEnabled: this.editedItem.dnsRecordId && this.editedItem.failoverEnabled ? 1 : 0,
+                    region: (this.editedItem.region || '').trim(),
                     port: this.editedItem.port,
                     coreType: 'sing-box',
                     protocol: this.editedItem.protocol,
@@ -441,9 +502,8 @@ export function createNodeFormMethods() {
         resetCreateForm() {
             this.fetchLandingNodes();
             this.newItem = {
-                placements: [this.createPlacement(this.servers.length > 0 ? this.servers[0].id : '')],
-                dnsRecordId: '',
-                failoverEnabled: false,
+                placements: [],
+                region: '',
                 port: null,
                 coreType: 'sing-box',
                 protocol: 'vless',
@@ -496,26 +556,37 @@ export function createNodeFormMethods() {
             }
             this.loadNodeTags(node.id);
 
-            // 待删除的部署位正在移除，不在表单中展示；再次添加同一服务器即可恢复
+            // 待删除的部署位正在移除，不在表单中展示
             const placements = (node.placements || [])
                 .filter(placement => placement.deployed !== 2)
-                .map(placement => ({
-                    id: placement.id,
-                    serverId: placement.serverId,
-                    accessHostId: placement.accessHostId || '',
-                    exposed: placement.exposed !== 0,
-                    priority: placement.priority ?? 0,
-                    enabled: placement.enabled !== 0,
-                    deployed: placement.deployed
-                }));
+                .map(placement => {
+                    const entry = {
+                        uid: `p${++placementUid}`,
+                        id: placement.id,
+                        serverId: placement.serverId,
+                        serverName: placement.serverName || placement.serverIp || String(placement.serverId),
+                        domainText: placement.accessHost || '',
+                        domainChoice: placement.accessHostId ? String(placement.accessHostId) : '',
+                        newDomainText: '',
+                        accessHostId: placement.accessHostId || null,
+                        accessHost: placement.accessHost || '',
+                        accessHostStatus: placement.accessHostStatus || null,
+                        newDomainId: '',
+                        newSubdomain: '',
+                        // 先放入当前域名，保证下拉在可选列表加载完成前就能显示选中项
+                        availableDomains: placement.accessHostId ? [{ id: placement.accessHostId, fullName: placement.accessHost || String(placement.accessHostId) }] : [],
+                        exposed: placement.exposed !== 0,
+                        priority: placement.priority ?? 0,
+                        deployed: placement.deployed
+                    };
+                    this.loadPlacementDomains(entry);
+                    return entry;
+                });
 
             return {
                 id: node.id,
                 placements,
-                dnsRecordId: node.dnsRecordId || '',
-                dnsRecordName: node.dnsRecordName || '',
-                failoverEnabled: node.failoverEnabled === 1,
-                activeNodeServerId: node.activeNodeServerId || null,
+                region: node.region || '',
                 port: node.port,
                 coreType: node.coreType,
                 protocol: node.protocol,

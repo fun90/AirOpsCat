@@ -52,7 +52,9 @@ const backupTable = new DataTable({
             })
                 .then(async response => {
                     if (!response.ok) {
-                        let message = '上传备份失败';
+                        let message = response.status === 413
+                            ? '备份文件过大，超过服务器上传大小限制'
+                            : '上传备份失败';
                         try {
                             const errorData = await response.json();
                             message = errorData.message || message;

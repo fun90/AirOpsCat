@@ -801,48 +801,53 @@
                         </div>
                         <div class="ms-2">
                             该配置只影响当前账户订阅中看到的部署位和连接地址，不改变节点部署和节点用户列表。
-                            选定的部署位逐个输出（不受“暴露”限制），均不可用时该节点不输出；同时选择 DNS 记录时只输出一条，使用该域名。
-                        </div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label required">节点</label>
-                            <select id="subscription-domain-node-search"
-                                    class="form-select tom-select-hidden"
-                                    :class="{ 'is-invalid': validationErrors.subscriptionDomainNodeId }"></select>
-                            <div class="invalid-feedback d-block" v-if="validationErrors.subscriptionDomainNodeId">
-                                {{ validationErrors.subscriptionDomainNodeId }}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label">DNS记录</label>
-                            <select id="subscription-domain-domain-search"
-                                    class="form-select tom-select-hidden"
-                                    :class="{ 'is-invalid': validationErrors.subscriptionDomainDomainId }"></select>
-                            <div class="invalid-feedback d-block" v-if="validationErrors.subscriptionDomainDomainId">
-                                {{ validationErrors.subscriptionDomainDomainId }}
-                            </div>
+                            订阅中该节点只输出所选部署位（不受“暴露”限制）；可再为它指定域名，域名绑定到该部署位所在的服务器。
                         </div>
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">展示部署位</label>
+                    <label class="form-label required">节点</label>
+                    <select id="subscription-domain-node-search"
+                            class="form-select tom-select-hidden"
+                            :class="{ 'is-invalid': validationErrors.subscriptionDomainNodeId }"></select>
+                    <div class="invalid-feedback d-block" v-if="validationErrors.subscriptionDomainNodeId">
+                        {{ validationErrors.subscriptionDomainNodeId }}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label required">展示部署位</label>
                     <div v-if="subscriptionDomainBindingForm.placements.length === 0" class="text-muted small">请先选择节点</div>
                     <div v-else>
                         <label v-for="placement in subscriptionDomainBindingForm.placements" :key="placement.id" class="form-check">
-                            <input type="checkbox" class="form-check-input" :value="placement.id"
-                                   v-model="subscriptionDomainBindingForm.nodeServerIds">
+                            <input type="radio" class="form-check-input" :value="placement.id"
+                                   v-model="subscriptionDomainBindingForm.nodeServerId"
+                                   @change="onBindingPlacementChange">
                             <span class="form-check-label">{{ formatBindingPlacement(placement) }}</span>
                         </label>
-                        <div class="form-hint">不勾选时沿用默认规则。</div>
                     </div>
                     <div class="invalid-feedback d-block" v-if="validationErrors.subscriptionDomainTarget">
                         {{ validationErrors.subscriptionDomainTarget }}
                     </div>
+                </div>
+                <div class="mb-3" v-if="subscriptionDomainBindingForm.nodeServerId">
+                    <label class="form-label">域名</label>
+                    <input type="text" class="form-control" list="subscription-domain-records" placeholder="不指定（使用部署位默认地址）"
+                           :class="{ 'is-invalid': subscriptionDomainBindingForm.domainChoice === 'invalid' }"
+                           v-model="subscriptionDomainBindingForm.domainText" @input="onBindingDomainInput">
+                    <datalist id="subscription-domain-records">
+                        <option v-for="record in subscriptionDomainBindingForm.availableDomains" :key="record.id" :value="record.fullName"></option>
+                        <option value="新建域名…"></option>
+                    </datalist>
+                    <div v-if="subscriptionDomainBindingForm.domainChoice === '__new__'" class="d-flex gap-2 mt-2">
+                        <input type="text" class="form-control" placeholder="子域名，如 us1" v-model="subscriptionDomainBindingForm.newSubdomain">
+                        <input type="text" class="form-control" list="subscription-domain-names" placeholder="选择域名"
+                               v-model="subscriptionDomainBindingForm.newDomainText" @input="onBindingNewDomainInput">
+                        <datalist id="subscription-domain-names"><option v-for="domain in subscriptionDomainOptions" :key="domain.id" :value="domain.domain"></option></datalist>
+                    </div>
+                    <div class="invalid-feedback d-block" v-if="validationErrors.subscriptionDomainDomainId">
+                        {{ validationErrors.subscriptionDomainDomainId }}
+                    </div>
+                    <div class="form-hint mt-2">只能选绑定到该服务器、或解析到该服务器 IP 且未被引用的 A 记录；新建的记录保存后推送，同步成功前订阅仍用默认地址。</div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">备注</label>
@@ -1101,6 +1106,9 @@
                     </button>
                     <button type="button" class="list-group-item list-group-item-action" @click="performMobileAction('config')">
                         <i class="ti ti-link me-2"></i>配置链接
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action" @click="performMobileAction('subscription')">
+                        <i class="ti ti-adjustments me-2"></i>订阅定制
                     </button>
                     <button type="button" class="list-group-item list-group-item-action" @click="performMobileAction('renew')">
                         <i class="ti ti-calendar-plus me-2"></i>续期

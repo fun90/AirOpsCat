@@ -87,64 +87,55 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">订阅 DNS 记录
+                                    <label class="form-label required">地区
                                         <span class="form-help"
                                               data-bs-toggle="popover"
                                               data-bs-placement="top"
                                               data-bs-html="true"
-                                              data-bs-content="<p>绑定后订阅只输出一条，地址为该记录域名，至少需要一个暴露的部署位。</p><p class='mb-0'>记录类型只能是 A 或 CNAME，且不能开启 Cloudflare 代理或时段计划。</p>">?</span>
+                                              data-bs-content="<p>部署服务器按地区和类型自动关联：代理节点关联同地区的代理服务器；落地节点关联同地区的落地和代理服务器。</p>">?</span>
                                     </label>
-                                    <select id="node-dns-record-select-create" class="form-select tom-select-hidden"></select>
-                                    <label v-if="newItem.dnsRecordId" class="form-check mt-2 mb-0">
-                                        <input class="form-check-input" type="checkbox" v-model="newItem.failoverEnabled">
-                                        <span class="form-check-label">流量超阈值时自动切换解析</span>
-                                        <small class="form-hint d-block">服务器当期流量达到「流量告警阈值」后解析自动切到下一个部署位，周期重置后切回；记录 TTL 建议 60 秒，使用证书的协议需让证书覆盖该域名且在各部署服务器可用。手动切换前请先关闭本选项。</small>
-                                    </label>
+                                    <input type="text" class="form-control" list="node-region-options" placeholder="例如：美国" :class="{ 'is-invalid': validationErrors.region }" v-model="newItem.region" @input="onNewRegionChange">
+                                    <datalist id="node-region-options"><option v-for="region in regionOptions" :key="region" :value="region"></option></datalist>
+                                    <div class="invalid-feedback" v-if="validationErrors.region">{{ validationErrors.region }}</div>
                                 </div>
                             </div>
                         </div>
                         <div class="mb-3">
-                            <div class="d-flex align-items-center mb-2">
-                                <label class="form-label required mb-0">部署服务器
-                                    <span class="form-help"
-                                          data-bs-toggle="popover"
-                                          data-bs-placement="top"
-                                          data-bs-html="true"
-                                          data-bs-content="<p>同一份节点配置部署到多台服务器。</p><p class='mb-0'>暴露：未绑定 DNS 记录时是否出现在订阅；优先级越小越靠前。</p>">?</span>
-                                </label>
-                                <button type="button" class="btn btn-sm btn-outline-primary ms-auto" @click="addPlacement(newItem, false)" :disabled="newItem.placements.length >= servers.length">
-                                    <i class="ti ti-plus me-1"></i>添加服务器
-                                </button>
-                            </div>
+                            <label class="form-label mb-1">部署服务器
+                                <span class="form-help"
+                                      data-bs-toggle="popover"
+                                      data-bs-placement="top"
+                                      data-bs-html="true"
+                                      data-bs-content="<p>由地区和类型自动关联，不能手动增减。</p><p>域名：订阅中该部署位使用的地址，不选则使用服务器 IP；可选已有 A 记录或新建。</p><p class='mb-0'>暴露：是否出现在订阅（不暴露的部署位仅部署，可作备用）。优先级越小越靠前，并用于流量超阈值时的域名切换顺序。</p>">?</span>
+                            </label>
                             <div class="table-responsive">
                                 <table class="table table-sm table-vcenter mb-0">
                                     <thead>
                                     <tr>
                                         <th>服务器</th>
-                                        <th>接入 Host</th>
+                                        <th>域名</th>
                                         <th class="w-1">暴露</th>
                                         <th style="width: 6rem;">优先级</th>
-                                        <th class="w-1">启用</th>
                                         <th class="w-1">状态</th>
-                                        <th class="w-1"></th>
                                     </tr>
                                     </thead>
                                     <tbody>
-                                    <tr v-for="(placement, index) in newItem.placements" :key="placement.id || ('new-' + index)">
-                                        <td style="min-width: 10rem;">
-                                            <select class="form-select form-select-sm" v-model="placement.serverId" @change="onPlacementServerChange(newItem, placement, false)">
-                                                <option value="">请选择</option>
-                                                <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
-                                            </select>
-                                        </td>
-                                        <td style="min-width: 9rem;">
-                                            <select class="form-select form-select-sm" v-model="placement.accessHostId" @change="onPlacementAccessHostChange(newItem, placement, false)">
-                                                <option value="">服务器主 host</option>
-                                                <option v-for="host in getServerHosts(placement.serverId)" :key="host.id || host.host" :value="host.id || ''">
-                                                    {{ host.host }}
-                                                    <template v-if="host.isPrimary === 1"> (主)</template>
-                                                </option>
-                                            </select>
+                                    <tr v-for="placement in newItem.placements" :key="placement.serverId">
+                                        <td style="min-width: 8rem;">{{ placement.serverName }}</td>
+                                        <td style="min-width: 15rem;">
+                                            <input type="text" class="form-control form-control-sm" :list="'node-dl-' + placement.uid" placeholder="不使用（订阅用服务器 IP）"
+                                                   :class="{ 'is-invalid': placement.domainChoice === 'invalid' }"
+                                                   v-model="placement.domainText" @input="onPlacementDomainInput(newItem, placement, false)">
+                                            <datalist :id="'node-dl-' + placement.uid">
+                                                <option v-for="record in placement.availableDomains" :key="record.id" :value="record.fullName"></option>
+                                                <option value="新建域名…"></option>
+                                            </datalist>
+                                            <div v-if="placement.domainChoice === '__new__'" class="d-flex gap-1 mt-1">
+                                                <input type="text" class="form-control form-control-sm" placeholder="子域名，如 us1" v-model="placement.newSubdomain">
+                                                <input type="text" class="form-control form-control-sm" list="node-domain-names" placeholder="选择域名"
+                                                       v-model="placement.newDomainText" @input="onPlacementNewDomainInput(placement)">
+                                            </div>
+                                            <small v-if="placement.accessHostStatus && placement.accessHostStatus !== 'SYNCED' && placement.domainChoice === String(placement.accessHostId)" class="text-warning">DNS 记录尚未同步，订阅暂用服务器 IP</small>
                                         </td>
                                         <td>
                                             <label class="form-check form-switch m-0">
@@ -154,21 +145,13 @@
                                         <td>
                                             <input type="number" class="form-control form-control-sm" v-model="placement.priority">
                                         </td>
-                                        <td>
-                                            <label class="form-check form-switch m-0">
-                                                <input class="form-check-input" type="checkbox" v-model="placement.enabled" @change="schedulePlacementPortCheck(false)">
-                                            </label>
-                                        </td>
-                                        </td>
                                         <td class="text-nowrap">
                                             <span v-if="placement.id" class="badge" :class="isDeployed(placement) ? 'bg-success-lt' : 'bg-warning-lt'">{{ getDeploymentStatusLabel(placement.deployed) }}</span>
                                             <span v-else class="badge bg-secondary-lt">新增</span>
                                         </td>
-                                        <td>
-                                            <button type="button" class="btn btn-sm btn-ghost-danger btn-icon" title="移除" @click="removePlacement(newItem, index, false)">
-                                                <i class="ti ti-trash"></i>
-                                            </button>
-                                        </td>
+                                    </tr>
+                                    <tr v-if="!newItem.placements.length">
+                                        <td colspan="5" class="text-secondary text-center">暂无关联的服务器{{ newItem.region ? '' : '，请先填写地区' }}</td>
                                     </tr>
                                     </tbody>
                                 </table>
@@ -454,64 +437,55 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label">订阅 DNS 记录
+                                    <label class="form-label required">地区
                                         <span class="form-help"
                                               data-bs-toggle="popover"
                                               data-bs-placement="top"
                                               data-bs-html="true"
-                                              data-bs-content="<p>绑定后订阅只输出一条，地址为该记录域名，至少需要一个暴露的部署位。</p><p class='mb-0'>记录类型只能是 A 或 CNAME，且不能开启 Cloudflare 代理或时段计划。</p>">?</span>
+                                              data-bs-content="<p>部署服务器按地区和类型自动关联：代理节点关联同地区的代理服务器；落地节点关联同地区的落地和代理服务器。</p>">?</span>
                                     </label>
-                                    <select id="node-dns-record-select-edit" class="form-select tom-select-hidden"></select>
-                                    <label v-if="editedItem.dnsRecordId" class="form-check mt-2 mb-0">
-                                        <input class="form-check-input" type="checkbox" v-model="editedItem.failoverEnabled">
-                                        <span class="form-check-label">流量超阈值时自动切换解析</span>
-                                        <small class="form-hint d-block">服务器当期流量达到「流量告警阈值」后解析自动切到下一个部署位，周期重置后切回；记录 TTL 建议 60 秒，使用证书的协议需让证书覆盖该域名且在各部署服务器可用。手动切换前请先关闭本选项。</small>
-                                    </label>
+                                    <input type="text" class="form-control" list="node-region-options" placeholder="例如：美国" :class="{ 'is-invalid': validationErrors.region }" v-model="editedItem.region">
+                                    <div class="invalid-feedback" v-if="validationErrors.region">{{ validationErrors.region }}</div>
+                                    <small class="form-hint" v-if="editedItem.id">修改地区后，保存时会重新匹配部署服务器。</small>
                                 </div>
                             </div>
                         </div>
                         <div class="mb-3">
-                            <div class="d-flex align-items-center mb-2">
-                                <label class="form-label required mb-0">部署服务器
-                                    <span class="form-help"
-                                          data-bs-toggle="popover"
-                                          data-bs-placement="top"
-                                          data-bs-html="true"
-                                          data-bs-content="<p>同一份节点配置部署到多台服务器。</p><p class='mb-0'>暴露：未绑定 DNS 记录时是否出现在订阅；优先级越小越靠前。</p>">?</span>
-                                </label>
-                                <button type="button" class="btn btn-sm btn-outline-primary ms-auto" @click="addPlacement(editedItem, true)" :disabled="editedItem.placements.length >= servers.length">
-                                    <i class="ti ti-plus me-1"></i>添加服务器
-                                </button>
-                            </div>
+                            <label class="form-label mb-1">部署服务器
+                                <span class="form-help"
+                                      data-bs-toggle="popover"
+                                      data-bs-placement="top"
+                                      data-bs-html="true"
+                                      data-bs-content="<p>由地区和类型自动关联，不能手动增减。</p><p>域名：订阅中该部署位使用的地址，不选则使用服务器 IP；可选已有 A 记录或新建。</p><p class='mb-0'>暴露：是否出现在订阅（不暴露的部署位仅部署，可作备用）。优先级越小越靠前，并用于流量超阈值时的域名切换顺序。</p>">?</span>
+                            </label>
                             <div class="table-responsive">
                                 <table class="table table-sm table-vcenter mb-0">
                                     <thead>
                                     <tr>
                                         <th>服务器</th>
-                                        <th>接入 Host</th>
+                                        <th>域名</th>
                                         <th class="w-1">暴露</th>
                                         <th style="width: 6rem;">优先级</th>
-                                        <th class="w-1">启用</th>
                                         <th class="w-1">状态</th>
-                                        <th class="w-1"></th>
                                     </tr>
                                     </thead>
                                     <tbody>
-                                    <tr v-for="(placement, index) in editedItem.placements" :key="placement.id || ('new-' + index)">
-                                        <td style="min-width: 10rem;">
-                                            <select class="form-select form-select-sm" v-model="placement.serverId" @change="onPlacementServerChange(editedItem, placement, true)">
-                                                <option value="">请选择</option>
-                                                <option v-for="server in servers" :key="server.id" :value="server.id">{{ server.name }}</option>
-                                            </select>
-                                        </td>
-                                        <td style="min-width: 9rem;">
-                                            <select class="form-select form-select-sm" v-model="placement.accessHostId" @change="onPlacementAccessHostChange(editedItem, placement, true)">
-                                                <option value="">服务器主 host</option>
-                                                <option v-for="host in getServerHosts(placement.serverId)" :key="host.id || host.host" :value="host.id || ''">
-                                                    {{ host.host }}
-                                                    <template v-if="host.isPrimary === 1"> (主)</template>
-                                                </option>
-                                            </select>
+                                    <tr v-for="placement in editedItem.placements" :key="placement.serverId">
+                                        <td style="min-width: 8rem;">{{ placement.serverName }}</td>
+                                        <td style="min-width: 15rem;">
+                                            <input type="text" class="form-control form-control-sm" :list="'node-dl-' + placement.uid" placeholder="不使用（订阅用服务器 IP）"
+                                                   :class="{ 'is-invalid': placement.domainChoice === 'invalid' }"
+                                                   v-model="placement.domainText" @input="onPlacementDomainInput(editedItem, placement, true)">
+                                            <datalist :id="'node-dl-' + placement.uid">
+                                                <option v-for="record in placement.availableDomains" :key="record.id" :value="record.fullName"></option>
+                                                <option value="新建域名…"></option>
+                                            </datalist>
+                                            <div v-if="placement.domainChoice === '__new__'" class="d-flex gap-1 mt-1">
+                                                <input type="text" class="form-control form-control-sm" placeholder="子域名，如 us1" v-model="placement.newSubdomain">
+                                                <input type="text" class="form-control form-control-sm" list="node-domain-names" placeholder="选择域名"
+                                                       v-model="placement.newDomainText" @input="onPlacementNewDomainInput(placement)">
+                                            </div>
+                                            <small v-if="placement.accessHostStatus && placement.accessHostStatus !== 'SYNCED' && placement.domainChoice === String(placement.accessHostId)" class="text-warning">DNS 记录尚未同步，订阅暂用服务器 IP</small>
                                         </td>
                                         <td>
                                             <label class="form-check form-switch m-0">
@@ -521,26 +495,13 @@
                                         <td>
                                             <input type="number" class="form-control form-control-sm" v-model="placement.priority">
                                         </td>
-                                        <td>
-                                            <label class="form-check form-switch m-0">
-                                                <input class="form-check-input" type="checkbox" v-model="placement.enabled" @change="schedulePlacementPortCheck(true)">
-                                            </label>
-                                        </td>
-                                        </td>
                                         <td class="text-nowrap">
                                             <span v-if="placement.id" class="badge" :class="isDeployed(placement) ? 'bg-success-lt' : 'bg-warning-lt'">{{ getDeploymentStatusLabel(placement.deployed) }}</span>
                                             <span v-else class="badge bg-secondary-lt">新增</span>
-                                            <span v-if="editedItem.dnsRecordId && placement.id && placement.id === editedItem.activeNodeServerId" class="badge bg-blue-lt ms-1">解析中</span>
                                         </td>
-                                        <td class="text-nowrap">
-                                            <button v-if="editedItem.dnsRecordId && placement.id && placement.id !== editedItem.activeNodeServerId && isDeployed(placement) && placement.enabled && placement.exposed"
-                                                    type="button" class="btn btn-sm btn-ghost-primary btn-icon" title="将解析切换到此部署位" @click="switchActivePlacement(placement)">
-                                                <i class="ti ti-arrows-exchange"></i>
-                                            </button>
-                                            <button type="button" class="btn btn-sm btn-ghost-danger btn-icon" title="移除" @click="removePlacement(editedItem, index, true)">
-                                                <i class="ti ti-trash"></i>
-                                            </button>
-                                        </td>
+                                    </tr>
+                                    <tr v-if="!editedItem.placements.length">
+                                        <td colspan="5" class="text-secondary text-center">暂无关联的服务器{{ editedItem.region ? '' : '，请先填写地区' }}</td>
                                     </tr>
                                     </tbody>
                                 </table>
@@ -791,6 +752,21 @@
     </div>
 </div>
 
+<div class="modal modal-blur fade" id="node-batchDeleteModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="modal-title">确定删除所选的 {{ selectedNodeIds.length }} 个节点吗？</div>
+                <div>已部署过的节点会标记为待删除，部署成功后才会从服务器移除；未部署过的直接删除。</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" @click="submitBatchDelete" :disabled="batchDeleting">确认</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal modal-blur fade" id="node-deploymentHistoryModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
         <div class="modal-content">
@@ -906,10 +882,6 @@
                                         <div class="fw-medium mt-1">{{ deploymentVersionDetail.serverName || getDeploymentVersionSnapshot().serverId || '-' }}</div>
                                     </div>
                                     <div class="col-md-3">
-                                        <div class="text-secondary small">接入 Host</div>
-                                        <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().accessHostId || '-' }}</div>
-                                    </div>
-                                    <div class="col-md-3">
                                         <div class="text-secondary small">协议</div>
                                         <div class="fw-medium mt-1">{{ getDeploymentVersionSnapshot().protocol || '-' }}</div>
                                     </div>
@@ -988,3 +960,5 @@
         </div>
     </div>
 </div>
+
+<datalist id="node-domain-names"><option v-for="domain in domainOptions" :key="domain.id" :value="domain.domain"></option></datalist>

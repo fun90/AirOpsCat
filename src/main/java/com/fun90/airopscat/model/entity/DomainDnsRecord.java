@@ -23,6 +23,10 @@ public class DomainDnsRecord {
     @Column(name = "domain_id", nullable = false)
     private Long domainId;
 
+    // 绑定的服务器，一条记录同一时刻只绑一台
+    @Column(name = "server_id")
+    private Long serverId;
+
     @Column(name = "dns_provider_config_id")
     private Long dnsProviderConfigId;
 
@@ -84,6 +88,10 @@ public class DomainDnsRecord {
 
     @Column(name = "schedule_content_out")
     private String scheduleContentOut;
+
+    /** 自动切换把记录切离归属服务器时，记下归属服务器的 IP；为空表示不是系统切走的。用于区分“已切走待切回”和“人工指向别处” */
+    @Column(name = "failover_home_content")
+    private String failoverHomeContent;
 
     private LocalDateTime createTime;
 

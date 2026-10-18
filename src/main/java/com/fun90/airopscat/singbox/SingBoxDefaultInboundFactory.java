@@ -4,8 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fun90.airopscat.model.dto.DefaultConfigDto;
 import com.fun90.airopscat.model.enums.CoreType;
-import com.fun90.airopscat.model.entity.ServerHost;
-import com.fun90.airopscat.service.ServerHostService;
+import com.fun90.airopscat.model.entity.DomainDnsRecord;
+import com.fun90.airopscat.repository.DomainDnsRecordRepository;
 import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.util.ConfigFileReader;
 import com.fun90.airopscat.util.NativeRandomUtils;
@@ -41,7 +41,7 @@ public class SingBoxDefaultInboundFactory {
     ServerService serverService;
 
     @Inject
-    ServerHostService serverHostService;
+    DomainDnsRecordRepository domainDnsRecordRepository;
 
     public DefaultConfigDto<Map<String, Object>> generateDefaultInbound(String protocol, Long serverId, Long accessHostId) {
         String normalizedProtocol = normalizeProtocol(protocol);
@@ -86,9 +86,9 @@ public class SingBoxDefaultInboundFactory {
     private Map<String, Object> buildTemplateData(String protocol, Long serverId, Long accessHostId) {
         Map<String, Object> templateData = new HashMap<>();
         String selectedServerName = NativeRandomUtils.randomChoice(SERVER_NAMES);
-        ServerHost accessHost = serverHostService.getHostById(accessHostId);
-        String serverName = accessHost != null && accessHost.getHost() != null && !accessHost.getHost().isBlank()
-                ? accessHost.getHost().trim()
+        DomainDnsRecord accessRecord = accessHostId == null ? null : domainDnsRecordRepository.findById(accessHostId);
+        String serverName = accessRecord != null && accessRecord.getFullName() != null && !accessRecord.getFullName().isBlank()
+                ? accessRecord.getFullName().trim()
                 : serverService.getServerHostById(serverId);
 
         switch (protocol) {

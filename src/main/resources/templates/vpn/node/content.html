@@ -63,6 +63,13 @@
                                                         <i class="ti ti-tags"></i>
                                                         调整标签
                                                     </a>
+                                                    <a class="dropdown-item text-danger"
+                                                       :class="{ disabled: selectedNodeIds.length === 0 }"
+                                                       href="#"
+                                                       @click.prevent="openBatchDeleteModal">
+                                                        <i class="ti ti-trash"></i>
+                                                        批量删除
+                                                    </a>
                                                 </div>
                                             </div>
                                             <button class="btn" type="button" @click="fetchRecords">

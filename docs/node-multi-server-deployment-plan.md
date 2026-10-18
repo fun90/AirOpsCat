@@ -1,4 +1,4 @@
-# 节点多服务器部署与流量自动切换方案
+# 节点多服务器部署方案（逻辑节点 + 部署位）
 
 ## 1. 目标
 
@@ -6,20 +6,16 @@
 
 1. 同一个节点配置可部署到多台服务器，配置只维护一份。
 2. 可指定哪些服务器（部署位）暴露到订阅。
-3. 服务器流量达到阈值时，通过修改 DNS 记录把节点自动切换到其他服务器；服务器流量重置后自动切回。
 
-分两期实施：
+本文是已上线的第一期：数据模型、数据迁移、部署、订阅、前端交互，节点组已下线。
 
-- **第一期**：数据模型、数据迁移、部署、订阅、前端交互。上线后节点组下线。
-- **第二期**：流量阈值自动切换与切回、切换日志、通知。
+后续的服务器地区与类型、域名绑定、部署位自动关联和流量自动切换见 [`server-region-domain-binding-plan.md`](server-region-domain-binding-plan.md)。该文档落地后，本文中的节点 DNS 记录绑定（`node.dns_record_id`）、部署位接入域名（`access_host_id`）、手动维护部署位和订阅 DNS 单条输出规则（4.3）会被替换。
 
 已确认的决策：
 
 | 事项 | 结论 |
 |------|------|
-| 模型 | 一次到位改为逻辑节点 + 部署位，分两期 |
-| 切换阈值 | 复用系统配置“流量告警阈值” `airopscat.server.monitor.alert.traffic-threshold` |
-| 切回时机 | 服务器 `bandwidthDate`（流量重置日期）到达、进入新流量周期后自动切回 |
+| 模型 | 一次到位改为逻辑节点 + 部署位 |
 | 端口 | 部署位端口固定与节点一致，不支持按部署位覆盖 |
 
 ## 2. 现状
@@ -29,10 +25,10 @@
 | 节点组 | `node.node_group` 字符串；同组节点类型相同、不同服务器，保存时由 `NodeGroupService` 对齐协议/端口/入站/出站 | 删除 |
 | 组内用户合并 | `DeploymentDataLoader.buildAssociatedNodeClientsMap` 按组合并账号 | 删除，一个逻辑节点的账号天然共用 |
 | 组展开部署 | `NodeGroupService.expandWithRelatedGroups` | 改为按节点展开到部署位 |
-| 服务器流量周期 | `Server.bandwidth`（GB）、`Server.bandwidthDate`、`TrafficPeriodUtils.resolveServerPeriodStart/End`、`ServerTrafficStats` | 第二期复用 |
-| 流量采集 | `traffic-stats-collect` 任务，默认 `0 */15 * * * ?` | 第二期在采集后触发切换检查 |
-| 流量告警 | `ServerTrafficThresholdNotifier`，阈值默认 `0.85`，支持 0-1 或 0-100 写法 | 第二期复用阈值读取与归一化 |
-| DNS 记录 | `DomainDnsRecord`，Cloudflare `batchChangeRecords`；`DomainDnsScheduleTask` 每分钟按时段改内容并整域 push | 第二期参照该模式改记录内容 |
+| 服务器流量周期 | `Server.bandwidth`（GB）、`Server.bandwidthDate`、`TrafficPeriodUtils.resolveServerPeriodStart/End`、`ServerTrafficStats` | 见新方案 |
+| 流量采集 | `traffic-stats-collect` 任务，默认 `0 */15 * * * ?` | 见新方案 |
+| 流量告警 | `ServerTrafficThresholdNotifier`，阈值默认 `0.85`，支持 0-1 或 0-100 写法 | 见新方案 |
+| DNS 记录 | `DomainDnsRecord`，Cloudflare `batchChangeRecords`；`DomainDnsScheduleTask` 每分钟按时段改内容并整域 push | 见新方案 |
 | 账号级订阅定制 | `AccountNodeSubscriptionDomainBinding`（账号 + 节点 → 可选 DNS 记录 + 可选展示部署位） | 保留，优先级最高 |
 
 ## 3. 数据模型（第一期）
@@ -57,8 +53,8 @@
 | `node_id` | 逻辑节点 |
 | `server_id` | 服务器 |
 | `access_host_id` | 可空，接入域名（原 `node.access_host_id`） |
-| `exposed` | 1/0。未绑定 DNS 时表示是否出现在订阅；绑定 DNS 时表示是否参与切换 |
-| `priority` | 越小越优先。决定订阅排序、默认生效部署位、切换顺序 |
+| `exposed` | 1/0。未绑定 DNS 时是否出现在订阅 |
+| `priority` | 越小越优先。决定订阅排序、默认生效部署位 |
 | `enabled` | 1/0。0 表示不部署到该服务器（原 `node.disabled` 迁移到这里） |
 | `deployed` | 0 待部署 / 1 已部署 / 2 待删除，沿用 `NodeDeploymentStatus` |
 | `legacy_node_id` | 迁移用，记录原 `node.id`，第一期稳定后删除 |
@@ -93,7 +89,7 @@
 - 部署单元从节点改为部署位。`deployNodes(nodeIds)` 展开为这些节点的待部署部署位，再按 `server_id` 分组调用现有 `processNodesByServer` 流程。
 - `DeploymentDataLoader` 按服务器加载“该服务器上的部署位 → 逻辑节点”。快照的 `serverIp` 取部署位所在服务器。原先全局按 `nodeId` 建的快照 map，改为在每个 `DeploymentServerContext` 内按 `nodeId` 建（同一服务器上 `nodeId` 唯一）。
 - 账号列表直接取逻辑节点的 `buildNodeClientsMap`，删除 `buildAssociatedNodeClientsMap`、`mergeClients` 的组合并逻辑。
-- **出站 `out_id` 与路由规则 `outbound_node_id`**：仍指向逻辑落地节点。落地节点有多个部署位时，出站地址取“生效部署位”：第一期为启用、已部署、`priority` 最小的部署位，第二期为 `active_node_server_id`。落地节点生效部署位变化时，引用它的代理节点部署位标为待部署。
+- **出站 `out_id` 与路由规则 `outbound_node_id`**：仍指向逻辑落地节点。落地节点有多个部署位时，出站地址取“生效部署位”：取启用、已部署、`priority` 最小的部署位。落地节点生效部署位变化时，引用它的代理节点部署位标为待部署。
 - 部署后写 `node_deployment`（按 `node_server_id`）；节点列表的部署状态取各部署位的汇总（有任一待部署即显示待部署）。
 
 ### 4.3 订阅输出
@@ -155,65 +151,18 @@
 
 回滚：第 5 步之前可以恢复备份并回退版本；第 5 步之后只能恢复备份。
 
-## 6. 第二期：流量自动切换
+## 6. 验证
 
-### 6.1 新增字段
+| 检查 |
+|------|
+| `./mvnw test`；为订阅条目生成规则（4.3 三种情况）补单元测试；在迁移库副本上执行 5.2 检查和 5.3 迁移，核对第 4 步校验；开发模式下验证节点增删改、部署位增删、单节点部署、服务器部署、订阅输出 |
 
-| 位置 | 字段 | 说明 |
-|------|------|------|
-| `node` | `failover_enabled` | 1/0，仅代理类型且绑定了 `dns_record_id` 的节点可开启 |
-| `node` | `active_node_server_id` | 当前 DNS 指向的部署位，为空时按第一期规则取默认 |
-| 新表 `node_failover_log` | `node_id`、`from_node_server_id`、`to_node_server_id`、`reason`（`THRESHOLD` / `RESET` / `MANUAL`）、`from_usage`、`to_usage`、`dns_content`、`success`、`message`、`create_time` | 切换审计，清理策略参照 `node-deployment-history-cleanup` |
+## 7. 待实现时确认
 
-落地节点（`type=1`）不参与自动切换：出站用 IP 直连，不走 DNS。
+1. 前端是否已有可复用的 DNS 记录选择组件（账号订阅域名绑定处）。已确认：复用 `/api/admin/domain-dns-records` + `createRemoteSearchConfig` 的 Tom Select。
+2. `CoreDeploymentExecutor` 删除入站的路径，是否能按部署位只删除某台服务器上的入站。已确认：部署按服务器重建完整配置，待删除部署位不进入快照即从该服务器移除，部署成功后删除部署位行。
 
-### 6.2 选择规则
-
-每轮对每个 `failover_enabled=1` 的节点计算目标部署位：
-
-```
-候选 = 启用、已部署、exposed=1 的部署位，按 priority 升序
-目标 = 候选中第一个“所在服务器当期使用率 < 阈值”的部署位
-若没有满足的 → 目标 = 当前 active（不切换），发告警
-若目标 ≠ 当前 active → 切换
-```
-
-- 使用率 = 当前周期 `ServerTrafficStats` 上下行之和 / (`bandwidth` GB)；周期由 `TrafficPeriodUtils.resolveServerPeriodStart(now, bandwidthDate)` 决定。未设置 `bandwidth` 的服务器视为不限量，始终满足。
-- 阈值读取 `airopscat.server.monitor.alert.traffic-threshold`，与 `ServerTrafficThresholdNotifier` 共用同一个归一化方法（把其中的 `normalizeThreshold` 提为共享方法，不复制）。
-- **切回**不需要单独逻辑：当期流量只增不减，优先级更高的服务器一旦超阈值，本周期内会一直被跳过；到达其 `bandwidthDate` 进入新周期后使用率回到低位，它重新成为第一个满足条件的候选，下一轮自动切回，日志 `reason=RESET`。
-- 特例：新周期尚未采集时没有 `ServerTrafficStats`，使用率按 0 计算，符合“已重置”的事实。
-- 人工调大 `bandwidth`、改高阈值或校准流量后，使用率可能低于阈值，同样会触发切回，这是预期行为。
-
-### 6.3 执行
-
-- 触发：在 `TrafficStatsTask.collectUserTrafficStats` 采集结束后调用切换检查，不新增 Cron。响应延迟上限约等于采集周期（默认 15 分钟）加 DNS TTL。
-- DNS 内容：记录类型 `A` 写部署位服务器 `ip`；`CNAME` 写部署位的有效 host（接入域名 → 服务器 host）。
-- 推送：设置记录 `content`，状态改为 `PENDING_UPDATE`，然后推送。推送失败时整个事务回滚，`active_node_server_id` 不变，写失败日志，下一轮重试。
-- 推送范围：现有 `DomainDnsPushService.push(domainId)` 会推送整个域名的所有待推送记录，可能把用户尚未确认的本地修改一并推上去（时段计划任务已有同样行为）。建议把 `push` 拆出 `push(domainId, records)`，切换只推送这一条记录；推送后的整域 pull 是否会覆盖其他待推送记录，需在实现时核实。
-- 通知：切换成功或所有候选都超阈值时，通过 `BarkService` 推送，内容含节点、来源与目标服务器、使用率。
-- 手动切换：节点详情提供“切换到…”。自动切换开启时，下一轮会按规则重新计算，所以界面上提示“手动切换前请关闭自动切换”，不额外做锁定功能。
-
-### 6.4 前置条件与风险
-
-- DNS 记录 TTL 应设为低值（如 60 秒），且关闭 Cloudflare 代理；已建立的连接会继续使用旧服务器，客户端 DNS 缓存会进一步延迟生效。
-- 一台服务器上挂多个节点时，切走一个节点不一定能让服务器降到阈值以下；阈值按服务器判断，切换按节点执行，界面上需要说明。
-- 使用 TLS 证书的协议（如 hysteria2、shadowtls），证书必须在所有部署位服务器上都覆盖该 DNS 域名，否则切换后握手失败。第二期在开启自动切换时校验并提示。
-- 账号级订阅域名绑定指向的不是节点 DNS 记录时，该账号不受自动切换影响。
-
-## 7. 验证
-
-| 期 | 检查 |
-|----|------|
-| 第一期 | `./mvnw test`；为订阅条目生成规则（4.3 三种情况）补单元测试；在迁移库副本上执行 5.2 检查和 5.3 迁移，核对第 4 步校验；开发模式下验证节点增删改、部署位增删、单节点部署、服务器部署、订阅输出 |
-| 第二期 | 为 6.2 选择规则补单元测试，覆盖：正常、超阈值切走、全部超阈值、新周期切回、未设 `bandwidth`；用测试域名验证真实 Cloudflare 推送和失败回滚 |
-
-## 8. 待实现时确认
-
-1. `DomainDnsPullService.pull` 是否会覆盖本地其他待推送记录（影响 6.3 推送范围）。第二期确认。
-2. 前端是否已有可复用的 DNS 记录选择组件（账号订阅域名绑定处）。已确认：复用 `/api/admin/domain-dns-records` + `createRemoteSearchConfig` 的 Tom Select。
-3. `CoreDeploymentExecutor` 删除入站的路径，是否能按部署位只删除某台服务器上的入站。已确认：部署按服务器重建完整配置，待删除部署位不进入快照即从该服务器移除，部署成功后删除部署位行。
-
-## 9. 第一期实现说明
+## 8. 第一期实现说明
 
 与上文不同或上文未明确的处理：
 
@@ -225,18 +174,3 @@
 - 迁移的 `disabled`：未分组节点禁用状态保留在节点上，部署位启用；分组节点任一成员启用则逻辑节点启用，成员禁用转为对应部署位停用。
 - 迁移 SQL：`db/migration/V2026101701__merge_node_group_into_node_server.sql`（第 5.3 步 2），`V2026101702__drop_legacy_node_group_columns.sql`（第 5.3 步 5，稳定后执行）；只读检查为 `scripts/node_group_merge_precheck.sql`。`NodeServer` 实体不映射 `legacy_node_id`，该列只供迁移使用。
 - 移除了只在空 `node_deployment` 表时运行的旧数据初始化（`initializeFromLegacyDeployedNodes`）。
-
-## 10. 第二期实现说明
-
-与上文不同或上文未明确的处理：
-
-- 新增 `node.failover_enabled`、`node.active_node_server_id`（`schema-management.strategy=update` 自动建，无迁移 SQL）。切换日志不再单独建表，写入通用的 `system_log`（分类 `NODE_FAILOVER`，`detail` 为 JSON：`reason`、`fromNodeServerId`、`toNodeServerId`、`fromUsage`、`toUsage`、`dnsContent`、`success`），控制台“系统 → 系统日志”查看。保留天数 `airopscat.system-log.retention-days`（默认 90），由定时任务 `system-log-cleanup` 清理。新增日志来源：在 `SystemLogCategory` 加一项，调用 `SystemLogService.record` / `recordIndependently`。
-- 入口 `NodeFailoverService.checkAll()`，由 `TrafficStatsTask.collectUserTrafficStats` 采集结束后调用；每个节点独立事务，失败日志单独提交。阈值读取与归一化共用 `ServerTrafficThresholdNotifier.normalizeThreshold`（已改为 public static）。
-- 8.1 已确认：`DomainDnsPullService.pull` 会用远端记录覆盖本地所有已匹配记录并置为 `SYNCED`，会吞掉其他待推送的本地修改。因此切换不走整域 `push` + `pull`，而是新增 `DomainDnsPushService.pushRecordContent`：只 PATCH 这一条记录并本地置为 `SYNCED`。记录未同步（无 `externalRecordId`）或有待推送的创建/删除时拒绝切换。
-- 目标部署位的候选为启用、已部署、`exposed=1`。尚未记录 `active_node_server_id` 时，若解析内容本就等于目标则只补记，不推送。
-- `reason`：手动为 `MANUAL`；来源部署位使用率 ≥ 阈值为 `THRESHOLD`，否则为 `RESET`（来源未记录时也记为 `RESET`）。
-- 全部候选超阈值只在首次告警，该节点重新有可用目标后才会再次告警；该状态在内存中，重启后重置。
-- 订阅：节点绑定 DNS 记录时，单条输出的快照取 `active_node_server_id` 对应部署位，不在候选中则回退到优先级最高的。账号级域名绑定仍取优先级最高的部署位，不受自动切换影响。
-- 落地节点不参与自动切换，`NodeServerRepository.resolveEffective` 保持按优先级取值。
-- 接口：`POST /api/admin/nodes/{id}/failover/switch`（`nodeServerId`）手动切换；日志接口为 `GET /api/admin/system-logs`（`category`、`level`、`keyword`、`startTime`、`endTime`、分页）和 `/categories`。节点表单在绑定 DNS 后出现“自动切换”开关，编辑表单的部署位行显示“解析中”标记和切换按钮。
-- 未实现：开启自动切换时校验 TLS 证书是否覆盖该域名（表单只给出文字提示）。

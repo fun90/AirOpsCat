@@ -6,7 +6,8 @@ import com.fun90.airopscat.model.dto.NodeServerDto;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
-import com.fun90.airopscat.model.entity.ServerHost;
+import com.fun90.airopscat.model.entity.DomainDnsRecord;
+import com.fun90.airopscat.model.enums.DnsRecordStatus;
 import com.fun90.airopscat.repository.NodeServerRepository;
 import com.fun90.airopscat.util.JsonUtil;
 import com.fun90.airopscat.util.NodeName;
@@ -36,8 +37,7 @@ public class NodeConverter {
         dto.setRemark(node.getRemark());
         dto.setCreateTime(node.getCreateTime());
         dto.setUpdateTime(node.getUpdateTime());
-        dto.setDnsRecordId(node.getDnsRecordId());
-        dto.setFailoverEnabled(node.getFailoverEnabled());
+        dto.setRegion(node.getRegion());
 
         // 设置类型描述
         dto.setTypeDescription(node.getTypeDescription());
@@ -45,19 +45,13 @@ public class NodeConverter {
         List<NodeServer> sortedPlacements = placements == null ? List.of()
                 : placements.stream().sorted(NodeServerRepository.PRIORITY_ORDER).toList();
         dto.setPlacements(sortedPlacements.stream().map(NodeConverter::toPlacementDto).toList());
-        // 自动切换下 DNS 指向的部署位；记录的部署位已不存在时回退到默认生效部署位
-        dto.setActiveNodeServerId(sortedPlacements.stream()
-                .filter(placement -> Objects.equals(placement.getId(), node.getActiveNodeServerId()))
-                .findFirst()
-                .or(() -> NodeServerRepository.resolveEffective(sortedPlacements))
-                .map(NodeServer::getId).orElse(null));
         NodeServerRepository.resolveEffective(sortedPlacements)
                 .or(() -> sortedPlacements.stream().findFirst())
                 .ifPresent(placement -> {
             dto.setNodeServerId(placement.getId());
             dto.setServerId(placement.getServerId());
             dto.setAccessHostId(placement.getAccessHostId());
-            dto.setAccessHost(placement.getAccessHost() != null ? placement.getAccessHost().getHost() : null);
+            dto.setAccessHost(placement.getAccessHost() != null ? placement.getAccessHost().getFullName() : null);
             if (placement.getServer() != null) {
                 dto.setServerIp(placement.getServer().getIp());
                 dto.setServerHost(resolveEffectiveHost(placement.getAccessHost(), placement.getServer()));
@@ -128,28 +122,9 @@ public class NodeConverter {
         node.setDisabled(request.getDisabled());
         node.setName(request.getName());
         node.setRemark(request.getRemark());
-        node.setDnsRecordId(request.getDnsRecordId());
-        node.setFailoverEnabled(request.getFailoverEnabled());
+        node.setRegion(request.getRegion() == null || request.getRegion().isBlank() ? null : request.getRegion().trim());
 
         return node;
-    }
-
-    public static List<NodeServer> placementsFromRequest(NodeRequest request) {
-        if (request.getPlacements() == null) {
-            return List.of();
-        }
-        return request.getPlacements().stream()
-                .filter(Objects::nonNull)
-                .map(item -> {
-                    NodeServer placement = new NodeServer();
-                    placement.setServerId(item.getServerId());
-                    placement.setAccessHostId(item.getAccessHostId());
-                    placement.setExposed(item.getExposed() == null || item.getExposed() != 0 ? 1 : 0);
-                    placement.setPriority(item.getPriority() == null ? 0 : item.getPriority());
-                    placement.setEnabled(item.getEnabled() == null || item.getEnabled() != 0 ? 1 : 0);
-                    return placement;
-                })
-                .toList();
     }
 
     public static NodeServerDto toPlacementDto(NodeServer placement) {
@@ -160,28 +135,28 @@ public class NodeConverter {
         dto.setAccessHostId(placement.getAccessHostId());
         dto.setExposed(placement.getExposed());
         dto.setPriority(placement.getPriority());
-        dto.setEnabled(placement.getEnabled());
         dto.setDeployed(placement.getDeployed());
         if (placement.getServer() != null) {
             dto.setServerName(placement.getServer().getName());
             dto.setServerIp(placement.getServer().getIp());
             dto.setServerHost(resolveEffectiveHost(placement.getAccessHost(), placement.getServer()));
         }
-        dto.setAccessHost(placement.getAccessHost() != null ? placement.getAccessHost().getHost() : null);
+        if (placement.getAccessHost() != null) {
+            dto.setAccessHost(placement.getAccessHost().getFullName());
+            dto.setAccessHostStatus(String.valueOf(placement.getAccessHost().getStatus()));
+        }
         return dto;
     }
 
-    public static String resolveEffectiveHost(ServerHost accessHost, Server server) {
-        if (accessHost != null && accessHost.getHost() != null && !accessHost.getHost().isBlank()) {
-            return accessHost.getHost();
+    /**
+     * 订阅 host：域名记录已同步到 DNS 服务商时用域名，否则（未选域名、尚未推送成功）用服务器 IP。
+     */
+    public static String resolveEffectiveHost(DomainDnsRecord accessHost, Server server) {
+        if (accessHost != null && accessHost.getStatus() == DnsRecordStatus.SYNCED
+                && accessHost.getFullName() != null && !accessHost.getFullName().isBlank()) {
+            return accessHost.getFullName();
         }
-        if (server == null) {
-            return null;
-        }
-        if (server.getHost() != null && !server.getHost().isBlank()) {
-            return server.getHost();
-        }
-        return server.getIp();
+        return server == null ? null : server.getIp();
     }
 
     /**

@@ -3,10 +3,11 @@ package com.fun90.airopscat.service;
 import com.fun90.airopscat.model.dto.DefaultConfigDto;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.convert.NodeConverter;
+import com.fun90.airopscat.model.dto.NodeServerRequest;
 import com.fun90.airopscat.model.entity.DomainDnsRecord;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeServer;
-import com.fun90.airopscat.model.entity.ServerHost;
+import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.CoreType;
 import com.fun90.airopscat.model.enums.NodeBatchTagUpdateMode;
@@ -14,6 +15,7 @@ import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.ProtocolType;
 import com.fun90.airopscat.repository.DomainDnsRecordRepository;
+import com.fun90.airopscat.repository.NodeDeploymentHistoryRepository;
 import com.fun90.airopscat.repository.NodeDeploymentRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.NodeServerRepository;
@@ -57,13 +59,16 @@ public class NodeService {
     NodeDeploymentRepository nodeDeploymentRepository;
 
     @Inject
+    NodeDeploymentHistoryRepository nodeDeploymentHistoryRepository;
+
+    @Inject
     ServerRepository serverRepository;
 
     @Inject
-    ServerHostRepository serverHostRepository;
+    NodePlacementSyncService placementSyncService;
 
     @Inject
-    ServerHostService serverHostService;
+    ServerDomainService serverDomainService;
 
     @Inject
     TagRepository tagRepository;
@@ -179,16 +184,13 @@ public class NodeService {
         searchConditions.add("name like :searchPrefix");
         searchConditions.add("remark like :searchContains");
 
-        List<Long> matchedServerIds = mergeIds(
-                serverRepository.findIdsByKeyword(keyword, 200),
-                serverHostRepository.findServerIdsByKeyword(keyword, 200)
-        );
+        List<Long> matchedServerIds = serverRepository.findIdsByKeyword(keyword, 200);
         if (!matchedServerIds.isEmpty()) {
             searchConditions.add("id in (select ns.nodeId from NodeServer ns where ns.serverId in :matchedServerIds)");
             params.put("matchedServerIds", matchedServerIds);
         }
 
-        List<Long> matchedAccessHostIds = serverHostRepository.findIdsByKeyword(keyword, 200);
+        List<Long> matchedAccessHostIds = domainDnsRecordRepository.findIdsByFullNameKeyword(keyword, 200);
         if (!matchedAccessHostIds.isEmpty()) {
             searchConditions.add("id in (select ns.nodeId from NodeServer ns where ns.accessHostId in :matchedAccessHostIds)");
             params.put("matchedAccessHostIds", matchedAccessHostIds);
@@ -250,27 +252,17 @@ public class NodeService {
             return List.of();
         }
         Set<Long> nodeIds = new LinkedHashSet<>();
-        Set<Long> dnsRecordIds = new LinkedHashSet<>();
         for (Node node : nodes) {
             nodeIds.add(node.getId());
             if (node.getOutId() != null) {
                 nodeIds.add(node.getOutId());
             }
-            if (node.getDnsRecordId() != null) {
-                dnsRecordIds.add(node.getDnsRecordId());
-            }
         }
         Map<Long, List<NodeServer>> placementsByNodeId = nodeServerRepository.groupByNodeIds(new ArrayList<>(nodeIds));
-        Map<Long, String> dnsRecordNames = domainDnsRecordRepository.findByIdIn(new ArrayList<>(dnsRecordIds)).stream()
-                .collect(Collectors.toMap(DomainDnsRecord::getId, record -> Objects.toString(record.getFullName(), record.getName())));
         return nodes.stream()
-                .map(node -> {
-                    NodeDto dto = NodeConverter.toDto(node,
-                            placementsByNodeId.getOrDefault(node.getId(), List.of()),
-                            node.getOutId() == null ? List.of() : placementsByNodeId.getOrDefault(node.getOutId(), List.of()));
-                    dto.setDnsRecordName(dnsRecordNames.get(node.getDnsRecordId()));
-                    return dto;
-                })
+                .map(node -> NodeConverter.toDto(node,
+                        placementsByNodeId.getOrDefault(node.getId(), List.of()),
+                        node.getOutId() == null ? List.of() : placementsByNodeId.getOrDefault(node.getOutId(), List.of())))
                 .toList();
     }
 
@@ -310,80 +302,39 @@ public class NodeService {
         return stats;
     }
 
+    public List<Server> findMatchingServers(String region, Integer type) {
+        Node probe = new Node();
+        probe.setRegion(region);
+        probe.setType(type);
+        return placementSyncService.findCandidateServers(probe);
+    }
+
     public boolean isNodePortsAvailable(Long serverId, Integer port, Long nodeId) {
         return !nodeServerRepository.existsPortConflict(serverId, port, nodeId);
     }
 
-    private void validateNode(Node node, List<NodeServer> placements) {
+    private void validateNode(Node node) {
         if (node.getName() == null || node.getName().isBlank()) {
             throw new IllegalArgumentException("节点名称不能为空");
         }
         if (node.getName().codePointCount(0, node.getName().length()) > 257) {
             throw new IllegalArgumentException("节点名称不能超过 257 个字符");
         }
-        if (placements.stream().noneMatch(NodeServer::enabledFlag)) {
-            throw new IllegalArgumentException("至少需要一个启用的部署服务器");
+        if (node.getRegion() == null || node.getRegion().isBlank()) {
+            throw new IllegalArgumentException("节点地区不能为空，部署位按地区和类型自动关联服务器");
         }
+    }
 
-        Set<Long> serverIds = new LinkedHashSet<>();
+    // 端口变化时，已有部署位所在服务器上不能冲突；新部署位的端口冲突由同步时检查
+    private void validatePlacementPorts(Node node, List<NodeServer> placements) {
+        if (node.getPort() == null) {
+            return;
+        }
         for (NodeServer placement : placements) {
-            if (placement.getServerId() == null) {
-                throw new IllegalArgumentException("部署服务器不能为空");
-            }
-            if (!serverIds.add(placement.getServerId())) {
-                throw new IllegalArgumentException("同一节点不能重复选择同一服务器");
-            }
-            if (serverRepository.findById(placement.getServerId()) == null) {
-                throw new EntityNotFoundException("Server with ID " + placement.getServerId() + " not found");
-            }
-            if (placement.getAccessHostId() != null) {
-                ServerHost accessHost = serverHostService.getHostById(placement.getAccessHostId());
-                if (accessHost == null) {
-                    throw new EntityNotFoundException("Access host not found");
-                }
-                if (!Objects.equals(accessHost.getServerId(), placement.getServerId())) {
-                    throw new IllegalArgumentException("接入 host 必须属于对应的部署服务器");
-                }
-            }
-            if (placement.enabledFlag() && node.getPort() != null
+            if (!NodeDeploymentStatus.isPendingDelete(placement.getDeployed())
                     && !isNodePortsAvailable(placement.getServerId(), node.getPort(), node.getId())) {
                 throw new IllegalArgumentException("Port " + node.getPort() + " is already in use on server " + placement.getServerId());
             }
-        }
-
-        validateDnsRecord(node);
-        validateFailover(node);
-    }
-
-    private void validateFailover(Node node) {
-        if (!Objects.equals(node.getFailoverEnabled(), 1)) {
-            return;
-        }
-        if (!Objects.equals(node.getType(), NodeType.PROXY.getValue()) || node.getDnsRecordId() == null) {
-            throw new IllegalArgumentException("自动切换仅支持绑定了订阅 DNS 记录的代理节点");
-        }
-    }
-
-    private void validateDnsRecord(Node node) {
-        if (node.getDnsRecordId() == null) {
-            return;
-        }
-        DomainDnsRecord record = domainDnsRecordRepository.findById(node.getDnsRecordId());
-        if (record == null) {
-            throw new EntityNotFoundException("订阅 DNS 记录不存在");
-        }
-        String recordType = Objects.toString(record.getType(), "").toUpperCase(Locale.ROOT);
-        if (!"A".equals(recordType) && !"CNAME".equals(recordType)) {
-            throw new IllegalArgumentException("订阅 DNS 记录类型只能是 A 或 CNAME");
-        }
-        if (Boolean.TRUE.equals(record.getProxied())) {
-            throw new IllegalArgumentException("订阅 DNS 记录不能开启 Cloudflare 代理");
-        }
-        if (Boolean.TRUE.equals(record.getScheduleEnabled())) {
-            throw new IllegalArgumentException("订阅 DNS 记录不能开启时段计划");
-        }
-        if (nodeRepository.existsByDnsRecordIdAndIdNot(node.getDnsRecordId(), node.getId())) {
-            throw new IllegalArgumentException("订阅 DNS 记录已被其他节点绑定");
         }
     }
 
@@ -417,25 +368,22 @@ public class NodeService {
     }
 
     @Transactional
-    public Node saveNode(Node node, List<NodeServer> placements) {
+    public Node saveNode(Node node, List<NodeServerRequest> placementRequests) {
         node.setName(NodeName.withNumber(node.getName()));
         normalizeAndValidateNodeProtocol(node);
-        validateNode(node, placements);
+        validateNode(node);
 
         nodeRepository.persist(node);
-        for (NodeServer placement : placements) {
-            placement.setNodeId(node.getId());
-            placement.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
-            nodeServerRepository.persist(placement);
-        }
+        placementSyncService.syncNode(node, true);
+        applyPlacementRequests(node, placementRequests);
         return node;
     }
 
     /**
-     * @param placements 为 null 时保留现有部署位，仅更新节点配置
+     * @param placementRequests 部署位的 priority、exposed、域名；为 null 时保留现有部署位属性。部署位本身由地区和类型自动同步
      */
     @Transactional
-    public Node updateNode(Node node, List<NodeServer> placements, Set<Tag> tagSet, boolean tagsUpdated) {
+    public Node updateNode(Node node, List<NodeServerRequest> placementRequests, Set<Tag> tagSet, boolean tagsUpdated) {
         Node existingNode = nodeRepository.findById(node.getId());
         if (existingNode == null) {
             throw new EntityNotFoundException("Node not found");
@@ -448,13 +396,9 @@ public class NodeService {
         }
 
         List<NodeServer> existingPlacements = nodeServerRepository.findByNodeId(existingNode.getId());
-        List<NodeServer> targetPlacements = placements != null ? placements : existingPlacements.stream()
-                .filter(placement -> !NodeDeploymentStatus.isPendingDelete(placement.getDeployed()))
-                .toList();
 
         node.setName(NodeName.withNumber(node.getName() == null ? existingNode.getName() : node.getName()));
         normalizeAndValidateNodeProtocol(node);
-        validateNode(node, targetPlacements);
         boolean hasSubstantialChanges = hasSubstantialChanges(existingNode, node, tagSet, tagsUpdated);
         // 标签只影响本节点用户，不影响引用它作出站的代理节点
         boolean outboundConfigChanged = hasSubstantialChanges(existingNode, node, null, false);
@@ -463,14 +407,12 @@ public class NodeService {
 
         copyNonNullProperties(node, existingNode);
         existingNode.setOutId(node.getOutId());
-        if (!Objects.equals(existingNode.getDnsRecordId(), node.getDnsRecordId())) {
-            existingNode.setActiveNodeServerId(null);
-        }
-        existingNode.setDnsRecordId(node.getDnsRecordId());
-        existingNode.setFailoverEnabled(node.getDnsRecordId() == null ? 0 : node.getFailoverEnabled());
+        validateNode(existingNode);
+        validatePlacementPorts(existingNode, existingPlacements);
 
-        if (placements != null) {
-            syncPlacements(existingNode.getId(), existingPlacements, placements);
+        placementSyncService.syncNode(existingNode, true);
+        if (placementRequests != null) {
+            applyPlacementRequests(existingNode, placementRequests);
         }
         if (hasSubstantialChanges) {
             markNodePendingDeploy(existingNode.getId());
@@ -486,41 +428,52 @@ public class NodeService {
         return existingNode;
     }
 
-    private void syncPlacements(Long nodeId, List<NodeServer> existingPlacements, List<NodeServer> placements) {
-        Map<Long, NodeServer> existingByServerId = existingPlacements.stream()
-                .collect(Collectors.toMap(NodeServer::getServerId, placement -> placement));
-        Set<Long> targetServerIds = new LinkedHashSet<>();
-        for (NodeServer target : placements) {
-            targetServerIds.add(target.getServerId());
-            NodeServer existing = existingByServerId.get(target.getServerId());
-            if (existing == null) {
-                target.setNodeId(nodeId);
-                target.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
-                nodeServerRepository.persist(target);
+    // 按服务器匹配已有部署位，更新 priority、exposed 和域名；请求中不在部署位里的服务器忽略
+    private void applyPlacementRequests(Node node, List<NodeServerRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            return;
+        }
+        Map<Long, NodeServer> placementByServerId = nodeServerRepository.findByNodeId(node.getId()).stream()
+                .filter(placement -> !NodeDeploymentStatus.isPendingDelete(placement.getDeployed()))
+                .collect(Collectors.toMap(NodeServer::getServerId, placement -> placement, (left, right) -> left));
+        for (NodeServerRequest request : requests) {
+            if (request == null) {
                 continue;
             }
-            boolean deployChanged = !Objects.equals(existing.getAccessHostId(), target.getAccessHostId())
-                    || existing.enabledFlag() != target.enabledFlag()
-                    || NodeDeploymentStatus.isPendingDelete(existing.getDeployed());
-            existing.setAccessHostId(target.getAccessHostId());
-            existing.setExposed(target.getExposed());
-            existing.setPriority(target.getPriority());
-            existing.setEnabled(target.getEnabled());
-            if (deployChanged) {
-                existing.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
+            NodeServer placement = placementByServerId.get(request.getServerId());
+            if (placement == null) {
+                continue;
             }
-        }
-        for (NodeServer existing : existingPlacements) {
-            if (!targetServerIds.contains(existing.getServerId())) {
-                removeOrMarkPlacementDeleted(existing);
+            if (request.getPriority() != null) {
+                placement.setPriority(request.getPriority());
             }
+            if (request.getExposed() != null) {
+                placement.setExposed(request.getExposed() == 0 ? 0 : 1);
+            }
+            applyPlacementDomain(placement, request);
         }
+    }
+
+    private void applyPlacementDomain(NodeServer placement, NodeServerRequest request) {
+        Long previousRecordId = placement.getAccessHostId();
+        Server server = serverRepository.findById(placement.getServerId());
+        Long recordId = null;
+        if (request.getNewDomainId() != null) {
+            recordId = serverDomainService.createARecord(request.getNewDomainId(), request.getNewSubdomain(), server).getId();
+        } else if (request.getAccessHostId() != null) {
+            recordId = serverDomainService.bindExisting(request.getAccessHostId(), server, placement.getId(), null).getId();
+        }
+        if (Objects.equals(previousRecordId, recordId)) {
+            return;
+        }
+        placement.setAccessHostId(recordId);
+        nodeServerRepository.flush();
+        serverDomainService.releaseIfUnused(previousRecordId);
     }
 
     private NodeServer copyPlacementKey(NodeServer placement) {
         NodeServer copy = new NodeServer();
         copy.setServerId(placement.getServerId());
-        copy.setAccessHostId(placement.getAccessHostId());
         return copy;
     }
 
@@ -532,8 +485,7 @@ public class NodeService {
         Optional<NodeServer> currentEffective = nodeServerRepository.findEffectiveByNodeId(node.getId());
         boolean effectiveChanged = previousEffective.isPresent() != currentEffective.isPresent()
                 || previousEffective.isPresent()
-                && (!Objects.equals(previousEffective.get().getServerId(), currentEffective.get().getServerId())
-                || !Objects.equals(previousEffective.get().getAccessHostId(), currentEffective.get().getAccessHostId()));
+                && !Objects.equals(previousEffective.get().getServerId(), currentEffective.get().getServerId());
         if (configChanged || effectiveChanged) {
             markReferencingNodesPendingDeploy(node);
         }
@@ -710,6 +662,7 @@ public class NodeService {
         if (src.getName() != null) target.setName(src.getName());
         if (src.getRemark() != null) target.setRemark(src.getRemark());
         if (src.getType() != null) target.setType(src.getType());
+        if (src.getRegion() != null) target.setRegion(src.getRegion());
         if (src.getPort() != null) target.setPort(src.getPort());
         if (src.getProtocol() != null) target.setProtocol(src.getProtocol());
         if (src.getCoreType() != null) target.setCoreType(src.getCoreType());
@@ -731,7 +684,7 @@ public class NodeService {
             return null;
         }
         List<NodeServer> placements = nodeServerRepository.findByNodeId(id);
-        placements.forEach(this::removeOrMarkPlacementDeleted);
+        placements.forEach(placementSyncService::removeOrMarkDeleted);
         List<NodeServer> remaining = nodeServerRepository.findByNodeId(id);
         if (remaining.isEmpty()) {
             physicallyDeleteNode(id);
@@ -740,24 +693,30 @@ public class NodeService {
         return NodeServerRepository.aggregateStatus(remaining);
     }
 
-    // 已部署过的部署位需先从服务器移除入站，未部署过的直接删除
-    private void removeOrMarkPlacementDeleted(NodeServer placement) {
-        boolean everDeployed = NodeDeploymentStatus.isDeployed(placement.getDeployed())
-                || NodeDeploymentStatus.isPendingDelete(placement.getDeployed())
-                || nodeDeploymentRepository.findByNodeServerId(placement.getId()).isPresent();
-        if (everDeployed) {
-            placement.setDeployed(NodeDeploymentStatus.PENDING_DELETE.getValue());
-            return;
+    /**
+     * 批量删除节点，同一事务，任一节点失败则全部回滚。
+     *
+     * @return deletedCount 已物理删除；pendingCount 已部署过，标记待删除，部署成功后从服务器移除
+     */
+    @Transactional
+    public Map<String, Integer> batchDeleteNodes(List<Long> nodeIds) {
+        List<Long> ids = nodeIds == null ? List.of() : nodeIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            throw new IllegalArgumentException("请先选择要删除的节点");
         }
-        deletePlacement(placement);
-    }
-
-    private void deletePlacement(NodeServer placement) {
-        // 同时清理账户订阅定制中引用的该部署位
-        nodeServerRepository.getEntityManager()
-                .createNativeQuery("DELETE FROM account_node_subscription_placement WHERE node_server_id = ?1")
-                .setParameter(1, placement.getId()).executeUpdate();
-        nodeServerRepository.delete(placement);
+        int deleted = 0;
+        int pending = 0;
+        for (Long id : ids) {
+            if (nodeRepository.findById(id) == null) {
+                throw new EntityNotFoundException("节点不存在: " + id);
+            }
+            if (deleteNode(id) == null) {
+                deleted++;
+            } else {
+                pending++;
+            }
+        }
+        return Map.of("deletedCount", deleted, "pendingCount", pending);
     }
 
     /**
@@ -770,7 +729,8 @@ public class NodeService {
             return;
         }
         nodeDeploymentRepository.deleteByNodeServerId(nodeServerId);
-        deletePlacement(placement);
+        nodeDeploymentHistoryRepository.deleteByNodeServerId(nodeServerId);
+        placementSyncService.delete(placement);
         nodeServerRepository.flush();
         if (nodeServerRepository.findByNodeId(placement.getNodeId()).isEmpty()) {
             physicallyDeleteNode(placement.getNodeId());
@@ -782,12 +742,17 @@ public class NodeService {
         if (id == null) {
             return;
         }
+        List<Long> accessHostIds = nodeServerRepository.findByNodeId(id).stream()
+                .map(NodeServer::getAccessHostId).filter(Objects::nonNull).toList();
         tagRepository.deleteAllNodeTagsByNodeId(id);
         nodeDeploymentRepository.deleteByNodeId(id);
+        nodeDeploymentHistoryRepository.deleteByNodeId(id);
         nodeServerRepository.getEntityManager().createNativeQuery("DELETE FROM account_node_subscription_placement "
                         + "WHERE node_server_id IN (SELECT id FROM node_server WHERE node_id = ?1)")
                 .setParameter(1, id).executeUpdate();
         nodeServerRepository.delete("nodeId", id);
+        nodeServerRepository.flush();
+        accessHostIds.forEach(serverDomainService::releaseIfUnused);
         nodeRepository.deleteById(id);
     }
 

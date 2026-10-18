@@ -235,6 +235,45 @@ export function createNodeDeployMethods() {
                 });
         },
 
+        openBatchDeleteModal() {
+            if (!this.selectedNodeIds.length) {
+                ToastUtils.show('Warning', '请先勾选要删除的节点', 'warning');
+                return;
+            }
+            this.batchDeleteModal = new Modal(document.getElementById('node-batchDeleteModal'));
+            this.batchDeleteModal.show();
+        },
+
+        submitBatchDelete() {
+            this.batchDeleting = true;
+            fetch('/api/admin/nodes/batch-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nodeIds: this.selectedNodeIds })
+            })
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data.message || '批量删除失败');
+                    }
+                    return data;
+                })
+                .then(data => {
+                    this.batchDeleteModal?.hide();
+                    this.selectedNodeIds = [];
+                    this.fetchRecords();
+                    this.refreshStats();
+                    ToastUtils.show('Success', data.message || '批量删除成功', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '批量删除失败', 'danger');
+                })
+                .finally(() => {
+                    this.batchDeleting = false;
+                });
+        },
+
         deploySelectedNodes() {
             this.batchDeploying = true;
 

@@ -17,12 +17,14 @@ public class AccountNodeSubscriptionDomainBindingDto {
     private String nodeServerHost;
     private Integer nodePort;
     private List<NodeServerDto> nodePlacements;
-    private List<Long> nodeServerIds;
+    private Long nodeServerId;
     private Long domainDnsRecordId;
     private Long domainId;
     private String fullName;
     private String recordName;
     private String recordType;
+    // 记录的同步状态；非 SYNCED 时订阅暂不使用该域名
+    private String recordStatus;
     private String domain;
     private LocalDate domainExpireDate;
     private Integer enabled;

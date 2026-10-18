@@ -2,12 +2,12 @@ package com.fun90.airopscat.controller;
 
 import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.DeploymentResult;
+import com.fun90.airopscat.model.dto.NodeBatchDeleteRequest;
 import com.fun90.airopscat.model.dto.NodeBatchTagUpdateRequest;
 import com.fun90.airopscat.model.dto.NodeDeploymentRestoreRequest;
 import com.fun90.airopscat.model.dto.NodeDeploymentVersionDetailDto;
 import com.fun90.airopscat.model.dto.NodeDeploymentVersionDto;
 import com.fun90.airopscat.model.dto.NodeDto;
-import com.fun90.airopscat.model.dto.NodeFailoverSwitchRequest;
 import com.fun90.airopscat.model.dto.NodeRequest;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeServer;
@@ -16,11 +16,9 @@ import com.fun90.airopscat.model.entity.Tag;
 import com.fun90.airopscat.model.enums.NodeType;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.service.AccountOnlineIpService;
-import com.fun90.airopscat.service.NodeFailoverService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentService;
 import com.fun90.airopscat.service.deployment.NodeDeploymentVersionService;
 import com.fun90.airopscat.service.NodeService;
-import com.fun90.airopscat.service.ServerHostService;
 import com.fun90.airopscat.service.ServerService;
 import com.fun90.airopscat.service.TagService;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
@@ -50,9 +48,6 @@ public class NodeController {
     ServerService serverService;
 
     @Inject
-    ServerHostService serverHostService;
-    
-    @Inject
     NodeDeploymentService nodeDeploymentService;
     
     @Inject
@@ -63,9 +58,6 @@ public class NodeController {
 
     @Inject
     AccountOnlineIpService accountOnlineIpService;
-
-    @Inject
-    NodeFailoverService nodeFailoverService;
 
     @GET
     public Response getNodePage(
@@ -158,6 +150,21 @@ public class NodeController {
         return Response.ok(nodeService.getNodesStats()).build();
     }
     
+    /** 按地区和类型预览会自动关联的服务器（新建节点时用） */
+    @GET
+    @Path("/matching-servers")
+    public Response getMatchingServers(@QueryParam("region") String region, @QueryParam("type") Integer type) {
+        return Response.ok(nodeService.findMatchingServers(region, type).stream()
+                .map(server -> {
+                    Map<String, Object> option = new HashMap<>();
+                    option.put("id", server.getId());
+                    option.put("name", server.getName());
+                    option.put("ip", server.getIp());
+                    return option;
+                })
+                .toList()).build();
+    }
+
     @GET
     @Path("/available-port")
     public Response getAvailablePort(@QueryParam("serverId") String serverIds) {
@@ -202,7 +209,7 @@ public class NodeController {
         try {
             // 使用 NodeConverter 转换请求为实体
             Node node = NodeConverter.fromRequest(request);
-            Node savedNode = nodeService.saveNode(node, NodeConverter.placementsFromRequest(request));
+            Node savedNode = nodeService.saveNode(node, request.getPlacements());
             
             // 处理标签关联
             if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
@@ -227,8 +234,7 @@ public class NodeController {
             if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
                 tagSet = request.getTagIds().stream().map(tid -> tagService.getTagById(tid)).collect(Collectors.toSet());
             }
-            List<NodeServer> placements = request.getPlacements() == null ? null : NodeConverter.placementsFromRequest(request);
-            Node updatedNode = nodeService.updateNode(node, placements, tagSet, request.getTagIds() != null);
+            Node updatedNode = nodeService.updateNode(node, request.getPlacements(), tagSet, request.getTagIds() != null);
             
             // 处理标签关联
             if (request.getTagIds() != null) {
@@ -307,8 +313,8 @@ public class NodeController {
                     option.put("name", (server.getName() != null ? server.getName() : "") +
                               " (" + server.getIp() + ")");
                     option.put("ip", server.getIp());
-                    option.put("host", serverHostService.resolvePrimaryHost(server));
-                    option.put("hosts", serverHostService.toDtos(serverHostService.getHostsByServerId(server.getId()), server));
+                    option.put("region", server.getRegion());
+                    option.put("serverType", server.getServerType());
                     return option;
                 })
                 .collect(Collectors.toList());
@@ -337,22 +343,12 @@ public class NodeController {
             nodeCopy.setRemark(existingNode.getRemark());
             nodeCopy.setName(existingNode.getName() != null ? existingNode.getName() + " (Copy)" : "Copy of Node " + id);
 
-            // 复制部署位；端口需在所有部署服务器上可用，DNS 绑定不复制（一条记录只能绑定一个节点）
-            List<NodeServer> placements = nodeService.getPlacements(id).stream()
-                    .filter(placement -> !NodeDeploymentStatus.isPendingDelete(placement.getDeployed()))
-                    .map(placement -> {
-                        NodeServer copy = new NodeServer();
-                        copy.setServerId(placement.getServerId());
-                        copy.setAccessHostId(placement.getAccessHostId());
-                        copy.setExposed(placement.getExposed());
-                        copy.setPriority(placement.getPriority());
-                        copy.setEnabled(placement.getEnabled());
-                        return copy;
-                    })
-                    .toList();
-            nodeCopy.setPort(nodeService.getAvailablePort(placements.stream().map(NodeServer::getServerId).toList()));
+            // 部署位由地区和类型自动关联；端口需在所有匹配的服务器上可用，域名不复制（一条记录只能被一个部署位引用）
+            nodeCopy.setRegion(existingNode.getRegion());
+            nodeCopy.setPort(nodeService.getAvailablePort(nodeService.findMatchingServers(
+                    existingNode.getRegion(), existingNode.getType()).stream().map(Server::getId).toList()));
 
-            Node savedNode = nodeService.saveNode(nodeCopy, placements);
+            Node savedNode = nodeService.saveNode(nodeCopy, null);
             return Response.ok(nodeService.getNodeDtoById(savedNode.getId())).build();
         } catch (IllegalArgumentException e) {
             Map<String, String> error = new HashMap<>();
@@ -387,6 +383,26 @@ public class NodeController {
     }
 
     @POST
+    @Path("/batch-delete")
+    public Response batchDeleteNodes(NodeBatchDeleteRequest request) {
+        try {
+            Map<String, Integer> result = nodeService.batchDeleteNodes(request == null ? null : request.getNodeIds());
+            int pending = result.getOrDefault("pendingCount", 0);
+            return Response.ok(Map.of(
+                    "message", pending > 0
+                            ? "已删除 " + result.get("deletedCount") + " 个节点，" + pending + " 个已部署的节点标记为待删除，部署成功后将从服务器移除"
+                            : "已删除 " + result.get("deletedCount") + " 个节点",
+                    "deletedCount", result.getOrDefault("deletedCount", 0),
+                    "pendingCount", pending
+            )).build();
+        } catch (IllegalArgumentException | EntityNotFoundException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
+        }
+    }
+
+    @POST
     @Path("/batch-tags")
     public Response batchUpdateNodeTags(NodeBatchTagUpdateRequest request) {
         try {
@@ -400,19 +416,6 @@ public class NodeController {
                     "unchangedCount", result.getOrDefault("unchangedCount", 0)
             )).build();
         } catch (IllegalArgumentException | EntityNotFoundException e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("message", e.getMessage());
-            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
-        }
-    }
-
-    @POST
-    @Path("/{id}/failover/switch")
-    public Response switchFailover(@PathParam("id") Long id, NodeFailoverSwitchRequest request) {
-        try {
-            String message = nodeFailoverService.switchManually(id, request == null ? null : request.getNodeServerId());
-            return Response.ok(Map.of("message", message)).build();
-        } catch (IllegalArgumentException | IllegalStateException | EntityNotFoundException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
             return Response.status(Response.Status.BAD_REQUEST).entity(error).build();

@@ -3,7 +3,8 @@
     <tr>
         <th>ID</th>
         <th>IP</th>
-        <th>名称/主机名</th>
+        <th>名称</th>
+        <th>地区/类型</th>
         <th>状态</th>
         <th>供应商</th>
         <th>在线账户</th>
@@ -18,18 +19,16 @@
         <td v-text="server.id"></td>
         <td>
             <div class="d-flex align-items-center">
-                <span v-text="server.ip" class="text-truncate"></span>
+                <a href="#" @click.prevent="openDetailModal(server)" v-text="server.ip" class="text-truncate" title="查看详情"></a>
                 <button @click="copyToClipboard(server.ip)" class="btn btn-sm btn-ghost-secondary ms-2">
                     <i class="ti ti-copy"></i>
                 </button>
             </div>
         </td>
+        <td v-text="server.name || '-'"></td>
         <td>
-            <div class="d-flex flex-column">
-                <span v-if="server.name">{{ server.name }}</span>
-                <span v-if="server.host" class="text-muted">{{ server.host }}</span>
-                <span v-if="server.hosts && server.hosts.length > 1" class="text-secondary small">共 {{ server.hosts.length }} 个 host</span>
-            </div>
+            <span v-if="server.region" class="me-1">{{ server.region }}</span>
+            <span class="badge" :class="server.serverType === 1 ? 'bg-purple-lt' : 'bg-blue-lt'">{{ getServerTypeLabel(server.serverType) }}</span>
         </td>
         <td>
             <span class="badge" :class="getStatusBadgeClass(server)">
@@ -116,14 +115,14 @@
         </td>
     </tr>
     <tr v-if="loading">
-        <td colspan="10" class="text-center py-3">
+        <td colspan="11" class="text-center py-3">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </td>
     </tr>
     <tr v-else-if="records.length === 0">
-        <td colspan="10" class="text-center py-3">没有查到数据.</td>
+        <td colspan="11" class="text-center py-3">没有查到数据.</td>
     </tr>
     </tbody>
 </table>
