@@ -315,13 +315,17 @@ public class SubscriptionService {
     }
 
     /**
-     * 重名条目按列表顺序（同节点内即优先级顺序）递增编号；首个保留原名，不与已有名称冲突。
+     * 重名条目按部署位 ID（创建顺序）递增编号；最早的保留原名，不与已有名称冲突，
+     * 使名称不随优先级调整而变化，新增部署位排在最后。
      * 须在节点混淆之前执行：混淆按编号 ×10 展开，编号唯一则展开后仍唯一。
      */
     static void ensureUniqueNames(List<NodeDto> nodes) {
         Set<String> used = new HashSet<>();
         List<NodeDto> duplicates = new ArrayList<>();
-        for (NodeDto node : nodes) {
+        List<NodeDto> byPlacement = nodes.stream()
+                .sorted(Comparator.comparing(NodeDto::getNodeServerId, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+        for (NodeDto node : byPlacement) {
             if (!used.add(node.getName())) {
                 duplicates.add(node);
             }
