@@ -78,9 +78,7 @@
             <div class="d-flex flex-column gap-1">
                 <div v-for="placement in node.placements" :key="placement.id" class="text-break">
                     <span v-if="placement.accessHost" :title="placement.accessHostStatus && placement.accessHostStatus !== 'SYNCED' ? '域名未同步，订阅仍使用服务器 IP' : ''">{{ placement.accessHost }}</span>
-                    <span v-else class="text-secondary">-</span>
                 </div>
-                <span v-if="!node.placements || node.placements.length === 0" class="text-secondary">-</span>
             </div>
         </td>
         <td>

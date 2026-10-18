@@ -681,7 +681,7 @@
                             <tr v-for="placement in detailNode.placements" :key="placement.id">
                                 <td>{{ placement.serverName || placement.serverId }}</td>
                                 <td>{{ placement.serverIp || '-' }}</td>
-                                <td class="text-break">{{ placement.accessHost || '-' }}</td>
+                                <td class="text-break">{{ placement.accessHost }}</td>
                                 <td>{{ getDeploymentStatusLabel(placement.deployed) }}</td>
                             </tr>
                             <tr v-if="!detailNode.placements || detailNode.placements.length === 0"><td colspan="4" class="text-secondary text-center">-</td></tr>
