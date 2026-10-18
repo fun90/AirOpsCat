@@ -4,6 +4,7 @@ import com.fun90.airopscat.model.dto.DefaultConfigDto;
 import com.fun90.airopscat.model.dto.NodeDto;
 import com.fun90.airopscat.model.convert.NodeConverter;
 import com.fun90.airopscat.model.dto.NodeServerRequest;
+import com.fun90.airopscat.util.TimeWindow;
 import com.fun90.airopscat.model.entity.DomainDnsRecord;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeServer;
@@ -450,8 +451,25 @@ public class NodeService {
             if (request.getExposed() != null) {
                 placement.setExposed(request.getExposed() == 0 ? 0 : 1);
             }
+            applyCheapWindow(placement, request);
             applyPlacementDomain(placement, request);
         }
+    }
+
+    // 请求始终带完整的便宜时段，空值即清除
+    private void applyCheapWindow(NodeServer placement, NodeServerRequest request) {
+        String start = request.getCheapStart() == null || request.getCheapStart().isBlank() ? null : request.getCheapStart().trim();
+        String end = request.getCheapEnd() == null || request.getCheapEnd().isBlank() ? null : request.getCheapEnd().trim();
+        if (start == null && end == null) {
+            placement.setCheapStart(null);
+            placement.setCheapEnd(null);
+            return;
+        }
+        if (!TimeWindow.isHhMm(start) || !TimeWindow.isHhMm(end) || start.equals(end)) {
+            throw new IllegalArgumentException("便宜时段起止需为不同的 HH:mm");
+        }
+        placement.setCheapStart(start);
+        placement.setCheapEnd(end);
     }
 
     private void applyPlacementDomain(NodeServer placement, NodeServerRequest request) {

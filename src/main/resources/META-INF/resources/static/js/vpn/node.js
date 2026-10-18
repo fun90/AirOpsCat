@@ -280,8 +280,9 @@ const nodeTable = new DataTable({
                 placement.serverIp || '',
                 placement.accessHost || '',
                 this.getDeploymentStatusLabel(placement.deployed),
-                placement.exposed === 0 ? '不暴露' : '暴露',
-                `优先级 ${placement.priority ?? 0}`
+                placement.exposed === 0 ? '不在订阅' : '在订阅',
+                `优先级 ${placement.priority ?? 0}`,
+                placement.cheapStart && placement.cheapEnd ? `便宜时段 ${placement.cheapStart}-${placement.cheapEnd}` : ''
             ];
             return parts.filter(Boolean).join(' · ');
         },

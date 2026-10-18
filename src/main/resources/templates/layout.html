@@ -24,6 +24,13 @@
 
     <!-- Custom styles for autosize in modals -->
     <style>
+        /* Tabler 在 <576px 把输入框放大到 1rem（防 iOS 聚焦缩放），后台表单信息密集，全站统一压回 .875rem */
+        @media (max-width: 575.98px) {
+            .form-control, .form-select { font-size: .875rem; }
+            /* 小号控件保持 Tabler 桌面端的 .75rem，不随上面放大 */
+            .form-control.form-control-sm, .form-select.form-select-sm { font-size: .75rem; }
+        }
+
         /* 优化 Modal 中的 autosize textarea */
         .modal textarea[data-bs-toggle="autosize"] {
             min-height: 2.5rem;

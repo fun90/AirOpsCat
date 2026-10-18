@@ -3,6 +3,7 @@ package com.fun90.airopscat.model.entity;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fun90.airopscat.model.enums.DnsRecordStatus;
 import com.fun90.airopscat.util.RawJsonDeserializer;
+import com.fun90.airopscat.util.TimeWindow;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.DynamicUpdate;
@@ -99,12 +100,7 @@ public class DomainDnsRecord {
 
     /** 按当前时间返回应解析的内容：时段内取 contentIn，其余取 contentOut */
     public String scheduledContent(LocalTime now) {
-        LocalTime start = LocalTime.parse(scheduleStart);
-        LocalTime end = LocalTime.parse(scheduleEnd);
-        boolean in = start.isBefore(end)
-                ? !now.isBefore(start) && now.isBefore(end)
-                : !now.isBefore(start) || now.isBefore(end);
-        return in ? scheduleContentIn : scheduleContentOut;
+        return TimeWindow.contains(scheduleStart, scheduleEnd, now) ? scheduleContentIn : scheduleContentOut;
     }
 
     @PrePersist

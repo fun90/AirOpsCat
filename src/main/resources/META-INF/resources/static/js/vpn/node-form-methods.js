@@ -1,4 +1,4 @@
-import { choiceFromText, domainIdFromText, INVALID_CHOICE } from '/static/js/common/domain-choice.js';
+import { choiceFromText, INVALID_CHOICE } from '/static/js/common/domain-choice.js';
 
 let placementUid = 0;
 
@@ -98,6 +98,8 @@ export function createNodeFormMethods() {
                 accessHostStatus: null,
                 exposed: true,
                 priority,
+                cheapStart: '',
+                cheapEnd: '',
                 deployed: null
             };
         },
@@ -134,7 +136,7 @@ export function createNodeFormMethods() {
             return server ? this.formatServerDisplayLabel(server) : String(serverId || '');
         },
 
-        // 按地区和类型预览会自动关联的服务器，保留已有部署位的域名、暴露和优先级
+        // 按地区和类型预览会自动关联的服务器，保留已有部署位的域名、订阅开关和优先级
         refreshPlacementPreview(isEdit = false) {
             const item = isEdit ? this.editedItem : this.newItem;
             const region = (item.region || '').trim();
@@ -175,11 +177,25 @@ export function createNodeFormMethods() {
 
         onPlacementDomainInput(item, placement, isEdit = false) {
             placement.domainChoice = choiceFromText(placement.domainText, placement.availableDomains);
+            if (placement.domainChoice === INVALID_CHOICE) {
+                this.matchNewDomain(placement);
+            }
             this.onPlacementDomainChange(item, placement, isEdit);
         },
 
-        onPlacementNewDomainInput(placement) {
-            placement.newDomainId = domainIdFromText(placement.newDomainText, this.domainOptions);
+        // 输入的不是已有记录时，按所属域名后缀（取最长）拆成子域名 + 域名，作为新建 A 记录
+        matchNewDomain(placement) {
+            const text = placement.domainText.trim().toLowerCase();
+            const domain = this.domainOptions
+                .filter(item => item.domain && text.endsWith('.' + item.domain.toLowerCase()))
+                .sort((a, b) => b.domain.length - a.domain.length)[0];
+            if (!domain) {
+                return;
+            }
+            placement.domainChoice = '__new__';
+            placement.newDomainId = String(domain.id);
+            placement.newDomainText = text;
+            placement.newSubdomain = text.slice(0, text.length - domain.domain.length - 1);
         },
 
         onPlacementDomainChange(item, placement, isEdit = false) {
@@ -363,10 +379,10 @@ export function createNodeFormMethods() {
         validatePlacements(item) {
             for (const placement of item.placements || []) {
                 if (placement.domainChoice === INVALID_CHOICE) {
-                    return `请为 ${placement.serverName} 从列表中选择域名，或留空`;
+                    return `请为 ${placement.serverName} 选择已有域名，或输入以所属域名结尾的新域名（如 hk.example.com），或留空`;
                 }
                 if (placement.domainChoice === '__new__' && (!placement.newDomainId || !(placement.newSubdomain || '').trim())) {
-                    return `请为 ${placement.serverName} 选择域名并填写子域名`;
+                    return `请为 ${placement.serverName} 输入有效的新域名`;
                 }
             }
             return '';
@@ -430,7 +446,9 @@ export function createNodeFormMethods() {
                     newDomainId: isNew ? Number(placement.newDomainId) : null,
                     newSubdomain: isNew ? placement.newSubdomain.trim() : null,
                     exposed: placement.exposed ? 1 : 0,
-                    priority: Number(placement.priority) || 0
+                    priority: Number(placement.priority) || 0,
+                    cheapStart: placement.cheapStart || null,
+                    cheapEnd: placement.cheapEnd || null
                 };
             });
         },
@@ -584,6 +602,8 @@ export function createNodeFormMethods() {
                         availableDomains: placement.accessHostId ? [{ id: placement.accessHostId, fullName: placement.accessHost || String(placement.accessHostId) }] : [],
                         exposed: placement.exposed !== 0,
                         priority: placement.priority ?? 0,
+                                cheapStart: placement.cheapStart || '',
+                        cheapEnd: placement.cheapEnd || '',
                         deployed: placement.deployed
                     };
                     this.loadPlacementDomains(entry);

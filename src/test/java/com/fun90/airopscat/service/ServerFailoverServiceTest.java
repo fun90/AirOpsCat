@@ -15,6 +15,7 @@ import com.fun90.airopscat.model.enums.SystemLogCategory;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
@@ -54,6 +55,21 @@ class ServerFailoverServiceTest {
         // 新周期未采集到流量时使用率按 0 计算，记录重新指回归属服务器
         assertEquals(1L, ServerFailoverService.selectTarget(candidates.get(0), candidates,
                 Map.of(20L, 0.2), THRESHOLD).getId());
+    }
+
+    @Test
+    void prefersCheapWindowPlacementBelowThreshold() {
+        // 3 号部署位在 23:00-06:00 便宜；时段内即使归属服务器空闲也指向它，跨零点算时段内
+        candidates.get(2).setCheapStart("23:00");
+        candidates.get(2).setCheapEnd("06:00");
+        var usage = Map.of(10L, 0.1, 20L, 0.1, 30L, 0.5);
+
+        assertEquals(3L, ServerFailoverService.selectTarget(candidates.get(0), candidates, usage, THRESHOLD, LocalTime.of(2, 0)).getId());
+        assertEquals(3L, ServerFailoverService.selectTarget(candidates.get(0), candidates, usage, THRESHOLD, LocalTime.of(23, 30)).getId());
+        assertEquals(1L, ServerFailoverService.selectTarget(candidates.get(0), candidates, usage, THRESHOLD, LocalTime.of(6, 0)).getId());
+        // 便宜服务器自己超阈值时回到原有选择
+        assertEquals(1L, ServerFailoverService.selectTarget(candidates.get(0), candidates,
+                Map.of(10L, 0.1, 20L, 0.1, 30L, 0.95), THRESHOLD, LocalTime.of(2, 0)).getId());
     }
 
     @Test

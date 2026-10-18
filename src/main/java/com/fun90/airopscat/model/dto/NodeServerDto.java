@@ -17,5 +17,8 @@ public class NodeServerDto {
     private String accessHostStatus;
     private Integer exposed;
     private Integer priority;
+    // 便宜时段 HH:mm，起止同时为空表示不启用
+    private String cheapStart;
+    private String cheapEnd;
     private Integer deployed;
 }

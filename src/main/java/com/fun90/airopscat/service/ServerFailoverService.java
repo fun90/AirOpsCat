@@ -21,6 +21,8 @@ import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -34,7 +36,8 @@ import java.util.stream.Collectors;
 
 /**
  * 服务器流量达到阈值时，把引用它的域名（部署位域名、账户订阅定制域名）切到同一节点其他部署位的服务器；
- * 周期重置后下一轮自然算回归属服务器。每轮按当前使用率重新计算，不保存切换状态。
+ * 周期重置后下一轮自然算回归属服务器。部署位配置了便宜时段的，时段内优先指向它（未超阈值时）。
+ * 每轮按当前使用率与时间重新计算，不保存切换状态。
  */
 @Slf4j
 @ApplicationScoped
@@ -43,6 +46,8 @@ public class ServerFailoverService {
     private static final long BYTES_PER_GB = 1024L * 1024L * 1024L;
     private static final String REASON_THRESHOLD = "THRESHOLD";
     private static final String REASON_RESET = "RESET";
+    private static final String REASON_CHEAP_WINDOW = "CHEAP_WINDOW";
+    private static final ZoneId SCHEDULE_ZONE = ZoneId.of("Asia/Shanghai");
 
     @Inject
     NodeRepository nodeRepository;
@@ -207,7 +212,15 @@ public class ServerFailoverService {
         barkService.sendWarningNotification("AirOpsCat 服务器自动切换", change.message());
     }
 
+    /** 有部署位配置了便宜时段：时段边界要及时生效，需要每分钟重算 */
+    public boolean hasCheapWindow() {
+        return nodeServerRepository.count("cheapStart is not null") > 0;
+    }
+
     Plan plan(double threshold) {
+        LocalTime now = LocalTime.now(SCHEDULE_ZONE);
+        // 同一轮内各记录共用服务器使用率，避免重复查询
+        Map<Long, Double> usageCache = new HashMap<>();
         Map<Long, List<Ref>> refsByRecord = collectRefs();
         List<Switch> switches = new ArrayList<>();
         List<String> exhausted = new ArrayList<>();
@@ -253,8 +266,8 @@ public class ServerFailoverService {
                 continue;
             }
 
-            Map<Long, Double> usage = loadUsage(candidates);
-            NodeServer target = selectTarget(home, candidates, usage, threshold);
+            Map<Long, Double> usage = loadUsage(candidates, usageCache);
+            NodeServer target = selectTarget(home, candidates, usage, threshold, now);
             if (target == null) {
                 stillExhausted.add(recordId);
                 if (exhaustedAlerted.add(recordId)) {
@@ -275,7 +288,8 @@ public class ServerFailoverService {
             }
 
             double homeUsage = usage.getOrDefault(home.getServerId(), 0.0);
-            String reason = homeUsage >= threshold ? REASON_THRESHOLD : REASON_RESET;
+            String reason = target.cheapActive(now) && !target.getId().equals(home.getId()) ? REASON_CHEAP_WINDOW
+                    : homeUsage >= threshold ? REASON_THRESHOLD : REASON_RESET;
             Map<String, Object> detail = new LinkedHashMap<>();
             detail.put("reason", reason);
             detail.put("nodeId", node.getId());
@@ -340,6 +354,16 @@ public class ServerFailoverService {
         }
     }
 
+    /** 便宜时段内且低于阈值的部署位（候选已按优先级升序）优先；其余按 {@link #selectTarget(NodeServer, List, Map, double)} */
+    static NodeServer selectTarget(NodeServer home, List<NodeServer> candidates,
+                                   Map<Long, Double> usageByServerId, double threshold, LocalTime now) {
+        return candidates.stream()
+                .filter(placement -> placement.cheapActive(now))
+                .filter(placement -> usageByServerId.getOrDefault(placement.getServerId(), 0.0) < threshold)
+                .findFirst()
+                .orElseGet(() -> selectTarget(home, candidates, usageByServerId, threshold));
+    }
+
     /** 归属服务器低于阈值时仍指向它；否则取其他候选中（已按优先级升序）第一个低于阈值的，全部超阈值返回 null */
     static NodeServer selectTarget(NodeServer home, List<NodeServer> candidates,
                                    Map<Long, Double> usageByServerId, double threshold) {
@@ -361,12 +385,16 @@ public class ServerFailoverService {
     }
 
     private Map<Long, Double> loadUsage(List<NodeServer> candidates) {
+        return loadUsage(candidates, new HashMap<>());
+    }
+
+    private Map<Long, Double> loadUsage(List<NodeServer> candidates, Map<Long, Double> cache) {
         LocalDateTime now = LocalDateTime.now();
         Map<Long, Double> usage = new HashMap<>();
         for (NodeServer placement : candidates) {
             Server server = placement.getServer();
-            usage.put(placement.getServerId(), server == null ? 0.0
-                    : usageRatio(server, serverMonitorStatsService.getCurrentPeriodTotalTrafficBytes(server, now)));
+            usage.put(placement.getServerId(), cache.computeIfAbsent(placement.getServerId(), id -> server == null ? 0.0
+                    : usageRatio(server, serverMonitorStatsService.getCurrentPeriodTotalTrafficBytes(server, now))));
         }
         return usage;
     }

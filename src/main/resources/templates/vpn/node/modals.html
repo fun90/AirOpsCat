@@ -106,55 +106,67 @@
                                       data-bs-toggle="popover"
                                       data-bs-placement="top"
                                       data-bs-html="true"
-                                      data-bs-content="<p>由地区和类型自动关联，不能手动增减。</p><p>域名：订阅中该部署位使用的地址，不选则使用服务器 IP；可选已有 A 记录或新建。</p><p class='mb-0'>暴露：是否出现在订阅（不暴露的部署位仅部署，可作备用）。优先级越小越靠前，并用于流量超阈值时的域名切换顺序。</p>">?</span>
+                                      data-bs-content="<p>由地区和类型自动关联，不能手动增减。</p><p>域名：订阅中该部署位使用的地址，不选则使用服务器 IP；可选已有 A 记录或新建。</p><p>订阅：是否出现在订阅（关闭的部署位仅部署，可作备用）。优先级越小越靠前，并用于自动切换的选择顺序。</p><p class='mb-0'>便宜时段：时段内同节点各部署位的域名优先指向本服务器（流量未超阈值时），起止留空表示不启用，终点早于起点表示跨零点。</p>">?</span>
                             </label>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-vcenter mb-0">
-                                    <thead>
-                                    <tr>
-                                        <th>服务器</th>
-                                        <th>域名</th>
-                                        <th class="w-1">暴露</th>
-                                        <th style="width: 6rem;">优先级</th>
-                                        <th class="w-1">状态</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    <tr v-for="placement in newItem.placements" :key="placement.serverId">
-                                        <td style="min-width: 8rem;">{{ placement.serverName }}</td>
-                                        <td style="min-width: 15rem;">
-                                            <input type="text" class="form-control form-control-sm" :list="'node-dl-' + placement.uid" placeholder="不使用（订阅用服务器 IP）"
+                            <div class="d-flex flex-column gap-2">
+                                <div v-if="newItem.placements.length" class="d-none d-md-flex align-items-center gap-2 px-2 small text-secondary">
+                                    <div style="width: 8rem;">服务器</div>
+                                    <div class="flex-fill">域名</div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="text-center" style="width: 4.5rem;">优先级</div>
+                                        <div class="text-center" style="width: 2.5rem;">订阅</div>
+                                        <div class="text-center" style="width: 8rem;">便宜时段</div>
+                                    </div>
+                                </div>
+                                <div v-for="placement in newItem.placements" :key="placement.serverId" class="border rounded p-2">
+                                    <div class="d-flex align-items-start flex-wrap gap-2">
+                                        <div class="d-flex align-items-center gap-1" style="width: 8rem; flex-shrink: 0;">
+                                            <i v-if="!placement.id" class="ti ti-circle-plus text-secondary" title="新增"></i>
+                                            <i v-else class="ti" :class="isDeployed(placement) ? 'ti-circle-check text-success' : 'ti-clock text-warning'" :title="getDeploymentStatusLabel(placement.deployed)"></i>
+                                            <strong>{{ placement.serverName }}</strong>
+                                        </div>
+                                        <div class="flex-fill" style="min-width: 9rem;">
+                                            <input type="text" class="form-control form-control-sm" :list="'node-dl-' + placement.uid" placeholder="域名（可直接输入新域名）"
                                                    :class="{ 'is-invalid': placement.domainChoice === 'invalid' }"
                                                    v-model="placement.domainText" @input="onPlacementDomainInput(newItem, placement, false)">
                                             <datalist :id="'node-dl-' + placement.uid">
                                                 <option v-for="record in placement.availableDomains" :key="record.id" :value="record.fullName"></option>
-                                                <option value="新建域名…"></option>
                                             </datalist>
-                                            <div v-if="placement.domainChoice === '__new__'" class="d-flex gap-1 mt-1">
-                                                <input type="text" class="form-control form-control-sm" placeholder="子域名，如 us1" v-model="placement.newSubdomain">
-                                                <input type="text" class="form-control form-control-sm" list="node-domain-names" placeholder="选择域名"
-                                                       v-model="placement.newDomainText" @input="onPlacementNewDomainInput(placement)">
-                                            </div>
+                                            <small v-if="placement.domainChoice === '__new__'" class="text-success">将在 {{ placement.newDomainText }} 下新建 A 记录</small>
                                             <small v-if="placement.accessHostStatus && placement.accessHostStatus !== 'SYNCED' && placement.domainChoice === String(placement.accessHostId)" class="text-warning">DNS 记录尚未同步，订阅暂用服务器 IP</small>
-                                        </td>
-                                        <td>
-                                            <label class="form-check form-switch m-0">
-                                                <input class="form-check-input" type="checkbox" v-model="placement.exposed">
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2 flex-fill flex-md-grow-0">
+                                            <div class="input-group input-group-sm flex-nowrap w-auto">
+                                                <span class="input-group-text d-md-none">优先级</span>
+                                                <input type="number" class="form-control form-control-sm" style="width: 4.5rem;" title="优先级" v-model="placement.priority">
+                                            </div>
+                                            <label class="d-flex align-items-center gap-2 m-0 text-nowrap" style="min-width: 2.5rem;" title="订阅：开启后该部署位出现在订阅中">
+                                                <span class="d-md-none small text-secondary">订阅</span>
+                                                <span class="form-check form-switch m-0 d-flex">
+                                                    <input class="form-check-input" type="checkbox" v-model="placement.exposed">
+                                                </span>
                                             </label>
-                                        </td>
-                                        <td>
-                                            <input type="number" class="form-control form-control-sm" v-model="placement.priority">
-                                        </td>
-                                        <td class="text-nowrap">
-                                            <span v-if="placement.id" class="badge" :class="isDeployed(placement) ? 'bg-success-lt' : 'bg-warning-lt'">{{ getDeploymentStatusLabel(placement.deployed) }}</span>
-                                            <span v-else class="badge bg-secondary-lt">新增</span>
-                                        </td>
-                                    </tr>
-                                    <tr v-if="!newItem.placements.length">
-                                        <td colspan="5" class="text-secondary text-center">暂无关联的服务器{{ newItem.region ? '' : '，请先填写地区' }}</td>
-                                    </tr>
-                                    </tbody>
-                                </table>
+                                            <div class="dropdown flex-fill flex-md-grow-0">
+                                                <button type="button" class="btn btn-sm w-100" style="min-width: 8rem;" data-bs-toggle="dropdown" data-bs-auto-close="outside" :class="placement.cheapStart && placement.cheapEnd ? 'btn-azure-lt' : 'btn-outline-secondary'" title="便宜时段">
+                                                {{ placement.cheapStart && placement.cheapEnd ? '🌙 ' + placement.cheapStart + '–' + placement.cheapEnd : '🌙 时段' }}
+                                                </button>
+                                                <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 17rem;">
+                                                    <div class="small text-secondary mb-2">便宜时段（Asia/Shanghai）</div>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <input type="time" class="form-control form-control-sm" v-model="placement.cheapStart">
+                                                        <span>–</span>
+                                                        <input type="time" class="form-control form-control-sm" v-model="placement.cheapEnd">
+                                                    </div>
+                                                    <div class="d-flex align-items-center justify-content-between mt-2">
+                                                        <small class="text-secondary">留空不启用</small>
+                                                        <button type="button" class="btn btn-sm btn-link p-0" @click="placement.cheapStart = ''; placement.cheapEnd = ''">清除</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-if="!newItem.placements.length" class="text-secondary text-center py-2">暂无关联的服务器{{ newItem.region ? '' : '，请先填写地区' }}</div>
                             </div>
                             <div class="text-danger small mt-1" v-if="validationErrors.placements">{{ validationErrors.placements }}</div>
                         </div>
@@ -456,55 +468,67 @@
                                       data-bs-toggle="popover"
                                       data-bs-placement="top"
                                       data-bs-html="true"
-                                      data-bs-content="<p>由地区和类型自动关联，不能手动增减。</p><p>域名：订阅中该部署位使用的地址，不选则使用服务器 IP；可选已有 A 记录或新建。</p><p class='mb-0'>暴露：是否出现在订阅（不暴露的部署位仅部署，可作备用）。优先级越小越靠前，并用于流量超阈值时的域名切换顺序。</p>">?</span>
+                                      data-bs-content="<p>由地区和类型自动关联，不能手动增减。</p><p>域名：订阅中该部署位使用的地址，不选则使用服务器 IP；可选已有 A 记录或新建。</p><p>订阅：是否出现在订阅（关闭的部署位仅部署，可作备用）。优先级越小越靠前，并用于自动切换的选择顺序。</p><p class='mb-0'>便宜时段：时段内同节点各部署位的域名优先指向本服务器（流量未超阈值时），起止留空表示不启用，终点早于起点表示跨零点。</p>">?</span>
                             </label>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-vcenter mb-0">
-                                    <thead>
-                                    <tr>
-                                        <th>服务器</th>
-                                        <th>域名</th>
-                                        <th class="w-1">暴露</th>
-                                        <th style="width: 6rem;">优先级</th>
-                                        <th class="w-1">状态</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    <tr v-for="placement in editedItem.placements" :key="placement.serverId">
-                                        <td style="min-width: 8rem;">{{ placement.serverName }}</td>
-                                        <td style="min-width: 15rem;">
-                                            <input type="text" class="form-control form-control-sm" :list="'node-dl-' + placement.uid" placeholder="不使用（订阅用服务器 IP）"
+                            <div class="d-flex flex-column gap-2">
+                                <div v-if="editedItem.placements.length" class="d-none d-md-flex align-items-center gap-2 px-2 small text-secondary">
+                                    <div style="width: 8rem;">服务器</div>
+                                    <div class="flex-fill">域名</div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="text-center" style="width: 4.5rem;">优先级</div>
+                                        <div class="text-center" style="width: 2.5rem;">订阅</div>
+                                        <div class="text-center" style="width: 8rem;">便宜时段</div>
+                                    </div>
+                                </div>
+                                <div v-for="placement in editedItem.placements" :key="placement.serverId" class="border rounded p-2">
+                                    <div class="d-flex align-items-start flex-wrap gap-2">
+                                        <div class="d-flex align-items-center gap-1" style="width: 8rem; flex-shrink: 0;">
+                                            <i v-if="!placement.id" class="ti ti-circle-plus text-secondary" title="新增"></i>
+                                            <i v-else class="ti" :class="isDeployed(placement) ? 'ti-circle-check text-success' : 'ti-clock text-warning'" :title="getDeploymentStatusLabel(placement.deployed)"></i>
+                                            <strong>{{ placement.serverName }}</strong>
+                                        </div>
+                                        <div class="flex-fill" style="min-width: 9rem;">
+                                            <input type="text" class="form-control form-control-sm" :list="'node-dl-' + placement.uid" placeholder="域名（可直接输入新域名）"
                                                    :class="{ 'is-invalid': placement.domainChoice === 'invalid' }"
                                                    v-model="placement.domainText" @input="onPlacementDomainInput(editedItem, placement, true)">
                                             <datalist :id="'node-dl-' + placement.uid">
                                                 <option v-for="record in placement.availableDomains" :key="record.id" :value="record.fullName"></option>
-                                                <option value="新建域名…"></option>
                                             </datalist>
-                                            <div v-if="placement.domainChoice === '__new__'" class="d-flex gap-1 mt-1">
-                                                <input type="text" class="form-control form-control-sm" placeholder="子域名，如 us1" v-model="placement.newSubdomain">
-                                                <input type="text" class="form-control form-control-sm" list="node-domain-names" placeholder="选择域名"
-                                                       v-model="placement.newDomainText" @input="onPlacementNewDomainInput(placement)">
-                                            </div>
+                                            <small v-if="placement.domainChoice === '__new__'" class="text-success">将在 {{ placement.newDomainText }} 下新建 A 记录</small>
                                             <small v-if="placement.accessHostStatus && placement.accessHostStatus !== 'SYNCED' && placement.domainChoice === String(placement.accessHostId)" class="text-warning">DNS 记录尚未同步，订阅暂用服务器 IP</small>
-                                        </td>
-                                        <td>
-                                            <label class="form-check form-switch m-0">
-                                                <input class="form-check-input" type="checkbox" v-model="placement.exposed">
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2 flex-fill flex-md-grow-0">
+                                            <div class="input-group input-group-sm flex-nowrap w-auto">
+                                                <span class="input-group-text d-md-none">优先级</span>
+                                                <input type="number" class="form-control form-control-sm" style="width: 4.5rem;" title="优先级" v-model="placement.priority">
+                                            </div>
+                                            <label class="d-flex align-items-center gap-2 m-0 text-nowrap" style="min-width: 2.5rem;" title="订阅：开启后该部署位出现在订阅中">
+                                                <span class="d-md-none small text-secondary">订阅</span>
+                                                <span class="form-check form-switch m-0 d-flex">
+                                                    <input class="form-check-input" type="checkbox" v-model="placement.exposed">
+                                                </span>
                                             </label>
-                                        </td>
-                                        <td>
-                                            <input type="number" class="form-control form-control-sm" v-model="placement.priority">
-                                        </td>
-                                        <td class="text-nowrap">
-                                            <span v-if="placement.id" class="badge" :class="isDeployed(placement) ? 'bg-success-lt' : 'bg-warning-lt'">{{ getDeploymentStatusLabel(placement.deployed) }}</span>
-                                            <span v-else class="badge bg-secondary-lt">新增</span>
-                                        </td>
-                                    </tr>
-                                    <tr v-if="!editedItem.placements.length">
-                                        <td colspan="5" class="text-secondary text-center">暂无关联的服务器{{ editedItem.region ? '' : '，请先填写地区' }}</td>
-                                    </tr>
-                                    </tbody>
-                                </table>
+                                            <div class="dropdown flex-fill flex-md-grow-0">
+                                                <button type="button" class="btn btn-sm w-100" style="min-width: 8rem;" data-bs-toggle="dropdown" data-bs-auto-close="outside" :class="placement.cheapStart && placement.cheapEnd ? 'btn-azure-lt' : 'btn-outline-secondary'" title="便宜时段">
+                                                {{ placement.cheapStart && placement.cheapEnd ? '🌙 ' + placement.cheapStart + '–' + placement.cheapEnd : '🌙 时段' }}
+                                                </button>
+                                                <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 17rem;">
+                                                    <div class="small text-secondary mb-2">便宜时段（Asia/Shanghai）</div>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <input type="time" class="form-control form-control-sm" v-model="placement.cheapStart">
+                                                        <span>–</span>
+                                                        <input type="time" class="form-control form-control-sm" v-model="placement.cheapEnd">
+                                                    </div>
+                                                    <div class="d-flex align-items-center justify-content-between mt-2">
+                                                        <small class="text-secondary">留空不启用</small>
+                                                        <button type="button" class="btn btn-sm btn-link p-0" @click="placement.cheapStart = ''; placement.cheapEnd = ''">清除</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-if="!editedItem.placements.length" class="text-secondary text-center py-2">暂无关联的服务器{{ editedItem.region ? '' : '，请先填写地区' }}</div>
                             </div>
                             <div class="text-danger small mt-1" v-if="validationErrors.placements">{{ validationErrors.placements }}</div>
                         </div>
@@ -961,4 +985,3 @@
     </div>
 </div>
 
-<datalist id="node-domain-names"><option v-for="domain in domainOptions" :key="domain.id" :value="domain.domain"></option></datalist>

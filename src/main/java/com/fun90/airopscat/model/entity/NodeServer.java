@@ -4,7 +4,10 @@ import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.DynamicUpdate;
 
+import com.fun90.airopscat.util.TimeWindow;
+
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 /**
  * 部署位：逻辑节点部署到某台服务器的实例。
@@ -44,6 +47,13 @@ public class NodeServer {
     // 0:待部署,1:已部署,2:待删除
     private Integer deployed;
 
+    // 便宜时段 HH:mm（Asia/Shanghai，起点含、终点不含，早于起点表示跨零点）；时段内同节点各部署位的域名优先指向本部署位的服务器
+    @Column(name = "cheap_start", length = 5)
+    private String cheapStart;
+
+    @Column(name = "cheap_end", length = 5)
+    private String cheapEnd;
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "server_id", insertable = false, updatable = false)
     private Server server;
@@ -65,6 +75,10 @@ public class NodeServer {
     @PreUpdate
     protected void onUpdate() {
         this.updateTime = LocalDateTime.now();
+    }
+
+    public boolean cheapActive(LocalTime now) {
+        return TimeWindow.contains(cheapStart, cheapEnd, now);
     }
 
     // 非 getter 命名，避免与 exposed 字段的序列化冲突

@@ -2,13 +2,14 @@ package com.fun90.airopscat.scheduler;
 
 import com.fun90.airopscat.service.DomainDnsPushService;
 import com.fun90.airopscat.service.DomainDnsRecordService;
+import com.fun90.airopscat.service.ServerFailoverService;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 每分钟按时段计划刷新 DNS 记录内容，并推送到 DNS 服务商。
+ * 每分钟按时段计划刷新 DNS 记录内容并推送到 DNS 服务商；有部署位便宜时段时顺带触发服务器自动切换检查。
  */
 @Slf4j
 @ApplicationScoped
@@ -19,6 +20,9 @@ public class DomainDnsScheduleTask {
 
     @Inject
     DomainDnsPushService domainDnsPushService;
+
+    @Inject
+    ServerFailoverService serverFailoverService;
 
     @Scheduled(cron = "0 * * * * ?", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void applySchedules() {
@@ -32,6 +36,14 @@ public class DomainDnsScheduleTask {
             }
         } catch (Exception e) {
             log.warn("DNS 时段计划执行失败: {}", e.getMessage());
+        }
+        // 部署位便宜时段的边界按分钟生效；平时由流量采集后的检查负责
+        try {
+            if (serverFailoverService.hasCheapWindow()) {
+                serverFailoverService.checkAll();
+            }
+        } catch (Exception e) {
+            log.warn("部署位便宜时段切换失败: {}", e.getMessage());
         }
     }
 }

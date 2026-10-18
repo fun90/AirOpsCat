@@ -135,6 +135,8 @@ public class NodeConverter {
         dto.setAccessHostId(placement.getAccessHostId());
         dto.setExposed(placement.getExposed());
         dto.setPriority(placement.getPriority());
+        dto.setCheapStart(placement.getCheapStart());
+        dto.setCheapEnd(placement.getCheapEnd());
         dto.setDeployed(placement.getDeployed());
         if (placement.getServer() != null) {
             dto.setServerName(placement.getServer().getName());
