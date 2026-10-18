@@ -1,4 +1,4 @@
-import { choiceFromText, domainIdFromText, INVALID_CHOICE } from '/static/js/common/domain-choice.js';
+import { choiceFromText, INVALID_CHOICE } from '/static/js/common/domain-choice.js';
 import { DataTable } from '/static/js/common/data-table.js';
 import { formatDateTimeForLocal, formatRelativeTime, formatDateTimeFull } from '/static/js/common/common.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
@@ -757,11 +757,20 @@ const accountTable = new DataTable({
         onBindingDomainInput() {
             const form = this.subscriptionDomainBindingForm;
             form.domainChoice = choiceFromText(form.domainText, form.availableDomains);
-        },
-
-        onBindingNewDomainInput() {
-            const form = this.subscriptionDomainBindingForm;
-            form.newDomainId = domainIdFromText(form.newDomainText, this.subscriptionDomainOptions);
+            if (form.domainChoice !== INVALID_CHOICE) {
+                return;
+            }
+            // 输入的不是已有记录时，按所属域名后缀（取最长）拆成子域名 + 域名，作为新建 A 记录
+            const text = form.domainText.trim().toLowerCase();
+            const domain = this.subscriptionDomainOptions
+                .filter(item => item.domain && text.endsWith('.' + item.domain.toLowerCase()))
+                .sort((a, b) => b.domain.length - a.domain.length)[0];
+            if (domain) {
+                form.domainChoice = '__new__';
+                form.newDomainId = String(domain.id);
+                form.newDomainText = text;
+                form.newSubdomain = text.slice(0, text.length - domain.domain.length - 1);
+            }
         },
 
         loadBindingAvailableDomains() {

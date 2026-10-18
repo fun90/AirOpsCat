@@ -831,19 +831,13 @@
                 </div>
                 <div class="mb-3" v-if="subscriptionDomainBindingForm.nodeServerId">
                     <label class="form-label">域名</label>
-                    <input type="text" class="form-control" list="subscription-domain-records" placeholder="不指定（使用部署位默认地址）"
+                    <input type="text" class="form-control" list="subscription-domain-records" placeholder="不指定（使用部署位默认地址），可直接输入新域名"
                            :class="{ 'is-invalid': subscriptionDomainBindingForm.domainChoice === 'invalid' }"
                            v-model="subscriptionDomainBindingForm.domainText" @input="onBindingDomainInput">
                     <datalist id="subscription-domain-records">
                         <option v-for="record in subscriptionDomainBindingForm.availableDomains" :key="record.id" :value="record.fullName"></option>
-                        <option value="新建域名…"></option>
                     </datalist>
-                    <div v-if="subscriptionDomainBindingForm.domainChoice === '__new__'" class="d-flex gap-2 mt-2">
-                        <input type="text" class="form-control" placeholder="子域名，如 us1" v-model="subscriptionDomainBindingForm.newSubdomain">
-                        <input type="text" class="form-control" list="subscription-domain-names" placeholder="选择域名"
-                               v-model="subscriptionDomainBindingForm.newDomainText" @input="onBindingNewDomainInput">
-                        <datalist id="subscription-domain-names"><option v-for="domain in subscriptionDomainOptions" :key="domain.id" :value="domain.domain"></option></datalist>
-                    </div>
+                    <small v-if="subscriptionDomainBindingForm.domainChoice === '__new__'" class="text-success">将在 {{ subscriptionDomainBindingForm.newDomainText }} 下新建 A 记录</small>
                     <div class="invalid-feedback d-block" v-if="validationErrors.subscriptionDomainDomainId">
                         {{ validationErrors.subscriptionDomainDomainId }}
                     </div>
