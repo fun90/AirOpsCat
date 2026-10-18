@@ -3,6 +3,7 @@ import { DataTable } from '/static/js/common/data-table.js';
 import { formatDateTimeForLocal, formatRelativeTime, formatDateTimeFull } from '/static/js/common/common.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
+import { loadFilterCookie } from '/static/js/common/filter-cookie.js';
 import { createRemoteSearchConfig, createUserSearch } from '/static/js/common/tom-select-helper.js';
 import {
     buildInitialTransactionPayload,
@@ -17,11 +18,15 @@ const DEFAULT_ACCOUNT_FILTERS = Object.freeze({
     onlineStatus: ''
 });
 
+const savedFilters = loadFilterCookie('accountFilters', DEFAULT_ACCOUNT_FILTERS);
+
 const accountTable = new DataTable({
     data: {
         entityName: 'accounts',
         modalIdPrefix: 'account-',
-        filters: { ...DEFAULT_ACCOUNT_FILTERS },
+        filterCookieName: 'accountFilters',
+        searchQuery: savedFilters.searchQuery,
+        filters: savedFilters.filters,
         periodTypes: [],
         paymentMethods: [],
         availableTags: [],

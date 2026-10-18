@@ -2,11 +2,14 @@
 import { DataTable } from '/static/js/common/data-table.js';
 import { Modal, Tooltip } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
+import { loadFilterCookie, saveFilterCookie } from '/static/js/common/filter-cookie.js';
 
 const DEFAULT_SERVER_FILTERS = Object.freeze({
     supplier: '',
     status: ''
 });
+
+const savedFilters = loadFilterCookie('serverFilters', DEFAULT_SERVER_FILTERS);
 
 const serverTable = new DataTable({
     data: {
@@ -19,7 +22,9 @@ const serverTable = new DataTable({
             disabled: 0,
             expiringSoon: 0
         },
-        filters: { ...DEFAULT_SERVER_FILTERS },
+        filterCookieName: 'serverFilters',
+        searchQuery: savedFilters.searchQuery,
+        filters: savedFilters.filters,
         supplierStats: {},
         totalCost: 0,
         authTypes: [],
@@ -94,6 +99,7 @@ const serverTable = new DataTable({
         },
 
         fetchRecords() {
+            saveFilterCookie(this.filterCookieName, this.filters, this.searchQuery);
             this.loading = true;
 
             const params = new URLSearchParams({

@@ -14,6 +14,7 @@
  */
 import { Modal, Tooltip } from '/static/tabler/js/tabler.esm.min.js';
 import { copyToClipboard as copyTextToClipboard } from '/static/js/common/common.js';
+import { saveFilterCookie } from '/static/js/common/filter-cookie.js';
 
 export class DataTable {
   constructor(options = {}) {
@@ -71,6 +72,9 @@ export class DataTable {
 
       // Data fetching
       fetchRecords() {
+        if (this.filterCookieName) {
+          saveFilterCookie(this.filterCookieName, this.filters, this.searchQuery);
+        }
         this.loading = true;
 
         // Build query parameters

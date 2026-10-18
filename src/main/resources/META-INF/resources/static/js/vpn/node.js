@@ -1,6 +1,7 @@
 ﻿import { DataTable } from '/static/js/common/data-table.js';
 import { Dropdown, Modal } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
+import { loadFilterCookie } from '/static/js/common/filter-cookie.js';
 import { createNodeDeployMethods } from '/static/js/vpn/node-deploy-methods.js';
 import { createNodeFormMethods } from '/static/js/vpn/node-form-methods.js';
 import { createRemoteSearchConfig, withTomSelectSearchClear } from '/static/js/common/tom-select-helper.js';
@@ -23,11 +24,15 @@ const NODE_DEPLOYMENT_STATUS = Object.freeze({
     PENDING_DELETE: 2
 });
 
+const savedFilters = loadFilterCookie('nodeFilters', DEFAULT_NODE_FILTERS);
+
 const nodeTable = new DataTable({
     data: {
         entityName: 'nodes',
         modalIdPrefix: 'node-',
-        filters: { ...DEFAULT_NODE_FILTERS },
+        filterCookieName: 'nodeFilters',
+        searchQuery: savedFilters.searchQuery,
+        filters: savedFilters.filters,
         servers: [],
         landingNodes: [],
         nodeTypes: [],
@@ -216,6 +221,10 @@ const nodeTable = new DataTable({
 
             const serverIds = this.filters.serverId ? this.filters.serverId.split(',').filter(id => id) : [];
             this.serverFilterSearches.forEach(instance => {
+                // 已选服务器可能不在默认的前 10 个选项中，先补齐选项再赋值
+                this.servers.filter(server => serverIds.includes(String(server.id))).forEach(server => {
+                    instance.addOption({ id: server.id, name: this.formatServerDisplayLabel(server), ip: server.ip });
+                });
                 instance.setValue(serverIds, true);
             });
         },
