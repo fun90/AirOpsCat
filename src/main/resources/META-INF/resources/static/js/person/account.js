@@ -2,6 +2,7 @@ import { choiceFromText, INVALID_CHOICE } from '/static/js/common/domain-choice.
 import { DataTable } from '/static/js/common/data-table.js';
 import { formatDateTimeForLocal, formatRelativeTime, formatDateTimeFull } from '/static/js/common/common.js';
 import { Modal } from '/static/tabler/js/tabler.esm.min.js';
+import { createTagEditorState, createTagPickerMethods } from '/static/js/common/tag-picker-methods.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
 import { loadFilterCookie } from '/static/js/common/filter-cookie.js';
 import { createRemoteSearchConfig, createUserSearch } from '/static/js/common/tom-select-helper.js';
@@ -30,6 +31,7 @@ const accountTable = new DataTable({
         periodTypes: [],
         paymentMethods: [],
         availableTags: [],
+        tagEditor: createTagEditorState(),
         users: [],
 
         // 搜索组件实例
@@ -140,6 +142,8 @@ const accountTable = new DataTable({
         deployModal: null,
     },
     methods: {
+        ...createTagPickerMethods(),
+
         openMobileActions(account) {
             this.mobileActionAccount = account;
             if (!this.mobileActionsModal) {

@@ -3,6 +3,7 @@ import { Dropdown, Modal } from '/static/tabler/js/tabler.esm.min.js';
 import { createResponsiveFilterMethods } from '/static/js/common/responsive-filters.js';
 import { loadFilterCookie } from '/static/js/common/filter-cookie.js';
 import { createNodeDeployMethods } from '/static/js/vpn/node-deploy-methods.js';
+import { createTagEditorState, createTagPickerMethods } from '/static/js/common/tag-picker-methods.js';
 import { createNodeFormMethods } from '/static/js/vpn/node-form-methods.js';
 import { createRemoteSearchConfig, withTomSelectSearchClear } from '/static/js/common/tom-select-helper.js';
 
@@ -39,6 +40,7 @@ const nodeTable = new DataTable({
         coreTypes: [],
         protocolTypes: [],
         availableTags: [],
+        tagEditor: createTagEditorState(),
         serverFilterSearches: [],
         domainOptions: [],
         regionOptions: [],
@@ -605,6 +607,7 @@ const nodeTable = new DataTable({
             return `${days}天${hours % 24}小时`;
         },
 
+        ...createTagPickerMethods(),
         ...createNodeFormMethods(),
         ...createNodeDeployMethods(),
 

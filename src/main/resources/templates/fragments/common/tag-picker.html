@@ -1,0 +1,21 @@
+<div class="d-flex flex-wrap gap-2 align-items-center">
+    <span v-for="tag in availableTags" :key="tag.id"
+          class="d-inline-flex align-items-center rounded-pill border ps-2 pe-1 py-1 small user-select-none"
+          :class="{model}.tagIds && {model}.tagIds.includes(tag.id) ? 'border-primary bg-primary-lt text-primary fw-medium' : 'bg-transparent text-body'"
+          style="cursor: pointer;" @click="toggleTag({model}, tag.id)">
+        <span class="me-1 flex-shrink-0" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 8px; height: 8px; border-radius: 50%;"></span>
+        <span class="me-1">{{ tag.name }}</span>
+        <i v-if="{model}.tagIds && {model}.tagIds.includes(tag.id)" class="ti ti-check"></i>
+        <a href="#" class="text-secondary ms-1 px-1" title="编辑标签" @click.prevent.stop="startTagEdit(tag)"><i class="ti ti-pencil"></i></a>
+    </span>
+    <a href="#" class="badge bg-transparent text-primary border border-primary-subtle rounded-pill px-2 py-2" @click.prevent="startTagCreate"><i class="ti ti-plus me-1"></i>新标签</a>
+</div>
+<div v-if="tagEditor.visible" class="d-flex align-items-center gap-2 mt-2 p-2 border rounded">
+    <span class="text-secondary small text-nowrap">{{ tagEditor.id == null ? '新增标签' : '编辑标签' }}</span>
+    <div class="input-group input-group-sm flex-grow-1">
+        <input type="text" class="form-control" v-model="tagEditor.name" placeholder="标签名称" @keydown.enter.prevent="saveTagEditor({model})">
+        <input type="color" class="form-control form-control-color flex-grow-0 p-1" style="width: 40px;" v-model="tagEditor.color" title="标签颜色">
+    </div>
+    <button type="button" class="btn btn-sm btn-primary" :disabled="tagEditor.saving" @click="saveTagEditor({model})">保存</button>
+    <button type="button" class="btn btn-sm btn-link link-secondary px-1" @click="cancelTagEdit">取消</button>
+</div>

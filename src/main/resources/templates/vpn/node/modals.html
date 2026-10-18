@@ -180,17 +180,7 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">标签</label>
-                            <div class="row">
-                                <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
-                                    <label class="form-check">
-                                        <input type="checkbox" class="form-check-input" :value="tag.id" v-model="newItem.tagIds">
-                                        <span class="form-check-label d-flex align-items-center">
-                                            <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
-                                            {{ tag.name }}
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
+                            {#include fragments/common/tag-picker model='newItem' /}
                         </div>
                         <div class="mb-3">
                             <label class="form-check form-switch">
@@ -542,17 +532,7 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">标签</label>
-                            <div class="row">
-                                <div v-for="tag in availableTags" :key="tag.id" class="col-auto mb-2">
-                                    <label class="form-check">
-                                        <input type="checkbox" class="form-check-input" :value="tag.id" v-model="editedItem.tagIds">
-                                        <span class="form-check-label d-flex align-items-center">
-                                            <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
-                                            {{ tag.name }}
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
+                            {#include fragments/common/tag-picker model='editedItem' /}
                         </div>
                         <div class="mb-3">
                             <label class="form-check form-switch">

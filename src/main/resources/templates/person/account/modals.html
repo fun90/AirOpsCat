@@ -163,8 +163,6 @@
                             <small class="form-hint">跨所有节点同时在线的去重 IP 数，防共享主判据，留空表示不限制</small>
                         </div>
                     </div>
-                </div>
-                <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label">流量限制 (GB)</label>
@@ -211,17 +209,7 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">标签</label>
-                    <div class="row">
-                        <div v-for="tag in availableTags" :key="tag.id" class="col-6 col-md-auto mb-2">
-                            <label class="form-check">
-                                <input type="checkbox" class="form-check-input" :value="tag.id" v-model="newItem.tagIds">
-                                <span class="form-check-label d-flex align-items-center text-nowrap">
-                                    <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
-                                    <span class="text-truncate">{{ tag.name }}</span>
-                                </span>
-                            </label>
-                        </div>
-                    </div>
+                    {#include fragments/common/tag-picker model='newItem' /}
                 </div>
                 <div class="mb-3">
                     <label class="form-check form-switch">
@@ -320,8 +308,6 @@
                             <small class="form-hint">跨所有节点同时在线的不同 IP 数上限，用于防止账号共享；留空或 0 表示不限制</small>
                         </div>
                     </div>
-                </div>
-                <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label">流量限制 (GB)</label>
@@ -374,17 +360,7 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">标签</label>
-                    <div class="row">
-                        <div v-for="tag in availableTags" :key="tag.id" class="col-6 col-md-auto mb-2">
-                            <label class="form-check">
-                                <input type="checkbox" class="form-check-input" :value="tag.id" v-model="editedItem.tagIds">
-                                <span class="form-check-label d-flex align-items-center text-nowrap">
-                                    <span class="badge me-2" :style="{ backgroundColor: tag.color || '#6c757d' }" style="width: 12px; height: 12px; border-radius: 50%;"></span>
-                                    <span class="text-truncate">{{ tag.name }}</span>
-                                </span>
-                            </label>
-                        </div>
-                    </div>
+                    {#include fragments/common/tag-picker model='editedItem' /}
                 </div>
                 <div class="mb-3">
                     <label class="form-check form-switch">
