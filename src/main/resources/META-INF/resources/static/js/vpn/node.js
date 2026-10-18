@@ -96,6 +96,8 @@ const nodeTable = new DataTable({
         loadingDeploymentVersionDetail: false,
         restoringDeploymentVersion: false,
         selectedNodeIds: [],
+        detailModal: null,
+        detailNode: null,
         onlineConnectionsModal: null,
         onlineConnectionsNode: null,
         onlineConnections: [],
@@ -427,6 +429,14 @@ const nodeTable = new DataTable({
 
         getStatusBadgeClass(disabled) {
             return disabled === 0 ? 'bg-success-lt' : 'bg-danger-lt';
+        },
+
+        viewNodeDetail(node) {
+            this.detailNode = node;
+            if (!this.detailModal) {
+                this.detailModal = new Modal(document.getElementById('node-detailModal'));
+            }
+            this.detailModal.show();
         },
 
         viewNodeConfig(node) {

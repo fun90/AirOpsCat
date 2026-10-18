@@ -10,7 +10,6 @@
                     <i :class="getSortIcon('name')" :style="{ opacity: isSortActive('name') ? 1 : 0.45 }"></i>
                 </button>
             </th>
-            <th>部署服务器</th>
             <th class="d-none d-lg-table-cell">
                 <button type="button" class="btn btn-link p-0 text-decoration-none" @click="toggleSort('outbound')">
                     出站
@@ -18,6 +17,8 @@
                 </button>
             </th>
             <th>在线连接</th>
+            <th>部署服务器</th>
+            <th>部署位域名</th>
             <th>状态</th>
             <th class="w-1">操作</th>
         </tr>
@@ -33,9 +34,9 @@
                     <span class="badge flex-shrink-0" :class="getTypeBadgeClass(node.type)">
                         {{ (node.type == 1) ? 'L' : 'P' }}
                     </span>
-                    <div class="fw-medium text-truncate flex-grow-1" :title="node.name || '-'">
+                    <a href="#" class="fw-medium text-truncate flex-grow-1" :title="node.name || '-'" @click.prevent="viewNodeDetail(node)">
                         {{ node.name || '-' }}
-                    </div>
+                    </a>
                 </div>
                 <div class="text-secondary small d-flex align-items-center flex-wrap gap-2">
                     <span>#{{ node.id }}</span>
@@ -47,15 +48,6 @@
                 <div v-if="node.remark" class="text-secondary small text-break">
                     {{ node.remark }}
                 </div>
-            </div>
-        </td>
-        <td>
-            <div class="d-flex flex-wrap gap-1" style="max-width: 20rem;">
-                <span v-for="placement in node.placements" :key="placement.id"
-                      class="badge" :class="getPlacementBadgeClass(placement)" :title="getPlacementTitle(placement)">
-                    <i v-if="placement.exposed !== 0" class="ti ti-eye me-1"></i>{{ placement.serverName || placement.serverIp || placement.serverId }}<template v-if="placement.deployed !== 1"> · {{ getDeploymentStatusLabel(placement.deployed) }}</template>
-                </span>
-                <span v-if="!node.placements || node.placements.length === 0" class="text-secondary">-</span>
             </div>
         </td>
         <td class="d-none d-lg-table-cell">
@@ -72,6 +64,24 @@
                 </button>
             </div>
             <span v-else class="text-secondary">-</span>
+        </td>
+        <td>
+            <div class="d-flex flex-wrap gap-1" style="max-width: 20rem;">
+                <span v-for="placement in node.placements" :key="placement.id"
+                      class="badge" :class="getPlacementBadgeClass(placement)" :title="getPlacementTitle(placement)">
+                    <i v-if="placement.exposed !== 0" class="ti ti-eye me-1"></i>{{ placement.serverName || placement.serverIp || placement.serverId }}<template v-if="placement.deployed !== 1"> · {{ getDeploymentStatusLabel(placement.deployed) }}</template>
+                </span>
+                <span v-if="!node.placements || node.placements.length === 0" class="text-secondary">-</span>
+            </div>
+        </td>
+        <td>
+            <div class="d-flex flex-column gap-1">
+                <div v-for="placement in node.placements" :key="placement.id" class="text-break">
+                    <span v-if="placement.accessHost" :title="placement.accessHostStatus && placement.accessHostStatus !== 'SYNCED' ? '域名未同步，订阅仍使用服务器 IP' : ''">{{ placement.accessHost }}</span>
+                    <span v-else class="text-secondary">-</span>
+                </div>
+                <span v-if="!node.placements || node.placements.length === 0" class="text-secondary">-</span>
+            </div>
         </td>
         <td>
             <div class="d-flex flex-column gap-2">
@@ -144,14 +154,14 @@
         </td>
     </tr>
     <tr v-if="loading">
-        <td colspan="7" class="text-center py-5">
+        <td colspan="8" class="text-center py-5">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </td>
     </tr>
     <tr v-else-if="records.length === 0">
-        <td colspan="7" class="text-center py-5">
+        <td colspan="8" class="text-center py-5">
             <div class="text-secondary">没有查到数据。</div>
         </td>
     </tr>

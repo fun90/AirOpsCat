@@ -651,6 +651,51 @@
     </div>
 </div>
 
+<!-- Node Detail Modal -->
+<div class="modal modal-blur fade" id="node-detailModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">节点详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" v-if="detailNode">
+                <div class="datagrid">
+                    <div class="datagrid-item"><div class="datagrid-title">名称</div><div class="datagrid-content">{{ detailNode.name || '-' }} <span class="text-secondary">#{{ detailNode.id }}</span></div></div>
+                    <div class="datagrid-item"><div class="datagrid-title">类型</div><div class="datagrid-content">{{ detailNode.typeDescription || (detailNode.type == 1 ? '落地节点' : '代理节点') }}</div></div>
+                    <div class="datagrid-item"><div class="datagrid-title">协议 / 端口</div><div class="datagrid-content">{{ detailNode.protocol || '-' }} / {{ detailNode.port || '-' }}</div></div>
+                    <div class="datagrid-item"><div class="datagrid-title">地区</div><div class="datagrid-content">{{ detailNode.region || '-' }}</div></div>
+                    <div class="datagrid-item"><div class="datagrid-title">出站</div><div class="datagrid-content">{{ detailNode.outName || '直连' }}<template v-if="detailNode.outServerHost"> ({{ detailNode.outServerHost }}:{{ detailNode.outPort }})</template></div></div>
+                    <div class="datagrid-item"><div class="datagrid-title">状态</div><div class="datagrid-content">{{ detailNode.disabled === 0 ? '已启用' : '已禁用' }} · {{ getDeploymentStatusLabel(detailNode.deployed) }}</div></div>
+                    <div class="datagrid-item"><div class="datagrid-title">在线连接</div><div class="datagrid-content">{{ detailNode.onlineConnectionCount || 0 }}</div></div>
+                    <div class="datagrid-item"><div class="datagrid-title">标签</div><div class="datagrid-content"><span v-for="tag in detailNode.tags" :key="tag.id" class="badge text-bg-secondary-lt me-1">{{ tag.name }}</span><span v-if="!detailNode.tags || detailNode.tags.length === 0">-</span></div></div>
+                    <div class="datagrid-item"><div class="datagrid-title">创建时间</div><div class="datagrid-content">{{ detailNode.createTime || '-' }}</div></div>
+                    <div class="datagrid-item"><div class="datagrid-title">更新时间</div><div class="datagrid-content">{{ detailNode.updateTime || '-' }}</div></div>
+                    <div class="datagrid-item" v-if="detailNode.remark"><div class="datagrid-title">备注</div><div class="datagrid-content text-break">{{ detailNode.remark }}</div></div>
+                </div>
+                <h4 class="mt-4">部署位</h4>
+                <div class="table-responsive">
+                    <table class="table table-vcenter">
+                        <thead><tr><th>服务器</th><th>IP</th><th>域名</th><th>状态</th></tr></thead>
+                        <tbody>
+                            <tr v-for="placement in detailNode.placements" :key="placement.id">
+                                <td>{{ placement.serverName || placement.serverId }}</td>
+                                <td>{{ placement.serverIp || '-' }}</td>
+                                <td class="text-break">{{ placement.accessHost || '-' }}</td>
+                                <td>{{ getDeploymentStatusLabel(placement.deployed) }}</td>
+                            </tr>
+                            <tr v-if="!detailNode.placements || detailNode.placements.length === 0"><td colspan="4" class="text-secondary text-center">-</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- View Config Modal -->
 <div class="modal modal-blur fade" id="viewConfigModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
