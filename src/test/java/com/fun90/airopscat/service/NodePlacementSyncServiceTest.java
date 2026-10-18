@@ -50,6 +50,8 @@ class NodePlacementSyncServiceTest {
         assertTrue(NodePlacementSyncService.matches(node, server(1L, "美国", NodeType.PROXY, 0, 0)));
         assertTrue(NodePlacementSyncService.matches(node, server(2L, "美国", NodeType.LANDING, 0, 0)));
         assertFalse(NodePlacementSyncService.matches(node, server(3L, "日本", NodeType.LANDING, 0, 0)));
+        // 外部落地服务器不由系统部署，但仍是落地节点的有效承载
+        assertTrue(NodePlacementSyncService.matches(node, server(4L, "美国", NodeType.LANDING, 0, 1)));
     }
 
     @Test

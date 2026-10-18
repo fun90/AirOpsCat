@@ -102,18 +102,27 @@ public class NodeDeploymentService {
     private List<DeploymentResult> processPlacementsByServer(List<NodeServer> placements) {
         DeploymentPreload preload = dataLoader.load(placements);
         ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-        List<DeploymentServerContext> serverContexts = preload.serverContexts().values().stream()
+        List<DeploymentServerContext> activeContexts = preload.serverContexts().values().stream()
                 .filter(ctx -> !ctx.placements().isEmpty())
+                .toList();
+        List<DeploymentServerContext> serverContexts = activeContexts.stream()
                 .filter(ctx -> ctx.server().getDisabled() != 1)
                 .toList();
+        // 已禁用的服务器不会被部署，需明确告知，否则调用方会误认为"无需部署"
+        List<DeploymentResult> skipped = activeContexts.stream()
+                .filter(ctx -> ctx.server().getDisabled() == 1)
+                .flatMap(ctx -> ctx.placements().stream().map(placement -> new DeploymentResult(
+                        placement.getNodeId(), ctx.server().getId(), false,
+                        "服务器 " + ctx.server().getName() + " 已禁用，已跳过部署")))
+                .toList();
         if (serverContexts.isEmpty()) {
-            return Collections.emptyList();
+            return skipped;
         }
 
         int maxParallelServers = getMaxParallelServers();
         int batchCount = calculateBatchCount(serverContexts.size(), maxParallelServers);
 
-        List<DeploymentResult> results = new ArrayList<>();
+        List<DeploymentResult> results = new ArrayList<>(skipped);
         for (int startIndex = 0; startIndex < serverContexts.size(); startIndex += maxParallelServers) {
             int endIndex = Math.min(startIndex + maxParallelServers, serverContexts.size());
             List<DeploymentServerContext> batch = serverContexts.subList(startIndex, endIndex);

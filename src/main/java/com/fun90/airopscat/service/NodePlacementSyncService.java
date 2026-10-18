@@ -45,7 +45,7 @@ public class NodePlacementSyncService {
 
     /**
      * 服务器能否承载该节点，不含“是否禁用”：禁用的服务器保留已有部署位，只是不再新生成。
-     * 代理节点只用代理服务器；落地节点用落地服务器和代理服务器（代理服务器可兼作落地）。
+     * 代理节点只用非外部的代理服务器；落地节点用落地服务器（含外部）和代理服务器（代理服务器可兼作落地）。
      */
     public static boolean matches(Node node, Server server) {
         if (node.getRegion() == null || node.getRegion().isBlank() || server.getRegion() == null) {
@@ -54,10 +54,11 @@ public class NodePlacementSyncService {
         if (!node.getRegion().trim().equals(server.getRegion().trim())) {
             return false;
         }
-        if (Objects.equals(server.getExternal(), 1)) {
+        boolean proxyNode = !Objects.equals(node.getType(), NodeType.LANDING.getValue());
+        // 外部服务器不由本系统部署，只能承载落地节点（其配置在服务器外维护）
+        if (proxyNode && Objects.equals(server.getExternal(), 1)) {
             return false;
         }
-        boolean proxyNode = !Objects.equals(node.getType(), NodeType.LANDING.getValue());
         boolean proxyServer = !Objects.equals(server.getServerType(), NodeType.LANDING.getValue());
         return !proxyNode || proxyServer;
     }

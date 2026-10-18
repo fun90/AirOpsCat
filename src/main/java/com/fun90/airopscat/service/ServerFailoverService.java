@@ -5,7 +5,6 @@ import com.fun90.airopscat.model.entity.DomainDnsRecord;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
-import com.fun90.airopscat.model.entity.ServerTrafficStats;
 import com.fun90.airopscat.model.entity.SystemLog;
 import com.fun90.airopscat.model.enums.DnsRecordStatus;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
@@ -15,7 +14,6 @@ import com.fun90.airopscat.repository.AccountNodeSubscriptionDomainBindingReposi
 import com.fun90.airopscat.repository.DomainDnsRecordRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.NodeServerRepository;
-import com.fun90.airopscat.repository.ServerTrafficStatsRepository;
 import com.fun90.airopscat.service.expiration.ServerTrafficThresholdNotifier;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -62,7 +60,7 @@ public class ServerFailoverService {
     DomainDnsPushService domainDnsPushService;
 
     @Inject
-    ServerTrafficStatsRepository serverTrafficStatsRepository;
+    ServerMonitorStatsService serverMonitorStatsService;
 
     @Inject
     SystemLogService systemLogService;
@@ -287,24 +285,21 @@ public class ServerFailoverService {
                 .findFirst().orElse(null);
     }
 
-    /** 当期上下行之和 / 套餐流量；未设置套餐流量视为不限量，使用率为 0 */
-    static double usageRatio(Server server, ServerTrafficStats stats) {
-        if (server == null || server.getBandwidth() == null || server.getBandwidth() <= 0 || stats == null) {
+    /** vnstat 当月网卡总流量 / 套餐流量（与流量告警同一口径）；未设置套餐流量视为不限量，使用率为 0 */
+    static double usageRatio(Server server, long usedBytes) {
+        if (server == null || server.getBandwidth() == null || server.getBandwidth() <= 0) {
             return 0;
         }
-        long used = stats.getUploadBytes() + stats.getDownloadBytes();
-        return used / (double) (server.getBandwidth().longValue() * BYTES_PER_GB);
+        return usedBytes / (double) (server.getBandwidth().longValue() * BYTES_PER_GB);
     }
 
     private Map<Long, Double> loadUsage(List<NodeServer> candidates) {
-        List<Long> serverIds = candidates.stream().map(NodeServer::getServerId).distinct().toList();
-        Map<Long, ServerTrafficStats> statsByServerId = new HashMap<>();
-        serverTrafficStatsRepository.findByServerIdsAndCurrentTime(serverIds, LocalDateTime.now())
-                .forEach(stats -> statsByServerId.put(stats.getServerId(), stats));
+        LocalDateTime now = LocalDateTime.now();
         Map<Long, Double> usage = new HashMap<>();
         for (NodeServer placement : candidates) {
-            usage.put(placement.getServerId(),
-                    usageRatio(placement.getServer(), statsByServerId.get(placement.getServerId())));
+            Server server = placement.getServer();
+            usage.put(placement.getServerId(), server == null ? 0.0
+                    : usageRatio(server, serverMonitorStatsService.getCurrentPeriodTotalTrafficBytes(server, now)));
         }
         return usage;
     }

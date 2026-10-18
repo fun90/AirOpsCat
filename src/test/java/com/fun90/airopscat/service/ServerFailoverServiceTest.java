@@ -5,14 +5,12 @@ import com.fun90.airopscat.model.entity.DomainDnsRecord;
 import com.fun90.airopscat.model.entity.Node;
 import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
-import com.fun90.airopscat.model.entity.ServerTrafficStats;
 import com.fun90.airopscat.model.enums.DnsRecordStatus;
 import com.fun90.airopscat.model.enums.NodeDeploymentStatus;
 import com.fun90.airopscat.repository.AccountNodeSubscriptionDomainBindingRepository;
 import com.fun90.airopscat.repository.DomainDnsRecordRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.NodeServerRepository;
-import com.fun90.airopscat.repository.ServerTrafficStatsRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -58,23 +56,15 @@ class ServerFailoverServiceTest {
     }
 
     @Test
-    void usageIsZeroWithoutBandwidthOrStats() {
-        Server server = new Server();
-        ServerTrafficStats stats = new ServerTrafficStats();
-        stats.setUploadBytes(1L << 40);
-        assertEquals(0, ServerFailoverService.usageRatio(server, stats));
-        server.setBandwidth(100);
-        assertEquals(0, ServerFailoverService.usageRatio(server, null));
+    void usageIsZeroWithoutBandwidth() {
+        assertEquals(0, ServerFailoverService.usageRatio(new Server(), 1L << 40));
     }
 
     @Test
-    void usageIsUploadPlusDownloadOverBandwidth() {
+    void usageIsUsedBytesOverBandwidth() {
         Server server = new Server();
         server.setBandwidth(100);
-        ServerTrafficStats stats = new ServerTrafficStats();
-        stats.setUploadBytes(20L << 30);
-        stats.setDownloadBytes(30L << 30);
-        assertEquals(0.5, ServerFailoverService.usageRatio(server, stats), 1e-9);
+        assertEquals(0.5, ServerFailoverService.usageRatio(server, 50L << 30), 1e-9);
     }
 
     // 场景：节点 1 部署在服务器 10（归属，优先级 0）和 20（备用）；记录 100 是服务器 10 上部署位的域名
@@ -203,10 +193,10 @@ class ServerFailoverServiceTest {
             }
         };
         service.domainDnsRecordRepository = records(content, homeContent, DnsRecordStatus.SYNCED);
-        service.serverTrafficStatsRepository = new ServerTrafficStatsRepository() {
+        service.serverMonitorStatsService = new ServerMonitorStatsService() {
             @Override
-            public List<ServerTrafficStats> findByServerIdsAndCurrentTime(List<Long> serverIds, LocalDateTime currentTime) {
-                return List.of(stats(10L, homeUsage), stats(20L, altUsage));
+            public long getCurrentPeriodTotalTrafficBytes(Server server, LocalDateTime sampleTime) {
+                return bytes(server.getId() == 10L ? homeUsage : altUsage);
             }
         };
         return service;
@@ -231,12 +221,8 @@ class ServerFailoverServiceTest {
     }
 
     // 套餐 100GB，按使用率折算当期流量
-    private static ServerTrafficStats stats(Long serverId, double usage) {
-        ServerTrafficStats stats = new ServerTrafficStats();
-        stats.setServerId(serverId);
-        stats.setUploadBytes((long) (usage * 100 * (1L << 30)));
-        stats.setDownloadBytes(0L);
-        return stats;
+    private static long bytes(double usage) {
+        return (long) (usage * 100 * (1L << 30));
     }
 
     private static NodeServer placement(Long id, Long serverId, String ip, int priority) {
