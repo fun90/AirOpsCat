@@ -401,6 +401,20 @@ public class ProgrammaticTaskManager {
                 Scheduled.ConcurrentExecution.SKIP,
                 coreConfigCleanupTask::cleanupOldCoreConfigBackupFiles
         ));
+        definitions.put("node-online-account-stats-cleanup", task(
+                "node-online-account-stats-cleanup",
+                "node-online-account-stats-cleanup",
+                "节点在线日报清理",
+                "按保留天数清理过期节点在线账户日报。",
+                "scheduled",
+                "定时任务",
+                105,
+                SCHEDULE_TYPE_CRON,
+                "airopscat.node.online-account.stats.cleanup.cron",
+                0L,
+                Scheduled.ConcurrentExecution.SKIP,
+                nodeOnlineAccountStatsTask::cleanupExpiredStats
+        ));
         definitions.put("node-deployment-history-cleanup", task(
                 "node-deployment-history-cleanup",
                 "node-deployment-history-cleanup",

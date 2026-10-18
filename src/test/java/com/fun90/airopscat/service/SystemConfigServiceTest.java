@@ -33,6 +33,16 @@ class SystemConfigServiceTest {
         assertEquals(30, ttlSeconds);
     }
 
+    @Test
+    void shouldProvideHistoryRetentionDefaults() {
+        SystemConfigService service = new SystemConfigService(new EmptySystemConfigRepository(), null, new EmptyConfig());
+
+        assertEquals(15, service.getIntValue("airopscat.request-log.retention-days", 30));
+        assertEquals(90, service.getIntValue("airopscat.node.online-account.stats.retention-days", 0));
+        assertEquals(1000, service.getIntValue("airopscat.node.online-account.stats.cleanup.batch-size", 0));
+        assertEquals("0 10 3 * * ?", service.getResolvedValue("airopscat.node.online-account.stats.cleanup.cron"));
+    }
+
     static class EmptySystemConfigRepository extends SystemConfigRepository {
         @Override
         public Optional<SystemConfig> findOptionalByConfigKey(String configKey) {

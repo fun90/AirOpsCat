@@ -50,6 +50,24 @@ public class NodeOnlineAccountStatsService {
     SystemConfigService systemConfigService;
 
     @Transactional
+    public long cleanupExpiredStats() {
+        int retentionDays = Math.max(1,
+                systemConfigService.getIntValue("airopscat.node.online-account.stats.retention-days", 90));
+        int batchSize = Math.max(1,
+                systemConfigService.getIntValue("airopscat.node.online-account.stats.cleanup.batch-size", 1000));
+        LocalDate cutoffDate = LocalDate.now().minusDays(retentionDays - 1L);
+        long totalDeleted = 0L;
+        while (true) {
+            int deleted = dailyStatsRepository.deleteByStatDateBeforeBatch(cutoffDate, batchSize);
+            totalDeleted += deleted;
+            if (deleted < batchSize) break;
+        }
+        log.info("节点在线账户日报清理完成，保留天数: {}, 截止日期: {}, 删除总数: {}",
+                retentionDays, cutoffDate, totalDeleted);
+        return totalDeleted;
+    }
+
+    @Transactional
     public int sampleToday() {
         LocalDateTime now = LocalDateTime.now();
         LocalDate statDate = now.toLocalDate();

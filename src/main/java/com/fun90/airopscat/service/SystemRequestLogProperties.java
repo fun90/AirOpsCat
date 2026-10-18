@@ -31,7 +31,7 @@ public class SystemRequestLogProperties {
     }
 
     public int getRetentionDays() {
-        return Math.max(1, systemConfigService.getIntValue(RETENTION_DAYS_KEY, 30));
+        return Math.max(1, systemConfigService.getIntValue(RETENTION_DAYS_KEY, 15));
     }
 
     public boolean matches(String path) {
