@@ -445,7 +445,7 @@ export function createNodeFormMethods() {
                     accessHostId: /^\d+$/.test(placement.domainChoice || '') ? Number(placement.domainChoice) : null,
                     newDomainId: isNew ? Number(placement.newDomainId) : null,
                     newSubdomain: isNew ? placement.newSubdomain.trim() : null,
-                    exposed: placement.exposed ? 1 : 0,
+                    exposed: item.type !== 1 && placement.exposed ? 1 : 0,
                     priority: Number(placement.priority) || 0,
                     cheapStart: placement.cheapStart || null,
                     cheapEnd: placement.cheapEnd || null

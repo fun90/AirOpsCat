@@ -119,7 +119,8 @@ public class NodePlacementSyncService {
             NodeServer placement = new NodeServer();
             placement.setNodeId(node.getId());
             placement.setServerId(server.getId());
-            placement.setExposed(1);
+            // 落地节点是代理节点的出站，默认不进订阅
+            placement.setExposed(Objects.equals(node.getType(), NodeType.LANDING.getValue()) ? 0 : 1);
             placement.setPriority(++nextPriority);
             placement.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
             nodeServerRepository.persist(placement);

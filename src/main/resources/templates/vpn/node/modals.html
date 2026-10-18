@@ -143,7 +143,7 @@
                                             <label class="d-flex align-items-center gap-2 m-0 text-nowrap" style="min-width: 2.5rem;" title="订阅：开启后该部署位出现在订阅中">
                                                 <span class="d-md-none small text-secondary">订阅</span>
                                                 <span class="form-check form-switch m-0 d-flex">
-                                                    <input class="form-check-input" type="checkbox" v-model="placement.exposed">
+                                                    <input class="form-check-input" type="checkbox" :checked="newItem.type !== 1 && placement.exposed" :disabled="newItem.type === 1" @change="placement.exposed = $event.target.checked">
                                                 </span>
                                             </label>
                                             <div class="dropdown flex-fill flex-md-grow-0">
@@ -505,7 +505,7 @@
                                             <label class="d-flex align-items-center gap-2 m-0 text-nowrap" style="min-width: 2.5rem;" title="订阅：开启后该部署位出现在订阅中">
                                                 <span class="d-md-none small text-secondary">订阅</span>
                                                 <span class="form-check form-switch m-0 d-flex">
-                                                    <input class="form-check-input" type="checkbox" v-model="placement.exposed">
+                                                    <input class="form-check-input" type="checkbox" :checked="editedItem.type !== 1 && placement.exposed" :disabled="editedItem.type === 1" @change="placement.exposed = $event.target.checked">
                                                 </span>
                                             </label>
                                             <div class="dropdown flex-fill flex-md-grow-0">

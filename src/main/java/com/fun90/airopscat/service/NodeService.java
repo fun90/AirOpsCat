@@ -449,7 +449,8 @@ public class NodeService {
                 placement.setPriority(request.getPriority());
             }
             if (request.getExposed() != null) {
-                placement.setExposed(request.getExposed() == 0 ? 0 : 1);
+                // 落地节点不进订阅，禁止启用
+                placement.setExposed(request.getExposed() == 0 || Objects.equals(node.getType(), NodeType.LANDING.getValue()) ? 0 : 1);
             }
             applyCheapWindow(placement, request);
             applyPlacementDomain(placement, request);
