@@ -76,6 +76,7 @@ export function createNodeFormMethods() {
                 this.editedItem.outId = 0;
             }
             this.syncProtocolSelection(this.editedItem, true);
+            this.refreshPlacementPreview(true);
         },
 
         onEditCoreTypeChange() {
@@ -133,13 +134,13 @@ export function createNodeFormMethods() {
             return server ? this.formatServerDisplayLabel(server) : String(serverId || '');
         },
 
-        // 新建节点：按地区和类型预览会自动关联的服务器，保留已填写的域名、暴露和优先级
-        refreshPlacementPreview() {
-            const item = this.newItem;
+        // 按地区和类型预览会自动关联的服务器，保留已有部署位的域名、暴露和优先级
+        refreshPlacementPreview(isEdit = false) {
+            const item = isEdit ? this.editedItem : this.newItem;
             const region = (item.region || '').trim();
             if (!region) {
                 item.placements = [];
-                this.schedulePlacementPortCheck(false);
+                this.schedulePlacementPortCheck(isEdit);
                 return;
             }
             fetch(`/api/admin/nodes/matching-servers?region=${encodeURIComponent(region)}&type=${encodeURIComponent(item.type ?? 0)}`)
@@ -156,8 +157,8 @@ export function createNodeFormMethods() {
                         }
                         return placement;
                     });
-                    this.schedulePlacementPortCheck(false);
-                    this.onPrimaryPlacementChanged(item, false);
+                    this.schedulePlacementPortCheck(isEdit);
+                    this.onPrimaryPlacementChanged(item, isEdit);
                 })
                 .catch(error => console.error('Error fetching matching servers:', error));
         },
@@ -165,6 +166,11 @@ export function createNodeFormMethods() {
         onNewRegionChange() {
             clearTimeout(this.placementPreviewTimer);
             this.placementPreviewTimer = setTimeout(() => this.refreshPlacementPreview(), 300);
+        },
+
+        onEditRegionChange() {
+            clearTimeout(this.editPlacementPreviewTimer);
+            this.editPlacementPreviewTimer = setTimeout(() => this.refreshPlacementPreview(true), 300);
         },
 
         onPlacementDomainInput(item, placement, isEdit = false) {

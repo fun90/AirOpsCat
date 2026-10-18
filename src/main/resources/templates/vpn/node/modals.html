@@ -444,7 +444,7 @@
                                               data-bs-html="true"
                                               data-bs-content="<p>部署服务器按地区和类型自动关联：代理节点关联同地区的代理服务器；落地节点关联同地区的落地和代理服务器。</p>">?</span>
                                     </label>
-                                    <input type="text" class="form-control" list="node-region-options" placeholder="例如：美国" :class="{ 'is-invalid': validationErrors.region }" v-model="editedItem.region">
+                                    <input type="text" class="form-control" list="node-region-options" placeholder="例如：美国" :class="{ 'is-invalid': validationErrors.region }" v-model="editedItem.region" @input="onEditRegionChange">
                                     <div class="invalid-feedback" v-if="validationErrors.region">{{ validationErrors.region }}</div>
                                     <small class="form-hint" v-if="editedItem.id">修改地区后，保存时会重新匹配部署服务器。</small>
                                 </div>
