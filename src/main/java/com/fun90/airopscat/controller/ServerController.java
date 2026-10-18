@@ -137,12 +137,12 @@ public class ServerController {
 
     @GET
     @Path("/{id}/available-domains")
-    public Response getAvailableDomains(@PathParam("id") Long id) {
+    public Response getAvailableDomains(@PathParam("id") Long id, @QueryParam("placementId") Long placementId) {
         com.fun90.airopscat.model.entity.Server server = serverService.getServerById(id);
         if (server == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        return Response.ok(serverDomainService.getAvailableRecords(server)).build();
+        return Response.ok(serverDomainService.getAvailableRecords(server, placementId)).build();
     }
 
     @GET

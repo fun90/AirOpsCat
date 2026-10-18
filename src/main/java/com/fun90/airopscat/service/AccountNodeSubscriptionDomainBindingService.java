@@ -137,11 +137,13 @@ public class AccountNodeSubscriptionDomainBindingService {
         }
         if (Objects.equals(recordId, binding.getDomainDnsRecordId())) {
             DomainDnsRecord current = domainDnsRecordRepository.findById(recordId);
-            if (current != null && Objects.equals(current.getServerId(), server.getId())) {
+            if (current != null && Objects.equals(current.getServerId(), server.getId())
+                    && Objects.equals(binding.getNodeId(), request.getNodeId())
+                    && binding.getNodeServerIds().equals(Set.of(request.getNodeServerId()))) {
                 return recordId;
             }
         }
-        return serverDomainService.bindExisting(recordId, server, null, binding.getId()).getId();
+        return serverDomainService.bindExisting(recordId, server, request.getNodeServerId(), binding.getId()).getId();
     }
 
     @Transactional

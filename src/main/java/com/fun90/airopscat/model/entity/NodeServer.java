@@ -31,7 +31,7 @@ public class NodeServer {
     @Column(name = "server_id", nullable = false)
     private Long serverId;
 
-    // 部署位域名：domain_dns_record.id，订阅 host 优先取它，一条记录只能被一个部署位或账户订阅定制引用
+    // 部署位域名：domain_dns_record.id，订阅 host 优先取它，可与选择本部署位的账户订阅定制共用
     @Column(name = "access_host_id")
     private Long accessHostId;
 

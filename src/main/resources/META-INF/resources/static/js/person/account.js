@@ -552,7 +552,7 @@ const accountTable = new DataTable({
                 domainChoice: binding.domainDnsRecordId ? String(binding.domainDnsRecordId) : '',
                 newDomainText: '',
                 domainDnsRecordId: binding.domainDnsRecordId || null,
-                originalServerId: ((binding.nodePlacements || []).find(item => item.id === binding.nodeServerId) || {}).serverId ?? null,
+                originalPlacementId: binding.nodeServerId || null,
                 fullName: binding.fullName || '',
                 newDomainId: '',
                 newSubdomain: '',
@@ -574,7 +574,7 @@ const accountTable = new DataTable({
                 domainChoice: '',
                 newDomainText: '',
                 domainDnsRecordId: null,
-                originalServerId: null,
+                originalPlacementId: null,
                 fullName: '',
                 newDomainId: '',
                 newSubdomain: '',
@@ -746,7 +746,7 @@ const accountTable = new DataTable({
                 return;
             }
             if (form.domainDnsRecordId && String(form.domainChoice) === String(form.domainDnsRecordId)
-                && form.originalServerId === placement.serverId) {
+                && String(form.originalPlacementId) === String(placement.id)) {
                 return;
             }
             form.domainText = '';
@@ -770,13 +770,13 @@ const accountTable = new DataTable({
             if (!placement) {
                 return;
             }
-            fetch(`/api/admin/servers/${encodeURIComponent(placement.serverId)}/available-domains`)
+            fetch(`/api/admin/servers/${encodeURIComponent(placement.serverId)}/available-domains?placementId=${encodeURIComponent(placement.id)}`)
                 .then(response => response.ok ? response.json() : [])
                 .then(records => {
-                    // 编辑时保留当前域名；它已被自己引用，不在可选列表中
+                    // 编辑时保留历史域名；存量跨部署位共用的记录可能被列表过滤
                     const list = records.slice();
                     if (form.domainDnsRecordId && !list.some(record => record.id === form.domainDnsRecordId)
-                        && form.originalServerId === placement.serverId) {
+                        && String(form.originalPlacementId) === String(placement.id)) {
                         list.unshift({ id: form.domainDnsRecordId, fullName: form.fullName || String(form.domainDnsRecordId) });
                     }
                     this.subscriptionDomainBindingForm.availableDomains = list;

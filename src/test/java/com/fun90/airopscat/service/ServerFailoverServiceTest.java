@@ -123,6 +123,43 @@ class ServerFailoverServiceTest {
         assertTrue(service.plan(THRESHOLD).switches().isEmpty());
     }
 
+    @Test
+    void plan_switchesSharedDomainOnceForPlacementAndAccountCustomizations() {
+        var service = service("1.1.1.1", null, 0.95, 0.1);
+        var binding = new AccountNodeSubscriptionDomainBinding();
+        binding.setNodeId(1L);
+        binding.setDomainDnsRecordId(100L);
+        binding.getNodeServerIds().add(1L);
+        service.bindingRepository = new AccountNodeSubscriptionDomainBindingRepository() {
+            @Override
+            public List<AccountNodeSubscriptionDomainBinding> list(String query, Object... params) {
+                return List.of(binding, binding);
+            }
+        };
+
+        var changes = service.plan(THRESHOLD).switches();
+
+        assertEquals(1, changes.size());
+        assertEquals("2.2.2.2", changes.getFirst().content());
+    }
+
+    @Test
+    void plan_skipsDomainSharedByDifferentHomeServers() {
+        var service = service("1.1.1.1", null, 0.95, 0.1);
+        var binding = new AccountNodeSubscriptionDomainBinding();
+        binding.setNodeId(1L);
+        binding.setDomainDnsRecordId(100L);
+        binding.getNodeServerIds().add(2L);
+        service.bindingRepository = new AccountNodeSubscriptionDomainBindingRepository() {
+            @Override
+            public List<AccountNodeSubscriptionDomainBinding> list(String query, Object... params) {
+                return List.of(binding);
+            }
+        };
+
+        assertTrue(service.plan(THRESHOLD).switches().isEmpty());
+    }
+
     private static ServerFailoverService service(String content, String homeContent, double homeUsage, double altUsage) {
         var service = new ServerFailoverService();
         var home = placement(1L, 10L, "1.1.1.1", 0);
@@ -136,6 +173,11 @@ class ServerFailoverServiceTest {
             @Override
             public List<NodeServer> list(String query, Object... params) {
                 return List.of(home);
+            }
+
+            @Override
+            public NodeServer findById(Long id) {
+                return List.of(home, alt).stream().filter(item -> item.getId().equals(id)).findFirst().orElse(null);
             }
 
             @Override

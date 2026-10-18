@@ -2,6 +2,7 @@ package com.fun90.airopscat.service;
 
 import com.fun90.airopscat.model.dto.DomainDnsRecordRequest;
 import com.fun90.airopscat.model.entity.DomainDnsRecord;
+import com.fun90.airopscat.model.entity.NodeServer;
 import com.fun90.airopscat.model.entity.Server;
 import com.fun90.airopscat.model.entity.ServerHost;
 import com.fun90.airopscat.model.enums.DnsRecordStatus;
@@ -23,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -61,11 +63,12 @@ public class ServerDomainService {
     /**
      * 选择已有的 DNS 记录并绑定到服务器。
      *
-     * @param excludePlacementId 当前部署位自身的引用不算占用
+     * @param placementId 目标部署位；其自身及选择该部署位的账户定制可共用域名
      * @param excludeBindingId 当前账户订阅定制自身的引用不算占用
      */
     @Transactional
-    public DomainDnsRecord bindExisting(Long recordId, Server server, Long excludePlacementId, Long excludeBindingId) {
+    public DomainDnsRecord bindExisting(Long recordId, Server server, Long placementId, Long excludeBindingId) {
+        NodeServer placement = requirePlacement(server, placementId);
         DomainDnsRecord record = domainDnsRecordRepository.findById(recordId);
         if (record == null) {
             throw new IllegalArgumentException("所选域名记录不存在");
@@ -80,10 +83,8 @@ public class ServerDomainService {
         if (Boolean.TRUE.equals(record.getScheduleEnabled())) {
             throw new IllegalArgumentException("域名 " + name + " 开启了时段计划，不能绑定到服务器");
         }
-        if (nodeServerRepository.existsByAccessHostIdAndIdNot(recordId, excludePlacementId)
-                || bindingRepository.count("domainDnsRecordId = ?1 and id <> ?2", recordId,
-                excludeBindingId == null ? -1L : excludeBindingId) > 0) {
-            throw new IllegalArgumentException("域名 " + name + " 已被其他部署位或账户订阅定制使用");
+        if (hasConflictingReferences(recordId, placement, excludeBindingId)) {
+            throw new IllegalArgumentException("域名 " + name + " 已被其他部署位或其账户订阅定制使用");
         }
         if (record.getServerId() == null && !java.util.Objects.equals(record.getContent(), server.getIp())) {
             throw new IllegalArgumentException("域名 " + name + " 当前解析到 " + record.getContent()
@@ -93,16 +94,16 @@ public class ServerDomainService {
         return record;
     }
 
-    /** 可选给该服务器部署位使用的已有 A 记录：已绑定本服务器，或未绑定且解析到本服务器 IP；排除已被引用的 */
-    public List<Map<String, Object>> getAvailableRecords(Server server) {
+    /** 可选给目标部署位使用的已有 A 记录，允许与选择同一部署位的账户定制共用。 */
+    public List<Map<String, Object>> getAvailableRecords(Server server, Long placementId) {
+        NodeServer placement = requirePlacement(server, placementId);
         List<DomainDnsRecord> candidates = domainDnsRecordRepository.list(
                 "upper(type) = 'A' and status <> ?1 and (scheduleEnabled is null or scheduleEnabled = false)"
                         + " and (serverId = ?2 or (serverId is null and content = ?3)) order by fullName",
                 DnsRecordStatus.PENDING_DELETE, server.getId(), server.getIp());
         List<Map<String, Object>> result = new ArrayList<>();
         for (DomainDnsRecord record : candidates) {
-            if (nodeServerRepository.existsByAccessHostIdAndIdNot(record.getId(), -1L)
-                    || bindingRepository.count("domainDnsRecordId", record.getId()) > 0) {
+            if (hasConflictingReferences(record.getId(), placement, null)) {
                 continue;
             }
             Map<String, Object> item = new LinkedHashMap<>();
@@ -111,6 +112,28 @@ public class ServerDomainService {
             result.add(item);
         }
         return result;
+    }
+
+    private NodeServer requirePlacement(Server server, Long placementId) {
+        if (placementId == null) {
+            return null;
+        }
+        NodeServer placement = nodeServerRepository.findById(placementId);
+        if (placement == null || !Objects.equals(placement.getServerId(), server.getId())) {
+            throw new IllegalArgumentException("部署位不存在或不属于该服务器");
+        }
+        return placement;
+    }
+
+    private boolean hasConflictingReferences(Long recordId, NodeServer placement, Long excludeBindingId) {
+        if (nodeServerRepository.existsByAccessHostIdAndIdNot(recordId, placement == null ? null : placement.getId())) {
+            return true;
+        }
+        return bindingRepository.list("domainDnsRecordId = ?1 and id <> ?2", recordId,
+                        excludeBindingId == null ? -1L : excludeBindingId).stream()
+                .anyMatch(binding -> placement == null
+                        || !Objects.equals(binding.getNodeId(), placement.getNodeId())
+                        || !binding.getNodeServerIds().equals(Set.of(placement.getId())));
     }
 
     /**

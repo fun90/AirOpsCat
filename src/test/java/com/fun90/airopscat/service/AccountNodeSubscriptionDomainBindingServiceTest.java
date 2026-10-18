@@ -108,6 +108,7 @@ class AccountNodeSubscriptionDomainBindingServiceTest {
 
         assertEquals(7L, original.getDomainDnsRecordId());
         assertEquals(List.of(7L), domains.bound);
+        assertEquals(List.of(21L), domains.boundPlacements);
         assertEquals(List.of(6L), domains.released);
     }
 
@@ -115,12 +116,25 @@ class AccountNodeSubscriptionDomainBindingServiceTest {
     void keepsRecordAlreadyBoundToSameServer() {
         var original = binding(10L, 1L, 2L);
         original.setDomainDnsRecordId(7L);
+        original.getNodeServerIds().add(21L);
         var domains = new DomainStub();
 
         service(new BindingRepository(original), domains).save(request(10L, 1L, 2L));
 
         assertEquals(List.of(), domains.bound);
         assertEquals(List.of(), domains.released);
+    }
+
+    @Test
+    void changingPlacementRevalidatesExistingDomainOnSameServer() {
+        var original = binding(10L, 1L, 2L);
+        original.setDomainDnsRecordId(7L);
+        original.getNodeServerIds().add(22L);
+        var domains = new DomainStub();
+
+        service(new BindingRepository(original), domains).save(request(10L, 1L, 2L));
+
+        assertEquals(List.of(21L), domains.boundPlacements);
     }
 
     @Test
@@ -160,14 +174,16 @@ class AccountNodeSubscriptionDomainBindingServiceTest {
     // 记录对 ServerDomainService 的调用；用匿名子类，避免被 Quarkus 当作第二个 bean
     private static class DomainStub {
         final List<Long> bound = new ArrayList<>();
+        final List<Long> boundPlacements = new ArrayList<>();
         final List<Long> released = new ArrayList<>();
         final List<String> created = new ArrayList<>();
 
         ServerDomainService service() {
             return new ServerDomainService() {
                 @Override
-                public DomainDnsRecord bindExisting(Long recordId, Server server, Long excludePlacementId, Long excludeBindingId) {
+                public DomainDnsRecord bindExisting(Long recordId, Server server, Long placementId, Long excludeBindingId) {
                     bound.add(recordId);
+                    boundPlacements.add(placementId);
                     DomainDnsRecord record = new DomainDnsRecord();
                     record.setId(recordId);
                     return record;

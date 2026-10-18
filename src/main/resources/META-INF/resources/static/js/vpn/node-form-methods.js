@@ -101,9 +101,10 @@ export function createNodeFormMethods() {
             };
         },
 
-        // 部署位的可选域名：服务器上未被引用的 A 记录；编辑时保留自身当前域名
+        // 部署位的可选域名：允许与选择该部署位的账户定制共用
         loadPlacementDomains(placement) {
-            fetch(`/api/admin/servers/${encodeURIComponent(placement.serverId)}/available-domains`)
+            const query = placement.id ? `?placementId=${encodeURIComponent(placement.id)}` : '';
+            fetch(`/api/admin/servers/${encodeURIComponent(placement.serverId)}/available-domains${query}`)
                 .then(response => response.ok ? response.json() : [])
                 .then(records => {
                     const list = records.slice();
