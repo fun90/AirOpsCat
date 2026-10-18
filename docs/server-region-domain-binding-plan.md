@@ -107,7 +107,7 @@
 - 目标是同一节点的其他部署位，所以目标服务器上一定已部署该节点；`exposed` 不限，备用的 `exposed=0` 部署位也可作目标。
 - 只处理 A 记录；记录当前内容不等于 N 任一部署位的服务器 IP 时跳过并记 WARN，避免覆盖无关数据。
 - N 的所有部署位都超阈值：记录保持不变，仅首次告警一次。
-- 未同步（无 `externalRecordId`）、有待推送创建 / 删除、开了时段计划的记录跳过。
+- 未同步（无 `externalRecordId`）、有待推送创建 / 删除的记录跳过。开了时段计划的记录不走本流程，由时段任务写入：`ServerFailoverService.resolveScheduled` 对本时段 IP 做同样的阈值替换。时段内、外 IP 须同属唯一一个节点的已部署服务器，否则不做流量判断；全部候选超阈值时保持时段 IP 并告警一次。
 - 推送沿用 `DomainDnsPushService.pushRecordContent`（单条 PATCH 并置 `SYNCED`），不能用整域 push + pull（`DomainDnsPullService.pull` 会用远端覆盖所有本地记录）。
 - 落地节点的部署位不参与（出站地址仍取生效部署位）。
 - 记录的 `server_id` 始终是归属服务器 S，切换只改记录内容，不改绑定。

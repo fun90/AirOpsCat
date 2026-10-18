@@ -74,6 +74,8 @@ public class ServerFailoverService {
     // 全部候选超阈值的告警、跳过原因的警告各只发一次，直到条件消失；重启后重置，可接受
     private final Set<Long> exhaustedAlerted = ConcurrentHashMap.newKeySet();
     private final Set<String> skipWarned = ConcurrentHashMap.newKeySet();
+    // 时段计划记录的“全部候选超阈值”告警，与 plan() 的 exhaustedAlerted 分开，避免被其每轮 retainAll 清掉
+    private final Set<Long> scheduleExhaustedAlerted = ConcurrentHashMap.newKeySet();
     // 采集任务重叠时后一轮直接跳过，避免对同一记录重复推送
     private final ReentrantLock running = new ReentrantLock();
 
@@ -112,6 +114,71 @@ public class ServerFailoverService {
         } finally {
             running.unlock();
         }
+    }
+
+    /**
+     * 时段计划记录由时段任务唯一写入：want（本时段应解析的 IP）所属服务器流量超阈值时，换成同节点第一个未超阈值的候选。
+     * 时段内、外两个 IP 必须同属唯一一个节点的已部署服务器，否则无法判断归属，原样返回 want；全部候选超阈值也返回 want 并告警一次。
+     */
+    public String resolveScheduled(DomainDnsRecord record, String want) {
+        List<NodeServer> candidates = scheduleCandidates(record);
+        if (candidates == null) {
+            return want;
+        }
+        NodeServer home = findByIp(candidates, want);
+        Node node = nodeRepository.findById(candidates.getFirst().getNodeId());
+        if (home == null || node == null || !Objects.equals(node.getType(), NodeType.PROXY.getValue())
+                || Objects.equals(node.getDisabled(), 1)) {
+            return want;
+        }
+        double threshold = ServerTrafficThresholdNotifier.normalizeThreshold(
+                systemConfigService.getDoubleValue(ServerTrafficThresholdNotifier.TRAFFIC_THRESHOLD_KEY, 0.9));
+        Map<Long, Double> usage = loadUsage(candidates);
+        NodeServer target = selectTarget(home, candidates, usage, threshold);
+        if (target == null) {
+            if (scheduleExhaustedAlerted.add(record.getId())) {
+                String message = "域名 " + record.getFullName() + "：节点 " + node.getName()
+                        + " 的所有部署服务器流量均已超过阈值，时段计划保持 " + want;
+                systemLogService.recordIndependently(SystemLogCategory.SERVER_FAILOVER, SystemLog.LEVEL_WARN,
+                        record.getId(), record.getFullName(), message, null);
+                barkService.sendWarningNotification("AirOpsCat 服务器自动切换", message);
+            }
+            return want;
+        }
+        scheduleExhaustedAlerted.remove(record.getId());
+        String content = target.getServer() == null ? null : target.getServer().getIp();
+        if (content == null || content.isBlank()) {
+            return want;
+        }
+        if (!content.equalsIgnoreCase(want) && !content.equalsIgnoreCase(record.getContent())) {
+            String message = "域名 " + record.getFullName() + "（节点 " + node.getName() + "，时段计划）："
+                    + want + " 超阈值 → " + describe(target, usage);
+            systemLogService.record(SystemLogCategory.SERVER_FAILOVER, SystemLog.LEVEL_INFO,
+                    record.getId(), record.getFullName(), message, null);
+            barkService.sendWarningNotification("AirOpsCat 服务器自动切换", message);
+        }
+        return content;
+    }
+
+    // 时段内、外 IP 同属的唯一节点的已部署候选（按优先级升序）；不唯一或不存在返回 null
+    private List<NodeServer> scheduleCandidates(DomainDnsRecord record) {
+        Map<Long, List<NodeServer>> byNode = nodeServerRepository.list("deployed = ?1", NodeDeploymentStatus.DEPLOYED.getValue())
+                .stream().collect(Collectors.groupingBy(NodeServer::getNodeId));
+        List<List<NodeServer>> matched = byNode.values().stream()
+                .filter(group -> findByIp(group, record.getScheduleContentIn()) != null
+                        && findByIp(group, record.getScheduleContentOut()) != null)
+                .toList();
+        if (matched.size() != 1) {
+            return null;
+        }
+        return matched.getFirst().stream().sorted(NodeServerRepository.PRIORITY_ORDER).toList();
+    }
+
+    private static NodeServer findByIp(List<NodeServer> placements, String ip) {
+        return placements.stream()
+                .filter(placement -> placement.getServer() != null && placement.getServer().getIp() != null
+                        && placement.getServer().getIp().equalsIgnoreCase(ip))
+                .findFirst().orElse(null);
     }
 
     private void apply(Switch change) {

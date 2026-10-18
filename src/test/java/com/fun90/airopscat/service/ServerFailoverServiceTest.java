@@ -11,6 +11,7 @@ import com.fun90.airopscat.repository.AccountNodeSubscriptionDomainBindingReposi
 import com.fun90.airopscat.repository.DomainDnsRecordRepository;
 import com.fun90.airopscat.repository.NodeRepository;
 import com.fun90.airopscat.repository.NodeServerRepository;
+import com.fun90.airopscat.model.enums.SystemLogCategory;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -148,6 +149,78 @@ class ServerFailoverServiceTest {
         };
 
         assertTrue(service.plan(THRESHOLD).switches().isEmpty());
+    }
+
+    @Test
+    void resolveScheduled_keepsWantBelowThreshold() {
+        assertEquals("1.1.1.1", scheduled(0.3, 0.1).resolveScheduled(scheduledRecord("1.1.1.1", "2.2.2.2"), "1.1.1.1"));
+    }
+
+    @Test
+    void resolveScheduled_replacesWantOverThresholdWithNextCandidate() {
+        assertEquals("2.2.2.2", scheduled(0.95, 0.1).resolveScheduled(scheduledRecord("1.1.1.1", "2.2.2.2"), "1.1.1.1"));
+    }
+
+    @Test
+    void resolveScheduled_keepsWantWhenAllOverThreshold() {
+        assertEquals("1.1.1.1", scheduled(0.95, 0.95).resolveScheduled(scheduledRecord("1.1.1.1", "2.2.2.2"), "1.1.1.1"));
+    }
+
+    @Test
+    void resolveScheduled_keepsWantWhenSlotIpIsNotADeployedServerOfOneNode() {
+        assertEquals("1.1.1.1", scheduled(0.95, 0.1).resolveScheduled(scheduledRecord("1.1.1.1", "9.9.9.9"), "1.1.1.1"));
+    }
+
+    // 节点 1 的服务器 10（1.1.1.1，优先级 0）与 20（2.2.2.2）；时段两端分别为 in、out
+    private static ServerFailoverService scheduled(double homeUsage, double altUsage) {
+        var service = service("1.1.1.1", null, homeUsage, altUsage);
+        var home = service.nodeServerRepository.findById(1L);
+        var alt = service.nodeServerRepository.findById(2L);
+        var base = service.nodeServerRepository;
+        service.nodeServerRepository = new NodeServerRepository() {
+            @Override
+            public List<NodeServer> list(String query, Object... params) {
+                return List.of(home, alt);
+            }
+
+            @Override
+            public NodeServer findById(Long id) {
+                return base.findById(id);
+            }
+        };
+        service.systemConfigService = new SystemConfigService(null, null, null) {
+            @Override
+            public double getDoubleValue(String key, double defaultValue) {
+                return THRESHOLD;
+            }
+        };
+        service.systemLogService = new SystemLogService() {
+            @Override
+            public void record(SystemLogCategory category, String level, Long resourceId, String resourceName,
+                               String message, Map<String, Object> detail) {
+            }
+
+            @Override
+            public void recordIndependently(SystemLogCategory category, String level, Long resourceId, String resourceName,
+                                            String message, Map<String, Object> detail) {
+            }
+        };
+        service.barkService = new BarkService() {
+            @Override
+            public boolean sendWarningNotification(String title, String body) {
+                return true;
+            }
+        };
+        return service;
+    }
+
+    private static DomainDnsRecord scheduledRecord(String in, String out) {
+        var record = new DomainDnsRecord();
+        record.setId(100L);
+        record.setFullName("a.example.test");
+        record.setScheduleContentIn(in);
+        record.setScheduleContentOut(out);
+        return record;
     }
 
     private static ServerFailoverService service(String content, String homeContent, double homeUsage, double altUsage) {

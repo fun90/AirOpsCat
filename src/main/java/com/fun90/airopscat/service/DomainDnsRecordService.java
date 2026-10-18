@@ -39,14 +39,17 @@ public class DomainDnsRecordService {
     private final DomainDnsRecordRepository domainDnsRecordRepository;
     private final AccountNodeSubscriptionDomainBindingRepository bindingRepository;
     private final DomainRepository domainRepository;
+    private final ServerFailoverService serverFailoverService;
 
     @Inject
     public DomainDnsRecordService(DomainDnsRecordRepository domainDnsRecordRepository,
                                   AccountNodeSubscriptionDomainBindingRepository bindingRepository,
-                                  DomainRepository domainRepository) {
+                                  DomainRepository domainRepository,
+                                  ServerFailoverService serverFailoverService) {
         this.domainDnsRecordRepository = domainDnsRecordRepository;
         this.bindingRepository = bindingRepository;
         this.domainRepository = domainRepository;
+        this.serverFailoverService = serverFailoverService;
     }
 
     public PanacheQuery<DomainDnsRecord> getPage(Long domainId,
@@ -301,7 +304,8 @@ public class DomainDnsRecordService {
         LocalTime now = LocalTime.now(SCHEDULE_ZONE);
         Set<Long> domainIds = new HashSet<>();
         for (DomainDnsRecord record : domainDnsRecordRepository.findScheduled()) {
-            String target = record.scheduledContent(now);
+            // 时段内容再经服务器流量阈值过滤，时段任务是这类记录的唯一写入方
+            String target = serverFailoverService.resolveScheduled(record, record.scheduledContent(now));
             boolean changed = !target.equals(record.getContent());
             if (changed) {
                 record.setContent(target);
