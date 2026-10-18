@@ -350,6 +350,24 @@ export function createNodeDeployMethods() {
                 });
         },
 
+        cancelDeleteNode(node) {
+            fetch(`/api/admin/nodes/${node.id}/cancel-delete`, {method: 'POST'})
+                .then(response => response.json().then(data => {
+                    if (!response.ok) {
+                        throw new Error(data.message || '取消删除失败');
+                    }
+                    return data;
+                }))
+                .then(data => {
+                    this.fetchRecords();
+                    ToastUtils.show('Success', data.message, 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    ToastUtils.show('Error', error.message || '取消删除失败', 'danger');
+                });
+        },
+
         isNodeDeploying(nodeId) {
             return this.deployingNodeIds.includes(nodeId);
         },

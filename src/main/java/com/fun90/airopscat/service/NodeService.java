@@ -712,6 +712,32 @@ public class NodeService {
     }
 
     /**
+     * 取消删除：待删除的部署位恢复为待部署，由部署重建服务器上的完整配置。
+     *
+     * @return 节点不存在时返回 false
+     */
+    @Transactional
+    public boolean cancelDeleteNode(Long id) {
+        Node node = nodeRepository.findById(id);
+        if (node == null) {
+            return false;
+        }
+        List<NodeServer> pending = nodeServerRepository.findByNodeId(id).stream()
+                .filter(placement -> NodeDeploymentStatus.isPendingDelete(placement.getDeployed()))
+                .toList();
+        if (pending.isEmpty()) {
+            throw new IllegalArgumentException("节点不是待删除状态");
+        }
+        for (NodeServer placement : pending) {
+            if (nodeServerRepository.existsPortConflict(placement.getServerId(), node.getPort(), id)) {
+                throw new IllegalArgumentException("端口 " + node.getPort() + " 在服务器 " + placement.getServerId() + " 上已被占用，无法取消删除");
+            }
+            placement.setDeployed(NodeDeploymentStatus.PENDING_DEPLOY.getValue());
+        }
+        return true;
+    }
+
+    /**
      * 批量删除节点，同一事务，任一节点失败则全部回滚。
      *
      * @return deletedCount 已物理删除；pendingCount 已部署过，标记待删除，部署成功后从服务器移除

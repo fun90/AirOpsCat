@@ -274,6 +274,25 @@ public class NodeController {
         }
     }
 
+    @POST
+    @Path("/{id}/cancel-delete")
+    public Response cancelDeleteNode(@PathParam("id") Long id) {
+        try {
+            if (!nodeService.cancelDeleteNode(id)) {
+                return Response.status(Response.Status.NOT_FOUND).build();
+            }
+            Map<String, Object> response = new HashMap<>();
+            response.put("id", id);
+            response.put("deployed", NodeDeploymentStatus.PENDING_DEPLOY.getValue());
+            response.put("message", "已取消删除，节点待部署");
+            return Response.ok(response).build();
+        } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return Response.status(Response.Status.BAD_REQUEST).entity(error).build();
+        }
+    }
+
     @PATCH
     @Path("/{id}/enable")
     public Response enableNode(@PathParam("id") Long id) {

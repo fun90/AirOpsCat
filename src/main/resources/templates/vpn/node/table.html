@@ -122,6 +122,9 @@
                         <a class="dropdown-item" href="#" :class="{ disabled: isPendingDelete(node) }" @click.prevent="!isPendingDelete(node) && copyNode(node)">
                             <i class="ti ti-copy"></i> 复制
                         </a>
+                        <a v-if="isPendingDelete(node)" class="dropdown-item" href="#" @click.prevent="cancelDeleteNode(node)">
+                            <i class="ti ti-arrow-back-up"></i> 取消删除
+                        </a>
                         <a v-if="isPendingDeploy(node)" class="dropdown-item" href="#" :class="{ disabled: isNodeDeploying(node.id) }" @click.prevent="deployNode(node)">
                             <i class="ti ti-rocket"></i> 部署
                         </a>
