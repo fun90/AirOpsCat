@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/fun90/airopscat/internal/crypto"
@@ -57,13 +58,21 @@ func droppedKey(k string) bool {
 	return false
 }
 
+// querier 由源库的一致性快照事务实现；预检、导出与对账都经它读取。
+// 同一事务连接上同一时刻只能有一个未关闭的结果集。
+type querier interface {
+	QueryContext(ctx context.Context, q string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, q string, args ...any) *sql.Row
+}
+
 type importer struct {
-	src, dst *sql.DB
-	legacy   string
-	tmp      string
-	regen    map[string]bool // 需要重新生成 auth_code 的账户 id
-	field    *crypto.Cipher
-	report   []string
+	src    querier
+	dst    *sql.DB
+	legacy string
+	tmp    string
+	regen  map[string]bool // 需要重新生成 auth_code 的账户 id
+	field  *crypto.Cipher
+	report []string
 }
 
 func (im *importer) note(f string, a ...any) { im.report = append(im.report, fmt.Sprintf(f, a...)) }
@@ -89,6 +98,21 @@ func run(dsn, oldKey, out string, dropSpeed bool) error {
 		return fmt.Errorf("%s 已存在，拒绝覆盖", out)
 	}
 	ctx := context.Background()
+	src, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	// 源端整个导入共用一份 REPEATABLE READ 快照；立即读取业务表以建立 InnoDB 快照点。
+	snap, err := src.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
+		return err
+	}
+	defer snap.Rollback()
+	var n int
+	if err := snap.QueryRowContext(ctx, "select count(*) from account").Scan(&n); err != nil {
+		return err
+	}
 	tmp := out + ".tmp"
 	os.Remove(tmp)
 	// 先用主程序同一套 schema 建表
@@ -98,11 +122,6 @@ func run(dsn, oldKey, out string, dropSpeed bool) error {
 	}
 	db.Close()
 
-	src, err := sql.Open("mysql", dsn)
-	if err != nil {
-		return err
-	}
-	defer src.Close()
 	q := url.Values{}
 	q.Add("_pragma", "foreign_keys(0)")
 	dst, err := sql.Open("sqlite", "file:"+tmp+"?"+q.Encode())
@@ -111,7 +130,7 @@ func run(dsn, oldKey, out string, dropSpeed bool) error {
 	}
 	dst.SetMaxOpenConns(1)
 	field, _ := crypto.New(crypto.DeriveKey(secret, "field"))
-	im := &importer{src: src, dst: dst, legacy: oldKey, field: field, tmp: tmp, regen: map[string]bool{}}
+	im := &importer{src: snap, dst: dst, legacy: oldKey, field: field, tmp: tmp, regen: map[string]bool{}}
 
 	ok := false
 	defer func() {
@@ -482,8 +501,215 @@ func (im *importer) verify(ctx context.Context) error {
 			diff++
 		}
 	}
+	rows2.Close()
 	if diff > 0 {
 		return fmt.Errorf("account 关键字段有 %d 行与源库不一致", diff)
 	}
+	if err := im.verifyAuthCodes(ctx, chk); err != nil {
+		return err
+	}
+	if err := im.verifyEncrypted(ctx, chk); err != nil {
+		return err
+	}
+	return im.verifyMoney(ctx, chk)
+}
+
+// verifyAuthCodes：保留项与源库相同，重新生成项与全部原值不同，且目标库全表唯一。
+func (im *importer) verifyAuthCodes(ctx context.Context, chk *sql.DB) error {
+	rows, err := im.src.QueryContext(ctx, `select id, auth_code from account`)
+	if err != nil {
+		return err
+	}
+	src := map[string]string{}
+	for rows.Next() {
+		var id, code string
+		if err := rows.Scan(&id, &code); err != nil {
+			rows.Close()
+			return err
+		}
+		src[id] = code
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	drows, err := chk.QueryContext(ctx, `SELECT id, auth_code FROM account`)
+	if err != nil {
+		return err
+	}
+	defer drows.Close()
+	dst := map[string]string{}
+	for drows.Next() {
+		var id, code string
+		if err := drows.Scan(&id, &code); err != nil {
+			return err
+		}
+		dst[id] = code
+	}
+	if err := drows.Err(); err != nil {
+		return err
+	}
+	if err := checkAuthCodes(src, dst, im.regen); err != nil {
+		return err
+	}
+	im.note("auth_code 对账通过（重新生成 %d 个）", len(im.regen))
+	return nil
+}
+
+func checkAuthCodes(src, dst map[string]string, regen map[string]bool) error {
+	orig := map[string]bool{}
+	for _, c := range src {
+		orig[c] = true
+	}
+	seen := map[string]bool{}
+	var bad []string
+	for id, got := range dst {
+		switch {
+		case seen[got]:
+			bad = append(bad, "account#"+id+"(重复)")
+		case regen[id] && orig[got]:
+			bad = append(bad, "account#"+id+"(未重新生成)")
+		case !regen[id] && got != src[id]:
+			bad = append(bad, "account#"+id+"(保留项被改动)")
+		}
+		seen[got] = true
+	}
+	if len(bad) > 0 {
+		sort.Strings(bad)
+		return fmt.Errorf("auth_code 对账失败: %s", strings.Join(bad[:min(len(bad), 10)], ", "))
+	}
+	return nil
+}
+
+// verifyEncrypted 解密目标字段并与源字段转换前的明文比较；报告只含字段定位。
+func (im *importer) verifyEncrypted(ctx context.Context, chk *sql.DB) error {
+	type field struct{ tbl, col, key, where string }
+	fields := []field{{"server", "auth", "id", ""}, {"dns_provider_config", "credential_json", "id", ""}}
+	for k := range encryptedKeys {
+		fields = append(fields, field{"system_config", "config_value", "config_key", "config_key='" + k + "'"})
+	}
+	var bad []string
+	checked := 0
+	for _, f := range fields {
+		q := fmt.Sprintf("select `%s`, `%s` from `%s`", f.key, f.col, f.tbl)
+		if f.where != "" {
+			q += " where " + f.where
+		}
+		rows, err := im.src.QueryContext(ctx, q)
+		if err != nil {
+			return err
+		}
+		want := map[string]string{}
+		for rows.Next() {
+			var k string
+			var v sql.NullString
+			if err := rows.Scan(&k, &v); err != nil {
+				rows.Close()
+				return err
+			}
+			if v.Valid {
+				want[k] = v.String
+			}
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		for k, raw := range want {
+			plain := raw
+			if p, err := crypto.LegacyDecrypt(im.legacy, raw); err == nil && strings.TrimSpace(raw) != "" {
+				plain = p
+			}
+			var got sql.NullString
+			if err := chk.QueryRowContext(ctx, fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?", f.col, f.tbl, f.key), k).Scan(&got); err != nil {
+				bad = append(bad, fmt.Sprintf("%s.%s[%s]", f.tbl, f.col, k))
+				continue
+			}
+			dec := got.String
+			if strings.TrimSpace(raw) != "" {
+				if dec, err = im.field.Decrypt(got.String); err != nil {
+					dec = "\x00decrypt-failed"
+				}
+			}
+			if dec != plain {
+				bad = append(bad, fmt.Sprintf("%s.%s[%s]", f.tbl, f.col, k))
+			}
+			checked++
+		}
+	}
+	if len(bad) > 0 {
+		sort.Strings(bad)
+		return fmt.Errorf("敏感字段对账失败 %d 处: %s", len(bad), strings.Join(bad[:min(len(bad), 10)], ", "))
+	}
+	im.note("敏感字段解密对账通过（%d 个字段）", checked)
+	return nil
+}
+
+// verifyMoney 按流水类型及服务器、域名价格汇总源库金额（转为整数分），与目标库比较。
+func (im *importer) verifyMoney(ctx context.Context, chk *sql.DB) error {
+	rows, err := im.src.QueryContext(ctx, `select cast(type as unsigned), cast(sum(amount) as char) from transactions group by cast(type as unsigned)`)
+	if err != nil {
+		return err
+	}
+	want := map[string]string{}
+	for rows.Next() {
+		var typ, sum string
+		if err := rows.Scan(&typ, &sum); err != nil {
+			rows.Close()
+			return err
+		}
+		if want[typ], err = toCents(sum); err != nil {
+			rows.Close()
+			return fmt.Errorf("transactions 汇总: %w", err)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	got := map[string]string{}
+	drows, err := chk.QueryContext(ctx, `SELECT type, sum(amount) FROM transactions GROUP BY type`)
+	if err != nil {
+		return err
+	}
+	defer drows.Close()
+	for drows.Next() {
+		var typ, sum string
+		if err := drows.Scan(&typ, &sum); err != nil {
+			return err
+		}
+		got[typ] = sum
+	}
+	if err := drows.Err(); err != nil {
+		return err
+	}
+	if len(want) != len(got) {
+		return fmt.Errorf("流水类型数量不一致: 源 %d 目标 %d", len(want), len(got))
+	}
+	for typ, w := range want {
+		if got[typ] != w {
+			return fmt.Errorf("流水类型 %s 金额汇总不一致: 源 %s 分 目标 %s 分", typ, w, got[typ])
+		}
+	}
+	for _, tbl := range []string{"server", "domain"} {
+		var raw sql.NullString
+		if err := im.src.QueryRowContext(ctx, "select cast(sum(price) as char) from `"+tbl+"`").Scan(&raw); err != nil {
+			return err
+		}
+		w := "0"
+		if raw.Valid {
+			if w, err = toCents(raw.String); err != nil {
+				return fmt.Errorf("%s.price 汇总: %w", tbl, err)
+			}
+		}
+		var g sql.NullInt64
+		if err := chk.QueryRowContext(ctx, "SELECT sum(price) FROM "+tbl).Scan(&g); err != nil {
+			return err
+		}
+		if fmt.Sprint(g.Int64) != w {
+			return fmt.Errorf("%s.price 汇总不一致: 源 %s 分 目标 %d 分", tbl, w, g.Int64)
+		}
+	}
+	im.note("金额汇总对账通过")
 	return nil
 }
