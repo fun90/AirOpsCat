@@ -282,6 +282,9 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 		in.TagIDs = append(in.TagIDs, id)
 		f.TagIDs[id] = true
 	}
+	if strings.TrimSpace(in.Remark) == "" {
+		parseErr = fmt.Errorf("账户备注不能为空")
+	}
 	if parseErr != nil {
 		s.accountFormPage(w, r, 422, f, parseErr.Error())
 		return

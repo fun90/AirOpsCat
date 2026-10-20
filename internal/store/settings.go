@@ -172,7 +172,8 @@ func saveSetting(ctx context.Context, db dbtx, cipher *crypto.Cipher, key, value
 	return err
 }
 
-type LogFilter struct{ Category, Level, Q string }
+// From、To 为 YYYY-MM-DD，含当天；空表示不限。
+type LogFilter struct{ Category, Level, Q, From, To string }
 type SystemLog struct {
 	ID                                     int64
 	Category, Level                        string
@@ -230,6 +231,14 @@ func Logs(ctx context.Context, db *sql.DB, f LogFilter, page int) ([]SystemLog, 
 	if f.Q != "" {
 		where += " AND (instr(lower(message),lower(?))>0 OR instr(lower(resource_name),lower(?))>0)"
 		args = append(args, f.Q, f.Q)
+	}
+	if f.From != "" {
+		where += " AND create_time>=?"
+		args = append(args, f.From+" 00:00:00")
+	}
+	if f.To != "" {
+		where += " AND create_time<=?"
+		args = append(args, f.To+" 23:59:59")
 	}
 	var total int
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM system_log`+where, args...).Scan(&total); err != nil {

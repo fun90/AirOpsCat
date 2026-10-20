@@ -149,6 +149,6 @@ func (s *Server) dnsAutoLog(ctx context.Context, r store.AutoDNSRecord, op store
 		return
 	}
 	msg := fmt.Sprintf("%s：%s → %s（%s）", r.FullName, op.Old, op.Target, op.Reason)
-	store.Log(ctx, s.DB, "SERVER_FAILOVER", "INFO", &r.ID, r.FullName, msg, "")
+	store.Log(ctx, s.DB, "SERVER_FAILOVER", "INFO", &r.ID, r.FullName, msg, fmt.Sprintf("old=%s target=%s reason=%s", op.Old, op.Target, op.Reason))
 	s.bark().Send(ctx, notify.Message{Title: "AirOpsCat 服务器自动切换", Body: msg, Level: "timeSensitive"})
 }

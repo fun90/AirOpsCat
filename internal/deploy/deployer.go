@@ -208,6 +208,11 @@ func (d *Deployer) apply(ctx context.Context, serverID int64, action string) Res
 			res.Message = "读取部署结果失败: " + err.Error()
 		}
 	}
+	level := "INFO"
+	if !res.Success {
+		level = "ERROR"
+	}
+	store.Log(context.WithoutCancel(ctx), d.DB, "DEPLOY", level, &serverID, t.Name, res.Message, "action="+action)
 	if res.Success && d.Applied != nil {
 		d.Applied(serverID, limitsKey)
 	}

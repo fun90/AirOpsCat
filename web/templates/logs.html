@@ -4,6 +4,8 @@
   <div class="col-12 col-md"><input class="form-control" type="search" name="q" value="{{.Q}}" placeholder="消息或资源名称" aria-label="搜索日志"></div>
   <div class="col-6 col-md-3"><select class="form-select" name="category"><option value="">全部分类</option>{{range .Categories}}<option value="{{.}}" {{if eq $.Category .}}selected{{end}}>{{.}}</option>{{end}}</select></div>
   <div class="col-6 col-md-2"><select class="form-select" name="level"><option value="">全部级别</option>{{range $v := seq 3}}{{if eq $v 1}}<option value="INFO" {{if eq $.Level "INFO"}}selected{{end}}>INFO</option>{{else if eq $v 2}}<option value="WARN" {{if eq $.Level "WARN"}}selected{{end}}>WARN</option>{{else}}<option value="ERROR" {{if eq $.Level "ERROR"}}selected{{end}}>ERROR</option>{{end}}{{end}}</select></div>
+  <div class="col-6 col-md-2"><input class="form-control" type="date" name="from" value="{{.From}}" aria-label="开始日期"></div>
+  <div class="col-6 col-md-2"><input class="form-control" type="date" name="to" value="{{.To}}" aria-label="结束日期"></div>
   <div class="col-12 col-md-auto"><button class="btn btn-outline-secondary w-100" type="submit">筛选</button></div>
  </form></div>
  <div class="table-responsive"><table class="table table-vcenter card-table logs-table">

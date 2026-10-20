@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/fun90/airopscat/internal/store"
 )
@@ -110,6 +111,16 @@ func (s *Server) logsPage(w http.ResponseWriter, r *http.Request) {
 	if f.Level != "" && f.Level != "INFO" && f.Level != "WARN" && f.Level != "ERROR" {
 		f.Level = ""
 	}
+	for _, v := range []struct {
+		key string
+		dst *string
+	}{{"from", &f.From}, {"to", &f.To}} {
+		if d := strings.TrimSpace(r.URL.Query().Get(v.key)); d != "" {
+			if _, err := time.Parse("2006-01-02", d); err == nil {
+				*v.dst = d
+			}
+		}
+	}
 	list, total, err := store.Logs(r.Context(), s.DB, f, page)
 	if err != nil {
 		s.fail(w, r, err)
@@ -121,6 +132,6 @@ func (s *Server) logsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d := s.pageData(r, "系统日志", "logs")
-	d["List"], d["Total"], d["Page"], d["Pages"], d["Category"], d["Level"], d["Q"], d["Categories"] = list, total, page, (total+19)/20, f.Category, f.Level, f.Q, categories
+	d["List"], d["Total"], d["Page"], d["Pages"], d["Category"], d["Level"], d["Q"], d["Categories"], d["From"], d["To"] = list, total, page, (total+19)/20, f.Category, f.Level, f.Q, categories, f.From, f.To
 	s.render(w, "logs", http.StatusOK, d)
 }

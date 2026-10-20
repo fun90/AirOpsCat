@@ -95,6 +95,7 @@ func (s *Server) raise(ctx context.Context, k store.AlertKey, severity string, v
 	if err != nil || !due {
 		return err
 	}
+	store.Log(ctx, s.DB, "ALERT", "WARN", &k.ResourceID, k.ResourceKey, summary, k.Type)
 	if err := s.bark().Send(ctx, msg); err != nil {
 		if !errors.Is(err, notify.ErrNotConfigured) {
 			slog.Warn("告警通知发送失败", "type", k.Type, "resource", k.ResourceKey, "err", err)

@@ -86,14 +86,17 @@ func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *in
 	if err != nil {
 		return nil, err
 	}
-	selected := map[int64]int64{}
+	selected := map[int64]map[int64]bool{}
 	hosts := map[int64]string{}
 	for _, b := range bindings {
 		if !b.Enabled {
 			continue
 		}
 		if b.PlacementID != 0 {
-			selected[b.NodeID] = b.PlacementID
+			if selected[b.NodeID] == nil {
+				selected[b.NodeID] = map[int64]bool{}
+			}
+			selected[b.NodeID][b.PlacementID] = true
 		}
 		if b.RecordID != nil {
 			var name string
@@ -122,7 +125,7 @@ func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *in
 	done := map[int64]bool{}
 	for _, e := range entries {
 		p, custom := selected[e.nodeID]
-		if custom && p != e.placementID {
+		if custom && !p[e.placementID] {
 			continue
 		}
 		if h := hosts[e.nodeID]; h != "" {

@@ -36,8 +36,8 @@
 ### 验收
 
 - [x] 同一账户部署在两台模拟服务器，由其中一台产生超额流量，两台最终应用限速。
-- [ ] 无新增流量时跨入新周期，两台恢复原有限速。
-- [ ] 提高配额后恢复，降低配额后进入限速。
+- [x] 无新增流量时跨入新周期，两台恢复原有限速。（`limit_sync_test.go` 模拟周期结束）
+- [x] 提高配额后恢复，降低配额后进入限速。（同上，含 race 运行）
 - [x] 一台下发失败，后续重试成功；成功服务器不发生无意义重复 reload。
 - [x] 对共享同步状态运行相关 race 测试。
 
@@ -89,11 +89,11 @@
 
 | 来源 | 缺口 | 说明 |
 |------|------|------|
-| [scope](rewrite/scope.md) 决策 24 D7、[spec-account](rewrite/spec-account.md) §8 | 系统日志缺 `DEPLOY`、`ALERT` 写入；`SERVER_FAILOVER` 的 `detail` 为空；无时间范围筛选 | 目前只有 `SERVER_FAILOVER`、`MAINTENANCE` 写入点 |
-| [spec-subscription](rewrite/spec-subscription.md) §3 | 同一订阅定制绑定含多个部署位时只保留最后一个 | 规格要求保留部署位集合，影响订阅输出 |
+| [scope](rewrite/scope.md) 决策 24 D7、[spec-account](rewrite/spec-account.md) §8 | ~~系统日志缺 `DEPLOY`、`ALERT` 写入；`SERVER_FAILOVER` 的 `detail` 为空；无时间范围筛选~~ 已补：部署（`deploy.apply`）、告警触发（`web.raise`，按节流只记通知点）、故障切换 detail、日志页 `from`/`to` 日期筛选，`TestLogsPaginationFilteringAndRedaction` 覆盖筛选 | 完成 |
+| [spec-subscription](rewrite/spec-subscription.md) §3 | ~~同一订阅定制绑定含多个部署位时只保留最后一个~~ 已修复：`SubscriptionNodes` 按集合过滤，`TestSubscriptionBindingKeepsAllPlacements` 覆盖 | 完成 |
 | [spec-subscription](rewrite/spec-subscription.md) §7 | 响应 gzip 未实现 | 与第 4 节合并处理，先确认反向代理是否已压缩 |
 | [spec-subscription](rewrite/spec-subscription.md) §2 | 配额 ≤0 一律按 500G 显示；shadowrocket `tfc` 用浮点格式化，边界值与 Java HALF_UP 不一致 | 影响客户端用量显示，与 Java 对照后决定是否对齐 |
-| [spec-account](rewrite/spec-account.md) §10 问题 23 | 后端 `toDate` 无默认，缺省即永不过期；账号备注必填只在前端 | API 直调可绕过 |
+| [spec-account](rewrite/spec-account.md) §10 问题 23 | 后端 `toDate` 无默认，缺省即永不过期（沿用，待确认是否有意）；~~账号备注必填只在前端~~ 已在 `accountSave` 后端补校验（`internal/web/accounts.go`） | 备注已完成；`toDate` 默认值待决策 |
 | [spec-traffic](rewrite/spec-traffic.md) §1.3 | 采集失败不再发 Bark 汇总；采集后的限速与 DNS 检查要求所有服务器成功 | 另有每分钟独立任务兜底，影响有限 |
 
 ### 需先确认是否有意取舍

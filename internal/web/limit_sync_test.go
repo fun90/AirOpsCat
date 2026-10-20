@@ -96,4 +96,16 @@ func TestSyncLimitsAcrossServers(t *testing.T) {
 	if a, b := count(); a != 3 || b != 3 {
 		t.Fatal(a, b)
 	}
+	// 降低配额后再次进入限速。
+	exec(`UPDATE account_traffic_stats SET bandwidth_quota=1`)
+	sync(false)
+	if a, b := count(); a != 4 || b != 4 {
+		t.Fatal(a, b)
+	}
+	// 无新增流量跨入新周期：当前周期结束且无新周期记录，限速恢复。
+	exec(`UPDATE account_traffic_stats SET period_end='2001-01-01 00:00:00'`)
+	sync(false)
+	if a, b := count(); a != 5 || b != 5 {
+		t.Fatal(a, b)
+	}
 }

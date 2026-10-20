@@ -91,6 +91,13 @@ func TestLogsPaginationFilteringAndRedaction(t *testing.T) {
 	if err != nil || total != 1 || len(list) != 1 {
 		t.Fatalf("分类筛选：%d %d %v", total, len(list), err)
 	}
+	today := time.Now().Format("2006-01-02")
+	if _, total, _ = Logs(ctx, db, LogFilter{From: today, To: today}, 1); total != 22 {
+		t.Fatalf("时间范围含当天：%d", total)
+	}
+	if _, total, _ = Logs(ctx, db, LogFilter{To: "2000-01-01"}, 1); total != 0 {
+		t.Fatalf("时间范围排除：%d", total)
+	}
 }
 
 func TestSettingsRuntimeAndLogCleanup(t *testing.T) {
