@@ -1,0 +1,23 @@
+{{define "content"}}
+{{with .Form}}
+<form method="post" action="{{if .ID}}/admin/routes/{{.ID}}{{else}}/admin/routes{{end}}" class="card">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<div class="card-body">
+{{if $.FormErr}}<div class="alert alert-danger" role="alert">{{$.FormErr}}</div>{{end}}
+<div class="alert alert-info">规则变更不会标记待部署，请手动强制部署相关服务器上的节点后生效。</div>
+<div class="row g-3">
+<div class="col-md-8"><label for="name" class="form-label required">名称</label><input id="name" name="name" class="form-control" value="{{.Name}}" maxlength="255" required></div>
+<div class="col-md-4"><label for="rule_type" class="form-label required">规则类型</label><select id="rule_type" name="rule_type" class="form-select">{{range $.RuleTypes}}<option value="{{.}}"{{if eq . $.Form.RuleType}} selected{{end}}>{{.}}</option>{{end}}</select></div>
+<div class="col-md-6"><label for="servers" class="form-label">适用服务器</label><select id="servers" name="servers" class="form-select" multiple data-search>{{range $.Servers}}<option value="{{.ID}}"{{if index $.Form.ServerIDs .ID}} selected{{end}}>{{.Name}}（{{.IP}}）</option>{{end}}</select><div class="form-hint">支持搜索、多选；不选服务器表示规则暂不应用。</div></div>
+<div class="col-md-6"><label for="outbound_node_id" class="form-label required">落地节点</label><select id="outbound_node_id" name="outbound_node_id" class="form-select" required data-search><option value="">请选择落地节点</option>{{range $.Landing}}<option value="{{.ID}}"{{if eq $.Form.OutboundNodeID (printf "%d" .ID)}} selected{{end}}>{{.Name}}（{{.Region}} · {{.Protocol}}:{{.Port}}）</option>{{end}}</select></div>
+<div class="col-12"><label for="rule_value" class="form-label required">规则值（JSON）</label><textarea id="rule_value" name="rule_value" data-json-editor required>{{.RuleValue}}</textarea>
+<div class="form-hint">domain：域名字符串或数组，如 ["example.com", "geosite:openai"]；ip / source_ip：IP、CIDR 或 geoip:cn 字符串或数组。</div>
+<div class="form-hint">port：1–65535 的整数或数组，如 [80,443]；network："tcp"、"udp" 或数组；inbound：入站 tag 字符串或数组，如 ["node_12"]。</div>
+<div class="form-hint">custom：非空 JSON 对象，如 {"protocol":"bittorrent"}。不能包含 outbound，出站由所选落地节点生成。</div></div>
+<div class="col-12"><label for="remark" class="form-label">备注</label><input id="remark" name="remark" class="form-control" value="{{.Remark}}" maxlength="255"></div>
+<div class="col-12"><label class="form-check"><input type="checkbox" name="enabled" value="1" class="form-check-input"{{if .Enabled}} checked{{end}}><span class="form-check-label">启用</span></label></div>
+</div></div>
+<div class="card-footer"><button type="submit" class="btn btn-primary">保存</button><a href="/admin/routes" class="btn btn-link">取消</a></div>
+</form>
+{{end}}
+{{end}}

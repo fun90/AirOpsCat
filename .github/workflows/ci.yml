@@ -1,0 +1,32 @@
+name: Go CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Go 检查
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          go vet ./...
+          go test ./...
+      - name: 安装器检查
+        run: |
+          bash -n deploy/install.sh
+          bash deploy/install.sh --self-test

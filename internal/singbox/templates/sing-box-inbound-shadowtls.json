@@ -1,0 +1,13 @@
+{
+  "type": "shadowtls",
+  "version": 3,
+  "users": [{"name": "shadowtls", "password": "{password}"}],
+  "handshake": {
+    "server": "{serverName}",
+    "server_port": 443
+  },
+  "strict_mode": true,
+  "shadowsocks": {
+    "method": "chacha20-ietf-poly1305"
+  }
+}

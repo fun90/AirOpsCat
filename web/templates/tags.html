@@ -1,0 +1,48 @@
+{{define "content"}}
+<div class="row g-3">
+    <div class="col-lg-4">
+        <form method="post" action="/admin/tags" class="card">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <div class="card-header"><h3 class="card-title">新增标签</h3></div>
+            <div class="card-body">
+                <div class="mb-3"><label class="form-label required" for="name">名称</label><input class="form-control" id="name" name="name" required maxlength="64"></div>
+                <div class="mb-3"><label class="form-label" for="description">说明</label><input class="form-control" id="description" name="description"></div>
+                <div class="mb-3"><label class="form-label" for="color">颜色</label><input type="color" class="form-control form-control-color" id="color" name="color" value="{{.Tag.Color}}"></div>
+            </div>
+            <div class="card-footer text-end"><button class="btn btn-primary" type="submit">添加</button></div>
+        </form>
+    </div>
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <form method="get" class="d-flex gap-2 w-100" style="max-width: 360px">
+                    <input type="search" name="q" value="{{.Q}}" class="form-control" placeholder="名称 / 说明" aria-label="搜索">
+                    <button class="btn btn-outline-secondary" type="submit">搜索</button>
+                </form>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                    <thead><tr><th>标签</th><th class="d-none d-md-table-cell">说明</th><th>账户</th><th>节点</th><th class="w-1"></th></tr></thead>
+                    <tbody>
+                    {{range .List}}
+                    <tr>
+                        <td><span class="badge" style="background-color: {{.Color}}; color: #fff">{{.Name}}</span></td>
+                        <td class="d-none d-md-table-cell">{{.Description}}</td><td>{{.Accounts}}</td><td>{{.Nodes}}</td>
+                        <td class="text-nowrap">
+                            <div class="d-none d-md-flex gap-1">
+                            <a href="/admin/tags/{{.ID}}/edit" class="btn btn-sm btn-outline-primary">编辑</a>
+                            <form method="post" action="/admin/tags/{{.ID}}/delete" onsubmit="return confirm('确定删除该标签？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-danger" type="submit">删除</button></form>
+                            </div>
+                            <div class="dropdown d-md-none"><button type="button" class="btn btn-sm dropdown-toggle" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">更多</button><div class="dropdown-menu dropdown-menu-end"><a class="dropdown-item" href="/admin/tags/{{.ID}}/edit">编辑</a>
+                            <form method="post" action="/admin/tags/{{.ID}}/delete" onsubmit="return confirm('确定删除该标签？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item text-danger" type="submit">删除</button></form></div></div>
+                        </td>
+                    </tr>
+                    {{else}}<tr><td colspan="5" class="text-center text-secondary py-4">暂无标签</td></tr>{{end}}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer d-flex">{{template "pager" .}}</div>
+        </div>
+    </div>
+</div>
+{{end}}

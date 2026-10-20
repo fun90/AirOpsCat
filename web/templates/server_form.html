@@ -1,0 +1,69 @@
+{{define "content"}}
+{{with .Form}}
+<form method="post" action="{{if .ID}}/admin/servers/{{.ID}}{{else}}/admin/servers{{end}}" class="card" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6"><label class="form-label" for="name">名称</label>
+                <input class="form-control" id="name" name="name" value="{{.Name}}"></div>
+            <div class="col-md-6"><label class="form-label required" for="ip">IP</label>
+                <input class="form-control{{if $.Errors.ip}} is-invalid{{end}}" id="ip" name="ip" value="{{.IP}}" required>
+                <div class="invalid-feedback">{{$.Errors.ip}}</div></div>
+
+            <div class="col-md-3"><label class="form-label" for="ssh_port">SSH 端口</label>
+                <input type="number" class="form-control{{if $.Errors.ssh_port}} is-invalid{{end}}" id="ssh_port" name="ssh_port" value="{{.SSHPort}}">
+                <div class="invalid-feedback">{{$.Errors.ssh_port}}</div></div>
+            <div class="col-md-3"><label class="form-label" for="username">SSH 用户</label>
+                <input class="form-control" id="username" name="username" value="{{.Username}}"></div>
+            <div class="col-md-3"><label class="form-label" for="auth_type">认证方式</label>
+                <select class="form-select" id="auth_type" name="auth_type">
+                    <option value="PASSWORD"{{if eq .AuthType "PASSWORD"}} selected{{end}}>密码</option>
+                    <option value="KEY"{{if eq .AuthType "KEY"}} selected{{end}}>私钥</option>
+                </select></div>
+            <div class="col-md-3"><label class="form-label" for="server_type">类型</label>
+                <select class="form-select" id="server_type" name="server_type">
+                    <option value="0"{{if eq .ServerType "0"}} selected{{end}}>代理服务器</option>
+                    <option value="1"{{if eq .ServerType "1"}} selected{{end}}>落地服务器</option>
+                </select></div>
+            <div class="col-12"><label class="form-label" for="auth">SSH 密码 / 私钥</label>
+                <textarea class="form-control" id="auth" name="auth" rows="3" placeholder="{{if .HasAuth}}已保存，留空表示不修改{{else}}未保存{{end}}" autocomplete="off"></textarea></div>
+
+            <div class="col-md-3"><label class="form-label" for="region">地区</label>
+                <input class="form-control" id="region" name="region" value="{{.Region}}"></div>
+            <div class="col-md-3"><label class="form-label" for="supplier">供应商</label>
+                <input class="form-control" id="supplier" name="supplier" value="{{.Supplier}}"></div>
+            <div class="col-md-3"><label class="form-label" for="expire_date">到期日</label>
+                <input type="date" class="form-control{{if $.Errors.expire_date}} is-invalid{{end}}" id="expire_date" name="expire_date" value="{{.ExpireDate}}">
+                <div class="invalid-feedback">{{$.Errors.expire_date}}</div></div>
+            <div class="col-md-3"><label class="form-label" for="price">价格（元）</label>
+                <input class="form-control{{if $.Errors.price}} is-invalid{{end}}" id="price" name="price" value="{{.Price}}" inputmode="decimal">
+                <div class="invalid-feedback">{{$.Errors.price}}</div></div>
+
+            <div class="col-md-3"><label class="form-label" for="bandwidth">月流量（GB）</label>
+                <input class="form-control{{if $.Errors.bandwidth}} is-invalid{{end}}" id="bandwidth" name="bandwidth" value="{{.Bandwidth}}" inputmode="numeric">
+                <div class="invalid-feedback">{{$.Errors.bandwidth}}</div></div>
+            <div class="col-md-3"><label class="form-label" for="bandwidth_date">流量重置日</label>
+                <input type="date" class="form-control{{if $.Errors.bandwidth_date}} is-invalid{{end}}" id="bandwidth_date" name="bandwidth_date" value="{{.BandwidthDate}}">
+                <div class="invalid-feedback">{{$.Errors.bandwidth_date}}</div></div>
+            <div class="col-md-3"><label class="form-label" for="multiple">流量倍率</label>
+                <input class="form-control{{if $.Errors.multiple}} is-invalid{{end}}" id="multiple" name="multiple" value="{{.Multiple}}" inputmode="decimal">
+                <div class="invalid-feedback">{{$.Errors.multiple}}</div></div>
+            <div class="col-md-3"><label class="form-label" for="cpu_cores">CPU 核数</label>
+                <input class="form-control{{if $.Errors.cpu_cores}} is-invalid{{end}}" id="cpu_cores" name="cpu_cores" value="{{.CPUCores}}" inputmode="numeric">
+                <div class="invalid-feedback">{{$.Errors.cpu_cores}}</div></div>
+
+            <div class="col-12"><label class="form-label" for="remark">备注</label>
+                <input class="form-control" id="remark" name="remark" value="{{.Remark}}"></div>
+            <div class="col-12">
+                <label class="form-check form-check-inline"><input type="checkbox" class="form-check-input" name="disabled" value="1"{{if .Disabled}} checked{{end}}><span class="form-check-label">禁用（不参与部署）</span></label>
+                <label class="form-check form-check-inline"><input type="checkbox" class="form-check-input" name="external_server" value="1"{{if .External}} checked{{end}}><span class="form-check-label">外部服务器（不部署节点）</span></label>
+            </div>
+        </div>
+    </div>
+    <div class="card-footer text-end">
+        <a href="/admin/servers" class="btn btn-link">取消</a>
+        <button type="submit" class="btn btn-primary">保存</button>
+    </div>
+</form>
+{{end}}
+{{end}}

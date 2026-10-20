@@ -1,0 +1,23 @@
+{{define "actions"}}<a href="/admin/domains" class="btn btn-outline-secondary d-none d-md-inline-block">返回域名</a>
+<form method="post" action="/admin/domains/{{.Domain.ID}}/pull" class="d-inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn btn-outline-primary"{{if not .Domain.ProviderID}} disabled{{end}}>从服务商拉取</button></form>
+<a href="/admin/domains/{{.Domain.ID}}/records/new" class="btn btn-primary"><i class="ti ti-plus me-1" aria-hidden="true"></i>新增 A 记录</a>{{end}}
+{{define "content"}}
+{{if .AutoEnabled}}<div class="alert alert-info">自动 DNS 已启用：每分钟检查时段计划和服务器流量；有待推送变更的记录不会自动处理。</div>{{else}}<div class="alert alert-secondary">此域名自动 DNS 未启用。设置环境变量 <code>AIROPSCAT_DNS_AUTO_DOMAINS</code> 为域名 ID（当前 {{.Domain.ID}}，多个用逗号分隔）或 all 后生效。</div>{{end}}
+
+{{if .Domain.Pending}}<div class="alert alert-warning d-flex align-items-center gap-3"><div class="flex-fill">有 <b>{{.Domain.Pending}}</b> 项变更尚未推送，推送后会修改 Cloudflare 上的真实解析。</div>
+<form method="post" action="/admin/domains/{{.Domain.ID}}/push" onsubmit="return confirm('将把 {{.Domain.Pending}} 项变更推送到 Cloudflare 并立即生效，确定？')"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="confirm" value="push"><button class="btn btn-warning">推送变更</button></form></div>{{end}}
+{{if not .Domain.ProviderID}}<div class="alert alert-info">该域名未绑定 DNS 服务商，记录仅保存在本地。</div>{{end}}
+<div class="card"><div class="card-header"><form method="get" class="d-flex gap-2 w-100" style="max-width:420px"><input type="search" name="q" value="{{.Q}}" class="form-control" placeholder="名称 / 内容" aria-label="搜索"><button class="btn btn-outline-secondary" type="submit">搜索</button></form></div>
+<div class="table-responsive"><table class="table table-vcenter card-table">
+<thead><tr><th>名称 / 内容</th><th class="d-none d-md-table-cell">类型</th><th class="d-none d-md-table-cell">TTL</th><th class="d-none d-md-table-cell">服务器</th><th class="d-none d-md-table-cell">状态</th><th class="w-1"></th></tr></thead>
+<tbody>{{range .List}}<tr>
+<td style="overflow-wrap:anywhere">{{.FullName}}<div class="text-secondary small">{{.Type}} · {{.Content}}{{if .ScheduleEnabled}} · 时段 {{.ScheduleStart}}–{{.ScheduleEnd}}{{end}}{{if .Proxied}} · 代理{{end}}</div>
+<div class="d-md-none mt-1">{{template "dnsStatus" .}}{{if .ServerName}} <span class="text-secondary small">{{.ServerName}}</span>{{end}}</div></td>
+<td class="d-none d-md-table-cell">{{.Type}}</td><td class="d-none d-md-table-cell">{{if eq .TTL 1}}自动{{else}}{{.TTL}}{{end}}</td>
+<td class="d-none d-md-table-cell">{{.ServerName}}</td><td class="d-none d-md-table-cell">{{template "dnsStatus" .}}</td>
+{{if eq .Type "A"}}<td class="text-nowrap"><div class="d-none d-md-flex gap-1"><a class="btn btn-sm btn-outline-primary" href="/admin/domains/{{.DomainID}}/records/{{.ID}}/edit">编辑</a><form method="post" action="/admin/domains/{{.DomainID}}/records/{{.ID}}/delete" onsubmit="return confirm('确定删除该记录？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="{{$.ListURL}}"><button type="submit" class="btn btn-sm btn-outline-danger">删除</button></form></div>
+<div class="dropdown d-md-none"><button type="button" class="btn btn-sm dropdown-toggle" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">更多</button><div class="dropdown-menu dropdown-menu-end"><a class="dropdown-item" href="/admin/domains/{{.DomainID}}/records/{{.ID}}/edit">编辑</a><form method="post" action="/admin/domains/{{.DomainID}}/records/{{.ID}}/delete" onsubmit="return confirm('确定删除该记录？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="{{$.ListURL}}"><button type="submit" class="dropdown-item text-danger">删除</button></form></div></div></td>{{else}}<td></td>{{end}}
+</tr>{{else}}<tr><td colspan="6" class="text-center text-secondary py-4">暂无记录；绑定服务商后可从服务商拉取</td></tr>{{end}}</tbody></table></div>
+<div class="card-footer d-flex">{{template "pager" .}}</div></div>
+{{end}}
+{{define "dnsStatus"}}{{if eq .Status "SYNCED"}}<span class="badge bg-green-lt">已同步</span>{{else if eq .Status "PENDING_CREATE"}}<span class="badge bg-yellow-lt">待创建</span>{{else if eq .Status "PENDING_UPDATE"}}<span class="badge bg-yellow-lt">待更新</span>{{else if eq .Status "PENDING_DELETE"}}<span class="badge bg-red-lt">待删除</span>{{else}}<span class="badge bg-red-lt">异常</span>{{end}}{{end}}

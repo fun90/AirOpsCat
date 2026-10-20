@@ -1,0 +1,33 @@
+{
+  "version": 3,
+  "rules": [
+    {
+      "domain": [
+        "clash.razord.top",
+        "yacd.haishan.me",
+        "download-cf.jetbrains.com",
+        "download.jetbrains.com",
+        "lcs-cops.adobe.io"
+      ],
+      "domain_suffix": [
+        "fun90.com",
+        "jetbrains-ls.org",
+        "zozo.jp",
+        "hsbc.com",
+        "hsbc.com.cn",
+        "hsbc.com.hk",
+        "bvty.vip",
+        "bvty842.com",
+        "qyg.vip",
+        "byteoversea.com",
+        "saltyfish.io",
+        "anythinktech.com"
+      ]
+    },
+    {
+      "process_name": [
+        "CorelDRW"
+      ]
+    }
+  ]
+}

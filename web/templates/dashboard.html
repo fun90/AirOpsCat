@@ -1,0 +1,74 @@
+{{define "content"}}
+<div class="row row-cards mb-3">
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card h-100"><div class="card-body">
+      <h3 class="card-title"><a href="/admin/accounts" class="text-reset">账户</a></h3>
+      <div class="h1 mb-3">{{.Stats.AccountsTotal}} <span class="text-secondary fs-4">总数</span></div>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="/admin/accounts?status=active" class="badge bg-green-lt">有效 {{.Stats.AccountsActive}}</a>
+        <a href="/admin/accounts?status=disabled" class="badge bg-secondary-lt">禁用 {{.Stats.AccountsDisabled}}</a>
+        <a href="/admin/accounts?status=expired" class="badge bg-red-lt">过期 {{.Stats.AccountsExpired}}</a>
+      </div>
+    </div></div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card h-100"><div class="card-body">
+      <h3 class="card-title"><a href="/admin/nodes" class="text-reset">节点</a></h3>
+      <div class="h1 mb-3">{{.Stats.NodesEnabled}} <span class="text-secondary fs-4">启用</span></div>
+      <div class="d-flex flex-wrap gap-2">
+        <span class="badge bg-secondary-lt">禁用 {{.Stats.NodesDisabled}}</span>
+        <span class="badge bg-yellow-lt">待部署位 {{.Stats.PendingPlacements}}</span>
+      </div>
+      <p class="text-secondary small mb-0 mt-2">待部署位按部署状态统计，不含待删除位。</p>
+    </div></div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card h-100"><div class="card-body">
+      <h3 class="card-title"><a href="/admin/servers" class="text-reset">服务器</a></h3>
+      <div class="h1 mb-3">{{.Stats.ServersEnabled}} <span class="text-secondary fs-4">启用</span></div>
+      <div class="d-flex flex-wrap gap-2">
+        <span class="badge bg-secondary-lt">外部 {{.Stats.ServersExternal}}</span>
+        <span class="badge bg-yellow-lt">7 天内到期 {{.Stats.ServersExpiring}}</span>
+      </div>
+      <p class="text-secondary small mb-0 mt-2">到期统计含今天至第 7 天，仅计启用的非外部服务器。</p>
+    </div></div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card h-100"><div class="card-body">
+      <h3 class="card-title"><a href="/admin/alerts" class="text-reset">告警</a></h3>
+      <div class="h1 mb-3">{{.Stats.AlertsActive}} <span class="text-secondary fs-4">进行中</span></div>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="/admin/alerts?status=ACTIVE" class="badge bg-red-lt">待处理 {{.Stats.AlertsActive}}</a>
+        <a href="/admin/alerts?status=ACKNOWLEDGED" class="badge bg-yellow-lt">已确认 {{.Stats.AlertsAcknowledged}}</a>
+      </div>
+    </div></div>
+  </div>
+</div>
+<div class="card mb-3">
+  <div class="card-header"><h3 class="card-title">24 小时内到期账户 <span class="badge bg-yellow-lt ms-2">{{len .Stats.Expiring24Hours}}</span></h3></div>
+  <div class="list-group list-group-flush">
+    {{range .Stats.Expiring24Hours}}<div class="list-group-item"><div class="d-flex align-items-center gap-3">
+      <div class="flex-fill" style="min-width:0;overflow-wrap:anywhere"><a class="text-reset fw-bold" href="/admin/accounts/{{.ID}}/edit">{{.Name}}</a>{{if .Disabled}} <span class="badge bg-secondary-lt">已禁用</span>{{end}}<div class="text-secondary small">{{.AccountNo}} · {{.Expires}}</div></div>
+      <a class="btn btn-sm btn-outline-primary flex-shrink-0" href="/admin/accounts/{{.ID}}/edit">续期</a>
+    </div></div>{{else}}<div class="card-body text-center text-secondary py-4">未来 24 小时内暂无到期账户</div>{{end}}
+  </div>
+</div>
+<div class="card">
+  <div class="card-header d-flex flex-wrap gap-2 justify-content-between">
+    <h3 class="card-title">近期告警</h3><a href="/admin/alerts" class="btn btn-sm btn-outline-secondary">查看全部</a>
+  </div>
+  <div class="list-group list-group-flush">
+    {{range .RecentAlerts}}
+    <div class="list-group-item" style="min-width:0;overflow-wrap:anywhere">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+        <strong>{{.TypeName}}</strong>
+        {{if eq .Status "ACTIVE"}}<span class="badge bg-red-lt">进行中</span>{{else if eq .Status "ACKNOWLEDGED"}}<span class="badge bg-yellow-lt">已确认</span>{{else}}<span class="badge bg-green-lt">已恢复</span>{{end}}
+      </div>
+      <div>{{if .Summary}}{{.Summary}}{{else}}暂无摘要{{end}}</div>
+      <div class="text-secondary small mt-1">{{if .ResourceKey}}资源：{{.ResourceKey}} · {{end}}最近触发：{{.LastTime}} · {{.Count}} 次</div>
+    </div>
+    {{else}}<div class="card-body text-center text-secondary py-4">暂无告警</div>{{end}}
+  </div>
+  <div class="card-footer text-secondary small">按最近触发时间显示 5 条，包含已确认及已恢复告警。</div>
+</div>
+{{end}}

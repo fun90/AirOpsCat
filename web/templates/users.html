@@ -1,0 +1,47 @@
+{{define "actions"}}<a href="/admin/users/new" class="btn btn-primary"><i class="ti ti-plus me-1" aria-hidden="true"></i>新增用户</a>{{end}}
+{{define "content"}}
+<div class="card">
+    <div class="card-header">
+        <form method="get" class="d-flex gap-2 w-100" style="max-width: 420px">
+            <input type="search" name="q" value="{{.Q}}" class="form-control" placeholder="邮箱 / 昵称 / 备注名 / 备注" aria-label="搜索">
+            <button class="btn btn-outline-secondary" type="submit">搜索</button>
+        </form>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+            <thead><tr><th class="d-none d-md-table-cell">ID</th><th>邮箱</th><th class="d-none d-md-table-cell">昵称</th><th class="d-none d-md-table-cell">备注名</th><th class="d-none d-md-table-cell">角色</th><th class="d-none d-md-table-cell">状态</th><th class="w-1"></th></tr></thead>
+            <tbody>
+            {{range .List}}
+            <tr>
+                <td class="d-none d-md-table-cell">{{.ID}}</td>
+                <td>{{.Email}}
+                    <div class="d-md-none mt-1"><span class="badge bg-blue-lt">{{.Role}}</span> {{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}}{{if or .NickName .RemarkName}}<div class="text-secondary small">{{.NickName}}{{if and .NickName .RemarkName}} / {{end}}{{.RemarkName}}</div>{{end}}</div></td>
+                <td class="d-none d-md-table-cell">{{.NickName}}</td>
+                <td class="d-none d-md-table-cell">{{.RemarkName}}{{if .Remark}}<div class="text-secondary small">{{.Remark}}</div>{{end}}</td>
+                <td class="d-none d-md-table-cell"><span class="badge bg-blue-lt">{{.Role}}</span></td>
+                <td class="d-none d-md-table-cell">{{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}}</td>
+                <td class="text-nowrap">
+                  <div class="d-none d-md-flex gap-1">
+                    <a href="/admin/users/{{.ID}}/edit" class="btn btn-sm btn-outline-primary">编辑</a>
+                    {{if ne .ID $.User.ID}}<form method="post" action="/admin/users/{{.ID}}/delete" onsubmit="return confirm('确定删除该用户？')"><input type="hidden" name="csrf" value="{{$.CSRF}}">
+                        <button class="btn btn-sm btn-outline-danger" type="submit">删除</button></form>{{end}}
+                  </div>
+                  {{if ne .ID $.User.ID}}<div class="dropdown d-md-none">
+                    <button class="btn btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">更多</button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="/admin/users/{{.ID}}/edit">编辑</a>
+                        {{if ne .ID $.User.ID}}<form method="post" action="/admin/users/{{.ID}}/delete" onsubmit="return confirm('确定删除该用户？')"><input type="hidden" name="csrf" value="{{$.CSRF}}">
+                            <button class="dropdown-item text-danger" type="submit">删除</button></form>{{end}}
+                    </div>
+                  </div>{{else}}<a href="/admin/users/{{.ID}}/edit" class="btn btn-sm btn-outline-primary d-md-none">编辑</a>{{end}}
+                </td>
+            </tr>
+            {{else}}
+            <tr><td colspan="7" class="text-center text-secondary py-4">暂无用户</td></tr>
+            {{end}}
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer d-flex">{{template "pager" .}}</div>
+</div>
+{{end}}

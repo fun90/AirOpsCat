@@ -1,0 +1,50 @@
+{{define "actions"}}<a href="/admin/servers/new" class="btn btn-primary"><i class="ti ti-plus me-1" aria-hidden="true"></i>新增服务器</a>{{end}}
+{{define "content"}}
+<div class="card">
+    <div class="card-header">
+        <form method="get" class="d-flex gap-2 w-100" style="max-width: 420px">
+            <input type="search" name="q" value="{{.Q}}" class="form-control" placeholder="名称 / IP / 供应商 / 备注" aria-label="搜索">
+            <button class="btn btn-outline-secondary" type="submit">搜索</button>
+        </form>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+            <thead><tr><th class="d-none d-md-table-cell">ID</th><th>名称</th><th>IP</th><th class="d-none d-md-table-cell">地区</th><th class="d-none d-md-table-cell">类型</th><th class="d-none d-md-table-cell">到期日</th><th class="d-none d-md-table-cell">部署位</th><th class="d-none d-md-table-cell">状态</th><th class="w-1"></th></tr></thead>
+            <tbody>
+            {{range .List}}
+            <tr>
+                <td class="d-none d-md-table-cell">{{.ID}}</td>
+                <td>{{.Name}}{{if .Supplier}}<div class="text-secondary small">{{.Supplier}}</div>{{end}}
+                    <div class="d-md-none mt-1">{{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}} {{if .External}}<span class="badge bg-azure-lt">外部</span>{{end}}</div></td>
+                <td>{{.IP}}</td>
+                <td class="d-none d-md-table-cell">{{.Region}}</td>
+                <td class="d-none d-md-table-cell">{{if eq .ServerType 1}}落地{{else}}代理{{end}}</td>
+                <td class="d-none d-md-table-cell">{{if .ExpireDate}}<span class="{{if lt .ExpireDate $.Today}}text-danger{{end}}">{{.ExpireDate}}</span>{{end}}</td>
+                <td class="d-none d-md-table-cell">{{.Placements}}</td>
+                <td class="d-none d-md-table-cell">
+                    {{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}}
+                    {{if .External}}<span class="badge bg-azure-lt">外部</span>{{end}}
+                </td>
+                <td class="text-nowrap">
+                  <div class="dropdown">
+                    <button class="btn btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">更多</button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="/admin/servers/{{.ID}}/edit">编辑</a>
+                        <a class="dropdown-item" href="/admin/servers/{{.ID}}/config" target="_blank" rel="noopener">配置预览</a>
+                        <form method="post" action="/admin/servers/{{.ID}}/ping"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item">测试连接</button></form>
+                        <form method="post" action="/admin/servers/{{.ID}}/clear-host-key" onsubmit="return confirm('服务器重装后才需要清除主机密钥，确定？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item">清除主机密钥</button></form>
+                        <form method="post" action="/admin/servers/{{.ID}}/delete" onsubmit="return confirm('确定删除该服务器？')"><input type="hidden" name="csrf" value="{{$.CSRF}}">
+                            <button class="dropdown-item text-danger" type="submit">删除</button></form>
+                    </div>
+                  </div>
+                </td>
+            </tr>
+            {{else}}
+            <tr><td colspan="8" class="text-center text-secondary py-4">暂无服务器</td></tr>
+            {{end}}
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer d-flex">{{template "pager" .}}</div>
+</div>
+{{end}}

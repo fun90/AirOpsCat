@@ -1,0 +1,125 @@
+{{define "content"}}
+{{with .Form}}
+<form method="post" action="{{if .ID}}/admin/nodes/{{.ID}}{{else}}/admin/nodes{{end}}" class="card" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <li class="nav-item"><button class="nav-link active" id="basic-tab" type="button" role="tab" aria-selected="true" aria-controls="basic-pane" data-bs-toggle="tab" data-bs-target="#basic-pane">基本信息</button></li>
+            <li class="nav-item"><button class="nav-link" id="inbound-tab" type="button" role="tab" aria-selected="false" aria-controls="inbound-pane" data-bs-toggle="tab" data-bs-target="#inbound-pane">入站配置</button></li>
+            {{if .ID}}<li class="nav-item"><button class="nav-link" id="placements-tab" type="button" role="tab" aria-selected="false" aria-controls="placements-pane" data-bs-toggle="tab" data-bs-target="#placements-pane">部署位</button></li>{{end}}
+        </ul>
+    </div>
+    {{if $.FormErr}}<div class="alert alert-danger m-3" role="alert">{{$.FormErr}}</div>{{end}}
+    <div class="tab-content">
+    <div class="card-body tab-pane active" id="basic-pane" role="tabpanel" aria-labelledby="basic-tab">
+        <div class="row g-3">
+            <div class="col-md-6"><label class="form-label required" for="name">名称</label>
+                <input class="form-control" id="name" name="name" value="{{.Name}}" required>
+                <div class="form-hint">订阅里按 “名称-编号” 去重，缺省编号为 -1</div></div>
+            <div class="col-md-3"><label class="form-label required" for="region">地区</label>
+                <input class="form-control" id="region" name="region" value="{{.Region}}" list="regions" required>
+                <datalist id="regions">{{range $.Regions}}<option value="{{.}}">{{end}}</datalist></div>
+            <div class="col-md-3"><label class="form-label required" for="port">端口</label>
+                <input type="number" class="form-control" id="port" name="port" value="{{.Port}}" required min="1" max="65535"></div>
+
+            <div class="col-md-6"><label class="form-label" for="remark">备注</label>
+                <input class="form-control" id="remark" name="remark" value="{{.Remark}}"></div>
+            <div class="col-6 col-md-3"><label class="form-label" for="type">类型</label>
+                <select class="form-select" id="type" name="type">
+                    <option value="0"{{if eq .Type "0"}} selected{{end}}>代理节点</option>
+                    <option value="1"{{if eq .Type "1"}} selected{{end}}>落地节点</option>
+                </select></div>
+            <div class="col-6 col-md-3"><label class="form-label" for="out_id">出站</label>
+                <select class="form-select" id="out_id" name="out_id">
+                    <option value="">直连</option>
+                    {{range $.Landing}}<option value="{{.ID}}"{{if eq $.Form.OutID (printf "%d" .ID)}} selected{{end}}>{{.Name}}（{{.Region}}）</option>{{end}}
+                </select></div>
+<div class="col-12" data-tag-picker>
+                <label class="form-label">标签</label>
+                <div class="text-secondary small mb-2">决定哪些账户可以使用该节点</div>
+                <div class="d-flex flex-wrap gap-2 align-items-center" data-tag-list>
+                {{range $.Tags}}
+                    <span class="tag-pill d-inline-flex align-items-center rounded-pill border ps-2 pe-1 py-1 small" data-tag-id="{{.ID}}" data-tag-name="{{.Name}}" data-tag-color="{{.Color}}">
+                        <label class="d-inline-flex align-items-center m-0">
+                            <input type="checkbox" class="visually-hidden" name="tags" value="{{.ID}}"{{if index $.Form.TagIDs .ID}} checked{{end}}>
+                            <span class="tag-dot me-1" style="background-color: {{if .Color}}{{.Color}}{{else}}#6c757d{{end}}"></span>
+                            <span data-tag-label>{{.Name}}</span><i class="ti ti-check tag-check ms-1" aria-hidden="true"></i>
+                        </label>
+                        <button type="button" class="tag-edit border-0 bg-transparent text-secondary ms-1 px-1" aria-label="编辑标签 {{.Name}}"><i class="ti ti-pencil" aria-hidden="true"></i></button>
+                    </span>
+                {{end}}
+                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" data-tag-new><i class="ti ti-plus me-1" aria-hidden="true"></i>新标签</button>
+                </div>
+                <div class="border rounded p-2 mt-2" data-tag-editor hidden>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <span class="text-secondary small" data-tag-title>新增标签</span>
+                        <div class="input-group input-group-sm flex-grow-1 w-auto tag-editor-fields">
+                            <input type="text" class="form-control" data-tag-name-input maxlength="64" placeholder="标签名称" aria-label="标签名称">
+                            <input type="color" class="form-control form-control-color flex-grow-0 flex-shrink-0 p-1" data-tag-color-input value="#206bc4" aria-label="标签颜色">
+                        </div>
+                        <button type="button" class="btn btn-sm btn-primary" data-tag-save>保存</button>
+                        <button type="button" class="btn btn-sm btn-link text-secondary" data-tag-cancel>取消</button>
+                    </div>
+                    <div class="text-danger small mt-1" role="status" data-tag-error></div>
+                </div>
+            </div>
+            <div class="col-12"><label class="form-check"><input type="checkbox" class="form-check-input" name="disabled" value="1"{{if .Disabled}} checked{{end}}>
+                <span class="form-check-label">禁用</span></label></div>
+        </div>
+    </div>
+
+    <div class="card-body tab-pane" id="inbound-pane" role="tabpanel" aria-labelledby="inbound-tab">
+            <div class="col-md-6 mb-3"><label class="form-label" for="protocol">协议</label>
+                <select class="form-select" id="protocol" name="protocol">
+                    <optgroup label="代理节点">{{range $.ProxyProtocols}}<option value="{{.}}"{{if eq . $.Form.Protocol}} selected{{end}}>{{.}}</option>{{end}}</optgroup>
+                    <optgroup label="落地节点">{{range $.LandingProtocols}}<option value="{{.}}"{{if eq . $.Form.Protocol}} selected{{end}}>{{.}}</option>{{end}}</optgroup>
+                </select></div>
+
+            <div class="col-12"><label class="form-label required" for="inbound">入站配置（JSON 对象）</label>
+                <textarea id="inbound" name="inbound" data-json-editor required>{{.Inbound}}</textarea>
+                <div class="form-hint">ShadowTLS 使用 v3 + Shadowsocks 组合。users 是节点握手凭据；内层账户与转接由系统生成，无需另建节点。内层仅支持 chacha20-ietf-poly1305。</div>
+                <div class="form-hint">不要包含 tag、listen、listen_port，这些由系统生成</div></div>
+
+    </div>
+    {{if .ID}}
+    <div class="card-body tab-pane" id="placements-pane" role="tabpanel" aria-labelledby="placements-tab">
+        <p class="text-secondary">部署位按“地区 + 类型”自动关联匹配的服务器，修改地区或类型后保存会自动增删；这里只调整已有部署位的属性。</p>
+        {{range $.Placements}}
+        <div class="border rounded p-3 mb-3{{if eq .Deployed 2}} bg-red-lt{{end}}">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <strong>{{.ServerName}}</strong><span class="text-secondary">{{.ServerIP}}</span>
+                {{if eq .Deployed 0}}<span class="badge bg-yellow-lt">待部署</span>{{else if eq .Deployed 1}}<span class="badge bg-green-lt">已部署</span>{{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
+                {{if .Disabled}}<span class="badge bg-secondary-lt">服务器已禁用</span>{{end}}
+            </div>
+            {{if ne .Deployed 2}}
+            {{$k := printf "p%d_" .ServerID}}
+            <div class="row g-2">
+                <div class="col-6 col-md-2"><label class="form-label" for="{{$k}}priority">优先级</label>
+                    <input type="number" class="form-control" id="{{$k}}priority" name="{{$k}}priority" value="{{.Priority}}"></div>
+                <div class="col-6 col-md-3"><label class="form-label" for="{{$k}}host">访问域名</label>
+                    <select class="form-select" id="{{$k}}host" name="{{$k}}host">
+                        <option value="">使用服务器 IP</option>
+                        {{$ph := .AccessHostID}}
+                        {{range index $.Hosts .ServerID}}<option value="{{.ID}}"{{if $ph}}{{if eq .ID (deref $ph)}} selected{{end}}{{end}}>{{.FullName}}</option>{{end}}
+                    </select></div>
+                <div class="col-6 col-md-2"><label class="form-label" for="{{$k}}cheap_start">便宜开始</label>
+                    <input type="time" step="60" class="form-control" id="{{$k}}cheap_start" name="{{$k}}cheap_start" value="{{.CheapStart}}" placeholder="HH:mm"></div>
+                <div class="col-6 col-md-2"><label class="form-label" for="{{$k}}cheap_end">便宜结束</label>
+                    <input type="time" step="60" class="form-control" id="{{$k}}cheap_end" name="{{$k}}cheap_end" value="{{.CheapEnd}}" placeholder="HH:mm"></div>
+                <div class="col-12 col-md-3 d-flex align-items-end"><label class="form-check mb-2"><input type="checkbox" class="form-check-input" name="{{$k}}exposed" value="1"{{if .Exposed}} checked{{end}}>
+                    <span class="form-check-label">出现在订阅（落地节点无效）</span></label></div>
+            </div>
+            {{end}}
+        </div>
+        {{else}}<p class="text-secondary mb-0">暂无部署位：没有地区匹配且未禁用的服务器。</p>{{end}}
+    </div>
+    {{end}}
+
+    </div>
+    <div class="card-footer text-end">
+        <a href="/admin/nodes" class="btn btn-link">取消</a>
+        <button type="submit" class="btn btn-primary">保存</button>
+    </div>
+</form>
+{{end}}
+{{end}}

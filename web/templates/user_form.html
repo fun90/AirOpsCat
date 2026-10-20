@@ -1,0 +1,33 @@
+{{define "content"}}
+{{with .Form}}
+<form method="post" action="{{if .ID}}/admin/users/{{.ID}}{{else}}/admin/users{{end}}" class="card" style="max-width: 720px" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <div class="card-body">
+        {{if $.FormErr}}<div class="alert alert-danger" role="alert">{{$.FormErr}}</div>{{end}}
+        <div class="row g-3">
+            <div class="col-md-6"><label class="form-label required" for="email">邮箱</label>
+                <input type="email" class="form-control" id="email" name="email" value="{{.Email}}" required></div>
+            <div class="col-md-6"><label class="form-label" for="nick_name">昵称</label>
+                <input class="form-control" id="nick_name" name="nick_name" value="{{.NickName}}"></div>
+            <div class="col-md-6"><label class="form-label" for="remark_name">备注名</label>
+                <input class="form-control" id="remark_name" name="remark_name" value="{{.RemarkName}}"></div>
+            <div class="col-md-6"><label class="form-label" for="role">角色</label>
+                <select class="form-select" id="role" name="role">
+                    {{range $.Roles}}<option value="{{.}}"{{if eq . $.Form.Role}} selected{{end}}>{{.}}</option>{{end}}
+                </select></div>
+            <div class="col-12"><label class="form-label{{if not .ID}} required{{end}}" for="password">密码</label>
+                <input type="password" class="form-control" id="password" name="password" autocomplete="new-password"{{if not .ID}} required{{end}} placeholder="{{if .ID}}留空表示不修改{{end}}"></div>
+            <div class="col-12"><label class="form-label" for="remark">备注</label>
+                <textarea class="form-control" id="remark" name="remark" rows="3">{{.Remark}}</textarea></div>
+            <div class="col-12">
+                <label class="form-check"><input type="checkbox" class="form-check-input" name="disabled" value="1"{{if .Disabled}} checked{{end}}><span class="form-check-label">禁用（不能登录）</span></label>
+            </div>
+        </div>
+    </div>
+    <div class="card-footer text-end">
+        <a href="/admin/users" class="btn btn-link">取消</a>
+        <button type="submit" class="btn btn-primary">保存</button>
+    </div>
+</form>
+{{end}}
+{{end}}

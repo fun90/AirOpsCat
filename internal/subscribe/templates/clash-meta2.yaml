@@ -1,0 +1,281 @@
+# AirOpsCat Subscription Config for Clash Meta (Android) 2
+# Generated at: {{text $.timestamp}}
+# Account: {{text $.account.uuid}}
+
+mode: rule
+ipv6: false
+log-level: info
+allow-lan: false
+unified-delay: true
+geox-url:
+  geoip: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat
+  geosite: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat
+  mmdb: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb
+  asn: https://github.com/xishang0128/geoip/releases/download/latest/GeoLite2-ASN.mmdb
+
+mixed-port: 7890
+
+tun:
+  enable: true
+  stack: system
+  auto-route: true
+  auto-redirect: true
+  auto-detect-interface: true
+  dns-hijack:
+    - any:53
+    - tcp://any:53
+
+clash-for-android:
+  append-system-dns: false
+experimental:
+  sniff-tls-sni: true
+
+dns:
+  enable: true
+  ipv6: false
+  listen: 0.0.0.0:53
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - "*.srv.nintendo.net"
+    - "*.stun.playstation.net"
+    - "xbox.*.microsoft.com"
+    - "*.xboxlive.com"
+    - "*.fun90.com"
+  nameserver:
+    - tls://223.5.5.5:853
+    - tls://223.6.6.6:853
+    - tls://120.53.53.53
+    - tls://1.12.12.12
+  fallback:
+    - https://1.1.1.1/dns-query#代理
+    - https://8.8.8.8/dns-query#代理
+    - tls://1.1.1.1:853#代理
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+    ipcidr:
+      - 240.0.0.0/4
+      - 0.0.0.0/32
+  proxy-server-nameserver:
+    - tls://223.5.5.5:853
+
+profile:
+  tracing: true
+  store-selected: true
+
+proxies:
+{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality"))}}  - name: {{text $node.name}}
+    type: vless
+    server: {{text $node.serverHost}}
+    port: {{text $node.port}}
+    uuid: {{text $.account.uuid}}
+    network: tcp
+    tls: true
+    udp: true
+    flow: xtls-rprx-vision
+{{if (eq $node.protocol "vless-reality")}}{{if (eq $node.coreType "sing-box")}}    servername: {{text $node.inbound.tls.server_name}}
+    reality-opts:
+      public-key: {{text $node.inbound.tls.reality.public_key}}
+      short-id: {{text (index $node.inbound.tls.reality.short_id 0)}}
+{{else if (eq $node.coreType "xray")}}    servername: {{text (index $node.inbound.streamSettings.realitySettings.serverNames 0)}}
+    reality-opts:
+      public-key: {{text $node.inbound.streamSettings.realitySettings.publicKey}}
+      short-id: {{text (index $node.inbound.streamSettings.realitySettings.shortIds 0)}}
+{{end}}{{else}}    skip-cert-verify: true
+{{end}}    client-fingerprint: chrome
+{{end}}{{if (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box"))}}  - name: {{text $node.name}}
+    type: hysteria2
+    server: {{text $node.serverHost}}
+    port: {{text $node.port}}
+    password: {{text $.account.uuid}}
+    obfs: salamander
+    obfs-password: {{text $node.inbound.obfs.password}}
+    sni: {{text $node.inbound.tls.server_name}}
+    skip-cert-verify: true
+    client-fingerprint: chrome
+    alpn:
+      - h3
+    udp: true
+{{end}}{{if (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box"))}}  - name: {{text $node.name}}
+    type: ss
+    server: {{text $node.serverHost}}
+    port: {{text $node.port}}
+    cipher: chacha20-ietf-poly1305
+    password: {{text $.account.uuid}}
+    udp: false
+    plugin: shadow-tls
+    plugin-opts:
+      host: {{text $node.inbound.handshake.server}}
+      password: {{text (index $node.inbound.users 0).password}}
+      version: 3
+{{end}}{{end}}
+proxy-groups:
+  - name: 代理
+    icon: https://static.fun90.com/clash/Proxy.png
+    type: select
+    proxies:
+{{if (gt (len $.nodes) 1)}}      - 自动
+{{end}}{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
+{{end}}{{end}}      - 直连
+  - name: GitHub
+    icon: https://static.fun90.com/clash/GitHub.png
+    type: select
+    proxies:
+      - 代理
+      - 直连
+{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
+{{end}}{{end}}  - name: Microsoft
+    icon: https://static.fun90.com/clash/Microsoft.png
+    type: select
+    proxies:
+      - 直连
+      - 代理
+{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
+{{end}}{{end}}  - name: HST
+    icon: https://static.fun90.com/clash/hst.svg
+    type: select
+    proxies:
+      - 代理
+      - 直连
+{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
+{{end}}{{end}}  - name: Broker
+    icon: https://static.fun90.com/clash/Broker.png
+    type: select
+    proxies:
+      - 代理
+      - 直连
+{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
+{{end}}{{end}}  - name: Football
+    icon: https://static.fun90.com/clash/football.svg
+    type: select
+    proxies:
+{{range $i, $node := $.nodes}}{{if (and (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box"))) (or (contains $node.name "新加坡") (contains $node.name "日本")))}}      - {{text $node.name}}
+{{end}}{{end}}      - 直连
+  - name: Apple
+    icon: https://static.fun90.com/clash/Apple.png
+    type: select
+    proxies:
+      - 直连
+      - 代理
+{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
+{{end}}{{end}}{{if (gt (len $.nodes) 1)}}  - name: 自动
+    icon: https://static.fun90.com/clash/Auto.png
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    proxies:
+{{range $i, $node := $.nodes}}{{if (and (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box"))) (or (contains $node.name "美国") (contains $node.name "新加坡") (contains $node.name "日本")))}}      - {{text $node.name}}
+{{end}}{{end}}{{end}}  - name: 直连
+    icon: https://static.fun90.com/clash/Direct.png
+    type: select
+    proxies:
+      - DIRECT
+
+rule-providers:
+  hst:
+    type: http
+    behavior: classical
+    url: {{text $.subscriptionUrl}}/rules/clash/hst.yaml
+    path: ./ruleset/hst.yaml
+    interval: 86400
+  myreject:
+    type: http
+    behavior: classical
+    url: "{{text $.subscriptionUrl}}/rules/clash/myreject.yaml"
+    path: ./ruleset/myreject.yaml
+    interval: 86400
+  mydirect:
+    type: http
+    behavior: classical
+    url: "{{text $.subscriptionUrl}}/rules/clash/mydirect.yaml"
+    path: ./ruleset/mydirect.yaml
+    interval: 86400
+  myproxy:
+    type: http
+    behavior: classical
+    url: "{{text $.subscriptionUrl}}/rules/clash/myproxy.yaml"
+    path: ./ruleset/myproxy.yaml
+    interval: 86400
+  private:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/private.mrs"
+    path: ./ruleset/private.mrs
+    interval: 86400
+  lancidr:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/private.mrs"
+    path: ./ruleset/lancidr.mrs
+    interval: 86400
+  Apple:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/apple.mrs"
+    path: ./ruleset/Apple.mrs
+    interval: 86400
+  GitHub:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/github.mrs"
+    path: ./ruleset/GitHub.mrs
+    interval: 86400
+  Microsoft:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/microsoft.mrs"
+    path: ./ruleset/Microsoft.mrs
+    interval: 86400
+  ChinaIPs_IP:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/cn.mrs"
+    path: ./ruleset/ChinaIPs_IP.mrs
+    interval: 86400
+  China_Domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/cn.mrs"
+    path: ./ruleset/China_Domain.mrs
+    interval: 86400
+  Broker:
+    type: http
+    behavior: classical
+    url: "{{text $.subscriptionUrl}}/rules/clash/hk-broker.yaml"
+    path: ./ruleset/hk-broker.yaml
+    interval: 86400
+  football:
+    type: http
+    behavior: classical
+    url: "{{text $.subscriptionUrl}}/rules/clash/football.yaml"
+    path: ./ruleset/football.yaml
+    interval: 3600
+
+rules:
+  - DOMAIN-SUFFIX,fun90.com,DIRECT
+  - RULE-SET,hst,HST
+  - RULE-SET,myreject,REJECT
+  - RULE-SET,mydirect,DIRECT
+  - RULE-SET,myproxy,代理
+  - RULE-SET,Broker,Broker
+  - RULE-SET,football,Football
+  - RULE-SET,private,DIRECT
+  - RULE-SET,lancidr,DIRECT
+  - RULE-SET,Apple,Apple
+  - RULE-SET,GitHub,GitHub
+  - RULE-SET,Microsoft,Microsoft
+  - RULE-SET,ChinaIPs_IP,DIRECT
+  - RULE-SET,China_Domain,DIRECT
+  - GEOIP,LAN,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,代理

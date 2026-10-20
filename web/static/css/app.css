@@ -1,0 +1,62 @@
+/* JSON 编辑器（json-editor.js）：透明 textarea 叠在高亮层上，行号栏与滚动同步 */
+.je { border: 1px solid var(--tblr-border-color); border-radius: var(--tblr-border-radius); background: var(--tblr-bg-forms); overflow: hidden; }
+.je.je-invalid { border-color: var(--tblr-danger); }
+.je-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .375rem .5rem; border-bottom: 1px solid var(--tblr-border-color); background: var(--tblr-bg-surface-secondary); }
+.je-status { margin-left: auto; font-size: .8125rem; }
+.je-status.ok { color: var(--tblr-success); }
+.je-status.bad { color: var(--tblr-danger); }
+.je-body { display: flex; height: 22rem; min-height: 8rem; resize: vertical; overflow: hidden; }
+.je-gutter, .je-hl, .je-ta { font-family: var(--tblr-font-monospace); font-size: 13px; line-height: 20px; tab-size: 2; margin: 0; box-sizing: border-box; }
+.je-gutter { flex: none; min-width: 3rem; padding: 8px .5rem 8px .5rem; text-align: right; color: var(--tblr-secondary); background: var(--tblr-bg-surface-secondary); border-right: 1px solid var(--tblr-border-color); overflow: hidden; user-select: none; white-space: pre; }
+.je-code { position: relative; flex: 1; min-width: 0; }
+.je-hl, .je-ta { position: absolute; inset: 0; padding: 8px 12px; white-space: pre-wrap; overflow-wrap: anywhere; border: 0; }
+.je-hl { overflow: hidden; pointer-events: none; color: var(--tblr-body-color); background: transparent; border-radius: 0; padding-bottom: 8px; }
+.je-ta { background: transparent; color: transparent; caret-color: var(--tblr-body-color); resize: none; outline: none; overflow-y: auto; overflow-x: hidden; }
+.je-ta::selection { background: rgba(32, 107, 196, .3); }
+.je-key { color: var(--tblr-blue); }
+.je-str { color: var(--tblr-green); }
+.je-num { color: var(--tblr-orange); }
+.je-bool { color: var(--tblr-purple); }
+.je-null { color: var(--tblr-red); }
+
+@media (max-width: 767.98px) {
+    .je-gutter { display: none; }
+}
+
+.tag-pill label, .tag-edit { cursor: pointer; }
+.tag-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.tag-check { display: none; }
+.tag-pill:has(input:checked) { border-color: var(--tblr-primary) !important; background: var(--tblr-primary-lt); color: var(--tblr-primary); font-weight: 500; }
+.tag-pill:has(input:checked) .tag-check { display: inline; }
+.tag-pill:has(input:focus-visible) { outline: 2px solid var(--tblr-primary); outline-offset: 2px; }
+
+.je-line { display: block; min-height: 20px; }
+
+.tag-editor-fields { min-width: 12rem; }
+.tag-editor-fields [data-tag-color-input] { flex: 0 0 44px; width: 44px; min-width: 44px; }
+
+.ts-dropdown { z-index: 1060; }
+/* Tom Select 使用 Bootstrap 变量，映射到 Tabler 的当前主题。 */
+.ts-wrapper, .ts-dropdown {
+    --bs-body-bg: var(--tblr-bg-forms);
+    --bs-body-color: var(--tblr-body-color);
+    --bs-border-color: var(--tblr-border-color);
+    --bs-border-radius: var(--tblr-border-radius);
+    --bs-secondary-color: var(--tblr-secondary);
+}
+.ts-control, .ts-wrapper.single.input-active .ts-control { background: var(--tblr-bg-forms); color: var(--tblr-body-color); }
+.ts-control input, .ts-dropdown { color: var(--tblr-body-color); }
+.ts-dropdown { background: var(--tblr-bg-surface); }
+.ts-dropdown .option.active { background: var(--tblr-bg-surface-secondary); color: var(--tblr-body-color); }
+[data-bs-theme="dark"] img[src="/static/img/logo-light.png"] { filter: invert(1); }
+
+/* 固定布局表格的操作列：移动端放下拉按钮，PC 端放并排按钮 */
+.col-actions{width:5.5rem}
+@media (min-width:768px){.col-actions{width:13rem}}
+
+.popover-body { white-space: pre-line; }
+.log-message { white-space: normal; overflow-wrap: anywhere; min-width: 16rem; }
+@media (max-width: 767.98px) {
+    .logs-table { table-layout: fixed; width: 100%; }
+    .logs-table .log-message { width: 100%; min-width: 0; }
+}

@@ -1,0 +1,4 @@
+payload:
+  - ocsp.int-x3.letsencrypt.org
+  - ipm-provider.ff.avast.com
+  - +.adobe.io

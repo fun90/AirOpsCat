@@ -1,0 +1,13 @@
+.git
+.idea
+.vscode
+.agents
+.claude
+.codegraph
+logs
+backup
+target
+*.db
+*.db-wal
+*.db-shm
+.env

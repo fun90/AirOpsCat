@@ -1,0 +1,10 @@
+payload:
+  #DOMAIN,ocsp.apple.com
+  #DOMAIN,world-gen.g.aaplimg.com
+  #DOMAIN,mesu.apple.com
+  #DOMAIN,gdmf.apple.com
+  - DOMAIN,ocsp.int-x3.letsencrypt.org
+  - DOMAIN,ipm-provider.ff.avast.com
+  - DOMAIN-SUFFIX,adobe.io
+  - PROCESS-PATH-REGEX,^/Applications/Paste\.app/.*
+  - PROCESS-PATH-REGEX,^/Applications/Yoink\.app/.*

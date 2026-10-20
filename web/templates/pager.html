@@ -1,0 +1,6 @@
+{{define "pager"}}{{if gt .Pages 1}}
+<ul class="pagination m-0 ms-auto">
+    <li class="page-item{{if le .Page 1}} disabled{{end}}"><a class="page-link" href="{{pageURL .Query (sub .Page 1)}}">上一页</a></li>
+    <li class="page-item disabled"><span class="page-link">{{.Page}} / {{.Pages}}</span></li>
+    <li class="page-item{{if ge .Page .Pages}} disabled{{end}}"><a class="page-link" href="{{pageURL .Query (add .Page 1)}}">下一页</a></li>
+</ul>{{end}}{{end}}

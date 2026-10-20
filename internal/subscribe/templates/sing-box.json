@@ -1,0 +1,508 @@
+{
+  {{$autoNodes := ""}}{{range $i, $node := $.nodes}}{{if (or (contains $node.name "美国") (contains $node.name "新加坡") (contains $node.name "日本"))}}{{$autoNodes = printf "%s\"%s\"," $autoNodes (text $node.name)}}{{end}}{{end}}
+  {{$footballNodes := ""}}{{range $i, $node := $.nodes}}{{if (or (contains $node.name "新加坡") (contains $node.name "日本"))}}{{$footballNodes = printf "%s\"%s\"," $footballNodes (text $node.name)}}{{end}}{{end}}
+  "log": {
+    "disabled": false,
+    "level": "error",
+    "output": "",
+    "timestamp": false
+  },
+  "http_clients": [
+    {
+      "tag": "default-http-client"
+    }
+  ],
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "address": [
+        "172.19.0.1/30"
+      ],
+      "mtu": 9000,
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "system",
+      "platform": {
+        "http_proxy": {
+          "enabled": true,
+          "server": "127.0.0.1",
+          "server_port": 8090
+        }
+      }
+    },
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 8090
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "🚀 节点选择",
+      "interrupt_exist_connections": true,
+      "outbounds": [
+        {{if (gt (len $.nodes) 1)}}"🎈 自动选择",{{end}}
+{{range $i, $node := $.nodes}}        "{{text $node.name}}"{{if (lt (add $i 1) (len $.nodes))}},{{end}}
+{{end}}      ]
+    },
+{{if (gt (len $.nodes) 1)}}    {
+      "type": "urltest",
+      "tag": "🎈 自动选择",
+      "url": "https://www.gstatic.com/generate_204",
+      "interval": "3m",
+      "tolerance": 150,
+      "interrupt_exist_connections": true,
+      "outbounds": [
+        {{trimSuffix $autoNodes ","}}
+      ]
+    },
+{{end}}    {
+      "tag": "🪟 Microsoft",
+      "type": "selector",
+      "interrupt_exist_connections": true,
+      "outbounds": [
+        "🚀 节点选择",
+        {{if (gt (len $.nodes) 1)}}"🎈 自动选择",{{end}}
+        {{range $i, $node := $.nodes}}"{{text $node.name}}",{{end}}
+        "🎯 全球直连"
+      ]
+    },
+    {
+      "tag": "📈 HST",
+      "type": "selector",
+      "interrupt_exist_connections": true,
+      "outbounds": [
+        "🚀 节点选择",
+        "🎯 全球直连",
+{{range $i, $node := $.nodes}}        "{{text $node.name}}"{{if (lt (add $i 1) (len $.nodes))}},{{end}}
+{{end}}      ]
+    },
+    {
+      "tag": "💹 Broker",
+      "type": "selector",
+      "interrupt_exist_connections": true,
+      "outbounds": [
+        "🚀 节点选择",
+        "🎯 全球直连",
+{{range $i, $node := $.nodes}}        "{{text $node.name}}"{{if (lt (add $i 1) (len $.nodes))}},{{end}}
+{{end}}      ]
+    },
+    {
+      "tag": "⚽ Football",
+      "type": "selector",
+      "interrupt_exist_connections": true,
+      "outbounds": [
+        {{$footballNodes}}
+        "🎯 全球直连"
+      ]
+    },
+    {
+      "tag": "🐬 OneDrive",
+      "type": "selector",
+      "interrupt_exist_connections": true,
+      "outbounds": [
+        "🚀 节点选择",
+        {{if (gt (len $.nodes) 1)}}"🎈 自动选择",{{end}}
+{{range $i, $node := $.nodes}}        "{{text $node.name}}"{{if (lt (add $i 1) (len $.nodes))}},{{end}}
+{{end}}      ]
+    },
+    {
+      "tag": "🍏 Apple",
+      "type": "selector",
+      "interrupt_exist_connections": true,
+      "outbounds": [
+        "🎯 全球直连",
+        "🚀 节点选择",
+{{range $i, $node := $.nodes}}        "{{text $node.name}}"{{if (lt (add $i 1) (len $.nodes))}},{{end}}
+{{end}}      ]
+    },
+    {
+      "type": "direct",
+      "tag": "🎯 全球直连"
+    },
+    {
+      "type": "selector",
+      "tag": "🐟 漏网之鱼",
+      "interrupt_exist_connections": true,
+      "outbounds": [
+        "🚀 节点选择",
+        "🎯 全球直连"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "GLOBAL",
+      "interrupt_exist_connections": true,
+      "outbounds": [
+        "🚀 节点选择",
+        {{if (gt (len $.nodes) 1)}}"🎈 自动选择",{{end}}
+        "🎯 全球直连",
+        "🐟 漏网之鱼"
+      ]
+    },
+{{range $i, $node := $.nodes}}    {
+      "tag": "{{text $node.name}}",
+{{if (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box"))}}      "type": "hysteria2",
+      "server": "{{text $node.serverHost}}",
+      "server_port": {{text $node.port}},
+      "password": "{{text $.account.uuid}}",
+      "obfs": {
+          "type": "salamander",
+          "password": "{{text $node.inbound.obfs.password}}"
+      },
+      "tls": {
+        "enabled": true,
+        "insecure": true,
+        "server_name": "{{text $node.inbound.tls.server_name}}",
+        "alpn": [
+          "h3"
+        ]
+      }
+{{else if (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box"))}}      "type": "shadowsocks",
+      "server": "{{text $node.serverHost}}",
+      "server_port": {{text $node.port}},
+      "method": "chacha20-ietf-poly1305",
+      "password": "{{text $.account.uuid}}",
+      "network": "tcp",
+      "detour": "{{shadowTag $i $.nodes}}"
+    },
+    {
+      "tag": "{{shadowTag $i $.nodes}}",
+      "type": "shadowtls",
+      "server": "{{text $node.serverHost}}",
+      "server_port": {{text $node.port}},
+      "version": 3,
+      "password": "{{text (index $node.inbound.users 0).password}}",
+      "tls": {
+        "enabled": true,
+        "server_name": "{{text $node.inbound.handshake.server}}",
+        "utls": {"enabled": true, "fingerprint": "chrome"}
+      }
+{{else}}      "type": "vless",
+      "server": "{{text $node.serverHost}}",
+      "server_port": {{text $node.port}},
+      "uuid": "{{text $.account.uuid}}",
+      "tls": {
+        "enabled": true,
+        "insecure": true,
+{{if (eq $node.protocol "vless-reality")}}{{if (eq $node.coreType "sing-box")}}        "server_name": "{{text $node.inbound.tls.server_name}}",
+        "reality": {
+          "enabled": true,
+          "public_key": "{{text $node.inbound.tls.reality.public_key}}",
+          "short_id": "{{text (index $node.inbound.tls.reality.short_id 0)}}"
+        },
+{{else if (eq $node.coreType "xray")}}        "server_name": "{{text (index $node.inbound.streamSettings.realitySettings.serverNames 0)}}",
+        "reality": {
+          "enabled": true,
+          "public_key": "{{text $node.inbound.streamSettings.realitySettings.publicKey}}",
+          "short_id": "{{text (index $node.inbound.streamSettings.realitySettings.shortIds 0)}}"
+        },
+{{end}}{{else}}        "server_name": "{{text $node.serverHost}}",
+{{end}}        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "flow": "xtls-rprx-vision"
+{{end}}    }{{if (lt (add $i 1) (len $.nodes))}},{{end}}
+{{end}}  ],
+  "route": {
+    "rules": [
+      {
+        "action": "sniff",
+        "inbound": "tun-in"
+      },
+      {
+        "action": "hijack-dns",
+        "protocol": "dns"
+      },
+      {
+        "action": "route",
+        "clash_mode": "direct",
+        "outbound": "🎯 全球直连"
+      },
+      {
+        "action": "route",
+        "clash_mode": "global",
+        "outbound": "GLOBAL"
+      },
+      {
+        "action": "reject",
+        "protocol": "quic"
+      },
+      {
+        "action": "route",
+        "domain": [
+          "clash.razord.top",
+          "yacd.metacubex.one",
+          "yacd.haishan.me",
+          "d.metacubex.one",
+          "fun90.com"
+        ],
+        "domain_suffix": [
+          ".fun90.com"
+        ],
+        "rule_set": [
+          "GeoSite-Private",
+          "GeoIP-Private"
+        ],
+        "outbound": "🎯 全球直连"
+      },
+      {
+        "action": "resolve",
+        "rule_set": "hst",
+        "server": "hstDns"
+      },
+      {
+        "action": "route",
+        "rule_set": "hst",
+        "outbound": "📈 HST"
+      },
+      {
+        "action": "reject",
+        "rule_set": "myreject"
+      },
+      {
+        "action": "route",
+        "rule_set": "mydirect",
+        "outbound": "🎯 全球直连"
+      },
+      {
+        "action": "route",
+        "rule_set": "myproxy",
+        "outbound": "🚀 节点选择"
+      },
+      {
+        "action": "route",
+        "rule_set": "football",
+        "outbound": "⚽ Football"
+      },
+      {
+        "action": "route",
+        "rule_set": "Broker",
+        "outbound": "💹 Broker"
+      },
+      {
+        "action": "route",
+        "rule_set": "geosite-onedrive",
+        "outbound": "🐬 OneDrive"
+      },
+      {
+        "action": "route",
+        "rule_set": "geosite-microsoft",
+        "outbound": "🪟 Microsoft"
+      },
+      {
+        "action": "route",
+        "rule_set": [
+          "geoip-apple",
+          "geosite-apple"
+        ],
+        "outbound": "🍏 Apple"
+      },
+      {
+        "action": "route",
+        "rule_set": [
+          "GeoSite-CN",
+          "GeoIP-CN"
+        ],
+        "outbound": "🎯 全球直连"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "GeoIP-Private",
+        "type": "remote",
+        "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/private.srs",
+        "update_interval": "1d",
+        "format": "binary",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "GeoSite-Private",
+        "type": "remote",
+        "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/private.srs",
+        "update_interval": "1d",
+        "format": "binary",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "GeoIP-CN",
+        "type": "remote",
+        "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
+        "update_interval": "1d",
+        "format": "binary",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "GeoSite-CN",
+        "type": "remote",
+        "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs",
+        "format": "binary",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "GeoLocation-!CN",
+        "type": "remote",
+        "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-!cn.srs",
+        "update_interval": "1d",
+        "format": "binary",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "mydirect",
+        "type": "remote",
+        "format": "source",
+        "url": "{{text $.subscriptionUrl}}/rules/sing-box/mydirect.json",
+        "update_interval": "1d",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "myproxy",
+        "type": "remote",
+        "format": "source",
+        "url": "{{text $.subscriptionUrl}}/rules/sing-box/myproxy.json",
+        "update_interval": "1d",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "myreject",
+        "type": "remote",
+        "format": "source",
+        "url": "{{text $.subscriptionUrl}}/rules/sing-box/myreject.json",
+        "update_interval": "1d",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "hst",
+        "type": "remote",
+        "format": "source",
+        "url": "{{text $.subscriptionUrl}}/rules/sing-box/hst.json",
+        "update_interval": "1d",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "Broker",
+        "type": "remote",
+        "format": "source",
+        "url": "{{text $.subscriptionUrl}}/rules/sing-box/broker.json",
+        "update_interval": "1d",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "football",
+        "type": "remote",
+        "format": "source",
+        "url": "{{text $.subscriptionUrl}}/rules/sing-box/football.json",
+        "update_interval": "1h",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "geosite-apple",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/apple.srs",
+        "update_interval": "1d",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "geosite-microsoft",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/microsoft.srs",
+        "update_interval": "1d",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "geosite-onedrive",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/onedrive.srs",
+        "update_interval": "1d",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "geoip-apple",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo-lite/geoip/apple.srs",
+        "update_interval": "1d",
+        "http_client": "default-http-client"
+      }
+    ],
+    "auto_detect_interface": true,
+    "default_http_client": "default-http-client",
+    "default_domain_resolver": {
+      "server": "defaultDns",
+      "strategy": "ipv4_only",
+      "disable_cache": true
+    },
+    "final": "🐟 漏网之鱼"
+  },
+  "dns": {
+    "servers": [
+      {
+        "type": "https",
+        "tag": "proxyDns",
+        "server": "cloudflare-dns.com",
+        "detour": "🚀 节点选择",
+        "domain_resolver": {
+          "server": "defaultDns",
+          "strategy": "ipv4_only",
+          "disable_cache": true
+        }
+      },
+      {
+        "type": "udp",
+        "tag": "localDns",
+        "server": "119.29.29.29"
+      },
+      {
+        "type": "udp",
+        "tag": "defaultDns",
+        "server": "119.29.29.29"
+      },
+      {
+        "type": "udp",
+        "tag": "hstDns",
+        "server": "{{default "119.29.29.29" (get $ "dns")}}"
+      }
+    ],
+    "rules": [
+      {
+        "clash_mode": "direct",
+        "server": "localDns"
+      },
+      {
+        "clash_mode": "global",
+        "server": "proxyDns"
+      },
+      {
+        "domain": "fun90.com",
+        "domain_suffix": ".fun90.com",
+        "server": "localDns"
+      },
+      {
+        "rule_set": "hst",
+        "server": "hstDns"
+      },
+      {
+        "rule_set": "mydirect",
+        "server": "localDns"
+      },
+      {
+        "rule_set": "GeoSite-CN",
+        "server": "localDns"
+      },
+      {
+        "rule_set": "GeoLocation-!CN",
+        "server": "proxyDns"
+      }
+    ],
+    "final": "localDns",
+    "strategy": "ipv4_only"
+  }
+}

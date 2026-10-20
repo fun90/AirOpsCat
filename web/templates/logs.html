@@ -1,0 +1,23 @@
+{{define "content"}}
+<div class="card">
+ <div class="card-header"><form method="get" class="row g-2 w-100">
+  <div class="col-12 col-md"><input class="form-control" type="search" name="q" value="{{.Q}}" placeholder="消息或资源名称" aria-label="搜索日志"></div>
+  <div class="col-6 col-md-3"><select class="form-select" name="category"><option value="">全部分类</option>{{range .Categories}}<option value="{{.}}" {{if eq $.Category .}}selected{{end}}>{{.}}</option>{{end}}</select></div>
+  <div class="col-6 col-md-2"><select class="form-select" name="level"><option value="">全部级别</option>{{range $v := seq 3}}{{if eq $v 1}}<option value="INFO" {{if eq $.Level "INFO"}}selected{{end}}>INFO</option>{{else if eq $v 2}}<option value="WARN" {{if eq $.Level "WARN"}}selected{{end}}>WARN</option>{{else}}<option value="ERROR" {{if eq $.Level "ERROR"}}selected{{end}}>ERROR</option>{{end}}{{end}}</select></div>
+  <div class="col-12 col-md-auto"><button class="btn btn-outline-secondary w-100" type="submit">筛选</button></div>
+ </form></div>
+ <div class="table-responsive"><table class="table table-vcenter card-table logs-table">
+  <thead><tr><th class="d-none d-md-table-cell">时间</th><th class="d-none d-md-table-cell">分类</th><th class="d-none d-md-table-cell">级别</th><th class="d-none d-md-table-cell">资源</th><th>消息</th><th class="d-none d-md-table-cell"></th></tr></thead>
+  <tbody>{{range .List}}<tr>
+   <td class="text-nowrap small d-none d-md-table-cell">{{.Created}}</td><td class="d-none d-md-table-cell"><span class="badge bg-secondary-lt">{{.Category}}</span></td><td class="d-none d-md-table-cell"><span class="badge {{if eq .Level "ERROR"}}bg-danger-lt{{else if eq .Level "WARN"}}bg-warning-lt{{else}}bg-info-lt{{end}}">{{.Level}}</span></td>
+   <td class="d-none d-md-table-cell">{{if .ResourceName}}{{.ResourceName}}{{else}}—{{end}}</td><td class="log-message">
+    <div class="d-md-none mb-2"><span class="badge {{if eq .Level "ERROR"}}bg-danger-lt{{else if eq .Level "WARN"}}bg-warning-lt{{else}}bg-info-lt{{end}}">{{.Level}}</span> <span class="text-secondary small">{{.Created}}</span><div class="text-secondary small mt-1">{{.Category}}{{if .ResourceName}} · {{.ResourceName}}{{end}}</div></div>
+    <div>{{.Message}}</div>
+    {{if .Detail}}<details class="d-md-none mt-2"><summary class="btn btn-sm btn-outline-secondary">详情</summary><pre class="mt-2 mb-0" style="white-space:pre-wrap;overflow-wrap:anywhere">{{.Detail}}</pre></details>{{end}}
+   </td>
+   <td class="d-none d-md-table-cell">{{if .Detail}}<details><summary class="btn btn-sm btn-outline-secondary">详情</summary><pre class="mt-2 mb-0 text-break" style="max-width:24rem;white-space:pre-wrap">{{.Detail}}</pre></details>{{end}}</td>
+  </tr>{{else}}<tr><td colspan="6" class="text-center text-secondary py-4">暂无日志</td></tr>{{end}}</tbody>
+ </table></div>
+ <div class="card-footer d-flex align-items-center">{{template "pager" .}}</div>
+</div>
+{{end}}

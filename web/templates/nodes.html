@@ -1,0 +1,110 @@
+{{define "actions"}}<form method="post" action="/admin/nodes/deploy-pending" class="d-inline me-2" onsubmit="return confirm('部署所有存在待部署项的服务器？')"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn btn-outline-primary" type="submit"><i class="ti ti-rocket me-1" aria-hidden="true"></i>部署待部署</button></form><a href="/admin/nodes/new" class="btn btn-primary"><i class="ti ti-plus me-1" aria-hidden="true"></i>新增节点</a>{{end}}
+{{define "content"}}
+<div class="card">
+    <div class="card-header">
+        <form method="get" class="row g-2 w-100">
+            <div class="col-12 col-md-4 d-flex gap-2">
+                <input type="search" name="q" value="{{.Q}}" class="form-control" placeholder="名称 / 协议 / 端口 / 地区 / 备注" aria-label="搜索">
+                <button class="btn btn-icon d-md-none" type="button" data-bs-toggle="collapse" data-bs-target="#nodeFilters" aria-expanded="false" aria-controls="nodeFilters" aria-label="更多筛选"><i class="ti ti-adjustments" aria-hidden="true"></i></button>
+            </div>
+            <div class="col-12 col-md-8 collapse d-md-block{{if or .Type .Status .TagID}} show{{end}}" id="nodeFilters">
+              <div class="row g-2">
+                <div class="col-6 col-md-3">
+                    <select name="type" class="form-select" aria-label="类型">
+                        <option value="">全部类型</option>
+                        <option value="0"{{if eq .Type "0"}} selected{{end}}>代理</option>
+                        <option value="1"{{if eq .Type "1"}} selected{{end}}>落地</option>
+                    </select></div>
+                <div class="col-6 col-md-3">
+                    <select name="status" class="form-select" aria-label="部署状态">
+                        <option value="">全部状态</option>
+                        <option value="0"{{if eq .Status "0"}} selected{{end}}>待部署</option>
+                        <option value="1"{{if eq .Status "1"}} selected{{end}}>已部署</option>
+                        <option value="2"{{if eq .Status "2"}} selected{{end}}>待删除</option>
+                        <option value="-1"{{if eq .Status "-1"}} selected{{end}}>无部署位</option>
+                    </select></div>
+                <div class="col-6 col-md-3">
+                    <select name="tag" class="form-select" aria-label="标签">
+                        <option value="">全部标签</option>
+                        {{range .Tags}}<option value="{{.ID}}"{{if eq $.TagID (printf "%d" .ID)}} selected{{end}}>{{.Name}}</option>{{end}}
+                    </select></div>
+                <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100" type="submit">筛选</button></div>
+              </div>
+            </div>
+        </form>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+            <thead><tr><th>名称</th><th class="d-none d-md-table-cell">类型</th><th class="d-none d-md-table-cell">协议 / 端口</th><th class="d-none d-md-table-cell">地区</th>
+                <th class="d-none d-md-table-cell">部署</th><th class="d-none d-md-table-cell">状态</th><th class="w-1"></th></tr></thead>
+            <tbody>
+            {{range .List}}
+            <tr>
+                {{$st := .DeployStatus}}
+                <td>
+                    <div class="d-flex flex-wrap align-items-center gap-1">
+                        <a class="text-reset" href="/admin/nodes/{{.ID}}/edit">{{.Name}}</a>
+                        {{if .OutName}}<i class="ti ti-arrow-right text-secondary" role="img" aria-label="出站至"></i><a class="text-secondary" href="/admin/nodes/{{.OutID}}/edit">{{.OutName}}</a>{{end}}
+                    </div>
+                    <div class="d-md-none text-secondary small mt-1">{{if eq .Type 1}}落地{{else}}代理{{end}} · 端口 {{.Port}} · {{.Protocol}}</div>
+                    <div class="d-md-none mt-1">
+                        {{if eq $st -1}}<span class="badge bg-secondary-lt">无部署位</span>
+                        {{else if eq $st 0}}<span class="badge bg-yellow-lt">待部署</span>
+                        {{else if eq $st 1}}<span class="badge bg-green-lt">已部署</span>
+                        {{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
+                        {{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{end}}
+                    </div>
+                    <div class="mt-1 d-none d-md-block">
+                        {{if .Tags}}
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">已分配 {{len .Tags}} 个标签</button>
+                            <div class="dropdown-menu p-2">
+                                <ul class="list-unstyled mb-0" aria-label="已分配标签">
+                                    {{range .Tags}}<li class="py-1"><span class="badge" style="background-color: {{.Color}}; color: #fff">{{.Name}}</span></li>{{end}}
+                                </ul>
+                            </div>
+                        </div>
+                        {{else}}<span class="text-secondary small">未分配标签</span>{{end}}
+                    </div>
+                </td>
+                <td class="d-none d-md-table-cell">{{if eq .Type 1}}落地{{else}}代理{{end}}</td>
+                <td class="d-none d-md-table-cell">{{.Protocol}}:{{.Port}}</td>
+                <td class="d-none d-md-table-cell">{{.Region}}</td>
+                <td class="d-none d-md-table-cell">
+                    {{if eq $st -1}}<span class="badge bg-secondary-lt">无部署位</span>
+                    {{else if eq $st 0}}<span class="badge bg-yellow-lt">待部署</span>
+                    {{else if eq $st 1}}<span class="badge bg-green-lt">已部署</span>
+                    {{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
+                    {{if gt .PlacementTotal 0}}<div class="text-secondary small">{{.PlacementDeployed}}/{{.PlacementTotal}} 个部署位</div>{{end}}
+                </td>
+                <td class="d-none d-md-table-cell">{{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}}</td>
+                <td class="text-nowrap">
+                  <div class="dropdown">
+                    <button class="btn btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">更多</button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="/admin/nodes/{{.ID}}/edit">编辑</a>
+                        <form method="post" action="/admin/nodes/{{.ID}}/deploy"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item" type="submit">部署</button></form>
+                        <form method="post" action="/admin/nodes/{{.ID}}/deploy"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="force" value="1"><button class="dropdown-item" type="submit">强制部署</button></form>
+                        <form method="post" action="/admin/nodes/{{.ID}}/toggle">
+                            <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="disabled" value="{{if .Disabled}}0{{else}}1{{end}}">
+                            <button class="dropdown-item" type="submit">{{if .Disabled}}启用{{else}}禁用{{end}}</button>
+                        </form>
+                        {{if eq $st 2}}
+                        <form method="post" action="/admin/nodes/{{.ID}}/cancel-delete"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item" type="submit">取消删除</button></form>
+                        {{else}}
+                        <form method="post" action="/admin/nodes/{{.ID}}/delete" onsubmit="return confirm('确定删除该节点？已部署的部署位会在下次部署时从服务器移除。')"><input type="hidden" name="csrf" value="{{$.CSRF}}">
+                            <button class="dropdown-item text-danger" type="submit">删除</button></form>
+                        {{end}}
+                    </div>
+                  </div>
+                </td>
+            </tr>
+            {{else}}
+            <tr><td colspan="7" class="text-center text-secondary py-4">暂无节点</td></tr>
+            {{end}}
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer d-flex">{{template "pager" .}}</div>
+</div>
+{{end}}

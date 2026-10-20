@@ -1,0 +1,106 @@
+package web
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/fun90/airopscat/internal/crypto"
+	"github.com/fun90/airopscat/internal/guard"
+	"github.com/fun90/airopscat/internal/store"
+)
+
+func TestAlertsEndToEnd(t *testing.T) {
+	var mu sync.Mutex
+	var sent []map[string]any
+	bark := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var m map[string]any
+		json.NewDecoder(r.Body).Decode(&m)
+		mu.Lock()
+		sent = append(sent, m)
+		mu.Unlock()
+	}))
+	defer bark.Close()
+	count := func() int { mu.Lock(); defer mu.Unlock(); return len(sent) }
+
+	_, a := newTestServer(t)
+	field, _ := crypto.New(crypto.DeriveKey("0123456789abcdef0123456789abcdef", "field"))
+	s, _ := New(a.DB, a, field)
+	h := s.Handler()
+	ctx := context.Background()
+	key, _ := field.Encrypt("devkey")
+	a.DB.Exec(`INSERT INTO system_config(config_key,config_value,group_key) VALUES('airopscat.bark.url',?,'bark'),('airopscat.bark.device-key',?,'bark'),('airopscat.bark.default-group','G','bark')`, bark.URL, key)
+	soon := time.Now().Format("2006-01-02")
+	a.DB.Exec(`INSERT INTO server(id,ip,name,expire_date) VALUES(1,'1.1.1.1','HK',?)`, soon)
+
+	if err := s.scanAlerts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if count() != 1 || sent[0]["group"] != "G" || !strings.Contains(sent[0]["title"].(string), "到期提醒") || sent[0]["device_key"] != "devkey" {
+		t.Fatalf("应发送一次到期通知: %v", sent)
+	}
+	s.scanAlerts(ctx)
+	if count() != 1 {
+		t.Fatal("节流内不应重复发送")
+	}
+
+	// 连接数超限：先告警，条件消失后恢复且默认不通知
+	a.DB.Exec(`INSERT INTO account(id,account_no,remark,uuid,auth_code,period_type,from_date) VALUES(1,'acc1','Anna','u','ac','MONTHLY','2026-01-01 00:00:00')`)
+	stats := map[string]guard.Stats{"acc1": {AccountNo: "acc1", Connections: 9, IPs: 2, ActiveNodes: 1, Blocked: &guard.BlockedEntry{Reason: "connections", Total: 9, Limit: 5}}}
+	if err := s.alertConnections(ctx, stats); err != nil {
+		t.Fatal(err)
+	}
+	if count() != 2 || !strings.Contains(sent[1]["body"].(string), "Anna") {
+		t.Fatalf("连接数告警: %v", sent)
+	}
+	s.alertConnections(ctx, map[string]guard.Stats{})
+	if count() != 2 {
+		t.Fatal("恢复默认不通知")
+	}
+	var st string
+	a.DB.QueryRow(`SELECT status FROM alert_state WHERE alert_type='account-connection-limit'`).Scan(&st)
+	if st != "RECOVERED" {
+		t.Fatal(st)
+	}
+
+	// 页面：确认、恢复、测试发送，均需 CSRF
+	c := login(t, h, "admin@example.com")
+	csrf := a.CSRFToken(c.Value)
+	post := func(p string) *httptest.ResponseRecorder { return do(h, "POST", p, url.Values{"csrf": {csrf}}, c, nil) }
+	if w := do(h, "POST", "/admin/alerts/test", url.Values{}, c, nil); w.Code != 403 {
+		t.Fatalf("无 CSRF: %d", w.Code)
+	}
+	if w := do(h, "GET", "/admin/alerts?status=ACTIVE", nil, c, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "服务器到期") {
+		t.Fatalf("列表 %d", w.Code)
+	}
+	var id int64
+	a.DB.QueryRow(`SELECT id FROM alert_state WHERE alert_type='server-expiring'`).Scan(&id)
+	if w := post("/admin/alerts/" + itoa(id) + "/ack"); strings.Contains(w.Header().Get("Location"), "err=") {
+		t.Fatal(w.Header().Get("Location"))
+	}
+	a.DB.QueryRow(`SELECT status FROM alert_state WHERE id=?`, id).Scan(&st)
+	if st != store.AlertAcknowledged {
+		t.Fatal(st)
+	}
+	if w := post("/admin/alerts/" + itoa(id) + "/ack"); !strings.Contains(w.Header().Get("Location"), "err=") {
+		t.Fatal("重复确认应提示")
+	}
+	if w := post("/admin/alerts/test"); strings.Contains(w.Header().Get("Location"), "err=") || count() != 3 {
+		t.Fatalf("测试发送 %s %d", w.Header().Get("Location"), count())
+	}
+	a.DB.Exec(`UPDATE server SET expire_date='2030-01-01' WHERE id=1`)
+	s.scanAlerts(ctx)
+	a.DB.QueryRow(`SELECT status FROM alert_state WHERE id=?`, id).Scan(&st)
+	if st != store.AlertRecovered {
+		t.Fatalf("续费后应自动恢复: %s", st)
+	}
+}
+
+func itoa(n int64) string { return strconv.FormatInt(n, 10) }

@@ -1,0 +1,20 @@
+{
+  "version": 3,
+  "rules": [
+    {
+      "domain": [
+        "ocsp.int-x3.letsencrypt.org",
+        "ipm-provider.ff.avast.com"
+      ],
+      "domain_suffix": [
+        "adobe.io"
+      ]
+    },
+    {
+      "process_path_regex": [
+        "^/Applications/Paste\\.app/.*",
+        "^/Applications/Yoink\\.app/.*"
+      ]
+    }
+  ]
+}

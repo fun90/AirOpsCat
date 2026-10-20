@@ -1,0 +1,21 @@
+{{define "actions"}}<form method="post" action="/admin/alerts/test" class="d-inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn btn-outline-primary" type="submit"><i class="ti ti-send me-1" aria-hidden="true"></i>发送测试通知</button></form>{{end}}
+{{define "content"}}
+<div class="card">
+  <div class="card-header"><form method="get" class="d-flex flex-wrap gap-2 w-100">
+    <select name="status" class="form-select w-auto" aria-label="状态"><option value="">全部状态</option><option value="ACTIVE"{{if eq .Status "ACTIVE"}} selected{{end}}>进行中</option><option value="ACKNOWLEDGED"{{if eq .Status "ACKNOWLEDGED"}} selected{{end}}>已确认</option><option value="RECOVERED"{{if eq .Status "RECOVERED"}} selected{{end}}>已恢复</option></select>
+    <input type="search" name="q" value="{{.Q}}" class="form-control w-auto flex-fill" style="max-width:320px" placeholder="类型 / 资源 / 摘要" aria-label="搜索">
+    <button class="btn btn-outline-secondary" type="submit">筛选</button></form></div>
+  <div class="table-responsive"><table class="table table-vcenter card-table">
+    <thead><tr><th>告警</th><th class="d-none d-md-table-cell">最近触发</th><th class="d-none d-md-table-cell">次数</th><th class="d-none d-md-table-cell">状态</th><th class="w-1"></th></tr></thead>
+    <tbody>{{range .List}}<tr>
+      <td style="overflow-wrap:anywhere"><strong>{{.TypeName}}</strong><div class="text-secondary small">{{.Summary}}</div>
+        <div class="d-md-none mt-1">{{template "alertStatus" .}} <span class="text-secondary small">{{.Count}} 次 · {{.LastTime}}</span></div></td>
+      <td class="d-none d-md-table-cell">{{.LastTime}}</td><td class="d-none d-md-table-cell">{{.Count}}</td><td class="d-none d-md-table-cell">{{template "alertStatus" .}}</td>
+      <td class="text-nowrap">{{if ne .Status "RECOVERED"}}
+        <div class="d-none d-md-flex gap-1">{{if eq .Status "ACTIVE"}}<form method="post" action="/admin/alerts/{{.ID}}/ack"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="{{$.ListURL}}"><button class="btn btn-sm btn-outline-primary" type="submit">确认</button></form>{{end}}<form method="post" action="/admin/alerts/{{.ID}}/recover"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="{{$.ListURL}}"><button class="btn btn-sm btn-outline-secondary" type="submit">标记恢复</button></form></div>
+        <div class="dropdown d-md-none"><button type="button" class="btn btn-sm dropdown-toggle" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">更多</button><div class="dropdown-menu dropdown-menu-end">{{if eq .Status "ACTIVE"}}<form method="post" action="/admin/alerts/{{.ID}}/ack"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="{{$.ListURL}}"><button class="dropdown-item" type="submit">确认</button></form>{{end}}<form method="post" action="/admin/alerts/{{.ID}}/recover"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="{{$.ListURL}}"><button class="dropdown-item" type="submit">标记恢复</button></form></div></div>{{end}}</td>
+    </tr>{{else}}<tr><td colspan="5" class="text-center text-secondary py-4">暂无告警</td></tr>{{end}}</tbody></table></div>
+  <div class="card-footer d-flex">{{template "pager" .}}</div>
+</div>
+{{end}}
+{{define "alertStatus"}}{{if eq .Status "ACTIVE"}}<span class="badge bg-red-lt">进行中</span>{{else if eq .Status "ACKNOWLEDGED"}}<span class="badge bg-yellow-lt">已确认{{if .AckBy}} · {{.AckBy}}{{end}}</span>{{else}}<span class="badge bg-green-lt">已恢复</span>{{end}}{{end}}
