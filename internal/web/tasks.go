@@ -49,6 +49,7 @@ func (s *Server) initTasks() {
 	s.Tasks = map[string]*taskState{
 		"core-backup-cleanup": {Name: "远端内核配置备份清理", Interval: 24 * time.Hour, Run: s.cleanupCoreBackups},
 		"dns-auto":            {Name: "DNS 时段与流量自动切换", Interval: time.Minute, Run: s.autoDNS},
+		"limit-sync":          {Name: "超额限速同步", Interval: time.Minute, Run: s.syncLimits},
 		"traffic-collect":     {Name: "账户流量采集", Interval: 15 * time.Minute, Run: s.collectTraffic},
 		"guard-evaluate": {Name: "跨节点配额评估", Interval: 10 * time.Second, Run: func(ctx context.Context) error {
 			stats, err := s.Guard.Evaluate(ctx)

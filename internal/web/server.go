@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fun90/airopscat/internal/auth"
@@ -34,8 +35,10 @@ type Server struct {
 	Backup              *dbbackup.Manager
 	DNSBaseURL          string // 仅测试注入；生产为空，使用固定的 Cloudflare 地址
 	TrafficServers      string
-	MonitorServers      string // 显式启用 SSH 监控采集的服务器（ID 列表或 all），空表示关闭
-	NotifyDisabled      bool   // 开发/演示库带真实 Bark 配置时关闭外发通知
+	limitMu             sync.Mutex
+	limitApplied        map[int64]string // 服务器最近一次成功应用的限速指纹
+	MonitorServers      string           // 显式启用 SSH 监控采集的服务器（ID 列表或 all），空表示关闭
+	NotifyDisabled      bool             // 开发/演示库带真实 Bark 配置时关闭外发通知
 	DB                  *sql.DB
 	Auth                *auth.Service
 	Field               *crypto.Cipher // 敏感字段加密
@@ -69,8 +72,9 @@ func New(db *sql.DB, a *auth.Service, field *crypto.Cipher) (*Server, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &deploy.Prepared{Config: body, Revision: captured.Revision, Snapshots: captured.Snapshots}, nil
+		return &deploy.Prepared{Config: body, Revision: captured.Revision, Snapshots: captured.Snapshots, LimitsKey: limitsKey(captured.Input)}, nil
 	}
+	s.Deployer.Applied = s.markLimits
 	s.MaintenanceDeployer = deploy.NewDeployer(db, field, nil)
 	s.MaintenanceDeployer.CommandTimeout = 30 * time.Minute
 	s.Guard = guard.New(db)

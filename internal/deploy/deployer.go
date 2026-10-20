@@ -33,6 +33,7 @@ type Prepared struct {
 	Config    []byte
 	Revision  int64
 	Snapshots []store.DeploymentSnapshot
+	LimitsKey string // 配置内账户限速指纹，成功后经 Deployer.Applied 回报
 }
 
 // Result 是单台服务器的下发结果。
@@ -49,7 +50,9 @@ type Deployer struct {
 	Cipher *crypto.Cipher
 	Config ConfigSource
 	// Prepare 优先于 Config；捕获输入和快照后构建配置，保持两者一致。
-	Prepare        func(ctx context.Context, serverID int64) (*Prepared, error)
+	Prepare func(ctx context.Context, serverID int64) (*Prepared, error)
+	// Applied 在某台服务器配置成功下发并落库后调用，参数为 Prepared.LimitsKey。
+	Applied        func(serverID int64, limitsKey string)
 	Parallel       int           // 同时部署的服务器数，默认 4
 	ConnectTimeout time.Duration // 默认 30s
 	CommandTimeout time.Duration // 单条命令整体超时，默认 120s
@@ -149,6 +152,7 @@ func (d *Deployer) apply(ctx context.Context, serverID int64, action string) Res
 	var revision int64
 	var cfg []byte
 	var snapshots []store.DeploymentSnapshot
+	var limitsKey string
 	if d.Prepare != nil {
 		var prepared *Prepared
 		prepared, err = d.Prepare(ctx, serverID)
@@ -156,7 +160,7 @@ func (d *Deployer) apply(ctx context.Context, serverID int64, action string) Res
 			if prepared == nil {
 				err = errors.New("部署准备结果为空")
 			} else {
-				cfg, revision, snapshots = prepared.Config, prepared.Revision, prepared.Snapshots
+				cfg, revision, snapshots, limitsKey = prepared.Config, prepared.Revision, prepared.Snapshots, prepared.LimitsKey
 			}
 		}
 	} else {
@@ -203,6 +207,9 @@ func (d *Deployer) apply(ctx context.Context, serverID int64, action string) Res
 			res.Success = false
 			res.Message = "读取部署结果失败: " + err.Error()
 		}
+	}
+	if res.Success && d.Applied != nil {
+		d.Applied(serverID, limitsKey)
 	}
 	return res
 }

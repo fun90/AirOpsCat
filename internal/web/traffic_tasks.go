@@ -2,11 +2,15 @@ package web
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/fun90/airopscat/internal/deploy"
+	"github.com/fun90/airopscat/internal/singbox"
 	"github.com/fun90/airopscat/internal/store"
 	"github.com/fun90/airopscat/internal/traffic"
 )
@@ -27,15 +31,71 @@ func (s *Server) collectTraffic(ctx context.Context) error {
 	if len(failed) > 0 {
 		return fmt.Errorf("%s", strings.Join(failed, "；"))
 	}
+	if err := s.syncLimits(ctx); err != nil {
+		return err
+	}
 	return s.autoDNS(ctx)
 }
-func (s *Server) collectServerTraffic(ctx context.Context, id int64) error {
-	unlock := deploy.Lock(id)
-	defer func() { unlock() }()
-	before, err := store.LoadEffectiveLimits(ctx, s.DB, time.Now())
+
+// limitsKey 是配置中各节点账户限速的指纹，用于判断服务器已应用的限速是否过期。
+func limitsKey(in *singbox.ServerConfigInput) string {
+	var lines []string
+	for _, n := range in.Nodes {
+		for _, c := range n.Clients {
+			lines = append(lines, fmt.Sprintf("%d|%s|%d|%d", n.ID, c.Name, c.DownloadMbps, c.UploadMbps))
+		}
+	}
+	sort.Strings(lines)
+	sum := sha256.Sum256([]byte(strings.Join(lines, "\n")))
+	return hex.EncodeToString(sum[:])
+}
+
+func (s *Server) appliedLimits(id int64) string {
+	s.limitMu.Lock()
+	defer s.limitMu.Unlock()
+	return s.limitApplied[id]
+}
+
+func (s *Server) markLimits(id int64, key string) {
+	s.limitMu.Lock()
+	defer s.limitMu.Unlock()
+	if s.limitApplied == nil {
+		s.limitApplied = map[int64]string{}
+	}
+	s.limitApplied[id] = key
+}
+
+// syncLimits 对比每台服务器当前应有限速与最近一次成功应用的指纹，不一致才 reload。
+// 失败不记录指纹，下一轮继续重试；进程重启后无记录，首轮会各 reload 一次。
+func (s *Server) syncLimits(ctx context.Context) error {
+	ids, err := store.RuntimeTrafficServers(ctx, s.DB, s.TrafficServers, time.Now())
 	if err != nil {
 		return err
 	}
+	var failed []string
+	for _, id := range ids {
+		p, err := s.Deployer.Prepare(ctx, id)
+		if err == nil && p.LimitsKey == s.appliedLimits(id) {
+			continue
+		}
+		msg := ""
+		if err != nil {
+			msg = err.Error()
+		} else if res := s.Deployer.Reload(ctx, id); !res.Success {
+			msg = res.Message
+		}
+		if msg != "" {
+			failed = append(failed, fmt.Sprintf("服务器 %d：%s", id, msg))
+		}
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("超额限速同步失败：%s", strings.Join(failed, "；"))
+	}
+	return nil
+}
+
+func (s *Server) collectServerTraffic(ctx context.Context, id int64) error {
+	defer deploy.Lock(id)()
 	readings, err := traffic.CollectSSH(ctx, s.DB, s.Field, id)
 	if err != nil {
 		return err
@@ -57,27 +117,6 @@ func (s *Server) collectServerTraffic(ctx context.Context, id int64) error {
 	}
 	if err := store.CollectAccountTraffic(ctx, s.DB, id, time.Now(), filtered); err != nil {
 		return err
-	}
-	after, err := store.LoadEffectiveLimits(ctx, s.DB, time.Now())
-	if err != nil {
-		return err
-	}
-	changed := false
-	for no, a := range after {
-		b, ok := before[no]
-		if ok && (a.DownloadMbps != b.DownloadMbps || a.UploadMbps != b.UploadMbps) {
-			changed = true
-			break
-		}
-	}
-	// Reload 自身获取服务器互斥，先释放采集锁；部署器会重新读取当前数据。
-	if changed {
-		unlock()
-		unlock = func() {}
-		res := s.Deployer.Reload(ctx, id)
-		if !res.Success {
-			return fmt.Errorf("超额限速同步失败：%s", res.Message)
-		}
 	}
 	return nil
 }
