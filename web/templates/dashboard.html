@@ -9,6 +9,7 @@
         <a href="/admin/accounts?status=disabled" class="badge bg-secondary-lt">禁用 {{.Stats.AccountsDisabled}}</a>
         <a href="/admin/accounts?status=expired" class="badge bg-red-lt">过期 {{.Stats.AccountsExpired}}</a>
       </div>
+      <div class="mt-2 small">{{if .Online.Servers}}<span class="badge bg-blue-lt">在线 {{.Online.Accounts}} 账户</span> <span class="badge bg-blue-lt">{{.Online.Connections}} 连接</span><div class="text-secondary mt-1">来自 {{.Online.Servers}} 台服务器的新鲜上报</div>{{else}}<span class="text-secondary">在线数据：暂无新鲜上报</span>{{end}}</div>
     </div></div>
   </div>
   <div class="col-12 col-sm-6 col-xl-3">

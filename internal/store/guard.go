@@ -87,10 +87,12 @@ func GuardNodeRegistered(ctx context.Context, db *sql.DB, ip string) (bool, erro
 }
 
 type GuardOnlineAccount struct {
-	AccountNo   string            `json:"accountNo"`
-	NodeTag     string            `json:"nodeTag"`
-	ClientIPs   []string          `json:"clientIps"`
-	Connections []GuardConnection `json:"connections"`
+	AccountNo string   `json:"accountNo"`
+	NodeTag   string   `json:"nodeTag"`
+	ClientIPs []string `json:"clientIps"`
+	// ConnectionCount 由新版 agent 上报；旧版为空，此时仅在带连接明细时可得数量。
+	ConnectionCount *int64            `json:"connectionCount,omitempty"`
+	Connections     []GuardConnection `json:"connections"`
 }
 type GuardConnection struct {
 	ClientIP     string `json:"clientIp"`
@@ -178,4 +180,59 @@ func CleanupGuardOnline(ctx context.Context, db *sql.DB, now time.Time) (int64, 
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+// NodeServerIPs 返回每个节点已部署的服务器 IP，用于判断在线数据覆盖范围。
+func NodeServerIPs(ctx context.Context, db *sql.DB) (map[int64][]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT p.node_id, s.ip FROM node_server p JOIN server s ON s.id=p.server_id WHERE p.deployed=1 ORDER BY p.node_id, s.ip`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64][]string{}
+	for rows.Next() {
+		var id int64
+		var ip string
+		if err := rows.Scan(&id, &ip); err != nil {
+			return nil, err
+		}
+		out[id] = append(out[id], ip)
+	}
+	return out, rows.Err()
+}
+
+// DisplayNames 返回服务器 IP→名称、节点 ID→名称，供在线明细展示。
+func DisplayNames(ctx context.Context, db *sql.DB) (servers map[string]string, nodes map[int64]string, err error) {
+	servers, nodes = map[string]string{}, map[int64]string{}
+	rows, err := db.QueryContext(ctx, `SELECT ip, coalesce(name,'') FROM server`)
+	if err != nil {
+		return nil, nil, err
+	}
+	for rows.Next() {
+		var ip, name string
+		if err = rows.Scan(&ip, &name); err != nil {
+			rows.Close()
+			return nil, nil, err
+		}
+		servers[ip] = name
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, nil, err
+	}
+	rows, err = db.QueryContext(ctx, `SELECT id, name FROM node`)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var name string
+		if err = rows.Scan(&id, &name); err != nil {
+			return nil, nil, err
+		}
+		nodes[id] = name
+	}
+	return servers, nodes, rows.Err()
 }

@@ -237,6 +237,10 @@ func TestAccountHTTPFlow(t *testing.T) {
 			t.Fatalf("%s: %d", path, w.Code)
 		}
 	}
+	// 在线面板在 {{with .Form}} 内，必须经 $ 取页面数据；无上报时应明确显示“暂无上报”。
+	if body := do(h, "GET", "/admin/accounts/"+strconv.FormatInt(id, 10)+"/edit", nil, c, nil).Body.String(); !strings.Contains(body, `id="account-online" role="tabpanel"><div class="mb-2">暂无上报</div>`) {
+		t.Fatal("账户编辑页在线面板为空")
+	}
 	w = do(h, "POST", "/admin/accounts/"+strconv.FormatInt(id, 10)+"/auth-code", url.Values{"csrf": {csrf}}, c, nil)
 	if w.Code != 303 {
 		t.Fatal(w.Code)

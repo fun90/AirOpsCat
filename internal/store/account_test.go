@@ -409,10 +409,40 @@ func TestAccountListFilters(t *testing.T) {
 		t.Fatalf("行统计 = %+v", r)
 	}
 
+	// 按最后在线排序：有记录的在前，无记录的无论升降序都在最后。
+	fa, _ := AccountByID(ctx, db, forever.AccountID)
+	db.Exec(`INSERT INTO account_online_ip (account_no, client_ip, node_ip, last_online_time) VALUES (?, '1.1.1.1', '2.2.2.2', ?)`, fa.AccountNo, FormatTime(now.Add(-time.Hour)))
+	firstLast := func(asc bool) []int64 {
+		rows, _, err := AccountList(ctx, db, AccountFilter{Sort: "last_online", Asc: asc}, 1, 50)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []int64
+		for _, r := range rows {
+			out = append(out, r.ID)
+		}
+		return out
+	}
+	desc, asc := firstLast(false), firstLast(true)
+	if desc[0] != active.AccountID || desc[1] != forever.AccountID || asc[0] != forever.AccountID || asc[1] != active.AccountID {
+		t.Fatalf("最后在线排序: desc=%v asc=%v", desc, asc)
+	}
+	if len(desc) != 5 || len(asc) != 5 {
+		t.Fatalf("排序不应丢行: %v %v", desc, asc)
+	}
+
 	// 排序与分页
 	rows, total, _ := AccountList(ctx, db, AccountFilter{Sort: "to_date", Asc: true}, 1, 2)
-	if total != 5 || len(rows) != 2 || rows[0].ToDate != nil {
-		t.Fatalf("to_date 升序首行应是永不过期(NULL): total=%d rows=%d", total, len(rows))
+	if total != 5 || len(rows) != 2 || rows[0].ToDate == nil {
+		t.Fatalf("to_date 升序首行应是最早到期，永不过期排最后: total=%d rows=%d", total, len(rows))
+	}
+	rows, _, _ = AccountList(ctx, db, AccountFilter{Sort: "to_date"}, 1, 50)
+	if rows[0].ToDate != nil || rows[len(rows)-1].ToDate == nil {
+		t.Fatal("to_date 降序应永不过期在前、最早到期在后")
+	}
+	byEnd, _, _ := AccountList(ctx, db, AccountFilter{Sort: "to_date", Asc: true}, 1, 50)
+	if byEnd[len(byEnd)-1].ToDate != nil {
+		t.Fatal("to_date 升序永不过期应在最后")
 	}
 	if rows, _, _ := AccountList(ctx, db, AccountFilter{}, 1, 1000); len(rows) != 5 {
 		t.Fatal("size 过大应夹到上限")

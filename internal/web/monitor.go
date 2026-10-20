@@ -195,6 +195,7 @@ type statusView struct {
 	store.ServerStatus
 	CPUText, MemText, RateText, UsageText string
 	Stale                                 bool
+	Online                                string
 	UsagePct                              int
 }
 
@@ -244,9 +245,15 @@ func (s *Server) monitorList(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	snap, err := s.onlineSnapshot(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	views := make([]statusView, len(list))
 	for i, st := range list {
 		views[i] = newStatusView(st, now)
+		views[i].Online = serverOnlineText(snap, st.IP)
 	}
 	d := s.pageData(r, "服务器监控", "monitor")
 	d["List"], d["Q"], d["Page"], d["Pages"] = views, q, page, (total+size-1)/size
@@ -310,7 +317,14 @@ func (s *Server) monitorDetail(w http.ResponseWriter, r *http.Request) {
 		}
 		charts = append(charts, chartView{c.title, svgPoints(pts, now), last})
 	}
+	snap, err := s.onlineSnapshot(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	sv := newStatusView(*st, now)
+	sv.Online = serverOnlineText(snap, st.IP)
 	d := s.pageData(r, st.Name+" 监控", "monitor")
-	d["Server"], d["Charts"] = newStatusView(*st, now), charts
+	d["Server"], d["Charts"] = sv, charts
 	s.render(w, "monitor_detail", http.StatusOK, d)
 }

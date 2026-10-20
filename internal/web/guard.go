@@ -111,6 +111,10 @@ func (s *Server) guardSync(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	if err := s.Guard.ReportTags(r.Context(), request.NodeIP, request.OnlineAccountIPs); err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	if request.OnlineAccountIPs != nil {
 		if err := store.RefreshGuardOnline(r.Context(), s.DB, request.NodeIP, request.OnlineAccountIPs, time.Now()); err != nil {
 			s.fail(w, r, err)

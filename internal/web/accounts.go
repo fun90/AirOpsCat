@@ -44,16 +44,64 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 	page, size := pageParams(r)
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	status := r.URL.Query().Get("status")
-	list, total, err := store.AccountList(r.Context(), s.DB, store.AccountFilter{Search: q, Status: status}, page, size)
+	sort, asc := accountSort(r.URL.Query().Get("sort"), r.URL.Query().Get("dir"))
+	list, total, err := store.AccountList(r.Context(), s.DB, store.AccountFilter{Search: q, Status: status, Sort: sort, Asc: asc}, page, size)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
+	snap, err := s.onlineSnapshot(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	now := time.Now()
+	online := make(map[int64]string, len(list))
+	lastSeen := make(map[int64]string, len(list))
+	for _, a := range list {
+		online[a.ID] = accountOnlineText(snap, a.AccountNo)
+		if !strings.HasPrefix(online[a.ID], "在线") {
+			lastSeen[a.ID] = lastOnlineText(a.LastOnline, now)
+		}
+	}
 	d := s.pageData(r, "账户", "accounts")
+	d["Online"], d["LastSeen"], d["Sort"], d["SortAsc"] = online, lastSeen, sort, asc
+	d["SortLast"], d["SortTo"] = sortHeader(r.URL.Query(), "last_online", sort, asc), sortHeader(r.URL.Query(), "to_date", sort, asc)
 	d["List"], d["Q"], d["Status"], d["Page"], d["Pages"] = list, q, status, page, (total+size-1)/size
-	d["Now"] = store.FormatTime(time.Now())
+	d["Now"] = store.FormatTime(now)
 	d["DocsURL"] = store.ConfigValue(r.Context(), s.DB, "airopscat.docs.url")
 	s.render(w, "accounts", 200, d)
+}
+
+// accountSort 只接受白名单列；其他值回到默认排序（创建时间倒序）。
+func accountSort(sort, dir string) (string, bool) {
+	if sort != "last_online" && sort != "to_date" {
+		return "", false
+	}
+	return sort, dir == "asc"
+}
+
+// sortHeader 生成表头链接：未选中 → 降序 → 升序 → 恢复默认；保留筛选条件，页码回到第一页。
+func sortHeader(q url.Values, col, cur string, asc bool) map[string]string {
+	next := url.Values{}
+	for k, v := range q {
+		if k != "page" && k != "sort" && k != "dir" && k != "msg" && k != "err" {
+			next[k] = v
+		}
+	}
+	state, icon := "none", "ti-arrows-sort"
+	switch {
+	case cur != col:
+		next.Set("sort", col)
+		next.Set("dir", "desc")
+	case !asc:
+		state, icon = "descending", "ti-arrow-down"
+		next.Set("sort", col)
+		next.Set("dir", "asc")
+	default:
+		state, icon = "ascending", "ti-arrow-up"
+	}
+	return map[string]string{"URL": "?" + next.Encode(), "Aria": state, "Icon": icon}
 }
 func (s *Server) accountFormPage(w http.ResponseWriter, r *http.Request, status int, f *accountForm, msg string) {
 	users, _, err := store.AccountUserOptions(r.Context(), s.DB)
@@ -79,6 +127,26 @@ func (s *Server) accountFormPage(w http.ResponseWriter, r *http.Request, status 
 			return
 		}
 		d["Recent"] = recent
+		if len(recent) > 0 {
+			where := recent[0].NodeName
+			if where == "" {
+				where = recent[0].NodeIP
+			}
+			d["LastSeen"] = lastOnlineText(&recent[0].LastOnline, time.Now()) + "（" + store.FormatTime(recent[0].LastOnline) + " · " + where + "）"
+		} else {
+			d["LastSeen"] = lastOnlineText(nil, time.Now())
+		}
+		if f.AccountNo != "" {
+			snap, err := s.onlineSnapshot(r.Context())
+			if err == nil {
+				d["OnlineRows"], err = s.accountOnlineRows(r.Context(), snap, f.AccountNo)
+				d["OnlineText"] = accountOnlineText(snap, f.AccountNo)
+			}
+			if err != nil {
+				s.fail(w, r, err)
+				return
+			}
+		}
 		if acc, err := store.AccountByID(r.Context(), s.DB, f.ID); err == nil && acc != nil {
 			d["Links"] = s.accountLinks(r, acc)
 		}

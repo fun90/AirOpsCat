@@ -13,6 +13,11 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	snap, err := s.onlineSnapshot(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	alerts := make([]alertView, len(stats.RecentAlerts))
 	for i, a := range stats.RecentAlerts {
 		name := alertTypeNames[a.Type]
@@ -22,6 +27,6 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		alerts[i] = alertView{a, name}
 	}
 	d := s.pageData(r, "概览", "dashboard")
-	d["Stats"], d["RecentAlerts"] = stats, alerts
+	d["Stats"], d["RecentAlerts"], d["Online"] = stats, alerts, s.onlineSummaryFor(snap)
 	s.render(w, "dashboard", http.StatusOK, d)
 }

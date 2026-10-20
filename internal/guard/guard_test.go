@@ -125,3 +125,68 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestSnapshotOnlineView(t *testing.T) {
+	a, _, now := setup(t)
+	ctx := context.Background()
+	n3 := int64(3)
+	if err := a.Report(ctx, "s1", []AccountReport{{"A", 3, []string{"1", "2"}}, {"unknown", 9, nil}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.ReportTags(ctx, "s1", []store.GuardOnlineAccount{{AccountNo: "a", NodeTag: "node_1", ClientIPs: []string{"1", "2"}, ConnectionCount: &n3}}); err != nil {
+		t.Fatal(err)
+	}
+	// s2 为旧版 agent：有账户上报，但没有按标签分组。
+	if err := a.Report(ctx, "s2", []AccountReport{{"A", 2, []string{"2", "3"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.ReportTags(ctx, "s2", nil); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := a.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acc := snap.Accounts["a"]
+	if acc.Connections != 5 || acc.IPs != 3 || len(acc.Nodes) != 2 || snap.TotalConnections != 5 {
+		t.Fatal(snap)
+	}
+	if _, ok := snap.Accounts["unknown"]; ok {
+		t.Fatal("未知账户不应出现在在线视图")
+	}
+	if sv := snap.Servers["s1"]; sv.Accounts != 1 || sv.Connections != 3 || !sv.TagsKnown {
+		t.Fatal(snap.Servers)
+	}
+	if snap.Servers["s2"].TagsKnown {
+		t.Fatal("旧版 agent 不应标记为已知标签")
+	}
+	if tg := snap.Tags["node_1"]; tg.Accounts != 1 || tg.Connections != 3 || !tg.ConnKnown {
+		t.Fatal(snap.Tags)
+	}
+	// 空报告属于新鲜上报：服务器仍在，但账户消失，而不是“无上报”。
+	if err := a.Report(ctx, "s2", nil); err != nil {
+		t.Fatal(err)
+	}
+	snap, _ = a.Snapshot(ctx)
+	if _, ok := snap.Servers["s2"]; !ok || snap.Accounts["a"].Connections != 3 {
+		t.Fatal(snap)
+	}
+	// 缺少连接数的来源让标签连接数变为未知。
+	if err := a.ReportTags(ctx, "s1", []store.GuardOnlineAccount{{AccountNo: "A", NodeTag: "node_1", ClientIPs: []string{"1"}}}); err != nil {
+		t.Fatal(err)
+	}
+	snap, _ = a.Snapshot(ctx)
+	if snap.Tags["node_1"].ConnKnown {
+		t.Fatal(snap.Tags)
+	}
+	// TTL 边界：30 秒仍有效，超过后整体消失。
+	*now = now.Add(30 * time.Second)
+	if snap, _ = a.Snapshot(ctx); len(snap.Servers) != 2 {
+		t.Fatal("TTL 边界提前失效", snap.Servers)
+	}
+	*now = now.Add(time.Second)
+	snap, _ = a.Snapshot(ctx)
+	if len(snap.Servers) != 0 || len(snap.Accounts) != 0 || len(snap.Tags) != 0 || snap.TotalConnections != 0 {
+		t.Fatal(snap)
+	}
+}

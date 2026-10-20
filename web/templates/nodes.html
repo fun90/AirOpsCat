@@ -47,6 +47,7 @@
                         {{if .OutName}}<i class="ti ti-arrow-right text-secondary" role="img" aria-label="出站至"></i><a class="text-secondary" href="/admin/nodes/{{.OutID}}/edit">{{.OutName}}</a>{{end}}
                     </div>
                     <div class="d-md-none text-secondary small mt-1">{{if eq .Type 1}}落地{{else}}代理{{end}} · 端口 {{.Port}} · {{.Protocol}}</div>
+                    {{with index $.Online .ID}}<div class="text-secondary small mt-1">在线：{{.}}</div>{{end}}
                     <div class="d-md-none mt-1">
                         {{if eq $st -1}}<span class="badge bg-secondary-lt">无部署位</span>
                         {{else if eq $st 0}}<span class="badge bg-yellow-lt">待部署</span>

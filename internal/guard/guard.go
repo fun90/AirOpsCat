@@ -4,6 +4,7 @@ package guard
 import (
 	"context"
 	"database/sql"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +43,19 @@ type Stats struct {
 	Consecutive      int
 	Blocked          *BlockedEntry
 }
+type tagGroup struct {
+	account   string
+	tag       string
+	ips       []string
+	conns     int64
+	connKnown bool
+}
+
+// serverTags 是某服务器最近一次按节点标签分组的在线快照；known=false 表示该次上报不含分组。
+type serverTags struct {
+	known  bool
+	groups []tagGroup
+}
 type nodeStat struct {
 	connections int64
 	ips         []string
@@ -52,6 +66,8 @@ type Aggregator struct {
 	db          *sql.DB
 	now         func() time.Time
 	table       map[string]map[string]nodeStat
+	servers     map[string]time.Time // 每台服务器最近一次完整上报（含空报告）
+	tags        map[string]serverTags
 	consecutive map[string]int
 	blocked     map[string]BlockedEntry
 }
@@ -62,7 +78,7 @@ func New(db *sql.DB, clock ...func() time.Time) *Aggregator {
 	if len(clock) > 0 && clock[0] != nil {
 		now = clock[0]
 	}
-	return &Aggregator{db: db, now: now, table: map[string]map[string]nodeStat{}, consecutive: map[string]int{}, blocked: map[string]BlockedEntry{}}
+	return &Aggregator{db: db, now: now, table: map[string]map[string]nodeStat{}, servers: map[string]time.Time{}, tags: map[string]serverTags{}, consecutive: map[string]int{}, blocked: map[string]BlockedEntry{}}
 }
 func (a *Aggregator) forgetUnknown(limits map[string]store.GuardLimit) {
 	for key := range a.table {
@@ -98,6 +114,7 @@ func (a *Aggregator) Report(ctx context.Context, nodeIP string, reports []Accoun
 		}
 	}
 	now := a.now()
+	a.servers[nodeIP] = now
 	for _, r := range reports {
 		key := strings.ToLower(r.AccountNo)
 		if _, ok := limits[key]; !ok {
@@ -114,6 +131,46 @@ func (a *Aggregator) Report(ctx context.Context, nodeIP string, reports []Accoun
 		}
 		a.table[key][nodeIP] = nodeStat{connections: max(0, r.Connections), ips: ips, at: now}
 	}
+	return nil
+}
+
+// ReportTags 覆盖该服务器按节点标签分组的在线快照；nil 视为旧版 agent 未提供分组。
+func (a *Aggregator) ReportTags(ctx context.Context, nodeIP string, online []store.GuardOnlineAccount) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	limits, _, err := store.LoadGuardState(ctx, a.db)
+	if err != nil {
+		return err
+	}
+	st := serverTags{known: online != nil}
+	for _, o := range online {
+		key := strings.ToLower(o.AccountNo)
+		if _, ok := limits[key]; !ok {
+			continue
+		}
+		g := tagGroup{account: key, tag: o.NodeTag}
+		ips := map[string]bool{}
+		for _, ip := range o.ClientIPs {
+			ips[ip] = true
+		}
+		for _, c := range o.Connections {
+			if c.ClientIP != "" {
+				ips[c.ClientIP] = true
+			}
+		}
+		for ip := range ips {
+			g.ips = append(g.ips, ip)
+		}
+		sort.Strings(g.ips)
+		switch {
+		case o.ConnectionCount != nil:
+			g.conns, g.connKnown = max(0, *o.ConnectionCount), true
+		case len(o.Connections) > 0:
+			g.conns, g.connKnown = int64(len(o.Connections)), true
+		}
+		st.groups = append(st.groups, g)
+	}
+	a.tags[nodeIP] = st
 	return nil
 }
 
@@ -212,6 +269,12 @@ func (a *Aggregator) Evict(ctx context.Context) error {
 	}
 	a.forgetUnknown(limits)
 	now := a.now()
+	for ip, at := range a.servers {
+		if now.Sub(at) > settings.TTL {
+			delete(a.servers, ip)
+			delete(a.tags, ip)
+		}
+	}
 	for key, nodes := range a.table {
 		for ip, n := range nodes {
 			if now.Sub(n.at) > settings.TTL {
@@ -223,4 +286,119 @@ func (a *Aggregator) Evict(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// NodeOnline 是某账户在一台服务器上的最近上报。
+type NodeOnline struct {
+	NodeIP      string
+	Connections int64
+	IPs         []string
+	At          time.Time
+}
+type AccountTag struct {
+	ServerIP, Tag string
+	IPs           []string
+	Connections   int64
+	ConnKnown     bool
+}
+type AccountOnline struct {
+	AccountNo        string
+	Connections, IPs int64
+	Nodes            []NodeOnline
+	Tags             []AccountTag
+}
+
+// TagOnline 按节点标签（node_<ID>）汇总；ConnKnown 为 false 表示至少一个来源未上报连接数。
+type TagOnline struct {
+	Accounts    int
+	Connections int64
+	ConnKnown   bool
+}
+type ServerOnline struct {
+	Accounts    int
+	Connections int64
+	At          time.Time
+	TagsKnown   bool // 该次上报含按节点标签的分组；旧版 agent 为 false
+}
+
+// Snapshot 是实时在线视图：只含 TTL 内上报的服务器；某台服务器不在 Servers 中表示“无新鲜上报”，不等于 0 在线。
+type Snapshot struct {
+	Accounts         map[string]AccountOnline // 键为小写账户编号
+	Servers          map[string]ServerOnline  // 键为服务器 IP
+	Tags             map[string]TagOnline     // 键为节点标签
+	TotalConnections int64
+}
+
+// Snapshot 只读，不推进连续超限计数，也不回收数据。
+func (a *Aggregator) Snapshot(ctx context.Context) (Snapshot, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	limits, settings, err := store.LoadGuardState(ctx, a.db)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	now := a.now()
+	out := Snapshot{Accounts: map[string]AccountOnline{}, Servers: map[string]ServerOnline{}, Tags: map[string]TagOnline{}}
+	for ip, at := range a.servers {
+		if now.Sub(at) <= settings.TTL {
+			out.Servers[ip] = ServerOnline{At: at, TagsKnown: a.tags[ip].known}
+		}
+	}
+	for key, nodes := range a.table {
+		l, ok := limits[key]
+		if !ok {
+			continue
+		}
+		acc := AccountOnline{AccountNo: l.AccountNo}
+		ips := map[string]bool{}
+		for ip, n := range nodes {
+			if now.Sub(n.at) > settings.TTL {
+				continue
+			}
+			acc.Connections += n.connections
+			acc.Nodes = append(acc.Nodes, NodeOnline{ip, n.connections, n.ips, n.at})
+			for _, c := range n.ips {
+				ips[c] = true
+			}
+			if sv, ok := out.Servers[ip]; ok {
+				sv.Accounts++
+				sv.Connections += n.connections
+				out.Servers[ip] = sv
+			}
+		}
+		if len(acc.Nodes) == 0 {
+			continue
+		}
+		acc.IPs = int64(len(ips))
+		sort.Slice(acc.Nodes, func(i, j int) bool { return acc.Nodes[i].NodeIP < acc.Nodes[j].NodeIP })
+		out.Accounts[key] = acc
+		out.TotalConnections += acc.Connections
+	}
+	tagAccounts := map[string]map[string]bool{}
+	for ip, st := range a.tags {
+		if _, fresh := out.Servers[ip]; !fresh || !st.known {
+			continue
+		}
+		for _, g := range st.groups {
+			t, seen := out.Tags[g.tag]
+			if !seen {
+				t.ConnKnown = true
+				tagAccounts[g.tag] = map[string]bool{}
+			}
+			tagAccounts[g.tag][g.account] = true
+			t.Connections += g.conns
+			t.ConnKnown = t.ConnKnown && g.connKnown
+			out.Tags[g.tag] = t
+			if acc, ok := out.Accounts[g.account]; ok {
+				acc.Tags = append(acc.Tags, AccountTag{ip, g.tag, g.ips, g.conns, g.connKnown})
+				out.Accounts[g.account] = acc
+			}
+		}
+	}
+	for tag, accounts := range tagAccounts {
+		t := out.Tags[tag]
+		t.Accounts = len(accounts)
+		out.Tags[tag] = t
+	}
+	return out, nil
 }

@@ -303,7 +303,9 @@ func pageURL(query string, page int) string {
 }
 
 var funcs = template.FuncMap{
-	"pageURL": pageURL,
+	"pageURL":   pageURL,
+	"lower":     strings.ToLower,
+	"hasPrefix": strings.HasPrefix,
 	"dbtime": func(v any) string {
 		switch t := v.(type) {
 		case time.Time:
@@ -312,6 +314,13 @@ var funcs = template.FuncMap{
 			if t != nil {
 				return store.FormatTime(*t)
 			}
+		}
+		return ""
+	},
+	// dbminute 与 dbtime 同时区，只保留到分钟，用于列表的紧凑展示。
+	"dbminute": func(v any) string {
+		if t, ok := v.(*time.Time); ok && t != nil {
+			return t.In(store.Shanghai).Format("2006-01-02 15:04")
 		}
 		return ""
 	},

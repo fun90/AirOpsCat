@@ -66,7 +66,23 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	snap, err := s.onlineSnapshot(r.Context())
+	var placed map[int64][]string
+	if err == nil {
+		placed, err = store.NodeServerIPs(r.Context(), s.DB)
+	}
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	online := make(map[int64]string, len(list))
+	for _, n := range list {
+		if n.Type == 0 {
+			online[n.ID] = nodeOnlineText(snap, n.ID, placed[n.ID])
+		}
+	}
 	d := s.pageData(r, "节点", "nodes")
+	d["Online"] = online
 	d["List"], d["Tags"], d["Q"], d["Page"], d["Pages"] = list, tags, f.Search, page, (total+size-1)/size
 	d["Type"], d["Status"], d["TagID"] = q.Get("type"), q.Get("status"), q.Get("tag")
 	s.render(w, "nodes", http.StatusOK, d)

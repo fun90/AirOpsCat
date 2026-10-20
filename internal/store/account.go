@@ -74,7 +74,7 @@ type AccountFilter struct {
 	Status       string
 	Online       string
 	OnlineWithin time.Duration // 在线判定窗口，默认 10 分钟
-	Sort         string        // create_time（默认）或 to_date
+	Sort         string        // create_time（默认）、to_date 或 last_online
 	Asc          bool
 }
 
@@ -404,6 +404,9 @@ func (f AccountFilter) where(now time.Time) (string, []any) {
 	return " WHERE " + strings.Join(conds, " AND "), args
 }
 
+// lastOnlineSQL 取账户在线记录（保留 30 天）中的最近时间；无记录为 NULL。
+const lastOnlineSQL = `(SELECT max(o.last_online_time) FROM account_online_ip o WHERE o.account_no = a.account_no)`
+
 // 当期统计行：period_start <= now < period_end，重叠时取最近开始的一行。
 const currentStats = `FROM account_traffic_stats s WHERE s.account_id = a.id AND s.period_start <= @now AND s.period_end > @now`
 
@@ -414,13 +417,18 @@ func AccountList(ctx context.Context, db *sql.DB, f AccountFilter, page, size in
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM account a`+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	order := "a.create_time"
-	if f.Sort == "to_date" {
-		order = "a.to_date"
-	}
 	dir := "DESC"
 	if f.Asc {
 		dir = "ASC"
+	}
+	order := "a.create_time " + dir
+	switch f.Sort {
+	case "to_date":
+		// 长期有效（NULL）视为最晚到期：降序在最前，升序在最后。
+		order = "a.to_date IS NULL " + dir + ", a.to_date " + dir
+	case "last_online":
+		// 没有在线记录的账户无论升降序都排最后。
+		order = lastOnlineSQL + " IS NULL, " + lastOnlineSQL + " " + dir
 	}
 	limit, offset := pageArgs(page, size)
 	args = append(args, sql.Named("limit", limit), sql.Named("offset", offset))
@@ -428,9 +436,9 @@ func AccountList(ctx context.Context, db *sql.DB, f AccountFilter, page, size in
 		(SELECT coalesce(sum(s.upload_bytes + s.download_bytes),0) `+currentStats+`),
 		coalesce((SELECT s.bandwidth_quota `+currentStats+` ORDER BY s.period_start DESC LIMIT 1), a.bandwidth, 0),
 		(SELECT count(*) FROM account_online_ip o WHERE o.account_no = a.account_no AND o.last_online_time > @cutoff),
-		(SELECT max(o.last_online_time) FROM account_online_ip o WHERE o.account_no = a.account_no)
+		`+lastOnlineSQL+`
 		FROM account a LEFT JOIN user u ON u.id = a.user_id`+where+
-		` ORDER BY `+order+` `+dir+`, a.id `+dir+` LIMIT @limit OFFSET @offset`, args...)
+		` ORDER BY `+order+`, a.id `+dir+` LIMIT @limit OFFSET @offset`, args...)
 	if err != nil {
 		return nil, 0, err
 	}
