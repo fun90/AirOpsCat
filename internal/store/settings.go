@@ -35,10 +35,10 @@ func settingType(key string) string {
 	switch key {
 	case "airopscat.bark.url", "airopscat.bark.default-icon", "airopscat.subscription.url", "airopscat.docs.url":
 		return "url"
-	case "airopscat.bark.encrypt-enabled", "airopscat.request-log.enabled", "airopscat.ratelimit.enabled", "airopscat.account.connection-limit.alert.enabled", "airopscat.account.connection-limit.alert.recovery-notify-enabled", "airopscat.server.monitor.enabled":
+	case "airopscat.bark.encrypt-enabled", "airopscat.ratelimit.enabled", "airopscat.account.connection-limit.alert.enabled", "airopscat.account.connection-limit.alert.recovery-notify-enabled", "airopscat.server.monitor.enabled":
 		return "boolean"
 	}
-	for _, suffix := range []string{".multiplier", "-mbps", "-minutes", "-seconds", "-hours", "-days", ".batch-size", "-times", "-servers", ".port", ".max-retries", ".keep-latest-per-node"} {
+	for _, suffix := range []string{"-mbps", "-minutes", "-seconds", "-hours", "-days", ".batch-size", "-times", "-servers"} {
 		if strings.HasSuffix(key, suffix) {
 			return "number"
 		}
@@ -146,23 +146,13 @@ func saveSetting(ctx context.Context, db dbtx, cipher *crypto.Cipher, key, value
 			invalid = value != "true" && value != "false"
 		case "number":
 			n, e := strconv.ParseInt(value, 10, 32)
-			min := int64(1)
-			if key == "airopscat.sing-box.clash-api.max-retries" {
-				min = 0
-			}
-			invalid = e != nil || n < min
-			if key == "airopscat.sing-box.clash-api.port" && n > 65535 {
-				invalid = true
-			}
+			invalid = e != nil || n < 1
 			if key == "airopscat.account.guard.ttl-seconds" && n < 5 {
 				invalid = true
 			}
 		case "threshold":
 			n, e := strconv.ParseFloat(value, 64)
 			invalid = e != nil || math.IsNaN(n) || math.IsInf(n, 0) || n < 0 || n > 100
-		}
-		if key == "airopscat.request-log.paths" && value == "" {
-			invalid = true
 		}
 		if invalid {
 			return fmt.Errorf("%w：配置值格式或范围不正确", ErrInvalid)
