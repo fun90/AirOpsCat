@@ -16,6 +16,12 @@
 
 两个二进制均使用 `CGO_ENABLED=0`、`-tags timetzdata` 构建，内嵌时区数据。CI 使用 `go.mod` 中的 Go 版本执行 `go vet ./...`、`go test ./...` 和安装器自检查。发布 workflow 仅允许 `v*` tag push，进一步要求 tag 精确匹配 `vX.Y.Z`，且 tag commit 是远端 `release/go` 分支的祖先；只有 `fun90/AirOpsCat` 的发布 job 获得 `contents: write`。`workflow_dispatch` 只构建和上传 Actions artifacts，不创建 Release。
 
+### 订阅模板与周期任务
+
+订阅模板的目录入口为控制台配置 `airopscat.config.templates.dir`；空值使用进程工作目录下的 `./config`。实际读取 `<目录>/subscription-go/`，单个文件不存在时使用内置模板。导入时丢弃旧 Java 模板目录配置，避免把 Qute 模板当作 Go 模板；不支持 `AIROPSCAT_TEMPLATES_DIR`。
+
+备份与历史清理在进程启动后每 24 小时执行，首次等待一个周期；各任务分别串行，不保证上海时间某个固定时刻执行。
+
 ### 首次安装
 
 先从目标 Release 下载并检查安装器，不使用管道直接执行网络脚本。以下命令需 root，示例版本必须换为实际已发布的版本：
