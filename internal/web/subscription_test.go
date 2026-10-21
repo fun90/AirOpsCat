@@ -1,9 +1,15 @@
 package web
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
+	"io"
 	"math"
 	"math/big"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 
 	"testing"
 	"time"
@@ -65,6 +71,42 @@ func TestPublicSubscriptionAndDocs(t *testing.T) {
 	if w.Header().Get("Content-Disposition") != "" {
 		t.Fatal("view=1不应下载")
 	}
+	for _, p := range []string{"/subscribe/config/" + code + "/windows/clash-meta/", "/api/open/docs-info/" + code, "/subscribe/nodes/" + code + "/loon", "/subscribe/rules/clash/myreject.yaml"} {
+		plain := do(h, "GET", p, nil, nil, nil)
+		compressed := do(h, "GET", p, nil, nil, map[string]string{"Accept-Encoding": "gzip"})
+		if compressed.Header().Get("Content-Encoding") != "gzip" {
+			t.Fatal("未压缩", p)
+		}
+		z, err := gzip.NewReader(compressed.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := io.ReadAll(z)
+		if err != nil {
+			t.Fatal(err)
+		}
+		z.Close()
+		// 模板含生成时间，逐请求时间字段不参与比较。
+		normalize := func(body []byte) string {
+			lines := strings.Split(string(body), "\n")
+			for i, line := range lines {
+				if strings.HasPrefix(line, "# Generated at:") {
+					lines[i] = ""
+				}
+			}
+			return strings.Join(lines, "\n")
+		}
+		if normalize(decoded) != normalize(plain.Body.Bytes()) {
+			t.Fatal("docs-info 压缩正文变化")
+		}
+		if len(decoded) == 0 {
+			t.Fatal("压缩响应为空")
+		}
+		head := do(h, "HEAD", p, nil, nil, map[string]string{"Accept-Encoding": "gzip"})
+		if head.Code != 200 || head.Body.Len() != 0 || head.Header().Get("Content-Encoding") != "gzip" {
+			t.Fatal("HEAD 兼容失败", head.Code, head.Header())
+		}
+	}
 	if javaFormEncode("a *~中") != "a+*%7E%E4%B8%AD" {
 		t.Fatal("Java URL编码错误")
 	}
@@ -86,6 +128,75 @@ func TestUsedGiBHalfUp(t *testing.T) {
 		want += r.String()
 		if got := usedGiB(bytes); got != want {
 			t.Errorf("%d: got %s want %s", bytes, got, want)
+		}
+	}
+}
+
+func TestSubscriptionCompression(t *testing.T) {
+	body := []byte(strings.Repeat("订阅配置\n", 100))
+	for _, tc := range []struct {
+		accept string
+		gzip   bool
+	}{
+		{"", false}, {"br", false}, {"gzip", true}, {"br, gzip;q=0.5", true}, {"*", true}, {"gzip;q=0, *;q=1", false}, {"gzip;q=invalid", false}, {"gzip;q=NaN", false}, {"gzip;q=2", false},
+	} {
+		t.Run(tc.accept, func(t *testing.T) {
+			for _, method := range []string{http.MethodGet, http.MethodHead} {
+				req := httptest.NewRequest(method, "/subscribe/rules/clash/test", nil)
+				req.Header.Set("Accept-Encoding", tc.accept)
+				w := httptest.NewRecorder()
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				writeSubscription(w, req, body)
+				if (w.Header().Get("Content-Encoding") == "gzip") != tc.gzip || w.Header().Get("Vary") != "Accept-Encoding" {
+					t.Fatal(w.Header())
+				}
+				if method == http.MethodHead {
+					if w.Body.Len() != 0 {
+						t.Fatal("HEAD 响应有正文")
+					}
+					continue
+				}
+				got := w.Body.Bytes()
+				if tc.gzip {
+					z, err := gzip.NewReader(bytes.NewReader(got))
+					if err != nil {
+						t.Fatal(err)
+					}
+					got, err = io.ReadAll(z)
+					if err != nil {
+						t.Fatal(err)
+					}
+					z.Close()
+				}
+				if !bytes.Equal(got, body) {
+					t.Fatal("解压后正文不匹配")
+				}
+			}
+		})
+	}
+}
+
+func TestSubscriptionCompressionHeaders(t *testing.T) {
+	for _, encoded := range []bool{false, true} {
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set("Accept-Encoding", "gzip")
+		w := httptest.NewRecorder()
+		w.Header().Set("Vary", "Origin")
+		w.Header().Set("Content-Length", "4")
+		if encoded {
+			w.Header().Set("Content-Encoding", "br")
+		}
+		writeSubscription(w, req, []byte("body"))
+		vary := strings.Join(w.Header().Values("Vary"), ",")
+		if !strings.Contains(vary, "Origin") || !strings.Contains(vary, "Accept-Encoding") {
+			t.Fatal(w.Header())
+		}
+		if encoded {
+			if w.Header().Get("Content-Encoding") != "br" || w.Body.String() != "body" {
+				t.Fatal("重复编码")
+			}
+		} else if w.Header().Get("Content-Length") != "" {
+			t.Fatal("残留原始长度")
 		}
 	}
 }

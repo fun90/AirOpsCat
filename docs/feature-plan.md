@@ -66,7 +66,7 @@
 
 | 事项 | 当前状态 | 后续工作与验收 |
 |------|----------|----------------|
-| 响应 gzip（[spec-subscription](rewrite/spec-subscription.md) 第 7 节） | guard 请求已支持 gzip 解压；[应用响应链路](../internal/web/server.go)未见响应压缩 | 确认压缩由应用还是反向代理承担；以真实请求验证 `Accept-Encoding`、响应头、解压后内容及无压缩请求兼容性 |
+| 响应 gzip（[spec-subscription](rewrite/spec-subscription.md) 第 7 节） | [x] 应用层通过 `writeSubscription` 为成功订阅文本与 docs-info JSON 提供 gzip；错误响应保持原格式 | `TestSubscriptionCompression` 覆盖协商、q=0、通配符、非法权重、HEAD、解压内容；`TestPublicSubscriptionAndDocs` 验证真实路由；生产代理链抓包待验收 |
 | 备份远端上传（[scope](rewrite/scope.md) 第 4 节） | [备份模块](../internal/dbbackup/backup.go)已有本地快照、下载、删除和保留期清理 | 旧范围仅提及按需上传，目标和协议未定；确认是否需要后再实施，不预先增加存储适配层 |
 
 ## 5. 规划差异与处置建议
@@ -91,7 +91,7 @@
 |------|------|------|
 | [scope](rewrite/scope.md) 决策 24 D7、[spec-account](rewrite/spec-account.md) §8 | ~~系统日志缺 `DEPLOY`、`ALERT` 写入；`SERVER_FAILOVER` 的 `detail` 为空；无时间范围筛选~~ 已补：部署（`deploy.apply`）、告警触发（`web.raise`，按节流只记通知点）、故障切换 detail、日志页 `from`/`to` 日期筛选，`TestLogsPaginationFilteringAndRedaction` 覆盖筛选 | 完成 |
 | [spec-subscription](rewrite/spec-subscription.md) §3 | ~~同一订阅定制绑定含多个部署位时只保留最后一个~~ 已修复：`SubscriptionNodes` 按集合过滤，`TestSubscriptionBindingKeepsAllPlacements` 覆盖 | 完成 |
-| [spec-subscription](rewrite/spec-subscription.md) §7 | 响应 gzip 未实现 | 与第 4 节合并处理，先确认反向代理是否已压缩 |
+| [spec-subscription](rewrite/spec-subscription.md) §7 | [x] 响应 gzip 已实现 | 与第 4 节合并验收；不依赖反向代理提供压缩 |
 | [spec-subscription](rewrite/spec-subscription.md) §2 | 配额 ≤0 的 500G 展示兜底沿用现有契约；Shadowrocket `tfc` 已改为整数 HALF_UP，两位小数且避免溢出 | [x] `TestUsedGiBHalfUp` 覆盖中点、进位及 MaxInt64 |
 | [spec-account](rewrite/spec-account.md) §10 问题 23 | 后端 `toDate` 无默认，缺省即永不过期（沿用，待确认是否有意）；~~账号备注必填只在前端~~ 已在 `accountSave` 后端补校验（`internal/web/accounts.go`） | 备注已完成；`toDate` 默认值待决策 |
 | [spec-traffic](rewrite/spec-traffic.md) §1.3 | [x] 采集失败发送 Bark 成功/失败计数汇总；单台失败后仍执行限速与 DNS 检查，并聚合返回错误；无目标时提前返回 | `TestCollectTrafficFailureStillChecksLimitsAndDNS` 通过 race；通知仅发计数，不泄露 SSH 错误；真实 Bark 送达待验收 |

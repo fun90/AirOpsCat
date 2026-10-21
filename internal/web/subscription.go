@@ -1,7 +1,9 @@
 package web
 
 import (
+	"compress/gzip"
 	"encoding/json"
+	"strconv"
 
 	"fmt"
 	"io/fs"
@@ -138,7 +140,7 @@ func (s *Server) subscriptionConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("subscription-userinfo", fmt.Sprintf("download=%d; total=%d; expire=%d", used, quota*(1<<30), a.ToDate.Unix()))
 	}
-	w.Write(body)
+	writeSubscription(w, r, body)
 }
 
 func (s *Server) subscriptionNodeList(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +167,7 @@ func (s *Server) subscriptionNodeList(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("charset", "UTF-8")
-	fmt.Fprint(w, strings.TrimSpace(strings.Join(lines, "\n")))
+	writeSubscription(w, r, []byte(strings.TrimSpace(strings.Join(lines, "\n"))))
 }
 func (s *Server) subscriptionRules(w http.ResponseWriter, r *http.Request) {
 	app, name := r.PathValue("app"), r.PathValue("name")
@@ -180,7 +182,7 @@ func (s *Server) subscriptionRules(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("charset", "UTF-8")
-	w.Write(body)
+	writeSubscription(w, r, body)
 }
 
 func (s *Server) subscriptionUsage(r *http.Request, a *store.Account) (int64, int64, error) {
@@ -268,5 +270,54 @@ func (s *Server) docsInfo(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	json.NewEncoder(w).Encode(out)
+	body, err := json.Marshal(out)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeSubscription(w, r, append(body, '\n'))
+}
+
+// writeSubscription 只压缩已生成的公开响应，不包装 ResponseWriter 或改变错误处理。
+func writeSubscription(w http.ResponseWriter, r *http.Request, body []byte) {
+	w.Header().Add("Vary", "Accept-Encoding")
+	gzipQ, wildcardQ := -1.0, 0.0
+	for _, item := range strings.Split(strings.Join(r.Header.Values("Accept-Encoding"), ","), ",") {
+		parts := strings.Split(item, ";")
+		coding := strings.ToLower(strings.TrimSpace(parts[0]))
+		q := 1.0
+		for _, param := range parts[1:] {
+			pair := strings.SplitN(strings.TrimSpace(param), "=", 2)
+			if len(pair) == 2 && strings.EqualFold(pair[0], "q") {
+				value, err := strconv.ParseFloat(pair[1], 64)
+				if err != nil || !(value >= 0 && value <= 1) {
+					q = 0
+				} else {
+					q = value
+				}
+			}
+		}
+		if coding == "gzip" {
+			gzipQ = q
+		} else if coding == "*" {
+			wildcardQ = q
+		}
+	}
+	if gzipQ < 0 {
+		gzipQ = wildcardQ
+	}
+	if gzipQ > 0 && w.Header().Get("Content-Encoding") == "" {
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Del("Content-Length")
+		if r.Method == http.MethodHead {
+			return
+		}
+		z := gzip.NewWriter(w)
+		_, _ = z.Write(body)
+		_ = z.Close()
+		return
+	}
+	if r.Method != http.MethodHead {
+		_, _ = w.Write(body)
+	}
 }
