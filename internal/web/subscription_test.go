@@ -107,6 +107,20 @@ func TestPublicSubscriptionAndDocs(t *testing.T) {
 			t.Fatal("HEAD 兼容失败", head.Code, head.Header())
 		}
 	}
+	for _, p := range []string{
+		"/subscribe/config/" + code + "/windows/clash-meta/?dns=",
+		"/subscribe/config/" + code + "/windows/clash-meta/?version=1&dns2=",
+	} {
+		if got := do(h, "GET", p, nil, nil, nil); got.Code != 200 {
+			t.Fatal("空 DNS 参数", got.Code)
+		}
+	}
+	if got := do(h, "GET", "/subscribe/rules/clash/myreject%2Fother.yaml", nil, nil, nil); got.Code != 404 {
+		t.Fatal("编码斜杠未拒绝", got.Code)
+	}
+	if got := do(h, "GET", "/subscribe/config/"+code+"/windows/clash-meta%2Fother/", nil, nil, nil); got.Code != 400 {
+		t.Fatal("应用名编码斜杠未拒绝", got.Code)
+	}
 	if javaFormEncode("a *~中") != "a+*%7E%E4%B8%AD" {
 		t.Fatal("Java URL编码错误")
 	}
