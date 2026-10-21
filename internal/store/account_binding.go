@@ -130,7 +130,7 @@ func createBindingRecord(ctx context.Context, tx *sql.Tx, domainID int64, name s
 		return 0, fmt.Errorf("%w：域名 %s 已存在，请直接选择", ErrConflict, full)
 	}
 	now := FormatTime(nowFunc())
-	res, err := tx.ExecContext(ctx, `INSERT INTO domain_dns_record(domain_id,server_id,dns_provider_config_id,name,full_name,type,content,ttl,proxied,status,create_time,update_time) VALUES(?,?,?,?,?,'A',?,300,0,'PENDING_CREATE',?,?)`, domainID, serverID, prov, name, full, ip, now, now)
+	res, err := tx.ExecContext(ctx, `INSERT INTO domain_dns_record(domain_id,server_id,dns_provider_config_id,name,full_name,type,content,ttl,proxied,status,create_time,update_time) VALUES(?,?,?,?,?,'A',?,1,0,'PENDING_CREATE',?,?)`, domainID, serverID, prov, name, full, ip, now, now)
 	if err != nil {
 		return 0, err
 	}

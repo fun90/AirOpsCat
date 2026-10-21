@@ -110,8 +110,11 @@ func TestBindingNewDomain(t *testing.T) {
 		t.Fatal(err)
 	}
 	var full, status string
-	db.QueryRow(`SELECT full_name,status FROM domain_dns_record WHERE id=?`, *b.RecordID).Scan(&full, &status)
-	if full != "hk01.example.com" || status != "PENDING_CREATE" {
+	var ttl int
+	if err := db.QueryRow(`SELECT full_name,status,ttl FROM domain_dns_record WHERE id=?`, *b.RecordID).Scan(&full, &status, &ttl); err != nil {
+		t.Fatal(err)
+	}
+	if full != "hk01.example.com" || status != "PENDING_CREATE" || ttl != 1 {
 		t.Fatalf("%s %s", full, status)
 	}
 	other := onboard(t, db, "nd2@example.com", func(in *OnboardInput) { in.Account.TagIDs = []int64{tag} })
