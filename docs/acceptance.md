@@ -56,9 +56,18 @@
 
 2026-10-21 迁移失败注入（同一测试机、同样隔离方式，`127.0.0.1:18091`、`Restart=no`）：故障版为当前 `HEAD` 加一个只存在于临时 worktree 的必然失败迁移 `0008`（先建表再查询不存在的表），未提交到仓库。旧版首装 user_version=6，写入数据后停服备份文件组。故障版启动后进程退出码 1，健康检查不通过，日志含"执行 0008_drill_fail.sql 失败"。此时 user_version=7：`0007` 已单独提交，`0008` 整个事务回滚，未留下半建的表。备份前数据保留。整组恢复备份后旧版健康，回到 6。结论：迁移按文件逐个提交，多文件升级失败可能停在中间版本，回滚必须整组恢复停服前备份，不能只换回旧二进制。`install.sh` 的自动回滚已由 `--self-test` 用 mock 覆盖，真实 systemd 下的自动回滚仍未执行。演练后临时单元、端口、目录已清理，既有三个服务仍 active。
 
+2026-10-21 `install.sh` 本地 VM 演练（用户授权安装 lima 2.2.1，未接触任何服务器）：Debian 13 arm64 VM，真实 systemd。测试副本只把 `base` 改为 VM 内的本地 HTTPS 源（自签证书加入系统信任），仓库脚本未改。资产在 VM 内用 GNU tar 打包，按 Release 形状生成 `checksums.txt`；三个版本为 `0245889`（schema 6）、当前 `HEAD`（schema 7）和临时故障版（`HEAD` 加必然失败的迁移 `0008`，未入库）。结果：
+- 首装 v1.0.0：退出码 0，服务 active 且已 enable，进程用户为独立的 `airopscat`；二进制 `root:root 755`，两个配置文件 `root:root 600`，状态目录 `airopscat 700`，数据库 `airopscat 600`，user_version=6。
+- 同版本重复安装：退出码 0，两个配置文件的 SHA-256 不变（密钥与首次口令未重建）。
+- 升级 v1.1.0：退出码 0，user_version=7，升级前写入的数据保留，配置不变。
+- 故障版 v1.2.0：输出"新版本未通过健康检查"和"安装失败，停止新版并恢复二进制、配置及同组数据库文件"，退出码 1；之后服务 active，二进制与 v1.1.0 的 SHA-256 一致，`/healthz` 返回 200，user_version=7，没有半建的表，数据保留；日志含"执行 0008_drill_fail.sql 失败"。
+- 篡改 checksum：退出码 1，报"checksum 不匹配"，服务 MainPID 不变（停服前就拒绝）。
+- 另发现 macOS 自带 tar 会写入 `LIBARCHIVE.xattr` 扩展头，安装器按设计拒绝这种归档；正式 Release 由 Linux CI 打包，不受影响。
+演练后 VM 已删除，lima 程序和镜像缓存保留在本机。未覆盖：GitHub Release 真实下载、amd64 主机安装。
+
 ## 待完成的上线门槛
 
-- 测试机以 `install.sh` 写入标准路径（`/usr/local/bin`、`/etc/airopscat`、`/var/lib/airopscat`）的正式安装与升级。该机已有 Quarkus 版 `airopscat.service` 占用同名单元，且根分区可用约 0.9 GB，需另行安排后执行。
+- 用 GitHub Release 真实资产执行 `install.sh`（本地 VM 演练使用本地 HTTPS 源替代下载地址），以及 amd64 主机上的标准路径安装。
 - 客户端实流量计费、超额限速、guard agent 上报到拒绝新连接的完整验证；所有客户端导入与 ShadowTLS 实流量验证。
 - 真实 Cloudflare 自动变更和真实 Bark 设备送达；当前演示通知及自动 DNS 关闭。
 - 新服务器完整执行 01～10 初始化，尤其是 03 替换公钥后的后续 SSH 连通性。
