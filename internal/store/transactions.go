@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -128,6 +129,25 @@ func TransactionList(ctx context.Context, db *sql.DB, f TransactionFilter, page,
 		list = append(list, t)
 	}
 	return list, total, rows.Err()
+}
+
+type TransactionTotals struct {
+	Income, Expense, Balance int64
+}
+
+// TransactionSummary 汇总当前筛选的全部记录，金额单位为分。
+func TransactionSummary(ctx context.Context, db *sql.DB, f TransactionFilter) (TransactionTotals, error) {
+	where, args := transactionWhere(f)
+	var totals TransactionTotals
+	err := db.QueryRowContext(ctx, `SELECT coalesce(sum(CASE WHEN type=0 THEN amount ELSE 0 END),0), coalesce(sum(CASE WHEN type=1 THEN amount ELSE 0 END),0) FROM transactions t`+where, args...).Scan(&totals.Income, &totals.Expense)
+	if err != nil {
+		return totals, err
+	}
+	if (totals.Expense < 0 && totals.Income > math.MaxInt64+totals.Expense) || (totals.Expense > 0 && totals.Income < math.MinInt64+totals.Expense) {
+		return totals, fmt.Errorf("收支净额超出整数范围")
+	}
+	totals.Balance = totals.Income - totals.Expense
+	return totals, nil
 }
 
 func TransactionByID(ctx context.Context, db *sql.DB, id int64) (*Transaction, error) {

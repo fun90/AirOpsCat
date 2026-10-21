@@ -1,5 +1,11 @@
 {{define "actions"}}<a href="/admin/transactions/new?back={{.BackQuery}}" class="btn btn-primary"><i class="ti ti-plus me-1" aria-hidden="true"></i>新增流水</a>{{end}}
 {{define "content"}}
+<div class="text-secondary small mb-2">当前筛选全部记录</div>
+<div class="row row-cards mb-3">
+<div class="col-12 col-md-4"><div class="card"><div class="card-body"><div class="subheader">收入（元）</div><div class="h2 mb-0 text-green text-break">{{cents .Totals.Income}}</div></div></div></div>
+<div class="col-12 col-md-4"><div class="card"><div class="card-body"><div class="subheader">支出（元）</div><div class="h2 mb-0 text-red text-break">{{cents .Totals.Expense}}</div></div></div></div>
+<div class="col-12 col-md-4"><div class="card"><div class="card-body"><div class="subheader">净额（元）</div><div class="h2 mb-0 text-break">{{cents .Totals.Balance}}</div></div></div></div>
+</div>
 <div class="card"><div class="card-header"><form method="get" class="row g-2 w-100">
 <div class="col-12 col-md-4"><input type="search" name="q" class="form-control" value="{{.Q}}" placeholder="说明 / 备注 / 付款方式" aria-label="搜索流水"></div>
 <div class="col-6 col-md-2"><select name="type" class="form-select" aria-label="收支类型"><option value="">全部收支</option><option value="0"{{if eq .Type "0"}} selected{{end}}>收入</option><option value="1"{{if eq .Type "1"}} selected{{end}}>支出</option></select></div>

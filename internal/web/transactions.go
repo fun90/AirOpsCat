@@ -102,7 +102,13 @@ func (s *Server) transactionList(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	totals, err := store.TransactionSummary(r.Context(), s.DB, f)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	d := s.pageData(r, "收支记账", "transactions")
+	d["Totals"] = totals
 	typeValue := ""
 	if f.Type != nil {
 		typeValue = strconv.Itoa(*f.Type)

@@ -1,6 +1,6 @@
 # Go 版功能补齐与验收规划
 
-状态：待实施。本文记录规划，不代表新增功能或验收已经完成。
+状态：实施中。代码与自动化验证按下方逐项标记；真实环境与持续运行未完成的项目保持待验收。
 
 对照基准：历史分支 `rewrite/go`（`516ff9e`）的 [docs/rewrite/](rewrite/scope.md) 与当前正式分支 `release/go`（`d04bb34`）。基于文档和代码静态核对，未在本次核对中运行测试或操作真实服务器。
 
@@ -102,7 +102,7 @@
 |------|------|
 | [spec-account](rewrite/spec-account.md) 问题 9 | 续期不允许缩短到期时间 |
 | [spec-account](rewrite/spec-account.md) §5.5 | 批量节点标签调整未实现，scope 无处置记录 |
-| [spec-account](rewrite/spec-account.md) 问题 19 | 记账汇总统计待实现；[x] 通用流水已按决策 24 D7 校验金额 >0（`TestTransactionCRUDFiltersAndBusinessValidation` 覆盖零和负数，先失败再修复） |
+| [spec-account](rewrite/spec-account.md) 问题 19 | [x] 收支页显示当前筛选全部记录的收入、支出、净额（整数分汇总，不受分页影响），`TestTransactionSummaryUsesFullFilter` 覆盖组合筛选、空结果及负净额；[x] 通用流水已按决策 24 D7 校验金额 >0（`TestTransactionCRUDFiltersAndBusinessValidation` 覆盖零和负数，先失败再修复）。月度趋势未纳入本次最小实现 |
 | [spec-account](rewrite/spec-account.md) §7 | 新建 A 记录 TTL 为 300（规格为 1）；绑定无独立启停入口 |
 | [spec-account](rewrite/spec-account.md) 问题 15 | 用户解锁、自助改密未实现（自助部分按决策 7 不做） |
 | [spec-deploy](rewrite/spec-deploy.md) §2.3 | 默认入站模板 SNI/伪装域名固定为 `www.apple.com`，hysteria2 不再取访问域名，reality 不再随机握手域名 |

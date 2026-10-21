@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"math"
 	"testing"
 	"time"
 )
@@ -89,3 +90,90 @@ func TestTransactionBusinessOptionsAndDeletedAccount(t *testing.T) {
 }
 
 func ptrInt(v int) *int { return &v }
+
+func TestTransactionSummaryUsesFullFilter(t *testing.T) {
+	db, ctx := testDB(t)
+	at := time.Date(2026, 10, 20, 12, 0, 0, 0, Shanghai)
+	for i := 0; i < 25; i++ {
+		if err := SaveTransaction(ctx, db, &Transaction{TransactionDate: at, Amount: 123, Type: TransactionIncome, Description: "匹配"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := SaveTransaction(ctx, db, &Transaction{TransactionDate: at, Amount: 4000, Type: TransactionExpense, Description: "匹配"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveTransaction(ctx, db, &Transaction{TransactionDate: at.AddDate(0, 0, -1), Amount: 10, Type: TransactionIncome, Description: "其他"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		filter          TransactionFilter
+		income, expense int64
+	}{
+		{TransactionFilter{}, 3085, 4000},
+		{TransactionFilter{Q: "匹配", StartDate: &at, EndDate: &at}, 3075, 4000},
+		{TransactionFilter{Type: ptrInt(TransactionExpense)}, 0, 4000},
+		{TransactionFilter{BusinessTable: "account"}, 0, 0},
+		{TransactionFilter{Q: "无结果"}, 0, 0},
+	} {
+		got, err := TransactionSummary(ctx, db, tc.filter)
+		if err != nil || got.Income != tc.income || got.Expense != tc.expense || got.Balance != tc.income-tc.expense {
+			t.Fatal(got, err)
+		}
+	}
+}
+
+func TestTransactionSummaryPaginationAndBoundaries(t *testing.T) {
+	db, ctx := testDB(t)
+	account := onboard(t, db, "summary@example.com", nil)
+	at := time.Date(2026, 10, 20, 0, 0, 0, 0, Shanghai)
+	end := at.AddDate(0, 0, 1).Add(-time.Second)
+	for i := 0; i < 25; i++ {
+		stamp := at
+		if i == 24 {
+			stamp = end
+		}
+		if err := SaveTransaction(ctx, db, &Transaction{TransactionDate: stamp, Amount: 101, Type: TransactionIncome, BusinessTable: "account", BusinessID: &account.AccountID, Description: "相同"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, stamp := range []time.Time{at.Add(-time.Second), end.Add(time.Second)} {
+		if err := SaveTransaction(ctx, db, &Transaction{TransactionDate: stamp, Amount: 999, Type: TransactionIncome, BusinessTable: "account", BusinessID: &account.AccountID, Description: "相同"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := SaveTransaction(ctx, db, &Transaction{TransactionDate: at, Amount: 777, Type: TransactionIncome, Description: "相同"}); err != nil {
+		t.Fatal(err)
+	}
+	f := TransactionFilter{Q: "相同", BusinessTable: "account", StartDate: &at, EndDate: &end}
+	list, total, err := TransactionList(ctx, db, f, 1, 20)
+	if err != nil || len(list) != 20 || total != 25 {
+		t.Fatal(len(list), total, err)
+	}
+	got, err := TransactionSummary(ctx, db, f)
+	if err != nil || got.Income != 2525 || got.Balance != 2525 {
+		t.Fatal(got, err)
+	}
+}
+
+func TestTransactionSummaryOverflow(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		amounts []int64
+		types   []int
+	}{
+		{"sum", []int64{math.MaxInt64, 1}, []int{0, 0}},
+		{"balance", []int64{math.MaxInt64, -1}, []int{0, 1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, ctx := testDB(t)
+			for i, amount := range tc.amounts {
+				if _, err := db.Exec(`INSERT INTO transactions(transaction_date,amount,type) VALUES('2026-10-20 00:00:00',?,?)`, amount, tc.types[i]); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := TransactionSummary(ctx, db, TransactionFilter{}); err == nil {
+				t.Fatal("溢出未返回错误")
+			}
+		})
+	}
+}
