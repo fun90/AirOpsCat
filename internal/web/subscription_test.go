@@ -121,6 +121,17 @@ func TestPublicSubscriptionAndDocs(t *testing.T) {
 	if got := do(h, "GET", "/subscribe/config/"+code+"/windows/clash-meta%2Fother/", nil, nil, nil); got.Code != 400 {
 		t.Fatal("应用名编码斜杠未拒绝", got.Code)
 	}
+	if _, err := db.Exec(`UPDATE account SET remark='' WHERE id=900`); err != nil {
+		t.Fatal(err)
+	}
+	blank := do(h, "GET", "/api/open/docs-info/"+code, nil, nil, nil)
+	var info map[string]any
+	if err := json.Unmarshal(blank.Body.Bytes(), &info); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := info["nickName"]; exists {
+		t.Fatal("空昵称应省略")
+	}
 	if javaFormEncode("a *~中") != "a+*%7E%E4%B8%AD" {
 		t.Fatal("Java URL编码错误")
 	}

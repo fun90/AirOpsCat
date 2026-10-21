@@ -257,7 +257,10 @@ func (s *Server) docsInfo(w http.ResponseWriter, r *http.Request) {
 	if err := s.DB.QueryRowContext(r.Context(), `SELECT period_end FROM account_traffic_stats WHERE account_id=? AND period_start<=? AND period_end>? ORDER BY period_start DESC LIMIT 1`, a.ID, now, now).Scan(&reset); err == nil && len(reset) >= 10 {
 		usage["resetDate"] = reset[:10]
 	}
-	out := map[string]any{"subscriptionUrl": links, "nickName": a.Remark, "usage": usage}
+	out := map[string]any{"subscriptionUrl": links, "usage": usage}
+	if strings.TrimSpace(a.Remark) != "" {
+		out["nickName"] = a.Remark
+	}
 	for key, name := range map[string]string{"airopscat.apple.id": "appleId", "airopscat.apple.pwd": "applePwd"} {
 		var value string
 		err := s.DB.QueryRowContext(r.Context(), `SELECT config_value FROM system_config WHERE config_key=? AND config_value IS NOT NULL`, key).Scan(&value)
