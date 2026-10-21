@@ -87,13 +87,10 @@ if (pane && dialog) {
         modal.hide();
     });
 
-    // 校验失败回显：恢复暂存的增删并打开部署位页签
-    let restored = !!pane.querySelector('[data-add-item]');
+    // 校验失败回显：恢复暂存的删除
     cards().forEach((c) => {
         if ('stagedTarget' in c.dataset && c.querySelector('[data-del-id]')) {
             mark(c, c.dataset.stagedTarget === '0' ? '' : c.dataset.stagedTarget);
-            restored = true;
         }
     });
-    if (restored) { document.querySelector('#placements-tab')?.click(); }
 }

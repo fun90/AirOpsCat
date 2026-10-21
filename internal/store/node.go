@@ -574,8 +574,8 @@ func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []
 	if err != nil {
 		return 0, err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE node SET name=?, type=?, protocol=?, port=?, inbound=?, out_id=?, region=?, remark=?, disabled=?, update_time=? WHERE id=?`,
-		n.Name, n.Type, n.Protocol, n.Port, n.Inbound, n.OutID, n.Region, nz(n.Remark), n.Disabled, now, n.ID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE node SET name=?, type=?, protocol=?, port=?, inbound=?, out_id=?, region=?, disabled=?, update_time=? WHERE id=?`,
+		n.Name, n.Type, n.Protocol, n.Port, n.Inbound, n.OutID, n.Region, n.Disabled, now, n.ID); err != nil {
 		return 0, err
 	}
 	if err := replaceTags(ctx, tx, n.ID, tagIDs); err != nil {

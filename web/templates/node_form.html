@@ -5,8 +5,7 @@
     <div class="card-header">
         <ul class="nav nav-tabs card-header-tabs" role="tablist">
             <li class="nav-item"><button class="nav-link active" id="basic-tab" type="button" role="tab" aria-selected="true" aria-controls="basic-pane" data-bs-toggle="tab" data-bs-target="#basic-pane">基本信息</button></li>
-            <li class="nav-item"><button class="nav-link" id="inbound-tab" type="button" role="tab" aria-selected="false" aria-controls="inbound-pane" data-bs-toggle="tab" data-bs-target="#inbound-pane">入站配置</button></li>
-            {{if .ID}}<li class="nav-item"><button class="nav-link" id="placements-tab" type="button" role="tab" aria-selected="false" aria-controls="placements-pane" data-bs-toggle="tab" data-bs-target="#placements-pane">部署位</button></li>{{end}}
+            <li class="nav-item"><button class="nav-link" id="inbound-tab" type="button" role="tab" aria-selected="false" aria-controls="inbound-pane" data-bs-toggle="tab" data-bs-target="#inbound-pane">协议配置</button></li>
         </ul>
     </div>
     {{if $.FormErr}}<div class="alert alert-danger m-3" role="alert">{{$.FormErr}}</div>{{end}}
@@ -21,19 +20,7 @@
             <div class="col-md-3"><label class="form-label required" for="port">端口</label>
                 <input type="number" class="form-control" id="port" name="port" value="{{.Port}}" {{if .ID}}required{{end}} min="1" max="65535">{{if not .ID}}<div class="form-hint">留空自动分配</div>{{end}}</div>
 
-            <div class="col-md-6"><label class="form-label" for="remark">备注</label>
-                <input class="form-control" id="remark" name="remark" value="{{.Remark}}"></div>
-            <div class="col-6 col-md-3"><label class="form-label" for="type">类型</label>
-                <select class="form-select" id="type" name="type">
-                    <option value="0"{{if eq .Type "0"}} selected{{end}}>代理节点</option>
-                    <option value="1"{{if eq .Type "1"}} selected{{end}}>落地节点</option>
-                </select></div>
-            <div class="col-6 col-md-3"><label class="form-label" for="out_id">出站</label>
-                <select class="form-select" id="out_id" name="out_id">
-                    <option value="">直连</option>
-                    {{range $.Landing}}<option value="{{.ID}}"{{if eq $.Form.OutID (printf "%d" .ID)}} selected{{end}}>{{.Name}}（{{.Region}}）</option>{{end}}
-                </select></div>
-<div class="col-12" data-tag-picker>
+            <div class="col-12" data-tag-picker>
                 <label class="form-label">标签</label>
                 <div class="d-flex flex-wrap gap-2 align-items-center" data-tag-list>
                 {{range $.Tags}}
@@ -61,13 +48,77 @@
                     <div class="text-danger small mt-1" role="status" data-tag-error></div>
                 </div>
             </div>
+            {{if .ID}}
+            <div class="col-12" id="placements-pane">
+                <label class="form-label">部署位</label>
+                <div class="form-hint mb-2">新建时按地区匹配，之后手动增删；保存后生效。</div>
+                {{range $.Placements}}
+                <div class="position-relative border rounded p-3 mb-3{{if eq .Deployed 2}} bg-red-lt{{end}}" data-placement="{{.ID}}" data-name="{{.ServerName}}（{{.ServerIP}}）"{{if .Running}} data-running{{end}}{{with index $.DelTargets .ID}} data-staged-target="{{.}}"{{end}}>
+                    {{if ne .Deployed 2}}
+                    <button type="button" class="btn-close position-absolute top-0 end-0 m-2" aria-label="删除部署位 {{.ServerName}}" data-placement-remove></button>
+                    <input type="hidden" name="del_placement" value="{{.ID}}" disabled data-del-id>
+                    <input type="hidden" name="del_target_{{.ID}}" value="" disabled data-del-target>
+                    {{end}}
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2 pe-4">
+                        <strong>{{.ServerName}}</strong><span class="text-secondary">{{.ServerIP}}</span>
+                        {{if eq .Deployed 0}}<span class="badge bg-yellow-lt">待部署</span>{{else if eq .Deployed 1}}<span class="badge bg-green-lt">已部署</span>{{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
+                        {{if .Disabled}}<span class="badge bg-secondary-lt">服务器已禁用</span>{{end}}
+                        <span class="badge bg-red-lt" data-del-badge hidden></span>
+                        <button type="button" class="btn btn-sm btn-link p-0" data-del-undo hidden>撤销删除</button>
+                    </div>
+                    {{if ne .Deployed 2}}
+                    <template data-domains>{{range index $.PlacementDomains .ID}}<li>{{.}}</li>{{end}}</template>
+                    {{$k := printf "p%d_" .ServerID}}
+                    <div class="row g-2">
+                        <div class="col-6 col-md-2"><label class="form-label" for="{{$k}}priority">优先级</label>
+                            <input type="number" class="form-control" id="{{$k}}priority" name="{{$k}}priority" value="{{.Priority}}"></div>
+                        <div class="col-6 col-md-3"><label class="form-label" for="{{$k}}host">访问域名</label>
+                            <select class="form-select" id="{{$k}}host" name="{{$k}}host">
+                                <option value="">使用服务器 IP</option>
+                                {{$ph := .AccessHostID}}
+                                {{range index $.Hosts .ServerID}}<option value="{{.ID}}"{{if $ph}}{{if eq .ID (deref $ph)}} selected{{end}}{{end}}>{{.FullName}}</option>{{end}}
+                            </select></div>
+                        <div class="col-6 col-md-2"><label class="form-label" for="{{$k}}cheap_start">便宜开始</label>
+                            <input type="time" step="60" class="form-control" id="{{$k}}cheap_start" name="{{$k}}cheap_start" value="{{.CheapStart}}" placeholder="HH:mm"></div>
+                        <div class="col-6 col-md-2"><label class="form-label" for="{{$k}}cheap_end">便宜结束</label>
+                            <input type="time" step="60" class="form-control" id="{{$k}}cheap_end" name="{{$k}}cheap_end" value="{{.CheapEnd}}" placeholder="HH:mm"></div>
+                        <div class="col-12 col-md-3 d-flex align-items-end"><label class="form-check mb-2"><input type="checkbox" class="form-check-input" name="{{$k}}exposed" value="1"{{if .Exposed}} checked{{end}}>
+                            <span class="form-check-label">出现在订阅（落地节点无效）</span></label></div>
+                    </div>
+                    {{end}}
+                </div>
+                {{else}}<p class="text-secondary">暂无部署位</p>{{end}}
+                <div class="mb-3" data-add-list>
+                    {{range $.ServerOptions}}{{if index $.AddIDs .ID}}<div class="border border-primary rounded p-2 mb-2 d-flex align-items-center gap-2" data-add-item="{{.ID}}"><input type="hidden" name="add_server" value="{{.ID}}"><span class="badge bg-blue-lt">待添加</span><span>{{if .Region}}[{{.Region}}] {{end}}{{.Name}}（{{.IP}}）</span><button type="button" class="btn-close ms-auto" aria-label="取消添加" data-add-cancel></button></div>{{end}}{{end}}
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <label class="visually-hidden" for="padd_server">添加部署位的服务器</label>
+                    <select class="form-select w-auto mw-100" id="padd_server">
+                        <option value="">选择服务器（不限地区）</option>
+                        {{range $.ServerOptions}}<option value="{{.ID}}">{{if .Region}}[{{.Region}}] {{end}}{{.Name}}（{{.IP}}）</option>{{end}}
+                    </select>
+                    <button type="button" class="btn btn-outline-primary" data-add-placement><i class="ti ti-plus me-1" aria-hidden="true"></i>添加部署位</button>
+                </div>
+            </div>
+            {{end}}
             <div class="col-12"><label class="form-check"><input type="checkbox" class="form-check-input" name="disabled" value="1"{{if .Disabled}} checked{{end}}>
                 <span class="form-check-label">禁用</span></label></div>
         </div>
     </div>
 
     <div class="card-body tab-pane" id="inbound-pane" role="tabpanel" aria-labelledby="inbound-tab">
-            <div class="col-md-6 mb-3"><label class="form-label" for="protocol">协议</label>
+        <div class="row g-3">
+            <div class="col-6 col-md-3"><label class="form-label" for="type">类型</label>
+                <select class="form-select" id="type" name="type">
+                    <option value="0"{{if eq .Type "0"}} selected{{end}}>代理节点</option>
+                    <option value="1"{{if eq .Type "1"}} selected{{end}}>落地节点</option>
+                </select></div>
+            <div class="col-6 col-md-3"><label class="form-label" for="out_id">出站</label>
+                <select class="form-select" id="out_id" name="out_id">
+                    <option value="">直连</option>
+                    {{range $.Landing}}<option value="{{.ID}}"{{if eq $.Form.OutID (printf "%d" .ID)}} selected{{end}}>{{.Name}}（{{.Region}}）</option>{{end}}
+                </select></div>
+            <div class="col-md-6"><label class="form-label" for="protocol">协议</label>
                 <select class="form-select" id="protocol" name="protocol">
                     <optgroup label="代理节点">{{range $.ProxyProtocols}}<option value="{{.}}"{{if eq . $.Form.Protocol}} selected{{end}}>{{.}}</option>{{end}}</optgroup>
                     <optgroup label="落地节点">{{range $.LandingProtocols}}<option value="{{.}}"{{if eq . $.Form.Protocol}} selected{{end}}>{{.}}</option>{{end}}</optgroup>
@@ -76,60 +127,8 @@
             <div class="col-12"><label class="form-label required" for="inbound">入站配置（JSON 对象）</label>
                 <textarea id="inbound" name="inbound" data-json-editor required>{{.Inbound}}</textarea>
                 <div class="form-hint">tag、listen、listen_port 由系统生成，不要填写。多个部署位共用此配置，Hysteria2 需各目标都有证书。</div></div>
-
-    </div>
-    {{if .ID}}
-    <div class="card-body tab-pane" id="placements-pane" role="tabpanel" aria-labelledby="placements-tab">
-        <p class="text-secondary">新建时按地区匹配，之后手动增删；保存后生效。</p>
-        {{range $.Placements}}
-        <div class="position-relative border rounded p-3 mb-3{{if eq .Deployed 2}} bg-red-lt{{end}}" data-placement="{{.ID}}" data-name="{{.ServerName}}（{{.ServerIP}}）"{{if .Running}} data-running{{end}}{{with index $.DelTargets .ID}} data-staged-target="{{.}}"{{end}}>
-            {{if ne .Deployed 2}}
-            <button type="button" class="btn-close position-absolute top-0 end-0 m-2" aria-label="删除部署位 {{.ServerName}}" data-placement-remove></button>
-            <input type="hidden" name="del_placement" value="{{.ID}}" disabled data-del-id>
-            <input type="hidden" name="del_target_{{.ID}}" value="" disabled data-del-target>
-            {{end}}
-            <div class="d-flex flex-wrap align-items-center gap-2 mb-2 pe-4">
-                <strong>{{.ServerName}}</strong><span class="text-secondary">{{.ServerIP}}</span>
-                {{if eq .Deployed 0}}<span class="badge bg-yellow-lt">待部署</span>{{else if eq .Deployed 1}}<span class="badge bg-green-lt">已部署</span>{{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
-                {{if .Disabled}}<span class="badge bg-secondary-lt">服务器已禁用</span>{{end}}
-                <span class="badge bg-red-lt" data-del-badge hidden></span>
-                <button type="button" class="btn btn-sm btn-link p-0" data-del-undo hidden>撤销删除</button>
-            </div>
-            {{if ne .Deployed 2}}
-            <template data-domains>{{range index $.PlacementDomains .ID}}<li>{{.}}</li>{{end}}</template>
-            {{$k := printf "p%d_" .ServerID}}
-            <div class="row g-2">
-                <div class="col-6 col-md-2"><label class="form-label" for="{{$k}}priority">优先级</label>
-                    <input type="number" class="form-control" id="{{$k}}priority" name="{{$k}}priority" value="{{.Priority}}"></div>
-                <div class="col-6 col-md-3"><label class="form-label" for="{{$k}}host">访问域名</label>
-                    <select class="form-select" id="{{$k}}host" name="{{$k}}host">
-                        <option value="">使用服务器 IP</option>
-                        {{$ph := .AccessHostID}}
-                        {{range index $.Hosts .ServerID}}<option value="{{.ID}}"{{if $ph}}{{if eq .ID (deref $ph)}} selected{{end}}{{end}}>{{.FullName}}</option>{{end}}
-                    </select></div>
-                <div class="col-6 col-md-2"><label class="form-label" for="{{$k}}cheap_start">便宜开始</label>
-                    <input type="time" step="60" class="form-control" id="{{$k}}cheap_start" name="{{$k}}cheap_start" value="{{.CheapStart}}" placeholder="HH:mm"></div>
-                <div class="col-6 col-md-2"><label class="form-label" for="{{$k}}cheap_end">便宜结束</label>
-                    <input type="time" step="60" class="form-control" id="{{$k}}cheap_end" name="{{$k}}cheap_end" value="{{.CheapEnd}}" placeholder="HH:mm"></div>
-                <div class="col-12 col-md-3 d-flex align-items-end"><label class="form-check mb-2"><input type="checkbox" class="form-check-input" name="{{$k}}exposed" value="1"{{if .Exposed}} checked{{end}}>
-                    <span class="form-check-label">出现在订阅（落地节点无效）</span></label></div>
-            </div>
-            {{end}}
-        </div>
-        {{else}}<p class="text-secondary">暂无部署位</p>{{end}}
-        <div class="mb-3" data-add-list>
-            {{range $.ServerOptions}}{{if index $.AddIDs .ID}}<div class="border border-primary rounded p-2 mb-2 d-flex align-items-center gap-2" data-add-item="{{.ID}}"><input type="hidden" name="add_server" value="{{.ID}}"><span class="badge bg-blue-lt">待添加</span><span>{{if .Region}}[{{.Region}}] {{end}}{{.Name}}（{{.IP}}）</span><button type="button" class="btn-close ms-auto" aria-label="取消添加" data-add-cancel></button></div>{{end}}{{end}}
-        </div>
-        <div class="d-flex flex-wrap align-items-center gap-2">
-            <label class="visually-hidden" for="padd_server">添加部署位的服务器</label>
-            <select class="form-select w-auto mw-100" id="padd_server">
-                <option value="">选择服务器（不限地区）</option>
-                {{range $.ServerOptions}}<option value="{{.ID}}">{{if .Region}}[{{.Region}}] {{end}}{{.Name}}（{{.IP}}）</option>{{end}}
-            </select>
-            <button type="button" class="btn btn-outline-primary" data-add-placement><i class="ti ti-plus me-1" aria-hidden="true"></i>添加部署位</button>
         </div>
     </div>
-    {{end}}
 
     </div>
     <div class="card-footer text-end">

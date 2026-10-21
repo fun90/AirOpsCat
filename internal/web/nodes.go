@@ -18,7 +18,6 @@ import (
 type NodeForm struct {
 	ID                                                 int64
 	Name, Type, Protocol, Port, Inbound, OutID, Region string
-	Remark                                             string
 	Disabled                                           bool
 	TagIDs                                             map[int64]bool
 }
@@ -150,7 +149,7 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 
 func formFromNode(n *store.Node) *NodeForm {
 	f := &NodeForm{ID: n.ID, Name: n.Name, Type: strconv.Itoa(n.Type), Protocol: n.Protocol, Port: strconv.Itoa(n.Port), Inbound: n.Inbound,
-		Region: n.Region, Remark: n.Remark, Disabled: n.Disabled, TagIDs: map[int64]bool{}}
+		Region: n.Region, Disabled: n.Disabled, TagIDs: map[int64]bool{}}
 	f.Inbound = prettyJSON(n.Inbound)
 	if n.OutID != nil {
 		f.OutID = strconv.FormatInt(*n.OutID, 10)
@@ -248,8 +247,8 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	f := &NodeForm{ID: id, Name: formValue(r, "name"), Type: formValue(r, "type"), Protocol: formValue(r, "protocol"), Port: formValue(r, "port"),
 		Inbound: strings.TrimSpace(r.PostFormValue("inbound")), OutID: formValue(r, "out_id"), Region: formValue(r, "region"),
-		Remark: formValue(r, "remark"), Disabled: r.PostFormValue("disabled") == "1", TagIDs: map[int64]bool{}}
-	n := &store.Node{ID: id, Name: f.Name, Protocol: f.Protocol, Inbound: f.Inbound, Region: f.Region, Remark: f.Remark, Disabled: f.Disabled}
+		Disabled: r.PostFormValue("disabled") == "1", TagIDs: map[int64]bool{}}
+	n := &store.Node{ID: id, Name: f.Name, Protocol: f.Protocol, Inbound: f.Inbound, Region: f.Region, Disabled: f.Disabled}
 	n.Type, _ = strconv.Atoi(f.Type)
 	var portErr error
 	if f.Port != "" || id != 0 {
