@@ -108,4 +108,20 @@ func TestSyncLimitsAcrossServers(t *testing.T) {
 	if a, b := count(); a != 5 || b != 5 {
 		t.Fatal(a, b)
 	}
+	// 到期账户从配置用户集合移除；失败服务器重试，不重复下发成功服务器。
+	exec(`UPDATE account SET to_date='2001-01-01 00:00:00'`)
+	hosts["203.0.113.2"].fail = true
+	sync(true)
+	if a, b := count(); a != 6 || b != 5 {
+		t.Fatal(a, b)
+	}
+	hosts["203.0.113.2"].fail = false
+	sync(false)
+	if a, b := count(); a != 6 || b != 6 {
+		t.Fatal(a, b)
+	}
+	sync(false)
+	if a, b := count(); a != 6 || b != 6 {
+		t.Fatal(a, b)
+	}
 }
