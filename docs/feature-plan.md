@@ -94,7 +94,7 @@
 | [spec-subscription](rewrite/spec-subscription.md) §7 | 响应 gzip 未实现 | 与第 4 节合并处理，先确认反向代理是否已压缩 |
 | [spec-subscription](rewrite/spec-subscription.md) §2 | 配额 ≤0 的 500G 展示兜底沿用现有契约；Shadowrocket `tfc` 已改为整数 HALF_UP，两位小数且避免溢出 | [x] `TestUsedGiBHalfUp` 覆盖中点、进位及 MaxInt64 |
 | [spec-account](rewrite/spec-account.md) §10 问题 23 | 后端 `toDate` 无默认，缺省即永不过期（沿用，待确认是否有意）；~~账号备注必填只在前端~~ 已在 `accountSave` 后端补校验（`internal/web/accounts.go`） | 备注已完成；`toDate` 默认值待决策 |
-| [spec-traffic](rewrite/spec-traffic.md) §1.3 | 采集失败不再发 Bark 汇总；采集后的限速与 DNS 检查要求所有服务器成功 | 另有每分钟独立任务兜底，影响有限 |
+| [spec-traffic](rewrite/spec-traffic.md) §1.3 | [x] 采集失败发送 Bark 成功/失败计数汇总；单台失败后仍执行限速与 DNS 检查，并聚合返回错误；无目标时提前返回 | `TestCollectTrafficFailureStillChecksLimitsAndDNS` 通过 race；通知仅发计数，不泄露 SSH 错误；真实 Bark 送达待验收 |
 
 ### 需先确认是否有意取舍
 

@@ -4,12 +4,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/fun90/airopscat/internal/deploy"
+	"github.com/fun90/airopscat/internal/notify"
 	"github.com/fun90/airopscat/internal/singbox"
 	"github.com/fun90/airopscat/internal/store"
 	"github.com/fun90/airopscat/internal/traffic"
@@ -22,19 +25,29 @@ func (s *Server) collectTraffic(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	var failed []string
+	if len(ids) == 0 {
+		return nil
+	}
+	var failed []error
 	for _, id := range ids {
 		if err := s.collectServerTraffic(ctx, id); err != nil {
-			failed = append(failed, fmt.Sprintf("服务器 %d：%v", id, err))
+			failed = append(failed, fmt.Errorf("服务器 %d：%w", id, err))
 		}
 	}
 	if len(failed) > 0 {
-		return fmt.Errorf("%s", strings.Join(failed, "；"))
+		body := fmt.Sprintf("流量统计收集完成，成功: %d，失败: %d", len(ids)-len(failed), len(failed))
+		if err := s.bark().Send(ctx, notify.Message{Title: "AirOpsCat 流量统计", Body: body, Level: "timeSensitive"}); err != nil && !errors.Is(err, notify.ErrNotConfigured) {
+			slog.Warn("流量采集汇总通知失败")
+		}
 	}
+	// 单台采集失败不阻断基于已有数据的限速和独立的 vnstat DNS 检查。
 	if err := s.syncLimits(ctx); err != nil {
-		return err
+		failed = append(failed, err)
 	}
-	return s.autoDNS(ctx)
+	if err := s.autoDNS(ctx); err != nil {
+		failed = append(failed, err)
+	}
+	return errors.Join(failed...)
 }
 
 // limitsKey 是配置中各节点账户限速的指纹，用于判断服务器已应用的限速是否过期。
