@@ -18,6 +18,7 @@ import (
 type maintenanceRemote struct {
 	calls []string
 	fail  bool
+	env   []byte
 }
 
 func (f *maintenanceRemote) Run(_ context.Context, c string) (string, string, int, error) {
@@ -30,8 +31,13 @@ func (f *maintenanceRemote) Run(_ context.Context, c string) (string, string, in
 	}
 	return "", "", 0, nil
 }
-func (f *maintenanceRemote) WriteFile(context.Context, string, []byte) error { return nil }
-func (f *maintenanceRemote) Close() error                                    { return nil }
+func (f *maintenanceRemote) WriteFile(_ context.Context, path string, body []byte) error {
+	if strings.HasSuffix(path, "/env") {
+		f.env = append([]byte(nil), body...)
+	}
+	return nil
+}
+func (f *maintenanceRemote) Close() error { return nil }
 func TestMaintenanceFlow(t *testing.T) {
 	_, a := newTestServer(t)
 	field, _ := crypto.New(crypto.DeriveKey("0123456789abcdef0123456789abcdef", "field"))
@@ -95,6 +101,38 @@ func TestMaintenanceFlow(t *testing.T) {
 	headers := map[string]string{"Accept": "application/json"}
 	if w := do(h, "POST", "/admin/maintenance/run", v, c, headers); w.Code != 200 || !strings.Contains(w.Body.String(), `"success":true`) {
 		t.Fatal(w.Code, w.Body.String())
+	}
+	if err := os.WriteFile(filepath.Join(s.ScriptDir, "04-certificates-acme.sh"), []byte("# @title: ACME\necho ok\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	acme, err := maintenance.Read(s.ScriptDir, "04-certificates-acme.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v.Set("script", acme.Name)
+	v.Set("hash", acme.Hash)
+	before := dials
+	for _, email := range []string{"", "invalid", "test@localhost", "Name <test@example.test>", "test@example.test\nextra"} {
+		v.Set("acme_email", email)
+		if w := do(h, "POST", "/admin/maintenance/run", v, c, headers); w.Code != 422 {
+			t.Fatal("无效邮箱未拒绝", w.Code)
+		}
+	}
+	if dials != before {
+		t.Fatal("校验失败仍连接服务器")
+	}
+	v.Set("acme_email", "test@example.test")
+	if w := do(h, "POST", "/admin/maintenance/run", v, c, headers); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if !strings.Contains(string(remote.env), "ACME_EMAIL='test@example.test'") {
+		t.Fatal("邮箱未传入私有环境文件")
+	}
+	v.Set("script", script.Name)
+	v.Set("hash", script.Hash)
+	v.Del("acme_email")
+	if w := do(h, "POST", "/admin/maintenance/run", v, c, headers); w.Code != 200 {
+		t.Fatal("普通步骤不应要求邮箱", w.Code)
 	}
 	remote.fail = true
 	if w := do(h, "POST", "/admin/maintenance/run", v, c, headers); w.Code != 502 {

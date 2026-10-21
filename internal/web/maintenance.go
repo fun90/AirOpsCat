@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/mail"
 	"strconv"
 	"strings"
 	"time"
@@ -68,6 +69,14 @@ func (s *Server) maintenanceRun(w http.ResponseWriter, r *http.Request) {
 	if script.Hash != formValue(r, "hash") {
 		http.Error(w, "脚本已变更，请刷新预览后重新确认", 409)
 		return
+	}
+	acmeEmail := formValue(r, "acme_email")
+	if script.Name == "04-certificates-acme.sh" {
+		address, err := mail.ParseAddress(acmeEmail)
+		if err != nil || address.Address != acmeEmail || !strings.Contains(strings.SplitN(acmeEmail, "@", 2)[1], ".") || strings.ContainsAny(acmeEmail, "\r\n") {
+			http.Error(w, "请填写有效的 ACME 注册邮箱", 422)
+			return
+		}
 	}
 	unlock := deploy.Lock(id)
 	defer unlock()
@@ -138,7 +147,7 @@ func (s *Server) maintenanceRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "请填写要保留的 SSH 公钥", 422)
 		return
 	}
-	env := maintenance.Env(map[string]string{"airopscat_ssh_public_key": publicKey, "AIROPSCAT_STEP_NAME": script.Title, "server_ip": t.IP, "server_host": host, "server_ssh_port": strconv.Itoa(t.Port), "airopscat_domain": store.ConfigValue(r.Context(), s.DB, "airopscat.domain"), "airopscat_api_token": token, "bandwidth_day": day}, hosts)
+	env := maintenance.Env(map[string]string{"ACME_EMAIL": acmeEmail, "airopscat_ssh_public_key": publicKey, "AIROPSCAT_STEP_NAME": script.Title, "server_ip": t.IP, "server_host": host, "server_ssh_port": strconv.Itoa(t.Port), "airopscat_domain": store.ConfigValue(r.Context(), s.DB, "airopscat.domain"), "airopscat_api_token": token, "bandwidth_day": day}, hosts)
 	http.NewResponseController(w).SetWriteDeadline(time.Now().Add(31 * time.Minute))
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
 	defer cancel()

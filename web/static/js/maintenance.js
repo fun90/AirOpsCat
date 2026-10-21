@@ -4,6 +4,8 @@ if (form) {
     const result = form.querySelector('[data-maintenance-result]');
     const keyBox = form.querySelector('[data-maintenance-key]');
     const publicKey = form.elements.public_key;
+    const emailBox = form.querySelector('[data-maintenance-email]');
+    const acmeEmail = form.elements.acme_email;
     const status = (input, text, color = 'secondary') => {
         const badge = input.closest('[data-maintenance-row]').querySelector('[data-maintenance-status]');
         badge.textContent = text;
@@ -15,6 +17,9 @@ if (form) {
         const needsKey = selected.some(input => input.value === '03-ssh-key.sh');
         keyBox.hidden = !needsKey;
         publicKey.required = needsKey;
+        const needsEmail = selected.some(input => input.value === '04-certificates-acme.sh');
+        emailBox.hidden = !needsEmail;
+        acmeEmail.required = needsEmail;
         scripts.forEach(input => status(input, input.checked ? '待执行' : '未选择'));
     };
     scripts.forEach(input => input.addEventListener('change', update));
@@ -37,7 +42,7 @@ if (form) {
         const label = server.selectedOptions[0].textContent;
         if (!confirm(`将在 ${label} 上按顺序执行 ${selected.length} 个脚本，确定？`)) return;
         running = true;
-        const common = { csrf: form.elements.csrf.value, server_id: server.value, public_key: publicKey.value, confirm: 'run' };
+        const common = { csrf: form.elements.csrf.value, server_id: server.value, public_key: publicKey.value, acme_email: acmeEmail.value, confirm: 'run' };
         const controls = [...form.querySelectorAll('input,select,textarea,button')];
         const states = controls.map(control => control.disabled);
         controls.forEach(control => { control.disabled = true; });

@@ -12,6 +12,7 @@
 </div>{{else}}<div class="text-secondary py-3">脚本目录中暂无可执行脚本。</div>{{end}}
 </div>
 <div class="mt-3" data-maintenance-key hidden><label class="form-label required" for="maintenance-public-key">03 · 要保留的 SSH 公钥</label><textarea id="maintenance-public-key" name="public_key" class="form-control" rows="3"></textarea><div class="form-hint">将替换 root 原有公钥。请先在服务器配置中保存对应私钥。</div></div>
+<div class="mt-3" data-maintenance-email hidden><label class="form-label required" for="maintenance-acme-email">04 · ACME 注册邮箱</label><input id="maintenance-acme-email" name="acme_email" type="email" class="form-control" autocomplete="email"><div class="form-hint">用于证书到期与账户通知，不使用脚本内置邮箱。</div></div>
 <label class="form-check mt-3"><input type="checkbox" class="form-check-input" name="confirm" value="run" required><span class="form-check-label">已阅读所选脚本，确认在目标服务器执行</span></label>
 <div class="mt-3" role="status" aria-live="polite" data-maintenance-result></div>
 </div><div class="card-footer text-end"><button type="submit" class="btn btn-danger" data-maintenance-run>执行所选脚本</button></div>
