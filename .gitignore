@@ -61,3 +61,6 @@ docs/htb-too-many-events/
 *.db
 *.db-wal
 *.db-shm
+
+# 含真实环境信息的私有验收记录，不进入公开仓库
+/docs/private/
