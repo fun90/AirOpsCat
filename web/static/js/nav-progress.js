@@ -1,18 +1,17 @@
-// 慢网络下给跳转即时反馈：点击站内链接或提交表单后显示顶部进度条，并让触发按钮进入加载态。
+// 按钮立即反馈点击，较慢的页面跳转再显示加载提示。
 (function () {
   var bar, btn, timer;
 
   function start(el) {
     if (el && el.classList.contains('btn')) { btn = el; btn.classList.add('btn-loading'); }
-    // 快速响应时不闪烁进度条
+    // 常规跳转只保留按钮反馈，避免全局提示刚出现就被新页面切掉。
     timer = setTimeout(function () {
       bar = document.createElement('div');
-      bar.className = 'progress nav-progress';
-      bar.setAttribute('role', 'progressbar');
-      bar.setAttribute('aria-label', '页面加载中');
-      bar.innerHTML = '<div class="progress-bar progress-bar-indeterminate"></div>';
+      bar.className = 'nav-progress';
+      bar.setAttribute('role', 'status');
+      bar.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>正在打开页面…';
       document.body.appendChild(bar);
-    }, 150);
+    }, 500);
   }
 
   function reset() {
