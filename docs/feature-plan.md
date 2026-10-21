@@ -14,7 +14,7 @@
 
 ## 2. 第一优先级：限速同步与恢复闭环
 
-状态：代码已实现（`limit-sync` 任务按服务器比对限速指纹，不一致才 reload，失败下轮重试；见 `internal/web/traffic_tasks.go`、`limit_sync_test.go`），真机验收与 race 全量记录待补。历史依据：[scope.md](rewrite/scope.md) 决策 21，[spec-traffic.md](rewrite/spec-traffic.md) 第 2、8 节。
+状态：代码已实现（`limit-sync` 任务按服务器比对限速指纹，不一致才 reload，失败下轮重试；见 `internal/web/traffic_tasks.go`、`limit_sync_test.go`），2026-10-21 全仓 `go test -race ./...` 通过；真机多服务器限速生效验收待补。历史依据：[scope.md](rewrite/scope.md) 决策 21，[spec-traffic.md](rewrite/spec-traffic.md) 第 2、8 节。
 
 原问题（已提交版本 `d04bb34`）：采集路径只 reload 当前采集服务器，跨服务器账户可能保留旧限速；reload 失败后不会再次触发；周期翻转和调整配额后的恢复可能漏检。
 
