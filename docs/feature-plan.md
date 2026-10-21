@@ -104,7 +104,7 @@
 | [spec-account](rewrite/spec-account.md) §5.5 | 批量节点标签调整未实现，scope 无处置记录 |
 | [spec-account](rewrite/spec-account.md) 问题 19 | [x] 收支页显示当前筛选全部记录的收入、支出、净额（整数分汇总，不受分页影响），`TestTransactionSummaryUsesFullFilter` 覆盖组合筛选、空结果及负净额；[x] 通用流水已按决策 24 D7 校验金额 >0（`TestTransactionCRUDFiltersAndBusinessValidation` 覆盖零和负数，先失败再修复）。月度趋势未纳入本次最小实现 |
 | [spec-account](rewrite/spec-account.md) §7 | 新建 A 记录 TTL 为 300（规格为 1）；绑定无独立启停入口 |
-| [spec-account](rewrite/spec-account.md) 问题 15 | 用户解锁、自助改密未实现（自助部分按决策 7 不做） |
+| [spec-account](rewrite/spec-account.md) 问题 15 | [x] 管理员编辑用户页支持解除登录锁定，复用 `ResetLoginFailures`；`TestAdminUnlockUser` 验证解锁与认证/CSRF。自助改密按决策 7 不做 |
 | [spec-deploy](rewrite/spec-deploy.md) §2.3 | 默认入站模板 SNI/伪装域名固定为 `www.apple.com`，hysteria2 不再取访问域名，reality 不再随机握手域名 |
 | [spec-deploy](rewrite/spec-deploy.md) §4.2 | `04-certificates-acme.sh` 硬编码默认 ACME 邮箱；防火墙放宽至 8000–65535；节点端口无自动分配 |
 | [spec-data](rewrite/spec-data.md) §3 | `system_config` 默认值与规格不同（流量保留 30 对 180 天，备份保留 15 对 30 天，模板目录默认空）；约 10 个规格键无对应项 |

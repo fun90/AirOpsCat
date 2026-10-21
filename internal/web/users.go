@@ -27,6 +27,7 @@ func (s *Server) userRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/users", s.userSave)
 	m.HandleFunc("POST /admin/users/{id}", s.userSave)
 	m.HandleFunc("POST /admin/users/{id}/delete", s.userDelete)
+	m.HandleFunc("POST /admin/users/{id}/unlock", s.userUnlock)
 }
 
 func (s *Server) userForm(w http.ResponseWriter, r *http.Request, title string, status int, f *UserForm, msg string) {
@@ -94,6 +95,24 @@ func (s *Server) userSave(w http.ResponseWriter, r *http.Request) {
 		title = "编辑用户"
 	}
 	s.userForm(w, r, title, http.StatusUnprocessableEntity, f, err.Error())
+}
+
+func (s *Server) userUnlock(w http.ResponseWriter, r *http.Request) {
+	id := idFrom(r)
+	u, err := store.ManagedUserByID(r.Context(), s.DB, id)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if u == nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := store.ResetLoginFailures(r.Context(), s.DB, id); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	redirectMsg(w, r, "/admin/users/"+strconv.FormatInt(id, 10)+"/edit", "msg", "用户登录锁定已解除")
 }
 
 func (s *Server) userDelete(w http.ResponseWriter, r *http.Request) {

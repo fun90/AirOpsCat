@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fun90/airopscat/internal/store"
 )
@@ -261,5 +262,51 @@ func TestAccountHTTPFlow(t *testing.T) {
 	updated, _ := store.AccountByID(context.Background(), a.DB, id)
 	if updated.AuthCode == acc.AuthCode {
 		t.Fatal("授权码未重置")
+	}
+}
+
+func TestAdminUnlockUser(t *testing.T) {
+	h, a := newTestServer(t)
+	c := login(t, h, "admin@example.com")
+	id, err := store.CreateUser(context.Background(), a.DB, "locked@example.test", "unused", "VIP", "锁定用户")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.DB.Exec(`UPDATE user SET failed_attempts=8,lock_time=? WHERE id=?`, store.FormatTime(time.Now()), id); err != nil {
+		t.Fatal(err)
+	}
+	path := "/admin/users/" + strconv.FormatInt(id, 10)
+	if got := do(h, "GET", path+"/edit", nil, c, nil); got.Code != 200 || !strings.Contains(got.Body.String(), "解除登录锁定") {
+		t.Fatal("解锁按钮缺失", got.Code)
+	}
+	if got := do(h, "POST", path+"/unlock", nil, nil, nil); got.Code != http.StatusUnauthorized {
+		t.Fatal("未登录请求应拒绝", got.Code)
+	}
+	if got := do(h, "POST", path+"/unlock", url.Values{}, c, nil); got.Code != 403 {
+		t.Fatal("解锁缺失CSRF防护", got.Code)
+	}
+	vipID, err := store.CreateUser(context.Background(), a.DB, "vip-unlock@example.test", "unused", "VIP", "普通用户")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vip, err := store.UserByEmail(context.Background(), a.DB, "vip-unlock@example.test")
+	if err != nil || vip.ID != vipID {
+		t.Fatal(err)
+	}
+	token := a.IssueToken(vip, time.Hour)
+	vipCookie := &http.Cookie{Name: c.Name, Value: token}
+	if got := do(h, "POST", path+"/unlock", url.Values{"csrf": {a.CSRFToken(token)}}, vipCookie, nil); got.Code != http.StatusForbidden {
+		t.Fatal("非管理员可解锁", got.Code)
+	}
+	locked, err := store.UserByEmail(context.Background(), a.DB, "locked@example.test")
+	if err != nil || locked.LockTime == nil || locked.FailedAttempts != 8 {
+		t.Fatal("拒绝请求改变了锁定状态", err)
+	}
+	if got := do(h, "POST", path+"/unlock", url.Values{"csrf": {a.CSRFToken(c.Value)}}, c, nil); got.Code != 303 {
+		t.Fatal(got.Code)
+	}
+	u, err := store.UserByEmail(context.Background(), a.DB, "locked@example.test")
+	if err != nil || u.LockTime != nil || u.FailedAttempts != 0 {
+		t.Fatal("未解除锁定", err)
 	}
 }
