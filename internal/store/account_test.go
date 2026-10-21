@@ -285,6 +285,12 @@ func TestRenewToggleResetAndDelete(t *testing.T) {
 		t.Fatal("续期应置待部署")
 	}
 
+	for _, to := range []time.Time{*a.ToDate, a.ToDate.Add(-time.Hour)} {
+		if err := RenewAccount(ctx, db, r.AccountID, to, &amount, "AliPay"); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("续期不能保持或缩短到期时间: %v", err)
+		}
+	}
+
 	resetDeployed(db, nid)
 	if err := SetAccountDisabled(ctx, db, r.AccountID, true); err != nil {
 		t.Fatal(err)

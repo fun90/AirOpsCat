@@ -670,7 +670,7 @@ func UpdateAccount(ctx context.Context, db *sql.DB, id int64, a *Account) error 
 	return tx.Commit()
 }
 
-// RenewAccount 设置新的到期时间（须晚于当前时刻），自动启用被禁用的账户，
+// RenewAccount 设置新的到期时间（须晚于当前时刻及已有到期时间），自动启用被禁用的账户，
 // amountCents 非 nil 时按「起点取 max(旧到期, 当前)」记一笔收入。相关节点置为待部署。
 func RenewAccount(ctx context.Context, db *sql.DB, id int64, newToDate time.Time, amountCents *int64, paymentMethod string) error {
 	now := nowFunc()
@@ -691,6 +691,9 @@ func RenewAccount(ctx context.Context, db *sql.DB, id int64, newToDate time.Time
 	}
 	if old == nil {
 		return sql.ErrNoRows
+	}
+	if old.ToDate != nil && !newToDate.After(*old.ToDate) {
+		return invalid("续期到期时间必须晚于原到期时间；调整到期时间请编辑账户")
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE account SET to_date = ?, disabled = 0, update_time = ? WHERE id = ?`,
 		FormatTime(newToDate), FormatTime(now), id); err != nil {

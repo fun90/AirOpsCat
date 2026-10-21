@@ -100,7 +100,7 @@
 
 | 来源 | 事项 |
 |------|------|
-| [spec-account](rewrite/spec-account.md) 问题 9 | 续期不允许缩短到期时间 |
+| [spec-account](rewrite/spec-account.md) 问题 9 | [x] 续期必须晚于当前和原到期时间；需缩短时走账户编辑，避免续期误收款。`TestRenewToggleResetAndDelete` 验证相同/缩短时间拒绝且无额外流水 |
 | [spec-account](rewrite/spec-account.md) §5.5 | 批量节点标签调整未实现，scope 无处置记录 |
 | [spec-account](rewrite/spec-account.md) 问题 19 | [x] 收支页显示当前筛选全部记录的收入、支出、净额（整数分汇总，不受分页影响），`TestTransactionSummaryUsesFullFilter` 覆盖组合筛选、空结果及负净额；[x] 通用流水已按决策 24 D7 校验金额 >0（`TestTransactionCRUDFiltersAndBusinessValidation` 覆盖零和负数，先失败再修复）。月度趋势未纳入本次最小实现 |
 | [spec-account](rewrite/spec-account.md) §7 | 新建 A 记录 TTL 为 300（规格为 1）；绑定无独立启停入口 |
