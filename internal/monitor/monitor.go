@@ -19,13 +19,13 @@ type Runner interface {
 
 // Script 在远端取两次间隔 1 秒的 CPU 与网卡计数，再读内存；只读 /proc，不改任何状态。
 // 网卡统计排除回环与容器/隧道虚拟接口，避免重复计入。
-const Script = `net(){ awk 'NR>2{gsub(":"," ");if($1!="lo"&&$1!~/^(docker|veth|br-|virbr|tun|tap|wg|tailscale|sing)/){r+=$2;t+=$10}}END{print r+0,t+0}' /proc/net/dev; }
-cpu(){ awk '/^cpu /{idle=$5+$6;tot=0;for(i=2;i<=9&&i<=NF;i++)tot+=$i;print idle+0,tot+0}' /proc/stat; }
+const Script = `net(){ awk 'NR>2{gsub(":"," ");if($1!="lo"&&$1!~/^(docker|veth|br-|virbr|tun|tap|wg|tailscale|sing)/){r+=$2;t+=$10}}END{printf "%.0f %.0f\n",r+0,t+0}' /proc/net/dev; }
+cpu(){ awk '/^cpu /{idle=$5+$6;tot=0;for(i=2;i<=9&&i<=NF;i++)tot+=$i;printf "%.0f %.0f\n",idle+0,tot+0}' /proc/stat; }
 c1=$(cpu); n1=$(net); u1=$(cut -d' ' -f1 /proc/uptime); sleep 1; c2=$(cpu); n2=$(net); u2=$(cut -d' ' -f1 /proc/uptime)
 echo "cpu $c1 $c2"
 echo "net $n1 $n2"
 awk -v a="$u1" -v b="$u2" 'BEGIN{printf "elapsed %.0f\n",(b-a)*1000}'
-awk '/^MemTotal:/{t=$2}/^MemAvailable:/{a=$2}END{print "mem",t*1024,a*1024}' /proc/meminfo`
+awk '/^MemTotal:/{t=$2}/^MemAvailable:/{a=$2}END{printf "mem %.0f %.0f\n",t*1024,a*1024}' /proc/meminfo`
 
 // VnstatCommand 取按月统计；未安装 vnstat 时输出为空由调用方处理。
 const VnstatCommand = `command -v vnstat >/dev/null 2>&1 && vnstat --json m 2>/dev/null`

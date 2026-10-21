@@ -3,9 +3,47 @@ package monitor
 import (
 	"context"
 	"math"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestMonitorScriptLargeCounters(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"stat":   "cpu 4000000000 0 0 4000000000 0 0 0 0\n",
+		"net":    "header\nheader\n eth0: 452830000001 0 0 0 0 0 0 0 443988000001 0 0 0 0 0 0 0\n",
+		"mem":    "MemTotal: 8000000 kB\nMemAvailable: 2000000 kB\n",
+		"uptime": "100.00 0\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// 用固定的大计数执行真实采集脚本，保留相邻采样间的小增量。
+	advance := `printf 'cpu 4000000050 0 0 4000000050 0 0 0 0\n' > "` + filepath.Join(dir, "stat") + `"; ` +
+		`printf 'header\nheader\n eth0: 452830002001 0 0 0 0 0 0 0 443988003001 0 0 0 0 0 0 0\n' > "` + filepath.Join(dir, "net") + `"; ` +
+		`printf '101.00 0\n' > "` + filepath.Join(dir, "uptime") + `"`
+	script := strings.NewReplacer("/proc/net/dev", `"`+filepath.Join(dir, "net")+`"`,
+		"/proc/stat", `"`+filepath.Join(dir, "stat")+`"`,
+		"/proc/meminfo", `"`+filepath.Join(dir, "mem")+`"`,
+		"/proc/uptime", `"`+filepath.Join(dir, "uptime")+`"`, "sleep 1", advance).Replace(Script)
+	out, err := exec.Command("sh", "-c", script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("采集脚本失败: %v: %s", err, out)
+	}
+	s, err := ParseMonitor(string(out))
+	if err != nil {
+		t.Fatalf("大计数采集输出应可解析: %v\n%s", err, out)
+	}
+	if s.CPU != 0.5 || s.Memory != 0.75 || s.MemTotal != 8192000000 || s.RxRate != 2000 || s.TxRate != 3000 {
+		t.Fatalf("大计数的小增量计算错误: %+v", s)
+	}
+}
 
 func TestParseMonitor(t *testing.T) {
 	out := "cpu 800 1000 850 1100\nnet 1000 2000 3000 5000\nelapsed 1000\nmem 8000000 2000000\n"
