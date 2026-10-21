@@ -2,7 +2,7 @@
 <form method="post" action="/admin/domains/{{.Domain.ID}}/pull" class="d-inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn btn-outline-primary"{{if not .Domain.ProviderID}} disabled{{end}}>从服务商拉取</button></form>
 <a href="/admin/domains/{{.Domain.ID}}/records/new" class="btn btn-primary"><i class="ti ti-plus me-1" aria-hidden="true"></i>新增 A 记录</a>{{end}}
 {{define "content"}}
-{{if .AutoEnabled}}<div class="alert alert-info">自动 DNS 已启用：每分钟检查时段计划和服务器流量；有待推送变更的记录不会自动处理。</div>{{else}}<div class="alert alert-secondary">此域名自动 DNS 未启用。设置环境变量 <code>AIROPSCAT_DNS_AUTO_DOMAINS</code> 为域名 ID（当前 {{.Domain.ID}}，多个用逗号分隔）或 all 后生效。</div>{{end}}
+{{if .AutoEnabled}}<div class="alert alert-info">自动 DNS 已启用，有待推送变更的记录不自动处理。</div>{{else}}<div class="alert alert-secondary">自动 DNS 未启用（环境变量 <code>AIROPSCAT_DNS_AUTO_DOMAINS</code>，本域名 ID {{.Domain.ID}}）。</div>{{end}}
 
 {{if .Domain.Pending}}<div class="alert alert-warning d-flex align-items-center gap-3"><div class="flex-fill">有 <b>{{.Domain.Pending}}</b> 项变更尚未推送，推送后会修改 Cloudflare 上的真实解析。</div>
 <form method="post" action="/admin/domains/{{.Domain.ID}}/push" onsubmit="return confirm('将把 {{.Domain.Pending}} 项变更推送到 Cloudflare 并立即生效，确定？')"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="confirm" value="push"><button class="btn btn-warning">推送变更</button></form></div>{{end}}

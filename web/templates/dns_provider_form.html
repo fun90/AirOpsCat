@@ -3,7 +3,7 @@
 <div class="card-body">{{if $.FormErr}}<div class="alert alert-danger" role="alert">{{$.FormErr}}</div>{{end}}<div class="row g-3">
 <div class="col-12 col-md-6"><label for="name" class="form-label required">名称</label><input id="name" name="name" maxlength="100" class="form-control" value="{{.Name}}" required></div>
 <div class="col-12 col-md-6"><label for="account_id" class="form-label required">Cloudflare Account ID</label><input id="account_id" name="account_id" class="form-control" value="{{.AccountID}}" required></div>
-<div class="col-12"><label for="api_token" class="form-label{{if not .ID}} required{{end}}">API Token</label><input id="api_token" name="api_token" type="password" class="form-control" autocomplete="new-password" placeholder="{{if .HasToken}}已保存，留空表示不修改{{end}}"{{if not .ID}} required{{end}}><div class="form-hint">需要 Zone.DNS 编辑权限；保存后加密存储，不会再次显示。</div></div>
+<div class="col-12"><label for="api_token" class="form-label{{if not .ID}} required{{end}}">API Token</label><input id="api_token" name="api_token" type="password" class="form-control" autocomplete="new-password" placeholder="{{if .HasToken}}已保存，留空表示不修改{{end}}"{{if not .ID}} required{{end}}><div class="form-hint">需要 Zone.DNS 编辑权限</div></div>
 <div class="col-12"><label for="remark" class="form-label">备注</label><input id="remark" name="remark" maxlength="255" class="form-control" value="{{.Remark}}"></div>
 <div class="col-12"><label class="form-check"><input type="checkbox" class="form-check-input" name="enabled" value="1"{{if .Enabled}} checked{{end}}><span class="form-check-label">启用</span></label></div>
 </div></div><div class="card-footer"><button type="submit" class="btn btn-primary">保存</button><a href="/admin/dns-providers" class="btn btn-link">取消</a></div></form>

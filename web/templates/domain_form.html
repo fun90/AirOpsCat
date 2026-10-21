@@ -4,7 +4,7 @@
 <div class="col-12 col-md-6"><label for="domain" class="form-label required">根域名</label><input id="domain" name="domain" class="form-control" value="{{.Domain}}" placeholder="example.com" required></div>
 <div class="col-12 col-md-6"><label for="supplier" class="form-label">注册商 / 供应商</label><input id="supplier" name="supplier" maxlength="255" class="form-control" value="{{.Supplier}}"></div>
 <div class="col-12 col-md-6"><label for="provider_id" class="form-label">DNS 服务商</label><select id="provider_id" name="provider_id" class="form-select"><option value="">不绑定</option>{{range $.Providers}}<option value="{{.ID}}"{{if and $.Form.ProviderID (eq (deref $.Form.ProviderID) .ID)}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
-<div class="col-12 col-md-6"><label for="zone_id" class="form-label">Cloudflare Zone ID</label><input id="zone_id" name="zone_id" class="form-control" value="{{.ZoneID}}"><div class="form-hint">绑定服务商时必填，在 Cloudflare 域名概览页右侧可找到。</div></div>
+<div class="col-12 col-md-6"><label for="zone_id" class="form-label">Cloudflare Zone ID</label><input id="zone_id" name="zone_id" class="form-control" value="{{.ZoneID}}"><div class="form-hint">绑定服务商时必填</div></div>
 <div class="col-6 col-md-4"><label for="expire_date" class="form-label">到期日</label><input id="expire_date" name="expire_date" type="date" class="form-control" value="{{.ExpireDate}}"></div>
 <div class="col-6 col-md-4"><label for="price" class="form-label">价格（元）</label><input id="price" name="price" inputmode="decimal" class="form-control" value="{{.PriceText}}"></div>
 <div class="col-12"><label for="remark" class="form-label">备注</label><input id="remark" name="remark" maxlength="255" class="form-control" value="{{.Remark}}"></div>

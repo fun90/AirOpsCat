@@ -58,7 +58,7 @@ func TestRouteRuleHTTPFlow(t *testing.T) {
 		return do(h, "POST", path, v, c, nil)
 	}
 	good := url.Values{"name": {"OpenAI"}, "rule_type": {"domain"}, "rule_value": {`["example.com","geosite:openai"]`}, "outbound_node_id": {"1"}, "servers": {"1", "2"}, "enabled": {"1"}, "remark": {"<b>安全</b>"}}
-	if w := post("/admin/routes", good); w.Code != 303 || !strings.Contains(w.Header().Get("Location"), "%E6%89%8B%E5%8A%A8") {
+	if w := post("/admin/routes", good); w.Code != 303 || !strings.Contains(w.Header().Get("Location"), "%E5%BC%BA%E5%88%B6%E9%83%A8%E7%BD%B2") {
 		t.Fatalf("创建 %d %s", w.Code, w.Header().Get("Location"))
 	}
 	var deployed int

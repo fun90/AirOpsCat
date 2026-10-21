@@ -29,7 +29,7 @@ func (s *Server) routeRuleRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/routes/{id}/delete", s.routeRuleDelete)
 }
 
-const routeRuleDeployHint = "请手动强制部署相关服务器上的节点后生效"
+const routeRuleDeployHint = "强制部署相关服务器后生效"
 
 func (s *Server) routeRuleList(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
