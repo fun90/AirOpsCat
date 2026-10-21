@@ -69,7 +69,7 @@
 - 01：时区 Asia/Shanghai，安装 vnstat 2.13 等基础包与监控采集脚本。02：生成 2G `/swapfile` 并写入 fstab。
 - 03：`authorized_keys` 只剩钥匙 B，原文件备份到 `/var/lib/airopscat/backups/`；钥匙 A 被拒绝；sshd 有效配置为 root 仅允许密钥登录。随后控制台用钥匙 A 执行 04 返回 502，系统日志记"维护脚本连接失败"；在服务器编辑页把凭据换成钥匙 B 后，04 重新连接并成功。
 - 04：安装 acme.sh v3.1.7，账户邮箱为表单填写的邮箱，未留下临时安装文件。
-- 07：发现并修复 profile `d8d0e4d`。原脚本在非 amd64 主机下载 amd64 包后 `dpkg -i` 失败，下载的 31 MB 包一直留在 `/var/cache/airopscat`。原因是 EXIT trap 引用了函数内 `local` 变量，函数返回后变量已失效，`set -u` 下清理失败。修复后：非 amd64 在下载前退出、不留缓存（VM 验证）；mock 模拟 amd64 上 `dpkg` 失败，缓存从残留 1 个变为 0 个。04 用的是子 shell 函数，变量仍有效，不受影响。之后复查发现 03 写临时公钥文件时有同样问题，已修复（profile `d10a92c`）：用控制台同款 `bash -c` + `source` 方式模拟替换失败，修复前残留 1 个 `.authorized_keys.airopscat.*` 临时文件，修复后为 0；07 用同样方式复测，残留从 1 降为 0。
+- 07：发现并修复 profile `d8d0e4d`。原脚本在非 amd64 主机下载 amd64 包后 `dpkg -i` 失败，下载的 31 MB 包一直留在 `/var/cache/airopscat`。原因是 EXIT trap 引用了函数内 `local` 变量，函数返回后变量已失效，`set -u` 下清理失败。修复后：非 amd64 在下载前退出、不留缓存（VM 验证）；mock 模拟 amd64 上 `dpkg` 失败，缓存从残留 1 个变为 0 个。04 用的是子 shell 函数，变量仍有效，不受影响。之后复查发现 03 写临时公钥文件时有同样问题，已修复（profile `d10a92c`）：用控制台同款 `bash -c` + `source` 方式模拟替换失败，修复前残留 1 个 `.authorized_keys.airopscat.*` 临时文件，修复后为 0；07 用同样方式复测，残留从 1 降为 0。06 生成 `guard.env` 时同样有问题，且临时文件含 API Token（profile `5783aa0`）：用含换行的 `SERVER_IP` 让写入失败，修复前留下 1 个 `/etc/airopscat/.guard.env.*`，修复后为 0；正常写入路径的 `guard.env` 权限仍为 0600，guard-sync 地址正确，没有残留。
 - 08：没有 sing-box 单元时拒绝执行；放置占位 `sing-box.service` 后执行两次，crontab 中只有一组 `AIROPSCAT SING-BOX RESTART` 标记，内容为 `0 5 * * *` 重启。
 - 09：拥塞控制 bbr，队列 fq。10：INPUT 默认 DROP，规则持久化到 `/etc/iptables/rules.v4`，执行后 SSH 仍可连接。
 - 控制台日志里没有 Token、私钥或公钥内容；每步结束后远端 `/tmp/airopscat-maintenance.*` 已清理。
