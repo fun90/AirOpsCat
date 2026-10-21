@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,5 +62,103 @@ func TestRunFailureLeavesNoOutput(t *testing.T) {
 		if _, err := os.Stat(f); err == nil {
 			t.Fatal("残留", f)
 		}
+	}
+}
+
+func TestEncryptedReconciliationRejectsMismatch(t *testing.T) {
+	ctx := context.Background()
+	open := func(name string) *sql.DB {
+		db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { db.Close() })
+		for _, q := range []string{`CREATE TABLE server(id INTEGER PRIMARY KEY,auth TEXT)`, `CREATE TABLE dns_provider_config(id INTEGER PRIMARY KEY,credential_json TEXT)`, `CREATE TABLE system_config(config_key TEXT PRIMARY KEY,config_value TEXT)`} {
+			if _, err := db.Exec(q); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return db
+	}
+	src, dst := open("source.db"), open("target.db")
+	field, err := crypto.New(crypto.DeriveKey(strings.Repeat("k", 40), "field"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := "test-source-secret"
+	encrypted, err := field.Encrypt(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := src.Exec(`INSERT INTO server VALUES(1,?)`, secret); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dst.Exec(`INSERT INTO server VALUES(1,?)`, encrypted); err != nil {
+		t.Fatal(err)
+	}
+	im := &importer{src: src, field: field, legacy: "old-test-key"}
+	if err := im.verifyEncrypted(ctx, dst); err != nil {
+		t.Fatal(err)
+	}
+	different, err := field.Encrypt("different-secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"v1:invalid", different} {
+		if _, err := dst.Exec(`UPDATE server SET auth=?`, bad); err != nil {
+			t.Fatal(err)
+		}
+		err := im.verifyEncrypted(ctx, dst)
+		if err == nil || !strings.Contains(err.Error(), "server.auth[1]") {
+			t.Fatal("未定位不一致", err)
+		}
+		if strings.Contains(err.Error(), secret) || strings.Contains(err.Error(), "different-secret") || strings.Contains(err.Error(), bad) {
+			t.Fatal("对账错误包含敏感值")
+		}
+	}
+}
+
+func TestMoneyReconciliationRejectsMismatch(t *testing.T) {
+	ctx := context.Background()
+	open := func(name string) *sql.DB {
+		db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { db.Close() })
+		for _, q := range []string{`CREATE TABLE transactions(type INTEGER,amount NUMERIC)`, `CREATE TABLE server(price NUMERIC)`, `CREATE TABLE domain(price NUMERIC)`} {
+			if _, err := db.Exec(q); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return db
+	}
+	src, dst := open("source.db"), open("target.db")
+	for _, v := range []struct {
+		db *sql.DB
+		q  string
+	}{
+		{src, `INSERT INTO transactions VALUES(0,12.34),(1,5.67)`}, {dst, `INSERT INTO transactions VALUES(0,1234),(1,567)`},
+		{src, `INSERT INTO server VALUES(9.99)`}, {dst, `INSERT INTO server VALUES(999)`},
+	} {
+		if _, err := v.db.Exec(v.q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	im := &importer{src: src}
+	if err := im.verifyMoney(ctx, dst); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dst.Exec(`UPDATE transactions SET amount=amount+1 WHERE type=0`); err != nil {
+		t.Fatal(err)
+	}
+	if err := im.verifyMoney(ctx, dst); err == nil {
+		t.Fatal("未发现流水金额不一致")
+	}
+	if _, err := dst.Exec(`UPDATE transactions SET amount=1234 WHERE type=0; UPDATE server SET price=1000`); err != nil {
+		t.Fatal(err)
+	}
+	if err := im.verifyMoney(ctx, dst); err == nil {
+		t.Fatal("未发现服务器价格不一致")
 	}
 }
