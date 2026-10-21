@@ -52,9 +52,11 @@
 
 2026-10-21 增量真机冒烟仍只使用 `<测试主机>`（连接前核对远端主机名和公网出口与文档定位一致），上传本地构建的 Linux amd64 二进制并校验 SHA-256；临时目录、随机密钥与管理员口令、空库、`127.0.0.1:18089`、任务和通知关闭，不读取或修改既有服务数据。通过：登录、新建节点留空自动分配 10000 端口、Hysteria2 默认入站使用匹配服务器地址、批量标签、日志日期筛选页、收支汇总页，以及人工写入成功部署快照后的 docs-info、Clash Meta 和 Loon 订阅 gzip 响应。短时空载 VmRSS/VmHWM 26,428 KB。结束后进程停止、端口关闭、远端临时目录删除，既有 `sing-box`、`airopscat`、`airopscat-guard-agent` 服务仍为 active。该冒烟未触发真实部署、DNS、Bark、ACME、客户端代理流量或 24 小时观察，不能替代待完成上线门槛。
 
+2026-10-21 升级回滚演练（用户授权，仅 `<测试主机>`）：本地构建 `0245889`（schema 6）与当前 `HEAD`（schema 7）的 Linux amd64 二进制，上传后 SHA-256 校验通过。在 `/tmp` 私有目录内用 `systemd-run` 临时单元运行（`ProtectSystem=strict`、只写状态目录、`127.0.0.1:18090`、任务和通知关闭、随机密钥与口令）。结果：旧版首装健康，user_version=6；写入标签和金额后，停服并备份 DB/WAL/SHM 文件组；新版升级健康，user_version=7，数据保留，VmRSS 24,048 KB；新版写入后停服，整组恢复备份并启动旧版，回到 6，备份后数据保留、升级后写入消失；再次升级到 7 成功。结束后临时单元不存在、端口关闭、目录删除，既有 `sing-box`、`airopscat`、`airopscat-guard-agent` 仍 active。未覆盖 GitHub Release 下载、`install.sh` 自身的标准路径写入和独立 `airopscat` 用户。
+
 ## 待完成的上线门槛
 
-- 测试机完整安装/升级与实际迁移失败回滚演练，保留原管理服务运行；仅使用隔离服务和数据库副本。
+- 测试机以 `install.sh` 写入标准路径（`/usr/local/bin`、`/etc/airopscat`、`/var/lib/airopscat`）的正式安装与升级。该机已有 Quarkus 版 `airopscat.service` 占用同名单元，且根分区可用约 0.9 GB，需另行安排后执行。
 - 客户端实流量计费、超额限速、guard agent 上报到拒绝新连接的完整验证；所有客户端导入与 ShadowTLS 实流量验证。
 - 真实 Cloudflare 自动变更和真实 Bark 设备送达；当前演示通知及自动 DNS 关闭。
 - 新服务器完整执行 01～10 初始化，尤其是 03 替换公钥后的后续 SSH 连通性。
