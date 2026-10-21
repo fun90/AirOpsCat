@@ -57,8 +57,8 @@
 
 ### 验收
 
-- [ ] 导出期间源库发生并发修改时，产物仍对应同一快照。
-- [ ] 人为制造金额或敏感字段不一致，对账失败且不发布正式输出文件。（自动化已补：`TestEncryptedReconciliationRejectsMismatch`、`TestMoneyReconciliationRejectsMismatch` 使用隔离 SQLite 源/目标夹具验证语义对账、损坏密文、金额差异与错误信息不泄密；失败输出清理另有测试。真实 MySQL 演练及正式输出发布链验证仍未完成）
+- [x] 导出期间源库发生并发修改时，产物仍对应同一快照（MySQL 9.6 本地临时实例、合成源库验证：同一 REPEATABLE READ 事务在并发插入前后保持 2 行，源库当前行数为 3；独立重新导入包含已提交数据。`TestMySQLRepeatableReadSnapshotIntegration`，设置 `AIROPSCAT_DRILL_DSN` 后运行）。生产副本结构和规模仍待验收。
+- [x] 人为制造金额或敏感字段不一致，对账失败且不发布正式输出文件。（自动化已补：`TestEncryptedReconciliationRejectsMismatch`、`TestMoneyReconciliationRejectsMismatch` 验证语义对账、损坏密文、金额差异与错误信息不泄密；MySQL 9.6 本地临时实例中 `TestMySQLImportFailurePublishesNoOutputIntegration` 用超出两位小数的金额触发失败，确认无正式输出、`.tmp`、`-wal`、`-shm` 残留）。生产副本对账报告仍待人工核对。
 - [x] 覆盖授权码去重、精确金额转换、旧明文兼容和失败清理。（`cmd/airopscat-import/main_test.go`）
 - [ ] 在数据库副本执行完整导入，人工核对报告；不在日志中输出凭据或订阅令牌。
 
