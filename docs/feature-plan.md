@@ -102,7 +102,7 @@
 |------|------|
 | [spec-account](rewrite/spec-account.md) 问题 9 | 续期不允许缩短到期时间 |
 | [spec-account](rewrite/spec-account.md) §5.5 | 批量节点标签调整未实现，scope 无处置记录 |
-| [spec-account](rewrite/spec-account.md) 问题 19 | 记账无汇总统计；通用流水不校验金额正负 |
+| [spec-account](rewrite/spec-account.md) 问题 19 | 记账汇总统计待实现；[x] 通用流水已按决策 24 D7 校验金额 >0（`TestTransactionCRUDFiltersAndBusinessValidation` 覆盖零和负数，先失败再修复） |
 | [spec-account](rewrite/spec-account.md) §7 | 新建 A 记录 TTL 为 300（规格为 1）；绑定无独立启停入口 |
 | [spec-account](rewrite/spec-account.md) 问题 15 | 用户解锁、自助改密未实现（自助部分按决策 7 不做） |
 | [spec-deploy](rewrite/spec-deploy.md) §2.3 | 默认入站模板 SNI/伪装域名固定为 `www.apple.com`，hysteria2 不再取访问域名，reality 不再随机握手域名 |

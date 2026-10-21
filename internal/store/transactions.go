@@ -142,6 +142,9 @@ func validateTransaction(ctx context.Context, q dbtx, t *Transaction) error {
 	t.Description = strings.TrimSpace(t.Description)
 	t.PaymentMethod = strings.TrimSpace(t.PaymentMethod)
 	t.Remark = strings.TrimSpace(t.Remark)
+	if t.Amount <= 0 {
+		return invalid("金额必须大于 0")
+	}
 	if t.Type != TransactionIncome && t.Type != TransactionExpense {
 		return invalid("收支类型不正确")
 	}

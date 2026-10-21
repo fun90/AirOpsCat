@@ -45,6 +45,8 @@ func TestTransactionCRUDFiltersAndBusinessValidation(t *testing.T) {
 	badID := int64(999)
 	for _, bad := range []*Transaction{
 		{TransactionDate: at, Amount: 1, Type: 2},
+		{TransactionDate: at, Amount: 0, Type: TransactionIncome},
+		{TransactionDate: at, Amount: -1, Type: TransactionExpense},
 		{TransactionDate: at, Amount: 1, Type: TransactionIncome, PaymentMethod: "wechat"},
 		{TransactionDate: at, Amount: 1, Type: TransactionIncome, BusinessTable: "account", BusinessID: &badID},
 		{TransactionDate: at, Amount: 1, Type: TransactionIncome, BusinessTable: "other", BusinessID: &badID},
