@@ -64,3 +64,24 @@ func TestDefaultInbound(t *testing.T) {
 		t.Fatal("不支持的协议应被拒绝")
 	}
 }
+
+func TestHysteriaInboundHost(t *testing.T) {
+	for _, tc := range []struct{ host, url string }{{"vpn.example.test", "https://vpn.example.test/"}, {"203.0.113.1", "https://203.0.113.1/"}, {"2001:db8::1", "https://[2001:db8::1]/"}} {
+		body, err := DefaultInboundForHost("hysteria2", tc.host)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var obj map[string]any
+		if err := json.Unmarshal(body, &obj); err != nil {
+			t.Fatal(err)
+		}
+		if obj["tls"].(map[string]any)["server_name"] != tc.host || obj["masquerade"].(map[string]any)["url"] != tc.url {
+			t.Fatal(string(body))
+		}
+	}
+	for _, host := range []string{"", "https://example.test", "example.test/path", "example.test:443", "a\"b.test", "-bad.test", "example.test\nother"} {
+		if _, err := DefaultInboundForHost("hysteria2", host); err == nil {
+			t.Fatal("未拒绝非法地址", host)
+		}
+	}
+}

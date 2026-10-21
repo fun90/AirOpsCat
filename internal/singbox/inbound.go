@@ -9,11 +9,48 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"net"
+	"net/url"
 	"strings"
 )
 
 //go:embed templates/*.json
 var templates embed.FS
+
+// DefaultInboundForHost 为 Hysteria2 填入部署目标访问地址，其他协议保持默认行为。
+func DefaultInboundForHost(protocol, host string) (json.RawMessage, error) {
+	body, err := DefaultInbound(protocol)
+	if err != nil || protocol != "hysteria2" {
+		return body, err
+	}
+	host = strings.TrimSpace(host)
+	if host == "" || strings.ContainsAny(host, "/\\\\:@?#\r\n\t ") && net.ParseIP(host) == nil {
+		return nil, fmt.Errorf("访问地址必须是域名或 IP")
+	}
+	if net.ParseIP(host) == nil {
+		for _, label := range strings.Split(host, ".") {
+			if label == "" || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+				return nil, fmt.Errorf("访问域名不正确")
+			}
+			for _, c := range label {
+				if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+					return nil, fmt.Errorf("访问域名不正确")
+				}
+			}
+		}
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return nil, err
+	}
+	obj["tls"].(map[string]any)["server_name"] = host
+	urlHost := host
+	if strings.Contains(host, ":") {
+		urlHost = "[" + host + "]"
+	}
+	obj["masquerade"].(map[string]any)["url"] = (&url.URL{Scheme: "https", Host: urlHost, Path: "/"}).String()
+	return json.MarshalIndent(obj, "", "  ")
+}
 
 // DefaultInbound 复用现有协议模板，随机凭据使用系统密码学随机源。
 func DefaultInbound(protocol string) (json.RawMessage, error) {

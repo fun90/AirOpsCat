@@ -357,3 +357,20 @@ func TestNodeAutomaticPortHTTP(t *testing.T) {
 		t.Fatal(port, err)
 	}
 }
+
+func TestHysteriaDefaultInboundHTTP(t *testing.T) {
+	h, a := newTestServer(t)
+	c := login(t, h, "admin@example.com")
+	if _, err := a.DB.Exec(`INSERT INTO server(id,ip,region) VALUES(901,'203.0.113.10','HK')`); err != nil {
+		t.Fatal(err)
+	}
+	got := do(h, "GET", "/admin/nodes/default-inbound?protocol=hysteria2&type=0&region=HK&node_id=0", nil, c, nil)
+	if got.Code != 200 || !strings.Contains(got.Body.String(), "https://203.0.113.10/") {
+		t.Fatal(got.Code, got.Body.String())
+	}
+	for _, query := range []string{"type=0&region=JP", "type=bad&region=HK", "type=0&region=HK&node_id=99999"} {
+		if got := do(h, "GET", "/admin/nodes/default-inbound?protocol=hysteria2&"+query, nil, c, nil); got.Code != 400 {
+			t.Fatal(query, got.Code)
+		}
+	}
+}

@@ -1,6 +1,6 @@
 {{define "content"}}
 {{with .Form}}
-<form method="post" action="{{if .ID}}/admin/nodes/{{.ID}}{{else}}/admin/nodes{{end}}" class="card" autocomplete="off">
+<form method="post" action="{{if .ID}}/admin/nodes/{{.ID}}{{else}}/admin/nodes{{end}}" class="card" autocomplete="off" data-node-id="{{.ID}}">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
     <div class="card-header">
         <ul class="nav nav-tabs card-header-tabs" role="tablist">
@@ -79,7 +79,7 @@
                 <textarea id="inbound" name="inbound" data-json-editor required>{{.Inbound}}</textarea>
                 <div class="form-hint">ShadowTLS 使用 v3 + Shadowsocks 组合。users 是节点握手凭据；内层账户与转接由系统生成，无需另建节点。内层仅支持 chacha20-ietf-poly1305。</div>
                 <div class="form-hint">不要包含 tag、listen、listen_port，这些由系统生成</div>
-                <div class="form-hint">Hysteria2 默认域名为模板示例；请将 tls.server_name 和 masquerade.url 改为该节点实际访问域名，并确认对应证书已安装。</div></div>
+                <div class="form-hint">Hysteria2 自动使用首个匹配部署目标的访问域名或 IP。多个部署位共用此配置，请确认每个目标均有对应证书，必要时调整 tls.server_name 和 masquerade.url。</div></div>
 
     </div>
     {{if .ID}}

@@ -25,7 +25,34 @@ type NodeForm struct {
 
 func (s *Server) nodeRoutes(m *http.ServeMux) {
 	m.HandleFunc("GET /admin/nodes/default-inbound", func(w http.ResponseWriter, r *http.Request) {
-		body, err := singbox.DefaultInbound(r.URL.Query().Get("protocol"))
+		protocol := r.URL.Query().Get("protocol")
+		host := ""
+		if protocol == "hysteria2" {
+			nodeID, err := strconv.ParseInt(r.URL.Query().Get("node_id"), 10, 64)
+			if r.URL.Query().Get("node_id") == "" {
+				nodeID = 0
+				err = nil
+			}
+			if err != nil || nodeID < 0 {
+				http.Error(w, "节点 ID 不正确", 400)
+				return
+			}
+			typ, err := strconv.Atoi(r.URL.Query().Get("type"))
+			if err != nil {
+				http.Error(w, "节点类型不正确", 400)
+				return
+			}
+			host, err = store.DefaultInboundHost(r.Context(), s.DB, nodeID, r.URL.Query().Get("region"), typ)
+			if err != nil {
+				if errors.Is(err, store.ErrInvalid) || errors.Is(err, sql.ErrNoRows) {
+					http.Error(w, err.Error(), 400)
+				} else {
+					s.fail(w, r, err)
+				}
+				return
+			}
+		}
+		body, err := singbox.DefaultInboundForHost(protocol, host)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
