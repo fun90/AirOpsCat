@@ -104,3 +104,37 @@ func TestAlertsEndToEnd(t *testing.T) {
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
+
+func TestQuotaAlertMentionsNativeLimitOnlyWhenEnabled(t *testing.T) {
+	var mu sync.Mutex
+	var bodies []string
+	bark := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var m map[string]any
+		json.NewDecoder(r.Body).Decode(&m)
+		mu.Lock()
+		bodies = append(bodies, m["body"].(string))
+		mu.Unlock()
+	}))
+	defer bark.Close()
+	_, a := newTestServer(t)
+	field, _ := crypto.New(crypto.DeriveKey("0123456789abcdef0123456789abcdef", "field"))
+	s, _ := New(a.DB, a, field)
+	key, _ := field.Encrypt("devkey")
+	a.DB.Exec(`INSERT INTO system_config(config_key,config_value,group_key) VALUES('airopscat.bark.url',?,'bark'),('airopscat.bark.device-key',?,'bark')`, bark.URL, key)
+	a.DB.Exec(`INSERT INTO account(id,account_no,remark,uuid,auth_code,period_type,from_date,bandwidth) VALUES(1,'acc1','Anna','u','ac','MONTHLY','2026-01-01 00:00:00',1)`)
+	a.DB.Exec(`INSERT INTO account_traffic_stats(account_id,period_start,period_end,bandwidth_quota,download_bytes) VALUES(1,'2000-01-01 00:00:00','2099-01-01 00:00:00',1,?)`, int64(2)<<30)
+	if err := s.scanAlerts(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(bodies) != 1 || strings.Contains(bodies[0], "sing-box") {
+		t.Fatal(bodies)
+	}
+	a.DB.Exec(`DELETE FROM alert_state`)
+	a.DB.Exec(`INSERT OR REPLACE INTO system_config(config_key,config_value,group_key) VALUES('airopscat.ratelimit.enabled','true','account')`)
+	if err := s.scanAlerts(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(bodies) != 2 || !strings.Contains(bodies[1], "sing-box 原生超额限速") {
+		t.Fatal(bodies)
+	}
+}

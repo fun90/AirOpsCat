@@ -157,9 +157,13 @@ func (s *Server) scanAlerts(ctx context.Context) error {
 		return err
 	}
 	keep := map[int64]bool{}
+	limited := s.configBool(ctx, "airopscat.ratelimit.enabled", false)
 	for _, q := range over {
 		keep[q.ID] = true
 		body := fmt.Sprintf("账户: %s（%s）\n当前用量: %.2f GB\n有效配额: %.0f GB", q.AccountNo, q.Remark, q.UsedGB, q.QuotaGB)
+		if limited {
+			body += "\n已启用 sing-box 原生超额限速，限速同步任务会持续对账下发"
+		}
 		if err := s.raise(ctx, store.AlertKey{Type: alertQuota, ResourceType: "account", ResourceID: q.ID, ResourceKey: q.AccountNo, Fingerprint: q.AccountNo + ":" + q.PeriodStart}, "warning",
 			q.UsedGB, q.QuotaGB, fmt.Sprintf("%s 已用 %.2f / %.0f GB", q.AccountNo, q.UsedGB, q.QuotaGB), quotaInterval,
 			notify.Message{Title: "AirOpsCat 账户流量超额", Body: body, Level: "timeSensitive"}); err != nil {

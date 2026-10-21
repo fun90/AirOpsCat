@@ -115,7 +115,7 @@
 - 订阅：[x] 已补 `Referrer-Policy`，成功文本和 JSON 响应统一带 charset（保留旧 `charset` 头兼容）；`TestPublicSubscriptionAndDocs` 验证订阅响应头。`X-XSS-Protection` 为旧浏览器废弃机制，沿用现有安全头；[x] `docs-info` 空 `nickName` 已省略并补 HTTP 测试；快照 `disabled`/`type` 额外过滤可能误伤生产快照；[x] HEAD、`%2F`、`?dns=` / `?version=1&dns2=` 空值已由 `TestPublicSubscriptionAndDocs` 回放验证。
 - [x] 部署版本触发器已在迁移 0007 收窄：普通流量增长和无关展示配置不递增；限速跨界、配额/周期变更、相关系统配置及无效流量仍保护部署。`TestDeploymentRevision*` 覆盖旧库升级、NULL/零配额、溢出、配置键迁移与删除；`TestDeploymentConfirmationSurvivesOrdinaryTraffic` 验证普通采集不阻止确认、跨界仍保留待部署。真实并发采集部署观察待验收。
 - [x] 账户列表已接在线/离线与所属用户 ID 筛选，复用 store 谓词和原分页参数；`TestAccountHTTPFlow` 覆盖空结果及组合筛选。
-- 超额告警正文缺“已通过 sing-box 原生限速生效”一行（影响小）。
+- [x] 超额告警正文在超额限速开关开启时说明已启用 sing-box 原生限速并由同步任务持续下发；关闭时不声称限速（`TestQuotaAlertMentionsNativeLimitOnlyWhenEnabled`）。正文不承诺各服务器已实际生效，真机验收仍待补。
 
 ### 已确认落实（不再计入欠项）
 
