@@ -225,3 +225,28 @@ func TestSubscriptionCompressionHeaders(t *testing.T) {
 		}
 	}
 }
+
+// 安装手册站点跨域读取 docs-info：只放行 airopscat.docs.url 的源，错误响应同样带头便于页面区分无效码。
+func TestDocsInfoCORS(t *testing.T) {
+	h, a := newTestServer(t)
+	if _, err := a.DB.Exec(`INSERT INTO system_config(config_key,config_value,group_key) VALUES('airopscat.docs.url','https://docs.example.com/v2/','open')`); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ origin, want string }{
+		{"https://docs.example.com", "https://docs.example.com"},
+		{"https://evil.example.com", ""},
+		{"", ""},
+	} {
+		hdr := map[string]string{}
+		if c.origin != "" {
+			hdr["Origin"] = c.origin
+		}
+		w := do(h, "GET", "/api/open/docs-info/bad", nil, nil, hdr)
+		if w.Code != 400 || w.Header().Get("Access-Control-Allow-Origin") != c.want {
+			t.Fatal(c.origin, w.Code, w.Header())
+		}
+		if !strings.Contains(strings.Join(w.Header().Values("Vary"), ","), "Origin") {
+			t.Fatal("缺少 Vary: Origin", w.Header())
+		}
+	}
+}

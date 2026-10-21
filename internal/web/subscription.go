@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -220,6 +221,11 @@ func javaFormEncode(s string) string {
 
 func (s *Server) docsInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	// 安装手册站点跨域读取：只放行 airopscat.docs.url 的源；简单 GET 无需预检。
+	w.Header().Add("Vary", "Origin")
+	if docs, err := url.Parse(store.ConfigValue(r.Context(), s.DB, "airopscat.docs.url")); err == nil && docs.Host != "" && r.Header.Get("Origin") == docs.Scheme+"://"+docs.Host {
+		w.Header().Set("Access-Control-Allow-Origin", docs.Scheme+"://"+docs.Host)
+	}
 	a, _, err := store.SubscriptionAccount(r.Context(), s.DB, r.PathValue("code"))
 	if err != nil {
 		s.fail(w, r, err)
