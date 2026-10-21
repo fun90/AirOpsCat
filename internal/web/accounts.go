@@ -45,7 +45,12 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	status := r.URL.Query().Get("status")
 	sort, asc := accountSort(r.URL.Query().Get("sort"), r.URL.Query().Get("dir"))
-	list, total, err := store.AccountList(r.Context(), s.DB, store.AccountFilter{Search: q, Status: status, Sort: sort, Asc: asc}, page, size)
+	onlineFilter := r.URL.Query().Get("online")
+	userID, _ := strconv.ParseInt(r.URL.Query().Get("user_id"), 10, 64)
+	if userID < 0 {
+		userID = 0
+	}
+	list, total, err := store.AccountList(r.Context(), s.DB, store.AccountFilter{Search: q, Status: status, Online: onlineFilter, UserID: userID, Sort: sort, Asc: asc}, page, size)
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -66,6 +71,7 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 	}
 	d := s.pageData(r, "账户", "accounts")
 	d["Online"], d["LastSeen"], d["Sort"], d["SortAsc"] = online, lastSeen, sort, asc
+	d["OnlineFilter"], d["UserFilter"] = onlineFilter, userID
 	d["SortLast"], d["SortTo"] = sortHeader(r.URL.Query(), "last_online", sort, asc), sortHeader(r.URL.Query(), "to_date", sort, asc)
 	d["List"], d["Q"], d["Status"], d["Page"], d["Pages"] = list, q, status, page, (total+size-1)/size
 	d["Now"] = store.FormatTime(now)

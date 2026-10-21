@@ -114,7 +114,7 @@
 - [x] `store/settings.go` 已移除失效请求日志、Clash 端口/重试和倍率配置的不可达校验；`ActiveSetting` 继续限制可保存键。SQL 层长度校验未扩展，沿用业务入口校验。
 - 订阅：[x] 已补 `Referrer-Policy`，成功文本和 JSON 响应统一带 charset（保留旧 `charset` 头兼容）；`TestPublicSubscriptionAndDocs` 验证订阅响应头。`X-XSS-Protection` 为旧浏览器废弃机制，沿用现有安全头；`docs-info` 的 `nickName` 为空仍输出；快照 `disabled`/`type` 额外过滤可能误伤生产快照；HEAD、`%2F`、`?dns=` 空值无测试。
 - 部署：`deploy_revision` 触发器覆盖流量表与配置表每次写入，采集频繁时部署期间“数据已变化”误判概率升高，影响面未确认。
-- 账户列表 store 层支持 `online`、`userID` 筛选，页面未接出。
+- [x] 账户列表已接在线/离线与所属用户 ID 筛选，复用 store 谓词和原分页参数；`TestAccountHTTPFlow` 覆盖空结果及组合筛选。
 - 超额告警正文缺“已通过 sing-box 原生限速生效”一行（影响小）。
 
 ### 已确认落实（不再计入欠项）

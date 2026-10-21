@@ -240,6 +240,16 @@ func TestAccountHTTPFlow(t *testing.T) {
 			t.Fatalf("%s: %d", path, w.Code)
 		}
 	}
+	for _, query := range []string{"online=online", "user_id=999999"} {
+		filtered := do(h, "GET", "/admin/accounts?"+query, nil, c, nil)
+		if filtered.Code != 200 || !strings.Contains(filtered.Body.String(), "暂无账户") {
+			t.Fatal("账户筛选未生效", query, filtered.Code)
+		}
+	}
+	filtered := do(h, "GET", "/admin/accounts?online=offline&user_id="+strconv.FormatInt(acc.UserID, 10), nil, c, nil)
+	if filtered.Code != 200 || !strings.Contains(filtered.Body.String(), "修改备注") {
+		t.Fatal("离线与用户组合筛选错误")
+	}
 	// 在线面板在 {{with .Form}} 内，必须经 $ 取页面数据；无上报时应明确显示“暂无上报”。
 	if body := do(h, "GET", "/admin/accounts/"+strconv.FormatInt(id, 10)+"/edit", nil, c, nil).Body.String(); !strings.Contains(body, `id="account-online" role="tabpanel"><div class="mb-2">暂无上报</div>`) {
 		t.Fatal("账户编辑页在线面板为空")
