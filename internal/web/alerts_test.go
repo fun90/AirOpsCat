@@ -37,7 +37,7 @@ func TestAlertsEndToEnd(t *testing.T) {
 	ctx := context.Background()
 	key, _ := field.Encrypt("devkey")
 	a.DB.Exec(`INSERT INTO system_config(config_key,config_value,group_key) VALUES('airopscat.bark.url',?,'bark'),('airopscat.bark.device-key',?,'bark'),('airopscat.bark.default-group','G','bark')`, bark.URL, key)
-	soon := time.Now().Format("2006-01-02")
+	soon := time.Now().In(store.Shanghai).Format("2006-01-02")
 	a.DB.Exec(`INSERT INTO server(id,ip,name,expire_date) VALUES(1,'1.1.1.1','HK',?)`, soon)
 
 	if err := s.scanAlerts(ctx); err != nil {
