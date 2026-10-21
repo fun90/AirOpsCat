@@ -60,3 +60,6 @@
     .logs-table { table-layout: fixed; width: 100%; }
     .logs-table .log-message { width: 100%; min-width: 0; }
 }
+
+/* 页面跳转中（nav-progress.js）：顶部进度条 */
+.nav-progress { position: fixed; top: 0; left: 0; right: 0; z-index: 2000; height: 3px; border-radius: 0; background: transparent; }
