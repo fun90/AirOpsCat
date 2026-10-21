@@ -20,7 +20,7 @@
                 <input class="form-control" id="region" name="region" value="{{.Region}}" list="regions" required>
                 <datalist id="regions">{{range $.Regions}}<option value="{{.}}">{{end}}</datalist></div>
             <div class="col-md-3"><label class="form-label required" for="port">端口</label>
-                <input type="number" class="form-control" id="port" name="port" value="{{.Port}}" required min="1" max="65535"></div>
+                <input type="number" class="form-control" id="port" name="port" value="{{.Port}}" {{if .ID}}required{{end}} min="1" max="65535">{{if not .ID}}<div class="form-hint">留空从 10000 起自动分配未用端口</div>{{end}}</div>
 
             <div class="col-md-6"><label class="form-label" for="remark">备注</label>
                 <input class="form-control" id="remark" name="remark" value="{{.Remark}}"></div>

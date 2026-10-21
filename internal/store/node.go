@@ -479,6 +479,35 @@ func normalizeTagIDs(ids []int64) []int64 {
 	return out
 }
 
+// availableNodePort 在写事务内从 10000 起取全局未用端口，避免未来部署位合并冲突。
+func availableNodePort(ctx context.Context, q dbtx) (int, error) {
+	rows, err := q.QueryContext(ctx, `SELECT DISTINCT port FROM node WHERE port>=10000 ORDER BY port`)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	candidate := 10000
+	for rows.Next() {
+		var port int
+		if err := rows.Scan(&port); err != nil {
+			return 0, err
+		}
+		if port > candidate {
+			break
+		}
+		if port == candidate {
+			candidate++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if candidate > 65535 {
+		return 0, invalid("没有可自动分配的端口，请手动指定")
+	}
+	return candidate, nil
+}
+
 // SaveNode 新建（ID=0）或更新节点及其标签、部署位属性，返回节点 ID。
 // 部署位本身由地区和类型自动同步；实质变更会把该节点的部署位置为待部署。
 func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []PlacementEdit) (int64, error) {
@@ -488,6 +517,13 @@ func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []
 	}
 	defer tx.Rollback()
 	tagIDs = normalizeTagIDs(tagIDs)
+	if n.ID == 0 && n.Port == 0 {
+		port, err := availableNodePort(ctx, tx)
+		if err != nil {
+			return 0, err
+		}
+		n.Port = port
+	}
 	if err := validateNode(ctx, tx, n); err != nil {
 		return 0, err
 	}

@@ -337,3 +337,23 @@ func TestBatchNodeTagsHTTP(t *testing.T) {
 		t.Fatal("批量选择未渲染", got.Code)
 	}
 }
+
+func TestNodeAutomaticPortHTTP(t *testing.T) {
+	h, a := newTestServer(t)
+	c := login(t, h, "admin@example.com")
+	form := url.Values{"csrf": {a.CSRFToken(c.Value)}, "name": {"自动端口"}, "type": {"0"}, "protocol": {"vless"}, "region": {"HK"}, "inbound": {`{"type":"vless"}`}}
+	for _, port := range []string{"0", "invalid", "65536", "999999999999999999999999"} {
+		form.Set("port", port)
+		if got := do(h, "POST", "/admin/nodes", form, c, nil); got.Code != 422 {
+			t.Fatal(port, got.Code)
+		}
+	}
+	form.Del("port")
+	if got := do(h, "POST", "/admin/nodes", form, c, nil); got.Code != 303 {
+		t.Fatal(got.Code, got.Body.String())
+	}
+	var port int
+	if err := a.DB.QueryRow(`SELECT port FROM node WHERE name='自动端口-1'`).Scan(&port); err != nil || port != 10000 {
+		t.Fatal(port, err)
+	}
+}

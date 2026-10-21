@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -267,3 +268,48 @@ func TestPlacementEdits(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func TestAutomaticNodePorts(t *testing.T) {
+	db, ctx := testDB(t)
+	mustExec(t, db, `INSERT INTO node(name,type,protocol,port) VALUES('used1',0,'vless',10000),('duplicate',0,'vless',10000),('higher',0,'vless',10002)`)
+	n := newNode("automatic", "HK", NodeProxy, 0)
+	if _, err := SaveNode(ctx, db, n, nil, nil); err != nil || n.Port != 10001 {
+		t.Fatal(n.Port, err)
+	}
+	var wg sync.WaitGroup
+	ports := make(chan int, 2)
+	errs := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			n := newNode("parallel", "HK", NodeProxy, 0)
+			_, err := SaveNode(ctx, db, n, nil, nil)
+			ports <- n.Port
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(ports)
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	seen := map[int]bool{}
+	for port := range ports {
+		if seen[port] || port < 10003 {
+			t.Fatal("并发分配冲突", port)
+		}
+		seen[port] = true
+	}
+}
+
+func TestAutomaticNodePortExhaustion(t *testing.T) {
+	db, ctx := testDB(t)
+	mustExec(t, db, `WITH RECURSIVE ports(p) AS (SELECT 10000 UNION ALL SELECT p+1 FROM ports WHERE p<65535) INSERT INTO node(name,type,protocol,port) SELECT 'used',0,'vless',p FROM ports`)
+	if _, err := SaveNode(ctx, db, newNode("full", "HK", NodeProxy, 0), nil, nil); !errors.Is(err, ErrInvalid) {
+		t.Fatal(err)
+	}
+}

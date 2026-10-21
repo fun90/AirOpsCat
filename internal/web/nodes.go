@@ -200,7 +200,14 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 		Remark: formValue(r, "remark"), Disabled: r.PostFormValue("disabled") == "1", TagIDs: map[int64]bool{}}
 	n := &store.Node{ID: id, Name: f.Name, Protocol: f.Protocol, Inbound: f.Inbound, Region: f.Region, Remark: f.Remark, Disabled: f.Disabled}
 	n.Type, _ = strconv.Atoi(f.Type)
-	n.Port, _ = strconv.Atoi(f.Port)
+	var portErr error
+	if f.Port != "" || id != 0 {
+		port, err := strconv.Atoi(f.Port)
+		if err != nil || port < 1 || port > 65535 {
+			portErr = fmt.Errorf("端口范围 1-65535；仅新建可留空自动分配")
+		}
+		n.Port = port
+	}
 	if f.OutID != "" {
 		if v, err := strconv.ParseInt(f.OutID, 10, 64); err == nil {
 			n.OutID = &v
@@ -237,6 +244,10 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 			p.Priority, p.Exposed, p.CheapStart, p.CheapEnd, p.AccessHostID = e.Priority, e.Exposed, e.CheapStart, e.CheapEnd, e.AccessHostID
 			echo = append(echo, p)
 		}
+	}
+	if portErr != nil {
+		s.nodeFormPage(w, r, http.StatusUnprocessableEntity, f, portErr.Error(), echo)
+		return
 	}
 	nodeID, err := store.SaveNode(r.Context(), s.DB, n, tagIDs, edits)
 	if err != nil {
