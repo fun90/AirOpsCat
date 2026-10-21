@@ -364,7 +364,7 @@ func renewAccount(r *http.Request, s *Server, to string, amount *int64) error {
 	return store.RenewAccount(r.Context(), s.DB, idFrom(r), t, amount, formValue(r, "payment_method"))
 }
 
-type copyLink struct{ Label, URL, Full string } // Full 非空时复制它，否则复制 URL
+type copyLink struct{ Label, URL string }
 
 // installText 是发给客户的安装说明：账户备注、到期日与安装链接。
 func installText(docs string, a store.Account) string {
@@ -380,12 +380,12 @@ func (s *Server) accountLinks(r *http.Request, a *store.Account) []copyLink {
 	var out []copyLink
 	if docs := store.ConfigValue(r.Context(), s.DB, "airopscat.docs.url"); docs != "" {
 		out = append(out,
-			copyLink{"安装手册", docs + "/?code=" + a.AuthCode, installText(docs, *a)},
-			copyLink{"使用手册", docs + "/manual.html?code=" + a.AuthCode, ""})
+			copyLink{"安装手册", docs + "/?code=" + a.AuthCode},
+			copyLink{"使用手册", docs + "/manual.html?code=" + a.AuthCode})
 	}
 	if base := store.ConfigValue(r.Context(), s.DB, "airopscat.subscription.url"); base != "" {
 		for _, p := range [][2]string{{"Windows", "windows/clash-verge"}, {"macOS", "macos/clash-verge"}, {"Linux", "linux/clash-verge"}, {"Android", "android/clash-meta"}, {"iOS", "ios/shadowrocket/" + url.QueryEscape(a.Remark)}} {
-			out = append(out, copyLink{p[0] + " 订阅", base + "/config/" + a.AuthCode + "/" + p[1] + "/", ""})
+			out = append(out, copyLink{p[0] + " 订阅", base + "/config/" + a.AuthCode + "/" + p[1] + "/"})
 		}
 	}
 	return out
