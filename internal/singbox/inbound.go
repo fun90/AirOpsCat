@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"strings"
 )
 
@@ -31,6 +32,14 @@ func DefaultInbound(protocol string) (json.RawMessage, error) {
 	}
 	password := base64.RawURLEncoding.EncodeToString(secret)
 	values := map[string]string{"serverName": "www.apple.com", "password": password, "name": "default", "username": "user_" + hex.EncodeToString(secret[:6])}
+	if protocol == "vless-reality" || protocol == "shadowtls" {
+		hosts := []string{"www.apple.com", "www.icloud.com", "www.amazon.com"}
+		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(hosts))))
+		if err != nil {
+			return nil, err
+		}
+		values["serverName"] = hosts[index.Int64()]
+	}
 	if protocol == "vless-reality" {
 		key, err := ecdh.X25519().GenerateKey(rand.Reader)
 		if err != nil {

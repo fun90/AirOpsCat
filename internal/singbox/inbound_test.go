@@ -25,6 +25,21 @@ func TestDefaultInbound(t *testing.T) {
 			if obj["type"] != typ {
 				t.Fatal(obj["type"])
 			}
+			if p == "shadowtls" || p == "vless-reality" {
+				var host string
+				if p == "shadowtls" {
+					host = obj["handshake"].(map[string]any)["server"].(string)
+				} else {
+					tls := obj["tls"].(map[string]any)
+					host = tls["reality"].(map[string]any)["handshake"].(map[string]any)["server"].(string)
+					if host != tls["server_name"] {
+						t.Fatal("Reality SNI 与握手域名不一致")
+					}
+				}
+				if host != "www.apple.com" && host != "www.icloud.com" && host != "www.amazon.com" {
+					t.Fatal("握手域名不在候选中", host)
+				}
+			}
 			if p == "vless-reality" {
 				r := obj["tls"].(map[string]any)["reality"].(map[string]any)
 				raw, err := base64.RawURLEncoding.DecodeString(r["private_key"].(string))

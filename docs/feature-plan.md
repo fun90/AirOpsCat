@@ -105,7 +105,7 @@
 | [spec-account](rewrite/spec-account.md) 问题 19 | [x] 收支页显示当前筛选全部记录的收入、支出、净额（整数分汇总，不受分页影响），`TestTransactionSummaryUsesFullFilter` 覆盖组合筛选、空结果及负净额；[x] 通用流水已按决策 24 D7 校验金额 >0（`TestTransactionCRUDFiltersAndBusinessValidation` 覆盖零和负数，先失败再修复）。月度趋势未纳入本次最小实现 |
 | [spec-account](rewrite/spec-account.md) §7 | [x] 订阅绑定新建 A 记录使用 TTL=1（Cloudflare 自动），`TestBindingNewDomain` 覆盖；现有记录不改写。绑定启停沿用编辑表单的 enabled 复选框，不新增重复入口 |
 | [spec-account](rewrite/spec-account.md) 问题 15 | [x] 管理员编辑用户页支持解除登录锁定，复用 `ResetLoginFailures`；`TestAdminUnlockUser` 验证解锁与认证/CSRF。自助改密按决策 7 不做 |
-| [spec-deploy](rewrite/spec-deploy.md) §2.3 | 默认入站模板 SNI/伪装域名固定为 `www.apple.com`，hysteria2 不再取访问域名，reality 不再随机握手域名 |
+| [spec-deploy](rewrite/spec-deploy.md) §2.3 | [x] Reality/ShadowTLS 握手域名以 crypto/rand 从历史候选随机选择，Reality SNI 与握手一致（`TestDefaultInbound`）；[ ] Hysteria2 自动从部署位取域名：默认生成端点不带部署位上下文，目前保留模板域名并在表单明确要求改为实际访问域名及安装证书，自动选择尚未实现 |
 | [spec-deploy](rewrite/spec-deploy.md) §4.2 | [x] 04 步骤显式填写 ACME 邮箱，前后端校验后经私有环境文件传递；profile 脚本移除内置邮箱、依赖安装前校验、私有下载清理（Go fake SSH 测试及 mock 安装/下载自检查通过）。[x] 新建节点端口留空时，在 immediate 写事务内从 10000 起分配全局未用端口，手填保留；重复、空缺、耗尽、并发与 HTTP 非法值已测试。防火墙继续放行 8000–65535，覆盖分配范围；较宽暴露范围保留为运维策略限制，未执行真实防火墙变更 |
 | [spec-data](rewrite/spec-data.md) §3 | `system_config` 默认值与规格不同（流量保留 30 对 180 天，备份保留 15 对 30 天，模板目录默认空）；约 10 个规格键无对应项 |
 
