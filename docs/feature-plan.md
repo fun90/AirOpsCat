@@ -92,7 +92,7 @@
 | [scope](rewrite/scope.md) 决策 24 D7、[spec-account](rewrite/spec-account.md) §8 | ~~系统日志缺 `DEPLOY`、`ALERT` 写入；`SERVER_FAILOVER` 的 `detail` 为空；无时间范围筛选~~ 已补：部署（`deploy.apply`）、告警触发（`web.raise`，按节流只记通知点）、故障切换 detail、日志页 `from`/`to` 日期筛选，`TestLogsPaginationFilteringAndRedaction` 覆盖筛选 | 完成 |
 | [spec-subscription](rewrite/spec-subscription.md) §3 | ~~同一订阅定制绑定含多个部署位时只保留最后一个~~ 已修复：`SubscriptionNodes` 按集合过滤，`TestSubscriptionBindingKeepsAllPlacements` 覆盖 | 完成 |
 | [spec-subscription](rewrite/spec-subscription.md) §7 | 响应 gzip 未实现 | 与第 4 节合并处理，先确认反向代理是否已压缩 |
-| [spec-subscription](rewrite/spec-subscription.md) §2 | 配额 ≤0 一律按 500G 显示；shadowrocket `tfc` 用浮点格式化，边界值与 Java HALF_UP 不一致 | 影响客户端用量显示，与 Java 对照后决定是否对齐 |
+| [spec-subscription](rewrite/spec-subscription.md) §2 | 配额 ≤0 的 500G 展示兜底沿用现有契约；Shadowrocket `tfc` 已改为整数 HALF_UP，两位小数且避免溢出 | [x] `TestUsedGiBHalfUp` 覆盖中点、进位及 MaxInt64 |
 | [spec-account](rewrite/spec-account.md) §10 问题 23 | 后端 `toDate` 无默认，缺省即永不过期（沿用，待确认是否有意）；~~账号备注必填只在前端~~ 已在 `accountSave` 后端补校验（`internal/web/accounts.go`） | 备注已完成；`toDate` 默认值待决策 |
 | [spec-traffic](rewrite/spec-traffic.md) §1.3 | 采集失败不再发 Bark 汇总；采集后的限速与 DNS 检查要求所有服务器成功 | 另有每分钟独立任务兜底，影响有限 |
 
@@ -112,7 +112,7 @@
 ### 小问题与待实测
 
 - `store/settings.go` 仍引用已删除的配置键（死代码，行为被 `ActiveSetting` 拦截）；SQL 层无长度校验。
-- 订阅：缺 `Referrer-Policy`、`X-XSS-Protection`；成功响应不带 charset 而错误响应带；`docs-info` 的 `nickName` 为空仍输出；快照 `disabled`/`type` 额外过滤可能误伤生产快照；HEAD、`%2F`、`?dns=` 空值无测试。
+- 订阅：[x] 已补 `Referrer-Policy`，成功文本和 JSON 响应统一带 charset（保留旧 `charset` 头兼容）；`TestPublicSubscriptionAndDocs` 验证订阅响应头。`X-XSS-Protection` 为旧浏览器废弃机制，沿用现有安全头；`docs-info` 的 `nickName` 为空仍输出；快照 `disabled`/`type` 额外过滤可能误伤生产快照；HEAD、`%2F`、`?dns=` 空值无测试。
 - 部署：`deploy_revision` 触发器覆盖流量表与配置表每次写入，采集频繁时部署期间“数据已变化”误判概率升高，影响面未确认。
 - 账户列表 store 层支持 `online`、`userID` 筛选，页面未接出。
 - 超额告警正文缺“已通过 sing-box 原生限速生效”一行（影响小）。

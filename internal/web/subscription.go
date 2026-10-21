@@ -124,14 +124,14 @@ func (s *Server) subscriptionConfig(w http.ResponseWriter, r *http.Request) {
 		subscriptionError(w, 400, fmt.Errorf("系统内部错误，请联系管理员"))
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("charset", "UTF-8")
 	w.Header().Set("profile-update-interval", "72")
 	if r.URL.Query().Get("view") != "1" {
 		w.Header().Set("Content-Disposition", "attachment;filename*=UTF-8''"+javaFormEncode(a.Remark))
 	}
 	if strings.EqualFold(app, "shadowrocket") {
-		w.Header().Set("subscription-userinfo", fmt.Sprintf("tfc: %.2fG; exp: %s", float64(used)/(1<<30), a.ToDate.Format("2006/01/02")))
+		w.Header().Set("subscription-userinfo", fmt.Sprintf("tfc: %sG; exp: %s", usedGiB(used), a.ToDate.Format("2006/01/02")))
 	} else {
 		if quota <= 0 {
 			quota = 500
@@ -163,7 +163,7 @@ func (s *Server) subscriptionNodeList(w http.ResponseWriter, r *http.Request) {
 			lines = append(lines, line)
 		}
 	}
-	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("charset", "UTF-8")
 	fmt.Fprint(w, strings.TrimSpace(strings.Join(lines, "\n")))
 }
@@ -178,7 +178,7 @@ func (s *Server) subscriptionRules(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "系统内部错误，请联系管理员", 500)
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("charset", "UTF-8")
 	w.Write(body)
 }
@@ -189,6 +189,13 @@ func (s *Server) subscriptionUsage(r *http.Request, a *store.Account) (int64, in
 		return 0, 0, err
 	}
 	return u.UsedBytes, u.QuotaGB, nil
+}
+
+// usedGiB 以整数实现 Java HALF_UP，拆分整部避免字节数乘 100 溢出。
+func usedGiB(bytes int64) string {
+	const gib int64 = 1 << 30
+	hundredths := (bytes%gib*100 + gib/2) / gib
+	return fmt.Sprintf("%d.%02d", bytes/gib+hundredths/100, hundredths%100)
 }
 
 func javaFormEncode(s string) string {
@@ -210,7 +217,7 @@ func javaFormEncode(s string) string {
 }
 
 func (s *Server) docsInfo(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	a, _, err := store.SubscriptionAccount(r.Context(), s.DB, r.PathValue("code"))
 	if err != nil {
 		s.fail(w, r, err)

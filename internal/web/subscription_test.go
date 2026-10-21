@@ -2,6 +2,8 @@ package web
 
 import (
 	"encoding/json"
+	"math"
+	"math/big"
 
 	"testing"
 	"time"
@@ -33,6 +35,9 @@ func TestPublicSubscriptionAndDocs(t *testing.T) {
 			t.Errorf("%s: %d %s", app, w.Code, w.Body.String())
 			continue
 		}
+		if w.Header().Get("Content-Type") != "text/plain; charset=utf-8" || w.Header().Get("Referrer-Policy") != "strict-origin-when-cross-origin" {
+			t.Fatal("订阅类型或安全头缺失", w.Header())
+		}
 		if w.Header().Get("profile-update-interval") != "72" || w.Header().Get("subscription-userinfo") == "" {
 			t.Fatal("订阅响应头缺失")
 		}
@@ -41,6 +46,9 @@ func TestPublicSubscriptionAndDocs(t *testing.T) {
 		}
 	}
 	w := do(h, "GET", "/api/open/docs-info/"+code+"/", nil, nil, nil)
+	if w.Header().Get("Content-Type") != "application/json; charset=utf-8" {
+		t.Fatal("docs-info 类型缺失", w.Header())
+	}
 	if w.Code != 200 || !json.Valid(w.Body.Bytes()) {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -61,4 +69,23 @@ func TestPublicSubscriptionAndDocs(t *testing.T) {
 		t.Fatal("Java URL编码错误")
 	}
 
+}
+
+func TestUsedGiBHalfUp(t *testing.T) {
+	for _, bytes := range []int64{0, 5368709, 5368710, 67108863, 67108864, 67108865, 1068373114, 1068373115, 1 << 30, math.MaxInt64} {
+		// 独立精确有理数计算舍入结果，覆盖中点、进位及最大计数。
+		n := new(big.Int).Mul(big.NewInt(bytes), big.NewInt(100))
+		n.Add(n, big.NewInt(1<<29))
+		n.Quo(n, big.NewInt(1<<30))
+		q, r := new(big.Int), new(big.Int)
+		q.QuoRem(n, big.NewInt(100), r)
+		want := q.String() + "."
+		if r.Int64() < 10 {
+			want += "0"
+		}
+		want += r.String()
+		if got := usedGiB(bytes); got != want {
+			t.Errorf("%d: got %s want %s", bytes, got, want)
+		}
+	}
 }
