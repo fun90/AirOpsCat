@@ -162,7 +162,7 @@ func formFromNode(n *store.Node) *NodeForm {
 }
 
 // nodeFormPage 渲染节点表单；编辑时附带部署位。formErr 为整体错误，pls 为用户提交的部署位输入（回显用）。
-func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int, f *NodeForm, formErr string, pls []*store.Placement) {
+func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int, f *NodeForm, formErr string, pls []*store.Placement, ops ...store.PlacementOps) {
 	ctx := r.Context()
 	title := "新增节点"
 	if f.ID != 0 {
@@ -192,6 +192,30 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 		s.fail(w, r, err)
 		return
 	}
+	if f.ID != 0 {
+		opts, err := store.PlacementServerOptions(ctx, s.DB, f.ID)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		domains, err := store.PlacementDomains(ctx, s.DB, f.ID)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		d["ServerOptions"], d["PlacementDomains"] = opts, domains
+	}
+	// 校验失败回显时保留暂存的部署位增删
+	addIDs, delTargets := map[int64]bool{}, map[int64]string{}
+	for _, op := range ops {
+		for _, id := range op.AddServerIDs {
+			addIDs[id] = true
+		}
+		for _, x := range op.Deletes {
+			delTargets[x.PlacementID] = strconv.FormatInt(x.TargetID, 10) // 非空表示已暂存删除
+		}
+	}
+	d["AddIDs"], d["DelTargets"] = addIDs, delTargets
 	d["Form"], d["FormErr"], d["Tags"], d["Landing"], d["Regions"], d["Placements"], d["Hosts"] = f, formErr, tags, landing, regions, pls, hosts
 	d["ProxyProtocols"], d["LandingProtocols"] = store.ProtocolsFor(store.NodeProxy), store.ProtocolsFor(store.NodeLanding)
 	s.render(w, "node_form", status, d)
@@ -272,14 +296,29 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 			echo = append(echo, p)
 		}
 	}
+	// 部署位增删在表单中暂存，随节点保存一起提交
+	var ops store.PlacementOps
+	if id != 0 {
+		for _, v := range r.PostForm["add_server"] {
+			if sid, err := strconv.ParseInt(v, 10, 64); err == nil && sid > 0 {
+				ops.AddServerIDs = append(ops.AddServerIDs, sid)
+			}
+		}
+		for _, v := range r.PostForm["del_placement"] {
+			if pid, err := strconv.ParseInt(v, 10, 64); err == nil && pid > 0 {
+				t, _ := strconv.ParseInt(r.PostFormValue("del_target_"+v), 10, 64)
+				ops.Deletes = append(ops.Deletes, store.PlacementDelete{PlacementID: pid, TargetID: t})
+			}
+		}
+	}
 	if portErr != nil {
-		s.nodeFormPage(w, r, http.StatusUnprocessableEntity, f, portErr.Error(), echo)
+		s.nodeFormPage(w, r, http.StatusUnprocessableEntity, f, portErr.Error(), echo, ops)
 		return
 	}
-	nodeID, err := store.SaveNode(r.Context(), s.DB, n, tagIDs, edits)
+	nodeID, err := store.SaveNode(r.Context(), s.DB, n, tagIDs, edits, ops)
 	if err != nil {
 		if errors.Is(err, store.ErrInvalid) || errors.Is(err, store.ErrConflict) {
-			s.nodeFormPage(w, r, http.StatusUnprocessableEntity, f, err.Error(), echo)
+			s.nodeFormPage(w, r, http.StatusUnprocessableEntity, f, err.Error(), echo, ops)
 			return
 		}
 		if errors.Is(err, sql.ErrNoRows) {
@@ -290,7 +329,11 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = nodeID
-	redirectMsg(w, r, "/admin/nodes", "msg", "节点已保存，涉及的部署位已置为待部署")
+	msg := "节点已保存"
+	if len(ops.Deletes) > 0 {
+		msg += "；转移的域名需推送 DNS 后生效"
+	}
+	redirectMsg(w, r, "/admin/nodes", "msg", msg)
 }
 
 func (s *Server) nodeToggle(w http.ResponseWriter, r *http.Request) {

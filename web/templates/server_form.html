@@ -21,10 +21,11 @@
                     <option value="KEY"{{if eq .AuthType "KEY"}} selected{{end}}>私钥</option>
                 </select></div>
             <div class="col-md-3"><label class="form-label" for="server_type">类型</label>
-                <select class="form-select" id="server_type" name="server_type">
+                <select class="form-select{{if $.Errors.server_type}} is-invalid{{end}}" id="server_type" name="server_type">
                     <option value="0"{{if eq .ServerType "0"}} selected{{end}}>代理服务器</option>
                     <option value="1"{{if eq .ServerType "1"}} selected{{end}}>落地服务器</option>
-                </select></div>
+                </select>
+                <div class="invalid-feedback">{{$.Errors.server_type}}</div></div>
             <div class="col-12"><label class="form-label" for="auth">SSH 密码 / 私钥</label>
                 <textarea class="form-control" id="auth" name="auth" rows="3" placeholder="{{if .HasAuth}}已保存，留空表示不修改{{else}}未保存{{end}}" autocomplete="off"></textarea></div>
 

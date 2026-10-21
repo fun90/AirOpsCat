@@ -77,18 +77,33 @@ func (n *Node) DeployStatus() int {
 }
 
 type Placement struct {
-	ID           int64
-	NodeID       int64
-	ServerID     int64
-	ServerName   string
-	ServerIP     string
-	Disabled     bool // 服务器已禁用
-	AccessHostID *int64
-	Exposed      bool
-	Priority     int
-	Deployed     int
-	CheapStart   string
-	CheapEnd     string
+	ID             int64
+	NodeID         int64
+	ServerID       int64
+	ServerName     string
+	ServerIP       string
+	ServerRegion   string
+	ServerType     int
+	ServerExternal bool
+	Disabled       bool // 服务器已禁用
+	AccessHostID   *int64
+	Exposed        bool
+	Priority       int
+	Deployed       int
+	Running        bool // 曾成功部署过（服务器上已有该节点），可承接转移的域名
+	CheapStart     string
+	CheapEnd       string
+}
+
+// PlacementOps 是节点表单暂存的部署位增删，随节点保存在同一事务中执行。
+type PlacementOps struct {
+	AddServerIDs []int64
+	Deletes      []PlacementDelete
+}
+
+// PlacementDelete 删除部署位，TargetID 为承接访问域名和订阅定制的部署位（无绑定时可为 0）。
+type PlacementDelete struct {
+	PlacementID, TargetID int64
 }
 
 // PlacementEdit 是节点表单对已有部署位属性的修改。
@@ -315,8 +330,9 @@ func Regions(ctx context.Context, db *sql.DB) ([]string, error) {
 
 // Placements 返回节点的全部部署位。
 func Placements(ctx context.Context, q dbtx, nodeID int64) ([]*Placement, error) {
-	rows, err := q.QueryContext(ctx, `SELECT ns.id, ns.node_id, ns.server_id, coalesce(s.name,''), s.ip, s.disabled, ns.access_host_id,
-		coalesce(ns.exposed,1) <> 0, coalesce(ns.priority,0), ns.deployed, coalesce(ns.cheap_start,''), coalesce(ns.cheap_end,'')
+	rows, err := q.QueryContext(ctx, `SELECT ns.id, ns.node_id, ns.server_id, coalesce(s.name,''), s.ip, coalesce(s.region,''), coalesce(s.server_type,0), s.external_server, s.disabled, ns.access_host_id,
+		coalesce(ns.exposed,1) <> 0, coalesce(ns.priority,0), ns.deployed,
+		ns.deployed = 1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id), coalesce(ns.cheap_start,''), coalesce(ns.cheap_end,'')
 		FROM node_server ns JOIN server s ON s.id = ns.server_id WHERE ns.node_id = ? ORDER BY ns.priority, ns.id`, nodeID)
 	if err != nil {
 		return nil, err
@@ -326,8 +342,8 @@ func Placements(ctx context.Context, q dbtx, nodeID int64) ([]*Placement, error)
 	for rows.Next() {
 		var p Placement
 		var host sql.NullInt64
-		if err := rows.Scan(&p.ID, &p.NodeID, &p.ServerID, &p.ServerName, &p.ServerIP, &p.Disabled, &host, &p.Exposed, &p.Priority,
-			&p.Deployed, &p.CheapStart, &p.CheapEnd); err != nil {
+		if err := rows.Scan(&p.ID, &p.NodeID, &p.ServerID, &p.ServerName, &p.ServerIP, &p.ServerRegion, &p.ServerType, &p.ServerExternal, &p.Disabled, &host, &p.Exposed, &p.Priority,
+			&p.Deployed, &p.Running, &p.CheapStart, &p.CheapEnd); err != nil {
 			return nil, err
 		}
 		if host.Valid {
@@ -372,7 +388,7 @@ func validateNode(ctx context.Context, q dbtx, n *Node) error {
 	case utf8.RuneCountInString(n.Name) > 257:
 		return invalid("节点名称不能超过 257 个字符")
 	case n.Region == "":
-		return invalid("节点地区不能为空，部署位按地区和类型自动关联服务器")
+		return invalid("节点地区不能为空，新建时按地区和类型选择初始部署位")
 	case n.Type != NodeProxy && n.Type != NodeLanding:
 		return invalid("节点类型不正确")
 	case n.Port < 1 || n.Port > 65535:
@@ -509,8 +525,8 @@ func availableNodePort(ctx context.Context, q dbtx) (int, error) {
 }
 
 // SaveNode 新建（ID=0）或更新节点及其标签、部署位属性，返回节点 ID。
-// 部署位本身由地区和类型自动同步；实质变更会把该节点的部署位置为待部署。
-func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []PlacementEdit) (int64, error) {
+// 新建时按地区和类型创建初始部署位，之后地区不再影响部署位；实质变更会把该节点的部署位置为待部署。
+func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []PlacementEdit, ops ...PlacementOps) (int64, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
@@ -540,7 +556,7 @@ func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []
 		if err := replaceTags(ctx, tx, n.ID, tagIDs); err != nil {
 			return 0, err
 		}
-		if err := syncNode(ctx, tx, n.ID, true); err != nil {
+		if err := initPlacements(ctx, tx, n); err != nil {
 			return 0, err
 		}
 		return n.ID, tx.Commit()
@@ -568,11 +584,28 @@ func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []
 	if err := cleanUnauthorizedBindings(ctx, tx, 0); err != nil {
 		return 0, err
 	}
+	// 顺序：先改已有部署位属性，再添加，最后删除（转移目标可以使用刚改好的访问域名）
+	if err := applyPlacementEdits(ctx, tx, n, edits); err != nil {
+		return 0, err
+	}
+	for _, op := range ops {
+		for _, sid := range op.AddServerIDs {
+			if err := addPlacement(ctx, tx, n, sid); err != nil {
+				return 0, err
+			}
+		}
+		for _, d := range op.Deletes {
+			if err := deletePlacement(ctx, tx, n, d.PlacementID, d.TargetID); err != nil {
+				return 0, err
+			}
+		}
+	}
 	// 端口变化时，已有部署位所在服务器上不能冲突
 	pls, err := Placements(ctx, tx, n.ID)
 	if err != nil {
 		return 0, err
 	}
+	var badType []string
 	for _, p := range pls {
 		if p.Deployed == PendingDelete {
 			continue
@@ -582,12 +615,12 @@ func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []
 		} else if other != "" {
 			return 0, fmt.Errorf("%w：端口 %d 在服务器 %s 上已被节点 %s 占用", ErrConflict, n.Port, p.ServerName, other)
 		}
+		if !serverTypeAllowed(n.Type, p.ServerType, p.ServerExternal) {
+			badType = append(badType, p.ServerName)
+		}
 	}
-	if err := syncNode(ctx, tx, n.ID, true); err != nil {
-		return 0, err
-	}
-	if err := applyPlacementEdits(ctx, tx, n, edits); err != nil {
-		return 0, err
+	if len(badType) > 0 {
+		return 0, invalid("代理节点只能部署在非外部的代理服务器上，请先删除部署位：%s", strings.Join(badType, "、"))
 	}
 	if n.signature(tagIDs) != oldSig {
 		if err := markPending(ctx, tx, n.ID); err != nil {

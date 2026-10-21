@@ -28,8 +28,9 @@ func TestDefaultInboundHostUsesPlacementAndNewRegion(t *testing.T) {
 	if err != nil || host != ip {
 		t.Fatal(host, err)
 	}
-	if _, err := DefaultInboundHost(ctx, db, nid, "JP", NodeProxy); err == nil {
-		t.Fatal("地区改变仍使用旧地址")
+	// 部署位不随地区变化，改地区仍取现有生效部署位
+	if host, err := DefaultInboundHost(ctx, db, nid, "JP", NodeProxy); err != nil || host != ip {
+		t.Fatal("应使用现有部署位地址", host, err)
 	}
 	if _, err := DefaultInboundHost(ctx, db, 999999, "HK", NodeProxy); err == nil {
 		t.Fatal("不存在节点未拒绝")

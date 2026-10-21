@@ -2,7 +2,6 @@ package web
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -162,16 +161,16 @@ func (s *Server) serverSave(w http.ResponseWriter, r *http.Request) {
 		f.HasAuth = old.HasAuth
 	}
 	if len(errs) == 0 {
-		if _, err := store.SaveServer(r.Context(), s.DB, s.Field, srv, auth); err != nil {
+		_, err := store.SaveServer(r.Context(), s.DB, s.Field, srv, auth)
+		if err == nil {
+			redirectMsg(w, r, "/admin/servers", "msg", "服务器已保存")
+			return
+		}
+		if !errors.Is(err, store.ErrInvalid) {
 			s.fail(w, r, err)
 			return
 		}
-		// 地区、类型、状态变化后同步各节点的部署位；失败不影响服务器保存
-		if err := store.SyncAll(r.Context(), s.DB); err != nil {
-			slog.Warn("同步部署位失败", "err", err)
-		}
-		redirectMsg(w, r, "/admin/servers", "msg", "服务器已保存")
-		return
+		errs["server_type"] = err.Error()
 	}
 	title := "新增服务器"
 	if id != 0 {

@@ -122,7 +122,7 @@
 | 11 | DNS 拉取与推送 | 都需要 |
 | 12 | `Account` 字段 | `nodeMultiple`/`nodePrefix` 在用，`level` 删除 |
 | 13 | Bark 开放测试接口 | 不用，删除 |
-| 14 | 部署位自动同步（`NodePlacementSyncService`） | 保留 |
+| 14 | 部署位自动同步（`NodePlacementSyncService`） | 保留；后续调整为仅新建节点时按地区和类型创建初始部署位，之后手动增删（见 `spec-deploy.md` §1.2） |
 | 15 | 开发分支 | 重写在新分支 `rewrite/go` 进行，Go 代码放仓库根目录；第一步实现核心链路原型 |
 | 16 | 管理页面 | 可以重新设计，不必按现有页面原样复刻 |
 | 17 | 对外接口协议 | 不修改：订阅 `/subscribe/*`、`/api/open/docs-info/{authCode}`、`/api/open/guard-sync` 等对外接口的路径、参数、响应头与响应格式保持兼容 |

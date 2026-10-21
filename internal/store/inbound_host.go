@@ -6,16 +6,14 @@ import (
 	"strings"
 )
 
-// DefaultInboundHost 按保存时的地区/类型匹配规则选择首个可用部署目标。
-// 编辑时优先现有部署位，地区或类型变化后改用新目标，避免套用旧服务器地址。
+// DefaultInboundHost 选择 Hysteria2 默认入站的主机名。
+// 已有节点优先取生效部署位（不看地区）：已同步访问域名，否则服务器 IP；
+// 新建或尚无部署位时按地区/类型匹配规则选首台服务器，与新建节点的初始部署位一致。
 func DefaultInboundHost(ctx context.Context, db *sql.DB, nodeID int64, region string, nodeType int) (string, error) {
 	if nodeType != NodeProxy && nodeType != NodeLanding {
 		return "", invalid("节点类型不正确")
 	}
 	region = strings.TrimSpace(region)
-	if region == "" {
-		return "", invalid("请先填写节点地区")
-	}
 	if nodeID != 0 {
 		node, err := NodeByID(ctx, db, nodeID)
 		if err != nil {
@@ -24,18 +22,19 @@ func DefaultInboundHost(ctx context.Context, db *sql.DB, nodeID int64, region st
 		if node == nil {
 			return "", sql.ErrNoRows
 		}
-		if node.Region == region && node.Type == nodeType {
-			var host string
-			err := db.QueryRowContext(ctx, `SELECT CASE WHEN r.status='SYNCED' AND trim(coalesce(r.full_name,''))<>'' THEN trim(r.full_name) ELSE s.ip END
+		var host string
+		err = db.QueryRowContext(ctx, `SELECT CASE WHEN r.status='SYNCED' AND trim(coalesce(r.full_name,''))<>'' THEN trim(r.full_name) ELSE s.ip END
  FROM node_server p JOIN server s ON s.id=p.server_id LEFT JOIN domain_dns_record r ON r.id=p.access_host_id
- WHERE p.node_id=? AND p.deployed<>2 AND s.disabled=0 AND trim(s.region)=? AND (?=1 OR (s.external_server=0 AND coalesce(s.server_type,0)<>1)) ORDER BY p.priority IS NULL,p.priority,p.id LIMIT 1`, nodeID, region, nodeType).Scan(&host)
-			if err == nil {
-				return host, nil
-			}
-			if err != sql.ErrNoRows {
-				return "", err
-			}
+ WHERE p.node_id=? AND p.deployed<>2 ORDER BY p.priority, p.id LIMIT 1`, nodeID).Scan(&host)
+		if err == nil {
+			return host, nil
 		}
+		if err != sql.ErrNoRows {
+			return "", err
+		}
+	}
+	if region == "" {
+		return "", invalid("请先填写节点地区")
 	}
 	servers, err := allServers(ctx, db)
 	if err != nil {

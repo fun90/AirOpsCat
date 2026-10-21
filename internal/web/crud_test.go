@@ -125,12 +125,48 @@ func TestNodeFlows(t *testing.T) {
 	if edit := do(h, "GET", "/admin/nodes/1/edit", nil, c, nil).Body.String(); !strings.Contains(edit, "hk-1") || !strings.Contains(edit, `name="p1_priority"`) {
 		t.Fatal("编辑页应显示部署位")
 	}
-	// 新增服务器后自动同步部署位
-	post("/admin/servers", url.Values{"name": {"hk-2"}, "ip": {"2.2.2.2"}, "ssh_port": {"22"}, "auth_type": {"PASSWORD"}, "server_type": {"0"}, "multiple": {"1"}, "region": {"HK"}})
+	// 新增服务器不再自动关联，需在节点中手动添加部署位（不限地区）
+	post("/admin/servers", url.Values{"name": {"jp-2"}, "ip": {"2.2.2.2"}, "ssh_port": {"22"}, "auth_type": {"PASSWORD"}, "server_type": {"0"}, "multiple": {"1"}, "region": {"JP"}})
 	var n int
 	a.DB.QueryRow(`SELECT count(*) FROM node_server WHERE node_id = 1`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("新服务器不应自动关联部署位: %d", n)
+	}
+	if edit := do(h, "GET", "/admin/nodes/1/edit", nil, c, nil).Body.String(); !strings.Contains(edit, "jp-2（2.2.2.2）") || !strings.Contains(edit, `id="placement-delete"`) {
+		t.Fatal("编辑页应提供不限地区的添加部署位和删除模态框")
+	}
+	// 增删只随节点保存提交；节点校验失败时不落库并回显暂存项
+	save := func(extra url.Values) *httptest.ResponseRecorder {
+		v := form("n1-1", "443")
+		for k, vs := range extra {
+			v[k] = vs
+		}
+		return post("/admin/nodes/1", v)
+	}
+	bad = url.Values{"add_server": {"2"}, "inbound": {`{"listen":"::"}`}}
+	if w := save(bad); w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), `data-add-item="2"`) {
+		t.Fatalf("校验失败应回显暂存添加: %d", w.Code)
+	}
+	a.DB.QueryRow(`SELECT count(*) FROM node_server WHERE node_id = 1`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("保存失败不应添加部署位: %d", n)
+	}
+	if w := save(url.Values{"add_server": {"2"}}); w.Code != http.StatusSeeOther {
+		t.Fatalf("保存时添加部署位: %d %s", w.Code, w.Body.String())
+	}
+	a.DB.QueryRow(`SELECT count(*) FROM node_server WHERE node_id = 1`).Scan(&n)
 	if n != 2 {
-		t.Fatalf("新服务器应自动关联部署位: %d", n)
+		t.Fatalf("应已添加部署位: %d", n)
+	}
+	var pid int64
+	a.DB.QueryRow(`SELECT id FROM node_server WHERE node_id = 1 AND server_id = 2`).Scan(&pid)
+	p := strconv.FormatInt(pid, 10)
+	if w := save(url.Values{"del_placement": {p}, "del_target_" + p: {""}}); w.Code != http.StatusSeeOther {
+		t.Fatalf("保存时删除部署位: %d", w.Code)
+	}
+	a.DB.QueryRow(`SELECT count(*) FROM node_server WHERE node_id = 1`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("未部署的部署位应直接删除: %d", n)
 	}
 	post("/admin/nodes/1/toggle", url.Values{"disabled": {"1"}})
 	var dis int
