@@ -310,3 +310,30 @@ func TestAdminUnlockUser(t *testing.T) {
 		t.Fatal("未解除锁定", err)
 	}
 }
+
+func TestBatchNodeTagsHTTP(t *testing.T) {
+	h, a := newTestServer(t)
+	c := login(t, h, "admin@example.com")
+	if _, err := a.DB.Exec(`INSERT INTO node(id,name,type,protocol,port) VALUES(901,'批量节点',0,'vless',443);INSERT INTO tag(id,name) VALUES(901,'批量标签')`); err != nil {
+		t.Fatal(err)
+	}
+	form := url.Values{"node_ids": {"901"}, "tag_ids": {"901"}, "mode": {"APPEND"}}
+	if got := do(h, "POST", "/admin/nodes/batch-tags", form, c, nil); got.Code != 403 {
+		t.Fatal("CSRF 未保护", got.Code)
+	}
+	form.Set("csrf", a.CSRFToken(c.Value))
+	if got := do(h, "POST", "/admin/nodes/batch-tags", form, c, nil); got.Code != 303 {
+		t.Fatal(got.Code)
+	}
+	var count int
+	if err := a.DB.QueryRow(`SELECT count(*) FROM node_tag WHERE node_id=901 AND tag_id=901`).Scan(&count); err != nil || count != 1 {
+		t.Fatal(count, err)
+	}
+	form.Set("node_ids", "invalid")
+	if got := do(h, "POST", "/admin/nodes/batch-tags", form, c, nil); got.Code != 400 {
+		t.Fatal("无效 ID 未拒绝", got.Code)
+	}
+	if got := do(h, "GET", "/admin/nodes", nil, c, nil); got.Code != 200 || !strings.Contains(got.Body.String(), `form="batchNodeTags"`) {
+		t.Fatal("批量选择未渲染", got.Code)
+	}
+}

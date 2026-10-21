@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -39,10 +40,42 @@ func (s *Server) nodeRoutes(m *http.ServeMux) {
 	})
 	m.HandleFunc("GET /admin/nodes/{id}/edit", s.nodeEdit)
 	m.HandleFunc("POST /admin/nodes", s.nodeSave)
+	m.HandleFunc("POST /admin/nodes/batch-tags", s.nodeBatchTags)
 	m.HandleFunc("POST /admin/nodes/{id}", s.nodeSave)
 	m.HandleFunc("POST /admin/nodes/{id}/toggle", s.nodeToggle)
 	m.HandleFunc("POST /admin/nodes/{id}/delete", s.nodeDelete)
 	m.HandleFunc("POST /admin/nodes/{id}/cancel-delete", s.nodeCancelDelete)
+}
+
+func (s *Server) nodeBatchTags(w http.ResponseWriter, r *http.Request) {
+	var nodes, tags []int64
+	for _, field := range []struct {
+		name string
+		ids  *[]int64
+	}{{"node_ids", &nodes}, {"tag_ids", &tags}} {
+		for _, raw := range r.PostForm[field.name] {
+			id, err := strconv.ParseInt(raw, 10, 64)
+			if err != nil || id <= 0 {
+				http.Error(w, "节点或标签 ID 不正确", http.StatusBadRequest)
+				return
+			}
+			*field.ids = append(*field.ids, id)
+		}
+	}
+	updated, unchanged, err := store.BatchNodeTags(r.Context(), s.DB, nodes, tags, r.PostFormValue("mode"))
+	if err != nil {
+		if errors.Is(err, store.ErrInvalid) {
+			redirectMsg(w, r, "/admin/nodes", "err", err.Error())
+			return
+		}
+		s.fail(w, r, err)
+		return
+	}
+	message := fmt.Sprintf("标签已更新 %d 个节点，未变化 %d 个", updated, unchanged)
+	if updated > 0 {
+		message += "；请部署待部署项"
+	}
+	redirectMsg(w, r, "/admin/nodes", "msg", message)
 }
 
 func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
