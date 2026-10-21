@@ -93,7 +93,7 @@
 | [spec-subscription](rewrite/spec-subscription.md) §3 | ~~同一订阅定制绑定含多个部署位时只保留最后一个~~ 已修复：`SubscriptionNodes` 按集合过滤，`TestSubscriptionBindingKeepsAllPlacements` 覆盖 | 完成 |
 | [spec-subscription](rewrite/spec-subscription.md) §7 | [x] 响应 gzip 已实现 | 与第 4 节合并验收；不依赖反向代理提供压缩 |
 | [spec-subscription](rewrite/spec-subscription.md) §2 | 配额 ≤0 的 500G 展示兜底沿用现有契约；Shadowrocket `tfc` 已改为整数 HALF_UP，两位小数且避免溢出 | [x] `TestUsedGiBHalfUp` 覆盖中点、进位及 MaxInt64 |
-| [spec-account](rewrite/spec-account.md) §10 问题 23 | 后端 `toDate` 无默认，缺省即永不过期（沿用，待确认是否有意）；~~账号备注必填只在前端~~ 已在 `accountSave` 后端补校验（`internal/web/accounts.go`） | 备注已完成；`toDate` 默认值待决策 |
+| [spec-account](rewrite/spec-account.md) §10 问题 23 | [x] 后端开户缺省 `toDate` 时以开始时间加一个月，与当前前端默认一致；编辑保留显式清空日期语义。账户备注已补后端必填 | `TestAccountHTTPFlow` 验证省略日期后的开户默认值；底层导入与存量永不过期账户不改写 |
 | [spec-traffic](rewrite/spec-traffic.md) §1.3 | [x] 采集失败发送 Bark 成功/失败计数汇总；单台失败后仍执行限速与 DNS 检查，并聚合返回错误；无目标时提前返回 | `TestCollectTrafficFailureStillChecksLimitsAndDNS` 通过 race；通知仅发计数，不泄露 SSH 错误；真实 Bark 送达待验收 |
 
 ### 需先确认是否有意取舍

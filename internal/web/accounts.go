@@ -253,6 +253,13 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 			in.FromDate = &t
 		}
 	}
+	if f.ID == 0 && f.ToDate == "" {
+		start := time.Now().In(store.Shanghai)
+		if in.FromDate != nil {
+			start = *in.FromDate
+		}
+		f.ToDate = start.AddDate(0, 1, 0).Format("2006-01-02T15:04:05")
+	}
 	if f.ToDate != "" {
 		v, e := sqlDate(f.ToDate)
 		if e != nil {
