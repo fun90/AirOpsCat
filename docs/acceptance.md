@@ -65,12 +65,22 @@
 - 另发现 macOS 自带 tar 会写入 `LIBARCHIVE.xattr` 扩展头，安装器按设计拒绝这种归档；正式 Release 由 Linux CI 打包，不受影响。
 演练后 VM 已删除，lima 程序和镜像缓存保留在本机。未覆盖：GitHub Release 真实下载、amd64 主机安装。
 
+2026-10-21 维护脚本 01～10 本地 VM 演练：全新 Debian 13 arm64 VM，本机运行当前 AirOpsCat 控制台（临时库、任务和通知关闭）。脚本经控制台 `POST /admin/maintenance/run` 走真实 SSH 下发，与生产路径相同；服务器凭据为临时生成的 ed25519 钥匙 A。
+- 01：时区 Asia/Shanghai，安装 vnstat 2.13 等基础包与监控采集脚本。02：生成 2G `/swapfile` 并写入 fstab。
+- 03：`authorized_keys` 只剩钥匙 B，原文件备份到 `/var/lib/airopscat/backups/`；钥匙 A 被拒绝；sshd 有效配置为 root 仅允许密钥登录。随后控制台用钥匙 A 执行 04 返回 502，系统日志记"维护脚本连接失败"；在服务器编辑页把凭据换成钥匙 B 后，04 重新连接并成功。
+- 04：安装 acme.sh v3.1.7，账户邮箱为表单填写的邮箱，未留下临时安装文件。
+- 07：发现并修复 profile `d8d0e4d`。原脚本在非 amd64 主机下载 amd64 包后 `dpkg -i` 失败，下载的 31 MB 包一直留在 `/var/cache/airopscat`。原因是 EXIT trap 引用了函数内 `local` 变量，函数返回后变量已失效，`set -u` 下清理失败。修复后：非 amd64 在下载前退出、不留缓存（VM 验证）；mock 模拟 amd64 上 `dpkg` 失败，缓存从残留 1 个变为 0 个。04 用的是子 shell 函数，变量仍有效，不受影响。
+- 08：没有 sing-box 单元时拒绝执行；放置占位 `sing-box.service` 后执行两次，crontab 中只有一组 `AIROPSCAT SING-BOX RESTART` 标记，内容为 `0 5 * * *` 重启。
+- 09：拥塞控制 bbr，队列 fq。10：INPUT 默认 DROP，规则持久化到 `/etc/iptables/rules.v4`，执行后 SSH 仍可连接。
+- 控制台日志里没有 Token、私钥或公钥内容；每步结束后远端 `/tmp/airopscat-maintenance.*` 已清理。
+未覆盖：05 真实 ACME 签发（VM 没有公网域名）；06 guard agent 与中心连通；07 在 amd64 上真正安装 sing-box；08 只验证了 cron 逻辑，没有真实 sing-box；10 在 VM 中只能经 lima 的 SSH 转发验证连通，没有验证公网对外端口；11 不在本次范围。VM 已删除。
+
 ## 待完成的上线门槛
 
 - 用 GitHub Release 真实资产执行 `install.sh`（本地 VM 演练使用本地 HTTPS 源替代下载地址），以及 amd64 主机上的标准路径安装。
 - 客户端实流量计费、超额限速、guard agent 上报到拒绝新连接的完整验证；所有客户端导入与 ShadowTLS 实流量验证。
 - 真实 Cloudflare 自动变更和真实 Bark 设备送达；当前演示通知及自动 DNS 关闭。
-- 新服务器完整执行 01～10 初始化，尤其是 03 替换公钥后的后续 SSH 连通性。
+- 在 amd64 真实服务器上完整执行 01～10，包括 05 真实 ACME 签发、06 guard agent 连通中心、07 安装 sing-box 及 10 对外端口；本地 VM 未覆盖这些。
 - 目标主机带真实数据连续运行至少 24 小时，检查 RSS 是否满足 ≤50 MB；正式业务切换后至少观察 3 天。
 - 生产域名切换、停止旧管理服务、最终导入、回滚演练及差额核对。没有发布版本号和目标确认时，不创建 tag、不 push、不执行正式安装。
 
