@@ -92,6 +92,36 @@ func TestAutoDNSReconcile(t *testing.T) {
 		t.Fatal(content, home, posts)
 	}
 	uncertain = false
+	// 缺少候选时不能静默跳过已有回切状态。
+	exec(`UPDATE node_server SET deployed=0`)
+	if err := s.autoDNS(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var alerts, logs int
+	if err := a.DB.QueryRow(`SELECT count(*) FROM alert_state WHERE alert_type='dns-reset-blocked' AND status='ACTIVE'`).Scan(&alerts); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.DB.QueryRow(`SELECT count(*) FROM system_log WHERE category='ALERT' AND detail='dns-reset-blocked'`).Scan(&logs); err != nil {
+		t.Fatal(err)
+	}
+	if alerts != 1 || logs == 0 || posts != 1 {
+		t.Fatalf("缺少候选应告警且不推送: alerts=%d logs=%d posts=%d", alerts, logs, posts)
+	}
+	// 曾部署的待部署位仍承载流量，应该可以完成回切。
+	exec(`INSERT INTO node_deployment(node_id,node_server_id,server_id,version,snapshot_hash,disabled)VALUES(1,1,1,1,'test',0),(1,2,2,1,'test',0)`)
+	for _, state := range []string{"disabled", "pending-delete"} {
+		exec(`UPDATE node_deployment SET disabled=1`)
+		if state == "pending-delete" {
+			exec(`UPDATE node_deployment SET disabled=0`)
+			exec(`UPDATE node_server SET deployed=2`)
+		}
+		candidates, err := store.DNSCandidates(ctx, a.DB, now)
+		if err != nil || len(candidates) != 0 {
+			t.Fatalf("%s 不应参与自动 DNS: %+v %v", state, candidates, err)
+		}
+	}
+	exec(`UPDATE node_server SET deployed=0`)
+	exec(`UPDATE node_deployment SET disabled=0`)
 	exec(`UPDATE server_metrics SET rx_bytes=0 WHERE server_id=1`)
 	if err := s.autoDNS(ctx); err != nil {
 		t.Fatal(err)
@@ -99,6 +129,9 @@ func TestAutoDNSReconcile(t *testing.T) {
 	a.DB.QueryRow(`SELECT content,coalesce(failover_home_content,'') FROM domain_dns_record WHERE id=1`).Scan(&content, &home)
 	if content != "1.1.1.1" || home != "" || posts != 2 {
 		t.Fatal("回切失败", content, home, posts)
+	}
+	if err := a.DB.QueryRow(`SELECT count(*) FROM alert_state WHERE alert_type='dns-reset-blocked' AND status='ACTIVE'`).Scan(&alerts); err != nil || alerts != 0 {
+		t.Fatal("候选恢复后应解除告警", alerts, err)
 	}
 	if err := s.autoDNS(ctx); err != nil || posts != 2 {
 		t.Fatal("幂等失败", posts, err)

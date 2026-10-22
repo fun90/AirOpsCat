@@ -52,6 +52,7 @@ type AutoRecord struct {
 }
 type Plan struct {
 	Target, Home, Reason string
+	BlockedReason        string
 	Exhausted            bool
 }
 
@@ -64,6 +65,12 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 	nodeID := r.NodeID
 	wanted := ""
 	home := r.Home
+	blocked := func(reason string) Plan {
+		if !r.Scheduled && home != "" {
+			return Plan{BlockedReason: reason}
+		}
+		return Plan{}
+	}
 	if r.Scheduled {
 		wanted = r.Out
 		if Window(r.Start, r.End, at) {
@@ -85,7 +92,7 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 			return Plan{Target: wanted, Reason: "SCHEDULE"}
 		}
 	} else if r.Ambiguous || nodeID == 0 || r.ServerID == 0 {
-		return Plan{}
+		return blocked("归属节点或服务器缺失，或存在冲突引用")
 	}
 	cs := byNode[nodeID]
 	sort.Slice(cs, func(i, j int) bool {
@@ -110,17 +117,17 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 		}
 	}
 	if origin == nil {
-		return Plan{}
+		return blocked("原服务器没有可用的运行部署位")
 	}
 	if !r.Scheduled {
 		if !current {
-			return Plan{}
+			return blocked("当前解析不属于可用候选服务器")
 		}
 		if home == "" && r.Content != origin.IP {
 			return Plan{}
 		}
 		if home != "" && home != origin.IP {
-			return Plan{}
+			return blocked("保存的原始解析与当前归属服务器不一致")
 		}
 	} else {
 		home = ""
