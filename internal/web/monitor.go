@@ -179,7 +179,7 @@ func (s *Server) evaluateServerAlerts(ctx context.Context) error {
 			}
 			continue
 		}
-		used := float64(st.VnstatRx+st.VnstatTx) / (1 << 30)
+		used := (float64(st.VnstatRx) + float64(st.VnstatTx)) / 1e9
 		summary := fmt.Sprintf("%s 累计流量达到 %.0f%% (%.2f GB / %d GB)", label, ratio*100, used, st.BandwidthGB)
 		if err := s.raise(ctx, store.AlertKey{Type: alertMonitorLoad, ResourceType: "server", ResourceID: st.ID, ResourceKey: st.IP, Fingerprint: fp}, "warning",
 			ratio, trafficT, summary, interval, notify.Message{Title: "AirOpsCat 服务器流量告警", Body: summary, Level: "timeSensitive"}); err != nil {
@@ -222,7 +222,7 @@ func newStatusView(st store.ServerStatus, now time.Time) statusView {
 		v.RateText = "↓ " + humanRate(*st.RxRate) + " ↑ " + humanRate(*st.TxRate)
 	}
 	if st.HasVnstat {
-		used := float64(st.VnstatRx+st.VnstatTx) / (1 << 30)
+		used := (float64(st.VnstatRx) + float64(st.VnstatTx)) / 1e9
 		if st.BandwidthGB > 0 {
 			v.UsageText = fmt.Sprintf("%.1f / %d GB（%.1f%%）", used, st.BandwidthGB, st.UsageRatio()*100)
 			v.UsagePct = min(int(st.UsageRatio()*100), 100)

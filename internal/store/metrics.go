@@ -88,7 +88,7 @@ type ServerStatus struct {
 	Iface              string
 	ID                 int64
 	Name, IP           string
-	BandwidthGB        int64 // 月流量额度，0 不限
+	BandwidthGB        int64 // 月流量额度，十进制 GB，0 不限
 	Sampled            string
 	CPU, Memory        *float64
 	RxRate, TxRate     *int64
@@ -102,7 +102,7 @@ func (s ServerStatus) UsageRatio() float64 {
 	if s.BandwidthGB <= 0 || !s.HasVnstat {
 		return 0
 	}
-	return float64(s.VnstatRx+s.VnstatTx) / float64(s.BandwidthGB*(1<<30))
+	return (float64(s.VnstatRx) + float64(s.VnstatTx)) / (float64(s.BandwidthGB) * 1e9)
 }
 
 // ServerStatuses 只列启用的非外部服务器；最近一条 monitor 与最近一条（当月）vnstat。

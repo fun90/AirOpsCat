@@ -43,7 +43,7 @@ func TestMetricsLifecycle(t *testing.T) {
 		t.Fatalf("%v %d %+v", err, total, list)
 	}
 	hk := list[0]
-	if hk.Name != "HK" || hk.CPU == nil || *hk.CPU != 0.5 || !hk.HasVnstat || hk.UsageRatio() < 0.499 || hk.UsageRatio() > 0.501 {
+	if hk.Name != "HK" || hk.CPU == nil || *hk.CPU != 0.5 || !hk.HasVnstat || hk.UsageRatio() < 0.536 || hk.UsageRatio() > 0.537 {
 		t.Fatalf("%+v ratio=%v", hk, hk.UsageRatio())
 	}
 	if us := list[1]; us.CPU != nil || us.HasVnstat || us.UsageRatio() != 0 {
