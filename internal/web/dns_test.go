@@ -92,8 +92,14 @@ func TestDNSHTTPFlow(t *testing.T) {
 	if !strings.Contains(list, "hk.example.com") || !strings.Contains(list, "待创建") || !strings.Contains(list, `name="confirm" value="push"`) {
 		t.Fatalf("记录页缺少内容: %s", list)
 	}
-	if w := do(h, "GET", "/admin/domains/1/records/1/edit", nil, c, nil); w.Code != 200 {
-		t.Fatal(w.Code)
+	for _, path := range []string{"/admin/domains/1/records/new", "/admin/domains/1/records/1/edit"} {
+		w := do(h, "GET", path, nil, c, nil)
+		if w.Code != 200 {
+			t.Fatal(path, w.Code)
+		}
+		if strings.Contains(w.Body.String(), "schedule_") || strings.Contains(w.Body.String(), "时段") {
+			t.Fatal("DNS 表单不应再显示时段配置", path)
+		}
 	}
 
 	mu.Lock()

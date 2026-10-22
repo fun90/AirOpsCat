@@ -341,29 +341,26 @@ func SetDNSDomainSync(ctx context.Context, db *sql.DB, id int64, status string) 
 // ---------- 记录 ----------
 
 type DNSRecord struct {
-	ID, DomainID                                        int64
-	Name, FullName, Type, Content                       string
-	TTL                                                 int
-	Proxied                                             bool
-	Status, Remark                                      string
-	ServerID                                            *int64
-	ServerName                                          string
-	ExternalID                                          string
-	ScheduleEnabled                                     bool
-	ScheduleStart, ScheduleEnd, ScheduleIn, ScheduleOut string
-	Refs                                                int // 被节点/订阅定制引用的数量
+	ID, DomainID                  int64
+	Name, FullName, Type, Content string
+	TTL                           int
+	Proxied                       bool
+	Status, Remark                string
+	ServerID                      *int64
+	ServerName                    string
+	ExternalID                    string
+	Refs                          int // 被节点/订阅定制引用的数量
 }
 
 const recSel = `SELECT r.id,r.domain_id,r.name,coalesce(r.full_name,''),upper(r.type),r.content,coalesce(r.ttl,1),coalesce(r.proxied,0),r.status,coalesce(r.remark,''),
 	r.server_id,coalesce(nullif(s.name,''),s.ip,''),coalesce(r.external_record_id,''),
-	coalesce(r.schedule_enabled,0),coalesce(r.schedule_start,''),coalesce(r.schedule_end,''),coalesce(r.schedule_content_in,''),coalesce(r.schedule_content_out,''),
  (SELECT count(*) FROM node_server WHERE access_host_id=r.id)+(SELECT count(*) FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=r.id)
 	FROM domain_dns_record r LEFT JOIN server s ON s.id=r.server_id`
 
 func scanRecord(row interface{ Scan(...any) error }) (*DNSRecord, error) {
 	var r DNSRecord
 	var sid sql.NullInt64
-	if err := row.Scan(&r.ID, &r.DomainID, &r.Name, &r.FullName, &r.Type, &r.Content, &r.TTL, &r.Proxied, &r.Status, &r.Remark, &sid, &r.ServerName, &r.ExternalID, &r.ScheduleEnabled, &r.ScheduleStart, &r.ScheduleEnd, &r.ScheduleIn, &r.ScheduleOut, &r.Refs); err != nil {
+	if err := row.Scan(&r.ID, &r.DomainID, &r.Name, &r.FullName, &r.Type, &r.Content, &r.TTL, &r.Proxied, &r.Status, &r.Remark, &sid, &r.ServerName, &r.ExternalID, &r.Refs); err != nil {
 		return nil, err
 	}
 	if sid.Valid {
@@ -419,12 +416,6 @@ func SaveDNSRecord(ctx context.Context, db *sql.DB, r *DNSRecord) (int64, error)
 	r.Name = strings.ToLower(strings.TrimSpace(r.Name))
 	r.Content = strings.TrimSpace(r.Content)
 	r.Remark = strings.TrimSpace(r.Remark)
-	if r.ScheduleEnabled && (!dns.ValidWindow(r.ScheduleStart, r.ScheduleEnd) || !dns.IPv4(r.ScheduleIn) || !dns.IPv4(r.ScheduleOut)) {
-		return 0, invalid("时段需要有效的 HH:mm 起止时间和两个 IPv4 地址")
-	}
-	if !r.ScheduleEnabled {
-		r.ScheduleStart, r.ScheduleEnd, r.ScheduleIn, r.ScheduleOut = "", "", "", ""
-	}
 	var full string
 	switch {
 	case r.Name == "@" || r.Name == "":
@@ -445,7 +436,7 @@ func SaveDNSRecord(ctx context.Context, db *sql.DB, r *DNSRecord) (int64, error)
 		if err := tx.QueryRowContext(ctx, `SELECT ip FROM server WHERE id=?`, *r.ServerID).Scan(&ip); err != nil {
 			return 0, invalid("请选择有效的服务器")
 		}
-		if ip != r.Content && !r.ScheduleEnabled {
+		if ip != r.Content {
 			return 0, invalid("绑定服务器的记录内容必须等于服务器 IP（%s）", ip)
 		}
 	}
@@ -468,9 +459,6 @@ func SaveDNSRecord(ctx context.Context, db *sql.DB, r *DNSRecord) (int64, error)
 			return 0, err
 		}
 		id, _ := res.LastInsertId()
-		if _, err := tx.ExecContext(ctx, `UPDATE domain_dns_record SET schedule_enabled=?,schedule_start=?,schedule_end=?,schedule_content_in=?,schedule_content_out=? WHERE id=?`, r.ScheduleEnabled, nz(r.ScheduleStart), nz(r.ScheduleEnd), nz(r.ScheduleIn), nz(r.ScheduleOut), id); err != nil {
-			return 0, err
-		}
 		return id, tx.Commit()
 	}
 	cur, err := DNSRecordByID(ctx, tx, r.ID)
@@ -493,11 +481,8 @@ func SaveDNSRecord(ctx context.Context, db *sql.DB, r *DNSRecord) (int64, error)
 	if cur.Refs > 0 && cur.FullName != full {
 		return 0, fmt.Errorf("%w：记录被节点或订阅定制引用，不能改名", ErrConflict)
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE domain_dns_record SET server_id=?,name=?,full_name=?,content=?,ttl=?,proxied=?,remark=?,status=?,update_time=? WHERE id=?`,
+	if _, err := tx.ExecContext(ctx, `UPDATE domain_dns_record SET server_id=?,name=?,full_name=?,content=?,ttl=?,proxied=?,remark=?,status=?,update_time=?,failover_home_content=NULL WHERE id=?`,
 		r.ServerID, r.Name, full, r.Content, r.TTL, r.Proxied, nz(r.Remark), status, now, r.ID); err != nil {
-		return 0, err
-	}
-	if _, err := tx.ExecContext(ctx, `UPDATE domain_dns_record SET schedule_enabled=?,schedule_start=?,schedule_end=?,schedule_content_in=?,schedule_content_out=?,failover_home_content=NULL WHERE id=?`, r.ScheduleEnabled, nz(r.ScheduleStart), nz(r.ScheduleEnd), nz(r.ScheduleIn), nz(r.ScheduleOut), r.ID); err != nil {
 		return 0, err
 	}
 	return r.ID, tx.Commit()

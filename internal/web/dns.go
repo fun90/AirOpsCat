@@ -520,8 +520,6 @@ func (s *Server) recordSave(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	rec.ScheduleEnabled = r.PostFormValue("schedule_enabled") == "1"
-	rec.ScheduleStart, rec.ScheduleEnd, rec.ScheduleIn, rec.ScheduleOut = formValue(r, "schedule_start"), formValue(r, "schedule_end"), formValue(r, "schedule_in"), formValue(r, "schedule_out")
 	rec.TTL, _ = strconv.Atoi(formValue(r, "ttl"))
 	if v, err := strconv.ParseInt(formValue(r, "server_id"), 10, 64); err == nil && v > 0 {
 		rec.ServerID = &v

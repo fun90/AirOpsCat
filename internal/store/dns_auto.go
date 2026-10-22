@@ -51,7 +51,7 @@ func AutoDNSRecords(ctx context.Context, db *sql.DB, domainID int64) ([]AutoDNSR
 		}
 		a := AutoDNSRecord{DNSRecord: *r}
 		p := dns.AutoRecord{ID: id, Content: r.Content}
-		if err := db.QueryRowContext(ctx, `SELECT coalesce(schedule_enabled,0),coalesce(schedule_start,''),coalesce(schedule_end,''),coalesce(schedule_content_in,''),coalesce(schedule_content_out,''),coalesce(failover_home_content,'') FROM domain_dns_record WHERE id=?`, id).Scan(&p.Scheduled, &p.Start, &p.End, &p.In, &p.Out, &p.Home); err != nil {
+		if err := db.QueryRowContext(ctx, `SELECT coalesce(failover_home_content,'') FROM domain_dns_record WHERE id=?`, id).Scan(&p.Home); err != nil {
 			return nil, err
 		}
 		refs, err := db.QueryContext(ctx, `SELECT node_id,server_id FROM node_server WHERE access_host_id=? AND deployed<>2

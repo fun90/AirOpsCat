@@ -78,7 +78,7 @@ func BindingChoices(ctx context.Context, db *sql.DB, accountID int64) ([]Binding
 	}
 	rows.Close()
 	for i := range choices {
-		rs, err := db.QueryContext(ctx, `SELECT id,coalesce(full_name,name) FROM domain_dns_record WHERE upper(type)='A' AND status<>'PENDING_DELETE' AND coalesce(schedule_enabled,0)=0 AND (server_id=? OR (server_id IS NULL AND content=?)) ORDER BY full_name`, sids[i], choices[i].IP)
+		rs, err := db.QueryContext(ctx, `SELECT id,coalesce(full_name,name) FROM domain_dns_record WHERE upper(type)='A' AND status<>'PENDING_DELETE' AND (server_id=? OR (server_id IS NULL AND content=?)) ORDER BY full_name`, sids[i], choices[i].IP)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -190,11 +190,10 @@ func SaveAccountBinding(ctx context.Context, db *sql.DB, b *AccountBinding) erro
 	}
 	if b.RecordID != nil {
 		var typ, status, content string
-		var scheduled bool
 		var sid sql.NullInt64
-		err := tx.QueryRowContext(ctx, `SELECT upper(type),status,content,coalesce(schedule_enabled,0),server_id FROM domain_dns_record WHERE id=?`, *b.RecordID).Scan(&typ, &status, &content, &scheduled, &sid)
-		if err != nil || typ != "A" || status == "PENDING_DELETE" || scheduled {
-			return invalid("请选择非时段计划的有效 A 记录")
+		err := tx.QueryRowContext(ctx, `SELECT upper(type),status,content,server_id FROM domain_dns_record WHERE id=?`, *b.RecordID).Scan(&typ, &status, &content, &sid)
+		if err != nil || typ != "A" || status == "PENDING_DELETE" {
+			return invalid("请选择有效 A 记录")
 		}
 		if sid.Valid && sid.Int64 != serverID {
 			return invalid("域名已绑定到其他服务器")

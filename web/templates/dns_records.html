@@ -11,7 +11,7 @@
 <div class="table-responsive"><table class="table table-vcenter card-table">
 <thead><tr><th>名称 / 内容</th><th class="d-none d-md-table-cell">类型</th><th class="d-none d-md-table-cell">TTL</th><th class="d-none d-md-table-cell">服务器</th><th class="d-none d-md-table-cell">状态</th><th class="w-1"></th></tr></thead>
 <tbody>{{range .List}}<tr>
-<td style="overflow-wrap:anywhere">{{.FullName}}<div class="text-secondary small">{{.Type}} · {{.Content}}{{if .ScheduleEnabled}} · 时段 {{.ScheduleStart}}–{{.ScheduleEnd}}{{end}}{{if .Proxied}} · 代理{{end}}</div>
+<td style="overflow-wrap:anywhere">{{.FullName}}<div class="text-secondary small">{{.Type}} · {{.Content}}{{if .Proxied}} · 代理{{end}}</div>
 <div class="d-md-none mt-1">{{template "dnsStatus" .}}{{if .ServerName}} <span class="text-secondary small">{{.ServerName}}</span>{{end}}</div></td>
 <td class="d-none d-md-table-cell">{{.Type}}</td><td class="d-none d-md-table-cell">{{if eq .TTL 1}}自动{{else}}{{.TTL}}{{end}}</td>
 <td class="d-none d-md-table-cell">{{.ServerName}}</td><td class="d-none d-md-table-cell">{{template "dnsStatus" .}}</td>

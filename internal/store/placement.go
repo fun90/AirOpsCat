@@ -267,9 +267,8 @@ func deletePlacement(ctx context.Context, tx dbtx, n *Node, placementID, targetI
 // transferRecord 把 A 记录改绑到目标服务器并改解析值，推送 DNS 后生效。
 func transferRecord(ctx context.Context, tx dbtx, rid int64, p, target *Placement, now string) error {
 	var full, status, typ string
-	var scheduled bool
-	if err := tx.QueryRowContext(ctx, `SELECT coalesce(full_name,name), status, upper(type), coalesce(schedule_enabled,0) FROM domain_dns_record WHERE id = ?`, rid).
-		Scan(&full, &status, &typ, &scheduled); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT coalesce(full_name,name), status, upper(type) FROM domain_dns_record WHERE id = ?`, rid).
+		Scan(&full, &status, &typ); err != nil {
 		return err
 	}
 	if ip := net.ParseIP(target.ServerIP); typ != "A" || ip == nil || ip.To4() == nil {
@@ -282,8 +281,8 @@ func transferRecord(ctx context.Context, tx dbtx, rid int64, p, target *Placemen
 	if busy > 0 {
 		return fmt.Errorf("%w：域名 %s 的 DNS 自动切换尚未完成，请稍后重试", ErrConflict, full)
 	}
-	if scheduled || status == DNSPendingDelete {
-		return invalid("域名 %s 是时段计划或待删除记录，请先在 DNS 中手动调整", full)
+	if status == DNSPendingDelete {
+		return invalid("域名 %s 是待删除记录，请先在 DNS 中手动调整", full)
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT n.name FROM node_server ns JOIN node n ON n.id = ns.node_id WHERE ns.access_host_id = ? AND ns.node_id <> ?
 		UNION SELECT DISTINCT n.name FROM account_node_subscription_domain_binding b JOIN node n ON n.id = b.node_id

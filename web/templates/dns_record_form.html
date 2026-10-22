@@ -6,11 +6,6 @@
 <div class="col-6 col-md-3"><label for="ttl" class="form-label required">TTL（秒）</label><input id="ttl" name="ttl" type="number" min="1" max="86400" class="form-control" value="{{.TTL}}" required><div class="form-hint">1 表示自动，或 60–86400</div></div>
 <div class="col-6 col-md-3"><label for="server_id" class="form-label">绑定服务器</label><select id="server_id" name="server_id" class="form-select" data-search><option value="">不绑定</option>{{range $.Servers}}<option value="{{.ID}}"{{if eq (printf "%d" .ID) $.Form.ServerSel}} selected{{end}}>{{if .Name}}{{.Name}} · {{end}}{{.IP}}</option>{{end}}</select><div class="form-hint">绑定后内容必须等于该服务器 IP</div></div>
 <div class="col-12 col-md-6"><label for="remark" class="form-label">备注</label><input id="remark" name="remark" maxlength="255" class="form-control" value="{{.Remark}}"></div>
-<div class="col-12"><label class="form-check"><input type="checkbox" class="form-check-input" name="schedule_enabled" value="1"{{if .ScheduleEnabled}} checked{{end}}><span class="form-check-label">启用时段解析（上海时间）</span></label><div class="form-hint">起止相同表示全天，支持跨午夜</div></div>
-<div class="col-6 col-md-3"><label for="schedule_start" class="form-label">开始</label><input class="form-control" type="time" id="schedule_start" name="schedule_start" value="{{.ScheduleStart}}"></div>
-<div class="col-6 col-md-3"><label for="schedule_end" class="form-label">结束</label><input class="form-control" type="time" id="schedule_end" name="schedule_end" value="{{.ScheduleEnd}}"></div>
-<div class="col-12 col-md-3"><label for="schedule_in" class="form-label">时段内 IPv4</label><input class="form-control" id="schedule_in" name="schedule_in" value="{{.ScheduleIn}}"></div>
-<div class="col-12 col-md-3"><label for="schedule_out" class="form-label">时段外 IPv4</label><input class="form-control" id="schedule_out" name="schedule_out" value="{{.ScheduleOut}}"></div>
 <div class="col-12"><label class="form-check"><input type="checkbox" class="form-check-input" name="proxied" value="1"{{if .Proxied}} checked{{end}}><span class="form-check-label">经 Cloudflare 代理（橙云）</span></label></div>
 </div></div><div class="card-footer"><button type="submit" class="btn btn-primary">保存</button><a href="/admin/domains/{{.DomainID}}/records" class="btn btn-link">取消</a></div></form>
 {{end}}{{end}}

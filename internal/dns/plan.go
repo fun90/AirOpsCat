@@ -1,7 +1,6 @@
 package dns
 
 import (
-	"net"
 	"sort"
 	"time"
 )
@@ -27,12 +26,6 @@ func Window(start, end string, at time.Time) bool {
 	}
 	return t >= s || t < f
 }
-func ValidWindow(start, end string) bool {
-	_, a := time.Parse("15:04", start)
-	_, b := time.Parse("15:04", end)
-	return a == nil && b == nil
-}
-func IPv4(s string) bool { p := net.ParseIP(s); return p != nil && p.To4() != nil }
 
 type Candidate struct {
 	ID, NodeID, ServerID     int64
@@ -42,10 +35,8 @@ type Candidate struct {
 	Known                    bool
 }
 type AutoRecord struct {
-	ID                  int64
-	Content, Home       string
-	Scheduled           bool
-	Start, End, In, Out string
+	ID            int64
+	Content, Home string
 	// 引用必须唯一指向一个节点/归属服务器。
 	NodeID, ServerID int64
 	Ambiguous        bool
@@ -63,35 +54,14 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 		byNode[c.NodeID] = append(byNode[c.NodeID], c)
 	}
 	nodeID := r.NodeID
-	wanted := ""
 	home := r.Home
 	blocked := func(reason string) Plan {
-		if !r.Scheduled && home != "" {
+		if home != "" {
 			return Plan{BlockedReason: reason}
 		}
 		return Plan{}
 	}
-	if r.Scheduled {
-		wanted = r.Out
-		if Window(r.Start, r.End, at) {
-			wanted = r.In
-		}
-		matches := 0
-		for id, cs := range byNode {
-			a, b := false, false
-			for _, c := range cs {
-				a = a || c.IP == r.In
-				b = b || c.IP == r.Out
-			}
-			if a && b {
-				nodeID = id
-				matches++
-			}
-		}
-		if matches != 1 {
-			return Plan{Target: wanted, Reason: "SCHEDULE"}
-		}
-	} else if r.Ambiguous || nodeID == 0 || r.ServerID == 0 {
+	if r.Ambiguous || nodeID == 0 || r.ServerID == 0 {
 		return blocked("归属节点或服务器缺失，或存在冲突引用")
 	}
 	cs := byNode[nodeID]
@@ -112,34 +82,28 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 		if c.IP == r.Content {
 			current = true
 		}
-		if (!r.Scheduled && c.ServerID == r.ServerID) || (r.Scheduled && c.IP == wanted) {
+		if c.ServerID == r.ServerID {
 			origin = c
 		}
 	}
 	if origin == nil {
 		return blocked("原服务器没有可用的运行部署位")
 	}
-	if !r.Scheduled {
-		if !current {
-			return blocked("当前解析不属于可用候选服务器")
-		}
-		if home == "" && r.Content != origin.IP {
-			return Plan{}
-		}
-		if home != "" && home != origin.IP {
-			return blocked("保存的原始解析与当前归属服务器不一致")
-		}
-	} else {
-		home = ""
+	if !current {
+		return blocked("当前解析不属于可用候选服务器")
+	}
+	if home == "" && r.Content != origin.IP {
+		return Plan{}
+	}
+	if home != "" && home != origin.IP {
+		return blocked("保存的原始解析与当前归属服务器不一致")
 	}
 	var target *Candidate
-	if !r.Scheduled {
-		for i := range cs {
-			c := &cs[i]
-			if c.Known && c.Usage < threshold && Window(c.CheapStart, c.CheapEnd, at) {
-				target = c
-				break
-			}
+	for i := range cs {
+		c := &cs[i]
+		if c.Known && c.Usage < threshold && Window(c.CheapStart, c.CheapEnd, at) {
+			target = c
+			break
 		}
 	}
 	if target == nil && origin.Known && origin.Usage < threshold {
@@ -159,17 +123,10 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 		for _, c := range cs {
 			known = known && c.Known
 		}
-		p := Plan{Exhausted: known}
-		if r.Scheduled && known {
-			p.Target = wanted
-			p.Reason = "SCHEDULE"
-		}
-		return p
+		return Plan{Exhausted: known}
 	}
 	reason := "RESET"
-	if r.Scheduled {
-		reason = "SCHEDULE"
-	} else if target.ServerID != origin.ServerID {
+	if target.ServerID != origin.ServerID {
 		home = origin.IP
 		reason = "THRESHOLD"
 		if Window(target.CheapStart, target.CheapEnd, at) {

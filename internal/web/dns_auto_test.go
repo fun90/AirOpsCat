@@ -136,22 +136,16 @@ func TestAutoDNSReconcile(t *testing.T) {
 	if err := s.autoDNS(ctx); err != nil || posts != 2 {
 		t.Fatal("幂等失败", posts, err)
 	}
-	// 待更新记录不会推送。
+	// 历史时段配置不再生效，待更新记录仍不会推送。
 	exec(`UPDATE domain_dns_record SET status='PENDING_UPDATE',schedule_enabled=1,schedule_start='00:00',schedule_end='00:00',schedule_content_in='3.3.3.3',schedule_content_out='4.4.4.4' WHERE id=1`)
 	if err := s.autoDNS(ctx); err != nil || posts != 2 {
 		t.Fatal(err, posts)
 	}
 	exec(`UPDATE domain_dns_record SET status='SYNCED' WHERE id=1`)
-	if err := s.autoDNS(ctx); err != nil || posts != 3 {
+	if err := s.autoDNS(ctx); err != nil || posts != 2 {
 		t.Fatal(err, posts)
 	}
-	if target != "3.3.3.3" {
-		t.Fatal(target)
-	}
-	// 防止只测试 planner：实际时段保存与重新加载。
-	r, _ := store.DNSRecordByID(ctx, a.DB, 1)
-	r.ScheduleStart = "bad"
-	if _, err := store.SaveDNSRecord(ctx, a.DB, r); err == nil {
-		t.Fatal("非法时间未拒绝")
+	if target != "1.1.1.1" {
+		t.Fatal("历史时段配置不应改变当前解析", target)
 	}
 }

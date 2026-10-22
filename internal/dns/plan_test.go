@@ -47,19 +47,4 @@ func TestWindowAndPlan(t *testing.T) {
 	if p = PlanRecord(r, cs, .85, at); p.Target != "" {
 		t.Fatal("不能覆盖人工指定", p)
 	}
-	r.Scheduled = true
-	r.Start, r.End, r.In, r.Out = "22:00", "06:00", "1.1.1.1", "2.2.2.2"
-	cs[1].Known = true
-	cs[1].Usage = .1
-	if p = PlanRecord(r, cs, .85, at); p.Target != "1.1.1.1" {
-		t.Fatal("便宜时段不能覆盖显式计划", p)
-	}
-	cs[0].Usage = .9
-	if p = PlanRecord(r, cs, .85, at); p.Target != "2.2.2.2" {
-		t.Fatal("时段超额回退", p)
-	}
-	r.In = "3.3.3.3"
-	if p = PlanRecord(r, cs, .85, at); p.Target != "3.3.3.3" {
-		t.Fatal("非节点计划正常执行", p)
-	}
 }

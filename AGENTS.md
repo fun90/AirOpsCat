@@ -26,3 +26,7 @@
 - 可执行脚本放 `/opt/airopscat/scripts`，持久状态 `/var/lib/airopscat`，日志 `/var/log/airopscat`，临时锁和 PID `/run/airopscat`，下载缓存 `/var/cache/airopscat`，专属配置 `/etc/airopscat`；第三方软件沿用标准目录。
 - 目录创建和安装须幂等，安装后清理缓存；cron/systemd 使用绝对路径；cron 以成对 `# BEGIN AIROPSCAT ...` / `# END AIROPSCAT ...` 标记。
 - 卸载只删除自身已知文件，不递归删除非空目录。
+
+## 文档修改规则
+
+- 事实与方案文档就地更新原文，只保留最新口径，删除过期内容；「补充说明 / 勘误 / 变更记录」式段落不追加。错题表中的历史错误证据按其记录与晋升机制维护。
