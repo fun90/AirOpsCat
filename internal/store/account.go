@@ -671,7 +671,7 @@ func UpdateAccount(ctx context.Context, db *sql.DB, id int64, a *Account) error 
 }
 
 // RenewAccount 设置新的到期时间（须晚于当前时刻及已有到期时间），自动启用被禁用的账户，
-// amountCents 非 nil 时按「起点取 max(旧到期, 当前)」记一笔收入。相关节点置为待部署。
+// amountCents 非 nil 时按「起点取 max(旧到期, 当前)」记一笔收入；恢复失效或禁用账户时相关节点置为待部署。
 func RenewAccount(ctx context.Context, db *sql.DB, id int64, newToDate time.Time, amountCents *int64, paymentMethod string) error {
 	now := nowFunc()
 	if !newToDate.After(now) {
@@ -699,8 +699,10 @@ func RenewAccount(ctx context.Context, db *sql.DB, id int64, newToDate time.Time
 		FormatTime(newToDate), FormatTime(now), id); err != nil {
 		return err
 	}
-	if err := markAccountPending(ctx, tx, id); err != nil {
-		return err
+	if old.Disabled || (old.ToDate != nil && !old.ToDate.After(now)) {
+		if err := markAccountPending(ctx, tx, id); err != nil {
+			return err
+		}
 	}
 	if amountCents != nil {
 		start := now

@@ -89,6 +89,11 @@ func recordDeployment(ctx context.Context, db *sql.DB, serverID int64, configSHA
 		}
 	}
 	if success && applyPlacements {
+		// 确认部署及清理待删除项不改变待下发配置；事务内保留版本，避免并行部署互相失效。
+		var confirmedRevision int64
+		if err := tx.QueryRowContext(ctx, `SELECT revision FROM deploy_revision WHERE id=1`).Scan(&confirmedRevision); err != nil {
+			return err
+		}
 		rows, err := tx.QueryContext(ctx, `SELECT ns.id, ns.node_id FROM node_server ns WHERE ns.server_id = ? AND ns.deployed = ?`, serverID, PendingDelete)
 		if err != nil {
 			return err
@@ -122,6 +127,9 @@ func recordDeployment(ctx context.Context, db *sql.DB, serverID int64, configSHA
 		if _, err := tx.ExecContext(ctx, `UPDATE node_server SET deployed = ?, update_time = ?
 			WHERE server_id = ? AND deployed = 0 AND EXISTS (SELECT 1 FROM node n WHERE n.id = node_server.node_id AND n.disabled = 0)`,
 			Deployed, now, serverID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE deploy_revision SET revision=? WHERE id=1`, confirmedRevision); err != nil {
 			return err
 		}
 	}
