@@ -104,6 +104,7 @@ func AccountUsage(ctx context.Context, db *sql.DB, accountID int64, at time.Time
 type MbpsLimits struct {
 	DownloadMbps, UploadMbps int
 	OverQuota                bool
+	QuotaLimited             bool
 }
 
 // EffectiveLimits 每次按当前周期和配置重新判定；关闭全局开关仍保留账户原生限速。
@@ -136,6 +137,7 @@ func EffectiveLimits(ctx context.Context, db *sql.DB, accountID int64, at time.T
 	// 除法比较避免 GB 转 bytes 溢出。
 	l.OverQuota = u.QuotaGB > 0 && u.UsedBytes/(1<<30) >= u.QuotaGB
 	if strings.EqualFold(enabled, "true") && l.OverQuota {
+		l.QuotaLimited = true
 		for _, c := range []struct {
 			key string
 			dst *int
@@ -209,6 +211,7 @@ func EffectiveLimitOverrides(ctx context.Context, q dbtx, at time.Time) (map[str
 		}
 		l.OverQuota = quota > 0 && (up+down)/(1<<30) >= quota
 		if enabled && l.OverQuota {
+			l.QuotaLimited = true
 			l.DownloadMbps = speed("download")
 			l.UploadMbps = speed("upload")
 		}

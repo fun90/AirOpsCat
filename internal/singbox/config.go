@@ -14,6 +14,7 @@ type Client struct {
 	DownloadMbps int
 	UploadMbps   int
 	MaxIPs       int
+	QuotaLimited bool // 当前速度是否由流量超额策略覆盖，仅用于同步判断。
 }
 
 // Outbound 是作为出站使用的落地节点快照，由其 inbound 反推出站配置。

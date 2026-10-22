@@ -50,13 +50,22 @@ func (s *Server) collectTraffic(ctx context.Context) error {
 	return errors.Join(failed...)
 }
 
-// limitsKey 是配置中各节点账户限速的指纹，用于判断服务器已应用的限速是否过期。
+// limitsKey 只记录实际生效的超额限速，同一账户跨节点去重；无超额限速时返回空串。
 func limitsKey(in *singbox.ServerConfigInput) string {
-	var lines []string
+	entries := map[string]bool{}
 	for _, n := range in.Nodes {
 		for _, c := range n.Clients {
-			lines = append(lines, fmt.Sprintf("%d|%s|%d|%d", n.ID, c.Name, c.DownloadMbps, c.UploadMbps))
+			if c.QuotaLimited {
+				entries[fmt.Sprintf("%s|%d|%d", c.Name, c.DownloadMbps, c.UploadMbps)] = true
+			}
 		}
+	}
+	if len(entries) == 0 {
+		return ""
+	}
+	lines := make([]string, 0, len(entries))
+	for line := range entries {
+		lines = append(lines, line)
 	}
 	sort.Strings(lines)
 	sum := sha256.Sum256([]byte(strings.Join(lines, "\n")))
@@ -78,8 +87,8 @@ func (s *Server) markLimits(id int64, key string) {
 	s.limitApplied[id] = key
 }
 
-// syncLimits 对比每台服务器当前应有限速与最近一次成功应用的指纹，不一致才 reload。
-// 失败不记录指纹，下一轮继续重试；进程重启后无记录，首轮会各 reload 一次。
+// syncLimits 只在超额限速生效、变化或解除时 reload；普通配置变化不触发下发。
+// 失败不记录指纹，下一轮继续重试；进程重启后仅对有超额限速的服务器重新应用。
 func (s *Server) syncLimits(ctx context.Context) error {
 	ids, err := store.RuntimeTrafficServers(ctx, s.DB, s.TrafficServers, time.Now())
 	if err != nil {

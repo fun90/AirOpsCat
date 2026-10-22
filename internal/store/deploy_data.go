@@ -49,11 +49,13 @@ func loadServerConfigInput(ctx context.Context, db dbtx, serverID int64, opts Lo
 	}
 
 	at := nowFunc()
+	var quotaLimits map[string]MbpsLimits
 	if opts.Overrides == nil {
 		limits, err := EffectiveLimitOverrides(ctx, db, at)
 		if err != nil {
 			return nil, err
 		}
+		quotaLimits = limits
 		opts.Overrides = func(no string) (int, int, bool) {
 			limit, ok := limits[no]
 			return limit.DownloadMbps, limit.UploadMbps, ok
@@ -104,6 +106,9 @@ func loadServerConfigInput(ctx context.Context, db dbtx, serverID int64, opts Lo
 					return nil, err
 				}
 			}
+		}
+		for i := range node.Clients {
+			node.Clients[i].QuotaLimited = quotaLimits[node.Clients[i].Name].QuotaLimited
 		}
 		in.Nodes = append(in.Nodes, node)
 	}
