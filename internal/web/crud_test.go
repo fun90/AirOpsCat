@@ -291,6 +291,21 @@ func TestAccountHTTPFlow(t *testing.T) {
 	if body := do(h, "GET", "/admin/accounts/"+strconv.FormatInt(id, 10)+"/edit", nil, c, nil).Body.String(); !strings.Contains(body, `id="account-online" role="tabpanel"><div class="mb-2">暂无上报</div>`) {
 		t.Fatal("账户编辑页在线面板为空")
 	}
+	for _, query := range []string{
+		`INSERT INTO server(id,name,ip) VALUES (990,'缺少上报的入口','203.0.113.99')`,
+		`INSERT INTO node(id,name,type) VALUES (990,'入口',0)`,
+		`INSERT INTO node_server(node_id,server_id,deployed) VALUES (990,990,1)`,
+	} {
+		if _, err := a.DB.Exec(query); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, path := range []string{"/admin/accounts", "/admin/accounts/" + strconv.FormatInt(id, 10) + "/edit"} {
+		w := do(h, "GET", path, nil, c, nil)
+		if w.Code != 200 || !strings.Contains(w.Body.String(), "在线统计不完整：缺少上报的入口") || !strings.Contains(w.Body.String(), "当前连接数可能偏少") {
+			t.Fatal("账户页缺少统计覆盖告警", path, w.Code)
+		}
+	}
 	w = do(h, "POST", "/admin/accounts/"+strconv.FormatInt(id, 10)+"/auth-code", url.Values{"csrf": {csrf}}, c, nil)
 	if w.Code != 303 {
 		t.Fatal(w.Code)

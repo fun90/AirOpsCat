@@ -19,6 +19,37 @@ func (s *Server) onlineSnapshot(ctx context.Context) (guard.Snapshot, error) {
 	return s.Guard.Snapshot(ctx)
 }
 
+// onlineCoverageWarning 检查已运行入口节点的服务器，缺失上报时不能把部分连接数当作总数。
+func (s *Server) onlineCoverageWarning(ctx context.Context, snap guard.Snapshot) (string, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT DISTINCT s.id, s.ip, coalesce(nullif(s.name,''), '服务器 #' || s.id)
+		FROM server s JOIN node_server ns ON ns.server_id=s.id JOIN node n ON n.id=ns.node_id
+		WHERE s.disabled=0 AND s.external_server=0 AND n.type=0
+		AND (ns.deployed IN (1,2) OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id=ns.id))
+		ORDER BY s.id`)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	var missing []string
+	for rows.Next() {
+		var id int64
+		var ip, name string
+		if err := rows.Scan(&id, &ip, &name); err != nil {
+			return "", err
+		}
+		if _, fresh := snap.Servers[ip]; !fresh {
+			missing = append(missing, name)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	if len(missing) == 0 {
+		return "", nil
+	}
+	return "在线统计不完整：" + strings.Join(missing, "、") + " 暂无有效上报，当前连接数可能偏少，未在线状态仅供参考。请检查服务器上的 guard agent 配置与日志。", nil
+}
+
 // accountOnlineText 供列表使用；没有任何新鲜上报时不能说成“离线”。
 func accountOnlineText(snap guard.Snapshot, accountNo string) string {
 	if len(snap.Servers) == 0 {

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net/url"
 	"strings"
 	"testing"
@@ -37,6 +38,29 @@ func TestOnlineTexts(t *testing.T) {
 	}
 	if got := serverOnlineText(snap, "s9"); got != "暂无上报" {
 		t.Fatal(got)
+	}
+}
+
+func TestOnlineCoverageWarning(t *testing.T) {
+	s := guardServer(t)
+	ctx := context.Background()
+	// 未部署的服务器和落地节点不应导致入口连接统计告警。
+	for _, query := range []string{
+		`INSERT INTO server(id,name,ip) VALUES (2,'未部署','203.0.113.2'),(3,'落地','203.0.113.3')`,
+		`INSERT INTO node(id,name,type) VALUES (2,'落地',1)`,
+		`INSERT INTO node_server(node_id,server_id,deployed) VALUES (2,3,1)`,
+	} {
+		if _, err := s.DB.Exec(query); err != nil {
+			t.Fatal(err)
+		}
+	}
+	warning, err := s.onlineCoverageWarning(ctx, guard.Snapshot{})
+	if err != nil || !strings.Contains(warning, "node") || !strings.Contains(warning, "可能偏少") || strings.Contains(warning, "未部署") || strings.Contains(warning, "落地") {
+		t.Fatal(warning, err)
+	}
+	warning, err = s.onlineCoverageWarning(ctx, guard.Snapshot{Servers: map[string]guard.ServerOnline{"203.0.113.1": {}}})
+	if err != nil || warning != "" {
+		t.Fatal(warning, err)
 	}
 }
 

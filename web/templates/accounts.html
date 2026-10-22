@@ -1,5 +1,6 @@
 {{define "actions"}}<a href="/admin/accounts/new" class="btn btn-primary">开户</a>{{end}}
 {{define "content"}}
+{{with .OnlineWarning}}<div class="alert alert-warning" role="alert" style="overflow-wrap:anywhere">{{.}}</div>{{end}}
 <div class="card"><div class="card-header"><form method="get" class="row g-2 w-100">{{if .Sort}}<input type="hidden" name="sort" value="{{.Sort}}"><input type="hidden" name="dir" value="{{if .SortAsc}}asc{{else}}desc{{end}}">{{end}}
 <div class="col-12 col-md-4"><input type="search" class="form-control" name="q" value="{{.Q}}" placeholder="账户编号 / 备注 / 用户邮箱" aria-label="搜索"></div>
 <div class="col-6 col-md-3"><select class="form-select" name="status" aria-label="账户状态"><option value="">全部状态</option><option value="active"{{if eq .Status "active"}} selected{{end}}>有效</option><option value="expired"{{if eq .Status "expired"}} selected{{end}}>已过期</option><option value="disabled"{{if eq .Status "disabled"}} selected{{end}}>已禁用</option></select></div>

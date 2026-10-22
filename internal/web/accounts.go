@@ -70,6 +70,11 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	d := s.pageData(r, "账户", "accounts")
+	d["OnlineWarning"], err = s.onlineCoverageWarning(r.Context(), snap)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	d["Online"], d["LastSeen"], d["Sort"], d["SortAsc"] = online, lastSeen, sort, asc
 	d["OnlineFilter"], d["UserFilter"] = onlineFilter, userID
 	d["SortLast"], d["SortTo"] = sortHeader(r.URL.Query(), "last_online", sort, asc), sortHeader(r.URL.Query(), "to_date", sort, asc)
@@ -147,6 +152,9 @@ func (s *Server) accountFormPage(w http.ResponseWriter, r *http.Request, status 
 			if err == nil {
 				d["OnlineRows"], err = s.accountOnlineRows(r.Context(), snap, f.AccountNo)
 				d["OnlineText"] = accountOnlineText(snap, f.AccountNo)
+				if err == nil {
+					d["OnlineWarning"], err = s.onlineCoverageWarning(r.Context(), snap)
+				}
 			}
 			if err != nil {
 				s.fail(w, r, err)
