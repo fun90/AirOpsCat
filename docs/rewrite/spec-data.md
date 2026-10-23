@@ -554,6 +554,7 @@ Go 实现要点：`aes.NewCipher(key32)` 按 16 字节分块做 ECB + PKCS#7 填
 | airopscat.server.traffic.notify.cron | `0 10 10 * * ?` | 流量阈值提醒 cron |
 | airopscat.server.monitor.alert.cpu-threshold | 0.9 | 支持 0–1 或 0–100 两种写法 |
 | airopscat.server.monitor.alert.memory-threshold | 0.95 | 同上 |
+| airopscat.server.monitor.alert.disk-threshold | 0.9 | 根分区使用率，同上 |
 | airopscat.server.monitor.alert.traffic-threshold | 0.85 | 同上 |
 | airopscat.server.monitor.alert.continuous-minutes | 30 | 超阈值持续多少分钟才告警 |
 | airopscat.server.monitor.alert.min-interval-minutes | 60 | 告警最小间隔 |

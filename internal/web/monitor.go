@@ -132,6 +132,7 @@ func (s *Server) evaluateServerAlerts(ctx context.Context) error {
 	}
 	cpuT := threshold("airopscat.server.monitor.alert.cpu-threshold", 0.9)
 	memT := threshold("airopscat.server.monitor.alert.memory-threshold", 0.95)
+	diskT := threshold("airopscat.server.monitor.alert.disk-threshold", 0.9)
 	trafficT := threshold("airopscat.server.monitor.alert.traffic-threshold", 0.85)
 	window := time.Duration(s.configInt(ctx, "airopscat.server.monitor.alert.continuous-minutes", 30)) * time.Minute
 	interval := time.Duration(s.configInt(ctx, "airopscat.server.monitor.alert.min-interval-minutes", 60)) * time.Minute
@@ -139,12 +140,23 @@ func (s *Server) evaluateServerAlerts(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	selected, err := store.MonitorServers(ctx, s.DB, s.MonitorServers, now)
+	if err != nil {
+		return err
+	}
+	monitored := map[int64]bool{}
+	for _, id := range selected {
+		monitored[id] = true
+	}
 	for _, st := range statuses {
 		label := st.Name + " (" + st.IP + ")"
+		if err := s.evaluateServerHealth(ctx, st, label, monitored[st.ID] || st.AgentSeen != "", now, interval); err != nil {
+			return err
+		}
 		for _, m := range []struct {
 			fp, column, name string
 			t                float64
-		}{{"cpu", "cpu_usage", "CPU使用率", cpuT}, {"memory", "memory_usage", "内存使用率", memT}} {
+		}{{"cpu", "cpu_usage", "CPU使用率", cpuT}, {"memory", "memory_usage", "内存使用率", memT}, {"disk", "disk_usage", "磁盘使用率", diskT}} {
 			pts, err := store.MetricPoints(ctx, s.DB, st.ID, m.column, now.Add(-window-monitorInterval))
 			if err != nil {
 				return err
@@ -193,14 +205,58 @@ func (s *Server) evaluateServerAlerts(ctx context.Context) error {
 	return nil
 }
 
+const (
+	offlineAfter  = 5 * time.Minute // 超过该时间没有任何采样视为失联
+	singboxWindow = 5 * time.Minute // sing-box 持续停止多久才告警，避开部署重启
+)
+
+// evaluateServerHealth 判定监控失联与 sing-box 停止；只处理已纳入监控且有过采样的服务器。
+func (s *Server) evaluateServerHealth(ctx context.Context, st store.ServerStatus, label string, monitored bool, now time.Time, interval time.Duration) error {
+	sampled, err := store.ParseTime(st.Sampled)
+	if !monitored || err != nil {
+		return nil
+	}
+	id := strconv.FormatInt(st.ID, 10)
+	key := func(fp string) store.AlertKey {
+		return store.AlertKey{Type: alertMonitorLoad, ResourceType: "server", ResourceID: st.ID, ResourceKey: st.IP, Fingerprint: fp + ":" + id}
+	}
+	if now.Sub(sampled) > offlineAfter {
+		summary := fmt.Sprintf("%s 已 %d 分钟没有监控上报，主机或 agent 可能离线", label, int(now.Sub(sampled).Minutes()))
+		return s.raise(ctx, key("offline"), "warning", now.Sub(sampled).Minutes(), offlineAfter.Minutes(), summary, interval,
+			notify.Message{Title: "AirOpsCat 服务器失联告警", Body: summary, Level: "timeSensitive"})
+	}
+	if _, err := store.AlertResolveFingerprint(ctx, s.DB, alertMonitorLoad, "server", st.ID, "offline:"+id, now); err != nil {
+		return err
+	}
+	sampleInterval := monitorInterval
+	if st.AgentSeen != "" {
+		sampleInterval = 10 * time.Second
+	}
+	pts, err := store.MetricPoints(ctx, s.DB, st.ID, "singbox_down", now.Add(-singboxWindow-monitorInterval))
+	if err != nil {
+		return err
+	}
+	down, covered := monitor.Sustained(pts, now, singboxWindow, sampleInterval, 1)
+	if !covered {
+		return nil
+	}
+	if !down {
+		_, err := store.AlertResolveFingerprint(ctx, s.DB, alertMonitorLoad, "server", st.ID, "singbox:"+id, now)
+		return err
+	}
+	summary := fmt.Sprintf("%s sing-box 已停止运行超过 %d 分钟", label, int(singboxWindow.Minutes()))
+	return s.raise(ctx, key("singbox"), "warning", 1, 1, summary, interval,
+		notify.Message{Title: "AirOpsCat sing-box 停止告警", Body: summary, Level: "timeSensitive"})
+}
+
 // ---------- 页面 ----------
 
 type statusView struct {
 	store.ServerStatus
-	CPUText, MemText, RateText, UsageText string
-	Stale                                 bool
-	Online                                string
-	UsagePct                              int
+	SingboxText, CPUText, MemText, DiskText, RateText, UsageText string
+	Stale                                                        bool
+	Online                                                       string
+	UsagePct                                                     int
 }
 
 func pct(v *float64) string {
@@ -221,7 +277,10 @@ func humanRate(b int64) string {
 }
 
 func newStatusView(st store.ServerStatus, now time.Time) statusView {
-	v := statusView{ServerStatus: st, CPUText: pct(st.CPU), MemText: pct(st.Memory), RateText: "—", UsageText: "—"}
+	v := statusView{ServerStatus: st, CPUText: pct(st.CPU), MemText: pct(st.Memory), DiskText: pct(st.Disk), SingboxText: "—", RateText: "—", UsageText: "—"}
+	if st.SingboxDown != nil {
+		v.SingboxText = map[bool]string{true: "已停止", false: "运行中"}[*st.SingboxDown]
+	}
 	if st.RxRate != nil && st.TxRate != nil {
 		v.RateText = "↓ " + humanRate(*st.RxRate) + " ↑ " + humanRate(*st.TxRate)
 	}
@@ -318,7 +377,7 @@ func (s *Server) monitorDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var charts []chartView
-	for _, c := range []struct{ title, col string }{{"CPU 使用率", "cpu_usage"}, {"内存使用率", "memory_usage"}} {
+	for _, c := range []struct{ title, col string }{{"CPU 使用率", "cpu_usage"}, {"内存使用率", "memory_usage"}, {"磁盘使用率", "disk_usage"}} {
 		pts, err := store.MetricPoints(r.Context(), s.DB, id, c.col, now.Add(-24*time.Hour))
 		if err != nil {
 			s.fail(w, r, err)

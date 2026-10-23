@@ -134,3 +134,24 @@ func TestNormalizeThreshold(t *testing.T) {
 		}
 	}
 }
+
+func TestParseMonitorDisk(t *testing.T) {
+	base := "cpu 800 1000 850 1100\nnet 1000 2000 3000 5000\nelapsed 1000\nmem 8000000 2000000\n"
+	s, err := ParseMonitor(base + "disk 30 120\n")
+	if err != nil || s.DiskUsed != 30 || s.DiskTotal != 120 || math.Abs(s.Disk-0.25) > 1e-9 {
+		t.Fatalf("%+v %v", s, err)
+	}
+	// 缺少 disk 行（df 不可用）不影响其余指标，且不产生虚假的 0%
+	if s, err = ParseMonitor(base); err != nil || s.DiskTotal != 0 {
+		t.Fatalf("%+v %v", s, err)
+	}
+}
+
+func TestParseMonitorSingbox(t *testing.T) {
+	base := "cpu 800 1000 850 1100\nnet 1000 2000 3000 5000\nelapsed 1000\nmem 8000000 2000000\n"
+	for out, want := range map[string]string{base: "", base + "sb 0\n": "active", base + "sb 1\n": "down"} {
+		if s, err := ParseMonitor(out); err != nil || s.Singbox != want {
+			t.Fatalf("%q: %+v %v", out, s, err)
+		}
+	}
+}

@@ -58,7 +58,7 @@ func (s *Server) initTasks() {
 			}
 			return s.alertConnections(ctx, stats)
 		}},
-		"server-monitor": {Name: "服务器指标采集（CPU/内存/网速）", Interval: monitorInterval, Run: s.collectMonitor},
+		"server-monitor": {Name: "服务器指标采集（CPU/内存/磁盘/网速）", Interval: monitorInterval, Run: s.collectMonitor},
 		"server-vnstat":  {Name: "服务器月流量采集（vnstat）", Interval: vnstatInterval, Run: s.collectVnstat},
 		"alert-scan":     {Name: "告警扫描（流量超额与到期）", Interval: 5 * time.Minute, Run: s.scanAlerts},
 		"guard-evict":    {Name: "风控过期状态回收", Interval: 30 * time.Second, Run: s.Guard.Evict},

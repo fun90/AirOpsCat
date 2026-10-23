@@ -25,15 +25,20 @@ c1=$(cpu); n1=$(net); u1=$(cut -d' ' -f1 /proc/uptime); sleep 1; c2=$(cpu); n2=$
 echo "cpu $c1 $c2"
 echo "net $n1 $n2"
 awk -v a="$u1" -v b="$u2" 'BEGIN{printf "elapsed %.0f\n",(b-a)*1000}'
-awk '/^MemTotal:/{t=$2}/^MemAvailable:/{a=$2}END{printf "mem %.0f %.0f\n",t*1024,a*1024}' /proc/meminfo`
+awk '/^MemTotal:/{t=$2}/^MemAvailable:/{a=$2}END{printf "mem %.0f %.0f\n",t*1024,a*1024}' /proc/meminfo
+df -PB1 / 2>/dev/null | awk 'NR==2{printf "disk %.0f %.0f\n",$3,$2}'
+if [ "$(systemctl show -p LoadState --value sing-box 2>/dev/null)" = loaded ]; then systemctl is-active --quiet sing-box && echo "sb 0" || echo "sb 1"; fi`
 
 // VnstatCommand 取按月统计；未安装 vnstat 时输出为空由调用方处理。
 const VnstatCommand = `command -v vnstat >/dev/null 2>&1 && vnstat --json m 2>/dev/null`
 
 type Sample struct {
-	CPU, Memory       float64 // 0–1
-	MemUsed, MemTotal int64
-	RxRate, TxRate    int64 // 字节/秒
+	CPU, Memory         float64 // 0–1
+	MemUsed, MemTotal   int64
+	Disk                float64 // 根分区使用率 0–1；DiskTotal 为 0 表示未采到
+	DiskUsed, DiskTotal int64
+	Singbox             string // active / down；空表示未安装或无法判断
+	RxRate, TxRate      int64  // 字节/秒
 }
 
 // ParseMonitor 解析 Script 的输出；任何字段缺失或数值不合理都返回错误，不写入半截数据。
@@ -52,11 +57,17 @@ func ParseMonitor(out string) (Sample, error) {
 			f[parts[0]] = append(f[parts[0]], n)
 		}
 	}
-	cpu, net, mem := f["cpu"], f["net"], f["mem"]
+	cpu, net, mem, disk := f["cpu"], f["net"], f["mem"], f["disk"]
 	if len(cpu) != 4 || len(net) != 4 || len(mem) != 2 || mem[0] == 0 || len(f["elapsed"]) != 1 || f["elapsed"][0] <= 0 || cpu[3] <= cpu[1] || cpu[2] < cpu[0] {
 		return Sample{}, errors.New("指标输出不完整")
 	}
 	s := Sample{MemTotal: mem[0], MemUsed: mem[0] - min(mem[1], mem[0])}
+	if sb := f["sb"]; len(sb) == 1 {
+		s.Singbox = map[bool]string{true: "down", false: "active"}[sb[0] != 0]
+	}
+	if len(disk) == 2 && disk[0] <= disk[1] && disk[1] > 0 {
+		s.DiskUsed, s.DiskTotal, s.Disk = disk[0], disk[1], float64(disk[0])/float64(disk[1])
+	}
 	s.Memory = float64(s.MemUsed) / float64(mem[0])
 	if dt := cpu[3] - cpu[1]; dt > 0 {
 		s.CPU = 1 - float64(cpu[2]-cpu[0])/float64(dt)

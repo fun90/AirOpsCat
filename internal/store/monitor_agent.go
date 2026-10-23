@@ -77,7 +77,7 @@ func SaveMonitorReport(ctx context.Context, db *sql.DB, r monitor.AgentReport, a
 		return fmt.Errorf("重复或乱序采样")
 	}
 	if sample, ok := monitor.SampleFromCounters(p, r); ok {
-		_, err = tx.ExecContext(ctx, `INSERT INTO server_metrics(server_id,kind,sample_time,cpu_usage,memory_usage,memory_used,memory_total,rx_rate,tx_rate) VALUES(?,'monitor',?,?,?,?,?,?,?)`, r.ServerID, FormatTime(at), sample.CPU, sample.Memory, sample.MemUsed, sample.MemTotal, sample.RxRate, sample.TxRate)
+		_, err = tx.ExecContext(ctx, `INSERT INTO server_metrics(server_id,kind,sample_time,cpu_usage,memory_usage,memory_used,memory_total,rx_rate,tx_rate,disk_usage,disk_used,disk_total,singbox_down) VALUES(?,'monitor',?,?,?,?,?,?,?,?,?,?,?)`, append([]any{r.ServerID, FormatTime(at), sample.CPU, sample.Memory, sample.MemUsed, sample.MemTotal, sample.RxRate, sample.TxRate}, extraArgs(sample)...)...)
 		if err != nil {
 			return err
 		}

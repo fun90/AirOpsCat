@@ -46,9 +46,24 @@ func MonitorServers(ctx context.Context, db *sql.DB, selection string, at time.T
 }
 
 func InsertMonitorSample(ctx context.Context, db *sql.DB, serverID int64, s monitor.Sample, at time.Time) error {
-	_, err := db.ExecContext(ctx, `INSERT INTO server_metrics(server_id,kind,sample_time,cpu_usage,memory_usage,memory_used,memory_total,rx_rate,tx_rate) VALUES(?,'monitor',?,?,?,?,?,?,?)`,
-		serverID, FormatTime(at), s.CPU, s.Memory, s.MemUsed, s.MemTotal, s.RxRate, s.TxRate)
+	_, err := db.ExecContext(ctx, `INSERT INTO server_metrics(server_id,kind,sample_time,cpu_usage,memory_usage,memory_used,memory_total,rx_rate,tx_rate,disk_usage,disk_used,disk_total,singbox_down) VALUES(?,'monitor',?,?,?,?,?,?,?,?,?,?,?)`,
+		append([]any{serverID, FormatTime(at), s.CPU, s.Memory, s.MemUsed, s.MemTotal, s.RxRate, s.TxRate}, extraArgs(s)...)...)
 	return err
+}
+
+// extraArgs 未采到磁盘或 sing-box 状态时写 NULL，避免旧 agent 的缺省值被当成真实数据。
+func extraArgs(s monitor.Sample) []any {
+	var down any
+	switch s.Singbox {
+	case "active":
+		down = 0
+	case "down":
+		down = 1
+	}
+	if s.DiskTotal <= 0 {
+		return []any{nil, nil, nil, down}
+	}
+	return []any{s.Disk, s.DiskUsed, s.DiskTotal, down}
 }
 
 func InsertVnstatSample(ctx context.Context, db *sql.DB, serverID int64, v monitor.Vnstat, at time.Time) error {
@@ -57,9 +72,9 @@ func InsertVnstatSample(ctx context.Context, db *sql.DB, serverID int64, v monit
 	return err
 }
 
-// MetricPoints 返回 since 之后某指标列（cpu_usage / memory_usage）的采样，按时间升序。
+// MetricPoints 返回 since 之后某指标列（cpu_usage / memory_usage / disk_usage / singbox_down）的采样，按时间升序。
 func MetricPoints(ctx context.Context, db *sql.DB, serverID int64, column string, since time.Time) ([]monitor.Point, error) {
-	if column != "cpu_usage" && column != "memory_usage" {
+	if column != "cpu_usage" && column != "memory_usage" && column != "disk_usage" && column != "singbox_down" {
 		return nil, fmt.Errorf("不支持的指标列")
 	}
 	rows, err := db.QueryContext(ctx, `SELECT sample_time,`+column+` FROM server_metrics WHERE server_id=? AND kind='monitor' AND sample_time>=? AND `+column+` IS NOT NULL ORDER BY sample_time`, serverID, FormatTime(since))
@@ -91,7 +106,8 @@ type ServerStatus struct {
 	Name, IP           string
 	BandwidthGB        int64 // 月流量额度，十进制 GB，0 不限
 	Sampled            string
-	CPU, Memory        *float64
+	CPU, Memory, Disk  *float64
+	SingboxDown        *bool // nil 表示未知
 	RxRate, TxRate     *int64
 	VnstatTime         string
 	VnstatRx, VnstatTx int64
@@ -114,7 +130,7 @@ func ServerStatuses(ctx context.Context, db *sql.DB, q string, page, size int, a
 		return nil, 0, err
 	}
 	rows, err := db.QueryContext(ctx, `SELECT s.id,coalesce(s.name,''),s.ip,coalesce(s.bandwidth,0),
- coalesce(m.sample_time,''),m.cpu_usage,m.memory_usage,m.rx_rate,m.tx_rate,
+ coalesce(m.sample_time,''),m.cpu_usage,m.memory_usage,m.disk_usage,m.singbox_down,m.rx_rate,m.tx_rate,
  coalesce(v.iface,''),coalesce(v.sample_time,''),coalesce(v.rx_bytes,0),coalesce(v.tx_bytes,0),v.id IS NOT NULL,
  coalesce((SELECT last_seen FROM monitor_agent WHERE server_id=s.id),'')
  FROM server s
@@ -129,9 +145,10 @@ func ServerStatuses(ctx context.Context, db *sql.DB, q string, page, size int, a
 	var out []ServerStatus
 	for rows.Next() {
 		var s ServerStatus
-		var cpu, mem sql.NullFloat64
+		var cpu, mem, disk sql.NullFloat64
+		var sb sql.NullInt64
 		var rx, tx sql.NullInt64
-		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.BandwidthGB, &s.Sampled, &cpu, &mem, &rx, &tx, &s.Iface, &s.VnstatTime, &s.VnstatRx, &s.VnstatTx, &s.HasVnstat, &s.AgentSeen); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.BandwidthGB, &s.Sampled, &cpu, &mem, &disk, &sb, &rx, &tx, &s.Iface, &s.VnstatTime, &s.VnstatRx, &s.VnstatTx, &s.HasVnstat, &s.AgentSeen); err != nil {
 			return nil, 0, err
 		}
 		if cpu.Valid {
@@ -139,6 +156,13 @@ func ServerStatuses(ctx context.Context, db *sql.DB, q string, page, size int, a
 		}
 		if mem.Valid {
 			s.Memory = &mem.Float64
+		}
+		if sb.Valid {
+			down := sb.Int64 != 0
+			s.SingboxDown = &down
+		}
+		if disk.Valid {
+			s.Disk = &disk.Float64
 		}
 		if rx.Valid {
 			s.RxRate = &rx.Int64
