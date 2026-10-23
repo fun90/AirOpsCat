@@ -422,12 +422,6 @@ func (s *Server) recordList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d := s.pageData(r, dm.Domain+" 的 DNS 记录", "domains")
-	d["AutoEnabled"] = s.DNSAutoDomains == "all"
-	for _, part := range strings.Split(s.DNSAutoDomains, ",") {
-		if strings.TrimSpace(part) == strconv.FormatInt(id, 10) {
-			d["AutoEnabled"] = true
-		}
-	}
 	d["Domain"], d["List"], d["Q"], d["Page"], d["Pages"], d["ListURL"] = dm, list, q, page, (total+size-1)/size, r.URL.RequestURI()
 	s.render(w, "dns_records", 200, d)
 }
