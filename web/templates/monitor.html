@@ -1,5 +1,5 @@
 {{define "content"}}
-{{if not .Enabled}}<div class="alert alert-info">未启用采集（环境变量 <code>AIROPSCAT_MONITOR_SERVERS</code>）。</div>{{end}}
+{{if not .Enabled}}<div class="alert alert-info">暂无监控 agent 上报；可通过维护脚本安装主机监控 agent，或使用 <code>AIROPSCAT_MONITOR_SERVERS</code> 启用 SSH 采集。</div>{{end}}
 <div class="card">
   <div class="card-header"><form method="get" class="d-flex gap-2 w-100" style="max-width:420px"><input type="search" name="q" value="{{.Q}}" class="form-control" placeholder="名称 / IP" aria-label="搜索"><button class="btn btn-outline-secondary" type="submit">搜索</button></form></div>
   <div class="table-responsive"><table class="table table-vcenter card-table">

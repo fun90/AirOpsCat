@@ -47,8 +47,10 @@ func TestAggregationSamplingTTLAndDeletion(t *testing.T) {
 	if stats["A"].Connections != 12 || stats["A"].IPs != 3 || stats["A"].ActiveNodes != 2 || stats["A"].Consecutive != 1 || stats["A"].Blocked != nil {
 		t.Fatal(stats)
 	}
-	if _, err := a.Evaluate(ctx); err != nil {
-		t.Fatal(err)
+	for i := 0; i < 2; i++ {
+		if _, err := a.Evaluate(ctx); err != nil {
+			t.Fatal(err)
+		}
 	}
 	response, err = a.Response(ctx, report[:1])
 	if err != nil || len(response.BlockedAccounts) != 1 || response.BlockedAccounts["A"].Reason != "connections" || response.SchemaVersion != 1 || response.TTLSeconds != 30 {

@@ -67,12 +67,12 @@ func (s *Server) dialServer(ctx context.Context, id int64) (monitor.Runner, func
 	return r, func() { r.Close() }, nil
 }
 
-// collectMonitor 只对显式启用的服务器（AIROPSCAT_MONITOR_SERVERS）经 SSH 只读采集，随后评估告警。
+// collectMonitor 对尚未切换 agent 的服务器保留 SSH 采集，并评估所有来源的告警。
 func (s *Server) collectMonitor(ctx context.Context) error {
 	if !s.configBool(ctx, "airopscat.server.monitor.enabled", true) {
 		return nil
 	}
-	ids, err := store.MonitorServers(ctx, s.DB, s.MonitorServers, time.Now())
+	ids, err := store.MonitorSSHServers(ctx, s.DB, s.MonitorServers, time.Now())
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func (s *Server) collectVnstat(ctx context.Context) error {
 	if !s.configBool(ctx, "airopscat.server.monitor.enabled", true) {
 		return nil
 	}
-	ids, err := store.MonitorServers(ctx, s.DB, s.MonitorServers, time.Now())
+	ids, err := store.MonitorSSHServers(ctx, s.DB, s.MonitorServers, time.Now())
 	if err != nil {
 		return err
 	}
@@ -149,7 +149,11 @@ func (s *Server) evaluateServerAlerts(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			over, covered := monitor.Sustained(pts, now, window, monitorInterval, m.t)
+			sampleInterval := monitorInterval
+			if st.AgentSeen != "" {
+				sampleInterval = 10 * time.Second
+			}
+			over, covered := monitor.Sustained(pts, now, window, sampleInterval, m.t)
 			if !covered {
 				continue
 			}
@@ -231,7 +235,11 @@ func newStatusView(st store.ServerStatus, now time.Time) statusView {
 		}
 	}
 	if t, err := store.ParseTime(st.Sampled); err == nil {
-		v.Stale = now.Sub(t) > 3*monitorInterval
+		interval := monitorInterval
+		if st.AgentSeen != "" {
+			interval = 10 * time.Second
+		}
+		v.Stale = now.Sub(t) > 3*interval
 	}
 	return v
 }
@@ -257,7 +265,12 @@ func (s *Server) monitorList(w http.ResponseWriter, r *http.Request) {
 	}
 	d := s.pageData(r, "服务器监控", "monitor")
 	d["List"], d["Q"], d["Page"], d["Pages"] = views, q, page, (total+size-1)/size
-	d["Enabled"] = strings.TrimSpace(s.MonitorServers) != ""
+	var hasAgent bool
+	if err := s.DB.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM monitor_agent WHERE last_seen IS NOT NULL)`).Scan(&hasAgent); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	d["Enabled"] = strings.TrimSpace(s.MonitorServers) != "" || hasAgent
 	s.render(w, "monitor", http.StatusOK, d)
 }
 

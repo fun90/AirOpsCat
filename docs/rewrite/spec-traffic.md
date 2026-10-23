@@ -207,7 +207,7 @@
 - 判定（`evaluateAccount`，`:212-223`）：先判 `maxConnections>0 && totalConnections > maxConnections` → `connections`；再判 `maxIps>0 && totalIps > maxIps` → `ips`。严格大于。
 - 中心采样（`AccountGuardEvaluationTask` 每 10s，`evaluateTrackedAccounts`，`:130-171`）：
   - 对 `table ∪ consecutive ∪ blocked` 中的账户：账户不存在 → 清除计数与黑名单；未超限 → 立即清零并移出黑名单；超限 → 计数 `min(required, c+1)`，`≥ required` 加入黑名单（覆盖为最新 entry）。
-  - `required = max(1, airopscat.account.connection-limit.alert.consecutive-times)`，默认 2（`:258-261`）。
+  - `required = max(1, airopscat.account.connection-limit.alert.consecutive-times)`，默认 3（`:258-261`）。
   - 注意：判定不检查账户 `disabled/toDate`（只要账户存在）。
 - TTL：`max(5, airopscat.account.guard.ttl-seconds)`，默认 30（`:253-256`；迁移 `V2026071401__increase_account_guard_ttl.sql` 把 15 改为 30）。
 - 清理：`AccountGuardEvictTask` 每 30s 删除过期格及空账户条目（`:225-240`；`scheduler/AccountGuardEvictTask.java:23`）。

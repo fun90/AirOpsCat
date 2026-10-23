@@ -101,6 +101,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", s.healthz)
 	s.subscriptionRoutes(mux)
 	mux.HandleFunc("POST /api/open/guard-sync", s.guardSync)
+	mux.HandleFunc("POST /api/open/monitor-report", s.monitorReport)
 	mux.HandleFunc("GET /login", s.loginPage)
 	mux.HandleFunc("POST /login", s.login)
 	mux.Handle("POST /logout", s.requireUser(http.HandlerFunc(s.logout)))

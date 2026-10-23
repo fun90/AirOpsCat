@@ -25,7 +25,7 @@ type GuardSettings struct {
 
 // LoadGuardState 不过滤禁用或到期账户：guard 只依据账户是否存在及其限制判定。
 func LoadGuardState(ctx context.Context, db *sql.DB) (map[string]GuardLimit, GuardSettings, error) {
-	settings := GuardSettings{TTL: 30 * time.Second, Consecutive: 2, OnlineWindow: 10 * time.Minute}
+	settings := GuardSettings{TTL: 30 * time.Second, Consecutive: 3, OnlineWindow: 10 * time.Minute}
 	limits := make(map[string]GuardLimit)
 	rows, err := db.QueryContext(ctx, `SELECT account_no, coalesce(max_connections,0), coalesce(max_ips,0) FROM account`)
 	if err != nil {

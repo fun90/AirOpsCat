@@ -536,7 +536,7 @@ Go 实现要点：`aes.NewCipher(key32)` 按 16 字节分块做 ECB + PKCS#7 填
 | airopscat.account.online.history.retention-hours | 8 | 在线记录保留小时数 |
 | airopscat.node.online-account.stats.sample-minutes | 5 | 节点在线趋势采样间隔（分钟） |
 | airopscat.account.connection-limit.alert.enabled | true（checkbox） | 连接数超限告警 |
-| airopscat.account.connection-limit.alert.consecutive-times | 2 | 连续超限多少次后加入黑名单 |
+| airopscat.account.connection-limit.alert.consecutive-times | 3 | 连续超限多少次后加入黑名单 |
 | airopscat.account.connection-limit.alert.min-interval-minutes | 60 | 告警最小间隔（分钟） |
 | airopscat.account.connection-limit.alert.recovery-notify-enabled | false（checkbox） | 恢复时是否通知 |
 | airopscat.sing-box.clash-api.host | 127.0.0.1 | Clash API 地址 |

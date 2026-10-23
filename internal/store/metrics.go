@@ -86,6 +86,7 @@ func MetricPoints(ctx context.Context, db *sql.DB, serverID int64, column string
 // ServerStatus 是监控页每台服务器的最近状态。
 type ServerStatus struct {
 	Iface              string
+	AgentSeen          string
 	ID                 int64
 	Name, IP           string
 	BandwidthGB        int64 // 月流量额度，十进制 GB，0 不限
@@ -114,7 +115,8 @@ func ServerStatuses(ctx context.Context, db *sql.DB, q string, page, size int, a
 	}
 	rows, err := db.QueryContext(ctx, `SELECT s.id,coalesce(s.name,''),s.ip,coalesce(s.bandwidth,0),
  coalesce(m.sample_time,''),m.cpu_usage,m.memory_usage,m.rx_rate,m.tx_rate,
- coalesce(v.iface,''),coalesce(v.sample_time,''),coalesce(v.rx_bytes,0),coalesce(v.tx_bytes,0),v.id IS NOT NULL
+ coalesce(v.iface,''),coalesce(v.sample_time,''),coalesce(v.rx_bytes,0),coalesce(v.tx_bytes,0),v.id IS NOT NULL,
+ coalesce((SELECT last_seen FROM monitor_agent WHERE server_id=s.id),'')
  FROM server s
  LEFT JOIN server_metrics m ON m.id=(SELECT id FROM server_metrics WHERE server_id=s.id AND kind='monitor' ORDER BY sample_time DESC,id DESC LIMIT 1)
  LEFT JOIN server_metrics v ON v.id=(SELECT id FROM server_metrics WHERE server_id=s.id AND kind='vnstat' AND period_year=? AND period_month=? ORDER BY sample_time DESC,id DESC LIMIT 1)
@@ -129,7 +131,7 @@ func ServerStatuses(ctx context.Context, db *sql.DB, q string, page, size int, a
 		var s ServerStatus
 		var cpu, mem sql.NullFloat64
 		var rx, tx sql.NullInt64
-		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.BandwidthGB, &s.Sampled, &cpu, &mem, &rx, &tx, &s.Iface, &s.VnstatTime, &s.VnstatRx, &s.VnstatTx, &s.HasVnstat); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.BandwidthGB, &s.Sampled, &cpu, &mem, &rx, &tx, &s.Iface, &s.VnstatTime, &s.VnstatRx, &s.VnstatTx, &s.HasVnstat, &s.AgentSeen); err != nil {
 			return nil, 0, err
 		}
 		if cpu.Valid {

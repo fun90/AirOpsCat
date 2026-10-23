@@ -127,6 +127,7 @@ func TestGuardSyncGzipResponseAndOnline(t *testing.T) {
 	ctx := context.Background()
 	s.Guard.Evaluate(ctx)
 	s.Guard.Evaluate(ctx)
+	s.Guard.Evaluate(ctx)
 	w := guardCall(s, payload, "test-token", "")
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())

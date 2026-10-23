@@ -99,19 +99,22 @@ func (s *Server) maintenanceRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "服务器已过期", 422)
 		return
 	}
-	var encrypted string
-	if err := s.DB.QueryRowContext(r.Context(), "SELECT coalesce(config_value,'') FROM system_config WHERE config_key='airopscat.api.token'").Scan(&encrypted); err != nil {
-		http.Error(w, "请先配置开放接口 Token", 422)
-		return
-	}
-	if s.Field == nil {
-		http.Error(w, "加密未初始化", 500)
-		return
-	}
-	token, err := s.Field.Decrypt(encrypted)
-	if err != nil || strings.TrimSpace(token) == "" {
-		http.Error(w, "请重新保存开放接口 Token", 422)
-		return
+	token := ""
+	if script.Name != "12-monitor-agent.sh" {
+		var encrypted string
+		if err := s.DB.QueryRowContext(r.Context(), "SELECT coalesce(config_value,'') FROM system_config WHERE config_key='airopscat.api.token'").Scan(&encrypted); err != nil {
+			http.Error(w, "请先配置开放接口 Token", 422)
+			return
+		}
+		if s.Field == nil {
+			http.Error(w, "加密未初始化", 500)
+			return
+		}
+		token, err = s.Field.Decrypt(encrypted)
+		if err != nil || strings.TrimSpace(token) == "" {
+			http.Error(w, "请重新保存开放接口 Token", 422)
+			return
+		}
 	}
 	rows, err := s.DB.QueryContext(r.Context(), `SELECT coalesce(full_name,name) FROM domain_dns_record WHERE server_id=? AND upper(type)='A' AND status='SYNCED' ORDER BY id`, id)
 	if err != nil {
@@ -147,7 +150,15 @@ func (s *Server) maintenanceRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "请填写要保留的 SSH 公钥", 422)
 		return
 	}
-	env := maintenance.Env(map[string]string{"ACME_EMAIL": acmeEmail, "airopscat_ssh_public_key": publicKey, "AIROPSCAT_STEP_NAME": script.Title, "server_ip": t.IP, "server_host": host, "server_ssh_port": strconv.Itoa(t.Port), "airopscat_domain": store.ConfigValue(r.Context(), s.DB, "airopscat.domain"), "airopscat_api_token": token, "bandwidth_day": day}, hosts)
+	monitorToken := ""
+	if script.Name == "12-monitor-agent.sh" {
+		monitorToken, err = store.RotateMonitorAgentToken(r.Context(), s.DB, id)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+	}
+	env := maintenance.Env(map[string]string{"server_id": strconv.FormatInt(id, 10), "monitor_agent_token": monitorToken, "ACME_EMAIL": acmeEmail, "airopscat_ssh_public_key": publicKey, "AIROPSCAT_STEP_NAME": script.Title, "server_ip": t.IP, "server_host": host, "server_ssh_port": strconv.Itoa(t.Port), "airopscat_domain": store.ConfigValue(r.Context(), s.DB, "airopscat.domain"), "airopscat_api_token": token, "bandwidth_day": day}, hosts)
 	http.NewResponseController(w).SetWriteDeadline(time.Now().Add(31 * time.Minute))
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
 	defer cancel()
