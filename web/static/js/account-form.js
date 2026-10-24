@@ -6,6 +6,11 @@
  var pw=document.querySelector('#new_password');
  function gen(){var c='abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789',a=new Uint32Array(12);crypto.getRandomValues(a);return Array.from(a,function(n){return c[n%c.length];}).join('');}
  if(pw){if(!pw.value){pw.value=gen();}var g=document.querySelector('[data-gen-password]');g.addEventListener('click',function(){pw.value=gen();});}
+ var gu=document.querySelector('[data-gen-uuid]');
+ if(gu){gu.addEventListener('click',function(){if(!confirm('重新生成 UUID 后，客户端需更新配置，保存后相关节点需重新部署。继续？'))return;
+  var b=crypto.getRandomValues(new Uint8Array(16));b[6]=b[6]&15|64;b[8]=b[8]&63|128;
+  var h=Array.from(b,function(n){return n.toString(16).padStart(2,'0');}).join('');
+  document.querySelector('#uuid').value=h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);});}
  var to=document.querySelector('#renew_to_date');
  function pad(n){return String(n).padStart(2,'0');}
  function fmt(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());}
