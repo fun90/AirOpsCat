@@ -117,6 +117,7 @@ func (s *Server) Handler() http.Handler {
 	s.userRoutes(admin)
 	s.routeRuleRoutes(admin)
 	s.transactionRoutes(admin)
+	s.renewalRoutes(admin)
 	s.settingsRoutes(admin)
 	s.backupRoutes(admin)
 	s.dnsRoutes(admin)
@@ -297,7 +298,7 @@ func recoverer(next http.Handler) http.Handler {
 	})
 }
 
-var pageNames = []string{"login", "dashboard", "servers", "server_form", "tags", "tag_form", "nodes", "node_form", "accounts", "account_form", "account_bindings", "users", "user_form", "tasks", "route_rules", "route_rule_form", "transactions", "transaction_form", "settings", "logs", "backups", "dns_providers", "dns_provider_form", "domains", "domain_form", "dns_records", "dns_record_form", "alerts", "monitor", "monitor_detail", "maintenance"}
+var pageNames = []string{"login", "dashboard", "servers", "server_form", "tags", "tag_form", "nodes", "node_form", "accounts", "account_form", "account_bindings", "users", "user_form", "tasks", "route_rules", "route_rule_form", "transactions", "transaction_form", "renewals", "settings", "logs", "backups", "dns_providers", "dns_provider_form", "domains", "domain_form", "dns_records", "dns_record_form", "alerts", "monitor", "monitor_detail", "maintenance"}
 
 // pageURL 用结构化参数生成完整地址，避免 html/template 把筛选分隔符编码进 q。
 func pageURL(query string, page int) string {

@@ -62,12 +62,13 @@
                             <a class="dropdown-item{{if eq .Nav "tags"}} active{{end}}" href="/admin/tags"><i class="ti ti-tags me-2" aria-hidden="true"></i>标签</a>
                         </div>
                     </li>
-                    <li class="nav-item dropdown{{if or (eq .Nav "accounts") (eq .Nav "users") (eq .Nav "transactions")}} active{{end}}">
+                    <li class="nav-item dropdown{{if or (eq .Nav "accounts") (eq .Nav "users") (eq .Nav "transactions") (eq .Nav "renewals")}} active{{end}}">
                         <a class="nav-link dropdown-toggle text-nowrap" href="#" data-bs-toggle="dropdown" data-bs-auto-close="true" role="button" aria-expanded="false"><i class="ti ti-users me-1" aria-hidden="true"></i>业务</a>
                         <div class="dropdown-menu">
                             <a class="dropdown-item{{if eq .Nav "accounts"}} active{{end}}" href="/admin/accounts"><i class="ti ti-user-circle me-2" aria-hidden="true"></i>账户</a>
                             <a class="dropdown-item{{if eq .Nav "users"}} active{{end}}" href="/admin/users"><i class="ti ti-users me-2" aria-hidden="true"></i>用户</a>
                             <a class="dropdown-item{{if eq .Nav "transactions"}} active{{end}}" href="/admin/transactions"><i class="ti ti-receipt-yuan me-2" aria-hidden="true"></i>收支记账</a>
+                            <a class="dropdown-item{{if eq .Nav "renewals"}} active{{end}}" href="/admin/renewals"><i class="ti ti-calendar-plus me-2" aria-hidden="true"></i>续费</a>
                         </div>
                     </li>
                     <li class="nav-item dropdown{{if or (eq .Nav "domains") (eq .Nav "dns")}} active{{end}}">

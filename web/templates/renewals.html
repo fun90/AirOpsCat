@@ -1,0 +1,24 @@
+{{define "content"}}
+<div class="card"><div class="table-responsive"><table class="table table-vcenter card-table">
+<thead><tr><th>名称</th><th class="d-none d-md-table-cell">类型</th><th>到期日</th><th class="d-none d-md-table-cell">年价（元）</th><th>续费</th></tr></thead>
+<tbody>{{range .List}}<tr>
+<td style="overflow-wrap:anywhere">{{.Name}}{{if .Supplier}}<div class="text-secondary small">{{.Supplier}}</div>{{end}}<div class="d-md-none text-secondary small">{{if eq .Table "server"}}服务器{{else}}域名{{end}}{{if .Price}} · {{cents .Price}} 元/年{{end}}</div></td>
+<td class="d-none d-md-table-cell">{{if eq .Table "server"}}服务器{{else}}域名{{end}}</td>
+<td class="text-nowrap">{{if .ExpireDate}}<span class="{{if lt .ExpireDate $.Today}}text-danger{{else if lt .ExpireDate $.Soon}}text-warning{{end}}">{{.ExpireDate}}</span>{{else}}<span class="text-secondary">未设置</span>{{end}}</td>
+<td class="d-none d-md-table-cell">{{if .Price}}{{cents .Price}}{{else}}<span class="text-secondary">未设置</span>{{end}}</td>
+<td><button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#renew-modal" data-renew data-table="{{.Table}}" data-id="{{.ID}}" data-name="{{.Name}}" data-expire="{{.ExpireDate}}"{{if .Price}} data-price="{{.Price}}"{{end}}>续费</button></td>
+</tr>{{else}}<tr><td colspan="5" class="text-center text-secondary py-4">暂无服务器或域名</td></tr>{{end}}</tbody></table></div></div>
+<div class="modal modal-blur fade" id="renew-modal" tabindex="-1" aria-labelledby="renew-title" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form method="post" action="/admin/renewals" class="modal-content">
+<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="table"><input type="hidden" name="id">
+<div class="modal-header"><h5 class="modal-title" id="renew-title">续费</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+<div class="modal-body"><div class="row g-3">
+<div class="col-12"><div class="fw-bold text-break" data-renew-name></div><div class="text-secondary small">当前到期日：<span data-renew-old></span></div></div>
+<div class="col-6"><label class="form-label" for="renew-months">续费时长</label><select class="form-select" id="renew-months"><option value="1">1 个月</option><option value="3">3 个月</option><option value="6">6 个月</option><option value="12" selected>12 个月</option><option value="">自定义</option></select></div>
+<div class="col-6"><label class="form-label required" for="renew-date">新到期日</label><input type="date" class="form-control" id="renew-date" name="expire_date" required></div>
+<div class="col-6"><label class="form-label required" for="renew-method">支付方式</label><select class="form-select" id="renew-method" name="payment_method">{{range .Methods}}<option>{{.}}</option>{{end}}</select></div>
+<div class="col-6"><label class="form-label required" for="renew-amount">金额（元）</label><input class="form-control" id="renew-amount" name="amount" inputmode="decimal" required><div class="form-hint" data-renew-hint></div></div>
+</div></div>
+<div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">确认续费</button></div>
+</form></div></div>
+<script src="/static/js/renewals.js?v=1" defer></script>
+{{end}}
