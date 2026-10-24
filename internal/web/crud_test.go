@@ -384,7 +384,7 @@ func TestBatchNodeTagsHTTP(t *testing.T) {
 	if got := do(h, "POST", "/admin/nodes/batch-tags", form, c, nil); got.Code != 400 {
 		t.Fatal("无效 ID 未拒绝", got.Code)
 	}
-	if got := do(h, "GET", "/admin/nodes", nil, c, nil); got.Code != 200 || !strings.Contains(got.Body.String(), `form="batchNodeTags"`) {
+	if got := do(h, "GET", "/admin/nodes", nil, c, nil); got.Code != 200 || !strings.Contains(got.Body.String(), `data-node-select`) {
 		t.Fatal("批量选择未渲染", got.Code)
 	}
 }

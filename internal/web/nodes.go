@@ -67,6 +67,7 @@ func (s *Server) nodeRoutes(m *http.ServeMux) {
 	m.HandleFunc("GET /admin/nodes/{id}/edit", s.nodeEdit)
 	m.HandleFunc("POST /admin/nodes", s.nodeSave)
 	m.HandleFunc("POST /admin/nodes/batch-tags", s.nodeBatchTags)
+	m.HandleFunc("POST /admin/nodes/batch-placements", s.nodeBatchPlacements)
 	m.HandleFunc("POST /admin/nodes/{id}", s.nodeSave)
 	m.HandleFunc("POST /admin/nodes/{id}/toggle", s.nodeToggle)
 	m.HandleFunc("POST /admin/nodes/{id}/delete", s.nodeDelete)
@@ -104,6 +105,38 @@ func (s *Server) nodeBatchTags(w http.ResponseWriter, r *http.Request) {
 	redirectMsg(w, r, "/admin/nodes", "msg", message)
 }
 
+func (s *Server) nodeBatchPlacements(w http.ResponseWriter, r *http.Request) {
+	var nodes, servers []int64
+	for _, field := range []struct {
+		name string
+		ids  *[]int64
+	}{{"node_ids", &nodes}, {"server_ids", &servers}} {
+		for _, raw := range r.PostForm[field.name] {
+			id, err := strconv.ParseInt(raw, 10, 64)
+			if err != nil || id <= 0 {
+				http.Error(w, "节点或服务器 ID 不正确", http.StatusBadRequest)
+				return
+			}
+			*field.ids = append(*field.ids, id)
+		}
+	}
+	add := r.PostFormValue("placement_mode") != "REMOVE"
+	updated, err := store.BatchNodePlacements(r.Context(), s.DB, nodes, servers, add)
+	if err != nil {
+		if errors.Is(err, store.ErrInvalid) || errors.Is(err, store.ErrConflict) {
+			redirectMsg(w, r, "/admin/nodes", "err", err.Error())
+			return
+		}
+		s.fail(w, r, err)
+		return
+	}
+	message := fmt.Sprintf("部署位已调整 %d 个节点", updated)
+	if updated > 0 {
+		message += "；请部署待部署项"
+	}
+	redirectMsg(w, r, "/admin/nodes", "msg", message)
+}
+
 func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	f := store.NodeFilter{Search: strings.TrimSpace(q.Get("q")), Type: -1, Status: -2}
@@ -125,6 +158,11 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	servers, err := store.BatchServerOptions(r.Context(), s.DB)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	snap, err := s.onlineSnapshot(r.Context())
 	var placed map[int64][]string
 	if err == nil {
@@ -141,7 +179,7 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	d := s.pageData(r, "节点", "nodes")
-	d["Online"] = online
+	d["Online"], d["Servers"] = online, servers
 	d["List"], d["Tags"], d["Q"], d["Page"], d["Pages"] = list, tags, f.Search, page, (total+size-1)/size
 	d["Type"], d["Status"], d["TagID"] = q.Get("type"), q.Get("status"), q.Get("tag")
 	s.render(w, "nodes", http.StatusOK, d)
