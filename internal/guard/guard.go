@@ -16,6 +16,8 @@ type AccountReport struct {
 	AccountNo   string   `json:"accountNo"`
 	Connections int64    `json:"connections"`
 	IPs         []string `json:"ips"`
+	// ActiveIPs 是本轮有流量的客户端 IP；nil 表示旧版 agent 未提供，按全部 IP 活跃处理。
+	ActiveIPs []string `json:"activeIps"`
 }
 type Request struct {
 	NodeIP                  string                     `json:"nodeIp"`
@@ -40,6 +42,8 @@ type Stats struct {
 	AccountNo        string
 	Connections, IPs int64
 	ActiveNodes      int
+	ActiveIPs        int64 // 本轮有流量的去重 IP 数
+	SustainedIPs     int64 // 连续活跃满重叠窗口的 IP 数，IP 超限只看它（或极端的 ActiveIPs）
 	Consecutive      int
 	Blocked          *BlockedEntry
 }
@@ -59,8 +63,16 @@ type serverTags struct {
 type nodeStat struct {
 	connections int64
 	ips         []string
+	active      []string
 	at          time.Time
 }
+
+// ipSeen 记录某账户某 IP 连续活跃的起点和最近一次活跃时间。
+type ipSeen struct{ since, last time.Time }
+
+// ipGrace 容忍 IP 短暂无流量而不重置连续活跃起点。
+const ipGrace = time.Minute
+
 type Aggregator struct {
 	mu          sync.Mutex
 	db          *sql.DB
@@ -68,6 +80,7 @@ type Aggregator struct {
 	table       map[string]map[string]nodeStat
 	servers     map[string]time.Time // 每台服务器最近一次完整上报（含空报告）
 	tags        map[string]serverTags
+	seen        map[string]map[string]ipSeen
 	consecutive map[string]int
 	blocked     map[string]BlockedEntry
 }
@@ -78,12 +91,17 @@ func New(db *sql.DB, clock ...func() time.Time) *Aggregator {
 	if len(clock) > 0 && clock[0] != nil {
 		now = clock[0]
 	}
-	return &Aggregator{db: db, now: now, table: map[string]map[string]nodeStat{}, servers: map[string]time.Time{}, tags: map[string]serverTags{}, consecutive: map[string]int{}, blocked: map[string]BlockedEntry{}}
+	return &Aggregator{db: db, now: now, table: map[string]map[string]nodeStat{}, servers: map[string]time.Time{}, tags: map[string]serverTags{}, seen: map[string]map[string]ipSeen{}, consecutive: map[string]int{}, blocked: map[string]BlockedEntry{}}
 }
 func (a *Aggregator) forgetUnknown(limits map[string]store.GuardLimit) {
 	for key := range a.table {
 		if _, ok := limits[key]; !ok {
 			delete(a.table, key)
+		}
+	}
+	for key := range a.seen {
+		if _, ok := limits[key]; !ok {
+			delete(a.seen, key)
 		}
 	}
 	for key := range a.consecutive {
@@ -129,7 +147,18 @@ func (a *Aggregator) Report(ctx context.Context, nodeIP string, reports []Accoun
 				ips = append(ips, ip)
 			}
 		}
-		a.table[key][nodeIP] = nodeStat{connections: max(0, r.Connections), ips: ips, at: now}
+		var active []string
+		if r.ActiveIPs != nil {
+			active = make([]string, 0, len(r.ActiveIPs))
+			for _, ip := range r.ActiveIPs {
+				if ip != "" {
+					active = append(active, ip)
+				}
+			}
+		} else {
+			active = ips
+		}
+		a.table[key][nodeIP] = nodeStat{connections: max(0, r.Connections), ips: ips, active: active, at: now}
 	}
 	return nil
 }
@@ -193,6 +222,9 @@ func (a *Aggregator) Evaluate(ctx context.Context) (map[string]Stats, error) {
 	for key := range a.blocked {
 		tracked[key] = true
 	}
+	for key := range a.seen {
+		tracked[key] = true
+	}
 	result := map[string]Stats{}
 	now := a.now()
 	for key := range tracked {
@@ -200,10 +232,11 @@ func (a *Aggregator) Evaluate(ctx context.Context) (map[string]Stats, error) {
 		if !exists {
 			delete(a.consecutive, key)
 			delete(a.blocked, key)
+			delete(a.seen, key)
 			continue
 		}
 		st := Stats{AccountNo: l.AccountNo}
-		ips := map[string]bool{}
+		ips, active := map[string]bool{}, map[string]bool{}
 		for _, n := range a.table[key] {
 			if now.Sub(n.at) > settings.TTL {
 				continue
@@ -213,13 +246,20 @@ func (a *Aggregator) Evaluate(ctx context.Context) (map[string]Stats, error) {
 			for _, ip := range n.ips {
 				ips[ip] = true
 			}
+			for _, ip := range n.active {
+				active[ip] = true
+			}
 		}
-		st.IPs = int64(len(ips))
+		st.IPs, st.ActiveIPs = int64(len(ips)), int64(len(active))
+		st.SustainedIPs = a.sustained(key, active, now, max(settings.TTL, ipGrace), settings.Overlap)
 		var entry *BlockedEntry
 		if l.MaxConnections > 0 && st.Connections > l.MaxConnections {
 			entry = &BlockedEntry{"connections", st.Connections, l.MaxConnections}
-		} else if l.MaxIPs > 0 && st.IPs > l.MaxIPs {
-			entry = &BlockedEntry{"ips", st.IPs, l.MaxIPs}
+		} else if l.MaxIPs > 0 && st.ActiveIPs >= 2*l.MaxIPs {
+			// 远超上限不等重叠窗口，直接判定
+			entry = &BlockedEntry{"ips", st.ActiveIPs, l.MaxIPs}
+		} else if l.MaxIPs > 0 && st.SustainedIPs > l.MaxIPs {
+			entry = &BlockedEntry{"ips", st.SustainedIPs, l.MaxIPs}
 		}
 		if entry == nil {
 			delete(a.consecutive, key)
@@ -235,6 +275,35 @@ func (a *Aggregator) Evaluate(ctx context.Context) (map[string]Stats, error) {
 		result[l.AccountNo] = st
 	}
 	return result, nil
+}
+
+// sustained 刷新账户各活跃 IP 的连续活跃起点，返回连续活跃满 overlap 的 IP 数。
+// 换网时新旧 IP 只重叠很短时间，不会计入；共享账号的多个 IP 会长期并行。
+func (a *Aggregator) sustained(key string, active map[string]bool, now time.Time, grace, overlap time.Duration) (n int64) {
+	seen := a.seen[key]
+	if seen == nil {
+		seen = map[string]ipSeen{}
+		a.seen[key] = seen
+	}
+	for ip := range active {
+		s, ok := seen[ip]
+		if !ok || now.Sub(s.last) > grace {
+			s.since = now
+		}
+		s.last = now
+		seen[ip] = s
+	}
+	for ip, s := range seen {
+		if now.Sub(s.last) > grace {
+			delete(seen, ip)
+		} else if active[ip] && now.Sub(s.since) >= overlap {
+			n++
+		}
+	}
+	if len(seen) == 0 {
+		delete(a.seen, key)
+	}
+	return n
 }
 
 // Response 仅返回本次报告出现且仍存在的账户，不暴露其他节点账户。

@@ -35,6 +35,7 @@ var settingMeta = map[string][2]string{
 
 	"airopscat.online.check-minutes":                                   {"在线检测窗口（分钟）", ""},
 	"airopscat.account.guard.ttl-seconds":                              {"Guard 上报有效期（秒）", "不得小于 5"},
+	"airopscat.account.guard.ip-overlap-seconds":                       {"IP 并发判定时长（秒）", "IP 连续有流量满该时长才计入 IP 超限，滤掉换网"},
 	"airopscat.account.connection-limit.alert.enabled":                 {"连接数超限告警", ""},
 	"airopscat.account.connection-limit.alert.consecutive-times":       {"连续超限次数", "连续超限这么多次后才加入限制"},
 	"airopscat.account.connection-limit.alert.min-interval-minutes":    {"超限告警最小间隔（分钟）", ""},
@@ -84,6 +85,7 @@ var settingOrder = map[string]int{
 	"airopscat.ratelimit.enabled":                                      20,
 	"airopscat.online.check-minutes":                                   21,
 	"airopscat.account.guard.ttl-seconds":                              22,
+	"airopscat.account.guard.ip-overlap-seconds":                       23,
 	"airopscat.account.connection-limit.alert.enabled":                 25,
 	"airopscat.account.connection-limit.alert.consecutive-times":       26,
 	"airopscat.account.connection-limit.alert.min-interval-minutes":    27,

@@ -27,13 +27,13 @@ func setup(t *testing.T) (*Aggregator, *sql.DB, *time.Time) {
 func TestAggregationSamplingTTLAndDeletion(t *testing.T) {
 	a, db, now := setup(t)
 	ctx := context.Background()
-	report := []AccountReport{{"A", 6, []string{"1", "2"}}, {"B", 1, []string{"1", "2"}}, {"unknown", 100, nil}}
+	report := []AccountReport{{"A", 6, []string{"1", "2"}, nil}, {"B", 1, []string{"1", "2"}, nil}, {"unknown", 100, nil, nil}}
 	for i := 0; i < 20; i++ {
 		if err := a.Report(ctx, "node1", report); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := a.Report(ctx, "node2", []AccountReport{{"A", 6, []string{"2", "3"}}}); err != nil {
+	if err := a.Report(ctx, "node2", []AccountReport{{"A", 6, []string{"2", "3"}, nil}}); err != nil {
 		t.Fatal(err)
 	}
 	response, err := a.Response(ctx, report)
@@ -93,7 +93,7 @@ func TestAggregationSamplingTTLAndDeletion(t *testing.T) {
 func TestSnapshotReplacementAndRecovery(t *testing.T) {
 	a, _, _ := setup(t)
 	ctx := context.Background()
-	a.Report(ctx, "one", []AccountReport{{"A", 11, nil}})
+	a.Report(ctx, "one", []AccountReport{{"A", 11, nil, nil}})
 	a.Evaluate(ctx)
 	a.Evaluate(ctx)
 	a.Report(ctx, "one", nil)
@@ -101,7 +101,7 @@ func TestSnapshotReplacementAndRecovery(t *testing.T) {
 	if err != nil || stats["A"].Blocked != nil || stats["A"].Connections != 0 {
 		t.Fatal(stats, err)
 	}
-	a.Report(ctx, "one", []AccountReport{{"A", -1, []string{"1", "1", "2", ""}}})
+	a.Report(ctx, "one", []AccountReport{{"A", -1, []string{"1", "1", "2", ""}, nil}})
 	stats, _ = a.Evaluate(ctx)
 	if stats["A"].Connections != 0 || stats["A"].IPs != 2 || stats["A"].Consecutive != 0 {
 		t.Fatal(stats)
@@ -114,7 +114,7 @@ func TestConcurrentAccess(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		wg.Go(func() {
 			for j := 0; j < 10; j++ {
-				if err := a.Report(ctx, "one", []AccountReport{{"A", 11, nil}}); err != nil {
+				if err := a.Report(ctx, "one", []AccountReport{{"A", 11, nil, nil}}); err != nil {
 					t.Error(err)
 				}
 				if _, err := a.Evaluate(ctx); err != nil {
@@ -132,14 +132,14 @@ func TestSnapshotOnlineView(t *testing.T) {
 	a, _, now := setup(t)
 	ctx := context.Background()
 	n3 := int64(3)
-	if err := a.Report(ctx, "s1", []AccountReport{{"A", 3, []string{"1", "2"}}, {"unknown", 9, nil}}); err != nil {
+	if err := a.Report(ctx, "s1", []AccountReport{{"A", 3, []string{"1", "2"}, nil}, {"unknown", 9, nil, nil}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.ReportTags(ctx, "s1", []store.GuardOnlineAccount{{AccountNo: "a", NodeTag: "node_1", ClientIPs: []string{"1", "2"}, ConnectionCount: &n3}}); err != nil {
 		t.Fatal(err)
 	}
 	// s2 为旧版 agent：有账户上报，但没有按标签分组。
-	if err := a.Report(ctx, "s2", []AccountReport{{"A", 2, []string{"2", "3"}}}); err != nil {
+	if err := a.Report(ctx, "s2", []AccountReport{{"A", 2, []string{"2", "3"}, nil}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.ReportTags(ctx, "s2", nil); err != nil {
@@ -190,5 +190,52 @@ func TestSnapshotOnlineView(t *testing.T) {
 	snap, _ = a.Snapshot(ctx)
 	if len(snap.Servers) != 0 || len(snap.Accounts) != 0 || len(snap.Tags) != 0 || snap.TotalConnections != 0 {
 		t.Fatal(snap)
+	}
+}
+
+// 账户 A 限 2 个 IP：换网（新 IP 短暂重叠）不超限，三个 IP 持续并行才超限，极端超限立即判定。
+func TestIPOverlapFiltersHandoverKeepsSharing(t *testing.T) {
+	a, _, now := setup(t)
+	ctx := context.Background()
+	step := func(ips, active []string) Stats {
+		*now = now.Add(10 * time.Second)
+		if err := a.Report(ctx, "n", []AccountReport{{"A", 1, ips, active}}); err != nil {
+			t.Fatal(err)
+		}
+		stats, err := a.Evaluate(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return stats["A"]
+	}
+	// 换网：旧 IP 3 无流量残留，新 IP 2 只活跃 1 分钟后旧连接消失
+	for i := 0; i < 6; i++ {
+		if st := step([]string{"1", "2", "3"}, []string{"1", "2"}); st.Blocked != nil {
+			t.Fatalf("换网被判超限: %+v", st)
+		}
+	}
+	// 真共享：三个 IP 都有流量，满 5 分钟才计入
+	var st Stats
+	for i := 0; i < 30; i++ {
+		if st = step([]string{"1", "2", "3"}, []string{"1", "2", "3"}); st.Blocked != nil {
+			t.Fatalf("未满重叠窗口就超限: %+v", st)
+		}
+	}
+	for i := 0; i < 3; i++ { // 满窗口后再连续 3 次评估
+		st = step([]string{"1", "2", "3"}, []string{"1", "2", "3"})
+	}
+	if st.SustainedIPs != 3 || st.Blocked == nil || st.Blocked.Reason != "ips" || st.Blocked.Total != 3 {
+		t.Fatalf("持续并行应超限: %+v", st)
+	}
+	// 极端超限（≥2 倍）不等窗口
+	a2, _, _ := setup(t)
+	a2.Report(ctx, "n", []AccountReport{{"A", 1, []string{"1", "2", "3", "4"}, nil}})
+	for i := 0; i < 3; i++ {
+		st = Stats{}
+		s, _ := a2.Evaluate(ctx)
+		st = s["A"]
+	}
+	if st.Blocked == nil || st.Blocked.Total != 4 {
+		t.Fatalf("极端超限应立即判定: %+v", st)
 	}
 }

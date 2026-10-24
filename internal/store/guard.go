@@ -21,11 +21,12 @@ type GuardSettings struct {
 	TTL          time.Duration
 	Consecutive  int
 	OnlineWindow time.Duration
+	Overlap      time.Duration // IP 连续活跃满该时长才计入 IP 超限
 }
 
 // LoadGuardState 不过滤禁用或到期账户：guard 只依据账户是否存在及其限制判定。
 func LoadGuardState(ctx context.Context, db *sql.DB) (map[string]GuardLimit, GuardSettings, error) {
-	settings := GuardSettings{TTL: 30 * time.Second, Consecutive: 3, OnlineWindow: 10 * time.Minute}
+	settings := GuardSettings{TTL: 30 * time.Second, Consecutive: 3, OnlineWindow: 10 * time.Minute, Overlap: 5 * time.Minute}
 	limits := make(map[string]GuardLimit)
 	rows, err := db.QueryContext(ctx, `SELECT account_no, coalesce(max_connections,0), coalesce(max_ips,0) FROM account`)
 	if err != nil {
@@ -44,7 +45,7 @@ func LoadGuardState(ctx context.Context, db *sql.DB) (map[string]GuardLimit, Gua
 	if err != nil {
 		return nil, settings, err
 	}
-	rows, err = db.QueryContext(ctx, `SELECT config_key, config_value FROM system_config WHERE config_key IN ('airopscat.account.guard.ttl-seconds','airopscat.account.connection-limit.alert.consecutive-times','airopscat.online.check-minutes')`)
+	rows, err = db.QueryContext(ctx, `SELECT config_key, config_value FROM system_config WHERE config_key IN ('airopscat.account.guard.ttl-seconds','airopscat.account.connection-limit.alert.consecutive-times','airopscat.online.check-minutes','airopscat.account.guard.ip-overlap-seconds')`)
 	if err != nil {
 		return nil, settings, err
 	}
@@ -64,6 +65,8 @@ func LoadGuardState(ctx context.Context, db *sql.DB) (map[string]GuardLimit, Gua
 			settings.TTL = time.Duration(max(5, min(n, 86400))) * time.Second
 		case "airopscat.account.connection-limit.alert.consecutive-times":
 			settings.Consecutive = max(1, n)
+		case "airopscat.account.guard.ip-overlap-seconds":
+			settings.Overlap = time.Duration(max(1, min(n, 86400))) * time.Second
 		case "airopscat.online.check-minutes":
 			settings.OnlineWindow = time.Duration(max(1, min(n, 525600))) * time.Minute
 		}
@@ -179,7 +182,43 @@ func CleanupGuardOnline(ctx context.Context, db *sql.DB, now time.Time) (int64, 
 	if err != nil {
 		return 0, err
 	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM guard_ip_overlap_daily WHERE day < ?`, FormatTime(now.AddDate(0, 0, -30))[:10]); err != nil {
+		return 0, err
+	}
 	return result.RowsAffected()
+}
+
+// GuardIPOverlapAdd 累计某账户当天处于 IP 超限的秒数及峰值，供每日摘要使用。
+func GuardIPOverlapAdd(ctx context.Context, db *sql.DB, day, accountNo string, seconds, peak, limit int64) error {
+	_, err := db.ExecContext(ctx, `INSERT INTO guard_ip_overlap_daily(day,account_no,seconds,peak_ips,limit_ips) VALUES(?,?,?,?,?)
+		ON CONFLICT(day,account_no) DO UPDATE SET seconds=seconds+excluded.seconds,peak_ips=max(peak_ips,excluded.peak_ips),limit_ips=excluded.limit_ips`, day, accountNo, seconds, peak, limit)
+	return err
+}
+
+type GuardIPOverlap struct {
+	AccountNo, Remark    string
+	Seconds, Peak, Limit int64
+	Days                 int // 近 7 天（含当天）出现超限的天数
+}
+
+// GuardIPOverlapTop 返回某天 IP 超限累计时长最长的账户，附近 7 天出现天数。
+func GuardIPOverlapTop(ctx context.Context, db *sql.DB, day string, n int) ([]GuardIPOverlap, error) {
+	rows, err := db.QueryContext(ctx, `SELECT o.account_no, coalesce(a.remark,''), o.seconds, o.peak_ips, o.limit_ips,
+		(SELECT count(*) FROM guard_ip_overlap_daily d WHERE d.account_no=o.account_no AND d.day<=o.day AND d.day>date(o.day,'-7 day'))
+		FROM guard_ip_overlap_daily o LEFT JOIN account a ON a.account_no=o.account_no WHERE o.day=? ORDER BY o.seconds DESC LIMIT ?`, day, n)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []GuardIPOverlap
+	for rows.Next() {
+		var g GuardIPOverlap
+		if err := rows.Scan(&g.AccountNo, &g.Remark, &g.Seconds, &g.Peak, &g.Limit, &g.Days); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
 }
 
 // NodeServerIPs 返回每个节点已部署的服务器 IP，用于判断在线数据覆盖范围。

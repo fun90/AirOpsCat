@@ -58,11 +58,12 @@ func (s *Server) initTasks() {
 			}
 			return s.alertConnections(ctx, stats)
 		}},
-		"server-monitor": {Name: "服务器指标采集（CPU/内存/磁盘/网速）", Interval: monitorInterval, Run: s.collectMonitor},
-		"server-vnstat":  {Name: "服务器月流量采集（vnstat）", Interval: vnstatInterval, Run: s.collectVnstat},
-		"alert-scan":     {Name: "告警扫描（流量超额与到期）", Interval: 5 * time.Minute, Run: s.scanAlerts},
-		"guard-evict":    {Name: "风控过期状态回收", Interval: 30 * time.Second, Run: s.Guard.Evict},
-		"account-expire": {Name: "到期账户停用", Interval: time.Hour, Run: func(ctx context.Context) error { _, err := store.ExpireAccounts(ctx, s.DB, time.Now()); return err }},
+		"server-monitor":    {Name: "服务器指标采集（CPU/内存/磁盘/网速）", Interval: monitorInterval, Run: s.collectMonitor},
+		"server-vnstat":     {Name: "服务器月流量采集（vnstat）", Interval: vnstatInterval, Run: s.collectVnstat},
+		"alert-scan":        {Name: "告警扫描（流量超额与到期）", Interval: 5 * time.Minute, Run: s.scanAlerts},
+		"ip-overlap-digest": {Name: "IP 超限每日摘要", Interval: 24 * time.Hour, Run: s.ipOverlapDigest},
+		"guard-evict":       {Name: "风控过期状态回收", Interval: 30 * time.Second, Run: s.Guard.Evict},
+		"account-expire":    {Name: "到期账户停用", Interval: time.Hour, Run: func(ctx context.Context) error { _, err := store.ExpireAccounts(ctx, s.DB, time.Now()); return err }},
 		"db-backup": {Name: "数据库每日备份", Interval: 24 * time.Hour, Run: func(ctx context.Context) error {
 			if _, err := s.Backup.Create(ctx); err != nil {
 				return err

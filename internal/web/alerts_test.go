@@ -70,6 +70,30 @@ func TestAlertsEndToEnd(t *testing.T) {
 		t.Fatal(st)
 	}
 
+	// IP 超限：普通超限只记录和累计，不推送；≥2 倍立即推送；次日摘要列出累计时长
+	ipStats := func(total int64) map[string]guard.Stats {
+		return map[string]guard.Stats{"acc1": {AccountNo: "acc1", IPs: total, ActiveIPs: total, Blocked: &guard.BlockedEntry{Reason: "ips", Total: total, Limit: 3}}}
+	}
+	s.alertConnections(ctx, ipStats(4))
+	s.alertConnections(ctx, ipStats(4))
+	if count() != 2 {
+		t.Fatalf("普通 IP 超限不应推送: %v", sent)
+	}
+	s.alertConnections(ctx, ipStats(6))
+	if count() != 3 || !strings.Contains(sent[2]["title"].(string), "IP 数超限") {
+		t.Fatalf("极端 IP 超限应推送: %v", sent)
+	}
+	var secs int64
+	a.DB.QueryRow(`SELECT seconds FROM guard_ip_overlap_daily WHERE account_no='acc1'`).Scan(&secs)
+	if secs != 30 {
+		t.Fatalf("每日累计秒数 = %d", secs)
+	}
+	a.DB.Exec(`UPDATE guard_ip_overlap_daily SET day=?`, store.FormatTime(time.Now().AddDate(0, 0, -1))[:10])
+	if err := s.ipOverlapDigest(ctx); err != nil || count() != 4 || !strings.Contains(sent[3]["body"].(string), "acc1（Anna）累计 1 分钟，峰值 6/3") {
+		t.Fatalf("每日摘要: %v %v", sent, err)
+	}
+	s.alertConnections(ctx, map[string]guard.Stats{})
+
 	// 页面：确认、恢复、测试发送，均需 CSRF
 	c := login(t, h, "admin@example.com")
 	csrf := a.CSRFToken(c.Value)
@@ -92,7 +116,7 @@ func TestAlertsEndToEnd(t *testing.T) {
 	if w := post("/admin/alerts/" + itoa(id) + "/ack"); !strings.Contains(w.Header().Get("Location"), "err=") {
 		t.Fatal("重复确认应提示")
 	}
-	if w := post("/admin/alerts/test"); strings.Contains(w.Header().Get("Location"), "err=") || count() != 3 {
+	if w := post("/admin/alerts/test"); strings.Contains(w.Header().Get("Location"), "err=") || count() != 5 {
 		t.Fatalf("测试发送 %s %d", w.Header().Get("Location"), count())
 	}
 	a.DB.Exec(`UPDATE server SET expire_date='2030-01-01' WHERE id=1`)
