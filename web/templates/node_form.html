@@ -25,9 +25,9 @@
                 <div class="d-flex flex-wrap gap-2 align-items-center" data-tag-list>
                 {{range $.Tags}}
                     <span class="tag-pill d-inline-flex align-items-center rounded-pill border ps-2 pe-1 py-1 small" data-tag-id="{{.ID}}" data-tag-name="{{.Name}}" data-tag-color="{{.Color}}">
-                        <label class="d-inline-flex align-items-center m-0">
+                        <label class="d-inline-flex align-items-center m-0 cursor-pointer">
                             <input type="checkbox" class="visually-hidden" name="tags" value="{{.ID}}"{{if index $.Form.TagIDs .ID}} checked{{end}}>
-                            <span class="tag-dot me-1" style="background-color: {{if .Color}}{{.Color}}{{else}}#6c757d{{end}}"></span>
+                            <span class="status-dot flex-shrink-0 me-1" style="background-color: {{if .Color}}{{.Color}}{{else}}#6c757d{{end}}"></span>
                             <span data-tag-label>{{.Name}}</span><i class="ti ti-check tag-check ms-1" aria-hidden="true"></i>
                         </label>
                         <button type="button" class="tag-edit border-0 bg-transparent text-secondary ms-1 px-1" aria-label="编辑标签 {{.Name}}"><i class="ti ti-pencil" aria-hidden="true"></i></button>

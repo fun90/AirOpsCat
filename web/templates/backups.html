@@ -3,7 +3,7 @@
 <div class="alert alert-info">每日自动备份到 <code>{{.Dir}}</code>，保留 {{.KeepDays}} 天；恢复需停服替换数据库文件。</div>
 <div class="card"><div class="table-responsive"><table class="table table-vcenter card-table" style="table-layout:fixed;width:100%">
 <thead><tr><th>文件</th><th class="d-none d-md-table-cell">大小</th><th class="d-none d-md-table-cell">时间</th><th class="w-1"><span class="visually-hidden">操作</span></th></tr></thead>
-<tbody>{{range .List}}<tr><td style="overflow-wrap:anywhere;white-space:normal">{{.Name}}<div class="text-secondary small d-md-none">{{.Size}} · {{.Time}}</div></td>
+<tbody>{{range .List}}<tr><td class="text-break text-wrap">{{.Name}}<div class="text-secondary small d-md-none">{{.Size}} · {{.Time}}</div></td>
 <td class="d-none d-md-table-cell">{{.Size}}</td><td class="d-none d-md-table-cell">{{.Time}}</td>
 <td class="text-nowrap"><div class="d-none d-md-flex gap-1"><a class="btn btn-sm btn-outline-primary" href="/admin/backups/{{.Name}}/download" download>下载</a><form method="post" action="/admin/backups/{{.Name}}/delete" onsubmit="return confirm('确定删除该备份？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-danger" type="submit">删除</button></form></div>
 <div class="dropdown d-md-none"><button type="button" class="btn btn-sm dropdown-toggle" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">更多</button><div class="dropdown-menu dropdown-menu-end"><a class="dropdown-item" href="/admin/backups/{{.Name}}/download" download>下载</a>

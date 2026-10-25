@@ -8,7 +8,7 @@
   <div class="table-responsive"><table class="table table-vcenter card-table">
     <thead><tr><th>告警</th><th class="d-none d-md-table-cell">最近触发</th><th class="d-none d-md-table-cell">次数</th><th class="d-none d-md-table-cell">状态</th><th class="w-1"></th></tr></thead>
     <tbody>{{range .List}}<tr>
-      <td style="overflow-wrap:anywhere"><strong>{{.TypeName}}</strong><div class="text-secondary small">{{.Summary}}</div>
+      <td class="text-break"><strong>{{.TypeName}}</strong><div class="text-secondary small">{{.Summary}}</div>
         <div class="d-md-none mt-1">{{template "alertStatus" .}} <span class="text-secondary small">{{.Count}} 次 · {{.LastTime}}</span></div></td>
       <td class="d-none d-md-table-cell">{{.LastTime}}</td><td class="d-none d-md-table-cell">{{.Count}}</td><td class="d-none d-md-table-cell">{{template "alertStatus" .}}</td>
       <td class="text-nowrap">{{if ne .Status "RECOVERED"}}

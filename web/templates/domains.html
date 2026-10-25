@@ -4,7 +4,7 @@
 <div class="table-responsive"><table class="table table-vcenter card-table">
 <thead><tr><th>域名</th><th class="d-none d-md-table-cell">服务商</th><th class="d-none d-md-table-cell">到期日</th><th class="d-none d-md-table-cell">记录</th><th class="d-none d-md-table-cell">同步</th><th class="w-1"></th></tr></thead>
 <tbody>{{range .List}}<tr>
-<td style="overflow-wrap:anywhere"><a href="/admin/domains/{{.ID}}/records" class="text-reset">{{.Domain}}</a>{{if .Supplier}}<div class="text-secondary small">{{.Supplier}}</div>{{end}}
+<td class="text-break"><a href="/admin/domains/{{.ID}}/records" class="text-reset">{{.Domain}}</a>{{if .Supplier}}<div class="text-secondary small">{{.Supplier}}</div>{{end}}
 <div class="d-md-none mt-1 text-secondary small">{{if .ProviderName}}{{.ProviderName}} · {{else}}未绑定 · {{end}}{{.Records}} 条记录{{if .Pending}} · <span class="text-yellow">{{.Pending}} 项待推送</span>{{end}}</div></td>
 <td class="d-none d-md-table-cell">{{if .ProviderName}}{{.ProviderName}}{{else}}<span class="text-secondary">未绑定</span>{{end}}</td>
 <td class="d-none d-md-table-cell">{{.ExpireDate}}</td>

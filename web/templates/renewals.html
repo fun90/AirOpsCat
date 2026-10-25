@@ -2,7 +2,7 @@
 <div class="card"><div class="table-responsive"><table class="table table-vcenter card-table">
 <thead><tr><th>名称</th><th class="d-none d-md-table-cell">类型</th><th>到期日</th><th class="d-none d-md-table-cell">年价（元）</th><th>续费</th></tr></thead>
 <tbody>{{range .List}}<tr>
-<td style="overflow-wrap:anywhere">{{.Name}}{{if .Supplier}}<div class="text-secondary small">{{.Supplier}}</div>{{end}}<div class="d-md-none text-secondary small">{{if eq .Table "server"}}服务器{{else}}域名{{end}}{{if .Price}} · {{cents .Price}} 元/年{{end}}</div></td>
+<td class="text-break">{{.Name}}{{if .Supplier}}<div class="text-secondary small">{{.Supplier}}</div>{{end}}<div class="d-md-none text-secondary small">{{if eq .Table "server"}}服务器{{else}}域名{{end}}{{if .Price}} · {{cents .Price}} 元/年{{end}}</div></td>
 <td class="d-none d-md-table-cell">{{if eq .Table "server"}}服务器{{else}}域名{{end}}</td>
 <td class="text-nowrap">{{if .ExpireDate}}<span class="{{if lt .ExpireDate $.Today}}text-danger{{else if lt .ExpireDate $.Soon}}text-warning{{end}}">{{.ExpireDate}}</span>{{else}}<span class="text-secondary">未设置</span>{{end}}</td>
 <td class="d-none d-md-table-cell">{{if .Price}}{{cents .Price}}{{else}}<span class="text-secondary">未设置</span>{{end}}</td>

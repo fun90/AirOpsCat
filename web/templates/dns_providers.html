@@ -4,7 +4,7 @@
 <div class="table-responsive"><table class="table table-vcenter card-table">
 <thead><tr><th>名称</th><th class="d-none d-md-table-cell">Account ID</th><th class="d-none d-md-table-cell">域名</th><th class="d-none d-md-table-cell">最近检查</th><th class="d-none d-md-table-cell">状态</th><th class="w-1"></th></tr></thead>
 <tbody>{{range .List}}<tr>
-<td style="overflow-wrap:anywhere"><a href="/admin/dns-providers/{{.ID}}/edit" class="text-reset">{{.Name}}</a>{{if .Remark}}<div class="text-secondary small">{{.Remark}}</div>{{end}}
+<td class="text-break"><a href="/admin/dns-providers/{{.ID}}/edit" class="text-reset">{{.Name}}</a>{{if .Remark}}<div class="text-secondary small">{{.Remark}}</div>{{end}}
 <div class="d-md-none mt-1">{{if .Enabled}}<span class="badge bg-green-lt">启用</span>{{else}}<span class="badge bg-secondary-lt">停用</span>{{end}} <span class="text-secondary small">{{.Domains}} 个域名</span></div></td>
 <td class="d-none d-md-table-cell text-break">{{.AccountID}}</td><td class="d-none d-md-table-cell">{{.Domains}}</td>
 <td class="d-none d-md-table-cell">{{if .LastCheckTime}}{{if eq .LastCheckStatus "SUCCESS"}}<span class="badge bg-green-lt">通过</span>{{else}}<span class="badge bg-red-lt" title="{{.LastCheckMessage}}">失败</span>{{end}} <span class="text-secondary small">{{.LastCheckTime}}</span>{{else}}<span class="text-secondary">未检查</span>{{end}}</td>

@@ -23,8 +23,6 @@
     .je-gutter { display: none; }
 }
 
-.tag-pill label, .tag-edit { cursor: pointer; }
-.tag-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .tag-check { display: none; }
 .tag-pill:has(input:checked) { border-color: var(--tblr-primary) !important; background: var(--tblr-primary-lt); color: var(--tblr-primary); font-weight: 500; }
 .tag-pill:has(input:checked) .tag-check { display: inline; }
@@ -59,6 +57,11 @@
 @media (max-width: 767.98px) {
     .logs-table { table-layout: fixed; width: 100%; }
     .logs-table .log-message { width: 100%; min-width: 0; }
+}
+
+/* 节点名称列：移动端占满剩余宽度并截断长名称，PC 端按内容自适应 */
+@media (max-width: 767.98px) {
+    .node-name-cell { width: 100%; max-width: 0; }
 }
 
 /* 页面跳转中（nav-progress.js）：慢请求提示，淡入避免突兀闪烁。 */

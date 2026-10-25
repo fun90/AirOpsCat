@@ -6,7 +6,7 @@
 <div class="table-responsive"><table class="table table-vcenter card-table" style="table-layout:fixed;width:100%">
 <thead><tr><th>名称 / 摘要</th><th class="d-none d-md-table-cell">落地 / 服务器</th><th class="d-none d-md-table-cell">状态</th><th class="col-actions"><span class="visually-hidden">操作</span></th></tr></thead>
 <tbody>{{range .List}}
-<tr><td style="overflow-wrap:anywhere;white-space:normal">
+<tr><td class="text-break text-wrap">
 <a href="/admin/routes/{{.ID}}/edit" class="text-reset">{{.Name}}</a>
 <div class="text-secondary small mt-1">{{.RuleType}} · {{.Summary}}</div>
 <div class="d-md-none mt-1">{{if .Enabled}}<span class="badge bg-green-lt">启用</span>{{else}}<span class="badge bg-secondary-lt">停用</span>{{end}} <span class="text-secondary small">{{.ServerCount}} 台服务器</span></div>
