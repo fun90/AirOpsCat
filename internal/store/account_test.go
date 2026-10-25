@@ -409,6 +409,9 @@ func TestAccountListFilters(t *testing.T) {
 	check("offline", AccountFilter{Online: "offline"}, forever, expiring, expired, disabled)
 	db.Exec(`INSERT INTO account_traffic_stats (account_id, period_start, period_end, bandwidth_quota, upload_bytes, download_bytes) VALUES (?, ?, ?, 100, 10, 20)`,
 		a.ID, FormatTime(now.Add(-time.Hour)), FormatTime(now.Add(time.Hour)))
+	// 重叠的旧周期行不计入，与订阅用量口径一致。
+	db.Exec(`INSERT INTO account_traffic_stats (account_id, period_start, period_end, bandwidth_quota, upload_bytes, download_bytes) VALUES (?, ?, ?, 5, 1000, 0)`,
+		a.ID, FormatTime(now.Add(-2*time.Hour)), FormatTime(now.Add(2*time.Hour)))
 	rows, _, _ := AccountList(ctx, db, AccountFilter{Search: a.AccountNo}, 1, 10)
 	r := rows[0]
 	if r.UserEmail != "alice@example.com" || r.UsedBytes != 30 || r.QuotaGB != 100 || r.OnlineConns != 1 || r.LastOnline == nil || len(r.Tags) != 1 {

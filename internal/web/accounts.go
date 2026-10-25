@@ -63,7 +63,9 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	online := make(map[int64]string, len(list))
 	lastSeen := make(map[int64]string, len(list))
+	view := make(map[int64]accountView, len(list))
 	for _, a := range list {
+		view[a.ID] = accountRowView(a, now)
 		online[a.ID] = accountOnlineText(snap, a.AccountNo)
 		if !strings.HasPrefix(online[a.ID], "在线") {
 			lastSeen[a.ID] = lastOnlineText(a.LastOnline, now)
@@ -76,12 +78,71 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d["Online"], d["LastSeen"], d["Sort"], d["SortAsc"] = online, lastSeen, sort, asc
-	d["OnlineFilter"], d["UserFilter"] = onlineFilter, userID
+	d["OnlineFilter"], d["UserFilter"], d["View"] = onlineFilter, userID, view
+	if userID > 0 {
+		clear := r.URL.Query()
+		for _, k := range []string{"user_id", "page", "msg", "err"} {
+			clear.Del(k)
+		}
+		d["ClearUserURL"] = "?" + clear.Encode()
+	}
 	d["SortLast"], d["SortTo"] = sortHeader(r.URL.Query(), "last_online", sort, asc), sortHeader(r.URL.Query(), "to_date", sort, asc)
 	d["List"], d["Q"], d["Status"], d["Page"], d["Pages"] = list, q, status, page, (total+size-1)/size
 	d["Now"] = store.FormatTime(now)
 	d["DocsURL"] = store.ConfigValue(r.Context(), s.DB, "airopscat.docs.url")
 	s.render(w, "accounts", 200, d)
+}
+
+// accountView 是列表行的展示状态：Badge 只给异常状态，口径与 store 的状态筛选一致。
+type accountView struct {
+	Badge, BadgeClass string
+	Left, LeftClass   string
+	Usage, BarClass   string
+	Percent           int
+}
+
+func accountRowView(a *store.AccountRow, now time.Time) accountView {
+	var v accountView
+	soon := now.AddDate(0, 0, 7)
+	if t := a.ToDate; t != nil {
+		left := t.Sub(now)
+		// 剩余天数向上取整（不足一天也算 1 天），过期天数向下取整。
+		days := int((left + 24*time.Hour - 1) / (24 * time.Hour))
+		switch {
+		case t.Before(now) && left > -24*time.Hour:
+			v.Left, v.LeftClass = "刚过期", "text-red"
+		case t.Before(now):
+			v.Left, v.LeftClass = fmt.Sprintf("已过期 %d 天", int(-left/(24*time.Hour))), "text-red"
+		case t.After(soon):
+			v.Left, v.LeftClass = fmt.Sprintf("剩 %d 天", days), "text-secondary"
+		default:
+			v.Left, v.LeftClass = fmt.Sprintf("剩 %d 天", days), "text-orange"
+		}
+	}
+	switch t := a.ToDate; {
+	case a.Disabled:
+		v.Badge, v.BadgeClass, v.LeftClass = "已禁用", "bg-secondary-lt", "text-secondary"
+	case t != nil && t.Before(now):
+		v.Badge, v.BadgeClass = "已过期", "bg-red-lt"
+	case t != nil && t.After(now) && !t.After(soon):
+		v.Badge, v.BadgeClass = "即将到期", "bg-orange-lt"
+	}
+	used := float64(a.UsedBytes) / (1 << 30)
+	if a.QuotaGB <= 0 {
+		v.Usage = fmt.Sprintf("%.1f GB · 不限量", used)
+		return v
+	}
+	v.Usage = fmt.Sprintf("%.1f / %d GB", used, a.QuotaGB)
+	v.Percent = min(100, int(used/float64(a.QuotaGB)*100))
+	switch {
+	case v.Percent >= 100:
+		v.BarClass = "bg-red"
+	case v.Percent >= 80:
+		v.BarClass = "bg-orange"
+	default:
+		v.BarClass = "bg-primary"
+	}
+	return v
 }
 
 // accountSort 只接受白名单列；其他值回到默认排序（创建时间倒序）。
@@ -163,6 +224,16 @@ func (s *Server) accountFormPage(w http.ResponseWriter, r *http.Request, status 
 		}
 		if acc, err := store.AccountByID(r.Context(), s.DB, f.ID); err == nil && acc != nil {
 			d["Links"] = s.accountLinks(r, acc)
+			u, err := store.AccountUsage(r.Context(), s.DB, acc.ID, time.Now())
+			if err != nil {
+				s.fail(w, r, err)
+				return
+			}
+			d["Account"], d["Usage"] = acc, u
+			d["View"] = accountRowView(&store.AccountRow{Account: *acc, UsedBytes: u.UsedBytes, QuotaGB: int(u.QuotaGB)}, time.Now())
+			if docs := store.ConfigValue(r.Context(), s.DB, "airopscat.docs.url"); docs != "" {
+				d["Install"] = installText(docs, *acc)
+			}
 		}
 	}
 	s.render(w, "account_form", status, d)

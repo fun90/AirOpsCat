@@ -6,7 +6,7 @@
   if (location.pathname === base) { sessionStorage.setItem(key, base + location.search); return; }
   var back = sessionStorage.getItem(key);
   if (!back) { return; }
-  document.querySelectorAll('.card-footer a.btn-link[href="' + base + '"]').forEach(function (a) { a.href = back; });
+  document.querySelectorAll('.card-footer a.btn-link[href="' + base + '"], a[data-back][href="' + base + '"]').forEach(function (a) { a.href = back; });
   document.querySelectorAll('form[method=post]').forEach(function (f) {
     var path = new URL(f.action, location.href).pathname;
     if (path !== base && path.indexOf(base + '/') !== 0) { return; }

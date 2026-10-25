@@ -272,7 +272,7 @@ func TestAccountHTTPFlow(t *testing.T) {
 	if w.Code != 303 {
 		t.Fatalf("编辑: %d %s", w.Code, w.Body.String())
 	}
-	for _, path := range []string{"/admin/accounts", "/admin/accounts/" + strconv.FormatInt(id, 10) + "/edit", "/admin/accounts/" + strconv.FormatInt(id, 10) + "/bindings", "/admin/users"} {
+	for _, path := range []string{"/admin/accounts", "/admin/accounts/new", "/admin/accounts/" + strconv.FormatInt(id, 10) + "/edit", "/admin/accounts/" + strconv.FormatInt(id, 10) + "/bindings", "/admin/users"} {
 		if w := do(h, "GET", path, nil, c, nil); w.Code != 200 {
 			t.Fatalf("%s: %d", path, w.Code)
 		}
@@ -287,8 +287,8 @@ func TestAccountHTTPFlow(t *testing.T) {
 	if filtered.Code != 200 || !strings.Contains(filtered.Body.String(), "修改备注") {
 		t.Fatal("离线与用户组合筛选错误")
 	}
-	// 在线面板在 {{with .Form}} 内，必须经 $ 取页面数据；无上报时应明确显示“暂无上报”。
-	if body := do(h, "GET", "/admin/accounts/"+strconv.FormatInt(id, 10)+"/edit", nil, c, nil).Body.String(); !strings.Contains(body, `id="account-online" role="tabpanel"><div class="mb-2">暂无上报</div>`) {
+	// 概览在 {{with .Form}} 内，必须经 $ 取页面数据；无上报时应明确显示“暂无上报”。
+	if body := do(h, "GET", "/admin/accounts/"+strconv.FormatInt(id, 10)+"/edit", nil, c, nil).Body.String(); !strings.Contains(body, `data-online-summary>暂无上报</div>`) || !strings.Contains(body, `id="account-online" role="tabpanel">`) || !strings.Contains(body, "保存续期") {
 		t.Fatal("账户编辑页在线面板为空")
 	}
 	for _, query := range []string{

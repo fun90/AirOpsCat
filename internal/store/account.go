@@ -408,7 +408,8 @@ func (f AccountFilter) where(now time.Time) (string, []any) {
 const lastOnlineSQL = `(SELECT max(o.last_online_time) FROM account_online_ip o WHERE o.account_no = a.account_no)`
 
 // 当期统计行：period_start <= now < period_end，重叠时取最近开始的一行。
-const currentStats = `FROM account_traffic_stats s WHERE s.account_id = a.id AND s.period_start <= @now AND s.period_end > @now`
+// currentStats 与 accountUsage 同口径：周期行重叠时只取最新一行。
+const currentStats = `FROM account_traffic_stats s WHERE s.account_id = a.id AND s.period_start <= @now AND s.period_end > @now ORDER BY s.period_start DESC, s.id DESC LIMIT 1`
 
 // AccountList 按筛选分页返回账户；size 上限 100，默认 create_time 倒序。
 func AccountList(ctx context.Context, db *sql.DB, f AccountFilter, page, size int) ([]*AccountRow, int, error) {
@@ -433,8 +434,8 @@ func AccountList(ctx context.Context, db *sql.DB, f AccountFilter, page, size in
 	limit, offset := pageArgs(page, size)
 	args = append(args, sql.Named("limit", limit), sql.Named("offset", offset))
 	rows, err := db.QueryContext(ctx, `SELECT `+accountCols+`, coalesce(u.email,''), coalesce(u.nick_name,''),
-		(SELECT coalesce(sum(s.upload_bytes + s.download_bytes),0) `+currentStats+`),
-		coalesce((SELECT s.bandwidth_quota `+currentStats+` ORDER BY s.period_start DESC LIMIT 1), a.bandwidth, 0),
+		coalesce((SELECT s.upload_bytes + s.download_bytes `+currentStats+`), 0),
+		coalesce((SELECT s.bandwidth_quota `+currentStats+`), a.bandwidth, 0),
 		(SELECT count(*) FROM account_online_ip o WHERE o.account_no = a.account_no AND o.last_online_time > @cutoff),
 		`+lastOnlineSQL+`
 		FROM account a LEFT JOIN user u ON u.id = a.user_id`+where+
