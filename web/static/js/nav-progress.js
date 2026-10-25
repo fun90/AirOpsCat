@@ -136,5 +136,6 @@ window.addEventListener('popstate', event => {
 
 // 表单仍走原生提交，避免等待中的 GET 覆盖提交结果。
 document.addEventListener('submit', event => { if (!event.defaultPrevented) stop(); });
-window.addEventListener('pagehide', stop);
-window.addEventListener('pageshow', stop);
+// 离开文档后交还浏览器恢复滚动（刷新、跨文档后退）；回到本文档再由局部导航接管。
+window.addEventListener('pagehide', () => { stop(); history.scrollRestoration = 'auto'; });
+window.addEventListener('pageshow', () => { stop(); history.scrollRestoration = 'manual'; });
