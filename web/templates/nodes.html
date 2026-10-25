@@ -34,50 +34,31 @@
         </form>
     </div>
     <div class="table-responsive">
-        <table class="table table-vcenter card-table">
-            <thead><tr><th><input class="form-check-input me-2" type="checkbox" data-node-select-all aria-label="全选本页">名称</th><th class="d-none d-md-table-cell">类型</th><th class="d-none d-md-table-cell">协议 / 端口</th><th class="d-none d-md-table-cell">地区</th>
-                <th class="d-none d-md-table-cell">部署</th><th class="d-none d-md-table-cell">状态</th><th class="w-1"></th></tr></thead>
+        <table class="table table-vcenter card-table table-selectable">
+            <thead><tr><th class="w-1"><input class="form-check-input m-0 align-middle" type="checkbox" data-node-select-all aria-label="全选本页"></th><th>名称</th><th class="d-none d-md-table-cell">类型</th><th class="d-none d-md-table-cell">协议 / 端口</th><th class="d-none d-md-table-cell">地区</th>
+                <th class="d-none d-md-table-cell">状态</th><th class="w-1"></th></tr></thead>
             <tbody>
             {{range .List}}
             <tr>
                 {{$st := .DeployStatus}}
-                <td>
-                    <div class="d-flex flex-wrap align-items-center gap-1">
-                        <input class="form-check-input" type="checkbox" name="node_ids" value="{{.ID}}" data-node-select aria-label="选择节点 {{.Name}}"><a class="text-reset" href="/admin/nodes/{{.ID}}/edit">{{.Name}}</a>
-                        {{if .OutName}}<i class="ti ti-arrow-right text-secondary" role="img" aria-label="出站至"></i><a class="text-secondary" href="/admin/nodes/{{.OutID}}/edit">{{.OutName}}</a>{{end}}
+                <td><input class="form-check-input m-0 align-middle table-selectable-check" type="checkbox" name="node_ids" value="{{.ID}}" data-node-select aria-label="选择节点 {{.Name}}"></td>
+                <td class="node-name-cell">
+                    <div class="d-flex align-items-center gap-1">{{if eq $st -1}}<i class="ti ti-circle-dashed text-secondary" role="img" aria-label="无部署位" title="无部署位"></i>{{else if eq $st 0}}<i class="ti ti-clock text-yellow" role="img" aria-label="待部署" title="待部署"></i>{{else if eq $st 1}}<i class="ti ti-circle-check text-green" role="img" aria-label="已部署" title="已部署"></i>{{else}}<i class="ti ti-trash text-red" role="img" aria-label="待删除" title="待删除"></i>{{end}}<a class="text-reset text-truncate" href="/admin/nodes/{{.ID}}/edit">{{.Name}}</a>
+                        {{if .OutName}}<i class="ti ti-link text-secondary" role="img" aria-label="出站至"></i>{{$o := .OutStatus}}{{if eq $o -1}}<i class="ti ti-circle-dashed text-secondary" role="img" aria-label="无部署位" title="无部署位"></i>{{else if eq $o 0}}<i class="ti ti-clock text-yellow" role="img" aria-label="待部署" title="待部署"></i>{{else if eq $o 1}}<i class="ti ti-circle-check text-green" role="img" aria-label="已部署" title="已部署"></i>{{else}}<i class="ti ti-trash text-red" role="img" aria-label="待删除" title="待删除"></i>{{end}}<a class="text-secondary text-truncate" href="/admin/nodes/{{.OutID}}/edit">{{.OutName}}</a>{{end}}
                     </div>
                     <div class="d-md-none text-secondary small mt-1">{{if eq .Type 1}}落地{{else}}代理{{end}} · 端口 {{.Port}} · {{.Protocol}}</div>
-                    {{with index $.Online .ID}}<div class="text-secondary small mt-1">在线：{{.}}</div>{{end}}
-                    <div class="d-md-none mt-1">
-                        {{if eq $st -1}}<span class="badge bg-secondary-lt">无部署位</span>
-                        {{else if eq $st 0}}<span class="badge bg-yellow-lt">待部署</span>
-                        {{else if eq $st 1}}<span class="badge bg-green-lt">已部署</span>
-                        {{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
-                        {{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{end}}
-                    </div>
-                    <div class="mt-1 d-none d-md-block">
-                        {{if .Tags}}
-                        <div class="dropdown">
-                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">已分配 {{len .Tags}} 个标签</button>
-                            <div class="dropdown-menu p-2">
-                                <ul class="list-unstyled mb-0" aria-label="已分配标签">
-                                    {{range .Tags}}<li class="py-1"><span class="badge" style="background-color: {{.Color}}; color: #fff">{{.Name}}</span></li>{{end}}
-                                </ul>
-                            </div>
+                    {{$on := index $.Online .ID}}<div class="d-flex align-items-center gap-1 mt-1"><span class="text-secondary small text-truncate">{{if $on}}在线：{{$on}}{{end}}{{if gt .PlacementTotal 0}}{{if $on}} · {{end}}<span{{if .PlacementDeleting}} class="text-red"{{else if .PlacementPending}} class="text-yellow"{{end}}>{{.PlacementDeployed}}/{{.PlacementTotal}} 个部署位</span>{{end}}</span>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-icon btn-ghost-secondary" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="标签与部署位"><i class="ti ti-tags" aria-hidden="true"></i></button>
+                        <div class="dropdown-menu p-3">
+                            {{if .Tags}}<div class="d-flex flex-wrap gap-1">{{range .Tags}}<span class="badge" style="background-color: {{.Color}}; color: #fff">{{.Name}}</span>{{end}}</div>{{else}}<div class="text-secondary small">未分配标签</div>{{end}}
                         </div>
-                        {{else}}<span class="text-secondary small">未分配标签</span>{{end}}
-                    </div>
+                    </div></div>
+                    {{if .Disabled}}<div class="d-md-none mt-1"><span class="badge bg-secondary-lt">已禁用</span></div>{{end}}
                 </td>
                 <td class="d-none d-md-table-cell">{{if eq .Type 1}}落地{{else}}代理{{end}}</td>
                 <td class="d-none d-md-table-cell">{{.Protocol}}:{{.Port}}</td>
                 <td class="d-none d-md-table-cell">{{.Region}}</td>
-                <td class="d-none d-md-table-cell">
-                    {{if eq $st -1}}<span class="badge bg-secondary-lt">无部署位</span>
-                    {{else if eq $st 0}}<span class="badge bg-yellow-lt">待部署</span>
-                    {{else if eq $st 1}}<span class="badge bg-green-lt">已部署</span>
-                    {{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
-                    {{if gt .PlacementTotal 0}}<div class="text-secondary small">{{.PlacementDeployed}}/{{.PlacementTotal}} 个部署位</div>{{end}}
-                </td>
                 <td class="d-none d-md-table-cell">{{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}}</td>
                 <td class="text-nowrap">
                   <div class="dropdown">

@@ -61,6 +61,7 @@ type Node struct {
 	Tags     []*Tag
 	// 列表用的部署位统计
 	PlacementTotal, PlacementDeployed, PlacementPending, PlacementDeleting int
+	OutStatus                                                              int // 出站落地节点的 DeployStatus，仅列表填充
 }
 
 // DeployStatus 汇总部署位状态：全部待删除→待删除；全部已部署→已部署；没有部署位→无；其余→待部署。
@@ -254,6 +255,14 @@ func NodeList(ctx context.Context, db *sql.DB, f NodeFilter, page, size int) ([]
 	for _, n := range list {
 		if n.Tags, err = nodeTags(ctx, db, n.ID); err != nil {
 			return nil, 0, err
+		}
+		if n.OutID != nil {
+			var o Node
+			if err = db.QueryRowContext(ctx, `SELECT count(*), coalesce(sum(deployed = 1), 0), coalesce(sum(deployed = 2), 0)
+				FROM node_server WHERE node_id = ?`, *n.OutID).Scan(&o.PlacementTotal, &o.PlacementDeployed, &o.PlacementDeleting); err != nil {
+				return nil, 0, err
+			}
+			n.OutStatus = o.DeployStatus()
 		}
 	}
 	return list, total, nil
