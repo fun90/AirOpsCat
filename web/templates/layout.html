@@ -12,10 +12,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="AirOpsCat">
     <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/tabler/css/tabler.min.css?v=p2">
+    <link rel="stylesheet" href="/static/tabler/css/tabler.min.css?v=p3">
     <link rel="stylesheet" href="/static/tabler/css/tabler-icons.min.css?v=p1">
     <link rel="stylesheet" href="/static/vendor/tom-select.bootstrap5.min.css">
-    <link rel="stylesheet" href="/static/css/app.css?v=np3">
+    <link rel="stylesheet" href="/static/css/app.css?v=np5">
 </head>
 {{end}}
 
@@ -23,6 +23,9 @@
 <body>
 <div class="page">
     <header class="navbar navbar-expand-md d-print-none">
+        <div id="nav-progress" class="progress progress-sm fixed-top position-fixed rounded-0 d-none" role="status" aria-label="正在打开页面">
+            <div class="progress-bar progress-bar-indeterminate bg-primary"></div>
+        </div>
         <div class="container-xl">
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="切换菜单">
                 <span class="navbar-toggler-icon"></span>
@@ -111,19 +114,21 @@
     </div>
 </div>
 <script type="module" src="/static/tabler/js/tabler.esm.min.js"></script>
-<script src="/static/js/json-editor.js?v=wrap1" defer></script>
-<script src="/static/js/node-form.js?v=3" defer></script>
-<script type="module" src="/static/js/node-placements.js?v=1"></script>
-<script src="/static/js/node-batch.js?v=2" defer></script>
-<script src="/static/js/tag-picker.js?v=2" defer></script>
+<script src="/static/js/page.js?v=1" defer></script>
+<script src="/static/js/json-editor.js?v=wrap2" defer></script>
+<script src="/static/js/node-form.js?v=4" defer></script>
+<script type="module" src="/static/js/node-placements.js?v=2"></script>
+<script src="/static/js/node-batch.js?v=3" defer></script>
+<script src="/static/js/tag-picker.js?v=3" defer></script>
 <script src="/static/vendor/tom-select.complete.min.js" defer></script>
-<script src="/static/js/searchable.js?v=1" defer></script>
-<script src="/static/js/back.js?v=2" defer></script>
-<script src="/static/js/nav-progress.js?v=2" defer></script>
+<script src="/static/js/searchable.js?v=2" defer></script>
+<script src="/static/js/back.js?v=3" defer></script>
+<script type="module" src="/static/js/nav-progress.js?v=4"></script>
 <script src="/static/js/copy.js?v=1" defer></script>
-<script src="/static/js/account-form.js?v=2" defer></script>
-<script type="module" src="/static/js/account-usage.js?v=4"></script>
-<script type="module" src="/static/js/maintenance.js?v=3"></script>
+<script src="/static/js/account-form.js?v=3" defer></script>
+<script src="/static/js/renewals.js?v=3" defer></script>
+<script type="module" src="/static/js/account-usage.js?v=5"></script>
+<script type="module" src="/static/js/maintenance.js?v=4"></script>
 </body>
 </html>
 {{end}}

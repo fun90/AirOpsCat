@@ -1,5 +1,5 @@
 // 协议变化后重新初始化入站；已有输入替换前先确认，加载失败保留原配置。
-(function () {
+window.AirOpsPage.register(function () {
     var protocol = document.querySelector('#protocol');
     var type = document.querySelector('#type');
     var ta = document.querySelector('#inbound');
@@ -70,4 +70,5 @@
         }
     }, true);
     options();
-})();
+    return function () { ++serial; };
+});

@@ -1,5 +1,6 @@
 // 为 textarea[data-json-editor] 增加：语法高亮、行号、实时校验、格式化/压缩/复制、Tab 缩进。不依赖第三方库。
-(function () {
+window.AirOpsPage.register(function () {
+    var observers = [];
     var esc = function (s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
     var TOKEN = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false)\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
 
@@ -88,7 +89,9 @@
             });
             sync();
         }
-        new ResizeObserver(layout).observe(ta);
+        var observer = new ResizeObserver(layout);
+        observer.observe(ta);
+        observers.push(observer);
         function sync() {
             hl.scrollTop = ta.scrollTop; hl.scrollLeft = ta.scrollLeft; gutter.scrollTop = ta.scrollTop;
         }
@@ -130,4 +133,5 @@
     }
 
     document.querySelectorAll('textarea[data-json-editor]').forEach(init);
-})();
+    return function () { observers.forEach(function (observer) { observer.disconnect(); }); };
+});

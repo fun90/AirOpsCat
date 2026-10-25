@@ -1,4 +1,4 @@
-(function(){
+window.AirOpsPage.register(function(){
  var m=document.querySelector('#renew-modal');if(!m)return;
  var months=m.querySelector('#renew-months'),date=m.querySelector('#renew-date'),amount=m.querySelector('#renew-amount'),hint=m.querySelector('[data-renew-hint]');
  var base,price,per;
@@ -22,4 +22,4 @@
  });});
  months.addEventListener('change',calc);
  date.addEventListener('input',function(){months.value='';});
-})();
+});

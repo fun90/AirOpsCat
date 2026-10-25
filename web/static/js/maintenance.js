@@ -1,3 +1,4 @@
+window.AirOpsPage.register(() => {
 const form = document.querySelector('[data-maintenance-batch]');
 if (form) {
     const scripts = [...form.querySelectorAll('[name="scripts"]')];
@@ -42,6 +43,7 @@ if (form) {
         const targets = [...server.selectedOptions].map(option => ({ id: option.value, label: option.textContent }));
         if (!confirm(`将在 ${targets.length} 台服务器上各按顺序执行 ${selected.length} 个脚本，确定？\n${targets.map(t => t.label).join('\n')}`)) return;
         running = true;
+        document.body.dataset.navigationNative = '';
         const common = { csrf: form.elements.csrf.value, public_key: publicKey.value, acme_email: acmeEmail.value, confirm: 'run' };
         const controls = [...form.querySelectorAll('input,select,textarea,button')];
         const states = controls.map(control => control.disabled);
@@ -84,9 +86,11 @@ if (form) {
             summary.forEach(line => { const p = document.createElement('div'); p.textContent = line; result.append(p); });
         } finally {
             running = false;
+            delete document.body.dataset.navigationNative;
             controls.forEach((control, index) => { control.disabled = states[index]; });
             server.tomselect?.enable();
             window.removeEventListener('beforeunload', beforeUnload);
         }
     });
 }
+});

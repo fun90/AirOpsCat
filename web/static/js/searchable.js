@@ -1,5 +1,5 @@
 // 搜索选择框：select[data-search] 用 Tom Select；部署位 + 连接域名联动见 account_bindings。
-(function () {
+window.AirOpsPage.register(function () {
   var cfg = {maxOptions: null, allowEmptyOption: true, plugins: [], render: {no_results: function () { return '<div class="no-results">无匹配项</div>'; }}};
   document.querySelectorAll('select[data-search]').forEach(function (el) { el._ts = new TomSelect(el, cfg); });
 
@@ -31,4 +31,7 @@
       });
     }
   });
-})();
+  return function () {
+    document.querySelectorAll('select').forEach(function (el) { if (el.tomselect) el.tomselect.destroy(); });
+  };
+});

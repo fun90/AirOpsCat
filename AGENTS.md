@@ -12,7 +12,7 @@
 |------|------|
 | 改 `../profile/airopscat/shell/` 运维脚本 | [服务器运维脚本规范](docs/server-scripts.md) |
 | 改 Go 代码、系统配置、外部契约、敏感字段 | [实现约定](docs/implementation.md) |
-| 改页面、模板、样式 | [UI 设计原则](docs/ui.md) |
+| 改页面、模板、样式、前端脚本；页面验证 | [UI 开发与验证](docs/ui.md) |
 | 安装、发布 | `deploy/README.md` |
 | 迁移、回滚 | `docs/migration.md` |
 | 写验证记录 | `docs/acceptance.md` |

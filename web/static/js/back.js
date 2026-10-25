@@ -1,5 +1,5 @@
 // 列表页记住当前页（含分页/筛选），编辑页的“取消”和保存后的跳转回到该页。
-(function () {
+window.AirOpsPage.register(function () {
   var m = location.pathname.match(/^\/admin\/[a-z]+/);
   if (!m) { return; }
   var base = m[0], key = 'back:' + base;
@@ -13,4 +13,4 @@
     var i = document.createElement('input');
     i.type = 'hidden'; i.name = 'back'; i.value = back; f.appendChild(i);
   });
-})();
+});

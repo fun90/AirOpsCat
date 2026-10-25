@@ -1,4 +1,4 @@
-(() => {
+window.AirOpsPage.register(() => {
   const bar = document.getElementById('nodeBatchBar');
   if (!bar) return;
   const boxes = () => [...document.querySelectorAll('[data-node-select]')];
@@ -11,7 +11,7 @@
     document.body.style.paddingBottom = n ? `${bar.offsetHeight}px` : '';
     if (all) all.checked = n > 0 && n === boxes().length;
   };
-  document.addEventListener('change', (e) => {
+  document.querySelector('.page-wrapper').addEventListener('change', (e) => {
     if (e.target === all) boxes().forEach((b) => { b.checked = all.checked; });
     if (e.target === all || e.target.matches('[data-node-select]')) sync();
   });
@@ -30,4 +30,5 @@
     });
   }));
   sync();
-})();
+  return () => { document.body.style.paddingBottom = ''; };
+});

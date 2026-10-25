@@ -7,6 +7,7 @@ const close = () => {
     active.button.setAttribute('aria-expanded', 'false');
     active = null;
 };
+window.AirOpsPage.register(() => {
 for (const button of document.querySelectorAll('[data-account-usage]')) {
     button.addEventListener('click', async () => {
         if (active?.button === button) { close(); return; }
@@ -35,6 +36,8 @@ for (const button of document.querySelectorAll('[data-account-usage]')) {
         }
     });
 }
+return close;
+});
 document.addEventListener('click', event => {
     if (!event.target.closest('[data-account-usage], .popover')) close();
 });

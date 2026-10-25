@@ -1,5 +1,5 @@
 // 标签在当前表单内选择和维护；新增自动选中，编辑保持原选择，不丢弃其他未保存字段。
-(function () {
+window.AirOpsPage.register(function () {
     document.querySelectorAll('[data-tag-picker]').forEach(function (root) {
         var list = root.querySelector('[data-tag-list]');
         var editor = root.querySelector('[data-tag-editor]');
@@ -66,4 +66,4 @@
             }
         });
     });
-})();
+});

@@ -63,10 +63,3 @@
 @media (max-width: 767.98px) {
     .node-name-cell { width: 100%; max-width: 0; }
 }
-
-/* 页面跳转中（nav-progress.js）：慢请求提示，淡入避免突兀闪烁。 */
-.nav-progress { position: fixed; top: calc(env(safe-area-inset-top, 0px) + .75rem); left: 50%; transform: translateX(-50%); z-index: 2000; display: flex; align-items: center; gap: .5rem; padding: .625rem 1rem; white-space: nowrap; border: 1px solid var(--tblr-border-color); border-radius: var(--tblr-border-radius); background: var(--tblr-bg-surface); color: var(--tblr-body-color); box-shadow: var(--tblr-box-shadow); pointer-events: none; animation: nav-loading-in 200ms ease-out both; }
-@keyframes nav-loading-in { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) {
-    .nav-progress { animation: none; }
-}
