@@ -39,25 +39,29 @@ if (form) {
         const selected = scripts.filter(input => input.checked).sort((a, b) => a.value.localeCompare(b.value));
         if (!selected.length) { result.textContent = '请至少选择一个脚本。'; return; }
         const server = form.elements.server_id;
-        const label = server.selectedOptions[0].textContent;
-        if (!confirm(`将在 ${label} 上按顺序执行 ${selected.length} 个脚本，确定？`)) return;
+        const targets = [...server.selectedOptions].map(option => ({ id: option.value, label: option.textContent }));
+        if (!confirm(`将在 ${targets.length} 台服务器上各按顺序执行 ${selected.length} 个脚本，确定？\n${targets.map(t => t.label).join('\n')}`)) return;
         running = true;
-        const common = { csrf: form.elements.csrf.value, server_id: server.value, public_key: publicKey.value, acme_email: acmeEmail.value, confirm: 'run' };
+        const common = { csrf: form.elements.csrf.value, public_key: publicKey.value, acme_email: acmeEmail.value, confirm: 'run' };
         const controls = [...form.querySelectorAll('input,select,textarea,button')];
         const states = controls.map(control => control.disabled);
         controls.forEach(control => { control.disabled = true; });
         server.tomselect?.disable();
         const beforeUnload = event => { event.preventDefault(); event.returnValue = ''; };
         window.addEventListener('beforeunload', beforeUnload);
-        let completed = 0;
+        const summary = [];
         try {
+            for (const target of targets) {
+            const label = target.label;
+            let completed = 0;
+            scripts.forEach(input => status(input, input.checked ? '待执行' : '未选择'));
             for (const input of selected) {
                 status(input, '执行中', 'blue');
                 result.textContent = `${label}：正在执行 ${input.value}（${completed + 1}/${selected.length}）`;
                 try {
                     const response = await fetch('/admin/maintenance/run', {
                         method: 'POST', redirect: 'error', headers: { Accept: 'application/json' },
-                        body: new URLSearchParams({ ...common, script: input.value, hash: input.dataset.hash })
+                        body: new URLSearchParams({ ...common, server_id: target.id, script: input.value, hash: input.dataset.hash })
                     });
                     if (!response.ok || !response.headers.get('Content-Type')?.includes('application/json')) {
                         throw new Error('执行失败或连接中断，请检查系统日志和服务器实际状态。');
@@ -67,13 +71,17 @@ if (form) {
                 } catch (error) {
                     status(input, '失败 / 待核实', 'red');
                     selected.slice(completed + 1).forEach(item => status(item, '已停止', 'secondary'));
-                    result.textContent = `${input.value}：${error.message} 后续步骤已停止，已完成 ${completed} 项。`;
-                    return;
+                    summary.push(`${label}：${input.value} ${error.message} 后续步骤已停止，已完成 ${completed} 项。`);
+                    completed = -1;
+                    break;
                 }
                 completed++;
                 status(input, '成功', 'green');
             }
-            result.textContent = `${label}：全部 ${completed} 项执行成功。`;
+            if (completed >= 0) summary.push(`${label}：全部 ${completed} 项执行成功。`);
+            }
+            result.innerHTML = '';
+            summary.forEach(line => { const p = document.createElement('div'); p.textContent = line; result.append(p); });
         } finally {
             running = false;
             controls.forEach((control, index) => { control.disabled = states[index]; });
