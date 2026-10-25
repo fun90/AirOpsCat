@@ -2,7 +2,6 @@
 <div class="row row-deck row-cards mb-3">
   <div class="col-12 col-xl-4">
     <div class="card card-sm">
-      {{if .Online.Servers}}<div class="card-status-top bg-blue"></div>{{end}}
       <div class="card-body">
         <div class="d-flex align-items-center gap-2 mb-2">
           {{if .Online.Servers}}<span class="status-dot status-dot-animated status-green"></span>{{else}}<span class="status-dot status-secondary"></span>{{end}}
@@ -33,7 +32,6 @@
   </div>
   <div class="col-6 col-md-3 col-xl-2">
     <div class="card card-sm">
-      {{if .Stats.PendingPlacements}}<div class="card-status-top bg-yellow"></div>{{end}}
       <div class="card-body">
         <div class="d-flex align-items-center gap-2 mb-2"><span class="avatar avatar-sm bg-purple-lt"><i class="ti ti-route" aria-hidden="true"></i></span><a href="/admin/nodes" class="text-secondary">节点</a></div>
         <div class="h1 mb-2">{{.Stats.NodesEnabled}} <span class="text-secondary fs-5 fw-normal">启用</span></div>
@@ -46,7 +44,6 @@
   </div>
   <div class="col-6 col-md-3 col-xl-2">
     <div class="card card-sm">
-      {{if .Stats.ServersExpiring}}<div class="card-status-top bg-yellow"></div>{{end}}
       <div class="card-body">
         <div class="d-flex align-items-center gap-2 mb-2"><span class="avatar avatar-sm bg-azure-lt"><i class="ti ti-server" aria-hidden="true"></i></span><a href="/admin/servers" class="text-secondary">服务器</a></div>
         <div class="h1 mb-2">{{.Stats.ServersEnabled}} <span class="text-secondary fs-5 fw-normal">启用</span></div>
@@ -59,7 +56,6 @@
   </div>
   <div class="col-6 col-md-3 col-xl-2">
     <div class="card card-sm">
-      {{if .Stats.AlertsActive}}<div class="card-status-top bg-red"></div>{{end}}
       <div class="card-body">
         <div class="d-flex align-items-center gap-2 mb-2"><span class="avatar avatar-sm {{if .Stats.AlertsActive}}bg-red-lt{{else}}bg-secondary-lt{{end}}"><i class="ti ti-bell" aria-hidden="true"></i></span><a href="/admin/alerts" class="text-secondary">告警</a></div>
         <div class="h1 mb-2{{if .Stats.AlertsActive}} text-red{{end}}">{{.Stats.AlertsActive}} <span class="text-secondary fs-5 fw-normal">进行中</span></div>
