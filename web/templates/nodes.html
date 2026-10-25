@@ -1,66 +1,66 @@
 {{define "actions"}}<form method="post" action="/admin/nodes/deploy-pending" class="d-inline me-2" onsubmit="return confirm('部署所有存在待部署项的服务器？')"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn btn-outline-primary" type="submit"><i class="ti ti-rocket me-1" aria-hidden="true"></i>部署待部署</button></form><a href="/admin/nodes/new" class="btn btn-primary"><i class="ti ti-plus me-1" aria-hidden="true"></i>新增节点</a>{{end}}
+{{define "deployDot"}}{{if eq . -1}}<span class="status-dot status-secondary flex-shrink-0" role="img" aria-label="无部署位" title="无部署位"></span>{{else if eq . 0}}<span class="status-dot status-yellow flex-shrink-0" role="img" aria-label="待部署" title="待部署"></span>{{else if eq . 1}}<span class="status-dot status-green flex-shrink-0" role="img" aria-label="已部署" title="已部署"></span>{{else}}<span class="status-dot status-red flex-shrink-0" role="img" aria-label="待删除" title="待删除"></span>{{end}}{{end}}
+{{define "placementCount"}}<span{{if .PlacementDeleting}} class="text-red"{{else if .PlacementPending}} class="text-yellow"{{end}}>{{.PlacementDeployed}}/{{.PlacementTotal}}</span>{{end}}
 {{define "content"}}
 <div class="card">
     <div class="card-header">
-        <form method="get" class="row g-2 w-100">
-            <div class="col-12 col-md-4 d-flex gap-2">
+        <ul class="nav nav-tabs card-header-tabs flex-nowrap overflow-x-auto text-nowrap">
+            <li class="nav-item"><a class="nav-link{{if eq .Status ""}} active{{end}}" href="/admin/nodes?q={{.Q}}&type={{.Type}}&tag={{.TagID}}">全部</a></li>
+            <li class="nav-item"><a class="nav-link{{if eq .Status "0"}} active{{end}}" href="/admin/nodes?status=0&q={{.Q}}&type={{.Type}}&tag={{.TagID}}">待部署</a></li>
+            <li class="nav-item"><a class="nav-link{{if eq .Status "1"}} active{{end}}" href="/admin/nodes?status=1&q={{.Q}}&type={{.Type}}&tag={{.TagID}}">已部署</a></li>
+            <li class="nav-item"><a class="nav-link{{if eq .Status "2"}} active{{end}}" href="/admin/nodes?status=2&q={{.Q}}&type={{.Type}}&tag={{.TagID}}">待删除</a></li>
+            <li class="nav-item"><a class="nav-link{{if eq .Status "-1"}} active{{end}}" href="/admin/nodes?status=-1&q={{.Q}}&type={{.Type}}&tag={{.TagID}}">无部署位</a></li>
+        </ul>
+    </div>
+    <div class="card-body border-bottom py-3">
+        <form method="get" class="row g-2">
+            {{if .Status}}<input type="hidden" name="status" value="{{.Status}}">{{end}}
+            <div class="col-12 col-md-5 d-flex gap-2">
                 <input type="search" name="q" value="{{.Q}}" class="form-control" placeholder="名称 / 协议 / 端口 / 地区 / 备注" aria-label="搜索">
                 <button class="btn btn-icon d-md-none" type="button" data-bs-toggle="collapse" data-bs-target="#nodeFilters" aria-expanded="false" aria-controls="nodeFilters" aria-label="更多筛选"><i class="ti ti-adjustments" aria-hidden="true"></i></button>
             </div>
-            <div class="col-12 col-md-8 collapse d-md-block{{if or .Type .Status .TagID}} show{{end}}" id="nodeFilters">
+            <div class="col-12 col-md-7 collapse d-md-block{{if or .Type .TagID}} show{{end}}" id="nodeFilters">
               <div class="row g-2">
-                <div class="col-6 col-md-3">
+                <div class="col-6 col-md-4">
                     <select name="type" class="form-select" aria-label="类型">
                         <option value="">全部类型</option>
                         <option value="0"{{if eq .Type "0"}} selected{{end}}>代理</option>
                         <option value="1"{{if eq .Type "1"}} selected{{end}}>落地</option>
                     </select></div>
-                <div class="col-6 col-md-3">
-                    <select name="status" class="form-select" aria-label="部署状态">
-                        <option value="">全部状态</option>
-                        <option value="0"{{if eq .Status "0"}} selected{{end}}>待部署</option>
-                        <option value="1"{{if eq .Status "1"}} selected{{end}}>已部署</option>
-                        <option value="2"{{if eq .Status "2"}} selected{{end}}>待删除</option>
-                        <option value="-1"{{if eq .Status "-1"}} selected{{end}}>无部署位</option>
-                    </select></div>
-                <div class="col-6 col-md-3">
+                <div class="col-6 col-md-5">
                     <select name="tag" class="form-select" aria-label="标签">
                         <option value="">全部标签</option>
                         {{range .Tags}}<option value="{{.ID}}"{{if eq $.TagID (printf "%d" .ID)}} selected{{end}}>{{.Name}}</option>{{end}}
                     </select></div>
-                <div class="col-6 col-md-3"><button class="btn btn-outline-secondary w-100" type="submit">筛选</button></div>
+                <div class="col-12 col-md-3"><button class="btn btn-outline-secondary w-100" type="submit">筛选</button></div>
               </div>
             </div>
         </form>
     </div>
     <div class="table-responsive">
         <table class="table table-vcenter card-table table-selectable">
-            <thead><tr><th class="w-1"><input class="form-check-input m-0 align-middle" type="checkbox" data-node-select-all aria-label="全选本页"></th><th>名称</th><th class="d-none d-md-table-cell">类型</th><th class="d-none d-md-table-cell">协议 / 端口</th><th class="d-none d-md-table-cell">地区</th>
-                <th class="d-none d-md-table-cell">状态</th><th class="w-1"></th></tr></thead>
+            <thead><tr><th class="w-1"><input class="form-check-input m-0 align-middle" type="checkbox" data-node-select-all aria-label="全选本页"></th><th>节点</th><th class="d-none d-md-table-cell">入站</th><th class="d-none d-md-table-cell">地区</th>
+                <th class="d-none d-md-table-cell">部署</th><th class="d-none d-md-table-cell">在线</th><th class="d-none d-md-table-cell">标签</th><th class="w-1"></th></tr></thead>
             <tbody>
             {{range .List}}
-            <tr>
-                {{$st := .DeployStatus}}
+            {{$st := .DeployStatus}}{{$on := index $.Online .ID}}
+            <tr{{if .Disabled}} class="text-secondary"{{end}}>
                 <td><input class="form-check-input m-0 align-middle table-selectable-check" type="checkbox" name="node_ids" value="{{.ID}}" data-node-select aria-label="选择节点 {{.Name}}"></td>
                 <td class="node-name-cell">
-                    <div class="d-flex align-items-center gap-1">{{if eq $st -1}}<i class="ti ti-circle-dashed text-secondary" role="img" aria-label="无部署位" title="无部署位"></i>{{else if eq $st 0}}<i class="ti ti-clock text-yellow" role="img" aria-label="待部署" title="待部署"></i>{{else if eq $st 1}}<i class="ti ti-circle-check text-green" role="img" aria-label="已部署" title="已部署"></i>{{else}}<i class="ti ti-trash text-red" role="img" aria-label="待删除" title="待删除"></i>{{end}}<a class="text-reset text-truncate" href="/admin/nodes/{{.ID}}/edit">{{.Name}}</a>
-                        {{if .OutName}}<i class="ti ti-link text-secondary" role="img" aria-label="出站至"></i>{{$o := .OutStatus}}{{if eq $o -1}}<i class="ti ti-circle-dashed text-secondary" role="img" aria-label="无部署位" title="无部署位"></i>{{else if eq $o 0}}<i class="ti ti-clock text-yellow" role="img" aria-label="待部署" title="待部署"></i>{{else if eq $o 1}}<i class="ti ti-circle-check text-green" role="img" aria-label="已部署" title="已部署"></i>{{else}}<i class="ti ti-trash text-red" role="img" aria-label="待删除" title="待删除"></i>{{end}}<a class="text-secondary text-truncate" href="/admin/nodes/{{.OutID}}/edit">{{.OutName}}</a>{{end}}
-                    </div>
-                    <div class="d-md-none text-secondary small mt-1">{{if eq .Type 1}}落地{{else}}代理{{end}} · 端口 {{.Port}} · {{.Protocol}}</div>
-                    {{$on := index $.Online .ID}}<div class="d-flex align-items-center gap-1 mt-1"><span class="text-secondary small text-truncate">{{if $on}}在线：{{$on}}{{end}}{{if gt .PlacementTotal 0}}{{if $on}} · {{end}}<span{{if .PlacementDeleting}} class="text-red"{{else if .PlacementPending}} class="text-yellow"{{end}}>{{.PlacementDeployed}}/{{.PlacementTotal}} 个部署位</span>{{end}}</span>
-                    <div class="dropdown">
-                        <button class="btn btn-sm btn-icon btn-ghost-secondary" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="标签与部署位"><i class="ti ti-tags" aria-hidden="true"></i></button>
-                        <div class="dropdown-menu p-3">
-                            {{if .Tags}}<div class="d-flex flex-wrap gap-1">{{range .Tags}}<span class="badge" style="background-color: {{.Color}}; color: #fff">{{.Name}}</span>{{end}}</div>{{else}}<div class="text-secondary small">未分配标签</div>{{end}}
-                        </div>
-                    </div></div>
-                    {{if .Disabled}}<div class="d-md-none mt-1"><span class="badge bg-secondary-lt">已禁用</span></div>{{end}}
+                    <div class="d-flex align-items-center gap-2">{{template "deployDot" $st}}<a class="text-reset text-truncate" href="/admin/nodes/{{.ID}}/edit">{{.Name}}</a>{{if .Disabled}}<span class="badge bg-secondary-lt flex-shrink-0">已禁用</span>{{end}}</div>
+                    <div class="d-md-none text-secondary small mt-1 text-truncate">{{.Protocol}}:{{.Port}} · {{if eq .Type 1}}落地{{else}}代理{{end}}{{if .Region}} · {{.Region}}{{end}}</div>
+                    {{if .OutName}}<div class="d-flex align-items-center gap-1 small mt-1"><i class="ti ti-corner-down-right text-secondary" role="img" aria-label="出站至"></i>{{template "deployDot" .OutStatus}}<a class="text-secondary text-truncate" href="/admin/nodes/{{.OutID}}/edit">{{.OutName}}</a></div>{{end}}
+                    <div class="d-md-none text-secondary small mt-1 text-truncate">{{if gt .PlacementTotal 0}}{{template "placementCount" .}} 部署位{{else}}无部署位{{end}}{{if $on}} · {{$on}}{{end}}</div>
+                    {{if .Tags}}<div class="d-md-none d-flex flex-wrap gap-1 mt-1">{{range $i, $t := .Tags}}{{if lt $i 2}}<span class="badge" style="background-color: {{$t.Color}}; color: #fff">{{$t.Name}}</span>{{end}}{{end}}{{if gt (len .Tags) 2}}<div class="dropdown"><button type="button" class="badge bg-secondary-lt border-0 cursor-pointer" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="其余 {{sub (len .Tags) 2}} 个标签">+{{sub (len .Tags) 2}}</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-1" style="max-width:16rem">{{range $i, $t := .Tags}}{{if ge $i 2}}<span class="badge" style="background-color: {{$t.Color}}; color: #fff">{{$t.Name}}</span>{{end}}{{end}}</div></div></div>{{end}}</div>{{end}}
                 </td>
-                <td class="d-none d-md-table-cell">{{if eq .Type 1}}落地{{else}}代理{{end}}</td>
-                <td class="d-none d-md-table-cell">{{.Protocol}}:{{.Port}}</td>
+                <td class="d-none d-md-table-cell text-nowrap">{{.Protocol}}:{{.Port}}<div class="text-secondary small">{{if eq .Type 1}}落地{{else}}代理{{end}}</div></td>
                 <td class="d-none d-md-table-cell">{{.Region}}</td>
-                <td class="d-none d-md-table-cell">{{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}}</td>
+                <td class="d-none d-md-table-cell text-nowrap"><div class="d-flex align-items-center gap-2">{{template "deployDot" $st}}<span>{{if eq $st -1}}无部署位{{else if eq $st 0}}待部署{{else if eq $st 1}}已部署{{else}}待删除{{end}}</span>{{if gt .PlacementTotal 0}}<span class="text-secondary">{{template "placementCount" .}}</span>{{end}}</div></td>
+                <td class="d-none d-md-table-cell text-nowrap">{{if $on}}{{$on}}{{else}}<span class="text-secondary">—</span>{{end}}</td>
+                <td class="d-none d-md-table-cell">{{if .Tags}}<div class="d-flex flex-wrap gap-1">{{range $i, $t := .Tags}}{{if lt $i 3}}<span class="badge" style="background-color: {{$t.Color}}; color: #fff">{{$t.Name}}</span>{{end}}{{end}}{{if gt (len .Tags) 3}}<div class="dropdown"><button type="button" class="badge bg-secondary-lt border-0 cursor-pointer" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="其余 {{sub (len .Tags) 3}} 个标签">+{{sub (len .Tags) 3}}</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-1" style="max-width:16rem">{{range $i, $t := .Tags}}{{if ge $i 3}}<span class="badge" style="background-color: {{$t.Color}}; color: #fff">{{$t.Name}}</span>{{end}}{{end}}</div></div></div>{{end}}</div>{{end}}</td>
                 <td class="text-nowrap">
+                  <div class="d-flex gap-1 justify-content-end">
+                  {{if or (eq $st 0) (eq $st 2)}}<form method="post" action="/admin/nodes/{{.ID}}/deploy" class="d-none d-md-block"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-primary" type="submit">部署</button></form>{{end}}
                   <div class="dropdown">
                     <button class="btn btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">更多</button>
                     <div class="dropdown-menu dropdown-menu-end">
@@ -79,10 +79,11 @@
                         {{end}}
                     </div>
                   </div>
+                  </div>
                 </td>
             </tr>
             {{else}}
-            <tr><td colspan="7" class="text-center text-secondary py-4">暂无节点</td></tr>
+            <tr><td colspan="8" class="text-center text-secondary py-4">暂无节点</td></tr>
             {{end}}
             </tbody>
         </table>
@@ -90,27 +91,46 @@
     <div class="card-footer d-flex">{{template "pager" .}}</div>
 </div>
 
-<div class="position-fixed bottom-0 start-0 end-0 p-3 d-none" style="z-index:1030" id="nodeBatchBar">
+<div class="position-fixed bottom-0 start-0 end-0 p-3 d-none" style="z-index:1030; padding-bottom: calc(1rem + env(safe-area-inset-bottom)) !important" id="nodeBatchBar">
   <div class="card shadow mx-auto" style="max-width:640px"><div class="card-body d-flex flex-wrap align-items-center gap-2 py-2">
-    <span class="me-auto">已选 <strong data-batch-count>0</strong> 个节点</span>
+    <span class="me-auto">已选 <strong data-batch-count>0</strong><span class="d-none d-sm-inline"> 个节点</span></span>
     <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#batchTagsModal"><i class="ti ti-tag me-1" aria-hidden="true"></i>标签</button>
     <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#batchPlacementsModal"><i class="ti ti-server me-1" aria-hidden="true"></i>部署位</button>
     <button type="button" class="btn btn-link" data-batch-clear>取消</button>
   </div></div>
 </div>
-<div class="modal modal-blur fade" id="batchTagsModal" tabindex="-1" aria-labelledby="batchTagsTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form class="modal-content" method="post" action="/admin/nodes/batch-tags" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}">
-  <div class="modal-header"><h5 class="modal-title" id="batchTagsTitle">调整标签（<span data-batch-count>0</span> 个节点）</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+<div class="modal modal-blur fade" id="batchTagsModal" tabindex="-1" aria-labelledby="batchTagsTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="/admin/nodes/batch-tags" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}">
+  <div class="modal-header"><h5 class="modal-title" id="batchTagsTitle">调整标签 · <span data-batch-count>0</span> 个节点</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
   <div class="modal-body">
-    <div class="mb-3"><select name="mode" class="form-select" aria-label="调整方式"><option value="APPEND">追加所选标签</option><option value="REPLACE">替换为所选标签（不选则清空，相关节点需重新部署）</option></select></div>
-    <div class="d-flex flex-wrap gap-3">{{range .Tags}}<label class="form-check"><input class="form-check-input" type="checkbox" name="tag_ids" value="{{.ID}}"><span class="form-check-label">{{.Name}}</span></label>{{end}}</div>
+    <div class="mb-3">
+      <div class="form-selectgroup w-100" role="radiogroup" aria-label="调整方式">
+        <label class="form-selectgroup-item flex-fill"><input type="radio" name="mode" value="APPEND" class="form-selectgroup-input" checked><span class="form-selectgroup-label">追加</span></label>
+        <label class="form-selectgroup-item flex-fill"><input type="radio" name="mode" value="REPLACE" class="form-selectgroup-input"><span class="form-selectgroup-label">替换</span></label>
+      </div>
+      <div class="form-hint">替换时不选标签即清空，相关节点需重新部署</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">{{range .Tags}}
+      <label class="tag-pill d-inline-flex align-items-center rounded-pill border px-2 py-1 small m-0 cursor-pointer"><input type="checkbox" class="visually-hidden" name="tag_ids" value="{{.ID}}"><span class="status-dot flex-shrink-0 me-1" style="background-color: {{if .Color}}{{.Color}}{{else}}#6c757d{{end}}"></span>{{.Name}}<i class="ti ti-check tag-check ms-1" aria-hidden="true"></i></label>{{else}}<span class="text-secondary">暂无标签</span>{{end}}
+    </div>
   </div>
   <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">应用</button></div>
 </form></div></div>
-<div class="modal modal-blur fade" id="batchPlacementsModal" tabindex="-1" aria-labelledby="batchPlacementsTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form class="modal-content" method="post" action="/admin/nodes/batch-placements" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}">
-  <div class="modal-header"><h5 class="modal-title" id="batchPlacementsTitle">调整部署位（<span data-batch-count>0</span> 个节点）</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+<div class="modal modal-blur fade" id="batchPlacementsModal" tabindex="-1" aria-labelledby="batchPlacementsTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="/admin/nodes/batch-placements" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}">
+  <div class="modal-header"><h5 class="modal-title" id="batchPlacementsTitle">调整部署位 · <span data-batch-count>0</span> 个节点</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
   <div class="modal-body">
-    <div class="mb-3"><select name="placement_mode" class="form-select" aria-label="调整方式"><option value="ADD">添加到所选服务器</option><option value="REMOVE">从所选服务器删除（绑定域名的部署位会整体失败）</option></select></div>
-    <div class="d-flex flex-column gap-2">{{range .Servers}}<div class="d-flex align-items-center gap-1"><label class="form-check mb-0"><input class="form-check-input" type="checkbox" name="server_ids" value="{{.ID}}" aria-label="选择服务器 {{.Name}}">{{if ne .Name .IP}}<span class="form-check-label">{{.Name}}</span>{{end}}</label><a class="text-secondary" href="/admin/servers/{{.ID}}/edit" target="_blank" rel="noopener">{{.IP}}</a><button type="button" class="btn btn-sm btn-ghost-secondary p-0" data-copy="{{.IP}}" aria-label="复制 IP {{.IP}}"><i class="ti ti-copy" aria-hidden="true"></i></button></div>{{end}}</div>
+    <div class="mb-3">
+      <div class="form-selectgroup w-100" role="radiogroup" aria-label="调整方式">
+        <label class="form-selectgroup-item flex-fill"><input type="radio" name="placement_mode" value="ADD" class="form-selectgroup-input" checked><span class="form-selectgroup-label">添加</span></label>
+        <label class="form-selectgroup-item flex-fill"><input type="radio" name="placement_mode" value="REMOVE" class="form-selectgroup-input"><span class="form-selectgroup-label">移除</span></label>
+      </div>
+      <div class="form-hint">移除时绑定域名的部署位会整体失败</div>
+    </div>
+    <div class="list-group">{{range .Servers}}
+      <div class="list-group-item d-flex align-items-center gap-2 py-2">
+        <label class="d-flex align-items-center gap-2 flex-fill m-0 cursor-pointer" style="min-width:0"><input class="form-check-input m-0 flex-shrink-0" type="checkbox" name="server_ids" value="{{.ID}}"><span class="text-truncate">{{.Name}}</span>{{if ne .Name .IP}}<span class="text-secondary small text-truncate ms-auto">{{.IP}}</span>{{end}}</label>
+        <button type="button" class="btn btn-sm btn-icon btn-ghost-secondary flex-shrink-0" data-copy="{{.IP}}" aria-label="复制 IP {{.IP}}"><i class="ti ti-copy" aria-hidden="true"></i></button>
+      </div>{{else}}<div class="list-group-item text-secondary">暂无可用服务器</div>{{end}}
+    </div>
   </div>
   <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">应用</button></div>
 </form></div></div>

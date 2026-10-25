@@ -7,6 +7,8 @@
     const n = boxes().filter((b) => b.checked).length;
     document.querySelectorAll('[data-batch-count]').forEach((e) => { e.textContent = n; });
     bar.classList.toggle('d-none', n === 0);
+    // 给页面底部留出浮层高度，避免遮住最后几行和分页
+    document.body.style.paddingBottom = n ? `${bar.offsetHeight}px` : '';
     if (all) all.checked = n > 0 && n === boxes().length;
   };
   document.addEventListener('change', (e) => {
