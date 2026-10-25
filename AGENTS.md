@@ -1,32 +1,23 @@
 # AirOpsCat 开发约定
 
-## 实现与验证
+## 通用约定
 
 - 正式分支为 `release/go`。Go + SQLite（WAL）+ `html/template` 服务端渲染；只使用 sing-box 内核。
-- 配置生成位于 `internal/singbox/`，部署位于 `internal/deploy/`，数据访问位于 `internal/store/`，控制台位于 `internal/web/` 与 `web/templates/`。
-- 界面复用 Tabler；PC 列表操作达到 5 个、移动端达到 2 个才使用下拉；移动端按 390px 检查消息换行与横向溢出。
-- 增加系统配置必须加入 `store.SettingDefaults`，接入实际消费方和校验；不展示失效配置。任务周期固定在代码，不提供无效周期配置。
-- 外部订阅、docs-info、guard-sync 契约保持兼容。敏感字段用现有加密器，禁止在日志、页面或命令行输出凭据。
-- 修改前检查 `git status --short`；保留用户已有改动。验证使用 `go vet ./...`、`go test ./...`，并对共享并发逻辑运行相关 race 测试。
-- 安装发布见 `deploy/README.md`，迁移回滚见 `docs/migration.md`，验证记录见 `docs/acceptance.md`。过往实现和设计可从 `rewrite/go` 与 Git 历史查阅。
-- 未明确要求时不提交、不推送、不创建发布 tag。正式部署和性能测试分开；持续观察尚未完成时必须标记待验收。
+- 验证：`go vet ./...`、`go test ./...`；共享并发逻辑加跑相关 race 测试。
+- 未明确要求时不提交、不推送、不创建发布 tag。正式部署和性能测试分开；持续观察未完成时标记待验收。
 
-## 真机测试服务器
+## 任务路由
 
-- 用户已指定一台真机测试服务器，可用于真机测试，包括部署、监控采集及维护脚本验证；后续相关任务沿用此约定。
-- 当前导入数据中对应服务器 ID 为 `16`；ID 仅作定位参考，连接前核对目标身份。
-- 真机验证只选择这台服务器，不使用“部署全部”等批量操作，不操作其他服务器。
-- 凭据沿用现有服务器配置，不记录私钥、密码和 Token；验证完成后记录结果并清理临时文件。
-
-## 服务器运维脚本
-
-修改 `../profile/airopscat/shell/` 时遵守：
-
-- 脚本名使用唯一两位数字前缀，按依赖顺序编号；废弃脚本从活动目录移除。
-- 可执行脚本放 `/opt/airopscat/scripts`，持久状态 `/var/lib/airopscat`，日志 `/var/log/airopscat`，临时锁和 PID `/run/airopscat`，下载缓存 `/var/cache/airopscat`，专属配置 `/etc/airopscat`；第三方软件沿用标准目录。
-- 目录创建和安装须幂等，安装后清理缓存；cron/systemd 使用绝对路径；cron 以成对 `# BEGIN AIROPSCAT ...` / `# END AIROPSCAT ...` 标记。
-- 卸载只删除自身已知文件，不递归删除非空目录。
+| 任务 | 必读 |
+|------|------|
+| 改 `../profile/airopscat/shell/` 运维脚本 | [服务器运维脚本规范](docs/server-scripts.md) |
+| 改 Go 代码、系统配置、外部契约、敏感字段 | [实现约定](docs/implementation.md) |
+| 改页面、模板、样式 | [UI 设计原则](docs/ui.md) |
+| 安装、发布 | `deploy/README.md` |
+| 迁移、回滚 | `docs/migration.md` |
+| 写验证记录 | `docs/acceptance.md` |
+| 查过往实现与设计 | `rewrite/go` 分支与 Git 历史 |
 
 ## 文档修改规则
 
-- 事实与方案文档就地更新原文，只保留最新口径，删除过期内容；「补充说明 / 勘误 / 变更记录」式段落不追加。错题表中的历史错误证据按其记录与晋升机制维护。
+- 事实与方案文档就地更新，只保留最新口径，删除过期内容；不追加「补充说明 / 勘误 / 变更记录」段落。错题表的历史错误证据按其记录与晋升机制维护。
