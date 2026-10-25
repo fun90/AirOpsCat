@@ -43,18 +43,26 @@ func (s *Server) autoDNS(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	var failures []string
+	var failures, switched []string
 	for _, id := range ids {
-		if err := s.autoDNSDomain(ctx, id); err != nil {
+		if err := s.autoDNSDomain(ctx, id, &switched); err != nil {
 			failures = append(failures, fmt.Sprintf("域名 %d：%v", id, err))
 		}
+	}
+	// 同一轮的切换（如时段窗口批量切换）合并为一条推送。
+	if len(switched) > 0 {
+		title := "AirOpsCat 服务器自动切换"
+		if len(switched) > 1 {
+			title += fmt.Sprintf("（%d 条）", len(switched))
+		}
+		s.bark().Send(ctx, notify.Message{Title: title, Body: strings.Join(switched, "\n"), Level: "timeSensitive"})
 	}
 	if len(failures) > 0 {
 		return fmt.Errorf("%s", strings.Join(failures, "；"))
 	}
 	return nil
 }
-func (s *Server) autoDNSDomain(ctx context.Context, id int64) error {
+func (s *Server) autoDNSDomain(ctx context.Context, id int64, switched *[]string) error {
 	defer lockDomain(id)()
 	dm, c, err := s.domainClient(ctx, id)
 	if err != nil {
@@ -92,7 +100,7 @@ func (s *Server) autoDNSDomain(ctx context.Context, id int64) error {
 					if err := store.FinishDNSOperation(ctx, s.DB, r.Operation, true); err != nil {
 						return err
 					}
-					s.dnsAutoLog(ctx, r, *r.Operation)
+					s.dnsAutoLog(ctx, r, *r.Operation, switched)
 					break
 				}
 				// 超时请求可能仍在远端执行，读到旧值或第三方值不能证明请求终止。
@@ -151,15 +159,15 @@ func (s *Server) autoDNSDomain(ctx context.Context, id int64) error {
 		if err := store.FinishDNSOperation(ctx, s.DB, op, true); err != nil {
 			return err
 		}
-		s.dnsAutoLog(ctx, r, *op)
+		s.dnsAutoLog(ctx, r, *op, switched)
 	}
 	return nil
 }
-func (s *Server) dnsAutoLog(ctx context.Context, r store.AutoDNSRecord, op store.DNSOperation) {
+func (s *Server) dnsAutoLog(ctx context.Context, r store.AutoDNSRecord, op store.DNSOperation, switched *[]string) {
 	if op.Old == op.Target {
 		return
 	}
 	msg := fmt.Sprintf("%s：%s → %s（%s）", r.FullName, op.Old, op.Target, op.Reason)
 	store.Log(ctx, s.DB, "SERVER_FAILOVER", "INFO", &r.ID, r.FullName, msg, fmt.Sprintf("old=%s target=%s reason=%s", op.Old, op.Target, op.Reason))
-	s.bark().Send(ctx, notify.Message{Title: "AirOpsCat 服务器自动切换", Body: msg, Level: "timeSensitive"})
+	*switched = append(*switched, msg)
 }

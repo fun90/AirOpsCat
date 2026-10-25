@@ -8,6 +8,7 @@ import (
 	"github.com/fun90/airopscat/internal/store"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -147,5 +148,54 @@ func TestAutoDNSReconcile(t *testing.T) {
 	}
 	if target != "1.1.1.1" {
 		t.Fatal("历史时段配置不应改变当前解析", target)
+	}
+}
+
+func TestAutoDNSMergesSwitchNotifications(t *testing.T) {
+	_, a := newTestServer(t)
+	field, _ := crypto.New(crypto.DeriveKey("0123456789abcdef0123456789abcdef", "field"))
+	s, _ := New(a.DB, a, field)
+	s.DNSAutoDomains = "1"
+	ctx := context.Background()
+	var pushes []map[string]any
+	bark := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var m map[string]any
+		json.NewDecoder(r.Body).Decode(&m)
+		pushes = append(pushes, m)
+	}))
+	defer bark.Close()
+	cf := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"success":true,"result":{}}`)
+	}))
+	defer cf.Close()
+	s.DNSBaseURL = cf.URL
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := a.DB.Exec(q, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	key, _ := field.Encrypt("devkey")
+	exec(`INSERT INTO system_config(config_key,config_value,group_key) VALUES('airopscat.bark.url',?,'bark'),('airopscat.bark.device-key',?,'bark')`, bark.URL, key)
+	token, _ := field.Encrypt(`{"apiToken":"t"}`)
+	exec(`INSERT INTO dns_provider_config(id,provider_type,status,display_name,credential_json)VALUES(1,'CLOUDFLARE','ENABLED','cf',?)`, token)
+	exec(`INSERT INTO domain(id,domain,dns_provider_config_id,dns_binding_extension_json)VALUES(1,'example.com',1,'{"zoneId":"z1"}')`)
+	exec(`INSERT INTO server(id,ip,bandwidth)VALUES(1,'1.1.1.1',100),(2,'2.2.2.2',100)`)
+	exec(`INSERT INTO node(id,name,type,protocol,core_type)VALUES(1,'n1',0,'vless','sing-box'),(2,'n2',0,'vless','sing-box')`)
+	exec(`INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,ttl,status,external_record_id)VALUES(1,1,'a','a.example.com','A','1.1.1.1',300,'SYNCED','ext1'),(2,1,'b','b.example.com','A','1.1.1.1',300,'SYNCED','ext2')`)
+	exec(`INSERT INTO node_server(id,node_id,server_id,deployed,access_host_id)VALUES(1,1,1,1,1),(2,1,2,1,NULL),(3,2,1,1,2),(4,2,2,1,NULL)`)
+	now := time.Now().In(store.Shanghai)
+	for id, used := range map[int]int64{1: 95 << 30, 2: 10 << 30} {
+		exec(`INSERT INTO server_metrics(server_id,kind,sample_time,period_year,period_month,rx_bytes,tx_bytes)VALUES(?,'vnstat',?,?,?,?,0)`, id, store.FormatTime(now), now.Year(), int(now.Month()), used)
+	}
+	if err := s.autoDNS(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(pushes) != 1 {
+		t.Fatalf("同一轮切换应合并为一条推送: %v", pushes)
+	}
+	body, _ := pushes[0]["body"].(string)
+	if !strings.Contains(pushes[0]["title"].(string), "2 条") || !strings.Contains(body, "a.example.com") || !strings.Contains(body, "b.example.com") {
+		t.Fatalf("合并内容不完整: %v", pushes[0])
 	}
 }
