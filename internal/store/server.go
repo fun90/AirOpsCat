@@ -26,7 +26,8 @@ type Server struct {
 	ExpireDate    string
 	BandwidthDate string // 日期部分，库中为当天 00:00:00
 	Supplier      string
-	Price         *int64 // 分
+	Price         *int64 // 分，对应 PriceMonths 个月
+	PriceMonths   int    // 1 月付，12 年付
 	Multiple      float64
 	Bandwidth     *int
 	CPUCores      *int
@@ -38,14 +39,14 @@ type Server struct {
 
 const serverCols = `id, coalesce(name,''), ip, coalesce(ssh_port,22), coalesce(auth_type,'PASSWORD'), coalesce(username,''),
 	coalesce(auth,'') <> '', coalesce(region,''), coalesce(server_type,0), coalesce(expire_date,''),
-	substr(coalesce(bandwidth_date,''),1,10), coalesce(supplier,''), price, coalesce(multiple,1), bandwidth, cpu_cores,
+	substr(coalesce(bandwidth_date,''),1,10), coalesce(supplier,''), price, price_months, coalesce(multiple,1), bandwidth, cpu_cores,
 	disabled, external_server, coalesce(remark,'')`
 
 func scanServer(row interface{ Scan(...any) error }) (*Server, error) {
 	var s Server
 	var price, bw, cpu sql.NullInt64
 	if err := row.Scan(&s.ID, &s.Name, &s.IP, &s.SSHPort, &s.AuthType, &s.Username, &s.HasAuth, &s.Region,
-		&s.ServerType, &s.ExpireDate, &s.BandwidthDate, &s.Supplier, &price, &s.Multiple, &bw, &cpu,
+		&s.ServerType, &s.ExpireDate, &s.BandwidthDate, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &cpu,
 		&s.Disabled, &s.External, &s.Remark); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -90,7 +91,7 @@ func ServerList(ctx context.Context, db *sql.DB, search string, page, size int) 
 		var s Server
 		var price, bw, cpu sql.NullInt64
 		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.SSHPort, &s.AuthType, &s.Username, &s.HasAuth, &s.Region,
-			&s.ServerType, &s.ExpireDate, &s.BandwidthDate, &s.Supplier, &price, &s.Multiple, &bw, &cpu,
+			&s.ServerType, &s.ExpireDate, &s.BandwidthDate, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &cpu,
 			&s.Disabled, &s.External, &s.Remark, &s.Placements); err != nil {
 			return nil, 0, err
 		}
@@ -129,10 +130,10 @@ func SaveServer(ctx context.Context, db *sql.DB, c *crypto.Cipher, s *Server, au
 	now := FormatTime(nowFunc())
 	if s.ID == 0 {
 		res, err := db.ExecContext(ctx, `INSERT INTO server (name, ip, ssh_port, auth_type, username, auth, region, server_type,
-			expire_date, bandwidth_date, supplier, price, multiple, bandwidth, cpu_cores, disabled, external_server, remark,
-			create_time, update_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			expire_date, bandwidth_date, supplier, price, price_months, multiple, bandwidth, cpu_cores, disabled, external_server, remark,
+			create_time, update_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			nz(s.Name), s.IP, s.SSHPort, s.AuthType, nz(s.Username), nz(encAuth), nz(s.Region), s.ServerType,
-			nz(s.ExpireDate), dateTime(s.BandwidthDate), nz(s.Supplier), s.Price, s.Multiple, s.Bandwidth, s.CPUCores,
+			nz(s.ExpireDate), dateTime(s.BandwidthDate), nz(s.Supplier), s.Price, s.PriceMonths, s.Multiple, s.Bandwidth, s.CPUCores,
 			s.Disabled, s.External, nz(s.Remark), now, now)
 		if err != nil {
 			return 0, err
@@ -169,10 +170,10 @@ func SaveServer(ctx context.Context, db *sql.DB, c *crypto.Cipher, s *Server, au
 		}
 	}
 	res, err := tx.ExecContext(ctx, `UPDATE server SET name=?, ip=?, ssh_port=?, auth_type=?, username=?, auth=coalesce(?, auth), region=?,
-		server_type=?, expire_date=?, bandwidth_date=?, supplier=?, price=?, multiple=?, bandwidth=?, cpu_cores=?, disabled=?,
+		server_type=?, expire_date=?, bandwidth_date=?, supplier=?, price=?, price_months=?, multiple=?, bandwidth=?, cpu_cores=?, disabled=?,
 		external_server=?, remark=?, update_time=? WHERE id=?`,
 		nz(s.Name), s.IP, s.SSHPort, s.AuthType, nz(s.Username), nz(encAuth), nz(s.Region), s.ServerType,
-		nz(s.ExpireDate), dateTime(s.BandwidthDate), nz(s.Supplier), s.Price, s.Multiple, s.Bandwidth, s.CPUCores,
+		nz(s.ExpireDate), dateTime(s.BandwidthDate), nz(s.Supplier), s.Price, s.PriceMonths, s.Multiple, s.Bandwidth, s.CPUCores,
 		s.Disabled, s.External, nz(s.Remark), now, s.ID)
 	if err != nil {
 		return 0, err

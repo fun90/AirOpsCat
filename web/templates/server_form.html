@@ -37,8 +37,13 @@
                 <input type="date" class="form-control{{if $.Errors.expire_date}} is-invalid{{end}}" id="expire_date" name="expire_date" value="{{.ExpireDate}}">
                 <div class="invalid-feedback">{{$.Errors.expire_date}}</div></div>
             <div class="col-md-3"><label class="form-label" for="price">价格（元）</label>
-                <input class="form-control{{if $.Errors.price}} is-invalid{{end}}" id="price" name="price" value="{{.Price}}" inputmode="decimal">
-                <div class="invalid-feedback">{{$.Errors.price}}</div></div>
+                <div class="input-group has-validation">
+                    <input class="form-control{{if $.Errors.price}} is-invalid{{end}}" id="price" name="price" value="{{.Price}}" inputmode="decimal">
+                    <select class="form-select flex-grow-0 w-auto{{if $.Errors.price_months}} is-invalid{{end}}" name="price_months" aria-label="计价周期">
+                        <option value="1"{{if eq .PriceMonths "1"}} selected{{end}}>/月</option>
+                        <option value="12"{{if eq .PriceMonths "12"}} selected{{end}}>/年</option>
+                    </select>
+                    <div class="invalid-feedback">{{$.Errors.price}}{{$.Errors.price_months}}</div></div></div>
 
             <div class="col-md-3"><label class="form-label" for="bandwidth">月流量（GB）</label>
                 <input class="form-control{{if $.Errors.bandwidth}} is-invalid{{end}}" id="bandwidth" name="bandwidth" value="{{.Bandwidth}}" inputmode="numeric">

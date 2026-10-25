@@ -35,9 +35,12 @@ func TestServerAndTagFlows(t *testing.T) {
 	}
 
 	good := url.Values{"name": {"hk-1"}, "ip": {"1.1.1.1"}, "ssh_port": {"22"}, "auth_type": {"PASSWORD"}, "username": {"root"}, "auth": {"s3cret-pass"},
-		"server_type": {"0"}, "multiple": {"1.5"}, "price": {"352.00"}, "bandwidth": {"1000"}, "expire_date": {"2027-01-02"}, "bandwidth_date": {"2026-01-05"}}
+		"server_type": {"0"}, "multiple": {"1.5"}, "price": {"352.00"}, "price_months": {"12"}, "bandwidth": {"1000"}, "expire_date": {"2027-01-02"}, "bandwidth_date": {"2026-01-05"}}
 	if r := post("/admin/servers", good); r.StatusCode != http.StatusSeeOther {
 		t.Fatalf("创建: %d", r.StatusCode)
+	}
+	if idle := body("/admin/servers/idle"); !strings.Contains(idle, "hk-1") || !strings.Contains(idle, "29.33") {
+		t.Fatal("下线建议应列出服务器并按年价折算月成本")
 	}
 	var enc string
 	var price int64
@@ -53,10 +56,12 @@ func TestServerAndTagFlows(t *testing.T) {
 	// 留空凭据表示不修改
 	good.Set("auth", "")
 	good.Set("name", "hk-renamed")
+	good.Set("price_months", "1")
 	post("/admin/servers/1", good)
 	var enc2, name string
-	h2.QueryRow(`SELECT auth, name FROM server WHERE id = 1`).Scan(&enc2, &name)
-	if enc2 != enc || name != "hk-renamed" {
+	var months int
+	h2.QueryRow(`SELECT auth, name, price_months FROM server WHERE id = 1`).Scan(&enc2, &name, &months)
+	if enc2 != enc || name != "hk-renamed" || months != 1 {
 		t.Fatal("留空应保留原凭据")
 	}
 
@@ -126,7 +131,7 @@ func TestNodeFlows(t *testing.T) {
 		t.Fatal("编辑页应显示部署位")
 	}
 	// 新增服务器不再自动关联，需在节点中手动添加部署位（不限地区）
-	post("/admin/servers", url.Values{"name": {"jp-2"}, "ip": {"2.2.2.2"}, "ssh_port": {"22"}, "auth_type": {"PASSWORD"}, "server_type": {"0"}, "multiple": {"1"}, "region": {"JP"}})
+	post("/admin/servers", url.Values{"name": {"jp-2"}, "ip": {"2.2.2.2"}, "ssh_port": {"22"}, "auth_type": {"PASSWORD"}, "server_type": {"0"}, "multiple": {"1"}, "price_months": {"1"}, "region": {"JP"}})
 	var n int
 	a.DB.QueryRow(`SELECT count(*) FROM node_server WHERE node_id = 1`).Scan(&n)
 	if n != 1 {

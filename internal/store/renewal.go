@@ -12,14 +12,15 @@ import (
 type RenewalItem struct {
 	Table, Name, Supplier, ExpireDate string
 	ID                                int64
-	Price                             *int64 // 分，按年
+	Price                             *int64 // 分，对应 PriceMonths 个月
+	PriceMonths                       int    // 域名固定按年
 }
 
 // ListRenewals 返回未禁用服务器与全部域名，按到期日升序，无到期日的排最后。
 func ListRenewals(ctx context.Context, db *sql.DB) ([]RenewalItem, error) {
-	rows, err := db.QueryContext(ctx, `SELECT t, id, name, supplier, expire, price FROM (
-		SELECT 'server' t, id, trim(ip || CASE WHEN coalesce(name,'')<>'' THEN ' (' || name || ')' ELSE '' END) name, coalesce(supplier,'') supplier, coalesce(expire_date,'') expire, price FROM server WHERE disabled = 0
-		UNION ALL SELECT 'domain', id, coalesce(domain,''), coalesce(supplier,''), coalesce(expire_date,''), price FROM domain)
+	rows, err := db.QueryContext(ctx, `SELECT t, id, name, supplier, expire, price, months FROM (
+		SELECT 'server' t, id, trim(ip || CASE WHEN coalesce(name,'')<>'' THEN ' (' || name || ')' ELSE '' END) name, coalesce(supplier,'') supplier, coalesce(expire_date,'') expire, price, price_months months FROM server WHERE disabled = 0
+		UNION ALL SELECT 'domain', id, coalesce(domain,''), coalesce(supplier,''), coalesce(expire_date,''), price, 12 FROM domain)
 		ORDER BY expire = '', expire, id`)
 	if err != nil {
 		return nil, err
@@ -29,7 +30,7 @@ func ListRenewals(ctx context.Context, db *sql.DB) ([]RenewalItem, error) {
 	for rows.Next() {
 		var it RenewalItem
 		var price sql.NullInt64
-		if err := rows.Scan(&it.Table, &it.ID, &it.Name, &it.Supplier, &it.ExpireDate, &price); err != nil {
+		if err := rows.Scan(&it.Table, &it.ID, &it.Name, &it.Supplier, &it.ExpireDate, &price, &it.PriceMonths); err != nil {
 			return nil, err
 		}
 		if price.Valid {

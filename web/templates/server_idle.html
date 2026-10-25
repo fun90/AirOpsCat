@@ -1,0 +1,14 @@
+{{define "actions"}}<a href="/admin/servers" class="btn btn-outline-secondary" data-back>返回</a>{{end}}
+{{define "content"}}
+<div class="card"><div class="table-responsive"><table class="table table-vcenter card-table">
+<thead><tr><th>服务器</th><th>活跃账户</th><th class="d-none d-md-table-cell">本月流量</th><th class="d-none d-md-table-cell">月成本（元）</th><th class="d-none d-md-table-cell">到期日</th><th>建议</th></tr></thead>
+<tbody>{{range .List}}<tr>
+<td class="text-break"><a href="/admin/servers/{{.ID}}/edit">{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}</a><div class="text-secondary small">{{.Region}}{{if .Supplier}} · {{.Supplier}}{{end}}</div>
+<div class="d-md-none text-secondary small">{{if .HasTraffic}}{{printf "%.1f" .TrafficGB}} GB{{else}}无流量数据{{end}}{{if .MonthlyCents}} · {{cents (deref .MonthlyCents)}} 元/月{{end}}{{if .ExpireDate}} · {{.ExpireDate}}{{end}}</div></td>
+<td>{{if .ActiveAccounts}}{{.ActiveAccounts}}{{else}}<span class="text-secondary">无记录</span>{{end}}</td>
+<td class="d-none d-md-table-cell">{{if .HasTraffic}}{{printf "%.1f" .TrafficGB}} GB{{else}}<span class="text-secondary">无数据</span>{{end}}</td>
+<td class="d-none d-md-table-cell">{{if .MonthlyCents}}{{cents (deref .MonthlyCents)}}{{else}}<span class="text-secondary">未设置</span>{{end}}</td>
+<td class="d-none d-md-table-cell text-nowrap">{{if .ExpireDate}}<span class="{{if lt .ExpireDate $.Today}}text-danger{{else if and .Candidate (lt .ExpireDate $.Soon)}}text-warning fw-bold{{end}}">{{.ExpireDate}}</span>{{end}}</td>
+<td>{{if .Candidate}}<span class="badge bg-orange-lt">可下线</span>{{end}}{{range .Blockers}}<div class="text-danger small text-wrap">{{.}}</div>{{end}}</td>
+</tr>{{else}}<tr><td colspan="6" class="text-center text-secondary py-4">暂无服务器</td></tr>{{end}}</tbody></table></div></div>
+{{end}}

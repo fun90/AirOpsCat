@@ -15,14 +15,14 @@ type ServerForm struct {
 	ID                                                     int64
 	Name, IP, SSHPort, AuthType, Username, Region          string
 	ServerType, ExpireDate, BandwidthDate, Supplier, Price string
-	Multiple, Bandwidth, CPUCores, Remark                  string
+	PriceMonths, Multiple, Bandwidth, CPUCores, Remark     string
 	Disabled, External, HasAuth                            bool
 }
 
 func formFromServer(s *store.Server) *ServerForm {
 	f := &ServerForm{ID: s.ID, Name: s.Name, IP: s.IP, SSHPort: strconv.Itoa(s.SSHPort), AuthType: s.AuthType, Username: s.Username,
 		Region: s.Region, ServerType: strconv.Itoa(s.ServerType), ExpireDate: s.ExpireDate, BandwidthDate: s.BandwidthDate,
-		Supplier: s.Supplier, Multiple: strconv.FormatFloat(s.Multiple, 'f', -1, 64), Remark: s.Remark,
+		Supplier: s.Supplier, PriceMonths: strconv.Itoa(s.PriceMonths), Multiple: strconv.FormatFloat(s.Multiple, 'f', -1, 64), Remark: s.Remark,
 		Disabled: s.Disabled, External: s.External, HasAuth: s.HasAuth}
 	if s.Price != nil {
 		f.Price = store.FormatCents(*s.Price)
@@ -37,7 +37,7 @@ func formFromServer(s *store.Server) *ServerForm {
 }
 
 func defaultServerForm() *ServerForm {
-	return &ServerForm{SSHPort: "22", AuthType: "PASSWORD", Username: "root", ServerType: "0", Multiple: "1"}
+	return &ServerForm{SSHPort: "22", AuthType: "PASSWORD", Username: "root", ServerType: "0", PriceMonths: "12", Multiple: "1"}
 }
 
 func formValue(r *http.Request, k string) string { return strings.TrimSpace(r.PostFormValue(k)) }
@@ -47,7 +47,7 @@ func parseServerForm(r *http.Request) (*ServerForm, *store.Server, map[string]st
 	f := &ServerForm{Name: formValue(r, "name"), IP: formValue(r, "ip"), SSHPort: formValue(r, "ssh_port"), AuthType: formValue(r, "auth_type"),
 		Username: formValue(r, "username"), Region: formValue(r, "region"), ServerType: formValue(r, "server_type"),
 		ExpireDate: formValue(r, "expire_date"), BandwidthDate: formValue(r, "bandwidth_date"), Supplier: formValue(r, "supplier"),
-		Price: formValue(r, "price"), Multiple: formValue(r, "multiple"), Bandwidth: formValue(r, "bandwidth"), CPUCores: formValue(r, "cpu_cores"),
+		Price: formValue(r, "price"), PriceMonths: formValue(r, "price_months"), Multiple: formValue(r, "multiple"), Bandwidth: formValue(r, "bandwidth"), CPUCores: formValue(r, "cpu_cores"),
 		Remark:   formValue(r, "remark"),
 		Disabled: r.PostFormValue("disabled") == "1", External: r.PostFormValue("external_server") == "1"}
 	errs := map[string]string{}
@@ -67,6 +67,10 @@ func parseServerForm(r *http.Request) (*ServerForm, *store.Server, map[string]st
 		errs["server_type"] = "类型不正确"
 	}
 	s.ServerType, _ = strconv.Atoi(f.ServerType)
+	if f.PriceMonths != "1" && f.PriceMonths != "12" {
+		errs["price_months"] = "计价周期不正确"
+	}
+	s.PriceMonths, _ = strconv.Atoi(f.PriceMonths)
 	var err error
 	if s.Multiple, err = strconv.ParseFloat(f.Multiple, 64); err != nil || s.Multiple <= 0 {
 		errs["multiple"] = "倍率必须大于 0"
@@ -107,6 +111,7 @@ func (s *Server) serverRoutes(m *http.ServeMux) {
 		d["Form"], d["Errors"] = defaultServerForm(), map[string]string{}
 		s.render(w, "server_form", http.StatusOK, d)
 	})
+	m.HandleFunc("GET /admin/servers/idle", s.serverIdle)
 	m.HandleFunc("GET /admin/servers/{id}/edit", s.serverEdit)
 	m.HandleFunc("POST /admin/servers", s.serverSave)
 	m.HandleFunc("POST /admin/servers/{id}", s.serverSave)
@@ -125,6 +130,18 @@ func (s *Server) serverList(w http.ResponseWriter, r *http.Request) {
 	d["List"], d["Total"], d["Q"], d["Page"], d["Pages"] = list, total, q, page, (total+size-1)/size
 	d["Today"] = time.Now().In(store.Shanghai).Format("2006-01-02")
 	s.render(w, "servers", http.StatusOK, d)
+}
+
+func (s *Server) serverIdle(w http.ResponseWriter, r *http.Request) {
+	now := time.Now().In(store.Shanghai)
+	list, err := store.IdleServers(r.Context(), s.DB, now)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	d := s.pageData(r, "下线建议", "servers")
+	d["List"], d["Today"], d["Soon"] = list, now.Format("2006-01-02"), now.AddDate(0, 0, 15).Format("2006-01-02")
+	s.render(w, "server_idle", http.StatusOK, d)
 }
 
 func (s *Server) serverEdit(w http.ResponseWriter, r *http.Request) {
