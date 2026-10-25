@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fun90/airopscat/internal/crypto"
 	"github.com/fun90/airopscat/internal/dns"
@@ -153,5 +154,27 @@ func TestDNSPullAddsAndLinksPendingCreate(t *testing.T) {
 	list, total, _ := DNSRecordList(ctx, db, did, "www", 1, 20)
 	if total != 1 || list[0].Type != "CNAME" || list[0].Name != "www" {
 		t.Fatalf("%+v", list)
+	}
+}
+
+// 生产案例：961.52 GB / 1000 GB 告警已达 96%，DNS 不得按 GiB 算成 0.8955 而回切。
+func TestDNSCandidatesDecimalGB(t *testing.T) {
+	db, ctx := testDB(t)
+	now := time.Now().In(Shanghai)
+	for _, q := range []string{
+		`INSERT INTO server(id,ip,bandwidth)VALUES(1,'192.0.2.1',1000)`,
+		`INSERT INTO node(id,name,type,protocol,core_type)VALUES(1,'n',0,'vless','sing-box')`,
+		`INSERT INTO node_server(id,node_id,server_id,deployed)VALUES(1,1,1,1)`,
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec(`INSERT INTO server_metrics(server_id,kind,sample_time,period_year,period_month,rx_bytes,tx_bytes)VALUES(1,'vnstat',?,?,?,478791242211,482727447544)`, FormatTime(now), now.Year(), int(now.Month())); err != nil {
+		t.Fatal(err)
+	}
+	cs, err := DNSCandidates(ctx, db, now)
+	if err != nil || len(cs) != 1 || !cs[0].Known || cs[0].Usage < 0.95 {
+		t.Fatalf("%v %+v", err, cs)
 	}
 }

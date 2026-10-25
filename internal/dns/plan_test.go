@@ -19,6 +19,11 @@ func TestWindowAndPlan(t *testing.T) {
 	}
 	cs := []Candidate{{ID: 1, NodeID: 1, ServerID: 1, IP: "1.1.1.1", Known: true, Usage: .9}, {ID: 2, NodeID: 1, ServerID: 2, IP: "2.2.2.2", Known: true, Usage: .3}}
 	r := AutoRecord{ID: 1, NodeID: 1, ServerID: 1, Content: "1.1.1.1"}
+	cs[0].Known = false
+	if p := PlanRecord(r, cs, .85, at); p.Target != "" || p.Exhausted {
+		t.Fatal("原服务器用量未知不应切走", p)
+	}
+	cs[0].Known = true
 	p := PlanRecord(r, cs, .85, at)
 	if p.Target != "2.2.2.2" || p.Home != "1.1.1.1" || p.Reason != "THRESHOLD" {
 		t.Fatal(p)

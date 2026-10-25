@@ -106,7 +106,11 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 			break
 		}
 	}
-	if target == nil && origin.Known && origin.Usage < threshold {
+	if target == nil && !origin.Known {
+		// 原服务器无新鲜用量时无法判定超阈值，保持当前解析，避免误切后又回切。
+		return Plan{}
+	}
+	if target == nil && origin.Usage < threshold {
 		target = origin
 	}
 	if target == nil {

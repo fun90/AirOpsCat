@@ -114,7 +114,8 @@ func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candida
 			t, e := ParseTime(sampled)
 			if e == nil && !t.After(at) && at.Sub(t) <= 15*time.Minute {
 				c.Known = true
-				c.Usage = (float64(rx.Int64) + float64(tx.Int64)) / float64(bw) / (1 << 30)
+				// 额度为十进制 GB，与监控页和流量告警口径一致。
+				c.Usage = (float64(rx.Int64) + float64(tx.Int64)) / float64(bw) / 1e9
 			}
 		}
 		out = append(out, c)
