@@ -590,15 +590,11 @@ func sameIDs(a, b []int64) bool {
 	return slices.Equal(x, y)
 }
 
-func sameTime(a, b *time.Time) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return FormatTime(*a) == FormatTime(*b)
-}
+// expired 判断到期时间是否已过；节点配置只按有效性筛账户，有效期内改到期时间无需重新部署。
+func expired(t *time.Time) bool { return t != nil && !t.After(nowFunc()) }
 
 // UpdateAccount 全量覆盖账户字段。AccountNo、AuthCode 不可修改（传空或原值），重置订阅码用 ResetAuthCode；
-// TagIDs 为 nil 时不改标签。UUID、启停、到期时间、标签变化会把相关节点置为待部署；
+// TagIDs 为 nil 时不改标签。UUID、启停、到期导致的有效性、标签变化会把相关节点置为待部署；
 // 流量配额变化同步到当期统计行。
 func UpdateAccount(ctx context.Context, db *sql.DB, id int64, a *Account) error {
 	in := *a
@@ -632,7 +628,7 @@ func UpdateAccount(ctx context.Context, db *sql.DB, id int64, a *Account) error 
 		}
 	}
 	tagsChanged := in.TagIDs != nil && !sameIDs(in.TagIDs, old.TagIDs)
-	affectsNodes := in.MaxConnections != old.MaxConnections || in.MaxIps != old.MaxIps || in.DownloadMbps != old.DownloadMbps || in.UploadMbps != old.UploadMbps || in.Bandwidth != old.Bandwidth || tagsChanged || in.UUID != old.UUID || in.Disabled != old.Disabled || !sameTime(in.ToDate, old.ToDate)
+	affectsNodes := in.MaxConnections != old.MaxConnections || in.MaxIps != old.MaxIps || in.DownloadMbps != old.DownloadMbps || in.UploadMbps != old.UploadMbps || in.Bandwidth != old.Bandwidth || tagsChanged || in.UUID != old.UUID || in.Disabled != old.Disabled || expired(in.ToDate) != expired(old.ToDate)
 	if affectsNodes { // 先按旧标签置位，覆盖被移除的标签
 		if err := markAccountPending(ctx, tx, id); err != nil {
 			return err

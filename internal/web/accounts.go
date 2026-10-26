@@ -428,7 +428,7 @@ func (s *Server) accountRenew(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		err = renewAccount(r, s, to, amount)
 	}
-	s.accountActionResult(w, r, err, "续期已保存，相关节点需重新部署")
+	s.accountActionResult(w, r, err, "续期已保存")
 }
 
 func resetAccountCode(r *http.Request, s *Server) error {
