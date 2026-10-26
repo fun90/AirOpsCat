@@ -172,6 +172,11 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	pointed, err := store.PointedPlacements(r.Context(), s.DB)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	online := make(map[int64]string, len(list))
 	for _, n := range list {
 		if n.Type == 0 {
@@ -179,7 +184,7 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	d := s.pageData(r, "节点", "nodes")
-	d["Online"], d["Servers"] = online, servers
+	d["Online"], d["Servers"], d["Pointed"] = online, servers, pointed
 	d["List"], d["Tags"], d["Q"], d["Page"], d["Pages"] = list, tags, f.Search, page, (total+size-1)/size
 	d["Type"], d["Status"], d["TagID"] = q.Get("type"), q.Get("status"), q.Get("tag")
 	s.render(w, "nodes", http.StatusOK, d)
@@ -240,7 +245,16 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 			s.fail(w, r, err)
 			return
 		}
-		d["ServerOptions"], d["PlacementDomains"] = opts, domains
+		pointed, err := store.PointedPlacements(ctx, s.DB)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		targets := map[int64]bool{}
+		for _, p := range pointed[f.ID] {
+			targets[p.ID] = true
+		}
+		d["ServerOptions"], d["PlacementDomains"], d["PlacementTargets"] = opts, domains, targets
 	}
 	// 校验失败回显时保留暂存的部署位增删
 	addIDs, delTargets := map[int64]bool{}, map[int64]string{}

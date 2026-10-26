@@ -52,4 +52,15 @@ func TestWindowAndPlan(t *testing.T) {
 	if p = PlanRecord(r, cs, .85, at); p.Target != "" {
 		t.Fatal("不能覆盖人工指定", p)
 	}
+
+	// 手动切走：即使原服务器用量正常、候选超阈值也切走；全部切走时保持不动。
+	r = AutoRecord{ID: 1, NodeID: 1, ServerID: 1, Content: "1.1.1.1"}
+	cs = []Candidate{{ID: 1, NodeID: 1, ServerID: 1, IP: "1.1.1.1", Known: true, Failover: true}, {ID: 2, NodeID: 1, ServerID: 2, IP: "2.2.2.2", Known: true, Usage: .9}}
+	if p = PlanRecord(r, cs, .85, at); p.Target != "2.2.2.2" || p.Home != "1.1.1.1" || p.Reason != "MANUAL" {
+		t.Fatal(p)
+	}
+	cs[1].Failover = true
+	if p = PlanRecord(r, cs, .85, at); p.Target != "" || p.Exhausted {
+		t.Fatal(p)
+	}
 }

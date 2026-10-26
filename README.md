@@ -6,7 +6,7 @@
 
 - 服务器、节点、账户、用户、标签、订阅定制与收支管理。
 - sing-box 配置生成、SSH 部署、主机密钥校验、流量采集与配额限速。
-- Cloudflare DNS、按流量与便宜时段自动切换。
+- Cloudflare DNS、按流量与便宜时段自动切换；服务器故障时可手动切走并回切。
 - 服务器 CPU/内存/网速及 vnstat 监控、告警状态机和 Bark 通知。
 - 维护脚本批量执行、SQLite 一致性备份和历史清理。
 
@@ -38,7 +38,7 @@ go run ./cmd/airopscat
 | `AIROPSCAT_SCRIPTS_DIR` | 覆盖系统配置中的脚本目录，指向 profile 仓库的 `airopscat/shell` |
 | `AIROPSCAT_TRAFFIC_SERVERS` | 空为关闭；服务器 ID 逗号列表或 `all`，控制流量采集及远端配置备份清理 |
 | `AIROPSCAT_MONITOR_SERVERS` | 空为关闭；服务器 ID 逗号列表或 `all` |
-| `AIROPSCAT_DNS_AUTO_DOMAINS` | 空为关闭；域名 ID 逗号列表或 `all` |
+| `AIROPSCAT_DNS_AUTO_DOMAINS` | 流量与时段自动切换的域名白名单：空为关闭；域名 ID 逗号列表或 `all`。手动切走不受此限制 |
 | `AIROPSCAT_NOTIFY_DISABLED=1` | 禁止全部 Bark 外发，含测试通知 |
 | `AIROPSCAT_TASKS_DISABLED=1` | 禁止启动后台 ticker，供隔离验收；管理页手动执行仍可用 |
 

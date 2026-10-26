@@ -39,6 +39,12 @@ func TestServerAndTagFlows(t *testing.T) {
 	if r := post("/admin/servers", good); r.StatusCode != http.StatusSeeOther {
 		t.Fatalf("创建: %d", r.StatusCode)
 	}
+	if r := post("/admin/servers/1/failover", url.Values{"on": {"1"}}); !strings.Contains(r.Header.Get("Location"), "msg=") || !strings.Contains(body("/admin/servers"), "已切走") {
+		t.Fatal("手动切走未生效", r.Header.Get("Location"))
+	}
+	if post("/admin/servers/1/failover", url.Values{"on": {"0"}}); strings.Contains(body("/admin/servers"), "已切走") {
+		t.Fatal("恢复未生效")
+	}
 	if idle := body("/admin/servers/idle"); !strings.Contains(idle, "hk-1") || !strings.Contains(idle, "29.33") {
 		t.Fatal("下线建议应列出服务器并按年价折算月成本")
 	}

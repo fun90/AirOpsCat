@@ -62,6 +62,7 @@
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-2 pe-4">
                         <strong>{{.ServerName}}</strong><span class="text-secondary">{{.ServerIP}}</span>
                         {{if eq .Deployed 0}}<span class="badge bg-yellow-lt">待部署</span>{{else if eq .Deployed 1}}<span class="badge bg-green-lt">已部署</span>{{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
+                        {{if index $.PlacementTargets .ID}}<span class="badge bg-blue-lt">当前指向</span>{{end}}
                         {{if .Disabled}}<span class="badge bg-secondary-lt">服务器已禁用</span>{{end}}
                         <span class="badge bg-red-lt" data-del-badge hidden></span>
                         <button type="button" class="btn btn-sm btn-link p-0" data-del-undo hidden>撤销删除</button>

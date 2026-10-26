@@ -34,20 +34,21 @@ type Server struct {
 	Disabled      bool
 	External      bool
 	Remark        string
-	Placements    int // 列表用：部署位数量
+	Failover      bool // 手动切走：DNS 自动切到同节点其他部署位
+	Placements    int  // 列表用：部署位数量
 }
 
 const serverCols = `id, coalesce(name,''), ip, coalesce(ssh_port,22), coalesce(auth_type,'PASSWORD'), coalesce(username,''),
 	coalesce(auth,'') <> '', coalesce(region,''), coalesce(server_type,0), coalesce(expire_date,''),
 	substr(coalesce(bandwidth_date,''),1,10), coalesce(supplier,''), price, price_months, coalesce(multiple,1), bandwidth, cpu_cores,
-	disabled, external_server, coalesce(remark,'')`
+	disabled, external_server, coalesce(remark,''), failover`
 
 func scanServer(row interface{ Scan(...any) error }) (*Server, error) {
 	var s Server
 	var price, bw, cpu sql.NullInt64
 	if err := row.Scan(&s.ID, &s.Name, &s.IP, &s.SSHPort, &s.AuthType, &s.Username, &s.HasAuth, &s.Region,
 		&s.ServerType, &s.ExpireDate, &s.BandwidthDate, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &cpu,
-		&s.Disabled, &s.External, &s.Remark); err != nil {
+		&s.Disabled, &s.External, &s.Remark, &s.Failover); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
@@ -92,7 +93,7 @@ func ServerList(ctx context.Context, db *sql.DB, search string, page, size int) 
 		var price, bw, cpu sql.NullInt64
 		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.SSHPort, &s.AuthType, &s.Username, &s.HasAuth, &s.Region,
 			&s.ServerType, &s.ExpireDate, &s.BandwidthDate, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &cpu,
-			&s.Disabled, &s.External, &s.Remark, &s.Placements); err != nil {
+			&s.Disabled, &s.External, &s.Remark, &s.Failover, &s.Placements); err != nil {
 			return nil, 0, err
 		}
 		list = append(list, &s)
@@ -102,6 +103,17 @@ func ServerList(ctx context.Context, db *sql.DB, search string, page, size int) 
 
 func ServerByID(ctx context.Context, db *sql.DB, id int64) (*Server, error) {
 	return scanServer(db.QueryRowContext(ctx, `SELECT `+serverCols+` FROM server WHERE id = ?`, id))
+}
+
+func SetServerFailover(ctx context.Context, db *sql.DB, id int64, on bool) error {
+	res, err := db.ExecContext(ctx, `UPDATE server SET failover = ?, update_time = ? WHERE id = ?`, on, FormatTime(nowFunc()), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func nz(s string) any {

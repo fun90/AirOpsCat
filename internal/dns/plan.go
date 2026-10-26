@@ -32,7 +32,7 @@ type Candidate struct {
 	IP, CheapStart, CheapEnd string
 	Priority                 *int64
 	Usage                    float64
-	Known                    bool
+	Known, Failover          bool
 }
 type AutoRecord struct {
 	ID            int64
@@ -98,29 +98,41 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 	if home != "" && home != origin.IP {
 		return blocked("保存的原始解析与当前归属服务器不一致")
 	}
+	ok := func(c *Candidate) bool { return !c.Failover && c.Known && c.Usage < threshold }
 	var target *Candidate
 	for i := range cs {
 		c := &cs[i]
-		if c.Known && c.Usage < threshold && Window(c.CheapStart, c.CheapEnd, at) {
+		if ok(c) && Window(c.CheapStart, c.CheapEnd, at) {
 			target = c
 			break
 		}
 	}
-	if target == nil && !origin.Known {
+	if target == nil && !origin.Known && !origin.Failover {
 		// 原服务器无新鲜用量时无法判定超阈值，保持当前解析，避免误切后又回切。
 		return Plan{}
 	}
-	if target == nil && origin.Usage < threshold {
+	if target == nil && ok(origin) {
 		target = origin
 	}
 	if target == nil {
 		for i := range cs {
-			c := &cs[i]
-			if c.Known && c.Usage < threshold {
-				target = c
+			if ok(&cs[i]) {
+				target = &cs[i]
 				break
 			}
 		}
+	}
+	if target == nil && origin.Failover {
+		// 原服务器已手动切走时，宁可切到超阈值或用量未知的候选，也不留在不可用的服务器上。
+		for i := range cs {
+			if !cs[i].Failover {
+				target = &cs[i]
+				break
+			}
+		}
+	}
+	if target == nil && origin.Failover {
+		return Plan{}
 	}
 	if target == nil {
 		known := true
@@ -133,7 +145,9 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 	if target.ServerID != origin.ServerID {
 		home = origin.IP
 		reason = "THRESHOLD"
-		if Window(target.CheapStart, target.CheapEnd, at) {
+		if origin.Failover {
+			reason = "MANUAL"
+		} else if Window(target.CheapStart, target.CheapEnd, at) {
 			reason = "CHEAP_WINDOW"
 		}
 	} else {

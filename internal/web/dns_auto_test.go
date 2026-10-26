@@ -199,3 +199,66 @@ func TestAutoDNSMergesSwitchNotifications(t *testing.T) {
 		t.Fatalf("合并内容不完整: %v", pushes[0])
 	}
 }
+
+func TestManualFailoverWithoutAutoDomain(t *testing.T) {
+	_, a := newTestServer(t)
+	field, _ := crypto.New(crypto.DeriveKey("0123456789abcdef0123456789abcdef", "field"))
+	s, _ := New(a.DB, a, field)
+	s.NotifyDisabled = true
+	ctx := context.Background()
+	target := "1.1.1.1"
+	cf := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var b struct{ Patches []struct{ Content string } }
+		json.NewDecoder(r.Body).Decode(&b)
+		target = b.Patches[0].Content
+		fmt.Fprint(w, `{"success":true,"result":{}}`)
+	}))
+	defer cf.Close()
+	s.DNSBaseURL = cf.URL
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := a.DB.Exec(q, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	token, _ := field.Encrypt(`{"apiToken":"t"}`)
+	exec(`INSERT INTO dns_provider_config(id,provider_type,status,display_name,credential_json)VALUES(1,'CLOUDFLARE','ENABLED','cf',?)`, token)
+	exec(`INSERT INTO domain(id,domain,dns_provider_config_id,dns_binding_extension_json)VALUES(1,'example.com',1,'{"zoneId":"z1"}')`)
+	// 有额度但无流量样本：未开启自动切换时不应依赖用量。
+	exec(`INSERT INTO server(id,ip,bandwidth)VALUES(1,'1.1.1.1',100),(2,'2.2.2.2',100)`)
+	exec(`INSERT INTO node(id,name,type,protocol,core_type)VALUES(1,'n',0,'vless','sing-box')`)
+	exec(`INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,ttl,status,external_record_id)VALUES(1,1,'a','a.example.com','A','1.1.1.1',300,'SYNCED','ext1')`)
+	exec(`INSERT INTO node_server(id,node_id,server_id,deployed,access_host_id)VALUES(1,1,1,1,1),(2,1,2,1,NULL)`)
+	content := func() (c, home string) {
+		a.DB.QueryRow(`SELECT content,coalesce(failover_home_content,'') FROM domain_dns_record WHERE id=1`).Scan(&c, &home)
+		return
+	}
+	if err := s.autoDNS(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := content(); c != "1.1.1.1" || target != "1.1.1.1" {
+		t.Fatal("未切走时不应改动", c, target)
+	}
+	if err := store.SetServerFailover(ctx, a.DB, 1, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.autoDNS(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if c, home := content(); c != "2.2.2.2" || home != "1.1.1.1" || target != "2.2.2.2" {
+		t.Fatal("切走失败", c, home, target)
+	}
+	if m, err := store.PointedPlacements(ctx, a.DB); err != nil || fmt.Sprint(m[1]) != "[{2 2.2.2.2}]" {
+		t.Fatal("部署位切换标注不对", m, err)
+	}
+	store.SetServerFailover(ctx, a.DB, 1, false)
+	if err := s.autoDNS(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if c, home := content(); c != "1.1.1.1" || home != "" || target != "1.1.1.1" {
+		t.Fatal("回切失败", c, home, target)
+	}
+	if m, _ := store.PointedPlacements(ctx, a.DB); fmt.Sprint(m[1]) != "[{1 1.1.1.1}]" {
+		t.Fatal("回切后应指向原部署位", m)
+	}
+}

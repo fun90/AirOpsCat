@@ -1,6 +1,8 @@
 package web
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
@@ -116,6 +118,31 @@ func (s *Server) serverRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/servers", s.serverSave)
 	m.HandleFunc("POST /admin/servers/{id}", s.serverSave)
 	m.HandleFunc("POST /admin/servers/{id}/delete", s.serverDelete)
+	m.HandleFunc("POST /admin/servers/{id}/failover", s.serverFailover)
+}
+
+// serverFailover 标记后立即执行一轮 DNS 切换，不等定时任务；切走与回切都复用自动切换的对账流程。
+func (s *Server) serverFailover(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	on := r.PostFormValue("on") == "1"
+	if err := store.SetServerFailover(r.Context(), s.DB, id, on); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.NotFound(w, r)
+			return
+		}
+		s.fail(w, r, err)
+		return
+	}
+	action := "恢复"
+	if on {
+		action = "切走"
+	}
+	// 推送中途断开会留下待对账操作，因此不随浏览器请求取消。
+	if err := s.autoDNS(context.WithoutCancel(r.Context())); err != nil {
+		redirectMsg(w, r, "/admin/servers", "err", "已标记"+action+"，但 DNS 切换未全部完成（定时任务会继续重试）："+err.Error())
+		return
+	}
+	redirectMsg(w, r, "/admin/servers", "msg", "已"+action+"并执行 DNS 切换，结果见系统日志")
 }
 
 func (s *Server) serverList(w http.ResponseWriter, r *http.Request) {

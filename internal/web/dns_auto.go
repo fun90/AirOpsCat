@@ -13,33 +13,12 @@ import (
 	"github.com/fun90/airopscat/internal/store"
 )
 
-// autoDNS 默认关闭；只对显式允许的域名运行，包括手动触发任务。
+// autoDNS 的流量与时段切换只对显式允许的域名运行；手动切走对所有已绑定服务商的域名生效。
 func (s *Server) autoDNS(ctx context.Context) error {
-	ids, err := store.AutoDNSDomains(ctx, s.DB, s.DNSAutoDomains)
-	if err != nil {
+	if _, err := store.AutoDNSDomains(ctx, s.DB, s.DNSAutoDomains); err != nil {
 		return err
 	}
-	pending, err := s.DB.QueryContext(ctx, `SELECT DISTINCT r.domain_id FROM dns_auto_operation o JOIN domain_dns_record r ON r.id=o.record_id`)
-	if err != nil {
-		return err
-	}
-	seen := map[int64]bool{}
-	for _, id := range ids {
-		seen[id] = true
-	}
-	for pending.Next() {
-		var id int64
-		if err := pending.Scan(&id); err != nil {
-			pending.Close()
-			return err
-		}
-		if !seen[id] {
-			ids = append(ids, id)
-			seen[id] = true
-		}
-	}
-	err = pending.Err()
-	pending.Close()
+	ids, err := store.AutoDNSDomains(ctx, s.DB, "all")
 	if err != nil {
 		return err
 	}
@@ -64,8 +43,13 @@ func (s *Server) autoDNS(ctx context.Context) error {
 }
 func (s *Server) autoDNSDomain(ctx context.Context, id int64, switched *[]string) error {
 	defer lockDomain(id)()
-	dm, c, err := s.domainClient(ctx, id)
-	if err != nil {
+	// 服务商客户端按需获取：未开启自动切换的域名多数轮次无需访问远端，不应因服务商停用报错。
+	var dm *store.DNSDomain
+	var c *dns.Client
+	client := func() (err error) {
+		if c == nil {
+			dm, c, err = s.domainClient(ctx, id)
+		}
 		return err
 	}
 	records, err := store.AutoDNSRecords(ctx, s.DB, id)
@@ -84,8 +68,17 @@ func (s *Server) autoDNSDomain(ctx context.Context, id int64, switched *[]string
 			enabled = true
 		}
 	}
+	if !enabled {
+		// 未开启自动切换：忽略流量与时段，所有候选视为可用，只按手动切走规划。
+		for i := range candidates {
+			candidates[i].Known, candidates[i].Usage, candidates[i].CheapStart, candidates[i].CheapEnd = true, 0, "", ""
+		}
+	}
 	for _, r := range records {
 		if r.Operation != nil {
+			if err := client(); err != nil {
+				return err
+			}
 			remote, err := c.List(ctx, dm.ZoneID)
 			if err != nil {
 				return err
@@ -110,9 +103,6 @@ func (s *Server) autoDNSDomain(ctx context.Context, id int64, switched *[]string
 			if !found {
 				return fmt.Errorf("%s 远端记录缺失，自动操作保持待核查", r.FullName)
 			}
-			continue
-		}
-		if !enabled {
 			continue
 		}
 		p := dns.PlanRecord(r.PlanInput, candidates, threshold, time.Now())
@@ -142,6 +132,11 @@ func (s *Server) autoDNSDomain(ctx context.Context, id int64, switched *[]string
 		}
 		if p.Target == r.Content && p.Home == r.PlanInput.Home {
 			continue
+		}
+		if p.Target != r.Content {
+			if err := client(); err != nil {
+				return err
+			}
 		}
 		op, err := store.BeginDNSOperation(ctx, s.DB, r, p)
 		if err != nil {

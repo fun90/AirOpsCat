@@ -324,6 +324,37 @@ func retargetRecord(ctx context.Context, tx dbtx, rid, serverID int64, serverIP,
 	return err
 }
 
+type PointedPlacement struct {
+	ID     int64
+	Server string
+}
+
+// PointedPlacements 按节点返回其域名当前解析到的部署位（自动或手动切换后即为承接方）；单部署位节点无需标注。
+func PointedPlacements(ctx context.Context, db *sql.DB) (map[int64][]PointedPlacement, error) {
+	rows, err := db.QueryContext(ctx, `WITH refs(node_id, rid) AS (
+		SELECT node_id, access_host_id FROM node_server WHERE access_host_id IS NOT NULL AND deployed <> 2
+		UNION SELECT node_id, domain_dns_record_id FROM account_node_subscription_domain_binding WHERE enabled = 1 AND domain_dns_record_id IS NOT NULL)
+		SELECT DISTINCT t.node_id, t.id, coalesce(s.name, s.ip), t.priority FROM refs JOIN domain_dns_record r ON r.id = refs.rid
+		JOIN node_server t ON t.node_id = refs.node_id AND t.deployed <> 2 JOIN server s ON s.id = t.server_id AND s.ip = r.content
+		WHERE (SELECT count(*) FROM node_server c WHERE c.node_id = t.node_id AND c.deployed <> 2) > 1
+		ORDER BY t.node_id, t.priority, t.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64][]PointedPlacement{}
+	for rows.Next() {
+		var node int64
+		var p PointedPlacement
+		var priority sql.NullInt64
+		if err := rows.Scan(&node, &p.ID, &p.Server, &priority); err != nil {
+			return nil, err
+		}
+		out[node] = append(out[node], p)
+	}
+	return out, rows.Err()
+}
+
 // PlacementDomains 返回各部署位删除时需要转移的域名与订阅定制说明，供删除确认展示。
 func PlacementDomains(ctx context.Context, db *sql.DB, nodeID int64) (map[int64][]string, error) {
 	rows, err := db.QueryContext(ctx, `SELECT ns.id, '访问域名 ' || coalesce(r.full_name, r.name) FROM node_server ns JOIN domain_dns_record r ON r.id = ns.access_host_id WHERE ns.node_id = ?
