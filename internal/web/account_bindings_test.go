@@ -35,7 +35,7 @@ func TestBindingPageListAndEdit(t *testing.T) {
 		os.WriteFile(os.Getenv("BINDING_SHOT")+"list.html", []byte(body), 0o644)
 	}
 	body = do(h, "GET", "/admin/accounts/7/bindings?from=edit&edit=5", nil, c, nil).Body.String()
-	if !strings.Contains(body, "编辑 · 香港") || !strings.Contains(body, `href="?from=edit&amp;edit=6"`) || !strings.Contains(body, `href="/admin/accounts/7/bindings?from=edit" class="btn btn-link">取消`) || !strings.Contains(body, `name="binding_id" value="5"`) || !strings.Contains(body, `data-current="1"`) || strings.Contains(body, "日本 →") || !strings.Contains(body, `href="/admin/accounts/7/edit" class="btn btn-outline-secondary" data-back>返回`) {
+	if !strings.Contains(body, "编辑 · 香港") || !strings.Contains(body, `href="?from=edit&amp;edit=6"`) || !strings.Contains(body, `href="/admin/accounts/7/bindings?from=edit" class="btn btn-link">取消`) || !strings.Contains(body, `name="binding_id" value="5"`) || !strings.Contains(body, `data-current="1"`) || !strings.Contains(body, "日本 →") || !strings.Contains(body, `href="/admin/accounts/7/edit" class="btn btn-outline-secondary" data-back>返回`) {
 		t.Fatal("编辑表单未带入定制或返回地址错误")
 	}
 	if os.Getenv("BINDING_SHOT") != "" {

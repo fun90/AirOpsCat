@@ -7,7 +7,7 @@ window.AirOpsPage.register(function () {
     var place = form.querySelector('select[data-placement]'), rec = form.querySelector('select[data-record]');
     if (!place || !rec) { return; }
     var ts = new TomSelect(rec, Object.assign({}, cfg, {placeholder: rec.dataset.empty}));
-    var current = rec.dataset.current || '';
+    var current = rec.dataset.current || '', currentName = rec.dataset.currentName || current;
     function fill() {
       var opt = place.selectedOptions[0], list = [];
       try { list = JSON.parse((opt && opt.dataset.records) || 'null') || []; } catch (e) {}
@@ -15,12 +15,13 @@ window.AirOpsPage.register(function () {
       ts.addOption({value: '', text: rec.dataset.empty});
       list.forEach(function (r) { ts.addOption({value: String(r.ID), text: r.Name}); });
       if (current && !list.some(function (r) { return String(r.ID) === current; })) {
-        ts.addOption({value: current, text: rec.dataset.currentName || current});
+        ts.addOption({value: current, text: currentName});
       }
       ts.setValue(current, true);
     }
-    place.addEventListener('change', function () { current = ''; fill(); });
-    rec.addEventListener('change', function () { current = rec.value; });
+    // 换部署位时保留已选域名，保存后域名随之迁移
+    place.addEventListener('change', function () { fill(); });
+    rec.addEventListener('change', function () { current = rec.value; currentName = current && ts.options[current] ? ts.options[current].text : current; });
     fill();
     var link = form.querySelector('[data-toggle-new-domain]'), box = form.querySelector('[data-new-domain]');
     if (link && box) {

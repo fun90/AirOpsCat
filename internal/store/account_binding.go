@@ -195,12 +195,8 @@ func SaveAccountBinding(ctx context.Context, db *sql.DB, b *AccountBinding) erro
 		if err != nil || typ != "A" || status == "PENDING_DELETE" {
 			return invalid("请选择有效 A 记录")
 		}
-		if sid.Valid && sid.Int64 != serverID {
-			return invalid("域名已绑定到其他服务器")
-		}
-		if !sid.Valid && content != ip {
-			return invalid("未绑定域名的解析值必须等于部署位服务器 IP")
-		}
+		// 解析不在该部署位服务器时随定制迁移；已绑定服务器但解析不同是自动切换中，保持不动
+		move := (sid.Valid && sid.Int64 != serverID) || (!sid.Valid && content != ip)
 		var refs int
 		err = tx.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM node_server WHERE access_host_id=? AND id<>?) + (SELECT count(*) FROM account_node_subscription_domain_binding x LEFT JOIN account_node_subscription_placement p ON p.binding_id=x.id WHERE x.domain_dns_record_id=? AND x.id<>? AND (x.node_id<>? OR coalesce(p.node_server_id,0)<>?))`, *b.RecordID, b.PlacementID, *b.RecordID, b.ID, nodeID, b.PlacementID).Scan(&refs)
 		if err != nil {
@@ -209,7 +205,12 @@ func SaveAccountBinding(ctx context.Context, db *sql.DB, b *AccountBinding) erro
 		if refs > 0 {
 			return invalid("域名已被不同节点或部署位使用")
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE domain_dns_record SET server_id=? WHERE id=?`, serverID, *b.RecordID); err != nil {
+		if move {
+			err = retargetRecord(ctx, tx, *b.RecordID, serverID, ip, FormatTime(nowFunc()))
+		} else {
+			_, err = tx.ExecContext(ctx, `UPDATE domain_dns_record SET server_id=? WHERE id=?`, serverID, *b.RecordID)
+		}
+		if err != nil {
 			return err
 		}
 	}

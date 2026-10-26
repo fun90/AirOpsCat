@@ -59,6 +59,50 @@ func TestBindingAuthorizationAndRecordRelease(t *testing.T) {
 	}
 }
 
+func TestBindingMoveToOtherNodeRetargetsRecord(t *testing.T) {
+	db, ctx := testDB(t)
+	tag := mustTag(t, db, "mv")
+	n1, n2 := deployedNode(t, db, "mv-1", tag), deployedNode(t, db, "mv-2", tag)
+	r := onboard(t, db, "mv@example.com", func(in *OnboardInput) { in.Account.TagIDs = []int64{tag} })
+	var p1, s1, p2, s2 int64
+	var ip2 string
+	db.QueryRow(`SELECT id,server_id FROM node_server WHERE node_id=?`, n1).Scan(&p1, &s1)
+	db.QueryRow(`SELECT ns.id,s.id,s.ip FROM node_server ns JOIN server s ON s.id=ns.server_id WHERE ns.node_id=?`, n2).Scan(&p2, &s2, &ip2)
+	db.Exec(`INSERT INTO domain(id,domain) VALUES(1,'example.com')`)
+	db.Exec(`INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status,server_id) SELECT 1,1,'vpn','vpn.example.com','A',ip,'SYNCED',id FROM server WHERE id=?`, s1)
+	rid := int64(1)
+	b := &AccountBinding{AccountID: r.AccountID, PlacementID: p1, RecordID: &rid, Enabled: true}
+	if err := SaveAccountBinding(ctx, db, b); err != nil {
+		t.Fatal(err)
+	}
+	// 其他账户仍在原节点使用该域名时不允许迁移
+	other := onboard(t, db, "mv2@example.com", func(in *OnboardInput) { in.Account.TagIDs = []int64{tag} })
+	ob := &AccountBinding{AccountID: other.AccountID, PlacementID: p1, RecordID: &rid, Enabled: true}
+	if err := SaveAccountBinding(ctx, db, ob); err != nil {
+		t.Fatal(err)
+	}
+	b.PlacementID = p2
+	if err := SaveAccountBinding(ctx, db, b); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("共享域名不应迁移 err=%v", err)
+	}
+	if err := DeleteAccountBinding(ctx, db, other.AccountID, ob.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveAccountBinding(ctx, db, b); err != nil {
+		t.Fatal(err)
+	}
+	var sid int64
+	var content, status string
+	db.QueryRow(`SELECT server_id,content,status FROM domain_dns_record WHERE id=1`).Scan(&sid, &content, &status)
+	if sid != s2 || content != ip2 || status != DNSPendingUpdate {
+		t.Fatalf("记录未迁移: %d %s %s", sid, content, status)
+	}
+	list, _ := AccountBindings(ctx, db, r.AccountID)
+	if len(list) != 1 || list[0].NodeID != n2 || list[0].PlacementID != p2 {
+		t.Fatalf("定制未切换节点: %+v", list[0])
+	}
+}
+
 func TestNodeTagRemovalCleansOnlyUnauthorizedBindings(t *testing.T) {
 	db, ctx := testDB(t)
 	t1 := mustTag(t, db, "one")
