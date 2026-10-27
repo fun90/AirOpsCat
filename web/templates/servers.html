@@ -15,7 +15,7 @@
             <tr>
                 <td class="d-none d-md-table-cell">{{.ID}}</td>
                 <td>{{.Name}}{{if .Supplier}}<div class="text-secondary small">{{.Supplier}}</div>{{end}}
-                    <div class="d-md-none mt-1">{{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}} {{if .External}}<span class="badge bg-azure-lt">外部</span>{{end}} {{if .Failover}}<span class="badge bg-orange-lt">已切走</span>{{end}}</div></td>
+                    <div class="d-md-none mt-1">{{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}} {{if .External}}<span class="badge bg-azure-lt">外部</span>{{end}} {{if .Failover}}<span class="badge bg-orange-lt">已切走{{if lt .Failover .Placements}} {{.Failover}}/{{.Placements}}{{end}}</span>{{end}}</div></td>
                 <td>{{.IP}}</td>
                 <td class="d-none d-md-table-cell">{{.Region}}</td>
                 <td class="d-none d-md-table-cell">{{if eq .ServerType 1}}落地{{else}}代理{{end}}</td>
@@ -24,7 +24,7 @@
                 <td class="d-none d-md-table-cell">
                     {{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}}
                     {{if .External}}<span class="badge bg-azure-lt">外部</span>{{end}}
-                    {{if .Failover}}<span class="badge bg-orange-lt">已切走</span>{{end}}
+                    {{if .Failover}}<span class="badge bg-orange-lt">已切走{{if lt .Failover .Placements}} {{.Failover}}/{{.Placements}}{{end}}</span>{{end}}
                 </td>
                 <td class="text-nowrap">
                   <div class="dropdown">
@@ -33,8 +33,8 @@
                         <a class="dropdown-item" href="/admin/servers/{{.ID}}/edit">编辑</a>
                         <a class="dropdown-item" href="/admin/servers/{{.ID}}/config" target="_blank" rel="noopener">配置预览</a>
                         <form method="post" action="/admin/servers/{{.ID}}/ping"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item">测试连接</button></form>
-                        {{if .Failover}}<form method="post" action="/admin/servers/{{.ID}}/failover" onsubmit="return confirm('恢复后相关域名将切回该服务器，确定？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="on" value="0"><button class="dropdown-item">恢复流量</button></form>
-                        {{else}}<form method="post" action="/admin/servers/{{.ID}}/failover" onsubmit="return confirm('将把该服务器部署位的域名切到同节点其他部署位，确定？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="on" value="1"><button class="dropdown-item text-warning">切走流量</button></form>{{end}}
+                        {{if .Failover}}<form method="post" action="/admin/servers/{{.ID}}/failover" onsubmit="return confirm('恢复后相关域名将切回该服务器，确定？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="on" value="0"><button class="dropdown-item">恢复流量</button></form>{{end}}
+                        {{if lt .Failover .Placements}}<form method="post" action="/admin/servers/{{.ID}}/failover" onsubmit="return confirm('将把该服务器全部部署位的域名切到同节点其他部署位，确定？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="on" value="1"><button class="dropdown-item text-warning">切走流量</button></form>{{end}}
                         <form method="post" action="/admin/servers/{{.ID}}/clear-host-key" onsubmit="return confirm('服务器重装后才需要清除主机密钥，确定？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item">清除主机密钥</button></form>
                         <form method="post" action="/admin/servers/{{.ID}}/delete" onsubmit="return confirm('确定删除该服务器？')"><input type="hidden" name="csrf" value="{{$.CSRF}}">
                             <button class="dropdown-item text-danger" type="submit">删除</button></form>

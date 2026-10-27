@@ -34,14 +34,14 @@ type Server struct {
 	Disabled      bool
 	External      bool
 	Remark        string
-	Failover      bool // 手动切走：DNS 自动切到同节点其他部署位
+	Failover      int  // 已手动切走的部署位数：DNS 自动切到同节点其他部署位
 	Placements    int  // 列表用：部署位数量
 }
 
 const serverCols = `id, coalesce(name,''), ip, coalesce(ssh_port,22), coalesce(auth_type,'PASSWORD'), coalesce(username,''),
 	coalesce(auth,'') <> '', coalesce(region,''), coalesce(server_type,0), coalesce(expire_date,''),
 	substr(coalesce(bandwidth_date,''),1,10), coalesce(supplier,''), price, price_months, coalesce(multiple,1), bandwidth, cpu_cores,
-	disabled, external_server, coalesce(remark,''), failover`
+	disabled, external_server, coalesce(remark,''), (SELECT count(*) FROM node_server f WHERE f.server_id = server.id AND f.failover = 1)`
 
 func scanServer(row interface{ Scan(...any) error }) (*Server, error) {
 	var s Server
@@ -106,14 +106,15 @@ func ServerByID(ctx context.Context, db *sql.DB, id int64) (*Server, error) {
 }
 
 func SetServerFailover(ctx context.Context, db *sql.DB, id int64, on bool) error {
-	res, err := db.ExecContext(ctx, `UPDATE server SET failover = ?, update_time = ? WHERE id = ?`, on, FormatTime(nowFunc()), id)
-	if err != nil {
+	var exists bool
+	if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM server WHERE id = ?)`, id).Scan(&exists); err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if !exists {
 		return sql.ErrNoRows
 	}
-	return nil
+	_, err := db.ExecContext(ctx, `UPDATE node_server SET failover = ? WHERE server_id = ?`, on, id)
+	return err
 }
 
 func nz(s string) any {

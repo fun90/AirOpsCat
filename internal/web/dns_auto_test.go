@@ -51,8 +51,9 @@ func TestAutoDNSReconcile(t *testing.T) {
 	exec(`INSERT INTO domain(id,domain,dns_provider_config_id,dns_binding_extension_json)VALUES(1,'example.com',1,'{"zoneId":"z1"}')`)
 	exec(`INSERT INTO server(id,ip,bandwidth)VALUES(1,'1.1.1.1',100),(2,'2.2.2.2',100)`)
 	exec(`INSERT INTO node(id,name,type,protocol,core_type)VALUES(1,'n',0,'vless','sing-box')`)
-	exec(`INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,ttl,status,external_record_id)VALUES(1,1,'a','a.example.com','A','1.1.1.1',300,'SYNCED','ext1')`)
-	exec(`INSERT INTO node_server(id,node_id,server_id,deployed,access_host_id)VALUES(1,1,1,1,1),(2,1,2,1,NULL)`)
+	exec(`INSERT INTO node(id,name,type,protocol,core_type)VALUES(2,'m',0,'vless','sing-box')`)
+	exec(`INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,ttl,status,external_record_id)VALUES(1,1,'a','a.example.com','A','1.1.1.1',300,'SYNCED','ext1'),(2,1,'b','b.example.com','A','1.1.1.1',300,'SYNCED','ext2')`)
+	exec(`INSERT INTO node_server(id,node_id,server_id,deployed,access_host_id)VALUES(1,1,1,1,1),(2,1,2,1,NULL),(3,2,1,1,2),(4,2,2,1,NULL)`)
 	now := time.Now().In(store.Shanghai)
 	for id, used := range map[int]int64{1: 95 << 30, 2: 10 << 30} {
 		exec(`INSERT INTO server_metrics(server_id,kind,sample_time,period_year,period_month,rx_bytes,tx_bytes)VALUES(?,'vnstat',?,?,?,?,0)`, id, store.FormatTime(now), now.Year(), int(now.Month()), used)
@@ -227,8 +228,9 @@ func TestManualFailoverWithoutAutoDomain(t *testing.T) {
 	// 有额度但无流量样本：未开启自动切换时不应依赖用量。
 	exec(`INSERT INTO server(id,ip,bandwidth)VALUES(1,'1.1.1.1',100),(2,'2.2.2.2',100)`)
 	exec(`INSERT INTO node(id,name,type,protocol,core_type)VALUES(1,'n',0,'vless','sing-box')`)
-	exec(`INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,ttl,status,external_record_id)VALUES(1,1,'a','a.example.com','A','1.1.1.1',300,'SYNCED','ext1')`)
-	exec(`INSERT INTO node_server(id,node_id,server_id,deployed,access_host_id)VALUES(1,1,1,1,1),(2,1,2,1,NULL)`)
+	exec(`INSERT INTO node(id,name,type,protocol,core_type)VALUES(2,'m',0,'vless','sing-box')`)
+	exec(`INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,ttl,status,external_record_id)VALUES(1,1,'a','a.example.com','A','1.1.1.1',300,'SYNCED','ext1'),(2,1,'b','b.example.com','A','1.1.1.1',300,'SYNCED','ext2')`)
+	exec(`INSERT INTO node_server(id,node_id,server_id,deployed,access_host_id)VALUES(1,1,1,1,1),(2,1,2,1,NULL),(3,2,1,1,2),(4,2,2,1,NULL)`)
 	content := func() (c, home string) {
 		a.DB.QueryRow(`SELECT content,coalesce(failover_home_content,'') FROM domain_dns_record WHERE id=1`).Scan(&c, &home)
 		return
@@ -239,14 +241,20 @@ func TestManualFailoverWithoutAutoDomain(t *testing.T) {
 	if c, _ := content(); c != "1.1.1.1" || target != "1.1.1.1" {
 		t.Fatal("未切走时不应改动", c, target)
 	}
-	if err := store.SetServerFailover(ctx, a.DB, 1, true); err != nil {
-		t.Fatal(err)
+	// 只切走节点 1，同服务器上的节点 2 保持不动。
+	if n, skipped, err := store.BatchNodeSwitch(ctx, a.DB, []int64{1}); err != nil || n != 1 || skipped != 0 {
+		t.Fatal(n, skipped, err)
 	}
 	if err := s.autoDNS(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if c, home := content(); c != "2.2.2.2" || home != "1.1.1.1" || target != "2.2.2.2" {
 		t.Fatal("切走失败", c, home, target)
+	}
+	var other string
+	a.DB.QueryRow(`SELECT content FROM domain_dns_record WHERE id=2`).Scan(&other)
+	if other != "1.1.1.1" {
+		t.Fatal("未选节点不应切走", other)
 	}
 	if m, err := store.PointedPlacements(ctx, a.DB); err != nil || fmt.Sprint(m[1]) != "[{2 2.2.2.2}]" {
 		t.Fatal("部署位切换标注不对", m, err)
@@ -260,5 +268,22 @@ func TestManualFailoverWithoutAutoDomain(t *testing.T) {
 	}
 	if m, _ := store.PointedPlacements(ctx, a.DB); fmt.Sprint(m[1]) != "[{1 1.1.1.1}]" {
 		t.Fatal("回切后应指向原部署位", m)
+	}
+	// 指定目标部署位：节点 2 切到 2.2.2.2，再回切。
+	if err := store.SwitchNodePlacement(ctx, a.DB, 2, 4); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SwitchNodePlacement(ctx, a.DB, 2, 1); err == nil {
+		t.Fatal("其他节点的部署位不能作为目标")
+	}
+	if err := s.autoDNS(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a.DB.QueryRow(`SELECT content FROM domain_dns_record WHERE id=2`).Scan(&other)
+	if other != "2.2.2.2" {
+		t.Fatal("未切到指定部署位", other)
+	}
+	if n, _ := store.RestoreNodeFailover(ctx, a.DB, []int64{2}); n != 1 {
+		t.Fatal("回切应清除 1 个部署位", n)
 	}
 }

@@ -39,12 +39,6 @@ func TestServerAndTagFlows(t *testing.T) {
 	if r := post("/admin/servers", good); r.StatusCode != http.StatusSeeOther {
 		t.Fatalf("创建: %d", r.StatusCode)
 	}
-	if r := post("/admin/servers/1/failover", url.Values{"on": {"1"}}); !strings.Contains(r.Header.Get("Location"), "msg=") || !strings.Contains(body("/admin/servers"), "已切走") {
-		t.Fatal("手动切走未生效", r.Header.Get("Location"))
-	}
-	if post("/admin/servers/1/failover", url.Values{"on": {"0"}}); strings.Contains(body("/admin/servers"), "已切走") {
-		t.Fatal("恢复未生效")
-	}
 	if idle := body("/admin/servers/idle"); !strings.Contains(idle, "hk-1") || !strings.Contains(idle, "29.33") {
 		t.Fatal("下线建议应列出服务器并按年价折算月成本")
 	}
@@ -74,6 +68,16 @@ func TestServerAndTagFlows(t *testing.T) {
 	// 已部署的部署位阻止删除服务器
 	h2.Exec(`INSERT INTO node (id, type, protocol) VALUES (1, 0, 'vless')`)
 	h2.Exec(`INSERT INTO node_server (node_id, server_id, deployed) VALUES (1, 1, 1)`)
+	if r := post("/admin/servers/1/failover", url.Values{"on": {"1"}}); !strings.Contains(r.Header.Get("Location"), "msg=") || !strings.Contains(body("/admin/servers"), "已切走") {
+		t.Fatal("手动切走未生效", r.Header.Get("Location"))
+	}
+	if post("/admin/servers/1/failover", url.Values{"on": {"0"}}); strings.Contains(body("/admin/servers"), "已切走") {
+		t.Fatal("恢复未生效")
+	}
+	// 单部署位节点没有可切的目标，批量切换应跳过
+	if r := post("/admin/nodes/batch-failover", url.Values{"node_ids": {"1"}}); !strings.Contains(r.Header.Get("Location"), url.QueryEscape("跳过 1")) {
+		t.Fatal("单部署位节点应跳过", r.Header.Get("Location"))
+	}
 	if r := post("/admin/servers/1/delete", url.Values{}); !strings.Contains(r.Header.Get("Location"), "err=") {
 		t.Fatalf("应拒绝删除: %s", r.Header.Get("Location"))
 	}

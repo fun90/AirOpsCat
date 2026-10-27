@@ -94,6 +94,7 @@ type Placement struct {
 	Running        bool // 曾成功部署过（服务器上已有该节点），可承接转移的域名
 	CheapStart     string
 	CheapEnd       string
+	Failover       bool // 已手动切走
 }
 
 // PlacementOps 是节点表单暂存的部署位增删，随节点保存在同一事务中执行。
@@ -341,7 +342,7 @@ func Regions(ctx context.Context, db *sql.DB) ([]string, error) {
 func Placements(ctx context.Context, q dbtx, nodeID int64) ([]*Placement, error) {
 	rows, err := q.QueryContext(ctx, `SELECT ns.id, ns.node_id, ns.server_id, coalesce(s.name,''), s.ip, coalesce(s.region,''), coalesce(s.server_type,0), s.external_server, s.disabled, ns.access_host_id,
 		coalesce(ns.exposed,1) <> 0, coalesce(ns.priority,0), ns.deployed,
-		ns.deployed = 1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id), coalesce(ns.cheap_start,''), coalesce(ns.cheap_end,'')
+		ns.deployed = 1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id), coalesce(ns.cheap_start,''), coalesce(ns.cheap_end,''), ns.failover
 		FROM node_server ns JOIN server s ON s.id = ns.server_id WHERE ns.node_id = ? ORDER BY ns.priority, ns.id`, nodeID)
 	if err != nil {
 		return nil, err
@@ -352,7 +353,7 @@ func Placements(ctx context.Context, q dbtx, nodeID int64) ([]*Placement, error)
 		var p Placement
 		var host sql.NullInt64
 		if err := rows.Scan(&p.ID, &p.NodeID, &p.ServerID, &p.ServerName, &p.ServerIP, &p.ServerRegion, &p.ServerType, &p.ServerExternal, &p.Disabled, &host, &p.Exposed, &p.Priority,
-			&p.Deployed, &p.Running, &p.CheapStart, &p.CheapEnd); err != nil {
+			&p.Deployed, &p.Running, &p.CheapStart, &p.CheapEnd, &p.Failover); err != nil {
 			return nil, err
 		}
 		if host.Valid {

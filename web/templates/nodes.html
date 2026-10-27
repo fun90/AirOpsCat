@@ -56,7 +56,8 @@
                 <td class="d-none d-md-table-cell text-nowrap">{{.Protocol}}:{{.Port}}<div class="text-secondary small">{{if eq .Type 1}}落地{{else}}代理{{end}}</div></td>
                 <td class="d-none d-md-table-cell">{{.Region}}</td>
                 <td class="d-none d-md-table-cell text-nowrap"><div class="d-flex align-items-center gap-2">{{template "deployDot" $st}}<span>{{if eq $st -1}}无部署位{{else if eq $st 0}}待部署{{else if eq $st 1}}已部署{{else}}待删除{{end}}</span>{{if gt .PlacementTotal 0}}<span class="text-secondary">{{template "placementCount" .}}</span>{{end}}</div>
-                    {{range index $.Pointed .ID}}<div class="d-flex align-items-center gap-1 small mt-1"><i class="ti ti-corner-down-right text-secondary" role="img" aria-label="当前指向"></i><span class="text-secondary text-truncate">{{.Server}}</span></div>{{end}}</td>
+                    {{range index $.Pointed .ID}}<div class="d-flex align-items-center gap-1 small mt-1"><i class="ti ti-corner-down-right text-secondary" role="img" aria-label="当前指向"></i><span class="text-secondary text-truncate">{{.Server}}</span></div>{{end}}
+                    {{range index $.Failover .ID}}<div class="small mt-1"><span class="badge bg-orange-lt">已切走 {{.}}</span></div>{{end}}</td>
                 <td class="d-none d-md-table-cell text-nowrap">{{if $on}}{{$on}}{{else}}<span class="text-secondary">—</span>{{end}}</td>
                 <td class="d-none d-md-table-cell">{{if .Tags}}<div class="d-flex flex-wrap gap-1">{{range $i, $t := .Tags}}{{if lt $i 3}}<span class="badge" style="background-color: {{$t.Color}}; color: #fff">{{$t.Name}}</span>{{end}}{{end}}{{if gt (len .Tags) 3}}<div class="dropdown"><button type="button" class="badge bg-secondary-lt border-0 cursor-pointer" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="其余 {{sub (len .Tags) 3}} 个标签">+{{sub (len .Tags) 3}}</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-1" style="max-width:16rem">{{range $i, $t := .Tags}}{{if ge $i 3}}<span class="badge" style="background-color: {{$t.Color}}; color: #fff">{{$t.Name}}</span>{{end}}{{end}}</div></div></div>{{end}}</div>{{end}}</td>
                 <td class="text-nowrap">
@@ -97,6 +98,7 @@
     <span class="me-auto">已选 <strong data-batch-count>0</strong><span class="d-none d-sm-inline"> 个节点</span></span>
     <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#batchTagsModal"><i class="ti ti-tag me-1" aria-hidden="true"></i>标签</button>
     <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#batchPlacementsModal"><i class="ti ti-server me-1" aria-hidden="true"></i>部署位</button>
+    <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#batchFailoverModal"><i class="ti ti-switch-horizontal me-1" aria-hidden="true"></i>手动切换</button>
     <button type="button" class="btn btn-link" data-batch-clear>取消</button>
   </div></div>
 </div>
@@ -132,6 +134,17 @@
         <button type="button" class="btn btn-sm btn-icon btn-ghost-secondary flex-shrink-0" data-copy="{{.IP}}" aria-label="复制 IP {{.IP}}"><i class="ti ti-copy" aria-hidden="true"></i></button>
       </div>{{else}}<div class="list-group-item text-secondary">暂无可用服务器</div>{{end}}
     </div>
+  </div>
+  <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">应用</button></div>
+</form></div></div>
+<div class="modal modal-blur fade" id="batchFailoverModal" tabindex="-1" aria-labelledby="batchFailoverTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form class="modal-content" method="post" action="/admin/nodes/batch-failover" data-batch-form onsubmit="return confirm('将立即执行 DNS 切换，确定？')"><input type="hidden" name="csrf" value="{{.CSRF}}">
+  <div class="modal-header"><h5 class="modal-title" id="batchFailoverTitle">手动切换 · <span data-batch-count>0</span> 个节点</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+  <div class="modal-body">
+    <div class="form-selectgroup w-100" role="radiogroup" aria-label="切换方式">
+      <label class="form-selectgroup-item flex-fill"><input type="radio" name="failover_mode" value="SWITCH" class="form-selectgroup-input" checked><span class="form-selectgroup-label">切换</span></label>
+      <label class="form-selectgroup-item flex-fill"><input type="radio" name="failover_mode" value="RESTORE" class="form-selectgroup-input"><span class="form-selectgroup-label">回切</span></label>
+    </div>
+    <div class="form-hint">切换：从当前指向按优先级切到节点其他部署位；回切：恢复原始解析。指定目标部署位请到节点编辑页</div>
   </div>
   <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">应用</button></div>
 </form></div></div>
