@@ -342,6 +342,9 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 			targets[p.ID] = p.Domains
 		}
 		d["PlacementDomains"], d["PlacementTargets"] = domains, targets
+		if f.Type == strconv.Itoa(store.NodeProxy) {
+			d["SubNames"] = store.PlacementSubscriptionNames(f.Name, pls)
+		}
 	}
 	// 校验失败回显时保留暂存的部署位增删
 	addIDs, delTargets := map[int64]bool{}, map[int64]string{}

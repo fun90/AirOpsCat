@@ -94,3 +94,23 @@ func TestSubscriptionSnapshotBoundaryFilters(t *testing.T) {
 		}
 	}
 }
+
+func TestPlacementSubscriptionNames(t *testing.T) {
+	pls := []*Placement{
+		{ID: 3, Exposed: true, Deployed: 1},
+		{ID: 1, Exposed: true, Deployed: 0},
+		{ID: 2, Exposed: false, Deployed: 1},
+		{ID: 4, Exposed: true, Deployed: 2},
+		{ID: 5, Exposed: true, Deployed: 1},
+	}
+	got := PlacementSubscriptionNames("HK", pls)
+	want := map[int64]string{1: "HK-1", 3: "HK-2", 5: "HK-3"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v", got)
+	}
+	for id, name := range want {
+		if got[id] != name {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}

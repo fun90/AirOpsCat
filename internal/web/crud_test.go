@@ -141,8 +141,8 @@ func TestNodeFlows(t *testing.T) {
 	if strings.Contains(do(h, "GET", "/admin/nodes?status=1", nil, c, nil).Body.String(), "n1-1") {
 		t.Fatal("状态筛选应排除")
 	}
-	if edit := do(h, "GET", "/admin/nodes/1/edit", nil, c, nil).Body.String(); !strings.Contains(edit, "hk-1") || !strings.Contains(edit, `name="p1_priority"`) {
-		t.Fatal("编辑页应显示部署位")
+	if edit := do(h, "GET", "/admin/nodes/1/edit", nil, c, nil).Body.String(); !strings.Contains(edit, "hk-1") || !strings.Contains(edit, `name="p1_priority"`) || !strings.Contains(edit, "订阅名 n1-1") {
+		t.Fatal("编辑页应显示部署位及订阅名")
 	}
 	// 新增服务器不再自动关联，需在节点中手动添加部署位（不限地区）
 	post("/admin/servers", url.Values{"name": {"jp-2"}, "ip": {"2.2.2.2"}, "ssh_port": {"22"}, "auth_type": {"PASSWORD"}, "server_type": {"0"}, "multiple": {"1"}, "price_months": {"1"}, "region": {"JP"}})

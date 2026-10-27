@@ -52,7 +52,7 @@
                 {{$fo := false}}{{range $.Placements}}{{if .Failover}}{{$fo = true}}{{end}}{{end}}
                 <div class="d-flex align-items-center"><label class="form-label me-auto">部署位</label>{{if $fo}}<button class="btn btn-sm btn-link" form="placement-switch" name="placement" value="0" onclick="return confirm('恢复原始解析并立即执行 DNS 切换，确定？')">回切</button>{{end}}</div>
                 <div class="form-hint mb-2">{{if .ID}}新建时按地区匹配，之后手动增删；保存后生效。{{else}}选择地区后自动加入同地区服务器，可手动增删；保存后生效。{{end}}</div>
-                {{range $.Placements}}
+                {{range $p := $.Placements}}
                 <div class="position-relative border rounded p-3 mb-3{{if eq .Deployed 2}} bg-red-lt{{end}}" data-placement="{{.ID}}" data-name="{{.ServerName}}（{{.ServerIP}}）"{{if .Running}} data-running{{end}}{{with index $.DelTargets .ID}} data-staged-target="{{.}}"{{end}}>
                     {{if ne .Deployed 2}}
                     <button type="button" class="btn-close position-absolute top-0 end-0 m-2" aria-label="删除部署位 {{.ServerName}}" data-placement-remove></button>
@@ -62,6 +62,7 @@
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-2 pe-4">
                         <strong>{{.ServerName}}</strong><span class="text-secondary">{{.ServerIP}}</span>
                         {{if eq .Deployed 0}}<span class="badge bg-yellow-lt">待部署</span>{{else if eq .Deployed 1}}<span class="badge bg-green-lt">已部署</span>{{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
+                        {{with $.SubNames}}{{with index . $p.ID}}<span class="badge bg-purple-lt">订阅名 {{.}}</span>{{end}}{{end}}
                         {{with index $.PlacementTargets .ID}}<span class="badge bg-blue-lt text-wrap text-break">当前指向 {{.}}</span>{{end}}
                         {{if .Failover}}<span class="badge bg-orange-lt">已切走</span>{{end}}
                         {{if .Disabled}}<span class="badge bg-secondary-lt">服务器已禁用</span>{{end}}
