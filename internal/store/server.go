@@ -34,8 +34,8 @@ type Server struct {
 	Disabled      bool
 	External      bool
 	Remark        string
-	Failover      int  // 已手动切走的部署位数：DNS 自动切到同节点其他部署位
-	Placements    int  // 列表用：部署位数量
+	Failover      int // 已手动切走的部署位数：DNS 自动切到同节点其他部署位
+	Placements    int // 列表用：部署位数量
 }
 
 const serverCols = `id, coalesce(name,''), ip, coalesce(ssh_port,22), coalesce(auth_type,'PASSWORD'), coalesce(username,''),

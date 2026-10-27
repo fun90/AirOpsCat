@@ -24,6 +24,7 @@ jobs:
         env:
           CGO_ENABLED: '0'
         run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; echo '以上文件未 gofmt'; exit 1; }
           go vet ./...
           go test ./...
       - name: 安装器检查
