@@ -60,3 +60,14 @@ func TestPushBatchBody(t *testing.T) {
 		t.Fatal("空批次应拒绝")
 	}
 }
+
+func TestOutboundDisabledBlocksRequest(t *testing.T) {
+	hit := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hit = true }))
+	defer srv.Close()
+	OutboundDisabled = true
+	defer func() { OutboundDisabled = false }()
+	if err := (&Client{BaseURL: srv.URL, Token: "tok"}).Verify(context.Background()); err == nil || hit {
+		t.Fatalf("应拒绝外发：err=%v hit=%v", err, hit)
+	}
+}

@@ -147,3 +147,21 @@ func TestSSHDeployWritesFileAndFailsOnCheck(t *testing.T) {
 		t.Fatalf("上传内容 %q, files=%v cmds=%v", body, files, *cmds)
 	}
 }
+
+func TestOutboundDisabledBlocksSSH(t *testing.T) {
+	port, _, _, _ := startSSHServer(t)
+	db := newTestDB(t)
+	c, _ := crypto.New(make([]byte, 32))
+	enc, _ := c.Encrypt("pw")
+	sid := exec(t, db, `INSERT INTO server (ip, ssh_port, auth_type, username, auth) VALUES ('127.0.0.1',?,'PASSWORD','root',?)`, port, enc)
+	OutboundDisabled = true
+	defer func() { OutboundDisabled = false }()
+	if err := NewDeployer(db, c, nil).Ping(context.Background(), sid); err == nil || !strings.Contains(err.Error(), "AIROPSCAT_OUTBOUND_DISABLED") {
+		t.Fatalf("应拒绝连接，实际 %v", err)
+	}
+	var fp string
+	db.QueryRow(`SELECT coalesce(host_key,'') FROM server WHERE id = ?`, sid).Scan(&fp)
+	if fp != "" {
+		t.Fatal("被拒绝时不应记录主机指纹")
+	}
+}

@@ -21,6 +21,9 @@ import (
 // 上层应提示「如服务器重装请在服务器编辑页清除主机密钥」。
 var ErrHostKeyMismatch = errors.New("SSH 主机密钥与已信任的指纹不一致")
 
+// OutboundDisabled 由 AIROPSCAT_OUTBOUND_DISABLED=1 打开，本地挂生产库时拒绝连接真实服务器。
+var OutboundDisabled bool
+
 // Remote 是对一台已连接服务器的最小抽象，便于用假实现测试部署流程。
 type Remote interface {
 	// Run 执行命令；非零退出码通过 code 返回而不是 err，err 只表示传输/超时类错误。
@@ -126,6 +129,9 @@ func (r *sshRemote) run(ctx context.Context, cmd string, stdin []byte) (string, 
 
 // dialSSH 连接服务器：解密凭据、TOFU 校验主机密钥。
 func (d *Deployer) dialSSH(ctx context.Context, t *store.SSHTarget) (Remote, error) {
+	if OutboundDisabled {
+		return nil, errors.New("已禁用外发连接（AIROPSCAT_OUTBOUND_DISABLED=1）")
+	}
 	secret, err := d.Cipher.Decrypt(t.Auth)
 	if err != nil {
 		return nil, fmt.Errorf("凭据解密失败: %w", err)

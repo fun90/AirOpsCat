@@ -15,6 +15,9 @@ import (
 
 const DefaultBaseURL = "https://api.cloudflare.com/client/v4"
 
+// OutboundDisabled 由 AIROPSCAT_OUTBOUND_DISABLED=1 打开，本地挂生产库时拒绝调用真实 DNS。
+var OutboundDisabled bool
+
 type Client struct {
 	BaseURL string // 测试注入；生产为空，使用固定的 Cloudflare 地址
 	Token   string
@@ -55,6 +58,9 @@ func (c *Client) base() string {
 }
 
 func (c *Client) do(ctx context.Context, method, path string, body any) (json.RawMessage, json.RawMessage, error) {
+	if OutboundDisabled {
+		return nil, nil, errors.New("已禁用外发连接（AIROPSCAT_OUTBOUND_DISABLED=1）")
+	}
 	var rd io.Reader
 	if body != nil {
 		b, _ := json.Marshal(body)

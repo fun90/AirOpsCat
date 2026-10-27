@@ -19,6 +19,8 @@ import (
 	"github.com/fun90/airopscat/internal/auth"
 	"github.com/fun90/airopscat/internal/crypto"
 	"github.com/fun90/airopscat/internal/dbbackup"
+	"github.com/fun90/airopscat/internal/deploy"
+	"github.com/fun90/airopscat/internal/dns"
 	"github.com/fun90/airopscat/internal/store"
 	"github.com/fun90/airopscat/internal/web"
 )
@@ -81,7 +83,9 @@ func run() error {
 		return err
 	}
 	srv.Backup = &dbbackup.Manager{DB: db, Dir: env("AIROPSCAT_BACKUP_DIR", "/var/lib/airopscat/backup")}
-	srv.NotifyDisabled = os.Getenv("AIROPSCAT_NOTIFY_DISABLED") == "1"
+	outboundOff := os.Getenv("AIROPSCAT_OUTBOUND_DISABLED") == "1"
+	deploy.OutboundDisabled, dns.OutboundDisabled = outboundOff, outboundOff
+	srv.NotifyDisabled = outboundOff || os.Getenv("AIROPSCAT_NOTIFY_DISABLED") == "1"
 	srv.DNSAutoDomains = os.Getenv("AIROPSCAT_DNS_AUTO_DOMAINS")
 	srv.ScriptDir = os.Getenv("AIROPSCAT_SCRIPTS_DIR")
 	srv.MonitorServers = os.Getenv("AIROPSCAT_MONITOR_SERVERS")
