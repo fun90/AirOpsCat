@@ -157,6 +157,18 @@ func RestoreNodeFailover(ctx context.Context, db *sql.DB, nodeIDs []int64) (int6
 	return res.RowsAffected()
 }
 
+// RestorePlacementFailover 只取消节点某个部署位的切走，其余部署位保持不变。
+func RestorePlacementFailover(ctx context.Context, db *sql.DB, nodeID, placementID int64) error {
+	res, err := db.ExecContext(ctx, `UPDATE node_server SET failover = 0 WHERE id = ? AND node_id = ? AND failover = 1`, placementID, nodeID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return invalid("部署位不存在或未切走")
+	}
+	return nil
+}
+
 // SwitchNodePlacement 让节点域名都切到指定部署位：其余部署位标记切走，目标取消切走。
 func SwitchNodePlacement(ctx context.Context, db *sql.DB, nodeID, placementID int64) error {
 	res, err := db.ExecContext(ctx, `UPDATE node_server SET failover = (id <> ?) WHERE node_id = ? AND deployed <> 2

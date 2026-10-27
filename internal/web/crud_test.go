@@ -144,6 +144,21 @@ func TestNodeFlows(t *testing.T) {
 	if edit := do(h, "GET", "/admin/nodes/1/edit", nil, c, nil).Body.String(); !strings.Contains(edit, "hk-1") || !strings.Contains(edit, `name="p1_priority"`) || !strings.Contains(edit, "订阅名 n1-1") {
 		t.Fatal("编辑页应显示部署位及订阅名")
 	}
+	a.DB.Exec(`UPDATE node_server SET failover = 1 WHERE node_id = 1`)
+	if edit := do(h, "GET", "/admin/nodes/1/edit", nil, c, nil).Body.String(); !strings.Contains(edit, `name="restore"`) || !strings.Contains(edit, "全部回切") {
+		t.Fatal("已切走的部署位应提供取消切走和全部回切")
+	}
+	if list := do(h, "GET", "/admin/nodes", nil, c, nil).Body.String(); !strings.Contains(list, `badge bg-orange-lt">已切走 hk-1`) {
+		t.Fatal("列表页应标注已切走的部署位")
+	}
+	var fpid int64
+	a.DB.QueryRow(`SELECT id FROM node_server WHERE node_id = 1`).Scan(&fpid)
+	post("/admin/nodes/1/switch", url.Values{"restore": {strconv.FormatInt(fpid, 10)}})
+	var fo int
+	a.DB.QueryRow(`SELECT failover FROM node_server WHERE id = ?`, fpid).Scan(&fo)
+	if fo != 0 {
+		t.Fatal("应已取消该部署位的切走")
+	}
 	// 新增服务器不再自动关联，需在节点中手动添加部署位（不限地区）
 	post("/admin/servers", url.Values{"name": {"jp-2"}, "ip": {"2.2.2.2"}, "ssh_port": {"22"}, "auth_type": {"PASSWORD"}, "server_type": {"0"}, "multiple": {"1"}, "price_months": {"1"}, "region": {"JP"}})
 	var n int

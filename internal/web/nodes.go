@@ -169,10 +169,22 @@ func (s *Server) nodeBatchFailover(w http.ResponseWriter, r *http.Request) {
 	s.failoverDNS(w, r, "/admin/nodes", msg, changed)
 }
 
-// nodeSwitch 把单个节点的域名切到指定部署位；placement 为 0 时回切。
+// nodeSwitch 把单个节点的域名切到指定部署位；placement 为 0 时全部回切，restore 只取消指定部署位的切走。
 func (s *Server) nodeSwitch(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	back := fmt.Sprintf("/admin/nodes/%d/edit", id)
+	if raw := r.PostFormValue("restore"); raw != "" {
+		pid, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || pid <= 0 {
+			http.Error(w, "部署位 ID 不正确", http.StatusBadRequest)
+			return
+		}
+		if s.failoverErr(w, r, back, store.RestorePlacementFailover(r.Context(), s.DB, id, pid)) {
+			return
+		}
+		s.failoverDNS(w, r, back, "已取消切走", true)
+		return
+	}
 	target, err := strconv.ParseInt(r.PostFormValue("placement"), 10, 64)
 	if err != nil || target < 0 {
 		http.Error(w, "部署位 ID 不正确", http.StatusBadRequest)
@@ -337,7 +349,7 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 			s.fail(w, r, err)
 			return
 		}
-		targets := map[int64]string{}
+		targets := map[int64][]string{}
 		for _, p := range pointed[f.ID] {
 			targets[p.ID] = p.Domains
 		}

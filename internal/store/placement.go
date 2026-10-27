@@ -329,8 +329,9 @@ func retargetRecord(ctx context.Context, tx dbtx, rid, serverID int64, serverIP,
 }
 
 type PointedPlacement struct {
-	ID              int64
-	Server, Domains string // Domains 为指向该部署位的域名，多个以「、」分隔
+	ID      int64
+	Server  string
+	Domains []string // 指向该部署位的域名
 }
 
 // PointedPlacements 按节点返回其域名当前解析到的部署位（自动或手动切换后即为承接方）；单部署位节点无需标注。
@@ -350,10 +351,11 @@ func PointedPlacements(ctx context.Context, db *sql.DB) (map[int64][]PointedPlac
 	for rows.Next() {
 		var node int64
 		var p PointedPlacement
-		if err := rows.Scan(&node, &p.ID, &p.Server, &p.Domains); err != nil {
+		var domains string
+		if err := rows.Scan(&node, &p.ID, &p.Server, &domains); err != nil {
 			return nil, err
 		}
-		p.Domains = strings.ReplaceAll(p.Domains, ",", "、")
+		p.Domains = strings.Split(domains, ",")
 		out[node] = append(out[node], p)
 	}
 	return out, rows.Err()

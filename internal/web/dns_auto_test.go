@@ -256,7 +256,7 @@ func TestManualFailoverWithoutAutoDomain(t *testing.T) {
 	if other != "1.1.1.1" {
 		t.Fatal("未选节点不应切走", other)
 	}
-	if m, err := store.PointedPlacements(ctx, a.DB); err != nil || fmt.Sprint(m[1]) != "[{2 2.2.2.2 a.example.com}]" {
+	if m, err := store.PointedPlacements(ctx, a.DB); err != nil || fmt.Sprint(m[1]) != "[{2 2.2.2.2 [a.example.com]}]" {
 		t.Fatal("部署位切换标注不对", m, err)
 	}
 	store.SetServerFailover(ctx, a.DB, 1, false)
@@ -266,7 +266,7 @@ func TestManualFailoverWithoutAutoDomain(t *testing.T) {
 	if c, home := content(); c != "1.1.1.1" || home != "" || target != "1.1.1.1" {
 		t.Fatal("回切失败", c, home, target)
 	}
-	if m, _ := store.PointedPlacements(ctx, a.DB); fmt.Sprint(m[1]) != "[{1 1.1.1.1 a.example.com}]" {
+	if m, _ := store.PointedPlacements(ctx, a.DB); fmt.Sprint(m[1]) != "[{1 1.1.1.1 [a.example.com]}]" {
 		t.Fatal("回切后应指向原部署位", m)
 	}
 	// 指定目标部署位：节点 2 切到 2.2.2.2，再回切。
@@ -283,6 +283,24 @@ func TestManualFailoverWithoutAutoDomain(t *testing.T) {
 	if other != "2.2.2.2" {
 		t.Fatal("未切到指定部署位", other)
 	}
+	// 单部署位取消切走：只能作用于本节点已切走的部署位。
+	if err := store.RestorePlacementFailover(ctx, a.DB, 2, 4); err == nil {
+		t.Fatal("未切走的部署位不能取消切走")
+	}
+	if err := store.RestorePlacementFailover(ctx, a.DB, 1, 3); err == nil {
+		t.Fatal("其他节点的部署位不能取消切走")
+	}
+	if err := store.RestorePlacementFailover(ctx, a.DB, 2, 3); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.autoDNS(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a.DB.QueryRow(`SELECT content FROM domain_dns_record WHERE id=2`).Scan(&other)
+	if other != "1.1.1.1" {
+		t.Fatal("取消切走原部署位后应回切", other)
+	}
+	store.SwitchNodePlacement(ctx, a.DB, 2, 4)
 	if n, _ := store.RestoreNodeFailover(ctx, a.DB, []int64{2}); n != 1 {
 		t.Fatal("回切应清除 1 个部署位", n)
 	}
