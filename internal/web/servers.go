@@ -192,6 +192,7 @@ func (s *Server) serverSave(w http.ResponseWriter, r *http.Request) {
 	f, srv, errs := parseServerForm(r)
 	f.ID, srv.ID = id, id
 	auth := r.PostFormValue("auth")
+	msg := "服务器已保存"
 	if id != 0 {
 		old, err := store.ServerByID(r.Context(), s.DB, id)
 		if err != nil {
@@ -203,11 +204,14 @@ func (s *Server) serverSave(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		f.HasAuth = old.HasAuth
+		if old.IP != srv.IP {
+			msg += "；指向原 IP 的 DNS 记录已改为新 IP，推送后生效"
+		}
 	}
 	if len(errs) == 0 {
 		_, err := store.SaveServer(r.Context(), s.DB, s.Field, srv, auth)
 		if err == nil {
-			redirectMsg(w, r, "/admin/servers", "msg", "服务器已保存")
+			redirectMsg(w, r, "/admin/servers", "msg", msg)
 			return
 		}
 		if !errors.Is(err, store.ErrInvalid) {

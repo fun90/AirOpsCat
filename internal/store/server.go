@@ -158,6 +158,10 @@ func SaveServer(ctx context.Context, db *sql.DB, c *crypto.Cipher, s *Server, au
 		return 0, err
 	}
 	defer tx.Rollback()
+	var oldIP string
+	if err := tx.QueryRowContext(ctx, `SELECT ip FROM server WHERE id = ?`, s.ID).Scan(&oldIP); err != nil {
+		return 0, err
+	}
 	if s.External || s.ServerType == NodeLanding {
 		// 部署位不再自动同步：服务器改为落地或外部前，上面的代理节点部署位须先手动删除
 		rows, err := tx.QueryContext(ctx, `SELECT n.name FROM node_server ns JOIN node n ON n.id = ns.node_id
@@ -194,7 +198,32 @@ func SaveServer(ctx context.Context, db *sql.DB, c *crypto.Cipher, s *Server, au
 	if n, _ := res.RowsAffected(); n == 0 {
 		return 0, sql.ErrNoRows
 	}
+	if oldIP != s.IP {
+		if err := retargetServerIP(ctx, tx, oldIP, s.IP, now); err != nil {
+			return 0, err
+		}
+	}
 	return s.ID, tx.Commit()
+}
+
+// retargetServerIP 把指向原 IP 的 A 记录（含自动切换的回切目标）改为新 IP，推送 DNS 后生效。
+func retargetServerIP(ctx context.Context, tx dbtx, oldIP, newIP, now string) error {
+	const match = `upper(r.type) = 'A' AND r.status <> 'PENDING_DELETE' AND (r.content = ? OR r.failover_home_content = ?)`
+	var busy string
+	err := tx.QueryRowContext(ctx, `SELECT coalesce(r.full_name, r.name) FROM domain_dns_record r JOIN dns_auto_operation o ON o.record_id = r.id WHERE `+match+` LIMIT 1`, oldIP, oldIP).Scan(&busy)
+	if err == nil {
+		return invalid("域名 %s 的 DNS 自动切换尚未完成，请稍后再修改 IP", busy)
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE domain_dns_record SET content = ?, update_time = ?,
+		status = CASE WHEN status IN ('SYNCED', 'SYNC_FAILED') THEN 'PENDING_UPDATE' ELSE status END
+		WHERE upper(type) = 'A' AND status <> 'PENDING_DELETE' AND content = ?`, newIP, now, oldIP); err != nil {
+		return err
+	}
+	// 回切目标只在本地使用，不涉及远端解析，无需改同步状态
+	_, err = tx.ExecContext(ctx, `UPDATE domain_dns_record SET failover_home_content = ?, update_time = ? WHERE upper(type) = 'A' AND status <> 'PENDING_DELETE' AND failover_home_content = ?`, newIP, now, oldIP)
+	return err
 }
 
 // DeleteServer 删除服务器：存在已部署的部署位时拒绝；其余部署位（待部署/待删除）随服务器一起删除。
