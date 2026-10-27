@@ -464,6 +464,23 @@ func delPl(ctx context.Context, db *sql.DB, nodeID, placementID, targetID int64)
 	return err
 }
 
+func TestCreateNodeWithManualPlacements(t *testing.T) {
+	db, ctx := testDB(t)
+	addServer(t, db, "hk", "HK", 0, false, false)
+	jp := addServer(t, db, "jp", "JP", 0, false, false)
+	id, err := SaveNode(ctx, db, newNode("a", "HK", NodeProxy, 443), nil, nil, PlacementOps{AddServerIDs: []int64{jp}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pm := placementsOf(t, db, id); len(pm) != 1 || pm["jp"] == nil {
+		t.Fatalf("新建时应只用手动指定的部署位: %+v", pm)
+	}
+	id, err = SaveNode(ctx, db, newNode("b", "HK", NodeProxy, 444), nil, nil, PlacementOps{})
+	if err != nil || len(placementsOf(t, db, id)) != 0 {
+		t.Fatalf("清空待添加列表时不应自动匹配: %v", err)
+	}
+}
+
 func TestPlacementOpsRollBackWithNodeSave(t *testing.T) {
 	db, ctx := testDB(t)
 	addServer(t, db, "hk", "HK", 0, false, false)

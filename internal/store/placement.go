@@ -101,17 +101,20 @@ func insertPlacement(ctx context.Context, q dbtx, n *Node, serverID int64, prior
 	return err
 }
 
-// PlacementServerOption 是节点可手动添加部署位的服务器，不限地区。
+// PlacementServerOption 是节点可手动添加部署位的服务器，不限地区。ProxyOK 表示可承载代理节点。
 type PlacementServerOption struct {
 	ID               int64
 	Name, IP, Region string
+	ProxyOK          bool
 }
 
-// PlacementServerOptions 返回未禁用、类型允许且尚无有效部署位的服务器。
+// PlacementServerOptions 返回未禁用、类型允许且尚无有效部署位的服务器；nodeID 为 0（新建）时不按类型过滤。
 func PlacementServerOptions(ctx context.Context, db *sql.DB, nodeID int64) ([]PlacementServerOption, error) {
-	var nodeType int
-	if err := db.QueryRowContext(ctx, `SELECT coalesce(type,0) FROM node WHERE id = ?`, nodeID).Scan(&nodeType); err != nil {
-		return nil, err
+	nodeType := NodeLanding
+	if nodeID != 0 {
+		if err := db.QueryRowContext(ctx, `SELECT coalesce(type,0) FROM node WHERE id = ?`, nodeID).Scan(&nodeType); err != nil {
+			return nil, err
+		}
 	}
 	rows, err := db.QueryContext(ctx, `SELECT s.id, coalesce(nullif(s.name,''), s.ip), s.ip, coalesce(s.region,''), coalesce(s.server_type,0), s.external_server
 		FROM server s WHERE s.disabled = 0 AND NOT EXISTS (SELECT 1 FROM node_server ns WHERE ns.server_id = s.id AND ns.node_id = ? AND ns.deployed <> 2)
@@ -128,6 +131,7 @@ func PlacementServerOptions(ctx context.Context, db *sql.DB, nodeID int64) ([]Pl
 		if err := rows.Scan(&o.ID, &o.Name, &o.IP, &o.Region, &typ, &external); err != nil {
 			return nil, err
 		}
+		o.ProxyOK = serverTypeAllowed(NodeProxy, typ, external)
 		if serverTypeAllowed(nodeType, typ, external) {
 			out = append(out, o)
 		}

@@ -48,11 +48,10 @@
                     <div class="text-danger small mt-1" role="status" data-tag-error></div>
                 </div>
             </div>
-            {{if .ID}}
             <div class="col-12" id="placements-pane">
                 {{$fo := false}}{{range $.Placements}}{{if .Failover}}{{$fo = true}}{{end}}{{end}}
                 <div class="d-flex align-items-center"><label class="form-label me-auto">部署位</label>{{if $fo}}<button class="btn btn-sm btn-link" form="placement-switch" name="placement" value="0" onclick="return confirm('恢复原始解析并立即执行 DNS 切换，确定？')">回切</button>{{end}}</div>
-                <div class="form-hint mb-2">新建时按地区匹配，之后手动增删；保存后生效。</div>
+                <div class="form-hint mb-2">{{if .ID}}新建时按地区匹配，之后手动增删；保存后生效。{{else}}选择地区后自动加入同地区服务器，可手动增删；保存后生效。{{end}}</div>
                 {{range $.Placements}}
                 <div class="position-relative border rounded p-3 mb-3{{if eq .Deployed 2}} bg-red-lt{{end}}" data-placement="{{.ID}}" data-name="{{.ServerName}}（{{.ServerIP}}）"{{if .Running}} data-running{{end}}{{with index $.DelTargets .ID}} data-staged-target="{{.}}"{{end}}>
                     {{if ne .Deployed 2}}
@@ -91,7 +90,7 @@
                     </div>
                     {{end}}
                 </div>
-                {{else}}<p class="text-secondary">暂无部署位</p>{{end}}
+                {{else}}{{if .ID}}<p class="text-secondary">暂无部署位</p>{{end}}{{end}}
                 <div class="mb-3" data-add-list>
                     {{range $.ServerOptions}}{{if index $.AddIDs .ID}}<div class="border border-primary rounded p-2 mb-2 d-flex align-items-center gap-2" data-add-item="{{.ID}}"><input type="hidden" name="add_server" value="{{.ID}}"><span class="badge bg-blue-lt">待添加</span><span>{{if .Region}}[{{.Region}}] {{end}}{{.Name}}（{{.IP}}）</span><button type="button" class="btn-close ms-auto" aria-label="取消添加" data-add-cancel></button></div>{{end}}{{end}}
                 </div>
@@ -99,12 +98,11 @@
                     <label class="visually-hidden" for="padd_server">添加部署位的服务器</label>
                     <select class="form-select w-auto mw-100" id="padd_server">
                         <option value="">选择服务器（不限地区）</option>
-                        {{range $.ServerOptions}}<option value="{{.ID}}">{{if .Region}}[{{.Region}}] {{end}}{{.Name}}（{{.IP}}）</option>{{end}}
+                        {{range $.ServerOptions}}<option value="{{.ID}}" data-region="{{.Region}}"{{if .ProxyOK}} data-proxy-ok{{end}}>{{if .Region}}[{{.Region}}] {{end}}{{.Name}}（{{.IP}}）</option>{{end}}
                     </select>
                     <button type="button" class="btn btn-outline-primary" data-add-placement><i class="ti ti-plus me-1" aria-hidden="true"></i>添加部署位</button>
                 </div>
             </div>
-            {{end}}
             <div class="col-12"><label class="form-check"><input type="checkbox" class="form-check-input" name="disabled" value="1"{{if .Disabled}} checked{{end}}>
                 <span class="form-check-label">禁用</span></label></div>
         </div>
@@ -142,6 +140,7 @@
 </form>
 {{if .ID}}
 <form id="placement-switch" method="post" action="/admin/nodes/{{.ID}}/switch"><input type="hidden" name="csrf" value="{{$.CSRF}}"></form>
+{{end}}
 <div class="modal modal-blur fade" id="placement-delete" tabindex="-1" aria-labelledby="placement-delete-title" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
@@ -167,6 +166,5 @@
         </div>
     </div>
 </div>
-{{end}}
 {{end}}
 {{end}}

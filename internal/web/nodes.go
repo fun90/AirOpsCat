@@ -320,12 +320,13 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 		s.fail(w, r, err)
 		return
 	}
+	opts, err := store.PlacementServerOptions(ctx, s.DB, f.ID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	d["ServerOptions"] = opts
 	if f.ID != 0 {
-		opts, err := store.PlacementServerOptions(ctx, s.DB, f.ID)
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
 		domains, err := store.PlacementDomains(ctx, s.DB, f.ID)
 		if err != nil {
 			s.fail(w, r, err)
@@ -340,7 +341,7 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 		for _, p := range pointed[f.ID] {
 			targets[p.ID] = p.Domains
 		}
-		d["ServerOptions"], d["PlacementDomains"], d["PlacementTargets"] = opts, domains, targets
+		d["PlacementDomains"], d["PlacementTargets"] = domains, targets
 	}
 	// 校验失败回显时保留暂存的部署位增删
 	addIDs, delTargets := map[int64]bool{}, map[int64]string{}
@@ -433,14 +434,14 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 			echo = append(echo, p)
 		}
 	}
-	// 部署位增删在表单中暂存，随节点保存一起提交
+	// 部署位增删在表单中暂存，随节点保存一起提交；新建时只用表单里的待添加列表
 	var ops store.PlacementOps
-	if id != 0 {
-		for _, v := range r.PostForm["add_server"] {
-			if sid, err := strconv.ParseInt(v, 10, 64); err == nil && sid > 0 {
-				ops.AddServerIDs = append(ops.AddServerIDs, sid)
-			}
+	for _, v := range r.PostForm["add_server"] {
+		if sid, err := strconv.ParseInt(v, 10, 64); err == nil && sid > 0 {
+			ops.AddServerIDs = append(ops.AddServerIDs, sid)
 		}
+	}
+	if id != 0 {
 		for _, v := range r.PostForm["del_placement"] {
 			if pid, err := strconv.ParseInt(v, 10, 64); err == nil && pid > 0 {
 				t, _ := strconv.ParseInt(r.PostFormValue("del_target_"+v), 10, 64)

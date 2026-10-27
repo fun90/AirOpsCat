@@ -535,7 +535,7 @@ func availableNodePort(ctx context.Context, q dbtx) (int, error) {
 }
 
 // SaveNode 新建（ID=0）或更新节点及其标签、部署位属性，返回节点 ID。
-// 新建时按地区和类型创建初始部署位，之后地区不再影响部署位；实质变更会把该节点的部署位置为待部署。
+// 新建时传入 ops 则按 ops.AddServerIDs 创建初始部署位，否则按地区和类型匹配；之后地区不再影响部署位；实质变更会把该节点的部署位置为待部署。
 func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []PlacementEdit, ops ...PlacementOps) (int64, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -566,8 +566,17 @@ func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []
 		if err := replaceTags(ctx, tx, n.ID, tagIDs); err != nil {
 			return 0, err
 		}
-		if err := initPlacements(ctx, tx, n); err != nil {
-			return 0, err
+		if len(ops) == 0 {
+			if err := initPlacements(ctx, tx, n); err != nil {
+				return 0, err
+			}
+		}
+		for _, op := range ops {
+			for _, sid := range op.AddServerIDs {
+				if err := addPlacement(ctx, tx, n, sid); err != nil {
+					return 0, err
+				}
+			}
 		}
 		return n.ID, tx.Commit()
 	}

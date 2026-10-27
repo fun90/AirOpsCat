@@ -28,6 +28,39 @@ if (pane && dialog) {
         card.classList.toggle('opacity-50', on);
     }
 
+    function addItem(option, auto) {
+        if (pane.querySelector('[data-add-item="' + option.value + '"]')) { return; }
+        const item = document.createElement('div');
+        item.className = 'border border-primary rounded p-2 mb-2 d-flex align-items-center gap-2';
+        item.dataset.addItem = option.value;
+        if (auto) { item.dataset.auto = ''; }
+        const input = Object.assign(document.createElement('input'), { type: 'hidden', name: 'add_server', value: option.value });
+        const badge = Object.assign(document.createElement('span'), { className: 'badge bg-blue-lt', textContent: '待添加' });
+        const label = Object.assign(document.createElement('span'), { textContent: option.textContent });
+        const cancel = Object.assign(document.createElement('button'), { type: 'button', className: 'btn-close ms-auto' });
+        cancel.setAttribute('aria-label', '取消添加');
+        cancel.dataset.addCancel = '';
+        item.append(input, badge, label, cancel);
+        pane.querySelector('[data-add-list]').append(item);
+    }
+
+    // 新建：地区或类型变化时重新自动匹配（规则同服务端 serverMatches），手动添加的保留
+    const form = pane.closest('form');
+    if (form.dataset.nodeId === '0') {
+        const region = form.querySelector('#region');
+        const type = form.querySelector('#type');
+        const rematch = () => {
+            pane.querySelectorAll('[data-add-item][data-auto]').forEach((x) => x.remove());
+            const r = region.value.trim();
+            if (!r) { return; }
+            pane.querySelectorAll('#padd_server option[value]:not([value=""])').forEach((o) => {
+                if (o.dataset.region.trim() === r && (type.value === '1' || 'proxyOk' in o.dataset)) { addItem(o, true); }
+            });
+        };
+        region.addEventListener('change', rematch);
+        type.addEventListener('change', rematch);
+    }
+
     pane.addEventListener('click', (e) => {
         const remove = e.target.closest('[data-placement-remove]');
         if (remove) {
@@ -53,19 +86,7 @@ if (pane && dialog) {
         }
         if (e.target.closest('[data-add-placement]')) {
             const select = pane.querySelector('#padd_server');
-            const option = select.selectedOptions[0];
-            if (!select.value || pane.querySelector('[data-add-item="' + select.value + '"]')) { return; }
-            const item = document.createElement('div');
-            item.className = 'border border-primary rounded p-2 mb-2 d-flex align-items-center gap-2';
-            item.dataset.addItem = select.value;
-            const input = Object.assign(document.createElement('input'), { type: 'hidden', name: 'add_server', value: select.value });
-            const badge = Object.assign(document.createElement('span'), { className: 'badge bg-blue-lt', textContent: '待添加' });
-            const label = Object.assign(document.createElement('span'), { textContent: option.textContent });
-            const cancel = Object.assign(document.createElement('button'), { type: 'button', className: 'btn-close ms-auto' });
-            cancel.setAttribute('aria-label', '取消添加');
-            cancel.dataset.addCancel = '';
-            item.append(input, badge, label, cancel);
-            pane.querySelector('[data-add-list]').append(item);
+            if (select.value) { addItem(select.selectedOptions[0], false); }
             select.value = '';
             return;
         }

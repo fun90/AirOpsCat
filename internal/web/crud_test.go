@@ -123,11 +123,15 @@ func TestNodeFlows(t *testing.T) {
 	if w := post("/admin/nodes", bad); w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), "不能包含 listen") {
 		t.Fatalf("应回显校验错误: %d", w.Code)
 	}
-	if w := post("/admin/nodes", form("n1", "443")); w.Code != http.StatusSeeOther {
+	if page := do(h, "GET", "/admin/nodes/new", nil, c, nil).Body.String(); !strings.Contains(page, `data-region="HK" data-proxy-ok`) {
+		t.Fatal("新建页应提供可添加的部署位服务器")
+	}
+	create := func(name, port string) url.Values { v := form(name, port); v.Set("add_server", "1"); return v }
+	if w := post("/admin/nodes", create("n1", "443")); w.Code != http.StatusSeeOther {
 		t.Fatalf("创建: %d %s", w.Code, w.Body.String())
 	}
 	// 同服务器同端口冲突
-	if w := post("/admin/nodes", form("n2", "443")); w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), "已被节点") {
+	if w := post("/admin/nodes", create("n2", "443")); w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), "已被节点") {
 		t.Fatalf("端口冲突应回显: %d", w.Code)
 	}
 	list := do(h, "GET", "/admin/nodes?status=0", nil, c, nil).Body.String()
