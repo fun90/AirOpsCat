@@ -133,6 +133,11 @@
 - 回归测试覆盖同服务器上只切一个节点、另一节点保持不动，指定目标部署位与回切，单部署位节点批量切换跳过。`go vet ./...`、`go test ./...`、`go test -race ./internal/store ./internal/web ./internal/dns` 与 Linux amd64/arm64 构建通过。
 - 待验收：正式库副本迁移 0014、正式环境按节点切走与回切。
 
+## 当前指向标注域名（v4.0.14）
+
+- 节点列表部署列显示「服务器 · 域名」，编辑页显示「当前指向 域名」；同一节点的不同域名指向不同部署位时（如访问域名与订阅定制专属域名）可区分。
+- `go vet ./...`、`go test ./...`、`go test -race ./internal/store ./internal/web` 与 Linux amd64/arm64 构建通过。
+
 ## 待完成的上线门槛
 
 - 用 GitHub Release 真实资产执行 `install.sh`（本地 VM 演练使用本地 HTTPS 源替代下载地址），以及 amd64 主机上的标准路径安装。

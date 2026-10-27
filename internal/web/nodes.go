@@ -336,9 +336,9 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 			s.fail(w, r, err)
 			return
 		}
-		targets := map[int64]bool{}
+		targets := map[int64]string{}
 		for _, p := range pointed[f.ID] {
-			targets[p.ID] = true
+			targets[p.ID] = p.Domains
 		}
 		d["ServerOptions"], d["PlacementDomains"], d["PlacementTargets"] = opts, domains, targets
 	}

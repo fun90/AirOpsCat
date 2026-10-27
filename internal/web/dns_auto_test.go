@@ -256,7 +256,7 @@ func TestManualFailoverWithoutAutoDomain(t *testing.T) {
 	if other != "1.1.1.1" {
 		t.Fatal("未选节点不应切走", other)
 	}
-	if m, err := store.PointedPlacements(ctx, a.DB); err != nil || fmt.Sprint(m[1]) != "[{2 2.2.2.2}]" {
+	if m, err := store.PointedPlacements(ctx, a.DB); err != nil || fmt.Sprint(m[1]) != "[{2 2.2.2.2 a.example.com}]" {
 		t.Fatal("部署位切换标注不对", m, err)
 	}
 	store.SetServerFailover(ctx, a.DB, 1, false)
@@ -266,7 +266,7 @@ func TestManualFailoverWithoutAutoDomain(t *testing.T) {
 	if c, home := content(); c != "1.1.1.1" || home != "" || target != "1.1.1.1" {
 		t.Fatal("回切失败", c, home, target)
 	}
-	if m, _ := store.PointedPlacements(ctx, a.DB); fmt.Sprint(m[1]) != "[{1 1.1.1.1}]" {
+	if m, _ := store.PointedPlacements(ctx, a.DB); fmt.Sprint(m[1]) != "[{1 1.1.1.1 a.example.com}]" {
 		t.Fatal("回切后应指向原部署位", m)
 	}
 	// 指定目标部署位：节点 2 切到 2.2.2.2，再回切。

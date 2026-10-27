@@ -63,7 +63,7 @@
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-2 pe-4">
                         <strong>{{.ServerName}}</strong><span class="text-secondary">{{.ServerIP}}</span>
                         {{if eq .Deployed 0}}<span class="badge bg-yellow-lt">待部署</span>{{else if eq .Deployed 1}}<span class="badge bg-green-lt">已部署</span>{{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
-                        {{if index $.PlacementTargets .ID}}<span class="badge bg-blue-lt">当前指向</span>{{end}}
+                        {{with index $.PlacementTargets .ID}}<span class="badge bg-blue-lt text-wrap text-break">当前指向 {{.}}</span>{{end}}
                         {{if .Failover}}<span class="badge bg-orange-lt">已切走</span>{{end}}
                         {{if .Disabled}}<span class="badge bg-secondary-lt">服务器已禁用</span>{{end}}
                         {{if and (gt (len $.Placements) 1) .Running (ne .Deployed 2) (not .Disabled) (not (index $.PlacementTargets .ID))}}<button class="btn btn-sm btn-outline-warning py-0" form="placement-switch" name="placement" value="{{.ID}}" onclick="return confirm('节点域名将切到 {{.ServerName}} 并立即执行 DNS 切换，确定？')">切到此处</button>{{end}}

@@ -325,8 +325,8 @@ func retargetRecord(ctx context.Context, tx dbtx, rid, serverID int64, serverIP,
 }
 
 type PointedPlacement struct {
-	ID     int64
-	Server string
+	ID              int64
+	Server, Domains string // Domains 为指向该部署位的域名，多个以「、」分隔
 }
 
 // PointedPlacements 按节点返回其域名当前解析到的部署位（自动或手动切换后即为承接方）；单部署位节点无需标注。
@@ -334,10 +334,10 @@ func PointedPlacements(ctx context.Context, db *sql.DB) (map[int64][]PointedPlac
 	rows, err := db.QueryContext(ctx, `WITH refs(node_id, rid) AS (
 		SELECT node_id, access_host_id FROM node_server WHERE access_host_id IS NOT NULL AND deployed <> 2
 		UNION SELECT node_id, domain_dns_record_id FROM account_node_subscription_domain_binding WHERE enabled = 1 AND domain_dns_record_id IS NOT NULL)
-		SELECT DISTINCT t.node_id, t.id, coalesce(s.name, s.ip), t.priority FROM refs JOIN domain_dns_record r ON r.id = refs.rid
+		SELECT t.node_id, t.id, coalesce(s.name, s.ip), group_concat(DISTINCT coalesce(r.full_name, r.name)) FROM refs JOIN domain_dns_record r ON r.id = refs.rid
 		JOIN node_server t ON t.node_id = refs.node_id AND t.deployed <> 2 JOIN server s ON s.id = t.server_id AND s.ip = r.content
 		WHERE (SELECT count(*) FROM node_server c WHERE c.node_id = t.node_id AND c.deployed <> 2) > 1
-		ORDER BY t.node_id, t.priority, t.id`)
+		GROUP BY t.node_id, t.id ORDER BY t.node_id, t.priority, t.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -346,10 +346,10 @@ func PointedPlacements(ctx context.Context, db *sql.DB) (map[int64][]PointedPlac
 	for rows.Next() {
 		var node int64
 		var p PointedPlacement
-		var priority sql.NullInt64
-		if err := rows.Scan(&node, &p.ID, &p.Server, &priority); err != nil {
+		if err := rows.Scan(&node, &p.ID, &p.Server, &p.Domains); err != nil {
 			return nil, err
 		}
+		p.Domains = strings.ReplaceAll(p.Domains, ",", "、")
 		out[node] = append(out[node], p)
 	}
 	return out, rows.Err()
