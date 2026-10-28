@@ -59,6 +59,40 @@ func TestBindingAuthorizationAndRecordRelease(t *testing.T) {
 	}
 }
 
+// 生产案例：两个账户共用域名且同节点，任一方切部署位都报冲突，互相卡死。
+func TestBindingSharedRecordMovesSameNodeTogether(t *testing.T) {
+	db, ctx := testDB(t)
+	tag := mustTag(t, db, "sh")
+	nid := deployedNode(t, db, "sh-1", tag)
+	s2 := addServer(t, db, "sh-2", "HK", 0, false, false)
+	mustExec(t, db, `INSERT INTO node_server(node_id,server_id,deployed) VALUES(?,?,1)`, nid, s2)
+	var p1, s1, p2 int64
+	db.QueryRow(`SELECT id,server_id FROM node_server WHERE node_id=? AND server_id<>?`, nid, s2).Scan(&p1, &s1)
+	db.QueryRow(`SELECT id FROM node_server WHERE server_id=?`, s2).Scan(&p2)
+	mustExec(t, db, `INSERT INTO domain(id,domain) VALUES(1,'example.com')`)
+	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status,server_id) SELECT 1,1,'vpn','vpn.example.com','A',ip,'SYNCED',id FROM server WHERE id=?`, s1)
+	rid := int64(1)
+	var bs []*AccountBinding
+	for _, email := range []string{"sh1@example.com", "sh2@example.com"} {
+		r := onboard(t, db, email, func(in *OnboardInput) { in.Account.TagIDs = []int64{tag} })
+		b := &AccountBinding{AccountID: r.AccountID, PlacementID: p1, RecordID: &rid, Enabled: true}
+		if err := SaveAccountBinding(ctx, db, b); err != nil {
+			t.Fatal(err)
+		}
+		bs = append(bs, b)
+	}
+	bs[0].PlacementID = p2
+	if err := SaveAccountBinding(ctx, db, bs[0]); err != nil {
+		t.Fatalf("同节点共享域名应可切换 err=%v", err)
+	}
+	for _, b := range bs {
+		list, _ := AccountBindings(ctx, db, b.AccountID)
+		if len(list) != 1 || list[0].PlacementID != p2 {
+			t.Fatalf("共享定制未一起切换: %+v", list)
+		}
+	}
+}
+
 func TestBindingMoveToOtherNodeRetargetsRecord(t *testing.T) {
 	db, ctx := testDB(t)
 	tag := mustTag(t, db, "mv")

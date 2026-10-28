@@ -197,8 +197,9 @@ func SaveAccountBinding(ctx context.Context, db *sql.DB, b *AccountBinding) erro
 		}
 		// 解析不在该部署位服务器时随定制迁移；已绑定服务器但解析不同是自动切换中，保持不动
 		move := (sid.Valid && sid.Int64 != serverID) || (!sid.Valid && content != ip)
+		// 同节点的其他定制共用该域名时随本次一起切换部署位，否则会互相卡住无法迁移
 		var refs int
-		err = tx.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM node_server WHERE access_host_id=? AND id<>?) + (SELECT count(*) FROM account_node_subscription_domain_binding x LEFT JOIN account_node_subscription_placement p ON p.binding_id=x.id WHERE x.domain_dns_record_id=? AND x.id<>? AND (x.node_id<>? OR coalesce(p.node_server_id,0)<>?))`, *b.RecordID, b.PlacementID, *b.RecordID, b.ID, nodeID, b.PlacementID).Scan(&refs)
+		err = tx.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM node_server WHERE access_host_id=? AND id<>?) + (SELECT count(*) FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=? AND id<>? AND node_id<>?)`, *b.RecordID, b.PlacementID, *b.RecordID, b.ID, nodeID).Scan(&refs)
 		if err != nil {
 			return err
 		}
@@ -211,6 +212,12 @@ func SaveAccountBinding(ctx context.Context, db *sql.DB, b *AccountBinding) erro
 			_, err = tx.ExecContext(ctx, `UPDATE domain_dns_record SET server_id=? WHERE id=?`, serverID, *b.RecordID)
 		}
 		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM account_node_subscription_placement WHERE binding_id IN (SELECT id FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=? AND id<>?)`, *b.RecordID, b.ID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO account_node_subscription_placement(binding_id,node_server_id) SELECT id,? FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=? AND id<>?`, b.PlacementID, *b.RecordID, b.ID); err != nil {
 			return err
 		}
 	}
