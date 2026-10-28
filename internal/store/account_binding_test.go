@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"errors"
 	"testing"
 )
@@ -59,7 +60,7 @@ func TestBindingAuthorizationAndRecordRelease(t *testing.T) {
 	}
 }
 
-// 生产案例：两个账户共用域名且同节点，任一方切部署位都报冲突，互相卡死。
+// 生产案例：两个账户共用域名且同节点，任一方切部署位都报冲突，互相卡死；域名兼做原部署位访问域名时同样卡死。
 func TestBindingSharedRecordMovesSameNodeTogether(t *testing.T) {
 	db, ctx := testDB(t)
 	tag := mustTag(t, db, "sh")
@@ -71,6 +72,7 @@ func TestBindingSharedRecordMovesSameNodeTogether(t *testing.T) {
 	db.QueryRow(`SELECT id FROM node_server WHERE server_id=?`, s2).Scan(&p2)
 	mustExec(t, db, `INSERT INTO domain(id,domain) VALUES(1,'example.com')`)
 	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status,server_id) SELECT 1,1,'vpn','vpn.example.com','A',ip,'SYNCED',id FROM server WHERE id=?`, s1)
+	mustExec(t, db, `UPDATE node_server SET access_host_id=1 WHERE id=?`, p1)
 	rid := int64(1)
 	var bs []*AccountBinding
 	for _, email := range []string{"sh1@example.com", "sh2@example.com"} {
@@ -90,6 +92,14 @@ func TestBindingSharedRecordMovesSameNodeTogether(t *testing.T) {
 		if len(list) != 1 || list[0].PlacementID != p2 {
 			t.Fatalf("共享定制未一起切换: %+v", list)
 		}
+	}
+	var host1, host2 sql.NullInt64
+	var sid int64
+	db.QueryRow(`SELECT access_host_id FROM node_server WHERE id=?`, p1).Scan(&host1)
+	db.QueryRow(`SELECT access_host_id FROM node_server WHERE id=?`, p2).Scan(&host2)
+	db.QueryRow(`SELECT server_id FROM domain_dns_record WHERE id=1`).Scan(&sid)
+	if host1.Valid || host2.Int64 != 1 || sid != s2 {
+		t.Fatalf("访问域名未随定制转移: p1=%v p2=%v server=%d", host1, host2, sid)
 	}
 }
 

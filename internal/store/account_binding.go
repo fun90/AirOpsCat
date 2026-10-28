@@ -197,9 +197,9 @@ func SaveAccountBinding(ctx context.Context, db *sql.DB, b *AccountBinding) erro
 		}
 		// 解析不在该部署位服务器时随定制迁移；已绑定服务器但解析不同是自动切换中，保持不动
 		move := (sid.Valid && sid.Int64 != serverID) || (!sid.Valid && content != ip)
-		// 同节点的其他定制共用该域名时随本次一起切换部署位，否则会互相卡住无法迁移
+		// 同节点的部署位访问域名和其他定制共用该域名时随本次一起切换，否则会互相卡住无法迁移
 		var refs int
-		err = tx.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM node_server WHERE access_host_id=? AND id<>?) + (SELECT count(*) FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=? AND id<>? AND node_id<>?)`, *b.RecordID, b.PlacementID, *b.RecordID, b.ID, nodeID).Scan(&refs)
+		err = tx.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM node_server WHERE access_host_id=? AND node_id<>?) + (SELECT count(*) FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=? AND id<>? AND node_id<>?)`, *b.RecordID, nodeID, *b.RecordID, b.ID, nodeID).Scan(&refs)
 		if err != nil {
 			return err
 		}
@@ -213,6 +213,19 @@ func SaveAccountBinding(ctx context.Context, db *sql.DB, b *AccountBinding) erro
 		}
 		if err != nil {
 			return err
+		}
+		var hosted int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM node_server WHERE access_host_id=? AND id<>?`, *b.RecordID, b.PlacementID).Scan(&hosted); err != nil {
+			return err
+		}
+		if hosted > 0 {
+			// 与删除部署位转移一致：目标已有访问域名时保留目标的
+			if _, err := tx.ExecContext(ctx, `UPDATE node_server SET access_host_id=?, update_time=? WHERE id=? AND access_host_id IS NULL`, *b.RecordID, FormatTime(nowFunc()), b.PlacementID); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE node_server SET access_host_id=NULL WHERE access_host_id=? AND id<>?`, *b.RecordID, b.PlacementID); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM account_node_subscription_placement WHERE binding_id IN (SELECT id FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=? AND id<>?)`, *b.RecordID, b.ID); err != nil {
 			return err
