@@ -18,6 +18,38 @@ type TrafficUsage struct {
 	PeriodStart, PeriodEnd time.Time
 }
 
+// TrafficPeriod 是账户一个计费周期的累计流量；QuotaGB 为周期快照，缺省取账户当前配额。
+type TrafficPeriod struct {
+	PeriodStart, PeriodEnd              time.Time
+	UploadBytes, DownloadBytes, QuotaGB int64
+}
+
+// AccountTrafficHistory 返回账户已保留的周期（含当前），按开始时间倒序。
+func AccountTrafficHistory(ctx context.Context, db *sql.DB, accountID int64) ([]TrafficPeriod, error) {
+	rows, err := db.QueryContext(ctx, `SELECT s.period_start,s.period_end,s.upload_bytes,s.download_bytes,coalesce(s.bandwidth_quota,a.bandwidth,0)
+ FROM account_traffic_stats s JOIN account a ON a.id=s.account_id WHERE s.account_id=? ORDER BY s.period_start DESC,s.id DESC`, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []TrafficPeriod
+	for rows.Next() {
+		var p TrafficPeriod
+		var s, e string
+		if err = rows.Scan(&s, &e, &p.UploadBytes, &p.DownloadBytes, &p.QuotaGB); err != nil {
+			return nil, err
+		}
+		if p.PeriodStart, err = ParseTime(s); err != nil {
+			return nil, err
+		}
+		if p.PeriodEnd, err = ParseTime(e); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 func trafficPeriod(anchor, at time.Time, period string) (time.Time, time.Time, error) {
 	anchor, at = anchor.In(Shanghai), at.In(Shanghai)
 	boundary := func(year int, month time.Month) time.Time {

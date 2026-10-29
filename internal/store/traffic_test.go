@@ -411,3 +411,22 @@ func TestTrafficMigrationInitializesAnchors(t *testing.T) {
 		t.Fatal("重复迁移", err)
 	}
 }
+
+func TestAccountTrafficHistoryAndUsedSort(t *testing.T) {
+	db, ctx := testDB(t)
+	a := trafficAccount(t, db, "A1", "2026-01-01 00:00:00", PeriodMonthly)
+	b := trafficAccount(t, db, "A2", "2026-01-01 00:00:00", PeriodMonthly)
+	trafficExec(t, db, `INSERT INTO account_traffic_stats(account_id,period_start,period_end,upload_bytes,download_bytes) VALUES
+(?,'2026-01-01 00:00:00','2026-02-01 00:00:00',1,2),(?,'2026-02-01 00:00:00','2026-03-01 00:00:00',3,4),(?,'2026-02-01 00:00:00','2026-03-01 00:00:00',50,50)`, a, a, b)
+	h, err := AccountTrafficHistory(ctx, db, a)
+	if err != nil || len(h) != 2 || h[0].UploadBytes != 3 || h[1].DownloadBytes != 2 {
+		t.Fatal(h, err)
+	}
+	old := nowFunc
+	nowFunc = func() time.Time { return trafficTime(t, "2026-02-10 00:00:00") }
+	defer func() { nowFunc = old }()
+	rows, _, err := AccountList(ctx, db, AccountFilter{Sort: "used"}, 1, 10)
+	if err != nil || len(rows) != 2 || rows[0].ID != b {
+		t.Fatal(rows, err)
+	}
+}

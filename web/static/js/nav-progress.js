@@ -45,8 +45,12 @@ function scrollToPage(url, position) {
   window.scrollTo({ left: 0, top: 0, behavior: 'instant' });
 }
 
-async function navigate(url, restoreEntry) {
+async function navigate(url, restoreEntry, link) {
   stop();
+  // data-loading 链接（如排序列头）把图标换成加载动画；成功时随旧页面一起替换。
+  const icon = link?.hasAttribute('data-loading') ? link.querySelector('i') : null;
+  const iconClass = icon?.className;
+  if (icon) icon.className = 'spinner-border spinner-border-sm';
   const request = new AbortController();
   pending = request;
   progress.classList.remove('d-none');
@@ -98,6 +102,7 @@ async function navigate(url, restoreEntry) {
     else location.assign(url.href);
   } finally {
     clearTimeout(timeout);
+    if (icon && !committed) icon.className = iconClass;
     if (pending === request) {
       pending = null;
       progress.classList.add('d-none');
@@ -116,7 +121,7 @@ document.addEventListener('click', event => {
   if (url.pathname + url.search === route && url.hash) { stop(); return; }
   event.preventDefault();
   positions.set(entry, [scrollX, scrollY]);
-  navigate(url);
+  navigate(url, undefined, link);
 });
 
 window.addEventListener('popstate', event => {

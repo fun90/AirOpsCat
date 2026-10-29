@@ -74,7 +74,7 @@ type AccountFilter struct {
 	Status       string
 	Online       string
 	OnlineWithin time.Duration // 在线判定窗口，默认 10 分钟
-	Sort         string        // create_time（默认）、to_date 或 last_online
+	Sort         string        // create_time（默认）、to_date、last_online 或 used
 	Asc          bool
 }
 
@@ -411,6 +411,8 @@ const lastOnlineSQL = `(SELECT max(o.last_online_time) FROM account_online_ip o 
 // currentStats 与 accountUsage 同口径：周期行重叠时只取最新一行。
 const currentStats = `FROM account_traffic_stats s WHERE s.account_id = a.id AND s.period_start <= @now AND s.period_end > @now ORDER BY s.period_start DESC, s.id DESC LIMIT 1`
 
+const usedSQL = `coalesce((SELECT s.upload_bytes + s.download_bytes ` + currentStats + `), 0)`
+
 // AccountList 按筛选分页返回账户；size 上限 100，默认 create_time 倒序。
 func AccountList(ctx context.Context, db *sql.DB, f AccountFilter, page, size int) ([]*AccountRow, int, error) {
 	where, args := f.where(nowFunc())
@@ -427,6 +429,8 @@ func AccountList(ctx context.Context, db *sql.DB, f AccountFilter, page, size in
 	case "to_date":
 		// 长期有效（NULL）视为最晚到期：降序在最前，升序在最后。
 		order = "a.to_date IS NULL " + dir + ", a.to_date " + dir
+	case "used":
+		order = usedSQL + " " + dir
 	case "last_online":
 		// 没有在线记录的账户无论升降序都排最后。
 		order = lastOnlineSQL + " IS NULL, " + lastOnlineSQL + " " + dir
@@ -434,7 +438,7 @@ func AccountList(ctx context.Context, db *sql.DB, f AccountFilter, page, size in
 	limit, offset := pageArgs(page, size)
 	args = append(args, sql.Named("limit", limit), sql.Named("offset", offset))
 	rows, err := db.QueryContext(ctx, `SELECT `+accountCols+`, coalesce(u.email,''), coalesce(u.nick_name,''),
-		coalesce((SELECT s.upload_bytes + s.download_bytes `+currentStats+`), 0),
+		`+usedSQL+`,
 		coalesce((SELECT s.bandwidth_quota `+currentStats+`), a.bandwidth, 0),
 		(SELECT count(*) FROM account_online_ip o WHERE o.account_no = a.account_no AND o.last_online_time > @cutoff),
 		`+lastOnlineSQL+`

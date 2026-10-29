@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/fun90/airopscat/internal/deploy"
 	"github.com/fun90/airopscat/internal/guard"
 	"github.com/fun90/airopscat/internal/singbox"
@@ -317,6 +318,7 @@ var funcs = template.FuncMap{
 	"pageURL":   pageURL,
 	"lower":     strings.ToLower,
 	"hasPrefix": strings.HasPrefix,
+	"gb":        func(b int64) string { return fmt.Sprintf("%.2f GB", float64(b)/(1<<30)) },
 	"dbtime": func(v any) string {
 		switch t := v.(type) {
 		case time.Time:

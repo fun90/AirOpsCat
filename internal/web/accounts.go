@@ -86,7 +86,7 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 		}
 		d["ClearUserURL"] = "?" + clear.Encode()
 	}
-	d["SortLast"], d["SortTo"] = sortHeader(r.URL.Query(), "last_online", sort, asc), sortHeader(r.URL.Query(), "to_date", sort, asc)
+	d["SortLast"], d["SortTo"], d["SortUsed"] = sortHeader(r.URL.Query(), "last_online", sort, asc), sortHeader(r.URL.Query(), "to_date", sort, asc), sortHeader(r.URL.Query(), "used", sort, asc)
 	d["List"], d["Q"], d["Status"], d["Page"], d["Pages"] = list, q, status, page, (total+size-1)/size
 	d["Now"] = store.FormatTime(now)
 	d["DocsURL"] = store.ConfigValue(r.Context(), s.DB, "airopscat.docs.url")
@@ -147,7 +147,7 @@ func accountRowView(a *store.AccountRow, now time.Time) accountView {
 
 // accountSort 只接受白名单列；其他值回到默认排序（创建时间倒序）。
 func accountSort(sort, dir string) (string, bool) {
-	if sort != "last_online" && sort != "to_date" {
+	if sort != "last_online" && sort != "to_date" && sort != "used" {
 		return "", false
 	}
 	return sort, dir == "asc"
@@ -230,6 +230,21 @@ func (s *Server) accountFormPage(w http.ResponseWriter, r *http.Request, status 
 				return
 			}
 			d["Account"], d["Usage"] = acc, u
+			hist, err := store.AccountTrafficHistory(r.Context(), s.DB, acc.ID)
+			if err != nil {
+				s.fail(w, r, err)
+				return
+			}
+			type historyRow struct {
+				store.TrafficPeriod
+				Current bool
+				View    accountView
+			}
+			rows := make([]historyRow, len(hist))
+			for i, p := range hist {
+				rows[i] = historyRow{p, p.PeriodStart.Equal(u.PeriodStart), accountRowView(&store.AccountRow{UsedBytes: p.UploadBytes + p.DownloadBytes, QuotaGB: int(p.QuotaGB)}, time.Now())}
+			}
+			d["History"] = rows
 			d["View"] = accountRowView(&store.AccountRow{Account: *acc, UsedBytes: u.UsedBytes, QuotaGB: int(u.QuotaGB)}, time.Now())
 			if docs := store.ConfigValue(r.Context(), s.DB, "airopscat.docs.url"); docs != "" {
 				d["Install"] = installText(docs, *acc)
