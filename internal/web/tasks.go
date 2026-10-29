@@ -2,12 +2,15 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/fun90/airopscat/internal/notify"
 	"github.com/fun90/airopscat/internal/store"
 )
 
@@ -63,7 +66,7 @@ func (s *Server) initTasks() {
 		"alert-scan":        {Name: "告警扫描（流量超额与到期）", Interval: 5 * time.Minute, Run: s.scanAlerts},
 		"ip-overlap-digest": {Name: "IP 超限每日摘要", Interval: 24 * time.Hour, Run: s.ipOverlapDigest},
 		"guard-evict":       {Name: "风控过期状态回收", Interval: 30 * time.Second, Run: s.Guard.Evict},
-		"account-expire":    {Name: "到期账户停用", Interval: time.Hour, Run: func(ctx context.Context) error { _, err := store.ExpireAccounts(ctx, s.DB, time.Now()); return err }},
+		"account-expire":    {Name: "到期账户停用并部署", Interval: time.Hour, Run: s.expireAccounts},
 		"db-backup": {Name: "数据库每日备份", Interval: 24 * time.Hour, Run: func(ctx context.Context) error {
 			if _, err := s.Backup.Create(ctx); err != nil {
 				return err
@@ -84,6 +87,44 @@ func (s *Server) initTasks() {
 			return store.CleanupTrafficHistory(ctx, s.DB, time.Now())
 		}},
 	}
+}
+
+// expireAccounts 停用到期账户后整机部署其节点所在服务器；各服务器独立部署，失败的保持待部署、告警并汇总报错。
+func (s *Server) expireAccounts(ctx context.Context) error {
+	accounts, err := store.ExpireAccounts(ctx, s.DB, time.Now())
+	if err != nil {
+		return err
+	}
+	var errs []error
+	seen := map[int64]bool{}
+	var servers []int64
+	for _, id := range accounts {
+		ids, err := store.AccountDeployServers(ctx, s.DB, id)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("读取账户 %d 的服务器失败: %w", id, err))
+			continue
+		}
+		for _, sid := range ids {
+			if !seen[sid] {
+				seen[sid] = true
+				servers = append(servers, sid)
+			}
+		}
+	}
+	if len(servers) > 0 {
+		for _, res := range s.Deployer.DeployServers(ctx, servers, true) {
+			if res.Success {
+				continue
+			}
+			errs = append(errs, fmt.Errorf("%s：%s", res.ServerName, res.Message))
+			key := store.AlertKey{Type: alertDeployFail, ResourceType: "server", ResourceID: res.ServerID, ResourceKey: res.ServerName, Fingerprint: strconv.FormatInt(res.ServerID, 10)}
+			if err := s.raise(ctx, key, "critical", 0, 0, res.ServerName+" 自动部署失败", 0, notify.Message{Title: "AirOpsCat 自动部署失败 · " + res.ServerName,
+				Body: "账户到期后自动部署失败，已保持待部署：\n" + res.Message, Level: "timeSensitive"}); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // StartTasks 每项任务各自串行；首次等待一个周期，启动时不立即访问远端。

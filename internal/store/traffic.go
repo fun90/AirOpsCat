@@ -336,44 +336,44 @@ func CollectAccountTraffic(ctx context.Context, db *sql.DB, serverID int64, at t
 	return tx.Commit()
 }
 
-// ExpireAccounts 供每小时任务调用，禁用所有 to_date<=at 的账户，相关节点置待部署。
+// ExpireAccounts 供每小时任务调用，禁用所有 to_date<=at 的账户，相关节点置待部署，返回被禁用的账户。
 // 无关联节点也禁用；禁用和待部署标记属于同一事务。
-func ExpireAccounts(ctx context.Context, db *sql.DB, at time.Time) (int64, error) {
+func ExpireAccounts(ctx context.Context, db *sql.DB, at time.Time) ([]int64, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer tx.Rollback()
 	rows, err := tx.QueryContext(ctx, `SELECT id FROM account WHERE disabled=0 AND to_date IS NOT NULL AND to_date<=?`, FormatTime(at))
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	var ids []int64
 	for rows.Next() {
 		var id int64
 		if err = rows.Scan(&id); err != nil {
 			rows.Close()
-			return 0, err
+			return nil, err
 		}
 		ids = append(ids, id)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	for _, id := range ids {
 		if err = markAccountPending(ctx, tx, id); err != nil {
-			return 0, err
+			return nil, err
 		}
 		if _, err = tx.ExecContext(ctx, `UPDATE account SET disabled=1,update_time=? WHERE id=?`, FormatTime(at), id); err != nil {
-			return 0, err
+			return nil, err
 		}
 	}
 	if err = tx.Commit(); err != nil {
-		return 0, err
+		return nil, err
 	}
-	return int64(len(ids)), nil
+	return ids, nil
 }
 
 // CleanupTrafficHistory 删除结束超过 30 天的周期及离线超过 30 天的在线历史，保留累计基线。

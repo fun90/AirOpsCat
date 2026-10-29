@@ -20,13 +20,14 @@ const (
 	alertConnection  = "account-connection-limit"
 	alertExpiring    = "-expiring"           // 前缀为资源类型：server / domain / account
 	alertMonitorLoad = "server-monitor-load" // 指纹 cpu:ID / memory:ID / traffic:ID，与既有数据一致
+	alertDeployFail  = "server-deploy-failed"
 	expiringDays     = 7
 )
 
 var alertTypeNames = map[string]string{
 	alertQuota: "账户流量超额", alertConnection: "账户连接数超限",
 	"server-expiring": "服务器到期", "domain-expiring": "域名到期", "account-expiring": "账户到期",
-	alertMonitorLoad: "服务器负载与流量",
+	alertMonitorLoad: "服务器负载与流量", alertDeployFail: "自动部署失败",
 }
 
 func (s *Server) alertRoutes(m *http.ServeMux) {

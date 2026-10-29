@@ -261,9 +261,9 @@ func TestTrafficExpirationAtomic(t *testing.T) {
 		t.Fatal("待部署标记未回滚")
 	}
 	trafficExec(t, db, `DROP TRIGGER fail_expire`)
-	n, err := ExpireAccounts(ctx, db, at)
-	if err != nil || n != 2 {
-		t.Fatal(n, err)
+	ids, err := ExpireAccounts(ctx, db, at)
+	if err != nil || len(ids) != 2 {
+		t.Fatal(ids, err)
 	}
 	for _, id := range []int64{a, b} {
 		var disabled int
@@ -276,9 +276,9 @@ func TestTrafficExpirationAtomic(t *testing.T) {
 	if deployed != 0 {
 		t.Fatal("未标记待部署")
 	}
-	n, err = ExpireAccounts(ctx, db, at)
-	if err != nil || n != 0 {
-		t.Fatal(n, err)
+	ids, err = ExpireAccounts(ctx, db, at)
+	if err != nil || len(ids) != 0 {
+		t.Fatal(ids, err)
 	}
 }
 

@@ -74,7 +74,11 @@ func New(db *sql.DB, a *auth.Service, field *crypto.Cipher) (*Server, error) {
 		}
 		return &deploy.Prepared{Config: body, Revision: captured.Revision, Snapshots: captured.Snapshots, LimitsKey: limitsKey(captured.Input)}, nil
 	}
-	s.Deployer.Applied = s.markLimits
+	s.Deployer.Applied = func(id int64, key string) {
+		s.markLimits(id, key)
+		// 整机下发成功即视为部署恢复
+		store.AlertResolve(context.Background(), db, alertDeployFail, "server", id, time.Now())
+	}
 	s.MaintenanceDeployer = deploy.NewDeployer(db, field, nil)
 	s.MaintenanceDeployer.CommandTimeout = 30 * time.Minute
 	s.Guard = guard.New(db)
