@@ -443,7 +443,7 @@ func TestNodeAutomaticPortHTTP(t *testing.T) {
 		t.Fatal(got.Code, got.Body.String())
 	}
 	var port int
-	if err := a.DB.QueryRow(`SELECT port FROM node WHERE name='自动端口-1'`).Scan(&port); err != nil || port != 10000 {
+	if err := a.DB.QueryRow(`SELECT port FROM node WHERE name='自动端口-1'`).Scan(&port); err != nil || port != 8000 {
 		t.Fatal(port, err)
 	}
 }

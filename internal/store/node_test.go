@@ -257,9 +257,9 @@ func ptr[T any](v T) *T { return &v }
 
 func TestAutomaticNodePorts(t *testing.T) {
 	db, ctx := testDB(t)
-	mustExec(t, db, `INSERT INTO node(name,type,protocol,port) VALUES('used1',0,'vless',10000),('duplicate',0,'vless',10000),('higher',0,'vless',10002)`)
+	mustExec(t, db, `INSERT INTO node(name,type,protocol,port) VALUES('used1',0,'vless',8000),('duplicate',0,'vless',8000),('higher',0,'vless',8002)`)
 	n := newNode("automatic", "HK", NodeProxy, 0)
-	if _, err := SaveNode(ctx, db, n, nil, nil); err != nil || n.Port != 10001 {
+	if _, err := SaveNode(ctx, db, n, nil, nil); err != nil || n.Port != 8001 {
 		t.Fatal(n.Port, err)
 	}
 	var wg sync.WaitGroup
@@ -285,7 +285,7 @@ func TestAutomaticNodePorts(t *testing.T) {
 	}
 	seen := map[int]bool{}
 	for port := range ports {
-		if seen[port] || port < 10003 {
+		if seen[port] || port < 8003 {
 			t.Fatal("并发分配冲突", port)
 		}
 		seen[port] = true
@@ -294,7 +294,7 @@ func TestAutomaticNodePorts(t *testing.T) {
 
 func TestAutomaticNodePortExhaustion(t *testing.T) {
 	db, ctx := testDB(t)
-	mustExec(t, db, `WITH RECURSIVE ports(p) AS (SELECT 10000 UNION ALL SELECT p+1 FROM ports WHERE p<65535) INSERT INTO node(name,type,protocol,port) SELECT 'used',0,'vless',p FROM ports`)
+	mustExec(t, db, `WITH RECURSIVE ports(p) AS (SELECT 8000 UNION ALL SELECT p+1 FROM ports WHERE p<10000) INSERT INTO node(name,type,protocol,port) SELECT 'used',0,'vless',p FROM ports`)
 	if _, err := SaveNode(ctx, db, newNode("full", "HK", NodeProxy, 0), nil, nil); !errors.Is(err, ErrInvalid) {
 		t.Fatal(err)
 	}

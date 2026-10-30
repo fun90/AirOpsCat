@@ -505,14 +505,14 @@ func normalizeTagIDs(ids []int64) []int64 {
 	return out
 }
 
-// availableNodePort 在写事务内从 10000 起取全局未用端口，避免未来部署位合并冲突。
+// availableNodePort 在写事务内从防火墙节点端口范围取全局未用端口，避免未来部署位合并冲突。
 func availableNodePort(ctx context.Context, q dbtx) (int, error) {
-	rows, err := q.QueryContext(ctx, `SELECT DISTINCT port FROM node WHERE port>=10000 ORDER BY port`)
+	rows, err := q.QueryContext(ctx, `SELECT DISTINCT port FROM node WHERE port BETWEEN 8000 AND 10000 ORDER BY port`)
 	if err != nil {
 		return 0, err
 	}
 	defer rows.Close()
-	candidate := 10000
+	candidate := 8000
 	for rows.Next() {
 		var port int
 		if err := rows.Scan(&port); err != nil {
@@ -528,7 +528,7 @@ func availableNodePort(ctx context.Context, q dbtx) (int, error) {
 	if err := rows.Err(); err != nil {
 		return 0, err
 	}
-	if candidate > 65535 {
+	if candidate > 10000 {
 		return 0, invalid("没有可自动分配的端口，请手动指定")
 	}
 	return candidate, nil

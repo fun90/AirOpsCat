@@ -106,7 +106,7 @@
 | [spec-account](rewrite/spec-account.md) §7 | [x] 订阅绑定新建 A 记录使用 TTL=1（Cloudflare 自动），`TestBindingNewDomain` 覆盖；现有记录不改写。绑定启停沿用编辑表单的 enabled 复选框，不新增重复入口 |
 | [spec-account](rewrite/spec-account.md) 问题 15 | [x] 管理员编辑用户页支持解除登录锁定，复用 `ResetLoginFailures`；`TestAdminUnlockUser` 验证解锁与认证/CSRF。自助改密按决策 7 不做 |
 | [spec-deploy](rewrite/spec-deploy.md) §2.3 | [x] Reality/ShadowTLS 握手域名以 crypto/rand 从历史候选随机选择，Reality SNI 与握手一致（`TestDefaultInbound`）；[x] Hysteria2 生成端点已接节点 ID、地区和类型：编辑优先首个有效匹配部署位的已同步访问域名，否则 IP；新建/地区变化按部署匹配规则选择首台服务器 IP，不猜测尚未绑定的域名。IPv6 URL、非法地址、DNS 回落和 HTTP 错误均有测试。多部署位使用首位默认值，须管理员确认各目标证书；真实签发/连接待验收 |
-| [spec-deploy](rewrite/spec-deploy.md) §4.2 | [x] 04 步骤显式填写 ACME 邮箱，前后端校验后经私有环境文件传递；profile 脚本移除内置邮箱、依赖安装前校验、私有下载清理（Go fake SSH 测试及 mock 安装/下载自检查通过）。[x] 新建节点端口留空时，在 immediate 写事务内从 10000 起分配全局未用端口，手填保留；重复、空缺、耗尽、并发与 HTTP 非法值已测试。防火墙继续放行 8000–65535，覆盖分配范围；较宽暴露范围保留为运维策略限制，未执行真实防火墙变更 |
+| [spec-deploy](rewrite/spec-deploy.md) §4.2 | [x] 04 步骤显式填写 ACME 邮箱，前后端校验后经私有环境文件传递；profile 脚本移除内置邮箱、依赖安装前校验、私有下载清理（Go fake SSH 测试及 mock 安装/下载自检查通过）。[x] 新建节点端口留空时，在 immediate 写事务内从 8000–10000 分配全局未用端口，手填保留；重复、空缺、耗尽、并发与 HTTP 非法值已测试。防火墙放行 8000–10000，与自动分配范围一致；未执行真实防火墙变更 |
 | [spec-data](rewrite/spec-data.md) §3 | [x] 按当前实现记录为有意取舍：账户流量和监控默认 30 天、备份 15 天、模板空值使用 `./config`；只展示实际消费键，约 10 个 Java 专用键不补无消费者配置。迁移说明已提示需要更长追溯时先调大保留期并规划磁盘 |
 
 ### 小问题与待实测
