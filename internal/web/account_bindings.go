@@ -1,11 +1,13 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"github.com/fun90/airopscat/internal/store"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func (s *Server) bindingPage(w http.ResponseWriter, r *http.Request) {
@@ -60,6 +62,20 @@ func (s *Server) bindingSave(w http.ResponseWriter, r *http.Request) {
 	}
 	b.NewDomainID, _ = strconv.ParseInt(formValue(r, "new_domain_id"), 10, 64)
 	b.NewName = formValue(r, "new_name")
+	domainID := b.NewDomainID
+	if b.NewName == "" && b.RecordID != nil {
+		record, err := store.DNSRecordByID(r.Context(), s.DB, *b.RecordID)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		if record != nil {
+			domainID = record.DomainID
+		}
+	}
+	if domainID > 0 {
+		defer lockDomain(domainID)()
+	}
 	editID := b.ID
 	err := store.SaveAccountBinding(r.Context(), s.DB, b)
 	if err == nil {
@@ -82,8 +98,36 @@ func (s *Server) bindingSave(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	if b.RecordID != nil {
+		if err := s.syncBindingDNS(r.Context(), domainID, *b.RecordID); err != nil {
+			redirectMsg(w, r, path, "err", "订阅定制已保存，但 DNS 同步失败："+err.Error()+"；请重试保存或在 DNS 页面推送。同步成功前订阅使用部署位默认地址")
+			return
+		}
+		redirectMsg(w, r, path, "msg", "订阅定制已保存，DNS 已同步")
+		return
+	}
 	redirectMsg(w, r, path, "msg", "订阅定制已保存")
 }
+
+// syncBindingDNS 由持有域名锁的保存流程调用，只推送本次绑定的记录。
+func (s *Server) syncBindingDNS(ctx context.Context, domainID, recordID int64) error {
+	p, err := store.LoadDNSRecordPush(ctx, s.DB, recordID)
+	if err != nil || p.Empty() {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	dm, c, err := s.domainClient(ctx, domainID)
+	if err != nil {
+		return err
+	}
+	ids, err := c.Push(ctx, dm.ZoneID, p.Batch)
+	if err != nil {
+		return err
+	}
+	return store.ApplyDNSPush(ctx, s.DB, domainID, p, ids)
+}
+
 func (s *Server) bindingDelete(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("binding"), 10, 64)
 	if err := store.DeleteAccountBinding(r.Context(), s.DB, idFrom(r), id); err != nil {

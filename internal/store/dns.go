@@ -634,7 +634,16 @@ type DNSPush struct {
 func (p *DNSPush) Empty() bool { return len(p.DeleteIDs)+len(p.PatchIDs)+len(p.PostIDs) == 0 }
 
 func LoadDNSPush(ctx context.Context, db dbtx, domainID int64) (*DNSPush, error) {
-	rows, err := db.QueryContext(ctx, recSel+` WHERE r.domain_id=? AND r.status IN ('PENDING_CREATE','PENDING_UPDATE','PENDING_DELETE') ORDER BY r.id`, domainID)
+	return loadDNSPush(ctx, db, `r.domain_id=?`, domainID)
+}
+
+// LoadDNSRecordPush 只加载指定记录，避免订阅定制保存时推送其他待处理变更。
+func LoadDNSRecordPush(ctx context.Context, db dbtx, recordID int64) (*DNSPush, error) {
+	return loadDNSPush(ctx, db, `r.id=?`, recordID)
+}
+
+func loadDNSPush(ctx context.Context, db dbtx, where string, id int64) (*DNSPush, error) {
+	rows, err := db.QueryContext(ctx, recSel+` WHERE `+where+` AND r.status IN ('PENDING_CREATE','PENDING_UPDATE','PENDING_DELETE') ORDER BY r.id`, id)
 	if err != nil {
 		return nil, err
 	}
