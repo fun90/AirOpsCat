@@ -14,8 +14,20 @@ window.AirOpsPage.register(function(){
  var to=document.querySelector('#renew_to_date');
  function pad(n){return String(n).padStart(2,'0');}
  function fmt(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());}
+ function addMonths(base,n){var day=base.getDate();base.setDate(1);base.setMonth(base.getMonth()+n);
+  base.setDate(Math.min(day,new Date(base.getFullYear(),base.getMonth()+1,0).getDate()));return base;}
  document.querySelectorAll('[data-renew-months]').forEach(function(b){b.addEventListener('click',function(){
   var base=new Date(to.dataset.base||''),now=new Date();if(isNaN(base)||base<now){base=now;}
-  var day=base.getDate();base.setDate(1);base.setMonth(base.getMonth()+Number(b.dataset.renewMonths));
-  base.setDate(Math.min(day,new Date(base.getFullYear(),base.getMonth()+1,0).getDate()));to.value=fmt(base);});});
+  to.value=fmt(addMonths(base,Number(b.dataset.renewMonths)));});});
+ // 开户时长从开始时间起算
+ document.querySelectorAll('[data-term-months]').forEach(function(b){b.addEventListener('click',function(){
+  var base=new Date(document.querySelector('#from_date').value||'');if(isNaN(base)){base=new Date();}
+  document.querySelector('#to_date').value=fmt(addMonths(base,Number(b.dataset.termMonths)));});});
+ // 按所选标签统计可用节点（标签并集），为 0 时保存前二次确认
+ var hint=document.querySelector('[data-tag-nodes]');
+ if(hint){var form=hint.closest('form');
+  function count(){var ids=new Set();form.querySelectorAll('[data-tag-id]').forEach(function(p){if(p.querySelector('input[name=tags]').checked){(p.dataset.nodeIds||'').split(' ').filter(Boolean).forEach(function(id){ids.add(id);});}});return ids.size;}
+  function show(){var n=count();hint.textContent=n?'将可用 '+n+' 个节点':'未匹配任何可用节点，客户订阅将为空';hint.classList.toggle('text-danger',!n);}
+  form.addEventListener('change',function(e){if(e.target.name==='tags'){show();}});show();
+  form.addEventListener('submit',function(e){if(!count()&&!confirm('所选标签未匹配任何可用节点，客户订阅将为空。仍要保存？')){e.preventDefault();}});}
 });

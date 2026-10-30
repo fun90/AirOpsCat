@@ -186,12 +186,26 @@ func (s *Server) accountFormPage(w http.ResponseWriter, r *http.Request, status 
 		s.fail(w, r, err)
 		return
 	}
+	tagNodes, err := store.TagNodeIDs(r.Context(), s.DB)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	// 前端按所选标签取并集，提示账户可用节点数。
+	tagNodeText := make(map[int64]string, len(tagNodes))
+	for id, nodes := range tagNodes {
+		ids := make([]string, len(nodes))
+		for i, n := range nodes {
+			ids[i] = strconv.FormatInt(n, 10)
+		}
+		tagNodeText[id] = strings.Join(ids, " ")
+	}
 	title := "开户"
 	if f.ID != 0 {
 		title = "编辑账户"
 	}
 	d := s.pageData(r, title, "accounts")
-	d["Form"], d["Users"], d["Tags"], d["FormErr"] = f, users, tags, msg
+	d["Form"], d["Users"], d["Tags"], d["TagNodes"], d["FormErr"] = f, users, tags, tagNodeText, msg
 	if f.ID != 0 {
 		recent, err := store.AccountRecentNodes(r.Context(), s.DB, f.ID, time.Now().AddDate(0, 0, -30), 100)
 		if err != nil {
@@ -399,7 +413,11 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 	if parseErr == nil {
 		if f.ID == 0 {
 			onboard.Account = *in
-			_, parseErr = store.Onboard(r.Context(), s.DB, onboard)
+			var res *store.OnboardResult
+			if res, parseErr = store.Onboard(r.Context(), s.DB, onboard); parseErr == nil {
+				redirectMsg(w, r, fmt.Sprintf("/admin/accounts/%d/edit", res.AccountID), "msg", "开户成功：复制安装说明发给客户，点「部署」下发到节点")
+				return
+			}
 		} else {
 			parseErr = store.UpdateAccount(r.Context(), s.DB, f.ID, in)
 		}

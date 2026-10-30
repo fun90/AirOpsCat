@@ -49,6 +49,8 @@ func (s *Server) maintenancePage(w http.ResponseWriter, r *http.Request) {
 	}
 	d := s.pageData(r, "维护脚本", "maintenance")
 	d["Scripts"], d["Servers"] = scripts, servers
+	// 从服务器列表「初始化」进入时预选该服务器并勾选 01～10
+	d["Preselect"], _ = strconv.ParseInt(r.URL.Query().Get("server_id"), 10, 64)
 	s.render(w, "maintenance", 200, d)
 }
 func (s *Server) maintenanceRun(w http.ResponseWriter, r *http.Request) {

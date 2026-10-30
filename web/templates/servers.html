@@ -32,6 +32,7 @@
                     <div class="dropdown-menu dropdown-menu-end">
                         <a class="dropdown-item" href="/admin/servers/{{.ID}}/edit">编辑</a>
                         <a class="dropdown-item" href="/admin/servers/{{.ID}}/config" target="_blank" rel="noopener">配置预览</a>
+                        {{if not .External}}<a class="dropdown-item" href="/admin/maintenance?server_id={{.ID}}">初始化</a>{{end}}
                         <form method="post" action="/admin/servers/{{.ID}}/ping"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item">测试连接</button></form>
                         {{if .Failover}}<form method="post" action="/admin/servers/{{.ID}}/failover" onsubmit="return confirm('恢复后相关域名将切回该服务器，确定？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="on" value="0"><button class="dropdown-item">恢复流量</button></form>{{end}}
                         {{if lt .Failover .Placements}}<form method="post" action="/admin/servers/{{.ID}}/failover" onsubmit="return confirm('将把该服务器全部部署位的域名切到同节点其他部署位，确定？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="on" value="1"><button class="dropdown-item text-warning">切走流量</button></form>{{end}}

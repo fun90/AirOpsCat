@@ -88,6 +88,26 @@ func DeleteTag(ctx context.Context, db *sql.DB, id int64) error {
 }
 
 // AllTags 返回全部标签，用于表单选择。
+// TagNodeIDs 返回各标签下可供账户使用的节点：启用的代理节点且至少有一个未待删除的部署位。
+func TagNodeIDs(ctx context.Context, db *sql.DB) (map[int64][]int64, error) {
+	rows, err := db.QueryContext(ctx, `SELECT nt.tag_id, nt.node_id FROM node_tag nt JOIN node n ON n.id = nt.node_id
+		WHERE n.disabled = 0 AND n.type = 0 AND EXISTS (SELECT 1 FROM node_server p WHERE p.node_id = n.id AND p.deployed <> 2)
+		ORDER BY nt.tag_id, nt.node_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64][]int64{}
+	for rows.Next() {
+		var tag, node int64
+		if err := rows.Scan(&tag, &node); err != nil {
+			return nil, err
+		}
+		out[tag] = append(out[tag], node)
+	}
+	return out, rows.Err()
+}
+
 func AllTags(ctx context.Context, db *sql.DB) ([]*Tag, error) {
 	rows, err := db.QueryContext(ctx, `SELECT id, name, coalesce(color,'') FROM tag ORDER BY name`)
 	if err != nil {

@@ -30,7 +30,8 @@
                 <textarea class="form-control" id="auth" name="auth" rows="3" placeholder="{{if .HasAuth}}已保存，留空表示不修改{{else}}未保存{{end}}" autocomplete="off"></textarea></div>
 
             <div class="col-md-3"><label class="form-label" for="region">地区</label>
-                <input class="form-control" id="region" name="region" value="{{.Region}}"></div>
+                <input class="form-control" id="region" name="region" value="{{.Region}}" list="regions">
+                <datalist id="regions">{{range $.Regions}}<option value="{{.}}">{{end}}</datalist></div>
             <div class="col-md-3"><label class="form-label" for="supplier">供应商</label>
                 <input class="form-control" id="supplier" name="supplier" value="{{.Supplier}}"></div>
             <div class="col-md-3"><label class="form-label" for="expire_date">到期日</label>

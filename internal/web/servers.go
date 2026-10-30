@@ -109,9 +109,7 @@ func parseServerForm(r *http.Request) (*ServerForm, *store.Server, map[string]st
 func (s *Server) serverRoutes(m *http.ServeMux) {
 	m.HandleFunc("GET /admin/servers", s.serverList)
 	m.HandleFunc("GET /admin/servers/new", func(w http.ResponseWriter, r *http.Request) {
-		d := s.pageData(r, "新增服务器", "servers")
-		d["Form"], d["Errors"] = defaultServerForm(), map[string]string{}
-		s.render(w, "server_form", http.StatusOK, d)
+		s.serverFormPage(w, r, http.StatusOK, "新增服务器", defaultServerForm(), map[string]string{})
 	})
 	m.HandleFunc("GET /admin/servers/idle", s.serverIdle)
 	m.HandleFunc("GET /admin/servers/{id}/edit", s.serverEdit)
@@ -182,9 +180,7 @@ func (s *Server) serverEdit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	d := s.pageData(r, "编辑服务器", "servers")
-	d["Form"], d["Errors"] = formFromServer(srv), map[string]string{}
-	s.render(w, "server_form", http.StatusOK, d)
+	s.serverFormPage(w, r, http.StatusOK, "编辑服务器", formFromServer(srv), map[string]string{})
 }
 
 func (s *Server) serverSave(w http.ResponseWriter, r *http.Request) {
@@ -224,9 +220,19 @@ func (s *Server) serverSave(w http.ResponseWriter, r *http.Request) {
 	if id != 0 {
 		title = "编辑服务器"
 	}
+	s.serverFormPage(w, r, http.StatusUnprocessableEntity, title, f, errs)
+}
+
+// serverFormPage 带上已有地区供选择，避免与节点地区写法不一致导致部署位匹配不上。
+func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status int, title string, f *ServerForm, errs map[string]string) {
+	regions, err := store.Regions(r.Context(), s.DB)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	d := s.pageData(r, title, "servers")
-	d["Form"], d["Errors"] = f, errs
-	s.render(w, "server_form", http.StatusUnprocessableEntity, d)
+	d["Form"], d["Errors"], d["Regions"] = f, errs, regions
+	s.render(w, "server_form", status, d)
 }
 
 func (s *Server) serverDelete(w http.ResponseWriter, r *http.Request) {

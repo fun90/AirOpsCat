@@ -58,3 +58,17 @@ func TestBatchNodeTagsAtomicAndIdempotent(t *testing.T) {
 		}
 	}
 }
+
+func TestTagNodeIDsOnlyUsableProxyNodes(t *testing.T) {
+	db, ctx := testDB(t)
+	tag := mustTag(t, db, "t")
+	ok := deployedNode(t, db, "ok", tag)
+	off, landing, gone := deployedNode(t, db, "off", tag), deployedNode(t, db, "landing", tag), deployedNode(t, db, "gone", tag)
+	mustExec(t, db, `UPDATE node SET disabled=1 WHERE id=?`, off)
+	mustExec(t, db, `UPDATE node SET type=1 WHERE id=?`, landing)
+	mustExec(t, db, `UPDATE node_server SET deployed=2 WHERE node_id=?`, gone)
+	got, err := TagNodeIDs(ctx, db)
+	if err != nil || len(got) != 1 || len(got[tag]) != 1 || got[tag][0] != ok {
+		t.Fatal(got, err)
+	}
+}

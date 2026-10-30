@@ -1,9 +1,9 @@
 {{define "content"}}
-<form class="card" data-maintenance-batch>
+<form class="card" data-maintenance-batch{{if .Preselect}} data-maintenance-init{{end}}>
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="card-header"><h3 class="card-title">批量执行维护脚本</h3></div>
 <div class="card-body">
-<div class="row g-3"><div class="col-12 col-md-6"><label class="form-label required" for="maintenance-server">目标服务器</label><select class="form-select" id="maintenance-server" name="server_id" multiple required data-search>{{range .Servers}}<option value="{{.ID}}">{{.Name}} · {{.IP}}</option>{{end}}</select></div></div>
+<div class="row g-3"><div class="col-12 col-md-6"><label class="form-label required" for="maintenance-server">目标服务器</label><select class="form-select" id="maintenance-server" name="server_id" multiple required data-search>{{range .Servers}}<option value="{{.ID}}"{{if eq .ID $.Preselect}} selected{{end}}>{{.Name}} · {{.IP}}</option>{{end}}</select></div></div>
 <div class="alert alert-warning mt-3">按编号顺序执行，失败即停；执行期间保持页面打开。脚本可能重启服务、替换 SSH 公钥或修改防火墙。</div>
 <div class="d-flex flex-wrap gap-2 mb-3"><button type="button" class="btn btn-sm btn-outline-primary" data-maintenance-select="init">选择 01～10</button><button type="button" class="btn btn-sm btn-outline-secondary" data-maintenance-select="all">全选</button><button type="button" class="btn btn-sm btn-outline-secondary" data-maintenance-select="none">清空</button><span class="text-secondary small align-self-center" data-maintenance-count>已选 0 项</span></div>
 <div class="list-group list-group-flush">

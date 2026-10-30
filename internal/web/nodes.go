@@ -481,10 +481,18 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	_ = nodeID
 	msg := "节点已保存"
 	if len(ops.Deletes) > 0 {
 		msg += "；转移的域名需推送 DNS 后生效"
+	}
+	if r.PostFormValue("deploy") == "1" {
+		ids, err := store.NodeDeployServers(r.Context(), s.DB, nodeID, false)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		s.runDeploy(w, r, "/admin/nodes", ids, msg+"，没有待部署的部署位")
+		return
 	}
 	redirectMsg(w, r, "/admin/nodes", "msg", msg)
 }

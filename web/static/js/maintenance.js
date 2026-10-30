@@ -33,6 +33,7 @@ if (form) {
             update();
         });
     });
+    if ('maintenanceInit' in form.dataset) form.querySelector('[data-maintenance-select="init"]').click();
     let running = false;
     form.addEventListener('submit', async event => {
         event.preventDefault();

@@ -77,7 +77,11 @@ func (s *Server) accountDeploy(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.runDeploy(w, r, "/admin/accounts", ids, "该账户没有可用节点，无需部署")
+	back := "/admin/accounts"
+	if r.PostFormValue("from") == "edit" {
+		back = fmt.Sprintf("/admin/accounts/%d/edit", idFrom(r))
+	}
+	s.runDeploy(w, r, back, ids, "该账户没有可用节点，无需部署")
 }
 
 func (s *Server) serverConfigPreview(w http.ResponseWriter, r *http.Request) {
