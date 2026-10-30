@@ -14,7 +14,6 @@ import (
 func (s *Server) tagRoutes(m *http.ServeMux) {
 	m.HandleFunc("GET /admin/tags", s.tagList)
 	m.HandleFunc("POST /admin/tag-picker", s.tagPickerSave)
-	m.HandleFunc("GET /admin/tags/{id}/edit", s.tagEdit)
 	m.HandleFunc("POST /admin/tags", s.tagSave)
 	m.HandleFunc("POST /admin/tags/{id}", s.tagSave)
 	m.HandleFunc("POST /admin/tags/{id}/delete", s.tagDelete)
@@ -28,26 +27,26 @@ func (s *Server) tagList(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	tag := &store.Tag{Color: "#206bc4"}
+	if id, _ := strconv.ParseInt(r.URL.Query().Get("edit"), 10, 64); id > 0 {
+		t, err := store.TagByID(r.Context(), s.DB, id)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		if t == nil {
+			http.NotFound(w, r)
+			return
+		}
+		if t.Color == "" {
+			t.Color = tag.Color
+		}
+		tag = t
+	}
 	d := s.pageData(r, "标签", "tags")
-	d["List"], d["Q"], d["Tag"] = list, q, &store.Tag{Color: "#206bc4"}
+	d["List"], d["Q"], d["Tag"] = list, q, tag
 	d["Page"], d["Pages"] = page, (total+size-1)/size
 	s.render(w, "tags", http.StatusOK, d)
-}
-
-func (s *Server) tagEdit(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	t, err := store.TagByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	if t == nil {
-		http.NotFound(w, r)
-		return
-	}
-	d := s.pageData(r, "编辑标签", "tags")
-	d["Tag"] = t
-	s.render(w, "tag_form", http.StatusOK, d)
 }
 
 func (s *Server) tagSave(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +73,7 @@ func (s *Server) tagSave(w http.ResponseWriter, r *http.Request) {
 	if msg != "" {
 		redirect := "/admin/tags"
 		if id != 0 {
-			redirect = "/admin/tags/" + strconv.FormatInt(id, 10) + "/edit"
+			redirect = "/admin/tags?edit=" + strconv.FormatInt(id, 10)
 		}
 		redirectMsg(w, r, redirect, "err", msg)
 		return

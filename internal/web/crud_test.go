@@ -94,6 +94,9 @@ func TestServerAndTagFlows(t *testing.T) {
 	if r := post("/admin/tags", url.Values{"name": {"vip"}}); !strings.Contains(r.Header.Get("Location"), "err=") {
 		t.Fatal("标签名不区分大小写，重名应被拒绝")
 	}
+	if b := body("/admin/tags?edit=1"); !strings.Contains(b, `action="/admin/tags/1"`) || !strings.Contains(b, `name="name" value="VIP"`) {
+		t.Fatal("点击标签应在新增表单中预填修改")
+	}
 	h2.Exec(`INSERT INTO node_tag (node_id, tag_id) VALUES (1, 1)`)
 	if r := post("/admin/tags/1/delete", url.Values{}); !strings.Contains(r.Header.Get("Location"), "err=") {
 		t.Fatal("在用标签不可删除")

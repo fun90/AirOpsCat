@@ -269,7 +269,8 @@ func TestRenewToggleResetAndDelete(t *testing.T) {
 	if err := RenewAccount(ctx, db, r.AccountID, time.Now().Add(-time.Hour), &amount, "AliPay"); !errors.Is(err, ErrInvalid) {
 		t.Fatal(err)
 	}
-	if err := RenewAccount(ctx, db, r.AccountID, time.Now().AddDate(0, 1, 1), &amount, "AliPay"); err != nil {
+	// 20 天内日历月差至多为 1，月末运行也稳定得到「1月」
+	if err := RenewAccount(ctx, db, r.AccountID, time.Now().AddDate(0, 0, 20), &amount, "AliPay"); err != nil {
 		t.Fatal(err)
 	}
 	a, _ := AccountByID(ctx, db, r.AccountID)
