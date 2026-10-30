@@ -37,12 +37,21 @@ func (s *Server) nodeRoutes(m *http.ServeMux) {
 				http.Error(w, "节点 ID 不正确", 400)
 				return
 			}
+			serverID, err := strconv.ParseInt(r.URL.Query().Get("server_id"), 10, 64)
+			if r.URL.Query().Get("server_id") == "" {
+				serverID = 0
+				err = nil
+			}
+			if err != nil || serverID < 0 {
+				http.Error(w, "服务器 ID 不正确", 400)
+				return
+			}
 			typ, err := strconv.Atoi(r.URL.Query().Get("type"))
 			if err != nil {
 				http.Error(w, "节点类型不正确", 400)
 				return
 			}
-			host, err = store.DefaultInboundHost(r.Context(), s.DB, nodeID, r.URL.Query().Get("region"), typ)
+			host, err = store.DefaultInboundHost(r.Context(), s.DB, nodeID, serverID, r.URL.Query().Get("region"), typ)
 			if err != nil {
 				if errors.Is(err, store.ErrInvalid) || errors.Is(err, sql.ErrNoRows) {
 					http.Error(w, err.Error(), 400)

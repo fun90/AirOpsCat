@@ -10,6 +10,11 @@ window.AirOpsPage.register(function () {
     var serial = 0;
     // 新增页的初始配置由系统生成，切换协议时无需确认。
     var generated = ta.form.dataset.nodeId === '0' ? ta.value : null;
+    // 新建节点的访问地址取首个待添加部署位；编辑时以已保存的部署位为准。
+    function firstAdd() {
+        var add = ta.form.dataset.nodeId === '0' && ta.form.querySelector('[data-add-list] input[name="add_server"]');
+        return add ? add.value : '';
+    }
     function options() {
         Array.from(protocol.options).forEach(function (o) {
             var landing = o.value === 'socks' || o.value === 'shadowsocks';
@@ -33,14 +38,14 @@ window.AirOpsPage.register(function () {
         var submit = ta.form.querySelector('[type="submit"]');
         submit.disabled = true;
         try {
-            var query = new URLSearchParams({protocol: selected, node_id: ta.form.dataset.nodeId, region: ta.form.elements.region.value, type: type.value});
+            var query = new URLSearchParams({protocol: selected, node_id: ta.form.dataset.nodeId, server_id: firstAdd(), region: ta.form.elements.region.value, type: type.value});
             var response = await fetch('/admin/nodes/default-inbound?' + query, {cache: 'no-store'});
             if (!response.ok) { throw new Error(response.status === 400 ? await response.text() : '初始化入站配置失败'); }
             var text = await response.text();
             JSON.parse(text);
             if (request !== serial) { return; }
             if (ta.value !== original) { throw new Error('加载期间配置已被编辑'); }
-            if (query.get('region') !== ta.form.elements.region.value || query.get('type') !== type.value || query.get('protocol') !== protocol.value) { throw new Error('加载期间节点地区或协议已变化'); }
+            if (query.get('region') !== ta.form.elements.region.value || query.get('type') !== type.value || query.get('protocol') !== protocol.value || query.get('server_id') !== firstAdd()) { throw new Error('加载期间节点地区或协议已变化'); }
             ta.value = text;
             generated = text;
             ta.dispatchEvent(new Event('input', {bubbles: true}));
@@ -61,6 +66,16 @@ window.AirOpsPage.register(function () {
     }
     protocol.addEventListener('change', function () { initialize(false); });
     regenerate.addEventListener('click', function () { initialize(true); });
+    // 新建节点改动部署位后，未手动编辑的证书类配置跟随新的访问地址。
+    var addList = ta.form.querySelector('[data-add-list]');
+    var lastAdd = firstAdd();
+    var observer = new MutationObserver(function () {
+        if (firstAdd() === lastAdd) { return; }
+        lastAdd = firstAdd();
+        // 清空部署位时保持原配置，等选定新部署位再生成。
+        if (lastAdd && ta.value === generated && (protocol.value === 'hysteria2' || protocol.value === 'anytls')) { initialize(true); }
+    });
+    if (addList && ta.form.dataset.nodeId === '0') { observer.observe(addList, {childList: true}); }
     type.addEventListener('change', function () {
         options();
         if (protocol.selectedOptions[0].disabled) {
@@ -77,5 +92,5 @@ window.AirOpsPage.register(function () {
         }
     }, true);
     options();
-    return function () { ++serial; };
+    return function () { ++serial; observer.disconnect(); };
 });

@@ -462,7 +462,12 @@ func TestHysteriaDefaultInboundHTTP(t *testing.T) {
 	if got.Code != 200 || !strings.Contains(got.Body.String(), `"server_name": "203.0.113.10"`) {
 		t.Fatal(got.Code, got.Body.String())
 	}
-	for _, query := range []string{"type=0&region=JP", "type=bad&region=HK", "type=0&region=HK&node_id=99999"} {
+	// 新建时选定的部署位优先于地区匹配。
+	got = do(h, "GET", "/admin/nodes/default-inbound?protocol=anytls&type=0&region=JP&node_id=0&server_id=901", nil, c, nil)
+	if got.Code != 200 || !strings.Contains(got.Body.String(), `"server_name": "203.0.113.10"`) {
+		t.Fatal(got.Code, got.Body.String())
+	}
+	for _, query := range []string{"type=0&region=HK&server_id=bad", "type=0&region=HK&server_id=99999", "type=0&region=JP", "type=bad&region=HK", "type=0&region=HK&node_id=99999"} {
 		if got := do(h, "GET", "/admin/nodes/default-inbound?protocol=hysteria2&"+query, nil, c, nil); got.Code != 400 {
 			t.Fatal(query, got.Code)
 		}
