@@ -17,10 +17,10 @@ import (
 //go:embed templates/*.json
 var templates embed.FS
 
-// DefaultInboundForHost 为 Hysteria2 填入部署目标访问地址，其他协议保持默认行为。
+// DefaultInboundForHost 为 Hysteria2/AnyTLS 填入部署目标访问地址，其他协议保持默认行为。
 func DefaultInboundForHost(protocol, host string) (json.RawMessage, error) {
 	body, err := DefaultInbound(protocol)
-	if err != nil || protocol != "hysteria2" {
+	if err != nil || protocol != "hysteria2" && protocol != "anytls" {
 		return body, err
 	}
 	host = strings.TrimSpace(host)
@@ -44,6 +44,9 @@ func DefaultInboundForHost(protocol, host string) (json.RawMessage, error) {
 		return nil, err
 	}
 	obj["tls"].(map[string]any)["server_name"] = host
+	if protocol == "anytls" {
+		return json.MarshalIndent(obj, "", "  ")
+	}
 	urlHost := host
 	if strings.Contains(host, ":") {
 		urlHost = "[" + host + "]"
@@ -55,7 +58,7 @@ func DefaultInboundForHost(protocol, host string) (json.RawMessage, error) {
 // DefaultInbound 复用现有协议模板，随机凭据使用系统密码学随机源。
 func DefaultInbound(protocol string) (json.RawMessage, error) {
 	switch protocol {
-	case "vless", "vless-reality", "hysteria2", "shadowtls", "shadowsocks", "socks":
+	case "vless", "vless-reality", "hysteria2", "shadowtls", "anytls", "shadowsocks", "socks":
 	default:
 		return nil, fmt.Errorf("不支持的协议")
 	}

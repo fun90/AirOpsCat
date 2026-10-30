@@ -27,7 +27,7 @@ func (s *Server) nodeRoutes(m *http.ServeMux) {
 	m.HandleFunc("GET /admin/nodes/default-inbound", func(w http.ResponseWriter, r *http.Request) {
 		protocol := r.URL.Query().Get("protocol")
 		host := ""
-		if protocol == "hysteria2" {
+		if protocol == "hysteria2" || protocol == "anytls" {
 			nodeID, err := strconv.ParseInt(r.URL.Query().Get("node_id"), 10, 64)
 			if r.URL.Query().Get("node_id") == "" {
 				nodeID = 0
@@ -63,7 +63,12 @@ func (s *Server) nodeRoutes(m *http.ServeMux) {
 	})
 	m.HandleFunc("GET /admin/nodes", s.nodeList)
 	m.HandleFunc("GET /admin/nodes/new", func(w http.ResponseWriter, r *http.Request) {
-		s.nodeFormPage(w, r, http.StatusOK, &NodeForm{Type: "0", Protocol: "vless-reality", Inbound: "{}", TagIDs: map[int64]bool{}}, "", nil)
+		inbound, err := singbox.DefaultInbound("vless-reality")
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		s.nodeFormPage(w, r, http.StatusOK, &NodeForm{Type: "0", Protocol: "vless-reality", Inbound: string(inbound), TagIDs: map[int64]bool{}}, "", nil)
 	})
 	m.HandleFunc("GET /admin/nodes/{id}/edit", s.nodeEdit)
 	m.HandleFunc("POST /admin/nodes", s.nodeSave)

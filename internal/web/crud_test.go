@@ -128,6 +128,8 @@ func TestNodeFlows(t *testing.T) {
 	}
 	if page := do(h, "GET", "/admin/nodes/new", nil, c, nil).Body.String(); !strings.Contains(page, `data-region="HK" data-proxy-ok`) {
 		t.Fatal("新建页应提供可添加的部署位服务器")
+	} else if !strings.Contains(page, `&#34;private_key&#34;`) || !strings.Contains(page, `data-regenerate-inbound`) {
+		t.Fatal("新建页应预填 vless-reality 入站并提供重新生成按钮")
 	}
 	create := func(name, port string) url.Values { v := form(name, port); v.Set("add_server", "1"); return v }
 	if w := post("/admin/nodes", create("n1", "443")); w.Code != http.StatusSeeOther {
@@ -454,6 +456,10 @@ func TestHysteriaDefaultInboundHTTP(t *testing.T) {
 	}
 	got := do(h, "GET", "/admin/nodes/default-inbound?protocol=hysteria2&type=0&region=HK&node_id=0", nil, c, nil)
 	if got.Code != 200 || !strings.Contains(got.Body.String(), "https://203.0.113.10/") {
+		t.Fatal(got.Code, got.Body.String())
+	}
+	got = do(h, "GET", "/admin/nodes/default-inbound?protocol=anytls&type=0&region=HK&node_id=0", nil, c, nil)
+	if got.Code != 200 || !strings.Contains(got.Body.String(), `"server_name": "203.0.113.10"`) {
 		t.Fatal(got.Code, got.Body.String())
 	}
 	for _, query := range []string{"type=0&region=JP", "type=bad&region=HK", "type=0&region=HK&node_id=99999"} {

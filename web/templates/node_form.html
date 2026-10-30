@@ -128,14 +128,14 @@
                     {{range $.Landing}}<option value="{{.ID}}"{{if eq $.Form.OutID (printf "%d" .ID)}} selected{{end}}>{{.Name}}（{{.Region}}）</option>{{end}}
                 </select></div>
             <div class="col-md-6"><label class="form-label" for="protocol">协议</label>
-                <select class="form-select" id="protocol" name="protocol">
+                <div class="input-group"><select class="form-select" id="protocol" name="protocol">
                     <optgroup label="代理节点">{{range $.ProxyProtocols}}<option value="{{.}}"{{if eq . $.Form.Protocol}} selected{{end}}>{{.}}</option>{{end}}</optgroup>
                     <optgroup label="落地节点">{{range $.LandingProtocols}}<option value="{{.}}"{{if eq . $.Form.Protocol}} selected{{end}}>{{.}}</option>{{end}}</optgroup>
-                </select></div>
+                </select><button type="button" class="btn btn-outline-secondary" data-regenerate-inbound>重新生成</button></div></div>
 
             <div class="col-12"><label class="form-label required" for="inbound">入站配置（JSON 对象）</label>
                 <textarea id="inbound" name="inbound" data-json-editor required>{{.Inbound}}</textarea>
-                <div class="form-hint">tag、listen、listen_port 由系统生成，不要填写。多个部署位共用此配置，Hysteria2 需各目标都有证书。</div></div>
+                <div class="form-hint">tag、listen、listen_port 由系统生成，不要填写。多个部署位共用此配置，Hysteria2、AnyTLS 需各目标都有证书。</div></div>
         </div>
     </div>
 

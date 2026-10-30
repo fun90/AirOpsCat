@@ -133,6 +133,9 @@ func TestMergeUsersReplace(t *testing.T) {
 		{ID: 2, Protocol: "hysteria2", Port: 2,
 			Inbound: `{"type":"hysteria2","users":[{"name":"A1","password":"old","max_ips":9},{"name":"keep","password":"k"}]}`,
 			Clients: []Client{{UUID: "U1", Name: "A1"}}},
+		{ID: 3, Protocol: "anytls", Port: 3,
+			Inbound: `{"type":"anytls","users":[{"name":"A1","password":"old"},{"name":"keep","password":"k"}]}`,
+			Clients: []Client{{UUID: "U1", Name: "A1"}}},
 	}})
 	ibs := list(cfg["inbounds"])
 	wantV := []any{
@@ -149,6 +152,9 @@ func TestMergeUsersReplace(t *testing.T) {
 	}
 	if got := list(ibs[1].(map[string]any)["users"]); !reflect.DeepEqual(got, wantH) {
 		t.Fatalf("hysteria2: %v", got)
+	}
+	if got := list(ibs[2].(map[string]any)["users"]); !reflect.DeepEqual(got, wantH) {
+		t.Fatalf("anytls: %v", got)
 	}
 }
 

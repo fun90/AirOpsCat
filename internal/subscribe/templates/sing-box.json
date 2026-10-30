@@ -161,6 +161,16 @@
           "h3"
         ]
       }
+{{else if (and (eq $node.protocol "anytls") (eq $node.coreType "sing-box"))}}      "type": "anytls",
+      "server": "{{text $node.serverHost}}",
+      "server_port": {{text $node.port}},
+      "password": "{{text $.account.uuid}}",
+      "tls": {
+        "enabled": true,
+        "insecure": true,
+        "server_name": "{{text $node.inbound.tls.server_name}}",
+        "utls": {"enabled": true, "fingerprint": "chrome"}
+      }
 {{else if (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box"))}}      "type": "shadowsocks",
       "server": "{{text $node.serverHost}}",
       "server_port": {{text $node.port}},

@@ -133,7 +133,7 @@ func TestTemplateTrees(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 29 {
+	if count != 28 {
 		t.Fatalf("文件数 %d", count)
 	}
 	_ = fs.WalkDir(external, ".", func(path string, e fs.DirEntry, err error) error {
@@ -204,7 +204,7 @@ func TestShadowTLS(t *testing.T) {
 			}
 		}
 	}
-	for _, path := range []string{"shadowrocket.conf", "nodes/shadowrocket.html", "shadowrocket.yaml"} {
+	for _, path := range []string{"shadowrocket.conf", "nodes/shadowrocket.html"} {
 		out, err := Render(Templates, path, data)
 		if err != nil {
 			t.Fatal(err)
@@ -221,6 +221,53 @@ func TestShadowTLS(t *testing.T) {
 	delete(st["inbound"].(map[string]any), "users")
 	if _, err := Render(Templates, "sing-box.json", data); err == nil {
 		t.Fatal("外层密码缺失未报错")
+	}
+}
+func TestAnyTLS(t *testing.T) {
+	data := fixture("multi")
+	at := map[string]any{"name": "日本 AnyTLS", "protocol": "anytls", "coreType": "sing-box", "serverHost": "any.example.com", "port": 8443, "inbound": map[string]any{"tls": map[string]any{"server_name": "any.example.com"}}}
+	data["nodes"] = append(data["nodes"].([]map[string]any), at)
+	out, err := Render(Templates, "sing-box.json", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config struct {
+		Outbounds []map[string]any `json:"outbounds"`
+	}
+	if err = json.Unmarshal(out, &config); err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, o := range config.Outbounds {
+		if o["tag"] == "日本 AnyTLS" {
+			found = o["type"] == "anytls" && o["password"] == "account-uuid" && o["server_port"] == float64(8443)
+		}
+	}
+	if !found {
+		t.Fatal("sing-box 缺少 AnyTLS 出站")
+	}
+	for _, path := range []string{"clash-meta.yaml", "clash-meta2.yaml", "clash-mi.yaml", "clash-verge.yaml", "clash-verge-mrs.yaml", "stash.yaml"} {
+		out, err := Render(Templates, path, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// 一次代理定义 + 至少一个策略组引用。
+		if s := string(out); !strings.Contains(s, "type: anytls") || strings.Count(s, "- 日本 AnyTLS") < 1 || !strings.Contains(s, "- name: 日本 AnyTLS") {
+			t.Errorf("%s 缺少 AnyTLS 节点或分组", path)
+		}
+	}
+	for path, want := range map[string]string{"nodes/loon.html": "日本 AnyTLS=AnyTLS,any.example.com,8443,\"account-uuid\"", "nodes/shadowrocket.html": "anytls://account-uuid@any.example.com:8443?sni=any.example.com"} {
+		out, err := Render(Templates, path, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(out), want) {
+			t.Errorf("%s 缺少 %s\n%s", path, want, out)
+		}
+	}
+	out, err = Render(Templates, "shadowrocket.conf", data)
+	if s := string(out); err != nil || !strings.Contains(s, "日本 AnyTLS = anytls, any.example.com, 8443, password=account-uuid, sni=any.example.com") || !strings.Contains(s, "代理 = select, 自动, 日本-1, 新加坡-2, 美国-3, 日本 AnyTLS, DIRECT") {
+		t.Errorf("shadowrocket.conf 缺少 AnyTLS 节点或分组: %v\n%s", err, out)
 	}
 }
 func asList(v any) []any { a, _ := v.([]any); return a }
@@ -266,7 +313,6 @@ var quteGolden = map[string]string{
 	"dns/nodes/loon.html":             "1c6be18ad04e8f59e37f101080b0eda5148466cc80f03d207866a9e337299b2e",
 	"dns/nodes/shadowrocket.html":     "3ac0287c389b889d9f1e664ef051a19ac6b08f54e35459a2d40cc2bd81644951",
 	"dns/shadowrocket.conf":           "43f5cf43773879df83c5b77dc7976dbb260dc8ae2139be422b25c1ef4d63846c",
-	"dns/shadowrocket.yaml":           "e0512abb00b11710b335fceee89db82396e8e1610c0c2b4065a34a36ab0c2899",
 	"dns/sing-box.json":               "28d784c4d1fb3e699b8821d3ea63a57f85cbc21eab3570a3e6a0602105125286",
 	"dns/stash.yaml":                  "fcd7ea7495db91cb0fd5249df13edffa24a4d40c6aab80305e24e45ceb2acf65",
 	"multi/clash-meta.yaml":           "8cd2915481015848476951d6ac90d3e9be3b87b975aea39e3c002b518785565e",
@@ -278,7 +324,6 @@ var quteGolden = map[string]string{
 	"multi/nodes/loon.html":           "1c6be18ad04e8f59e37f101080b0eda5148466cc80f03d207866a9e337299b2e",
 	"multi/nodes/shadowrocket.html":   "3ac0287c389b889d9f1e664ef051a19ac6b08f54e35459a2d40cc2bd81644951",
 	"multi/shadowrocket.conf":         "43f5cf43773879df83c5b77dc7976dbb260dc8ae2139be422b25c1ef4d63846c",
-	"multi/shadowrocket.yaml":         "614bd53fb1abf9ac2b42354075d1441c5983e762dc899f443da363e29cb0f1bb",
 	"multi/sing-box.json":             "b12cc60b9e904613d04e6ed43d72410da22fe19f0bccfc0b630718c69b6dca99",
 	"multi/stash.yaml":                "fcd7ea7495db91cb0fd5249df13edffa24a4d40c6aab80305e24e45ceb2acf65",
 	"null/clash-meta.yaml":            "019d92e54dcfeee923ad5c61a6dd2f9f08ebb104cfea1c322ea4f1bc77f49d8a",
@@ -290,7 +335,6 @@ var quteGolden = map[string]string{
 	"null/nodes/loon.html":            "77a6b45409e70241eb7aacaf48b1613c6998b7673d36b7a3465c3134799f4682",
 	"null/nodes/shadowrocket.html":    "81a458c3c00736c3194bf1664054c7b6bf4bee2554942f0e5e8995b498d38359",
 	"null/shadowrocket.conf":          "f0dd8c29ea469ec43d2999ae8948703314940421b8def62502dd5d350738af89",
-	"null/shadowrocket.yaml":          "d337d860e1c66a7024ae162bcc2c8c8195f94f11d23df729dbee089a97a523ad",
 	"null/sing-box.json":              "1441d6ff89fe7992c00fb8749db8ba665c0450b5e4fe418935cb37015262b24a",
 	"null/stash.yaml":                 "215b46b3ae8c7715c2bba1ccd3733af2d9164e7958dce1e8c3bd1ea134d8767e",
 	"single/clash-meta.yaml":          "a652c9d39f3043a4c5398e74ef4e72c8953e24e5ee2e7a843a4dfced9e8c90f8",
@@ -302,7 +346,6 @@ var quteGolden = map[string]string{
 	"single/nodes/loon.html":          "a0da00b70c298766d4d3d36f491ef5be694899924c4087160a18940c3c03dc7b",
 	"single/nodes/shadowrocket.html":  "0ec9ee429d61c40df34f1a4565b1f4dbc3a9ebed9109299e68797954048685f7",
 	"single/shadowrocket.conf":        "6946e7315a6e38e3edb21a69a44ed9af92ea6eb4358cd489e45864e76c4e0d58",
-	"single/shadowrocket.yaml":        "ac21b62a36e813c30c7bf23cba76e8bc5dff7d9d70e4abed7fa5ad4f65216711",
 	"single/sing-box.json":            "039d18867700afb2e4866e5b6256df8556baef66bb92bc1c75ca78783bdbc447",
 	"single/stash.yaml":               "17a980f85429686b9a0e36fec8e65ee0e85dd9c2d95d3c5575034e3c709e15a8",
 	"special/clash-meta.yaml":         "63d6d06cf00e09466e3e5a54d6553f32149223bd9a98e20645b7b1b9c80dae71",
@@ -314,7 +357,6 @@ var quteGolden = map[string]string{
 	"special/nodes/loon.html":         "62bba40017bfa64ede40993ab6cc44feba918cf435aacaa3dcd816a8cab10946",
 	"special/nodes/shadowrocket.html": "6977c2fcfea3f5e5a724eab245c546ed3a0b1c512cba16952cc3205e24819e74",
 	"special/shadowrocket.conf":       "3ce5f3fcc9da9b39bb387d10d7f2c783968f497d8bb395b38eaf05ee8751b8df",
-	"special/shadowrocket.yaml":       "abe9d778ee435bc636f483f876b6eb7f8bdc58434f66c2d89847c336a4476307",
 	"special/sing-box.json":           "0884cd0a0dd4de02ac282754fbae24aa30c870ee44b2dffc6db582f7e27f2edd",
 	"special/stash.yaml":              "f73c7c27035bd44e2ad38face415509e08fdea41f9d6488a0beb2de133e8cdea",
 }

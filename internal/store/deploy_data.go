@@ -98,10 +98,10 @@ func loadServerConfigInput(ctx context.Context, db dbtx, serverID int64, opts Lo
 			}
 			node.Out = l.out
 		}
-		// ShadowTLS 双层入站和 vless/hysteria2 共用账户授权。
+		// ShadowTLS 双层入站和 vless/hysteria2/anytls 共用账户授权。
 		if strings.EqualFold(strings.TrimSpace(n.coreType), "sing-box") && !n.disabled {
 			switch strings.ToLower(strings.TrimSpace(n.protocol)) {
-			case "vless", "vless-reality", "hysteria2", "shadowtls":
+			case "vless", "vless-reality", "hysteria2", "shadowtls", "anytls":
 				if node.Clients, err = nodeClients(ctx, db, n.id, now, opts.Overrides); err != nil {
 					return nil, err
 				}

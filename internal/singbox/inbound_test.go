@@ -8,7 +8,7 @@ import (
 )
 
 func TestDefaultInbound(t *testing.T) {
-	for _, p := range []string{"vless", "vless-reality", "hysteria2", "shadowtls", "shadowsocks", "socks"} {
+	for _, p := range []string{"vless", "vless-reality", "hysteria2", "shadowtls", "anytls", "shadowsocks", "socks"} {
 		t.Run(p, func(t *testing.T) {
 			b, err := DefaultInbound(p)
 			if err != nil {
@@ -83,5 +83,16 @@ func TestHysteriaInboundHost(t *testing.T) {
 		if _, err := DefaultInboundForHost("hysteria2", host); err == nil {
 			t.Fatal("未拒绝非法地址", host)
 		}
+	}
+	body, err := DefaultInboundForHost("anytls", "vpn.example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(body, &obj); err != nil {
+		t.Fatal(err)
+	}
+	if obj["tls"].(map[string]any)["server_name"] != "vpn.example.test" || obj["masquerade"] != nil {
+		t.Fatal(string(body))
 	}
 }

@@ -259,7 +259,7 @@ func buildInbound(n NodeInput) (obj, error) {
 			managed = append(managed, c.limits(obj{"uuid": c.UUID, "name": c.Name, "flow": "xtls-rprx-vision"}))
 		}
 		ib["users"] = mergeUsers(asObjList(ib["users"]), managed, "uuid")
-	case "hysteria2":
+	case "hysteria2", "anytls":
 		managed := make([]obj, 0, len(n.Clients))
 		for _, c := range n.Clients {
 			managed = append(managed, c.limits(obj{"name": c.Name, "password": c.UUID}))

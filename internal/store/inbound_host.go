@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// DefaultInboundHost 选择 Hysteria2 默认入站的主机名。
+// DefaultInboundHost 选择 Hysteria2/AnyTLS 默认入站的主机名。
 // 已有节点优先取生效部署位（不看地区）：已同步访问域名，否则服务器 IP；
 // 新建或尚无部署位时按地区/类型匹配规则选首台服务器，与新建节点的初始部署位一致。
 func DefaultInboundHost(ctx context.Context, db *sql.DB, nodeID int64, region string, nodeType int) (string, error) {

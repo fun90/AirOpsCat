@@ -124,6 +124,15 @@ proxies:
       host: {{text $node.inbound.handshake.server}}
       password: {{text (index $node.inbound.users 0).password}}
       version: 3
+{{end}}{{if (and (eq $node.protocol "anytls") (eq $node.coreType "sing-box"))}}  - name: {{text $node.name}}
+    type: anytls
+    server: {{text $node.serverHost}}
+    port: {{text $node.port}}
+    password: {{text $.account.uuid}}
+    sni: {{text $node.inbound.tls.server_name}}
+    skip-cert-verify: true
+    client-fingerprint: chrome
+    udp: true
 {{end}}{{end}}
 proxy-groups:
   - name: 代理
@@ -131,7 +140,7 @@ proxy-groups:
     type: select
     proxies:
 {{if (gt (len $.nodes) 1)}}      - 自动
-{{end}}{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
+{{end}}{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "anytls") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
 {{end}}{{end}}      - 直连
   - name: GitHub
     icon: https://static.fun90.com/clash/GitHub.png
@@ -139,33 +148,33 @@ proxy-groups:
     proxies:
       - 代理
       - 直连
-{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
+{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "anytls") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
 {{end}}{{end}}  - name: Microsoft
     icon: https://static.fun90.com/clash/Microsoft.png
     type: select
     proxies:
       - 直连
       - 代理
-{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
+{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "anytls") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
 {{end}}{{end}}  - name: HST
     icon: https://static.fun90.com/clash/hst.svg
     type: select
     proxies:
       - 直连
       - 代理
-{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
+{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "anytls") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
 {{end}}{{end}}  - name: Broker
     icon: https://static.fun90.com/clash/Broker.png
     type: select
     proxies:
       - 代理
       - 直连
-{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
+{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "anytls") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
 {{end}}{{end}}  - name: Football
     icon: https://static.fun90.com/clash/football.svg
     type: select
     proxies:
-{{range $i, $node := $.nodes}}{{if (and (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box"))) (or (contains $node.name "新加坡") (contains $node.name "日本")))}}      - {{text $node.name}}
+{{range $i, $node := $.nodes}}{{if (and (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "anytls") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box"))) (or (contains $node.name "新加坡") (contains $node.name "日本")))}}      - {{text $node.name}}
 {{end}}{{end}}      - 直连
   - name: Apple
     icon: https://static.fun90.com/clash/Apple.png
@@ -173,14 +182,14 @@ proxy-groups:
     proxies:
       - 直连
       - 代理
-{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
+{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "anytls") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
 {{end}}{{end}}{{if (gt (len $.nodes) 1)}}  - name: 自动
     icon: https://static.fun90.com/clash/Auto.png
     type: url-test
     url: http://www.gstatic.com/generate_204
     interval: 300
     proxies:
-{{range $i, $node := $.nodes}}{{if (and (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box"))) (or (contains $node.name "美国") (contains $node.name "新加坡") (contains $node.name "日本")))}}      - {{text $node.name}}
+{{range $i, $node := $.nodes}}{{if (and (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "anytls") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box"))) (or (contains $node.name "美国") (contains $node.name "新加坡") (contains $node.name "日本")))}}      - {{text $node.name}}
 {{end}}{{end}}{{end}}  - name: 直连
     icon: https://static.fun90.com/clash/Direct.png
     type: select

@@ -42,7 +42,7 @@ func ProtocolsFor(nodeType int) []string {
 	if nodeType == NodeLanding {
 		return []string{"shadowsocks", "socks"}
 	}
-	return []string{"vless", "vless-reality", "hysteria2", "shadowtls"}
+	return []string{"vless", "vless-reality", "hysteria2", "shadowtls", "anytls"}
 }
 
 type Node struct {
