@@ -37,6 +37,27 @@ func TestOperatorShortcuts(t *testing.T) {
 		t.Fatal("详情页部署应回到详情页", w.Header().Get("Location"))
 	}
 
+	// 保存后有待部署就明确提示；保存并部署只下发有待部署的服务器
+	var no, uuid, uid string
+	a.DB.QueryRow(`SELECT account_no, uuid, user_id FROM account WHERE id=?`, id).Scan(&no, &uuid, &uid)
+	save := func(deploy string, tags ...string) string {
+		w := do(h, "POST", "/admin/accounts/"+id, url.Values{"csrf": {csrf}, "account_no": {no}, "uuid": {uuid}, "user_id": {uid}, "remark": {"快捷开户"}, "period_type": {"MONTHLY"}, "node_multiple": {"2"}, "max_connections": {"100"}, "max_ips": {"2"}, "bandwidth": {"500"}, "tags": tags, "deploy": {deploy}}, c, nil)
+		loc, _ := url.QueryUnescape(w.Header().Get("Location"))
+		return loc
+	}
+	if loc := save("", "5"); !strings.Contains(loc, "1 台服务器待部署") {
+		t.Fatal("换标签后应提示待部署", loc)
+	}
+	a.DB.Exec(`UPDATE node_server SET deployed=1`)
+	if loc := save("1", "5"); !strings.Contains(loc, "无需部署") {
+		t.Fatal("无待部署时保存并部署不应下发", loc)
+	}
+	if loc := save(""); !strings.Contains(loc, "1 台服务器待部署") {
+		t.Fatal("移除标签后旧标签服务器也应提示", loc)
+	}
+	a.DB.Exec(`UPDATE node_server SET deployed=1`)
+	a.DB.Exec(`DELETE FROM account_tag WHERE account_id=?`, id)
+
 	w = do(h, "POST", "/admin/nodes", url.Values{"csrf": {csrf}, "name": {"无部署位"}, "type": {"0"}, "protocol": {"vless"}, "region": {"US"}, "inbound": {`{"type":"vless"}`}, "deploy": {"1"}}, c, nil)
 	if loc, _ := url.QueryUnescape(w.Header().Get("Location")); w.Code != 303 || !strings.Contains(loc, "没有待部署的部署位") {
 		t.Fatal("保存并部署应走部署分支", w.Code, loc)
@@ -56,7 +77,6 @@ func TestOperatorShortcuts(t *testing.T) {
 	// 复制为新账户：沿用用户与标签，编号、UUID、备注留空
 	a.DB.Exec(`INSERT INTO account_tag(account_id,tag_id) VALUES (?,5)`, id)
 	body = do(h, "GET", "/admin/accounts/new?from="+id, nil, c, nil).Body.String()
-	var uid, no string
 	a.DB.QueryRow(`SELECT user_id, account_no FROM account WHERE id=?`, id).Scan(&uid, &no)
 	if !strings.Contains(body, `<option value="`+uid+`" selected>`) || !strings.Contains(body, `name="tags" value="5" checked`) || strings.Contains(body, no) || !strings.Contains(body, `id="remark" name="remark" value=""`) {
 		t.Fatal("复制开户未正确预填")

@@ -70,7 +70,7 @@
 <div class="col-md-6"><label class="form-label" for="upload_mbps">上行限速（Mbps，空值不限）</label><input type="number" class="form-control" name="upload_mbps" id="upload_mbps" value="{{.UploadMbps}}" min="1"></div>
 </div></div>
 </div>
-<div class="card-footer text-end"><a href="/admin/accounts" class="btn btn-link">取消</a><button class="btn btn-primary" type="submit">保存</button></div>
+<div class="card-footer text-end"><a href="/admin/accounts" class="btn btn-link">取消</a><button class="btn" type="submit">保存</button><button class="btn btn-primary ms-2" type="submit" name="deploy" value="1">保存并部署</button></div>
 </form>
 {{if $.View}}<div class="card"><div class="card-header"><h3 class="card-title">流量历史</h3></div><div class="table-responsive"><table class="table table-vcenter card-table">
 <thead><tr><th>周期</th><th class="d-none d-md-table-cell">上行</th><th class="d-none d-md-table-cell">下行</th><th>合计 / 配额</th></tr></thead><tbody>

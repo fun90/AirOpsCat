@@ -425,16 +425,25 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 		s.accountFormPage(w, r, 422, f, parseErr.Error())
 		return
 	}
+	deploy := r.PostFormValue("deploy") == "1"
+	var before []int64 // 保存前的服务器：换标签后旧标签节点也要下发移除
 	if parseErr == nil {
 		if f.ID == 0 {
 			onboard.Account = *in
 			var res *store.OnboardResult
 			if res, parseErr = store.Onboard(r.Context(), s.DB, onboard); parseErr == nil {
-				redirectMsg(w, r, fmt.Sprintf("/admin/accounts/%d/edit", res.AccountID), "msg", "开户成功：复制安装说明发给客户，点「部署」下发到节点")
+				back := fmt.Sprintf("/admin/accounts/%d/edit", res.AccountID)
+				if deploy {
+					s.deployAccountPending(w, r, back, res.AccountID, nil, "开户成功，该账户没有可用节点，无需部署")
+					return
+				}
+				redirectMsg(w, r, back, "msg", "开户成功：复制安装说明发给客户，点「部署」下发到节点")
 				return
 			}
 		} else {
-			parseErr = store.UpdateAccount(r.Context(), s.DB, f.ID, in)
+			if before, parseErr = store.AccountDeployServers(r.Context(), s.DB, f.ID); parseErr == nil {
+				parseErr = store.UpdateAccount(r.Context(), s.DB, f.ID, in)
+			}
 		}
 	}
 	if parseErr != nil {
@@ -445,7 +454,52 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, parseErr)
 		return
 	}
-	redirectMsg(w, r, "/admin/accounts", "msg", "账户已保存，相关部署位置为待部署")
+	if deploy {
+		s.deployAccountPending(w, r, "/admin/accounts", f.ID, before, "账户已保存，无需部署")
+		return
+	}
+	ids, err := s.accountPendingServers(r, f.ID, before)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if len(ids) == 0 {
+		redirectMsg(w, r, "/admin/accounts", "msg", "账户已保存，无需部署")
+		return
+	}
+	redirectMsg(w, r, "/admin/accounts", "err", fmt.Sprintf("账户已保存，%d 台服务器待部署，尚未生效，请点「部署」下发", len(ids)))
+}
+
+// accountPendingServers 返回账户保存前后涉及、且有待部署/待删除部署位的服务器。
+func (s *Server) accountPendingServers(r *http.Request, accountID int64, before []int64) ([]int64, error) {
+	after, err := store.AccountDeployServers(r.Context(), s.DB, accountID)
+	if err != nil {
+		return nil, err
+	}
+	pending, err := store.PendingDeployServers(r.Context(), s.DB)
+	if err != nil {
+		return nil, err
+	}
+	related := map[int64]bool{}
+	for _, id := range append(before, after...) {
+		related[id] = true
+	}
+	var ids []int64
+	for _, id := range pending {
+		if related[id] {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
+func (s *Server) deployAccountPending(w http.ResponseWriter, r *http.Request, back string, accountID int64, before []int64, none string) {
+	ids, err := s.accountPendingServers(r, accountID, before)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.runDeploy(w, r, back, ids, none)
 }
 func (s *Server) accountActionResult(w http.ResponseWriter, r *http.Request, err error, msg string) {
 	if err != nil {
