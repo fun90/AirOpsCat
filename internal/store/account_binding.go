@@ -92,20 +92,26 @@ func BindingChoices(ctx context.Context, db *sql.DB, accountID int64) ([]Binding
 		}
 		rs.Close()
 	}
+	domains, err := BindingDomains(ctx, db)
+	return choices, domains, err
+}
+
+// BindingDomains 返回可新增子域名的主域名。
+func BindingDomains(ctx context.Context, db *sql.DB) ([]BindingDomain, error) {
 	ds, err := db.QueryContext(ctx, `SELECT id,coalesce(domain,'') FROM domain WHERE domain<>'' ORDER BY domain`)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer ds.Close()
 	var domains []BindingDomain
 	for ds.Next() {
 		var d BindingDomain
 		if err := ds.Scan(&d.ID, &d.Name); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		domains = append(domains, d)
 	}
-	return choices, domains, ds.Err()
+	return domains, ds.Err()
 }
 
 var subdomainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$`)

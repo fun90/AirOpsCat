@@ -101,6 +101,14 @@ type Placement struct {
 type PlacementOps struct {
 	AddServerIDs []int64
 	Deletes      []PlacementDelete
+	NewHosts     []*NewHost
+}
+
+// NewHost 为部署位新建访问域名：在主域名下建指向服务器 IP 的 A 记录，保存成功后 RecordID 为新记录。
+type NewHost struct {
+	ServerID, DomainID int64
+	Name               string
+	RecordID           int64
 }
 
 // PlacementDelete 删除部署位，TargetID 为承接访问域名和订阅定制的部署位（无绑定时可为 0）。
@@ -577,6 +585,9 @@ func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []
 					return 0, err
 				}
 			}
+			if err := applyNewHosts(ctx, tx, n.ID, op.NewHosts); err != nil {
+				return 0, err
+			}
 		}
 		return n.ID, tx.Commit()
 	}
@@ -612,6 +623,9 @@ func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []
 			if err := addPlacement(ctx, tx, n, sid); err != nil {
 				return 0, err
 			}
+		}
+		if err := applyNewHosts(ctx, tx, n.ID, op.NewHosts); err != nil {
+			return 0, err
 		}
 		for _, d := range op.Deletes {
 			if err := deletePlacement(ctx, tx, n, d.PlacementID, d.TargetID); err != nil {
@@ -680,6 +694,30 @@ func applyPlacementEdits(ctx context.Context, q dbtx, n *Node, edits []Placement
 			WHERE node_id=? AND server_id=? AND deployed <> 2`, e.Priority, exposed, nz(start), nz(end), e.AccessHostID, FormatTime(nowFunc()), n.ID, e.ServerID); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// applyNewHosts 新建访问域名并替换部署位当前的访问域名；DNS 推送由调用方在提交后处理。
+func applyNewHosts(ctx context.Context, tx *sql.Tx, nodeID int64, hosts []*NewHost) error {
+	for _, h := range hosts {
+		var ip string
+		err := tx.QueryRowContext(ctx, `SELECT s.ip FROM node_server ns JOIN server s ON s.id = ns.server_id WHERE ns.node_id = ? AND ns.server_id = ? AND ns.deployed <> 2`, nodeID, h.ServerID).Scan(&ip)
+		if err == sql.ErrNoRows {
+			return invalid("部署位不存在，无法新增域名")
+		}
+		if err != nil {
+			return err
+		}
+		id, err := createBindingRecord(ctx, tx, h.DomainID, h.Name, h.ServerID, ip)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE node_server SET access_host_id = ?, update_time = ? WHERE node_id = ? AND server_id = ? AND deployed <> 2`,
+			id, FormatTime(nowFunc()), nodeID, h.ServerID); err != nil {
+			return err
+		}
+		h.RecordID = id
 	}
 	return nil
 }

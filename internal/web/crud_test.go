@@ -182,16 +182,22 @@ func TestNodeFlows(t *testing.T) {
 		}
 		return post("/admin/nodes/1", v)
 	}
-	bad = url.Values{"add_server": {"2"}, "inbound": {`{"listen":"::"}`}}
-	if w := save(bad); w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), `data-add-item="2"`) {
-		t.Fatalf("校验失败应回显暂存添加: %d", w.Code)
+	a.DB.Exec(`INSERT INTO domain(id,domain) VALUES(1,'example.test')`)
+	bad = url.Values{"add_server": {"2"}, "p2_new_name": {"jp9"}, "p2_new_domain_id": {"1"}, "inbound": {`{"listen":"::"}`}}
+	if w := save(bad); w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), `data-add-item="2" data-server="2" data-new-name="jp9" data-new-domain="1"`) {
+		t.Fatalf("校验失败应回显暂存添加和新增域名: %d", w.Code)
 	}
 	a.DB.QueryRow(`SELECT count(*) FROM node_server WHERE node_id = 1`).Scan(&n)
 	if n != 1 {
 		t.Fatalf("保存失败不应添加部署位: %d", n)
 	}
-	if w := save(url.Values{"add_server": {"2"}}); w.Code != http.StatusSeeOther {
+	if w := save(url.Values{"add_server": {"2"}, "p2_new_name": {"jp9"}, "p2_new_domain_id": {"1"}}); w.Code != http.StatusSeeOther {
 		t.Fatalf("保存时添加部署位: %d %s", w.Code, w.Body.String())
+	}
+	var host string
+	a.DB.QueryRow(`SELECT r.full_name FROM node_server ns JOIN domain_dns_record r ON r.id = ns.access_host_id WHERE ns.node_id = 1 AND ns.server_id = 2`).Scan(&host)
+	if host != "jp9.example.test" {
+		t.Fatalf("待添加部署位应带新增的访问域名: %q", host)
 	}
 	a.DB.QueryRow(`SELECT count(*) FROM node_server WHERE node_id = 1`).Scan(&n)
 	if n != 2 {

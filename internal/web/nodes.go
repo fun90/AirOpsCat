@@ -352,6 +352,10 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 		return
 	}
 	d["ServerOptions"] = opts
+	if d["Domains"], err = store.BindingDomains(ctx, s.DB); err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	if f.ID != 0 {
 		domains, err := store.PlacementDomains(ctx, s.DB, f.ID)
 		if err != nil {
@@ -373,8 +377,11 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 		}
 	}
 	// 校验失败回显时保留暂存的部署位增删
-	addIDs, delTargets := map[int64]bool{}, map[int64]string{}
+	addIDs, delTargets, newHosts := map[int64]bool{}, map[int64]string{}, map[int64]*store.NewHost{}
 	for _, op := range ops {
+		for _, h := range op.NewHosts {
+			newHosts[h.ServerID] = h
+		}
 		for _, id := range op.AddServerIDs {
 			addIDs[id] = true
 		}
@@ -382,7 +389,7 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 			delTargets[x.PlacementID] = strconv.FormatInt(x.TargetID, 10) // 非空表示已暂存删除
 		}
 	}
-	d["AddIDs"], d["DelTargets"] = addIDs, delTargets
+	d["AddIDs"], d["DelTargets"], d["NewHosts"] = addIDs, delTargets, newHosts
 	d["Form"], d["FormErr"], d["Tags"], d["Landing"], d["Regions"], d["Placements"], d["Hosts"] = f, formErr, tags, landing, regions, pls, hosts
 	d["ProxyProtocols"], d["LandingProtocols"] = store.ProtocolsFor(store.NodeProxy), store.ProtocolsFor(store.NodeLanding)
 	s.render(w, "node_form", status, d)
@@ -440,6 +447,15 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 	}
 	var edits []store.PlacementEdit
 	var echo []*store.Placement
+	var ops store.PlacementOps
+	// 已有与待添加的部署位共用 p{服务器ID}_new_* 字段新增访问域名
+	newHost := func(sid int64) {
+		k := "p" + strconv.FormatInt(sid, 10) + "_"
+		if name := formValue(r, k+"new_name"); name != "" {
+			did, _ := strconv.ParseInt(formValue(r, k+"new_domain_id"), 10, 64)
+			ops.NewHosts = append(ops.NewHosts, &store.NewHost{ServerID: sid, DomainID: did, Name: name})
+		}
+	}
 	if id != 0 {
 		pls, err := store.Placements(r.Context(), s.DB, id)
 		if err != nil {
@@ -459,15 +475,16 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 				e.AccessHostID = &h
 			}
 			edits = append(edits, e)
+			newHost(p.ServerID)
 			p.Priority, p.Exposed, p.CheapStart, p.CheapEnd, p.AccessHostID = e.Priority, e.Exposed, e.CheapStart, e.CheapEnd, e.AccessHostID
 			echo = append(echo, p)
 		}
 	}
 	// 部署位增删在表单中暂存，随节点保存一起提交；新建时只用表单里的待添加列表
-	var ops store.PlacementOps
 	for _, v := range r.PostForm["add_server"] {
 		if sid, err := strconv.ParseInt(v, 10, 64); err == nil && sid > 0 {
 			ops.AddServerIDs = append(ops.AddServerIDs, sid)
+			newHost(sid)
 		}
 	}
 	if id != 0 {
@@ -498,6 +515,26 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 	msg := "节点已保存"
 	if len(ops.Deletes) > 0 {
 		msg += "；转移的域名需推送 DNS 后生效"
+	}
+	var dnsErrs []string
+	for _, h := range ops.NewHosts {
+		unlock := lockDomain(h.DomainID)
+		err := s.syncBindingDNS(r.Context(), h.DomainID, h.RecordID)
+		unlock()
+		if err != nil {
+			dnsErrs = append(dnsErrs, h.Name+"："+err.Error())
+		}
+	}
+	if len(dnsErrs) > 0 {
+		msg += "，但新增域名 DNS 同步失败（" + strings.Join(dnsErrs, "；") + "），请到 DNS 页面推送"
+		if r.PostFormValue("deploy") == "1" {
+			msg += "；未执行部署"
+		}
+		redirectMsg(w, r, "/admin/nodes", "err", msg)
+		return
+	}
+	if len(ops.NewHosts) > 0 {
+		msg += "，新增域名 DNS 已同步"
 	}
 	if r.PostFormValue("deploy") == "1" {
 		ids, err := store.NodeDeployServers(r.Context(), s.DB, nodeID, false)

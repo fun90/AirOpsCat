@@ -12,6 +12,28 @@ if (pane && dialog) {
 
     const cards = () => Array.from(pane.querySelectorAll('[data-placement]'));
     const staged = (card) => !card.querySelector('[data-del-id]').disabled;
+    const hostTpl = pane.querySelector('[data-new-host-tpl]');
+
+    // 新增访问域名：已有卡片和待添加项共用模板，字段名按服务器 ID 区分
+    function openHost(holder, name, domain) {
+        if (holder.querySelector('[data-new-host]')) { return; }
+        const box = hostTpl.content.firstElementChild.cloneNode(true);
+        const k = 'p' + holder.dataset.server + '_';
+        const input = box.querySelector('[data-new-name]');
+        const select = box.querySelector('[data-new-domain]');
+        input.name = k + 'new_name';
+        select.name = k + 'new_domain_id';
+        input.value = name || '';
+        if (domain) { select.value = domain; }
+        holder.append(box);
+        holder.querySelector('[data-new-host-toggle]').hidden = true;
+        return input;
+    }
+    function closeHost(holder) {
+        holder.querySelector('[data-new-host]')?.remove();
+        const toggle = holder.querySelector('[data-new-host-toggle]');
+        if (toggle) { toggle.hidden = false; }
+    }
 
     function mark(card, targetID) {
         const on = targetID !== null;
@@ -26,21 +48,26 @@ if (pane && dialog) {
         card.querySelector('[data-del-undo]').hidden = !on;
         card.querySelector('[data-placement-remove]').hidden = on;
         card.classList.toggle('opacity-50', on);
+        closeHost(card);
+        card.querySelector('[data-new-host-toggle]').hidden = on;
     }
 
     function addItem(option, auto) {
         if (pane.querySelector('[data-add-item="' + option.value + '"]')) { return; }
         const item = document.createElement('div');
-        item.className = 'border border-primary rounded p-2 mb-2 d-flex align-items-center gap-2';
+        item.className = 'border border-primary rounded p-2 mb-2 d-flex flex-wrap align-items-center gap-2';
         item.dataset.addItem = option.value;
+        item.dataset.server = option.value;
         if (auto) { item.dataset.auto = ''; }
         const input = Object.assign(document.createElement('input'), { type: 'hidden', name: 'add_server', value: option.value });
         const badge = Object.assign(document.createElement('span'), { className: 'badge bg-blue-lt', textContent: '待添加' });
         const label = Object.assign(document.createElement('span'), { textContent: option.textContent });
-        const cancel = Object.assign(document.createElement('button'), { type: 'button', className: 'btn-close ms-auto' });
+        const toggle = Object.assign(document.createElement('a'), { href: '#', className: 'small ms-auto', textContent: '新增域名' });
+        toggle.dataset.newHostToggle = '';
+        const cancel = Object.assign(document.createElement('button'), { type: 'button', className: 'btn-close' });
         cancel.setAttribute('aria-label', '取消添加');
         cancel.dataset.addCancel = '';
-        item.append(input, badge, label, cancel);
+        item.append(input, badge, label, toggle, cancel);
         pane.querySelector('[data-add-list]').append(item);
     }
 
@@ -62,6 +89,17 @@ if (pane && dialog) {
     }
 
     pane.addEventListener('click', (e) => {
+        const toggle = e.target.closest('[data-new-host-toggle]');
+        if (toggle) {
+            e.preventDefault();
+            openHost(toggle.closest('[data-server]'))?.focus();
+            return;
+        }
+        const hostCancel = e.target.closest('[data-new-host-cancel]');
+        if (hostCancel) {
+            closeHost(hostCancel.closest('[data-server]'));
+            return;
+        }
         const remove = e.target.closest('[data-placement-remove]');
         if (remove) {
             current = remove.closest('[data-placement]');
@@ -109,7 +147,8 @@ if (pane && dialog) {
         modal.hide();
     });
 
-    // 校验失败回显：恢复暂存的删除
+    // 校验失败回显：恢复暂存的新增域名和删除
+    pane.querySelectorAll('[data-server][data-new-name]').forEach((h) => openHost(h, h.dataset.newName, h.dataset.newDomain));
     cards().forEach((c) => {
         if ('stagedTarget' in c.dataset && c.querySelector('[data-del-id]')) {
             mark(c, c.dataset.stagedTarget === '0' ? '' : c.dataset.stagedTarget);

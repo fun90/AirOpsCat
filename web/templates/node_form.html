@@ -53,7 +53,7 @@
                 <div class="d-flex align-items-center"><label class="form-label me-auto">部署位</label>{{if $fo}}<button class="btn btn-sm btn-link" form="placement-switch" name="placement" value="0" onclick="return confirm('取消全部切走、恢复原始解析并立即执行 DNS 切换，确定？')">全部回切</button>{{end}}</div>
                 <div class="form-hint mb-2">{{if .ID}}新建时按地区匹配，之后手动增删；保存后生效。{{else}}选择地区后自动加入同地区服务器，可手动增删；保存后生效。{{end}}</div>
                 {{range $p := $.Placements}}
-                <div class="position-relative border rounded p-3 mb-3{{if eq .Deployed 2}} bg-red-lt{{end}}" data-placement="{{.ID}}" data-name="{{.ServerName}}（{{.ServerIP}}）"{{if .Running}} data-running{{end}}{{with index $.DelTargets .ID}} data-staged-target="{{.}}"{{end}}>
+                <div class="position-relative border rounded p-3 mb-3{{if eq .Deployed 2}} bg-red-lt{{end}}" data-placement="{{.ID}}" data-server="{{.ServerID}}"{{with index $.NewHosts .ServerID}} data-new-name="{{.Name}}" data-new-domain="{{.DomainID}}"{{end}} data-name="{{.ServerName}}（{{.ServerIP}}）"{{if .Running}} data-running{{end}}{{with index $.DelTargets .ID}} data-staged-target="{{.}}"{{end}}>
                     {{if ne .Deployed 2}}
                     <button type="button" class="btn-close position-absolute top-0 end-0 m-2" aria-label="删除部署位 {{.ServerName}}" data-placement-remove></button>
                     <input type="hidden" name="del_placement" value="{{.ID}}" disabled data-del-id>
@@ -82,7 +82,7 @@
                     <div class="row g-2">
                         <div class="col-6 col-md-2"><label class="form-label" for="{{$k}}priority">优先级</label>
                             <input type="number" class="form-control" id="{{$k}}priority" name="{{$k}}priority" value="{{.Priority}}"></div>
-                        <div class="col-6 col-md-3"><label class="form-label" for="{{$k}}host">访问域名</label>
+                        <div class="col-6 col-md-3"><div class="d-flex justify-content-between"><label class="form-label" for="{{$k}}host">访问域名</label><a href="#" class="small ms-2" data-new-host-toggle>新增域名</a></div>
                             <select class="form-select" id="{{$k}}host" name="{{$k}}host">
                                 <option value="">使用服务器 IP</option>
                                 {{$ph := .AccessHostID}}
@@ -98,8 +98,14 @@
                     {{end}}
                 </div>
                 {{else}}{{if .ID}}<p class="text-secondary">暂无部署位</p>{{end}}{{end}}
+                <template data-new-host-tpl><div class="row g-2 mt-1 w-100" data-new-host>
+                    <div class="col-6 col-md-3"><input class="form-control" data-new-name placeholder="子域名，如 hk01" aria-label="子域名" autocomplete="off"></div>
+                    <div class="col-6 col-md-3"><select class="form-select" data-new-domain aria-label="主域名">{{range $.Domains}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></div>
+                    <div class="col-12 col-md-auto d-flex align-items-center"><button type="button" class="btn btn-sm btn-link" data-new-host-cancel>取消新增</button></div>
+                    <div class="col-12 form-hint mt-0">保存后新建指向该服务器的 A 记录作为访问域名，并立即同步 DNS</div>
+                </div></template>
                 <div class="mb-3" data-add-list>
-                    {{range $.ServerOptions}}{{if index $.AddIDs .ID}}<div class="border border-primary rounded p-2 mb-2 d-flex align-items-center gap-2" data-add-item="{{.ID}}"><input type="hidden" name="add_server" value="{{.ID}}"><span class="badge bg-blue-lt">待添加</span><span>{{if .Region}}[{{.Region}}] {{end}}{{.Name}}（{{.IP}}）</span><button type="button" class="btn-close ms-auto" aria-label="取消添加" data-add-cancel></button></div>{{end}}{{end}}
+                    {{range $.ServerOptions}}{{if index $.AddIDs .ID}}<div class="border border-primary rounded p-2 mb-2 d-flex flex-wrap align-items-center gap-2" data-add-item="{{.ID}}" data-server="{{.ID}}"{{with index $.NewHosts .ID}} data-new-name="{{.Name}}" data-new-domain="{{.DomainID}}"{{end}}><input type="hidden" name="add_server" value="{{.ID}}"><span class="badge bg-blue-lt">待添加</span><span>{{if .Region}}[{{.Region}}] {{end}}{{.Name}}（{{.IP}}）</span><a href="#" class="small ms-auto" data-new-host-toggle>新增域名</a><button type="button" class="btn-close" aria-label="取消添加" data-add-cancel></button></div>{{end}}{{end}}
                 </div>
                 <div class="d-flex flex-wrap align-items-center gap-2">
                     <label class="visually-hidden" for="padd_server">添加部署位的服务器</label>

@@ -481,6 +481,44 @@ func TestCreateNodeWithManualPlacements(t *testing.T) {
 	}
 }
 
+func TestPlacementNewHosts(t *testing.T) {
+	db, ctx := testDB(t)
+	hk := addServer(t, db, "hk", "HK", 0, false, false)
+	jp := addServer(t, db, "jp", "JP", 0, false, false)
+	mustExec(t, db, `INSERT INTO domain(id,domain) VALUES(1,'example.test')`)
+	// 新建节点：待添加的部署位直接带新域名
+	h := &NewHost{ServerID: hk, DomainID: 1, Name: "HK01"}
+	id, err := SaveNode(ctx, db, newNode("a", "HK", NodeProxy, 443), nil, nil, PlacementOps{AddServerIDs: []int64{hk}, NewHosts: []*NewHost{h}})
+	if err != nil || h.RecordID == 0 {
+		t.Fatal(err, h.RecordID)
+	}
+	var full, status string
+	var sid int64
+	db.QueryRow(`SELECT full_name,status,server_id FROM domain_dns_record WHERE id=?`, h.RecordID).Scan(&full, &status, &sid)
+	if pm := placementsOf(t, db, id); full != "hk01.example.test" || status != "PENDING_CREATE" || sid != hk || pm["hk"].AccessHostID == nil || *pm["hk"].AccessHostID != h.RecordID {
+		t.Fatalf("应新建记录并设为访问域名: %s %s %d %+v", full, status, sid, pm["hk"])
+	}
+	// 编辑：新域名覆盖表单里选中的访问域名；重名、非法、无此部署位均拒绝且整体回滚
+	n, _ := NodeByID(ctx, db, id)
+	h2 := &NewHost{ServerID: hk, DomainID: 1, Name: "hk02"}
+	if _, err := SaveNode(ctx, db, n, nil, []PlacementEdit{{ServerID: hk, AccessHostID: &h.RecordID}}, PlacementOps{NewHosts: []*NewHost{h2}}); err != nil {
+		t.Fatal(err)
+	}
+	if pm := placementsOf(t, db, id); *pm["hk"].AccessHostID != h2.RecordID {
+		t.Fatalf("新域名应替换访问域名: %+v", pm["hk"])
+	}
+	for _, bad := range []*NewHost{{ServerID: hk, DomainID: 1, Name: "hk02"}, {ServerID: hk, DomainID: 1, Name: "bad_name"}, {ServerID: hk, DomainID: 9, Name: "x"}, {ServerID: jp, DomainID: 1, Name: "jp01"}} {
+		if _, err := SaveNode(ctx, db, n, nil, nil, PlacementOps{NewHosts: []*NewHost{bad}}); !errors.Is(err, ErrInvalid) && !errors.Is(err, ErrConflict) {
+			t.Errorf("%+v 应被拒绝: %v", bad, err)
+		}
+	}
+	var cnt int
+	db.QueryRow(`SELECT count(*) FROM domain_dns_record`).Scan(&cnt)
+	if cnt != 2 {
+		t.Fatalf("失败的保存不应留下记录: %d", cnt)
+	}
+}
+
 func TestPlacementOpsRollBackWithNodeSave(t *testing.T) {
 	db, ctx := testDB(t)
 	addServer(t, db, "hk", "HK", 0, false, false)
