@@ -205,7 +205,14 @@ func (s *Server) serverSave(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(errs) == 0 {
-		_, err := store.SaveServer(r.Context(), s.DB, s.Field, srv, auth)
+		saved, err := store.SaveServer(r.Context(), s.DB, s.Field, srv, auth)
+		if err == nil && r.PostFormValue("test") == "1" {
+			if err := s.Deployer.Ping(r.Context(), saved); err != nil {
+				redirectMsg(w, r, "/admin/servers", "err", msg+"，但 SSH 连接失败："+err.Error())
+				return
+			}
+			msg += "，SSH 连接正常"
+		}
 		if err == nil {
 			redirectMsg(w, r, "/admin/servers", "msg", msg)
 			return

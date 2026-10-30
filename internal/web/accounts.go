@@ -269,6 +269,21 @@ func (s *Server) accountFormPage(w http.ResponseWriter, r *http.Request, status 
 }
 func (s *Server) accountNew(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().In(store.Shanghai)
+	// 复制为新账户：沿用用户、标签、周期与限额，编号/UUID 重新生成，日期与备注重填
+	if from, _ := strconv.ParseInt(r.URL.Query().Get("from"), 10, 64); from > 0 {
+		a, err := store.AccountByID(r.Context(), s.DB, from)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		if a != nil {
+			f := accountToForm(a)
+			f.ID, f.Remark, f.AccountNo, f.UUID, f.Disabled = 0, "", "", "", false
+			f.FromDate, f.ToDate = now.Format("2006-01-02T15:04:05"), now.AddDate(0, 1, 0).Format("2006-01-02T15:04:05")
+			s.accountFormPage(w, r, 200, f, "")
+			return
+		}
+	}
 	s.accountFormPage(w, r, 200, &accountForm{UserSource: "existing", PeriodType: "MONTHLY", NodeMultiple: "2", NodePrefix: "8", MaxConnections: "100", MaxIPs: "2", Bandwidth: "500", DownloadMbps: "12", UploadMbps: "8", FromDate: now.Format("2006-01-02T15:04:05"), ToDate: now.AddDate(0, 1, 0).Format("2006-01-02T15:04:05"), TagIDs: map[int64]bool{}}, "")
 }
 func accountToForm(a *store.Account) *accountForm {

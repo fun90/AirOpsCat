@@ -52,4 +52,22 @@ func TestOperatorShortcuts(t *testing.T) {
 	if !strings.Contains(do(h, "GET", "/admin/servers/new", nil, c, nil).Body.String(), `<option value="HK">`) {
 		t.Fatal("服务器表单缺少地区候选")
 	}
+
+	// 复制为新账户：沿用用户与标签，编号、UUID、备注留空
+	a.DB.Exec(`INSERT INTO account_tag(account_id,tag_id) VALUES (?,5)`, id)
+	body = do(h, "GET", "/admin/accounts/new?from="+id, nil, c, nil).Body.String()
+	var uid, no string
+	a.DB.QueryRow(`SELECT user_id, account_no FROM account WHERE id=?`, id).Scan(&uid, &no)
+	if !strings.Contains(body, `<option value="`+uid+`" selected>`) || !strings.Contains(body, `name="tags" value="5" checked`) || strings.Contains(body, no) || !strings.Contains(body, `id="remark" name="remark" value=""`) {
+		t.Fatal("复制开户未正确预填")
+	}
+
+	// 保存并测试：端口不通时服务器照常保存，提示连接失败
+	w = do(h, "POST", "/admin/servers", url.Values{"csrf": {csrf}, "name": {"本机"}, "ip": {"127.0.0.1"}, "ssh_port": {"1"}, "username": {"root"}, "auth_type": {"PASSWORD"}, "auth": {"x"}, "server_type": {"0"}, "price_months": {"1"}, "multiple": {"1"}, "test": {"1"}}, c, nil)
+	loc, _ := url.QueryUnescape(w.Header().Get("Location"))
+	var saved int
+	a.DB.QueryRow(`SELECT count(*) FROM server WHERE ip='127.0.0.1'`).Scan(&saved)
+	if w.Code != 303 || saved != 1 || !strings.Contains(loc, "SSH 连接失败") {
+		t.Fatal("保存并测试结果不对", w.Code, saved, loc)
+	}
 }
