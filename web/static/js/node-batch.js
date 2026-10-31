@@ -15,10 +15,21 @@ window.AirOpsPage.register(() => {
     if (e.target === all) boxes().forEach((b) => { b.checked = all.checked; });
     if (e.target === all || e.target.matches('[data-node-select]')) sync();
   });
-  bar.querySelector('[data-batch-clear]').addEventListener('click', () => {
+  const clear = () => {
     boxes().forEach((b) => { b.checked = false; });
     sync();
-  });
+  };
+  // 移动端批量选择模式：退出时清空已选，避免隐藏的勾选框仍带着选中状态
+  const list = document.querySelector('.node-list');
+  const mode = document.querySelector('[data-node-select-mode]');
+  const setMode = (on) => {
+    list.classList.toggle('node-selecting', on);
+    mode?.classList.toggle('active', on);
+    mode?.setAttribute('aria-pressed', on);
+    if (!on) clear();
+  };
+  mode?.addEventListener('click', () => setMode(!list.classList.contains('node-selecting')));
+  bar.querySelector('[data-batch-clear]').addEventListener('click', () => setMode(false));
   document.querySelectorAll('[data-batch-form]').forEach((form) => form.addEventListener('submit', () => {
     form.querySelectorAll('input[name=node_ids]').forEach((e) => e.remove());
     boxes().filter((b) => b.checked).forEach((b) => {

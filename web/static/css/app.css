@@ -59,7 +59,18 @@
     .logs-table .log-message { width: 100%; min-width: 0; }
 }
 
-/* 节点名称列：移动端占满剩余宽度并截断长名称，PC 端按内容自适应 */
-@media (max-width: 767.98px) {
-    .node-name-cell { width: 100%; max-width: 0; }
+
+/* 标签列固定单行；长名称截断，为两个标签与展开按钮保留空间。 */
+.node-tags > span { min-width: 0; max-width: 45%; flex-shrink: 1; }
+.node-tags > .dropdown { flex-shrink: 0; }
+
+
+/* 节点列表移动端：勾选框仅在批量选择模式出现；整行点击进入编辑，行内交互元素浮在点击层之上。 */
+@media (max-width: 991.98px) {
+    .node-list:not(.node-selecting) .node-check,
+    .node-list:not(.node-selecting) .node-head { display: none; }
+    .node-list:not(.node-selecting) .node-link::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+    .node-row .node-check, .node-row .node-out, .node-row .node-actions, .node-row .dropdown { position: relative; z-index: 2; }
+    /* 操作区高度与名称行（1.25rem）一致，在线信息和按钮对齐名称行，按钮多出的高度上下等量溢出 */
+    .node-actions > div { height: 1.25rem; }
 }

@@ -289,10 +289,10 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	online := make(map[int64]string, len(list))
+	online := make(map[int64]nodeOnlineView, len(list))
 	for _, n := range list {
 		if n.Type == 0 {
-			online[n.ID] = nodeOnlineText(snap, n.ID, placed[n.ID])
+			online[n.ID] = nodeOnline(snap, n.ID, placed[n.ID])
 		}
 	}
 	d := s.pageData(r, "节点", "nodes")

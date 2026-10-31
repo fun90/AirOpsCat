@@ -26,14 +26,14 @@ func TestOnlineTexts(t *testing.T) {
 	if got := accountOnlineText(snap, "B"); got != "未在线" {
 		t.Fatal(got)
 	}
-	if got := nodeOnlineText(snap, 7, []string{"s1"}); got != "1 账户 · 5 连接" {
+	if got := nodeOnline(snap, 7, []string{"s1"}).Text; got != "1 账户 · 5 连接" {
 		t.Fatal(got)
 	}
 	// s2 无标签分组、s3 无上报：覆盖不全要提示，且没有任何覆盖时不能显示 0。
-	if got := nodeOnlineText(snap, 7, []string{"s1", "s2"}); !strings.Contains(got, "部分服务器无上报") {
+	if got := nodeOnline(snap, 7, []string{"s1", "s2"}).Text; !strings.Contains(got, "部分服务器无上报") {
 		t.Fatal(got)
 	}
-	if got := nodeOnlineText(snap, 7, []string{"s2", "s3"}); got != "暂无上报" {
+	if got := nodeOnline(snap, 7, []string{"s2", "s3"}).Text; got != "暂无上报" {
 		t.Fatal(got)
 	}
 	if got := serverOnlineText(snap, "s9"); got != "暂无上报" {

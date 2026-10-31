@@ -140,7 +140,7 @@ func TestNodeFlows(t *testing.T) {
 		t.Fatalf("端口冲突应回显: %d", w.Code)
 	}
 	list := do(h, "GET", "/admin/nodes?status=0", nil, c, nil).Body.String()
-	if !strings.Contains(list, "n1-1") || !strings.Contains(list, "待部署") {
+	if !strings.Contains(list, "n1-1") || !strings.Contains(list, `badge bg-yellow-lt flex-shrink-0">待部署`) || !strings.Contains(list, `aria-label="部署" title="部署"><i class="ti ti-rocket d-lg-none"`) {
 		t.Fatal("列表应显示待部署的 n1-1")
 	}
 	if strings.Contains(do(h, "GET", "/admin/nodes?status=1", nil, c, nil).Body.String(), "n1-1") {
@@ -153,8 +153,8 @@ func TestNodeFlows(t *testing.T) {
 	if edit := do(h, "GET", "/admin/nodes/1/edit", nil, c, nil).Body.String(); !strings.Contains(edit, `name="restore"`) || !strings.Contains(edit, "全部回切") {
 		t.Fatal("已切走的部署位应提供取消切走和全部回切")
 	}
-	if list := do(h, "GET", "/admin/nodes", nil, c, nil).Body.String(); !strings.Contains(list, `badge bg-orange-lt">已切走 hk-1`) {
-		t.Fatal("列表页应标注已切走的部署位")
+	if list := do(h, "GET", "/admin/nodes", nil, c, nil).Body.String(); strings.Contains(list, "已切走") {
+		t.Fatal("列表页只显示当前指向，不显示已切走部署位")
 	}
 	var fpid int64
 	a.DB.QueryRow(`SELECT id FROM node_server WHERE node_id = 1`).Scan(&fpid)

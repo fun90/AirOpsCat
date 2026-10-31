@@ -62,8 +62,16 @@ func accountOnlineText(snap guard.Snapshot, accountNo string) string {
 	return fmt.Sprintf("在线 · %d 连接 · %d IP", a.Connections, a.IPs)
 }
 
-// nodeOnlineText 汇总节点标签在已部署服务器上的在线情况，并说明覆盖不全。
-func nodeOnlineText(snap guard.Snapshot, id int64, ips []string) string {
+// nodeOnlineView 供节点列表用图标展示；Text 为完整说明，用于悬停提示。
+type nodeOnlineView struct {
+	Text                         string
+	Reported, ShowConns, Partial bool
+	Accounts                     int
+	Connections                  int64
+}
+
+// nodeOnline 汇总节点标签在已部署服务器上的在线情况，并说明覆盖不全。
+func nodeOnline(snap guard.Snapshot, id int64, ips []string) nodeOnlineView {
 	covered := 0
 	for _, ip := range ips {
 		if sv, ok := snap.Servers[ip]; ok && sv.TagsKnown {
@@ -71,17 +79,18 @@ func nodeOnlineText(snap guard.Snapshot, id int64, ips []string) string {
 		}
 	}
 	if len(ips) == 0 || covered == 0 {
-		return "暂无上报"
+		return nodeOnlineView{Text: "暂无上报"}
 	}
 	t := snap.Tags["node_"+strconv.FormatInt(id, 10)]
-	text := fmt.Sprintf("%d 账户", t.Accounts)
-	if t.Accounts == 0 || t.ConnKnown {
-		text += fmt.Sprintf(" · %d 连接", t.Connections)
+	v := nodeOnlineView{Reported: true, ShowConns: t.Accounts == 0 || t.ConnKnown, Partial: covered < len(ips), Accounts: t.Accounts, Connections: t.Connections}
+	v.Text = fmt.Sprintf("%d 账户", t.Accounts)
+	if v.ShowConns {
+		v.Text += fmt.Sprintf(" · %d 连接", t.Connections)
 	}
-	if covered < len(ips) {
-		text += "（部分服务器无上报）"
+	if v.Partial {
+		v.Text += "（部分服务器无上报）"
 	}
-	return text
+	return v
 }
 
 func serverOnlineText(snap guard.Snapshot, ip string) string {
