@@ -22,7 +22,11 @@ var SettingDefaults = map[string]struct{ Group, Value string }{
 	"airopscat.account.traffic.retention-days": {"history", "30"}, "airopscat.system-log.retention-days": {"history", "90"},
 	"airopscat.backup.retention-days":     {"backup", "15"},
 	"airopscat.sing-box.clash-api.secret": {"monitor", ""},
+	ProbeServersKey:                       {"monitor", ""},
 }
+
+// ProbeServersKey 是国内探测服务器 ID 列表（逗号分隔），节点编辑页经其 SSH 拨测部署位端口。
+const ProbeServersKey = "airopscat.probe.server-ids"
 
 // EnsureSettings 补齐缺失的有效配置，保留已有值；不再消费的旧键保留于数据库但不展示/修改。
 func EnsureSettings(ctx context.Context, db *sql.DB) error {

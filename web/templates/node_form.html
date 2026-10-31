@@ -60,7 +60,7 @@
                     <input type="hidden" name="del_target_{{.ID}}" value="" disabled data-del-target>
                     {{end}}
                     {{$sub := ""}}{{with $.SubNames}}{{$sub = index . $p.ID}}{{end}}
-                    <div class="d-flex align-items-start gap-2 mb-2 pe-4">
+                    <div class="d-flex align-items-baseline gap-2 mb-2 pe-4">
                         <div class="me-auto">
                         <div><strong>{{.ServerName}}</strong><span class="text-secondary ms-2">{{.ServerIP}}</span></div>
                         <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
@@ -69,12 +69,13 @@
                         {{with index $.PlacementTargets .ID}}<div class="dropdown"><button type="button" class="badge bg-blue-lt border-0 cursor-pointer" data-bs-toggle="dropdown" aria-expanded="false">当前指向 {{len .}} 个域名</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-1" style="max-width:16rem">{{range .}}<span class="badge bg-blue-lt text-wrap text-break">{{.}}</span>{{end}}</div></div></div>{{end}}
                         {{with $sub}}<span class="badge bg-purple-lt">订阅名 {{.}}</span>{{end}}
                         {{if .Disabled}}<span class="badge bg-secondary-lt">服务器已禁用</span>{{end}}
+                        {{if and $.Probe (eq .Deployed 1) (ne $.Form.Protocol "hysteria2")}}<button type="button" class="btn btn-sm btn-link p-0" data-tcp-probe="{{.ID}}" title="经国内探测服务器检测 {{.ServerIP}}:{{$.Form.Port}}">TCP 检测</button><span class="small" data-tcp-result aria-live="polite"></span>{{end}}
                         <span class="badge bg-red-lt" data-del-badge hidden></span>
                         <button type="button" class="btn btn-sm btn-link p-0" data-del-undo hidden>撤销删除</button>
                         </div>
                         </div>
-                        {{if .Failover}}<button class="btn btn-sm btn-outline-warning py-0 text-nowrap" form="placement-switch" name="restore" value="{{.ID}}" onclick="return confirm('取消 {{.ServerName}} 的切走并立即执行 DNS 切换，确定？')">取消切走</button>
-                        {{else if and (gt (len $.Placements) 1) .Running (ne .Deployed 2) (not .Disabled) (not (and (index $.PlacementTargets .ID) (eq (len $.PlacementTargets) 1)))}}<button class="btn btn-sm btn-outline-warning py-0 text-nowrap" form="placement-switch" name="placement" value="{{.ID}}" onclick="return confirm('节点域名将切到 {{.ServerName}} 并立即执行 DNS 切换，确定？')">切到此处</button>{{end}}
+                        {{if .Failover}}<button class="btn btn-sm btn-link text-warning p-0 text-nowrap" form="placement-switch" name="restore" value="{{.ID}}" onclick="return confirm('取消 {{.ServerName}} 的切走并立即执行 DNS 切换，确定？')">取消切走</button>
+                        {{else if and (gt (len $.Placements) 1) .Running (ne .Deployed 2) (not .Disabled) (not (and (index $.PlacementTargets .ID) (eq (len $.PlacementTargets) 1)))}}<button class="btn btn-sm btn-link text-warning p-0 text-nowrap" form="placement-switch" name="placement" value="{{.ID}}" onclick="return confirm('节点域名将切到 {{.ServerName}} 并立即执行 DNS 切换，确定？')">切到此处</button>{{end}}
                     </div>
                     {{if ne .Deployed 2}}
                     <template data-domains>{{range index $.PlacementDomains .ID}}<li>{{.}}</li>{{end}}</template>

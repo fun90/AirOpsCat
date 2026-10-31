@@ -43,6 +43,9 @@ func settingType(key string) string {
 			return "number"
 		}
 	}
+	if key == ProbeServersKey {
+		return "ids"
+	}
 	if strings.HasPrefix(key, "airopscat.server.monitor.alert.") && strings.HasSuffix(key, "-threshold") {
 		return "threshold"
 	}
@@ -142,6 +145,9 @@ func saveSetting(ctx context.Context, db dbtx, cipher *crypto.Cipher, key, value
 			if key == "airopscat.account.guard.ttl-seconds" && n < 5 {
 				invalid = true
 			}
+		case "ids":
+			_, e := ParseIDs(value)
+			invalid = e != nil
 		case "threshold":
 			n, e := strconv.ParseFloat(value, 64)
 			invalid = e != nil || math.IsNaN(n) || math.IsInf(n, 0) || n < 0 || n > 100
@@ -287,4 +293,20 @@ func ConfigValue(ctx context.Context, db *sql.DB, key string) string {
 	var v sql.NullString
 	db.QueryRowContext(ctx, `SELECT config_value FROM system_config WHERE config_key = ?`, key).Scan(&v)
 	return strings.TrimRight(strings.TrimSpace(v.String), "/")
+}
+
+// ParseIDs 解析逗号分隔的正整数 ID 列表，空串返回空列表。
+func ParseIDs(v string) ([]int64, error) {
+	var ids []int64
+	for _, part := range strings.Split(v, ",") {
+		if part = strings.TrimSpace(part); part == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(part, 10, 64)
+		if err != nil || id < 1 {
+			return nil, fmt.Errorf("%w：ID 必须为正整数", ErrInvalid)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }

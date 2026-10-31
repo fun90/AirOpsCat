@@ -154,5 +154,31 @@ if (pane && dialog) {
             mark(c, c.dataset.stagedTarget === '0' ? '' : c.dataset.stagedTarget);
         }
     });
+
+    // 经服务端配置的国内探测服务器 SSH 拨测部署位端口
+    const csrf = document.querySelector('input[name="csrf"]')?.value || '';
+    pane.querySelectorAll('[data-tcp-probe]').forEach((btn) => btn.addEventListener('click', async () => {
+        const out = btn.nextElementSibling;
+        btn.disabled = true;
+        out.className = 'small text-secondary';
+        out.textContent = '检测中…';
+        try {
+            const res = await fetch(`/admin/placements/${btn.dataset.tcpProbe}/probe`, {
+                method: 'POST', redirect: 'error', headers: { Accept: 'application/json' }, body: new URLSearchParams({ csrf })
+            });
+            if (!res.ok) { throw new Error((await res.text()).trim() || `HTTP ${res.status}`); }
+            out.className = 'small';
+            out.replaceChildren(...(await res.json()).flatMap((p, i) => {
+                const span = document.createElement('span');
+                span.className = p.ok ? 'text-success' : 'text-danger';
+                span.textContent = `${p.name} ${p.msg}${p.ok ? ` ${p.ms} ms` : ''}`;
+                return i ? [' · ', span] : [span];
+            }));
+        } catch (e) {
+            out.className = 'small text-danger';
+            out.textContent = `检测失败：${e.message}`;
+        }
+        btn.disabled = false;
+    }));
 }
 });

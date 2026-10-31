@@ -85,6 +85,7 @@ func (s *Server) nodeRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/nodes/batch-failover", s.nodeBatchFailover)
 	m.HandleFunc("POST /admin/nodes/{id}", s.nodeSave)
 	m.HandleFunc("POST /admin/nodes/{id}/switch", s.nodeSwitch)
+	m.HandleFunc("POST /admin/placements/{id}/probe", s.placementProbe)
 	m.HandleFunc("POST /admin/nodes/{id}/toggle", s.nodeToggle)
 	m.HandleFunc("POST /admin/nodes/{id}/delete", s.nodeDelete)
 	m.HandleFunc("POST /admin/nodes/{id}/cancel-delete", s.nodeCancelDelete)
@@ -238,6 +239,7 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 	d["AddIDs"], d["DelTargets"], d["NewHosts"] = addIDs, delTargets, newHosts
 	d["Form"], d["FormErr"], d["Tags"], d["Landing"], d["Regions"], d["Placements"], d["Hosts"] = f, formErr, tags, landing, regions, pls, hosts
 	d["ProxyProtocols"], d["LandingProtocols"] = store.ProtocolsFor(store.NodeProxy), store.ProtocolsFor(store.NodeLanding)
+	d["Probe"] = store.ConfigValue(ctx, s.DB, store.ProbeServersKey) != ""
 	s.render(w, "node_form", status, d)
 }
 
