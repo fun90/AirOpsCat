@@ -91,8 +91,8 @@ func AutoDNSRecords(ctx context.Context, db *sql.DB, domainID int64) ([]AutoDNSR
 func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candidate, error) {
 	rows, err := db.QueryContext(ctx, `SELECT ns.id,ns.node_id,ns.server_id,s.ip,ns.priority,coalesce(ns.cheap_start,''),coalesce(ns.cheap_end,''),coalesce(s.bandwidth,0),v.rx_bytes,v.tx_bytes,coalesce(v.sample_time,''),ns.failover
  FROM node_server ns JOIN node n ON n.id=ns.node_id JOIN server s ON s.id=ns.server_id
- LEFT JOIN server_metrics v ON v.id=(SELECT id FROM server_metrics WHERE server_id=s.id AND kind='vnstat' AND period_year=? AND period_month=? ORDER BY sample_time DESC,id DESC LIMIT 1)
- WHERE ns.deployed<>2 AND (ns.deployed=1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id=ns.id AND coalesce(d.disabled,0)=0)) AND n.type=0 AND n.disabled=0 AND s.disabled=0 AND s.external_server=0 AND (s.expire_date IS NULL OR substr(s.expire_date,1,10)>=?)`, at.In(Shanghai).Year(), int(at.In(Shanghai).Month()), at.In(Shanghai).Format("2006-01-02"))
+ LEFT JOIN server_metrics v ON v.id=`+latestVnstatSQL+`
+ WHERE ns.deployed<>2 AND (ns.deployed=1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id=ns.id AND coalesce(d.disabled,0)=0)) AND n.type=0 AND n.disabled=0 AND s.disabled=0 AND s.external_server=0 AND (s.expire_date IS NULL OR substr(s.expire_date,1,10)>=?)`, append(vnstatPeriodArgs(at), at.In(Shanghai).Format("2006-01-02"))...)
 	if err != nil {
 		return nil, err
 	}

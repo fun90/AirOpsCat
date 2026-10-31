@@ -108,9 +108,13 @@ func (s *Server) collectVnstat(ctx context.Context) error {
 			return err
 		}
 		defer closeFn()
-		v, ok, err := monitor.CollectVnstat(ctx, r, time.Now().In(store.Shanghai))
+		day, err := store.ServerResetDay(ctx, s.DB, id)
+		if err != nil {
+			return err
+		}
+		v, ok, err := monitor.CollectVnstat(ctx, r, time.Now().In(store.Shanghai), day)
 		if err != nil || !ok {
-			return err // 未安装 vnstat 或无本月数据不算失败
+			return err // 未安装 vnstat 或无本周期数据不算失败
 		}
 		return store.InsertVnstatSample(ctx, s.DB, id, v, time.Now())
 	})
@@ -254,7 +258,7 @@ func (s *Server) evaluateServerHealth(ctx context.Context, st store.ServerStatus
 type statusView struct {
 	store.ServerStatus
 	SingboxText, CPUText, MemText, DiskText, RateText, UsageText string
-	PeriodText                                                   string // vnstat 按自然月统计
+	PeriodText                                                   string
 	Stale                                                        bool
 	Online                                                       string
 	UsagePct                                                     int
@@ -293,9 +297,8 @@ func newStatusView(st store.ServerStatus, now time.Time) statusView {
 		} else {
 			v.UsageText = fmt.Sprintf("%.1f GB", used)
 		}
-		local := now.In(store.Shanghai)
-		start := time.Date(local.Year(), local.Month(), 1, 0, 0, 0, 0, store.Shanghai)
-		v.PeriodText = start.Format("2006-01-02") + " 至 " + start.AddDate(0, 1, -1).Format("2006-01-02")
+		start, end := monitor.TrafficPeriod(st.ResetDay, now.In(store.Shanghai))
+		v.PeriodText = start.Format("2006-01-02") + " 至 " + end.Format("2006-01-02")
 	}
 	if t, err := store.ParseTime(st.Sampled); err == nil {
 		interval := monitorInterval

@@ -19,7 +19,7 @@ import (
 func TestMonitorTrafficDecimalGB(t *testing.T) {
 	at := time.Date(2026, 10, 22, 10, 35, 0, 0, store.Shanghai)
 	raw := `{"interfaces":[{"name":"eth0","traffic":{"month":[{"date":{"year":2026,"month":10},"rx":10569535770,"tx":10479734167}]}}]}`
-	v, ok, err := monitor.CollectVnstat(context.Background(), &vnstatFixtureRemote{raw: raw}, at)
+	v, ok, err := monitor.CollectVnstat(context.Background(), &vnstatFixtureRemote{raw: raw}, at, 1)
 	if err != nil || !ok {
 		t.Fatalf("采集失败: %v, ok=%v", err, ok)
 	}
@@ -43,6 +43,21 @@ func TestMonitorTrafficDecimalGB(t *testing.T) {
 	list[0].BandwidthGB = 0
 	if got := newStatusView(list[0], at).UsageText; got != "21.0 GB" {
 		t.Fatalf("未设额度时也应使用十进制 GB，实际 %q", got)
+	}
+	// 重置日 24 号：10-22 属于 9-24 起的周期，不应沿用自然月样本
+	if _, err := a.DB.Exec(`UPDATE server SET bandwidth_date='2026-04-24 00:00:00' WHERE id=1`); err != nil {
+		t.Fatal(err)
+	}
+	list, _, err = store.ServerStatuses(context.Background(), a.DB, "", 1, 20, at)
+	if err != nil || list[0].HasVnstat || list[0].ResetDay != 24 {
+		t.Fatalf("不应取到其他周期的样本: %v %+v", err, list[0])
+	}
+	if err := store.InsertVnstatSample(context.Background(), a.DB, 1, monitor.Vnstat{Iface: "eth0", Year: 2026, Month: 9, RxBytes: 5e9}, at); err != nil {
+		t.Fatal(err)
+	}
+	list, _, _ = store.ServerStatuses(context.Background(), a.DB, "", 1, 20, at)
+	if v := newStatusView(list[0], at); !list[0].HasVnstat || v.UsageText != "5.0 / 100 GB（5.0%）" || v.PeriodText != "2026-09-24 至 2026-10-23" {
+		t.Fatalf("应按重置日取周期：%+v", v)
 	}
 }
 

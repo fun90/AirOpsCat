@@ -3,7 +3,7 @@
 <div class="card">
   <div class="card-header"><form method="get" class="d-flex gap-2 w-100" style="max-width:420px"><input type="search" name="q" value="{{.Q}}" class="form-control" placeholder="名称 / IP" aria-label="搜索"><button class="btn btn-outline-secondary" type="submit">搜索</button></form></div>
   <div class="table-responsive"><table class="table table-vcenter card-table">
-    <thead><tr><th>服务器</th><th class="d-none d-md-table-cell">CPU</th><th class="d-none d-md-table-cell">内存</th><th class="d-none d-md-table-cell">磁盘</th><th class="d-none d-md-table-cell">网速</th><th class="d-none d-md-table-cell">本月流量</th><th class="d-none d-md-table-cell">在线</th><th class="d-none d-md-table-cell">sing-box</th><th class="d-none d-md-table-cell">最近上报</th></tr></thead>
+    <thead><tr><th>服务器</th><th class="d-none d-md-table-cell">CPU</th><th class="d-none d-md-table-cell">内存</th><th class="d-none d-md-table-cell">磁盘</th><th class="d-none d-md-table-cell">网速</th><th class="d-none d-md-table-cell">本期流量</th><th class="d-none d-md-table-cell">在线</th><th class="d-none d-md-table-cell">sing-box</th><th class="d-none d-md-table-cell">最近上报</th></tr></thead>
     <tbody>{{range .List}}<tr>
       <td class="text-break"><a href="/admin/monitor/{{.ID}}" class="text-reset">{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}</a><div class="text-secondary small">{{.IP}}</div>
         <div class="d-md-none mt-1 small">CPU {{.CPUText}} · 内存 {{.MemText}} · 磁盘 {{.DiskText}}<br>sing-box {{.SingboxText}}<br>{{.RateText}}<br>在线 {{.Online}}<br>流量 {{.UsageText}}{{if .PeriodText}}（{{.PeriodText}}）{{end}}{{if .Stale}} <span class="badge bg-yellow-lt">数据陈旧</span>{{end}}</div></td>

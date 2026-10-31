@@ -66,6 +66,27 @@ func extraArgs(s monitor.Sample) []any {
 	return []any{s.Disk, s.DiskUsed, s.DiskTotal, down}
 }
 
+// resetDaySQL 是服务器（别名 s）的流量重置日，未设置按 1 号。
+const resetDaySQL = `coalesce(cast(strftime('%d',s.bandwidth_date) AS INTEGER),1)`
+
+// latestVnstatSQL 取服务器 s 当前流量周期最近一条 vnstat 的 id，参数由 vnstatPeriodArgs 提供。
+const latestVnstatSQL = `(SELECT id FROM server_metrics WHERE server_id=s.id AND kind='vnstat' AND period_year*100+period_month=CASE WHEN ?>=min(` + resetDaySQL + `,?) THEN ? ELSE ? END ORDER BY sample_time DESC,id DESC LIMIT 1)`
+
+// vnstatPeriodArgs：今天是几号、本月天数、本月与上月的 yyyymm；到了重置日周期从本月起，否则从上月起。
+func vnstatPeriodArgs(at time.Time) []any {
+	at = at.In(Shanghai)
+	first := time.Date(at.Year(), at.Month(), 1, 0, 0, 0, 0, Shanghai)
+	prev := first.AddDate(0, -1, 0)
+	return []any{at.Day(), first.AddDate(0, 1, -1).Day(), at.Year()*100 + int(at.Month()), prev.Year()*100 + int(prev.Month())}
+}
+
+// ServerResetDay 返回服务器流量重置日，未设置为 1。
+func ServerResetDay(ctx context.Context, db *sql.DB, serverID int64) (int, error) {
+	var day int
+	err := db.QueryRowContext(ctx, `SELECT `+resetDaySQL+` FROM server s WHERE id=?`, serverID).Scan(&day)
+	return day, err
+}
+
 func InsertVnstatSample(ctx context.Context, db *sql.DB, serverID int64, v monitor.Vnstat, at time.Time) error {
 	_, err := db.ExecContext(ctx, `INSERT INTO server_metrics(server_id,kind,sample_time,iface,period_year,period_month,rx_bytes,tx_bytes) VALUES(?,'vnstat',?,?,?,?,?,?)`,
 		serverID, FormatTime(at), v.Iface, v.Year, v.Month, v.RxBytes, v.TxBytes)
@@ -105,6 +126,7 @@ type ServerStatus struct {
 	ID                 int64
 	Name, IP           string
 	BandwidthGB        int64 // 月流量额度，十进制 GB，0 不限
+	ResetDay           int   // 流量重置日
 	Sampled            string
 	CPU, Memory, Disk  *float64
 	SingboxDown        *bool // nil 表示未知
@@ -114,7 +136,7 @@ type ServerStatus struct {
 	HasVnstat          bool
 }
 
-// UsageRatio 为 vnstat 当月（上+下）占额度的比例；额度未设置返回 0。
+// UsageRatio 为 vnstat 当前周期（上+下）占额度的比例；额度未设置返回 0。
 func (s ServerStatus) UsageRatio() float64 {
 	if s.BandwidthGB <= 0 || !s.HasVnstat {
 		return 0
@@ -122,22 +144,22 @@ func (s ServerStatus) UsageRatio() float64 {
 	return (float64(s.VnstatRx) + float64(s.VnstatTx)) / (float64(s.BandwidthGB) * 1e9)
 }
 
-// ServerStatuses 只列启用的非外部服务器；最近一条 monitor 与最近一条（当月）vnstat。
+// ServerStatuses 只列启用的非外部服务器；最近一条 monitor 与最近一条（当前流量周期）vnstat。
 func ServerStatuses(ctx context.Context, db *sql.DB, q string, page, size int, at time.Time) ([]ServerStatus, int, error) {
 	like := "%" + q + "%"
 	var total int
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM server WHERE disabled=0 AND external_server=0 AND (coalesce(name,'') LIKE ? OR ip LIKE ?)`, like, like).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	rows, err := db.QueryContext(ctx, `SELECT s.id,coalesce(s.name,''),s.ip,coalesce(s.bandwidth,0),
+	rows, err := db.QueryContext(ctx, `SELECT s.id,coalesce(s.name,''),s.ip,coalesce(s.bandwidth,0),`+resetDaySQL+`,
  coalesce(m.sample_time,''),m.cpu_usage,m.memory_usage,m.disk_usage,m.singbox_down,m.rx_rate,m.tx_rate,
  coalesce(v.iface,''),coalesce(v.sample_time,''),coalesce(v.rx_bytes,0),coalesce(v.tx_bytes,0),v.id IS NOT NULL,
  coalesce((SELECT last_seen FROM monitor_agent WHERE server_id=s.id),'')
  FROM server s
  LEFT JOIN server_metrics m ON m.id=(SELECT id FROM server_metrics WHERE server_id=s.id AND kind='monitor' ORDER BY sample_time DESC,id DESC LIMIT 1)
- LEFT JOIN server_metrics v ON v.id=(SELECT id FROM server_metrics WHERE server_id=s.id AND kind='vnstat' AND period_year=? AND period_month=? ORDER BY sample_time DESC,id DESC LIMIT 1)
+ LEFT JOIN server_metrics v ON v.id=`+latestVnstatSQL+`
  WHERE s.disabled=0 AND s.external_server=0 AND (coalesce(s.name,'') LIKE ? OR s.ip LIKE ?) ORDER BY s.name,s.id LIMIT ? OFFSET ?`,
-		at.In(Shanghai).Year(), int(at.In(Shanghai).Month()), like, like, size, (page-1)*size)
+		append(vnstatPeriodArgs(at), like, like, size, (page-1)*size)...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -148,7 +170,7 @@ func ServerStatuses(ctx context.Context, db *sql.DB, q string, page, size int, a
 		var cpu, mem, disk sql.NullFloat64
 		var sb sql.NullInt64
 		var rx, tx sql.NullInt64
-		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.BandwidthGB, &s.Sampled, &cpu, &mem, &disk, &sb, &rx, &tx, &s.Iface, &s.VnstatTime, &s.VnstatRx, &s.VnstatTx, &s.HasVnstat, &s.AgentSeen); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.BandwidthGB, &s.ResetDay, &s.Sampled, &cpu, &mem, &disk, &sb, &rx, &tx, &s.Iface, &s.VnstatTime, &s.VnstatRx, &s.VnstatTx, &s.HasVnstat, &s.AgentSeen); err != nil {
 			return nil, 0, err
 		}
 		if cpu.Valid {

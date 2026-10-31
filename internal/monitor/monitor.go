@@ -29,8 +29,8 @@ awk '/^MemTotal:/{t=$2}/^MemAvailable:/{a=$2}END{printf "mem %.0f %.0f\n",t*1024
 df -PB1 / 2>/dev/null | awk 'NR==2{printf "disk %.0f %.0f\n",$3,$2}'
 if [ "$(systemctl show -p LoadState --value sing-box 2>/dev/null)" = loaded ]; then systemctl is-active --quiet sing-box && echo "sb 0" || echo "sb 1"; fi`
 
-// VnstatCommand 取按月统计；未安装 vnstat 时输出为空由调用方处理。
-const VnstatCommand = `command -v vnstat >/dev/null 2>&1 && vnstat --json m 2>/dev/null`
+// VnstatCommand 取按日统计，由调用方按流量重置日汇总；未安装 vnstat 时输出为空由调用方处理。
+const VnstatCommand = `command -v vnstat >/dev/null 2>&1 && vnstat --json d 2>/dev/null`
 
 type Sample struct {
 	CPU, Memory         float64 // 0–1
@@ -85,13 +85,31 @@ func ParseMonitor(out string) (Sample, error) {
 
 type Vnstat struct {
 	Iface            string
-	Year, Month      int
+	Year, Month      int // 流量周期起始日所在年月
 	RxBytes, TxBytes int64
 }
 
-// ParseVnstat 取 at 所在月份流量最大的网卡（排除回环），避免把 docker 网桥重复相加。
-// 没有任何本月数据返回 ok=false。
-func ParseVnstat(raw string, at time.Time) (v Vnstat, ok bool, err error) {
+type vnstatEntry struct {
+	Date struct{ Year, Month, Day int } `json:"date"`
+	Rx   int64                          `json:"rx"`
+	Tx   int64                          `json:"tx"`
+}
+
+// TrafficPeriod 返回 at 所在流量周期的首日与末日；重置日超过当月天数时取月末。
+func TrafficPeriod(resetDay int, at time.Time) (start, end time.Time) {
+	day := func(y int, m time.Month) time.Time {
+		return time.Date(y, m, min(max(resetDay, 1), time.Date(y, m+1, 0, 0, 0, 0, 0, at.Location()).Day()), 0, 0, 0, 0, at.Location())
+	}
+	start = day(at.Year(), at.Month())
+	if at.Before(start) {
+		start = day(at.Year(), at.Month()-1)
+	}
+	return start, day(start.Year(), start.Month()+1).AddDate(0, 0, -1)
+}
+
+// ParseVnstat 取 at 所在流量周期流量最大的网卡（排除回环），避免把 docker 网桥重复相加。
+// 日数据按周期求和；只有月数据（旧 agent）时仅在重置日为 1 号时可用。没有本周期数据返回 ok=false。
+func ParseVnstat(raw string, at time.Time, resetDay int) (v Vnstat, ok bool, err error) {
 	if strings.TrimSpace(raw) == "" {
 		return v, false, nil
 	}
@@ -99,11 +117,8 @@ func ParseVnstat(raw string, at time.Time) (v Vnstat, ok bool, err error) {
 		Interfaces []struct {
 			Name    string `json:"name"`
 			Traffic struct {
-				Month []struct {
-					Date struct{ Year, Month int } `json:"date"`
-					Rx   int64                     `json:"rx"`
-					Tx   int64                     `json:"tx"`
-				} `json:"month"`
+				Day   []vnstatEntry `json:"day"`
+				Month []vnstatEntry `json:"month"`
 			} `json:"traffic"`
 		} `json:"interfaces"`
 	}
@@ -114,10 +129,24 @@ func ParseVnstat(raw string, at time.Time) (v Vnstat, ok bool, err error) {
 		if i.Name == "lo" || strings.HasPrefix(i.Name, "docker") || strings.HasPrefix(i.Name, "veth") || strings.HasPrefix(i.Name, "br-") || strings.HasPrefix(i.Name, "tun") || strings.HasPrefix(i.Name, "wg") {
 			continue
 		}
-		for _, m := range i.Traffic.Month {
-			if m.Date.Year == at.Year() && m.Date.Month == int(at.Month()) && m.Rx >= 0 && m.Tx >= 0 && m.Rx+m.Tx >= v.RxBytes+v.TxBytes {
-				v, ok = Vnstat{i.Name, m.Date.Year, m.Date.Month, m.Rx, m.Tx}, true
+		start, end := TrafficPeriod(resetDay, at)
+		cur := Vnstat{Iface: i.Name, Year: start.Year(), Month: int(start.Month())}
+		found := false
+		for _, d := range i.Traffic.Day {
+			date := time.Date(d.Date.Year, time.Month(d.Date.Month), d.Date.Day, 0, 0, 0, 0, at.Location())
+			if !date.Before(start) && !date.After(end) && d.Rx >= 0 && d.Tx >= 0 {
+				cur.RxBytes, cur.TxBytes, found = cur.RxBytes+d.Rx, cur.TxBytes+d.Tx, true
 			}
+		}
+		if len(i.Traffic.Day) == 0 && start.Day() == 1 {
+			for _, m := range i.Traffic.Month {
+				if m.Date.Year == start.Year() && m.Date.Month == int(start.Month()) && m.Rx >= 0 && m.Tx >= 0 {
+					cur.RxBytes, cur.TxBytes, found = m.Rx, m.Tx, true
+				}
+			}
+		}
+		if found && cur.RxBytes+cur.TxBytes >= v.RxBytes+v.TxBytes {
+			v, ok = cur, true
 		}
 	}
 	return v, ok, nil
@@ -136,12 +165,12 @@ func Collect(ctx context.Context, r Runner) (Sample, error) {
 }
 
 // CollectVnstat 未安装 vnstat 时返回 ok=false。
-func CollectVnstat(ctx context.Context, r Runner, at time.Time) (Vnstat, bool, error) {
+func CollectVnstat(ctx context.Context, r Runner, at time.Time, resetDay int) (Vnstat, bool, error) {
 	out, _, _, err := r.Run(ctx, VnstatCommand)
 	if err != nil {
 		return Vnstat{}, false, err
 	}
-	return ParseVnstat(out, at)
+	return ParseVnstat(out, at, resetDay)
 }
 
 // Point 是窗口判定使用的一个采样。

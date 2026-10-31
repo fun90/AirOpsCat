@@ -73,18 +73,57 @@ func TestParseVnstat(t *testing.T) {
  {"name":"eth0","traffic":{"month":[{"date":{"year":2026,"month":9},"rx":1,"tx":1},{"date":{"year":2026,"month":10},"rx":100,"tx":200}]}},
  {"name":"docker0","traffic":{"month":[{"date":{"year":2026,"month":10},"rx":5,"tx":5}]}}]}`
 	at := time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)
-	v, ok, err := ParseVnstat(raw, at)
+	v, ok, err := ParseVnstat(raw, at, 1)
 	if err != nil || !ok || v.Iface != "eth0" || v.RxBytes != 100 || v.TxBytes != 200 {
 		t.Fatalf("%v %v %+v", err, ok, v)
 	}
-	if _, ok, _ := ParseVnstat(raw, at.AddDate(0, 2, 0)); ok {
+	if _, ok, _ := ParseVnstat(raw, at.AddDate(0, 2, 0), 1); ok {
 		t.Fatal("无本月数据应返回 false")
 	}
-	if _, ok, err := ParseVnstat("", at); ok || err != nil {
+	if _, ok, _ := ParseVnstat(raw, at, 24); ok {
+		t.Fatal("重置日非 1 号时不应使用自然月数据")
+	}
+	if _, ok, err := ParseVnstat("", at, 1); ok || err != nil {
 		t.Fatal("未安装 vnstat 不是错误")
 	}
-	if _, _, err := ParseVnstat("not json", at); err == nil {
+	if _, _, err := ParseVnstat("not json", at, 1); err == nil {
 		t.Fatal("应报错")
+	}
+}
+
+func TestParseVnstatDaily(t *testing.T) {
+	raw := `{"interfaces":[{"name":"eth0","traffic":{"day":[
+ {"date":{"year":2026,"month":9,"day":23},"rx":1000,"tx":1000},
+ {"date":{"year":2026,"month":9,"day":24},"rx":1,"tx":2},
+ {"date":{"year":2026,"month":10,"day":23},"rx":10,"tx":20},
+ {"date":{"year":2026,"month":10,"day":24},"rx":100,"tx":200}]}}]}`
+	v, ok, err := ParseVnstat(raw, time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC), 24)
+	if err != nil || !ok || v.Year != 2026 || v.Month != 9 || v.RxBytes != 11 || v.TxBytes != 22 {
+		t.Fatalf("应汇总 9-24 至 10-23：%v %v %+v", err, ok, v)
+	}
+	v, ok, _ = ParseVnstat(raw, time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC), 24)
+	if !ok || v.Month != 10 || v.RxBytes != 100 || v.TxBytes != 200 {
+		t.Fatalf("重置日当天应进入新周期：%+v", v)
+	}
+}
+
+func TestTrafficPeriod(t *testing.T) {
+	for _, c := range []struct {
+		reset      int
+		at         time.Time
+		start, end string
+	}{
+		{1, time.Date(2026, 10, 31, 9, 0, 0, 0, time.UTC), "2026-10-01", "2026-10-31"},
+		{0, time.Date(2026, 2, 3, 0, 0, 0, 0, time.UTC), "2026-02-01", "2026-02-28"},
+		{24, time.Date(2026, 10, 31, 0, 0, 0, 0, time.UTC), "2026-10-24", "2026-11-23"},
+		{24, time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC), "2025-12-24", "2026-01-23"},
+		{31, time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC), "2026-02-28", "2026-03-30"},
+		{31, time.Date(2026, 2, 28, 0, 0, 0, 0, time.UTC), "2026-02-28", "2026-03-30"},
+	} {
+		s, e := TrafficPeriod(c.reset, c.at)
+		if s.Format("2006-01-02") != c.start || e.Format("2006-01-02") != c.end {
+			t.Errorf("reset=%d at=%s: %s ~ %s", c.reset, c.at, s.Format("2006-01-02"), e.Format("2006-01-02"))
+		}
 	}
 }
 

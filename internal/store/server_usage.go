@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// 下线建议的固定口径：近 30 天活跃账户不超过 2 个，且当月流量低于均值的 20%。
+// 下线建议的固定口径：近 30 天活跃账户不超过 2 个，且当前周期流量低于均值的 20%。
 const (
 	idleWindowDays   = 30
 	idleMaxAccounts  = 2
@@ -22,7 +22,7 @@ type IdleServer struct {
 	Name, IP, Region, Supplier, ExpireDate string
 	MonthlyCents                           *int64 // 价格折算到每月，未设置价格为 nil
 	ActiveAccounts                         int    // 近 30 天 guard 上报的去重账户数
-	TrafficBytes                           int64  // 当月 vnstat 上下行合计
+	TrafficBytes                           int64  // 当前流量周期 vnstat 上下行合计
 	HasTraffic                             bool
 	Blockers                               []string // 下线前须先处理的原因
 	Candidate                              bool
@@ -47,9 +47,9 @@ func IdleServers(ctx context.Context, db *sql.DB, at time.Time) ([]IdleServer, e
  (SELECT count(DISTINCT o.account_no) FROM account_online_ip o WHERE o.node_ip=s.ip AND o.last_online_time>=?),
  coalesce(v.rx_bytes,0)+coalesce(v.tx_bytes,0), v.id IS NOT NULL
  FROM server s
- LEFT JOIN server_metrics v ON v.id=(SELECT id FROM server_metrics WHERE server_id=s.id AND kind='vnstat' AND period_year=? AND period_month=? ORDER BY sample_time DESC,id DESC LIMIT 1)
+ LEFT JOIN server_metrics v ON v.id=`+latestVnstatSQL+`
  WHERE s.disabled=0 AND s.external_server=0 ORDER BY s.id`,
-		FormatTime(at.AddDate(0, 0, -idleWindowDays)), at.Year(), int(at.Month()))
+		append([]any{FormatTime(at.AddDate(0, 0, -idleWindowDays))}, vnstatPeriodArgs(at)...)...)
 	if err != nil {
 		return nil, err
 	}

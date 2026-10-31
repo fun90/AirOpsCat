@@ -55,7 +55,14 @@ func SaveMonitorReport(ctx context.Context, db *sql.DB, r monitor.AgentReport, a
 	var hasVN bool
 	var err error
 	if r.Vnstat != "" {
-		vn, hasVN, err = monitor.ParseVnstat(r.Vnstat, at.In(Shanghai))
+		day, err := ServerResetDay(ctx, db, r.ServerID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("监控 agent 未登记")
+		}
+		if err != nil {
+			return err
+		}
+		vn, hasVN, err = monitor.ParseVnstat(r.Vnstat, at.In(Shanghai), day)
 		if err != nil {
 			return err
 		}
