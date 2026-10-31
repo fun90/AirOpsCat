@@ -18,27 +18,26 @@
         </ul>
     </div>
     <div class="card-body border-bottom py-3">
-        <form method="get" class="row g-2">
+        <form method="get" class="row g-2" onchange="this.requestSubmit()">
             {{if .Status}}<input type="hidden" name="status" value="{{.Status}}">{{end}}
             <div class="col-12 col-md-5 d-flex gap-2">
                 <input type="search" name="q" value="{{.Q}}" class="form-control" placeholder="名称 / 协议 / 端口 / 地区 / 备注" aria-label="搜索">
                 <button class="btn btn-icon d-lg-none" type="button" data-node-select-mode aria-pressed="false" aria-label="批量选择" title="批量选择"><i class="ti ti-checkbox" aria-hidden="true"></i></button>
-                <button class="btn btn-icon d-md-none" type="button" data-bs-toggle="collapse" data-bs-target="#nodeFilters" aria-expanded="false" aria-controls="nodeFilters" aria-label="更多筛选"><i class="ti ti-adjustments" aria-hidden="true"></i></button>
+                <button class="btn btn-icon d-md-none" type="button" data-bs-toggle="collapse" data-bs-target="#nodeFilters" aria-expanded="{{if or .Type .TagID}}true{{else}}false{{end}}" aria-controls="nodeFilters" aria-label="更多筛选"><i class="ti ti-chevron-down" aria-hidden="true"></i></button>
             </div>
             <div class="col-12 col-md-7 collapse d-md-block{{if or .Type .TagID}} show{{end}}" id="nodeFilters">
               <div class="row g-2">
-                <div class="col-6 col-md-4">
+                <div class="col-6 col-md-5">
                     <select name="type" class="form-select" aria-label="类型">
                         <option value="">全部类型</option>
                         <option value="0"{{if eq .Type "0"}} selected{{end}}>代理</option>
                         <option value="1"{{if eq .Type "1"}} selected{{end}}>落地</option>
                     </select></div>
-                <div class="col-6 col-md-5">
+                <div class="col-6 col-md-7">
                     <select name="tag" class="form-select" aria-label="标签">
                         <option value="">全部标签</option>
                         {{range .Tags}}<option value="{{.ID}}"{{if eq $.TagID (printf "%d" .ID)}} selected{{end}}>{{.Name}}</option>{{end}}
                     </select></div>
-                <div class="col-12 col-md-3"><button class="btn btn-outline-secondary w-100" type="submit">筛选</button></div>
               </div>
             </div>
         </form>

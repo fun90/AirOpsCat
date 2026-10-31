@@ -81,3 +81,7 @@
     /* 操作区高度与名称行（1.25rem）一致，在线信息和按钮对齐名称行，按钮多出的高度上下等量溢出 */
     .node-actions > div { height: 1.25rem; }
 }
+
+/* 折叠按钮的向下箭头在展开后转为向上；Tabler 没有按 aria-expanded 切换图标的工具类 */
+[aria-expanded] > .ti-chevron-down { transition: transform .2s; }
+[aria-expanded="true"] > .ti-chevron-down { transform: rotate(180deg); }
