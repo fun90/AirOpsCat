@@ -335,9 +335,12 @@ type PointedPlacement struct {
 }
 
 // PointedPlacements 按节点返回其域名当前解析到的部署位（自动或手动切换后即为承接方）；单部署位节点无需标注。
+// 只统计订阅会用到的域名：未暴露且未被订阅定制选中的部署位，其访问域名不算。
 func PointedPlacements(ctx context.Context, db *sql.DB) (map[int64][]PointedPlacement, error) {
 	rows, err := db.QueryContext(ctx, `WITH refs(node_id, rid) AS (
-		SELECT node_id, access_host_id FROM node_server WHERE access_host_id IS NOT NULL AND deployed <> 2
+		SELECT node_id, access_host_id FROM node_server ns WHERE access_host_id IS NOT NULL AND deployed <> 2
+			AND (coalesce(exposed, 1) <> 0 OR EXISTS(SELECT 1 FROM account_node_subscription_placement bp
+				JOIN account_node_subscription_domain_binding b ON b.id = bp.binding_id WHERE bp.node_server_id = ns.id AND b.enabled = 1))
 		UNION SELECT node_id, domain_dns_record_id FROM account_node_subscription_domain_binding WHERE enabled = 1 AND domain_dns_record_id IS NOT NULL)
 		SELECT t.node_id, t.id, coalesce(s.name, s.ip), group_concat(DISTINCT coalesce(r.full_name, r.name)) FROM refs JOIN domain_dns_record r ON r.id = refs.rid
 		JOIN node_server t ON t.node_id = refs.node_id AND t.deployed <> 2 JOIN server s ON s.id = t.server_id AND s.ip = r.content

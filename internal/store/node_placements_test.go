@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 )
 
@@ -88,5 +89,26 @@ func TestBatchNodePlacements(t *testing.T) {
 	}
 	if len(placementsOf(t, db, b)) != 2 || len(placementsOf(t, db, a)) != 2 {
 		t.Fatal("失败时应整体回滚")
+	}
+}
+
+func TestPointedPlacementsSkipsUnexposed(t *testing.T) {
+	db, ctx := testDB(t)
+	mustExec(t, db, `INSERT INTO server(id,ip)VALUES(1,'1.1.1.1'),(2,'2.2.2.2'),(3,'3.3.3.3')`)
+	mustExec(t, db, `INSERT INTO node(id,name,type,protocol,core_type)VALUES(1,'n',0,'vless','sing-box')`)
+	mustExec(t, db, `INSERT INTO domain(id,domain)VALUES(1,'example.com')`)
+	// a 已从 1 切到 2；c 是未暴露备用部署位自己的域名
+	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES
+		(1,1,'a','a.example.com','A','2.2.2.2','SYNCED'),(2,1,'b','b.example.com','A','2.2.2.2','SYNCED'),(3,1,'c','c.example.com','A','3.3.3.3','SYNCED')`)
+	mustExec(t, db, `INSERT INTO node_server(id,node_id,server_id,deployed,exposed,access_host_id)VALUES(1,1,1,1,1,1),(2,1,2,1,1,2),(3,1,3,1,0,3)`)
+	if m, err := PointedPlacements(ctx, db); err != nil || fmt.Sprint(m[1]) != "[{2 2.2.2.2 [a.example.com b.example.com]}]" {
+		t.Fatal("未暴露部署位不应标注", m, err)
+	}
+	// 被订阅定制选中后，未暴露部署位的访问域名也会下发
+	mustExec(t, db, `INSERT INTO account(id,account_no,uuid,auth_code,period_type)VALUES(1,'x','u','c','MONTHLY')`)
+	mustExec(t, db, `INSERT INTO account_node_subscription_domain_binding(id,account_id,node_id,enabled)VALUES(1,1,1,1)`)
+	mustExec(t, db, `INSERT INTO account_node_subscription_placement(binding_id,node_server_id)VALUES(1,3)`)
+	if m, _ := PointedPlacements(ctx, db); len(m[1]) != 2 || m[1][1].ID != 3 {
+		t.Fatal("订阅定制选中的部署位应标注", m)
 	}
 }
