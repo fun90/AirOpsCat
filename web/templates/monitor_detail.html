@@ -1,17 +1,17 @@
 {{define "actions"}}<a href="/admin/monitor" class="btn btn-outline-secondary">返回</a>{{end}}
 {{define "content"}}{{with .Server}}
 <div class="row g-3 mb-3">
-  <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">CPU</div><div class="h2 mb-0">{{.CPUText}}</div></div></div></div>
-  <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">内存</div><div class="h2 mb-0">{{.MemText}}</div></div></div></div>
-  <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">磁盘（/）</div><div class="h2 mb-0">{{.DiskText}}</div></div></div></div>
-  <div class="col-12 col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">网速</div><div class="h4 mb-0">{{.RateText}}</div></div></div></div>
-  <div class="col-12 col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">本期流量{{if .Iface}}（{{.Iface}}）{{end}}</div><div class="h4 mb-1">{{.UsageText}}</div>{{if and .BandwidthGB .HasVnstat}}<div class="progress progress-sm"><div class="progress-bar{{if ge .UsagePct 85}} bg-red{{end}}" style="width:{{.UsagePct}}%"></div></div>{{end}}{{if .PeriodText}}<div class="text-secondary small mt-1">{{.PeriodText}}</div>{{end}}</div></div></div>
+  <div class="col-4 col-lg-2"><div class="card h-100"><div class="card-body"><div class="text-secondary">CPU</div><div class="h2 mb-0">{{.CPUText}}</div></div></div></div>
+  <div class="col-4 col-lg-2"><div class="card h-100"><div class="card-body"><div class="text-secondary">内存</div><div class="h2 mb-0">{{.MemText}}</div></div></div></div>
+  <div class="col-4 col-lg-2"><div class="card h-100"><div class="card-body"><div class="text-secondary">磁盘</div><div class="h2 mb-0">{{.DiskText}}</div></div></div></div>
+  <div class="col-12 col-md-6 col-lg-3"><div class="card h-100"><div class="card-body"><div class="text-secondary">网速</div><div class="h4 mb-0">{{.RateText}}</div></div></div></div>
+  <div class="col-12 col-md-6 col-lg-3"><div class="card h-100"><div class="card-body"><div class="text-secondary">本期流量{{if .Iface}}（{{.Iface}}）{{end}}</div><div class="h4 mb-1">{{.UsageText}}</div>{{if and .BandwidthGB .HasVnstat}}<div class="progress progress-sm"><div class="progress-bar{{if ge .UsagePct 85}} bg-red{{end}}" style="width:{{.UsagePct}}%"></div></div>{{end}}{{if .PeriodText}}<div class="text-secondary small mt-1">{{.PeriodText}}</div>{{end}}</div></div></div>
 </div>
-<div class="mb-2">在线账户：{{.Online}} · sing-box：{{.SingboxText}}</div>
+<div class="mb-2">在线：{{.Online}} · sing-box：<span{{if eq .SingboxText "已停止"}} class="text-red"{{end}}>{{.SingboxText}}</span></div>
 <div class="text-secondary small mb-3">{{.IP}} · 最近上报 {{if .Sampled}}{{.Sampled}}{{else}}暂无{{end}}{{if .Stale}} <span class="badge bg-yellow-lt">数据陈旧</span>{{end}}</div>
 {{end}}
 <div class="row g-3">{{range .Charts}}
-  <div class="col-12 col-md-6"><div class="card"><div class="card-header"><h3 class="card-title">{{.Title}}（最近 24 小时）</h3><div class="ms-auto text-secondary">当前 {{.Last}}</div></div>
+  <div class="col-12 col-md-6"><div class="card"><div class="card-header"><h3 class="card-title">{{.Title}}（最近 24 小时）</h3><div class="ms-auto text-secondary text-nowrap">当前 {{.Last}}</div></div>
     <div class="card-body"><svg viewBox="0 0 300 80" class="w-100" style="height:120px" role="img" aria-label="{{.Title}}趋势" preserveAspectRatio="none"><line x1="0" y1="2" x2="300" y2="2" stroke="currentColor" opacity=".15"/><line x1="0" y1="78" x2="300" y2="78" stroke="currentColor" opacity=".15"/>{{if .Points}}<polyline points="{{.Points}}" fill="none" stroke="#206bc4" stroke-width="1.5" vector-effect="non-scaling-stroke"/>{{end}}</svg>{{if not .Points}}<div class="text-secondary small text-center">采样不足，暂无趋势</div>{{end}}</div></div></div>
 {{end}}</div>
 {{end}}
