@@ -76,7 +76,7 @@ func TestAlertResolveFingerprint(t *testing.T) {
 	if ok, _ := AlertResolveFingerprint(ctx, db, "server-monitor-load", "server", 1, "cpu:1", now); ok {
 		t.Fatal("重复恢复应返回 false")
 	}
-	if n := AlertActiveCount(ctx, db); n != 1 {
+	if n := alertActiveCount(db); n != 1 {
 		t.Fatalf("memory 告警不应受影响: %d", n)
 	}
 }

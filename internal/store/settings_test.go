@@ -37,7 +37,7 @@ func TestSettingsSensitivePreservedAndValidated(t *testing.T) {
 			t.Fatalf("敏感配置泄露或未标记：%+v", v)
 		}
 	}
-	if err := SaveSetting(ctx, db, c, "airopscat.api.token", ""); err != nil {
+	if err := SaveSettings(ctx, db, c, map[string]string{"airopscat.api.token": ""}); err != nil {
 		t.Fatal(err)
 	}
 	var got string
@@ -45,7 +45,7 @@ func TestSettingsSensitivePreservedAndValidated(t *testing.T) {
 	if got != before {
 		t.Fatal("敏感空提交应保留原值")
 	}
-	if err := SaveSetting(ctx, db, c, "airopscat.api.token", "next-token"); err != nil {
+	if err := SaveSettings(ctx, db, c, map[string]string{"airopscat.api.token": "next-token"}); err != nil {
 		t.Fatal(err)
 	}
 	db.QueryRow(`SELECT config_value FROM system_config WHERE config_key='airopscat.api.token'`).Scan(&got)
@@ -54,7 +54,7 @@ func TestSettingsSensitivePreservedAndValidated(t *testing.T) {
 		t.Fatalf("敏感配置应加密：%q %v", got, err)
 	}
 	for _, tc := range []struct{ key, value string }{{"missing.key", "x"}, {"airopscat.subscription.url", "ftp://bad"}, {"airopscat.ratelimit.enabled", "yes"}, {"airopscat.account.guard.ttl-seconds", "4"}} {
-		if err := SaveSetting(ctx, db, c, tc.key, tc.value); err == nil {
+		if err := SaveSettings(ctx, db, c, map[string]string{tc.key: tc.value}); err == nil {
 			t.Fatalf("应拒绝 %#v", tc)
 		}
 	}
@@ -121,7 +121,7 @@ func TestSettingsRuntimeAndLogCleanup(t *testing.T) {
 			t.Fatal("已有值被覆盖")
 		}
 	}
-	if err := SaveSetting(ctx, db, nil, "airopscat.backup.dir", "/new"); err == nil {
+	if err := SaveSettings(ctx, db, nil, map[string]string{"airopscat.backup.dir": "/new"}); err == nil {
 		t.Fatal("失效项不应写入")
 	}
 	now := time.Now()

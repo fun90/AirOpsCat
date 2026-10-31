@@ -167,11 +167,6 @@ func AlertList(ctx context.Context, db *sql.DB, status, q string, page, size int
 	return list, total, err
 }
 
-func AlertActiveCount(ctx context.Context, db *sql.DB) (n int) {
-	db.QueryRowContext(ctx, `SELECT count(*) FROM alert_state WHERE status='ACTIVE'`).Scan(&n)
-	return
-}
-
 // AlertResolveMissing 恢复某类型下资源不在 keep 中的所有未恢复告警（资源被删除、禁用或不再满足条件）。
 func AlertResolveMissing(ctx context.Context, db *sql.DB, alertType, resourceType string, keep map[int64]bool, now time.Time) ([]Alert, error) {
 	rows, err := db.QueryContext(ctx, alertSel+` WHERE alert_type=? AND resource_type=? AND status<>'RECOVERED'`, alertType, resourceType)

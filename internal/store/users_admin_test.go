@@ -98,7 +98,9 @@ func TestManagedUserCRUD(t *testing.T) {
 func TestDisableUserKeepsAccounts(t *testing.T) {
 	db, ctx := testDB(t)
 	r := onboard(t, db, "a@example.com", nil)
-	if err := SetUserDisabled(ctx, db, r.UserID, true); err != nil {
+	u, _ := ManagedUserByID(ctx, db, r.UserID)
+	u.Disabled = true
+	if err := SaveManagedUser(ctx, db, u, ""); err != nil {
 		t.Fatal(err)
 	}
 	if u, _ := ManagedUserByID(ctx, db, r.UserID); !u.Disabled {
@@ -106,9 +108,6 @@ func TestDisableUserKeepsAccounts(t *testing.T) {
 	}
 	if a, _ := AccountByID(ctx, db, r.AccountID); a.Disabled {
 		t.Fatal("禁用用户不应连带停用账户")
-	}
-	if err := SetUserDisabled(ctx, db, 999, true); !errors.Is(err, sql.ErrNoRows) {
-		t.Fatal(err)
 	}
 }
 

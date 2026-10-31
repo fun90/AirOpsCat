@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"testing"
 	"time"
 )
@@ -50,7 +51,7 @@ func TestAlertStateMachine(t *testing.T) {
 	if total != 1 || list[0].Count != 1 || list[0].AckBy != "" || list[0].Summary != "again" {
 		t.Fatalf("重置不完整: %+v", list)
 	}
-	if AlertActiveCount(ctx, db) != 1 {
+	if alertActiveCount(db) != 1 {
 		t.Fatal("进行中计数")
 	}
 	if err := AlertRecoverManual(ctx, db, id, t0); err != nil {
@@ -99,4 +100,9 @@ func TestOverQuotaAccounts(t *testing.T) {
 	if err != nil || len(got) != 1 || got[0].AccountNo != "a1" || got[0].UsedGB != 2 || got[0].QuotaGB != 1 {
 		t.Fatalf("%v %+v", err, got)
 	}
+}
+
+func alertActiveCount(db *sql.DB) (n int) {
+	db.QueryRow(`SELECT count(*) FROM alert_state WHERE status='ACTIVE'`).Scan(&n)
+	return
 }

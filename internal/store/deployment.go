@@ -48,13 +48,6 @@ func ClearHostKey(ctx context.Context, db *sql.DB, serverID int64) error {
 	return err
 }
 
-// RecordDeployment 在短事务内写入整机下发结果。
-// 成功且 applyPlacements 时同步部署位状态：待删除物理删除（节点无剩余部署位且未被引用则一并删除），
-// 待部署且节点未禁用的置已部署（禁用节点保持待部署，决策 20 第 5 条）；失败只写结果，部署位不变。
-func RecordDeployment(ctx context.Context, db *sql.DB, serverID int64, configSHA256 string, success bool, message string, applyPlacements bool) error {
-	return recordDeployment(ctx, db, serverID, configSHA256, success, message, applyPlacements, nil, nil)
-}
-
 // DeploymentRevision 覆盖所有配置依赖表的写入；部署期间有变更则不确认部署位状态。
 func DeploymentRevision(ctx context.Context, db *sql.DB) (int64, error) {
 	var rev int64
@@ -62,17 +55,17 @@ func DeploymentRevision(ctx context.Context, db *sql.DB) (int64, error) {
 	return rev, err
 }
 
-func RecordDeploymentRevision(ctx context.Context, db *sql.DB, serverID int64, hash string, success bool, message string, revision int64) error {
-	return recordDeployment(ctx, db, serverID, hash, success, message, true, &revision, nil)
-}
-
-func recordDeployment(ctx context.Context, db *sql.DB, serverID int64, configSHA256 string, success bool, message string, applyPlacements bool, revision *int64, snapshots []DeploymentSnapshot) error {
+// recordDeployment 在短事务内写入整机下发结果。
+// 成功且部署期间数据未变化时同步部署位状态：待删除物理删除（节点无剩余部署位且未被引用则一并删除），
+// 待部署且节点未禁用的置已部署（禁用节点保持待部署，决策 20 第 5 条）；失败只写结果，部署位不变。
+func recordDeployment(ctx context.Context, db *sql.DB, serverID int64, configSHA256 string, success bool, message string, revision *int64, snapshots []DeploymentSnapshot) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 	now := FormatTime(nowFunc())
+	applyPlacements := true
 	if success && revision != nil {
 		var current int64
 		if err := tx.QueryRowContext(ctx, `SELECT revision FROM deploy_revision WHERE id=1`).Scan(&current); err != nil {

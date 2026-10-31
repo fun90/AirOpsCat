@@ -41,16 +41,6 @@ func ListRenewals(ctx context.Context, db *sql.DB) ([]RenewalItem, error) {
 	return out, rows.Err()
 }
 
-// addMonths 按日历月顺延并截断到月末（1-31 加 1 月得 2-28，而非 3 月初）。
-func addMonths(t time.Time, n int) time.Time {
-	y, m, d := t.Date()
-	last := time.Date(y, m+time.Month(n)+1, 0, 0, 0, 0, 0, t.Location())
-	if d > last.Day() {
-		d = last.Day()
-	}
-	return time.Date(last.Year(), last.Month(), d, 0, 0, 0, 0, t.Location())
-}
-
 // RenewResource 把服务器或域名到期日改为 newExpire（须晚于今天和原到期日），
 // 并在同一事务记一笔金额为 amountCents 的支出，月数按日历月差写入流水说明。
 func RenewResource(ctx context.Context, db *sql.DB, table string, id int64, newExpire string, amountCents int64, method string) error {

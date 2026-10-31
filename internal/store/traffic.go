@@ -139,55 +139,6 @@ type MbpsLimits struct {
 	QuotaLimited             bool
 }
 
-// EffectiveLimits 每次按当前周期和配置重新判定；关闭全局开关仍保留账户原生限速。
-func EffectiveLimits(ctx context.Context, db *sql.DB, accountID int64, at time.Time) (*MbpsLimits, error) {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	u, err := accountUsage(ctx, tx, accountID, at)
-	if err != nil {
-		return nil, err
-	}
-	l := &MbpsLimits{}
-	if err = tx.QueryRowContext(ctx, `SELECT coalesce(download_mbps,0),coalesce(upload_mbps,0) FROM account WHERE id=?`, accountID).Scan(&l.DownloadMbps, &l.UploadMbps); err != nil {
-		return nil, err
-	}
-	config := func(key string) (string, error) {
-		var v sql.NullString
-		err := tx.QueryRowContext(ctx, `SELECT config_value FROM system_config WHERE config_key=?`, key).Scan(&v)
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", nil
-		}
-		return strings.TrimSpace(v.String), err
-	}
-	enabled, err := config("airopscat.ratelimit.enabled")
-	if err != nil {
-		return nil, err
-	}
-	// 除法比较避免 GB 转 bytes 溢出。
-	l.OverQuota = u.QuotaGB > 0 && u.UsedBytes/(1<<30) >= u.QuotaGB
-	if strings.EqualFold(enabled, "true") && l.OverQuota {
-		l.QuotaLimited = true
-		for _, c := range []struct {
-			key string
-			dst *int
-		}{{"download", &l.DownloadMbps}, {"upload", &l.UploadMbps}} {
-			raw, err := config("airopscat.account.traffic-over-quota." + c.key + "-mbps")
-			if err != nil {
-				return nil, err
-			}
-			n, err := strconv.Atoi(raw)
-			if err != nil {
-				n = 1
-			}
-			*c.dst = max(1, n)
-		}
-	}
-	return l, tx.Commit()
-}
-
 // EffectiveLimitOverrides 在调用方已有事务内批量读取活跃账户限速，配置和账户各查一次。
 // 返回值按 accountNo 索引，包含原生限速；OverQuota 表示用量状态，开关关闭时不覆盖速度。
 // CaptureDeployment 持有事务时应传入该事务，不应调用另开事务的 LoadEffectiveLimits。
@@ -250,21 +201,6 @@ func EffectiveLimitOverrides(ctx context.Context, q dbtx, at time.Time) (map[str
 		limits[no] = l
 	}
 	return limits, rows.Err()
-}
-
-// LoadEffectiveLimits 在同一快照内装载全部活跃账户限速，不使用缓存。
-// 返回的 map 是本次读取快照；若在后续部署事务外调用，配置或配额可在部署前变化。
-func LoadEffectiveLimits(ctx context.Context, db *sql.DB, at time.Time) (map[string]MbpsLimits, error) {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	limits, err := EffectiveLimitOverrides(ctx, tx, at)
-	if err != nil {
-		return nil, err
-	}
-	return limits, tx.Commit()
 }
 
 // TrafficReading 是 reset=false 的单方向原始累计字节数。

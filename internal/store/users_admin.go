@@ -202,19 +202,6 @@ func SaveManagedUser(ctx context.Context, db *sql.DB, u *ManagedUser, password s
 	return tx.Commit()
 }
 
-// SetUserDisabled 启停用户；只影响登录，不连带其名下账户（决策 24 D6）。
-func SetUserDisabled(ctx context.Context, db *sql.DB, id int64, disabled bool) error {
-	u, err := ManagedUserByID(ctx, db, id)
-	if err != nil {
-		return err
-	}
-	if u == nil {
-		return sql.ErrNoRows
-	}
-	u.Disabled = disabled
-	return SaveManagedUser(ctx, db, u, "")
-}
-
 // DeleteManagedUser 删除用户。禁止删除自己、最后一个 ADMIN 和名下仍有账户的用户。
 func DeleteManagedUser(ctx context.Context, db *sql.DB, id, currentUserID int64) error {
 	if id == currentUserID {

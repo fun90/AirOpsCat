@@ -77,12 +77,7 @@ func Settings(ctx context.Context, db *sql.DB) ([]Setting, error) {
 	return out, rows.Err()
 }
 
-// SaveSetting 只更新已有键；敏感值留空保留，API token 不提供清除操作。
-func SaveSetting(ctx context.Context, db *sql.DB, cipher *crypto.Cipher, key, value string) error {
-	return saveSetting(ctx, db, cipher, key, value)
-}
-
-// SaveSettings 在同一事务中保存多项；任何一项不合法则全部不生效。
+// SaveSettings 在同一事务中保存多项；任何一项不合法则全部不生效。只更新已有键；敏感值留空保留，API token 不提供清除操作。
 func SaveSettings(ctx context.Context, db *sql.DB, cipher *crypto.Cipher, kv map[string]string) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {

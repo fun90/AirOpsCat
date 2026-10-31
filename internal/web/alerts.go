@@ -21,7 +21,6 @@ const (
 	alertExpiring    = "-expiring"           // 前缀为资源类型：server / domain / account
 	alertMonitorLoad = "server-monitor-load" // 指纹 cpu:ID / memory:ID / traffic:ID，与既有数据一致
 	alertDeployFail  = "server-deploy-failed"
-	expiringDays     = 7
 )
 
 var alertTypeNames = map[string]string{

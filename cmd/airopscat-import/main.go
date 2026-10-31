@@ -220,8 +220,6 @@ func (im *importer) precheck(ctx context.Context, dropSpeed bool) error {
 	return nil
 }
 
-type colInfo struct{ name, srcType string }
-
 func (im *importer) srcColumns(ctx context.Context, tbl string) (map[string]string, error) {
 	rows, err := im.src.QueryContext(ctx, `select column_name, data_type from information_schema.columns where table_schema = database() and table_name = ?`, tbl)
 	if err != nil {

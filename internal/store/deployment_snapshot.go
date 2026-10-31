@@ -117,7 +117,7 @@ func CaptureDeployment(ctx context.Context, db *sql.DB, serverID int64, opts Loa
 // RecordDeploymentSnapshots 原子记录整机结果与本次提交的精确快照。
 // revision 冲突仅阻止确认部署位，不阻止记录实际已下发的快照；失败不更新快照。
 func RecordDeploymentSnapshots(ctx context.Context, db *sql.DB, serverID int64, hash string, success bool, message string, revision int64, snapshots []DeploymentSnapshot) error {
-	return recordDeployment(ctx, db, serverID, hash, success, message, true, &revision, snapshots)
+	return recordDeployment(ctx, db, serverID, hash, success, message, &revision, snapshots)
 }
 
 func saveDeploymentSnapshots(ctx context.Context, tx *sql.Tx, serverID int64, snapshots []DeploymentSnapshot, now string) error {

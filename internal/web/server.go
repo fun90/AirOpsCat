@@ -316,7 +316,6 @@ func pageURL(query string, page int) string {
 
 var funcs = template.FuncMap{
 	"pageURL":   pageURL,
-	"lower":     strings.ToLower,
 	"hasPrefix": strings.HasPrefix,
 	"gb":        func(b int64) string { return fmt.Sprintf("%.2f GB", float64(b)/(1<<30)) },
 	"dbtime": func(v any) string {

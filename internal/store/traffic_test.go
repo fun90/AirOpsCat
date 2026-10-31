@@ -201,24 +201,24 @@ func TestTrafficLimitsAndCleanup(t *testing.T) {
 	at := trafficTime(t, "2026-06-01 00:00:00")
 	trafficExec(t, db, `UPDATE account SET download_mbps=30,upload_mbps=40 WHERE id=?`, id)
 	trafficExec(t, db, `INSERT INTO account_traffic_stats(account_id,period_start,period_end,upload_bytes,bandwidth_quota) VALUES(?,'2026-01-01 00:00:00','2027-01-01 00:00:00',?,NULL)`, id, int64(1<<30))
-	l, err := EffectiveLimits(ctx, db, id, at)
+	l, err := limitsOf(ctx, db, "A1", at)
 	if err != nil || l.DownloadMbps != 30 || l.UploadMbps != 40 || !l.OverQuota {
 		t.Fatal(l, err)
 	}
 	for k, v := range map[string]string{"airopscat.ratelimit.enabled": "true", "airopscat.account.traffic-over-quota.download-mbps": "7", "airopscat.account.traffic-over-quota.upload-mbps": "0"} {
 		trafficExec(t, db, `INSERT INTO system_config(config_key,config_value,group_key) VALUES(?,?,'traffic')`, k, v)
 	}
-	l, err = EffectiveLimits(ctx, db, id, at)
+	l, err = limitsOf(ctx, db, "A1", at)
 	if err != nil || l.DownloadMbps != 7 || l.UploadMbps != 1 {
 		t.Fatal(l, err)
 	}
 	trafficExec(t, db, `UPDATE account_traffic_stats SET bandwidth_quota=0 WHERE account_id=?`, id)
-	l, err = EffectiveLimits(ctx, db, id, at)
+	l, err = limitsOf(ctx, db, "A1", at)
 	if err != nil || l.OverQuota || l.DownloadMbps != 30 {
 		t.Fatal(l, err)
 	}
 	trafficExec(t, db, `UPDATE account_traffic_stats SET bandwidth_quota=1 WHERE account_id=?`, id)
-	l, err = EffectiveLimits(ctx, db, id, trafficTime(t, "2027-01-01 00:00:00"))
+	l, err = limitsOf(ctx, db, "A1", trafficTime(t, "2027-01-01 00:00:00"))
 	if err != nil || l.OverQuota || l.DownloadMbps != 30 {
 		t.Fatal(l, err)
 	}
@@ -308,27 +308,22 @@ func TestTrafficBatchLimitsReuseTransaction(t *testing.T) {
 	if err = tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
-	limits, err = LoadEffectiveLimits(ctx, db, at)
+	limits, err = loadLimits(ctx, db, at)
 	if err != nil {
 		t.Fatal(err)
 	}
-	single, err := EffectiveLimits(ctx, db, id, at)
-	if err != nil || limits["A1"] != *single {
-		t.Fatal(limits, single, err)
-	}
 	trafficExec(t, db, `UPDATE system_config SET config_value='false' WHERE config_key='airopscat.ratelimit.enabled'`)
-	limits, err = LoadEffectiveLimits(ctx, db, at)
-	single, errSingle := EffectiveLimits(ctx, db, id, at)
-	if err != nil || errSingle != nil || limits["A1"] != *single || !single.OverQuota || single.DownloadMbps != 30 {
-		t.Fatal(limits, single, err, errSingle)
+	limits, err = loadLimits(ctx, db, at)
+	if err != nil || !limits["A1"].OverQuota || limits["A1"].DownloadMbps != 30 {
+		t.Fatal(limits, err)
 	}
 	trafficExec(t, db, `UPDATE account SET to_date=? WHERE id=?`, FormatTime(at), id)
-	expired, err := LoadEffectiveLimits(ctx, db, at)
+	expired, err := loadLimits(ctx, db, at)
 	if err != nil || len(expired) != 0 {
 		t.Fatal("到期边界必须过滤", expired, err)
 	}
 	trafficExec(t, db, `UPDATE account SET to_date=NULL WHERE id=?`, id)
-	limits, err = LoadEffectiveLimits(ctx, db, trafficTime(t, "2026-02-01 00:00:00"))
+	limits, err = loadLimits(ctx, db, trafficTime(t, "2026-02-01 00:00:00"))
 	if err != nil || limits["A1"].OverQuota || limits["A1"].DownloadMbps != 30 {
 		t.Fatal(limits, err)
 	}
@@ -429,4 +424,18 @@ func TestAccountTrafficHistoryAndUsedSort(t *testing.T) {
 	if err != nil || len(rows) != 2 || rows[0].ID != b {
 		t.Fatal(rows, err)
 	}
+}
+
+func loadLimits(ctx context.Context, db *sql.DB, at time.Time) (map[string]MbpsLimits, error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	return EffectiveLimitOverrides(ctx, tx, at)
+}
+
+func limitsOf(ctx context.Context, db *sql.DB, code string, at time.Time) (MbpsLimits, error) {
+	m, err := loadLimits(ctx, db, at)
+	return m[code], err
 }
