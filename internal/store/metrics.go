@@ -87,9 +87,16 @@ func ServerResetDay(ctx context.Context, db *sql.DB, serverID int64) (int, error
 	return day, err
 }
 
+// insertVnstatSQL 写入时叠加本周期流量校准值；校准值计入 tx，下游只用上下行合计。
+const insertVnstatSQL = `INSERT INTO server_metrics(server_id,kind,sample_time,iface,period_year,period_month,rx_bytes,tx_bytes)
+ SELECT id,'vnstat',?,?,?,?,?,?+CASE WHEN traffic_offset_period=? THEN traffic_offset ELSE 0 END FROM server WHERE id=?`
+
+func vnstatArgs(serverID int64, v monitor.Vnstat, at time.Time) []any {
+	return []any{FormatTime(at), v.Iface, v.Year, v.Month, v.RxBytes, v.TxBytes, fmt.Sprintf("%04d-%02d", v.Year, v.Month), serverID}
+}
+
 func InsertVnstatSample(ctx context.Context, db *sql.DB, serverID int64, v monitor.Vnstat, at time.Time) error {
-	_, err := db.ExecContext(ctx, `INSERT INTO server_metrics(server_id,kind,sample_time,iface,period_year,period_month,rx_bytes,tx_bytes) VALUES(?,'vnstat',?,?,?,?,?,?)`,
-		serverID, FormatTime(at), v.Iface, v.Year, v.Month, v.RxBytes, v.TxBytes)
+	_, err := db.ExecContext(ctx, insertVnstatSQL, vnstatArgs(serverID, v, at)...)
 	return err
 }
 

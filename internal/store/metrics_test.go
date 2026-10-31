@@ -80,3 +80,21 @@ func TestAlertResolveFingerprint(t *testing.T) {
 		t.Fatalf("memory 告警不应受影响: %d", n)
 	}
 }
+
+func TestVnstatTrafficOffset(t *testing.T) {
+	db, ctx := testDB(t)
+	mustExec(t, db, `INSERT INTO server(id,ip,name,traffic_offset,traffic_offset_period) VALUES(1,'1.1.1.1','HK',7000,'2026-10')`)
+	at := time.Date(2026, 10, 20, 12, 0, 0, 0, Shanghai)
+	InsertVnstatSample(ctx, db, 1, monitor.Vnstat{Iface: "eth0", Year: 2026, Month: 10, RxBytes: 100, TxBytes: 200}, at)
+	InsertVnstatSample(ctx, db, 1, monitor.Vnstat{Iface: "eth0", Year: 2026, Month: 11, RxBytes: 100, TxBytes: 200}, at)
+	var sums []int64
+	rows, _ := db.QueryContext(ctx, `SELECT rx_bytes+tx_bytes FROM server_metrics WHERE kind='vnstat' ORDER BY id`)
+	for rows.Next() {
+		var v int64
+		rows.Scan(&v)
+		sums = append(sums, v)
+	}
+	if len(sums) != 2 || sums[0] != 7300 || sums[1] != 300 {
+		t.Fatalf("校准值只应叠加到所属周期: %v", sums)
+	}
+}

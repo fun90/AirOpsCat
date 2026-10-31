@@ -90,7 +90,7 @@ func SaveMonitorReport(ctx context.Context, db *sql.DB, r monitor.AgentReport, a
 		}
 	}
 	if hasVN {
-		_, err = tx.ExecContext(ctx, `INSERT INTO server_metrics(server_id,kind,sample_time,iface,period_year,period_month,rx_bytes,tx_bytes) VALUES(?,'vnstat',?,?,?,?,?,?)`, r.ServerID, FormatTime(at), vn.Iface, vn.Year, vn.Month, vn.RxBytes, vn.TxBytes)
+		_, err = tx.ExecContext(ctx, insertVnstatSQL, vnstatArgs(r.ServerID, vn, at)...)
 		if err != nil {
 			return err
 		}
