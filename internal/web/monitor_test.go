@@ -34,7 +34,7 @@ func TestMonitorTrafficDecimalGB(t *testing.T) {
 	if err != nil || len(list) != 1 {
 		t.Fatalf("读取失败: %v, %+v", err, list)
 	}
-	if got := newStatusView(list[0], at).UsageText; got != "21.0 / 100 GB（21.0%）" {
+	if got := newStatusView(list[0], at).UsageText; got != "21.0 / 100 GB" {
 		t.Fatalf("应与十进制 GB 一致，实际 %q", got)
 	}
 	if got := newStatusView(list[0], at).PeriodText; got != "2026-10-01 至 2026-10-31" {
@@ -56,7 +56,7 @@ func TestMonitorTrafficDecimalGB(t *testing.T) {
 		t.Fatal(err)
 	}
 	list, _, _ = store.ServerStatuses(context.Background(), a.DB, "", 1, 20, at)
-	if v := newStatusView(list[0], at); !list[0].HasVnstat || v.UsageText != "5.0 / 100 GB（5.0%）" || v.PeriodText != "2026-09-24 至 2026-10-23" {
+	if v := newStatusView(list[0], at); !list[0].HasVnstat || v.UsageText != "5.0 / 100 GB" || v.PeriodText != "2026-09-24 至 2026-10-23" {
 		t.Fatalf("应按重置日取周期：%+v", v)
 	}
 }

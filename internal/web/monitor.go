@@ -258,7 +258,7 @@ func (s *Server) evaluateServerHealth(ctx context.Context, st store.ServerStatus
 type statusView struct {
 	store.ServerStatus
 	SingboxText, CPUText, MemText, DiskText, RateText, UsageText string
-	PeriodText                                                   string
+	PeriodText, UsagePctText                                     string
 	Stale                                                        bool
 	Online                                                       string
 	UsagePct                                                     int
@@ -292,7 +292,8 @@ func newStatusView(st store.ServerStatus, now time.Time) statusView {
 	if st.HasVnstat {
 		used := (float64(st.VnstatRx) + float64(st.VnstatTx)) / 1e9
 		if st.BandwidthGB > 0 {
-			v.UsageText = fmt.Sprintf("%.1f / %d GB（%.1f%%）", used, st.BandwidthGB, st.UsageRatio()*100)
+			v.UsageText = fmt.Sprintf("%.1f / %d GB", used, st.BandwidthGB)
+			v.UsagePctText = fmt.Sprintf("%.1f%%", st.UsageRatio()*100)
 			v.UsagePct = min(int(st.UsageRatio()*100), 100)
 		} else {
 			v.UsageText = fmt.Sprintf("%.1f GB", used)
