@@ -7,8 +7,10 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fun90/airopscat/internal/auth"
+	"github.com/fun90/airopscat/internal/store"
 	assets "github.com/fun90/airopscat/web"
 )
 
@@ -65,6 +67,15 @@ func TestTransactionHTTPFlow(t *testing.T) {
 	list := do(h, "GET", "/admin/transactions?q=收入&type=0&start_date=2026-10-20&end_date=2026-10-20", nil, cookie, nil)
 	if list.Code != http.StatusOK || !strings.Contains(list.Body.String(), "&lt;b&gt;收入&lt;/b&gt;") {
 		t.Fatalf("列表/转义 %d %s", list.Code, list.Body.String())
+	}
+	// 不带日期参数默认当月，清空日期查看全部
+	now := time.Now().In(store.Shanghai)
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, store.Shanghai)
+	if w := do(h, "GET", "/admin/transactions", nil, cookie, nil); !strings.Contains(w.Body.String(), `value="`+monthStart.Format("2006-01-02")+`"`) || !strings.Contains(w.Body.String(), `value="`+monthStart.AddDate(0, 1, -1).Format("2006-01-02")+`"`) || strings.Contains(w.Body.String(), "&lt;b&gt;收入") != (monthStart.Format("2006-01") == "2026-10") {
+		t.Fatalf("默认当月 %s", w.Body.String())
+	}
+	if w := do(h, "GET", "/admin/transactions?start_date=&end_date=", nil, cookie, nil); !strings.Contains(w.Body.String(), "&lt;b&gt;收入") {
+		t.Fatalf("清空日期应显示全部 %s", w.Body.String())
 	}
 	bad := url.Values{"transaction_date": {"2026-10-20T12:00:00"}, "type": {"0"}, "amount": {"1.234"}}
 	if w := post("/admin/transactions/1", bad); w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), "最多 2 位小数") {

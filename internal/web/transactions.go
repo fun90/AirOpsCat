@@ -64,16 +64,23 @@ func transactionFilter(r *http.Request) (store.TransactionFilter, string, string
 		}
 		f.Type = &n
 	}
-	start, err := transactionFilterDate(r.URL.Query().Get("start_date"), false)
+	startRaw, endRaw := r.URL.Query().Get("start_date"), r.URL.Query().Get("end_date")
+	// 未带日期参数时默认当月；参数存在但为空表示用户清空了日期，查看全部
+	if !r.URL.Query().Has("start_date") && !r.URL.Query().Has("end_date") {
+		now := time.Now().In(store.Shanghai)
+		first := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, store.Shanghai)
+		startRaw, endRaw = first.Format("2006-01-02"), first.AddDate(0, 1, -1).Format("2006-01-02")
+	}
+	start, err := transactionFilterDate(startRaw, false)
 	if err != nil {
 		return f, "", "", err
 	}
-	end, err := transactionFilterDate(r.URL.Query().Get("end_date"), true)
+	end, err := transactionFilterDate(endRaw, true)
 	if err != nil {
 		return f, "", "", err
 	}
 	f.StartDate, f.EndDate = start, end
-	return f, r.URL.Query().Get("start_date"), r.URL.Query().Get("end_date"), nil
+	return f, startRaw, endRaw, nil
 }
 
 func transactionFilterDate(raw string, end bool) (*time.Time, error) {
