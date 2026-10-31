@@ -39,7 +39,10 @@ for pid in $(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null); do
 done
 
 cd "$(dirname "$0")/.."
-echo "启动 http://$listen （数据库 $dir/prod.db，外发已禁用）"
+# 管理员会话令牌供 curl -b "airopscat_session=$(cat $dir/token)" 与 scripts/screenshot.mjs 自查页面，12 小时有效
+rm -f "$dir/token"
+AIROPSCAT_SECRET_KEY="$secret" AIROPSCAT_DB="$dir/prod.db" go run ./scripts/localtoken "$dir/token"
+echo "启动 http://$listen （数据库 $dir/prod.db，外发已禁用，会话令牌 $dir/token）"
 AIROPSCAT_SECRET_KEY="$secret" AIROPSCAT_DB="$dir/prod.db" AIROPSCAT_LISTEN="$listen" \
 	AIROPSCAT_BACKUP_DIR="$dir/backup" AIROPSCAT_TASKS_DISABLED=1 AIROPSCAT_OUTBOUND_DISABLED=1 \
 	exec go run ./cmd/airopscat
