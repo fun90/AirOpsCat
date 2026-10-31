@@ -599,6 +599,11 @@ func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []
 	if old == nil {
 		return 0, sql.ErrNoRows
 	}
+	if n.Disabled && !old.Disabled {
+		if err := checkNotOutbound(ctx, tx, n.ID, "禁用"); err != nil {
+			return 0, err
+		}
+	}
 	oldSig, oldOutSig := old.signature(old.TagIDs), old.outboundSignature()
 	prevEffective, err := effectiveServer(ctx, tx, n.ID)
 	if err != nil {
@@ -722,13 +727,31 @@ func applyNewHosts(ctx context.Context, tx *sql.Tx, nodeID int64, hosts []*NewHo
 	return nil
 }
 
-// ToggleNode 启用/禁用节点，本节点及引用它的代理节点置为待部署。
+// checkNotOutbound 拒绝删除或禁用仍被节点、路由规则引用为出站的节点：
+// 代理配置不看落地是否禁用，禁用后代理仍会把流量转给已撤掉入站的落地。
+func checkNotOutbound(ctx context.Context, q dbtx, id int64, action string) error {
+	var refs int
+	if err := q.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM node WHERE out_id = ?) + (SELECT count(*) FROM route_rule WHERE outbound_node_id = ?)`, id, id).Scan(&refs); err != nil {
+		return err
+	}
+	if refs > 0 {
+		return fmt.Errorf("%w：该节点被 %d 个节点或路由规则引用为出站，请先解除引用再%s", ErrConflict, refs, action)
+	}
+	return nil
+}
+
+// ToggleNode 启用/禁用节点，本节点及引用它的代理节点置为待部署；仍被引用为出站时拒绝禁用。
 func ToggleNode(ctx context.Context, db *sql.DB, id int64, disabled bool) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	if disabled {
+		if err := checkNotOutbound(ctx, tx, id, "禁用"); err != nil {
+			return err
+		}
+	}
 	res, err := tx.ExecContext(ctx, `UPDATE node SET disabled = ?, update_time = ? WHERE id = ?`, disabled, FormatTime(nowFunc()), id)
 	if err != nil {
 		return err
@@ -753,10 +776,8 @@ func DeleteNode(ctx context.Context, db *sql.DB, id int64) (bool, error) {
 		return false, err
 	}
 	defer tx.Rollback()
-	var refs int
-	tx.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM node WHERE out_id = ?) + (SELECT count(*) FROM route_rule WHERE outbound_node_id = ?)`, id, id).Scan(&refs)
-	if refs > 0 {
-		return false, fmt.Errorf("%w：该节点被 %d 个节点或路由规则引用为出站，请先解除引用", ErrConflict, refs)
+	if err := checkNotOutbound(ctx, tx, id, "删除"); err != nil {
+		return false, err
 	}
 	pls, err := Placements(ctx, tx, id)
 	if err != nil {

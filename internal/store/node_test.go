@@ -217,11 +217,23 @@ func TestLandingOutboundReferences(t *testing.T) {
 	if placementsOf(t, db, pid)["hk"].Deployed != PendingDeploy {
 		t.Fatal("落地节点变化应让引用它的代理节点待部署")
 	}
-	// 禁用落地节点同样影响代理节点
+	// 被引用时不可禁用：开关和编辑页都拒绝，代理节点状态不变
 	setDeployed(t, db, pid, Deployed)
-	ToggleNode(ctx, db, lid, true)
-	if placementsOf(t, db, pid)["hk"].Deployed != PendingDeploy {
-		t.Fatal("禁用落地节点应让引用它的代理节点待部署")
+	if err := ToggleNode(ctx, db, lid, true); !errors.Is(err, ErrConflict) {
+		t.Fatalf("被引用的落地节点不可禁用: %v", err)
+	}
+	l, _ = NodeByID(ctx, db, lid)
+	l.Disabled = true
+	if _, err := SaveNode(ctx, db, l, nil, nil); !errors.Is(err, ErrConflict) {
+		t.Fatalf("编辑页也不可禁用被引用的落地节点: %v", err)
+	}
+	if l, _ = NodeByID(ctx, db, lid); l.Disabled || placementsOf(t, db, pid)["hk"].Deployed != Deployed {
+		t.Fatal("拒绝禁用时不应改动落地节点和代理节点")
+	}
+	// 历史上已被禁用的落地节点，启用时仍让引用它的代理节点待部署
+	db.Exec(`UPDATE node SET disabled = 1 WHERE id = ?`, lid)
+	if err := ToggleNode(ctx, db, lid, false); err != nil || placementsOf(t, db, pid)["hk"].Deployed != PendingDeploy {
+		t.Fatalf("启用落地节点应让引用它的代理节点待部署: %v", err)
 	}
 	// 被引用时不可删除
 	if _, err := DeleteNode(ctx, db, lid); !errors.Is(err, ErrConflict) {

@@ -555,6 +555,10 @@ func (s *Server) nodeToggle(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
+		if errors.Is(err, store.ErrConflict) {
+			redirectMsg(w, r, "/admin/nodes", "err", err.Error())
+			return
+		}
 		s.fail(w, r, err)
 		return
 	}
