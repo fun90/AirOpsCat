@@ -3,7 +3,7 @@
 <div class="alert alert-info">变更需强制部署相关服务器后生效。</div>
 <div class="card">
 <div class="card-header"><form method="get" class="d-flex gap-2 w-100"><input type="search" name="q" value="{{.Q}}" class="form-control" placeholder="名称 / 类型 / 规则值 / 落地 / 备注" aria-label="搜索规则"><button class="btn btn-outline-secondary" type="submit">搜索</button></form></div>
-<div class="table-responsive"><table class="table table-vcenter card-table" style="table-layout:fixed;width:100%">
+<div class="table-responsive"><table class="table table-vcenter card-table table-fixed">
 <thead><tr><th>名称 / 摘要</th><th class="d-none d-md-table-cell">落地 / 服务器</th><th class="d-none d-md-table-cell">状态</th><th class="col-actions"><span class="visually-hidden">操作</span></th></tr></thead>
 <tbody>{{range .List}}
 <tr><td class="text-break text-wrap">
