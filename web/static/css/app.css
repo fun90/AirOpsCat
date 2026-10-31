@@ -57,6 +57,15 @@
 @media (max-width: 767.98px) {
     .logs-table { table-layout: fixed; width: 100%; }
     .logs-table .log-message { width: 100%; min-width: 0; }
+    /* 账户列占满剩余宽度，名称在单元格内截断而不撑宽表格 */
+    .account-cell { width: 100%; max-width: 0; }
+    /* 到期列顶端对齐：日期行与名称行同高（1.75rem），剩余天数落在在线信息那一行 */
+    .table > :not(caption) > * > .account-expiry { padding-left: .25rem; padding-right: .25rem; }
+    .table > :not(caption) > * > td.account-expiry { vertical-align: top; line-height: 1.75rem; }
+    .account-expiry > .small { line-height: var(--tblr-body-line-height); }
+    .table > :not(caption) > * > .account-actions { padding-left: 0; }
+    /* 流量按钮与在线文字同字号同行高，不额外撑高第二行 */
+    .account-cell [data-account-usage] { min-height: 0; border: 0; font-size: inherit; line-height: inherit; vertical-align: baseline; }
 }
 
 
@@ -65,12 +74,10 @@
 .node-tags > .dropdown { flex-shrink: 0; }
 
 
-/* 节点列表移动端：勾选框仅在批量选择模式出现；整行点击进入编辑，行内交互元素浮在点击层之上。 */
+/* 节点列表移动端：勾选框仅在批量选择模式出现。 */
 @media (max-width: 991.98px) {
     .node-list:not(.node-selecting) .node-check,
     .node-list:not(.node-selecting) .node-head { display: none; }
-    .node-list:not(.node-selecting) .node-link::after { content: ""; position: absolute; inset: 0; z-index: 1; }
-    .node-row .node-check, .node-row .node-out, .node-row .node-actions, .node-row .dropdown { position: relative; z-index: 2; }
     /* 操作区高度与名称行（1.25rem）一致，在线信息和按钮对齐名称行，按钮多出的高度上下等量溢出 */
     .node-actions > div { height: 1.25rem; }
 }

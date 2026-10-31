@@ -56,10 +56,14 @@ func TestAccountRowView(t *testing.T) {
 	}{
 		{"正常", store.AccountRow{Account: store.Account{ToDate: at(26*day - time.Hour)}, UsedBytes: 1 << 30, QuotaGB: 10}, "", "剩 26 天", "1.0 / 10 GB", "bg-primary", 10},
 		{"即将到期", store.AccountRow{Account: store.Account{ToDate: at(4 * day)}, UsedBytes: 9 << 30, QuotaGB: 10}, "即将到期", "剩 4 天", "9.0 / 10 GB", "bg-orange", 90},
-		{"不足一天", store.AccountRow{Account: store.Account{ToDate: at(time.Hour)}}, "即将到期", "剩 1 天", "0.0 GB · 不限量", "", 0},
+		{"不足一天", store.AccountRow{Account: store.Account{ToDate: at(time.Hour)}}, "即将到期", "剩 1 天", "0 GB · 不限量", "", 0},
 		{"已过期", store.AccountRow{Account: store.Account{ToDate: at(-3*day - time.Hour)}, UsedBytes: 20 << 30, QuotaGB: 10}, "已过期", "已过期 3 天", "20.0 / 10 GB", "bg-red", 100},
-		{"禁用优先", store.AccountRow{Account: store.Account{Disabled: true, ToDate: at(-time.Hour)}}, "已禁用", "刚过期", "0.0 GB · 不限量", "", 0},
-		{"长期有效", store.AccountRow{}, "", "", "0.0 GB · 不限量", "", 0},
+		{"禁用优先", store.AccountRow{Account: store.Account{Disabled: true, ToDate: at(-time.Hour)}}, "已禁用", "刚过期", "0 GB · 不限量", "", 0},
+		{"长期有效", store.AccountRow{}, "", "", "0 GB · 不限量", "", 0},
+		{"配额满 1 TB", store.AccountRow{UsedBytes: 125 << 30, QuotaGB: 1024}, "", "", "0.12 / 1 TB", "bg-primary", 12},
+		{"用量满 1 TB", store.AccountRow{UsedBytes: 1536 << 30, QuotaGB: 2048}, "", "", "1.5 / 2 TB", "bg-primary", 75},
+		{"额度满 1 TB 未使用", store.AccountRow{QuotaGB: 2048}, "", "", "0 / 2 TB", "bg-primary", 0},
+		{"不限量满 1 TB", store.AccountRow{UsedBytes: 2048 << 30}, "", "", "2 TB · 不限量", "", 0},
 	} {
 		v := accountRowView(&c.row, now)
 		if v.Badge != c.badge || v.Left != c.left || v.Usage != c.usage || v.BarClass != c.bar || v.Percent != c.percent {

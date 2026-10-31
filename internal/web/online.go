@@ -50,16 +50,27 @@ func (s *Server) onlineCoverageWarning(ctx context.Context, snap guard.Snapshot)
 	return "在线统计不完整：" + strings.Join(missing, "、") + " 暂无有效上报，当前连接数可能偏少，未在线状态仅供参考。请检查服务器上的 guard agent 配置与日志。", nil
 }
 
-// accountOnlineText 供列表使用；没有任何新鲜上报时不能说成“离线”。
-func accountOnlineText(snap guard.Snapshot, accountNo string) string {
+// accountOnlineView 供账户列表用图标展示；Text 为完整说明，用于悬停提示。
+type accountOnlineView struct {
+	Text             string
+	Online           bool
+	Connections, IPs int64
+}
+
+// accountOnline 汇总账户在线情况；没有任何新鲜上报时不能说成“离线”。
+func accountOnline(snap guard.Snapshot, accountNo string) accountOnlineView {
 	if len(snap.Servers) == 0 {
-		return "暂无上报"
+		return accountOnlineView{Text: "暂无上报"}
 	}
 	a, ok := snap.Accounts[strings.ToLower(accountNo)]
 	if !ok {
-		return "未在线"
+		return accountOnlineView{Text: "未在线"}
 	}
-	return fmt.Sprintf("在线 · %d 连接 · %d IP", a.Connections, a.IPs)
+	return accountOnlineView{Text: fmt.Sprintf("在线 · %d 连接 · %d IP", a.Connections, a.IPs), Online: true, Connections: a.Connections, IPs: a.IPs}
+}
+
+func accountOnlineText(snap guard.Snapshot, accountNo string) string {
+	return accountOnline(snap, accountNo).Text
 }
 
 // nodeOnlineView 供节点列表用图标展示；Text 为完整说明，用于悬停提示。

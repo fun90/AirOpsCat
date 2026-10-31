@@ -32,7 +32,7 @@
                             <div class="d-none d-md-flex gap-1">
                             <form method="post" action="/admin/tags/{{.ID}}/delete" onsubmit="return confirm('确定删除该标签？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-danger" type="submit">删除</button></form>
                             </div>
-                            <div class="dropdown d-md-none"><button type="button" class="btn btn-sm dropdown-toggle" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">更多</button><div class="dropdown-menu dropdown-menu-end">
+                            <div class="dropdown d-md-none"><button type="button" class="btn btn-sm btn-ghost-secondary" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="更多操作" title="更多操作"><i class="ti ti-dots-vertical" aria-hidden="true"></i></button><div class="dropdown-menu dropdown-menu-end">
                             <form method="post" action="/admin/tags/{{.ID}}/delete" onsubmit="return confirm('确定删除该标签？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item text-danger" type="submit">删除</button></form></div></div>
                         </td>
                     </tr>

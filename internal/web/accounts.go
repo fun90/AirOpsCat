@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -61,13 +62,13 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now()
-	online := make(map[int64]string, len(list))
+	online := make(map[int64]accountOnlineView, len(list))
 	lastSeen := make(map[int64]string, len(list))
 	view := make(map[int64]accountView, len(list))
 	for _, a := range list {
 		view[a.ID] = accountRowView(a, now)
-		online[a.ID] = accountOnlineText(snap, a.AccountNo)
-		if !strings.HasPrefix(online[a.ID], "在线") {
+		online[a.ID] = accountOnline(snap, a.AccountNo)
+		if !online[a.ID].Online {
 			lastSeen[a.ID] = lastOnlineText(a.LastOnline, now)
 		}
 	}
@@ -91,6 +92,15 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 	d["Now"] = store.FormatTime(now)
 	d["DocsURL"] = store.ConfigValue(r.Context(), s.DB, "airopscat.docs.url")
 	s.render(w, "accounts", 200, d)
+}
+
+// usageText 把 GB 数换成展示文字，满 1024 GB 改用 TB，整数不带小数。
+func usageText(gb float64) string {
+	unit := "GB"
+	if gb >= 1024 {
+		gb, unit = gb/1024, "TB"
+	}
+	return strings.TrimSuffix(fmt.Sprintf("%.1f", gb), ".0") + " " + unit
 }
 
 // accountView 是列表行的展示状态：Badge 只给异常状态，口径与 store 的状态筛选一致。
@@ -129,10 +139,15 @@ func accountRowView(a *store.AccountRow, now time.Time) accountView {
 	}
 	used := float64(a.UsedBytes) / (1 << 30)
 	if a.QuotaGB <= 0 {
-		v.Usage = fmt.Sprintf("%.1f GB · 不限量", used)
+		v.Usage = usageText(used) + " · 不限量"
 		return v
 	}
-	v.Usage = fmt.Sprintf("%.1f / %d GB", used, a.QuotaGB)
+	if a.QuotaGB < 1024 {
+		v.Usage = fmt.Sprintf("%.1f / %d GB", used, a.QuotaGB)
+	} else {
+		// 额度满 1 TB 时分子分母都用 TB，分子保留两位小数以免小用量显示成 0
+		v.Usage = strconv.FormatFloat(math.Round(used/1024*100)/100, 'f', -1, 64) + " / " + usageText(float64(a.QuotaGB))
+	}
 	v.Percent = min(100, int(used/float64(a.QuotaGB)*100))
 	switch {
 	case v.Percent >= 100:

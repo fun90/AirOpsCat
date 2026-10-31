@@ -6,7 +6,7 @@
 <tbody>{{range .List}}<tr><td class="text-break text-wrap">{{.Name}}<div class="text-secondary small d-md-none">{{.Size}} · {{.Time}}</div></td>
 <td class="d-none d-md-table-cell">{{.Size}}</td><td class="d-none d-md-table-cell">{{.Time}}</td>
 <td class="text-nowrap"><div class="d-none d-md-flex gap-1"><a class="btn btn-sm btn-outline-primary" href="/admin/backups/{{.Name}}/download" download>下载</a><form method="post" action="/admin/backups/{{.Name}}/delete" onsubmit="return confirm('确定删除该备份？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-danger" type="submit">删除</button></form></div>
-<div class="dropdown d-md-none"><button type="button" class="btn btn-sm dropdown-toggle" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">更多</button><div class="dropdown-menu dropdown-menu-end"><a class="dropdown-item" href="/admin/backups/{{.Name}}/download" download>下载</a>
+<div class="dropdown d-md-none"><button type="button" class="btn btn-sm btn-ghost-secondary" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="更多操作" title="更多操作"><i class="ti ti-dots-vertical" aria-hidden="true"></i></button><div class="dropdown-menu dropdown-menu-end"><a class="dropdown-item" href="/admin/backups/{{.Name}}/download" download>下载</a>
 <form method="post" action="/admin/backups/{{.Name}}/delete" onsubmit="return confirm('确定删除该备份？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="dropdown-item text-danger">删除</button></form></div></div></td></tr>
 {{else}}<tr><td colspan="4" class="text-center text-secondary py-4">暂无备份</td></tr>{{end}}</tbody></table></div></div>
 {{end}}

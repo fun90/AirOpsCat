@@ -140,7 +140,7 @@ func TestNodeFlows(t *testing.T) {
 		t.Fatalf("端口冲突应回显: %d", w.Code)
 	}
 	list := do(h, "GET", "/admin/nodes?status=0", nil, c, nil).Body.String()
-	if !strings.Contains(list, "n1-1") || !strings.Contains(list, `badge bg-yellow-lt flex-shrink-0">待部署`) || !strings.Contains(list, `aria-label="部署" title="部署"><i class="ti ti-rocket d-lg-none"`) {
+	if !strings.Contains(list, "n1-1") || !strings.Contains(list, `badge bg-yellow-lt flex-shrink-0">待部署`) || !strings.Contains(list, `<form class="d-none d-lg-block" method="post" action="/admin/nodes/`) {
 		t.Fatal("列表应显示待部署的 n1-1")
 	}
 	if strings.Contains(do(h, "GET", "/admin/nodes?status=1", nil, c, nil).Body.String(), "n1-1") {
