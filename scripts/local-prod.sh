@@ -5,7 +5,8 @@ set -euo pipefail
 host="${AIROPSCAT_DEPLOY_HOST:-}"
 dir="${AIROPSCAT_LOCAL_DIR:-$HOME/.airopscat-local}"
 secret_file="${AIROPSCAT_LOCAL_SECRET_FILE:-$dir/secret}"
-listen="${AIROPSCAT_LISTEN:-127.0.0.1:8080}"
+# 默认监听所有网卡，便于局域网内手机验收；只想本机访问时设 AIROPSCAT_LISTEN=127.0.0.1:8080
+listen="${AIROPSCAT_LISTEN:-0.0.0.0:8080}"
 remote_db=/var/lib/airopscat/airopscat.db
 remote_env=/etc/airopscat/airopscat.env
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=10)
@@ -42,6 +43,8 @@ cd "$(dirname "$0")/.."
 # 管理员会话令牌供 curl -b "airopscat_session=$(cat $dir/token)" 与 scripts/screenshot.mjs 自查页面，12 小时有效
 rm -f "$dir/token"
 AIROPSCAT_SECRET_KEY="$secret" AIROPSCAT_DB="$dir/prod.db" go run ./scripts/localtoken "$dir/token"
+lan_ip=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)
+[[ ${listen%:*} == 0.0.0.0 && -n "$lan_ip" ]] && echo "局域网访问 http://$lan_ip:$port"
 echo "启动 http://$listen （数据库 $dir/prod.db，外发已禁用，会话令牌 $dir/token）"
 AIROPSCAT_SECRET_KEY="$secret" AIROPSCAT_DB="$dir/prod.db" AIROPSCAT_LISTEN="$listen" \
 	AIROPSCAT_BACKUP_DIR="$dir/backup" AIROPSCAT_TASKS_DISABLED=1 AIROPSCAT_OUTBOUND_DISABLED=1 \

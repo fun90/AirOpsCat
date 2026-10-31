@@ -61,5 +61,6 @@ try {
   const exited = new Promise(resolve => chrome.once('exit', resolve));
   chrome.kill();
   await exited;
-  rmSync(profile, { recursive: true, force: true });
+  // Chrome 退出后仍可能短暂写 profile，重试避免 ENOTEMPTY
+  rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }

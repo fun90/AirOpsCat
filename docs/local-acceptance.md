@@ -12,7 +12,7 @@
 1. **先过验证**：`go vet ./...`、`go test ./...` 通过后再启动。完成：两项通过；失败就修复，不拿坏版本给用户验收。
 2. **启动**：在后台运行 `scripts/local-prod.sh 2>&1 | tee ~/.airopscat-local/run.log`。脚本会替换上一轮的本地实例；Go 代码与模板没有热加载，每次改动后都要重启。完成：`curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/healthz` 返回 `200`。
 3. **自查**：启动脚本已把管理员会话令牌写到 `~/.airopscat-local/token`。用 `curl -b "airopscat_session=$(cat ~/.airopscat-local/token)"` 请求改动页面；页面改动再用 `node scripts/screenshot.mjs <路径> [宽度]` 截图查看，移动端用默认 390，退出码 1 表示横向溢出。完成：能指出改动出现在哪个具体 URL 的哪个位置。
-4. **交给用户**：回复里写明验收 URL（如 `http://127.0.0.1:8080/admin/nodes/<id>/edit`），以及该看哪个位置、生产数据里哪条记录能体现效果。说明实例仍在运行、外发已禁用。
+4. **交给用户**：回复里写明验收 URL（如 `http://127.0.0.1:8080/admin/nodes/<id>/edit`；脚本默认监听 `0.0.0.0`，同时给出日志里的局域网地址供手机访问），以及该看哪个位置、生产数据里哪条记录能体现效果。说明实例仍在运行、外发已禁用。
 
 ## 约束
 
