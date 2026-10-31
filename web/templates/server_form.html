@@ -49,9 +49,10 @@
             <div class="col-md-3"><label class="form-label" for="bandwidth">月流量（GB）</label>
                 <input class="form-control{{if $.Errors.bandwidth}} is-invalid{{end}}" id="bandwidth" name="bandwidth" value="{{.Bandwidth}}" inputmode="numeric">
                 <div class="invalid-feedback">{{$.Errors.bandwidth}}</div></div>
-            <div class="col-md-3"><label class="form-label" for="bandwidth_date">流量重置日</label>
-                <input type="date" class="form-control{{if $.Errors.bandwidth_date}} is-invalid{{end}}" id="bandwidth_date" name="bandwidth_date" value="{{.BandwidthDate}}">
-                <div class="invalid-feedback">{{$.Errors.bandwidth_date}}</div></div>
+            <div class="col-md-3"><label class="form-label" for="bandwidth_day">流量重置日（每月）</label>
+                <div class="input-group has-validation"><input type="number" min="1" max="31" class="form-control{{if $.Errors.bandwidth_day}} is-invalid{{end}}" id="bandwidth_day" name="bandwidth_day" value="{{.BandwidthDay}}" inputmode="numeric" aria-describedby="bandwidth_day_hint"><span class="input-group-text">日</span>
+                <div class="invalid-feedback">{{$.Errors.bandwidth_day}}</div></div>
+                <div class="form-hint" id="bandwidth_day_hint">当月无该日时取最后一天；留空按 1 日</div></div>
             <div class="col-md-3"><label class="form-label" for="multiple">流量倍率</label>
                 <input class="form-control{{if $.Errors.multiple}} is-invalid{{end}}" id="multiple" name="multiple" value="{{.Multiple}}" inputmode="decimal">
                 <div class="invalid-feedback">{{$.Errors.multiple}}</div></div>

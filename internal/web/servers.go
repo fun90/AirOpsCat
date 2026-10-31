@@ -16,14 +16,14 @@ import (
 type ServerForm struct {
 	ID                                                     int64
 	Name, IP, SSHPort, AuthType, Username, Region          string
-	ServerType, ExpireDate, BandwidthDate, Supplier, Price string
+	ServerType, ExpireDate, BandwidthDay, Supplier, Price  string
 	PriceMonths, Multiple, Bandwidth, CPUCores, Remark     string
 	Disabled, External, HasAuth                            bool
 }
 
 func formFromServer(s *store.Server) *ServerForm {
 	f := &ServerForm{ID: s.ID, Name: s.Name, IP: s.IP, SSHPort: strconv.Itoa(s.SSHPort), AuthType: s.AuthType, Username: s.Username,
-		Region: s.Region, ServerType: strconv.Itoa(s.ServerType), ExpireDate: s.ExpireDate, BandwidthDate: s.BandwidthDate,
+		Region: s.Region, ServerType: strconv.Itoa(s.ServerType), ExpireDate: s.ExpireDate, BandwidthDay: s.BandwidthDay,
 		Supplier: s.Supplier, PriceMonths: strconv.Itoa(s.PriceMonths), Multiple: strconv.FormatFloat(s.Multiple, 'f', -1, 64), Remark: s.Remark,
 		Disabled: s.Disabled, External: s.External, HasAuth: s.HasAuth}
 	if s.Price != nil {
@@ -48,13 +48,13 @@ func formValue(r *http.Request, k string) string { return strings.TrimSpace(r.Po
 func parseServerForm(r *http.Request) (*ServerForm, *store.Server, map[string]string) {
 	f := &ServerForm{Name: formValue(r, "name"), IP: formValue(r, "ip"), SSHPort: formValue(r, "ssh_port"), AuthType: formValue(r, "auth_type"),
 		Username: formValue(r, "username"), Region: formValue(r, "region"), ServerType: formValue(r, "server_type"),
-		ExpireDate: formValue(r, "expire_date"), BandwidthDate: formValue(r, "bandwidth_date"), Supplier: formValue(r, "supplier"),
+		ExpireDate: formValue(r, "expire_date"), BandwidthDay: formValue(r, "bandwidth_day"), Supplier: formValue(r, "supplier"),
 		Price: formValue(r, "price"), PriceMonths: formValue(r, "price_months"), Multiple: formValue(r, "multiple"), Bandwidth: formValue(r, "bandwidth"), CPUCores: formValue(r, "cpu_cores"),
 		Remark:   formValue(r, "remark"),
 		Disabled: r.PostFormValue("disabled") == "1", External: r.PostFormValue("external_server") == "1"}
 	errs := map[string]string{}
 	s := &store.Server{Name: f.Name, IP: f.IP, Username: f.Username, Region: f.Region, ExpireDate: f.ExpireDate,
-		BandwidthDate: f.BandwidthDate, Supplier: f.Supplier, Disabled: f.Disabled, External: f.External, Remark: f.Remark}
+		BandwidthDay: f.BandwidthDay, Supplier: f.Supplier, Disabled: f.Disabled, External: f.External, Remark: f.Remark}
 	if f.IP == "" {
 		errs["ip"] = "请填写 IP"
 	}
@@ -77,11 +77,14 @@ func parseServerForm(r *http.Request) (*ServerForm, *store.Server, map[string]st
 	if s.Multiple, err = strconv.ParseFloat(f.Multiple, 64); err != nil || s.Multiple <= 0 {
 		errs["multiple"] = "倍率必须大于 0"
 	}
-	for _, d := range []struct{ key, val string }{{"expire_date", f.ExpireDate}, {"bandwidth_date", f.BandwidthDate}} {
-		if d.val != "" {
-			if _, err := time.Parse("2006-01-02", d.val); err != nil {
-				errs[d.key] = "日期格式应为 YYYY-MM-DD"
-			}
+	if f.ExpireDate != "" {
+		if _, err := time.Parse("2006-01-02", f.ExpireDate); err != nil {
+			errs["expire_date"] = "日期格式应为 YYYY-MM-DD"
+		}
+	}
+	if f.BandwidthDay != "" {
+		if d, err := strconv.Atoi(f.BandwidthDay); err != nil || d < 1 || d > 31 {
+			errs["bandwidth_day"] = "请填写 1-31"
 		}
 	}
 	if f.Price != "" {

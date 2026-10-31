@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/fun90/airopscat/internal/crypto"
@@ -24,7 +25,7 @@ type Server struct {
 	Region        string
 	ServerType    int
 	ExpireDate    string
-	BandwidthDate string // 日期部分，库中为当天 00:00:00
+	BandwidthDay  string // 每月流量重置日 1-31，空为未设置；超过当月天数按月末
 	Supplier      string
 	Price         *int64 // 分，对应 PriceMonths 个月
 	PriceMonths   int    // 1 月付，12 年付
@@ -40,14 +41,14 @@ type Server struct {
 
 const serverCols = `id, coalesce(name,''), ip, coalesce(ssh_port,22), coalesce(auth_type,'PASSWORD'), coalesce(username,''),
 	coalesce(auth,'') <> '', coalesce(region,''), coalesce(server_type,0), coalesce(expire_date,''),
-	substr(coalesce(bandwidth_date,''),1,10), coalesce(supplier,''), price, price_months, coalesce(multiple,1), bandwidth, cpu_cores,
+	coalesce(cast(cast(strftime('%d',bandwidth_date) AS INTEGER) AS TEXT),''), coalesce(supplier,''), price, price_months, coalesce(multiple,1), bandwidth, cpu_cores,
 	disabled, external_server, coalesce(remark,''), (SELECT count(*) FROM node_server f WHERE f.server_id = server.id AND f.failover = 1)`
 
 func scanServer(row interface{ Scan(...any) error }) (*Server, error) {
 	var s Server
 	var price, bw, cpu sql.NullInt64
 	if err := row.Scan(&s.ID, &s.Name, &s.IP, &s.SSHPort, &s.AuthType, &s.Username, &s.HasAuth, &s.Region,
-		&s.ServerType, &s.ExpireDate, &s.BandwidthDate, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &cpu,
+		&s.ServerType, &s.ExpireDate, &s.BandwidthDay, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &cpu,
 		&s.Disabled, &s.External, &s.Remark, &s.Failover); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -92,7 +93,7 @@ func ServerList(ctx context.Context, db *sql.DB, search string, page, size int) 
 		var s Server
 		var price, bw, cpu sql.NullInt64
 		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.SSHPort, &s.AuthType, &s.Username, &s.HasAuth, &s.Region,
-			&s.ServerType, &s.ExpireDate, &s.BandwidthDate, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &cpu,
+			&s.ServerType, &s.ExpireDate, &s.BandwidthDay, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &cpu,
 			&s.Disabled, &s.External, &s.Remark, &s.Failover, &s.Placements); err != nil {
 			return nil, 0, err
 		}
@@ -124,11 +125,13 @@ func nz(s string) any {
 	return s
 }
 
-func dateTime(d string) any {
-	if d == "" {
+// bandwidthDate 把重置日存进 bandwidth_date：下游只读其中的日，取有 31 天的 2000-01 承载。
+func bandwidthDate(day string) any {
+	if day == "" {
 		return nil
 	}
-	return d + " 00:00:00"
+	d, _ := strconv.Atoi(day) // 表单已校验 1-31
+	return fmt.Sprintf("2000-01-%02d 00:00:00", d)
 }
 
 // SaveServer 新建（ID=0）或更新服务器。auth 为空表示不修改已保存的凭据。
@@ -146,7 +149,7 @@ func SaveServer(ctx context.Context, db *sql.DB, c *crypto.Cipher, s *Server, au
 			expire_date, bandwidth_date, supplier, price, price_months, multiple, bandwidth, cpu_cores, disabled, external_server, remark,
 			create_time, update_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			nz(s.Name), s.IP, s.SSHPort, s.AuthType, nz(s.Username), nz(encAuth), nz(s.Region), s.ServerType,
-			nz(s.ExpireDate), dateTime(s.BandwidthDate), nz(s.Supplier), s.Price, s.PriceMonths, s.Multiple, s.Bandwidth, s.CPUCores,
+			nz(s.ExpireDate), bandwidthDate(s.BandwidthDay), nz(s.Supplier), s.Price, s.PriceMonths, s.Multiple, s.Bandwidth, s.CPUCores,
 			s.Disabled, s.External, nz(s.Remark), now, now)
 		if err != nil {
 			return 0, err
@@ -190,7 +193,7 @@ func SaveServer(ctx context.Context, db *sql.DB, c *crypto.Cipher, s *Server, au
 		server_type=?, expire_date=?, bandwidth_date=?, supplier=?, price=?, price_months=?, multiple=?, bandwidth=?, cpu_cores=?, disabled=?,
 		external_server=?, remark=?, update_time=? WHERE id=?`,
 		nz(s.Name), s.IP, s.SSHPort, s.AuthType, nz(s.Username), nz(encAuth), nz(s.Region), s.ServerType,
-		nz(s.ExpireDate), dateTime(s.BandwidthDate), nz(s.Supplier), s.Price, s.PriceMonths, s.Multiple, s.Bandwidth, s.CPUCores,
+		nz(s.ExpireDate), bandwidthDate(s.BandwidthDay), nz(s.Supplier), s.Price, s.PriceMonths, s.Multiple, s.Bandwidth, s.CPUCores,
 		s.Disabled, s.External, nz(s.Remark), now, s.ID)
 	if err != nil {
 		return 0, err

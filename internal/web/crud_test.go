@@ -35,7 +35,7 @@ func TestServerAndTagFlows(t *testing.T) {
 	}
 
 	good := url.Values{"name": {"hk-1"}, "ip": {"1.1.1.1"}, "ssh_port": {"22"}, "auth_type": {"PASSWORD"}, "username": {"root"}, "auth": {"s3cret-pass"},
-		"server_type": {"0"}, "multiple": {"1.5"}, "price": {"352.00"}, "price_months": {"12"}, "bandwidth": {"1000"}, "expire_date": {"2027-01-02"}, "bandwidth_date": {"2026-01-05"}}
+		"server_type": {"0"}, "multiple": {"1.5"}, "price": {"352.00"}, "price_months": {"12"}, "bandwidth": {"1000"}, "expire_date": {"2027-01-02"}, "bandwidth_day": {"31"}}
 	if r := post("/admin/servers", good); r.StatusCode != http.StatusSeeOther {
 		t.Fatalf("创建: %d", r.StatusCode)
 	}
@@ -47,10 +47,10 @@ func TestServerAndTagFlows(t *testing.T) {
 	var bwd string
 	h2 := a.DB
 	h2.QueryRow(`SELECT auth, price, bandwidth_date FROM server WHERE id = 1`).Scan(&enc, &price, &bwd)
-	if !strings.HasPrefix(enc, "v1:") || strings.Contains(enc, "s3cret") || price != 35200 || bwd != "2026-01-05 00:00:00" {
+	if !strings.HasPrefix(enc, "v1:") || strings.Contains(enc, "s3cret") || price != 35200 || bwd != "2000-01-31 00:00:00" {
 		t.Fatalf("存储不对: %q %d %q", enc, price, bwd)
 	}
-	if edit := body("/admin/servers/1/edit"); strings.Contains(edit, "s3cret") || strings.Contains(edit, enc) || !strings.Contains(edit, "352.00") {
+	if edit := body("/admin/servers/1/edit"); strings.Contains(edit, "s3cret") || strings.Contains(edit, enc) || !strings.Contains(edit, "352.00") || !strings.Contains(edit, `name="bandwidth_day" value="31"`) {
 		t.Fatal("编辑页不应回传凭据，应回显价格")
 	}
 	// 留空凭据表示不修改
