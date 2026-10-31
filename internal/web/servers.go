@@ -120,6 +120,32 @@ func (s *Server) serverRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/servers/{id}", s.serverSave)
 	m.HandleFunc("POST /admin/servers/{id}/delete", s.serverDelete)
 	m.HandleFunc("POST /admin/servers/{id}/failover", s.serverFailover)
+	m.HandleFunc("POST /admin/servers/{id}/placement-switch", s.serverPlacementSwitch)
+}
+
+// serverPlacementSwitch 把部署位所属节点的域名切到本服务器的该部署位，随后立即执行 DNS 切换。
+func (s *Server) serverPlacementSwitch(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	back := "/admin/servers/" + strconv.FormatInt(id, 10) + "/edit"
+	pid, err := strconv.ParseInt(r.PostFormValue("placement"), 10, 64)
+	if err != nil || pid <= 0 {
+		http.Error(w, "部署位 ID 不正确", http.StatusBadRequest)
+		return
+	}
+	pls, err := store.ServerPlacements(r.Context(), s.DB, id)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	for _, p := range pls {
+		if p.ID == pid {
+			if !s.failoverErr(w, r, back, store.SwitchNodePlacement(r.Context(), s.DB, p.NodeID, pid)) {
+				s.failoverDNS(w, r, back, p.NodeName+" 已切到本服务器", true)
+			}
+			return
+		}
+	}
+	redirectMsg(w, r, back, "err", "部署位不属于该服务器")
 }
 
 // serverFailover 标记后立即执行一轮 DNS 切换，不等定时任务；切走与回切都复用自动切换的对账流程。
@@ -233,6 +259,13 @@ func (s *Server) serverSave(w http.ResponseWriter, r *http.Request) {
 	s.serverFormPage(w, r, http.StatusUnprocessableEntity, title, f, errs)
 }
 
+type serverPlacementView struct {
+	store.ServerPlacement
+	Here      []string // 当前指向本部署位的域名
+	Elsewhere []string // 节点域名当前指向的其他服务器
+	CanSwitch bool
+}
+
 // serverFormPage 带上已有地区供选择，避免与节点地区写法不一致导致部署位匹配不上。
 func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status int, title string, f *ServerForm, errs map[string]string) {
 	regions, err := store.Regions(r.Context(), s.DB)
@@ -242,6 +275,32 @@ func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status i
 	}
 	d := s.pageData(r, title, "servers")
 	d["Form"], d["Errors"], d["Regions"] = f, errs, regions
+	if f.ID != 0 {
+		pls, err := store.ServerPlacements(r.Context(), s.DB, f.ID)
+		var pointed map[int64][]store.PointedPlacement
+		if err == nil {
+			pointed, err = store.PointedPlacements(r.Context(), s.DB)
+		}
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		views := make([]serverPlacementView, len(pls))
+		for i, p := range pls {
+			v := serverPlacementView{ServerPlacement: p}
+			for _, pp := range pointed[p.NodeID] {
+				if pp.ID == p.ID {
+					v.Here = pp.Domains
+				} else {
+					v.Elsewhere = append(v.Elsewhere, pp.Server)
+				}
+			}
+			// 与节点编辑页「切到此处」一致：节点全部域名已指向这里时不再提供
+			v.CanSwitch = p.Peers > 0 && p.Running && p.Deployed != 2 && !f.Disabled && (v.Here == nil || v.Elsewhere != nil)
+			views[i] = v
+		}
+		d["Placements"] = views
+	}
 	s.render(w, "server_form", status, d)
 }
 

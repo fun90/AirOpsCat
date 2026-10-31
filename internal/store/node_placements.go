@@ -183,6 +183,40 @@ func SwitchNodePlacement(ctx context.Context, db *sql.DB, nodeID, placementID in
 	return nil
 }
 
+// ServerPlacement 是服务器上的一个部署位，供服务器编辑页展示与切换。
+type ServerPlacement struct {
+	ID, NodeID int64
+	NodeName   string
+	AccessHost string
+	Priority   int
+	Deployed   int
+	Failover   bool
+	Running    bool // 曾成功部署过，可承接切换过来的域名
+	Peers      int  // 同节点其他未待删除部署位数
+}
+
+// ServerPlacements 返回服务器上的全部部署位。
+func ServerPlacements(ctx context.Context, db *sql.DB, serverID int64) ([]ServerPlacement, error) {
+	rows, err := db.QueryContext(ctx, `SELECT ns.id, ns.node_id, coalesce(n.name,''), coalesce(r.full_name, r.name, ''), coalesce(ns.priority,0), ns.deployed, ns.failover,
+		ns.deployed = 1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id),
+		(SELECT count(*) FROM node_server o WHERE o.node_id = ns.node_id AND o.id <> ns.id AND o.deployed <> 2)
+		FROM node_server ns JOIN node n ON n.id = ns.node_id LEFT JOIN domain_dns_record r ON r.id = ns.access_host_id
+		WHERE ns.server_id = ? ORDER BY n.name, ns.id`, serverID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []ServerPlacement
+	for rows.Next() {
+		var p ServerPlacement
+		if err := rows.Scan(&p.ID, &p.NodeID, &p.NodeName, &p.AccessHost, &p.Priority, &p.Deployed, &p.Failover, &p.Running, &p.Peers); err != nil {
+			return nil, err
+		}
+		list = append(list, p)
+	}
+	return list, rows.Err()
+}
+
 // FailoverServers 按节点返回已手动切走的部署位服务器名，供列表标注。
 func FailoverServers(ctx context.Context, db *sql.DB) (map[int64][]string, error) {
 	rows, err := db.QueryContext(ctx, `SELECT ns.node_id, coalesce(nullif(s.name,''), s.ip) FROM node_server ns JOIN server s ON s.id = ns.server_id

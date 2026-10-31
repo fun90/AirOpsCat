@@ -479,3 +479,30 @@ func TestHysteriaDefaultInboundHTTP(t *testing.T) {
 		}
 	}
 }
+
+func TestServerPlacementSwitch(t *testing.T) {
+	h, a := newTestServer(t)
+	c := login(t, h, "admin@example.com")
+	csrf := a.CSRFToken(c.Value)
+	post := func(path string, v url.Values) *httptest.ResponseRecorder {
+		v.Set("csrf", csrf)
+		return do(h, "POST", path, v, c, nil)
+	}
+	a.DB.Exec(`INSERT INTO server (id, name, ip) VALUES (1, 'hk-1', '1.1.1.1'), (2, 'hk-2', '2.2.2.2')`)
+	a.DB.Exec(`INSERT INTO node (id, name, type, protocol, port) VALUES (1, 'n1', 0, 'vless', 443)`)
+	a.DB.Exec(`INSERT INTO node_server (id, node_id, server_id, deployed, priority, failover) VALUES (11, 1, 1, 1, 0, 1), (12, 1, 2, 1, 5, 0)`)
+	if edit := do(h, "GET", "/admin/servers/2/edit", nil, c, nil).Body.String(); !strings.Contains(edit, "n1") || !strings.Contains(edit, "优先级 5") || !strings.Contains(edit, ">切到此处</button>") {
+		t.Fatal("服务器编辑页应列出部署位并可切到此处")
+	}
+	fo := func(id int) (v int) {
+		a.DB.QueryRow(`SELECT failover FROM node_server WHERE id = ?`, id).Scan(&v)
+		return
+	}
+	if w := post("/admin/servers/2/placement-switch", url.Values{"placement": {"11"}}); !strings.Contains(w.Header().Get("Location"), "err=") || fo(11) != 1 {
+		t.Fatal("不属于该服务器的部署位不应被切换")
+	}
+	post("/admin/servers/1/placement-switch", url.Values{"placement": {"11"}})
+	if fo(11) != 0 || fo(12) != 1 {
+		t.Fatalf("应切到服务器 1 的部署位: %d %d", fo(11), fo(12))
+	}
+}

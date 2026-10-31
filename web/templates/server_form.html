@@ -74,5 +74,25 @@
         <button type="submit" class="btn btn-primary" name="test" value="1">保存并测试</button>
     </div>
 </form>
+{{if .ID}}
+<div class="card mt-3">
+    <div class="card-header"><h3 class="card-title">部署位</h3></div>
+    <div class="list-group list-group-flush">
+        {{range $.Placements}}
+        <div class="list-group-item d-flex flex-wrap align-items-center gap-2">
+            <div class="me-auto">
+                <a href="/admin/nodes/{{.NodeID}}/edit" class="text-break"><strong>{{.NodeName}}</strong></a>
+                <div class="text-secondary small text-break">优先级 {{.Priority}} · {{or .AccessHost "使用服务器 IP"}}</div>
+            </div>
+            {{if eq .Deployed 0}}<span class="badge bg-yellow-lt">待部署</span>{{else if eq .Deployed 1}}<span class="badge bg-green-lt">已部署</span>{{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
+            {{if .Failover}}<span class="badge bg-orange-lt">已切走</span>{{end}}
+            {{with .Here}}<div class="dropdown"><button type="button" class="badge bg-blue-lt border-0 cursor-pointer" data-bs-toggle="dropdown" aria-expanded="false">当前指向 {{len .}} 个域名</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-1" style="max-width:16rem">{{range .}}<span class="badge bg-blue-lt text-wrap text-break">{{.}}</span>{{end}}</div></div></div>{{end}}
+            {{range .Elsewhere}}<span class="badge bg-secondary-lt text-wrap text-break">指向 {{.}}</span>{{end}}
+            {{if .CanSwitch}}<form method="post" action="/admin/servers/{{$.Form.ID}}/placement-switch" onsubmit="return confirm('{{.NodeName}} 的域名将切到本服务器并立即执行 DNS 切换，确定？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-warning py-0 text-nowrap" name="placement" value="{{.ID}}">切到此处</button></form>{{end}}
+        </div>
+        {{else}}<div class="list-group-item text-secondary">暂无部署位</div>{{end}}
+    </div>
+</div>
+{{end}}
 {{end}}
 {{end}}
