@@ -1,11 +1,11 @@
 {{define "actions"}}<form method="post" action="/admin/backups"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn btn-primary" type="submit"><i class="ti ti-database-export me-1" aria-hidden="true"></i>立即备份</button></form>{{end}}
 {{define "content"}}
 <div class="alert alert-info">每日自动备份到 <code>{{.Dir}}</code>，保留 {{.KeepDays}} 天；恢复需停服替换数据库文件。</div>
-<div class="card"><div class="table-responsive"><table class="table table-vcenter card-table" style="table-layout:fixed;width:100%">
+<div class="card"><div class="table-responsive"><table class="table table-vcenter card-table">
 <thead><tr><th>文件</th><th class="d-none d-md-table-cell">大小</th><th class="d-none d-md-table-cell">时间</th><th class="w-1"><span class="visually-hidden">操作</span></th></tr></thead>
-<tbody>{{range .List}}<tr><td class="text-break text-wrap">{{.Name}}<div class="text-secondary small d-md-none">{{.Size}} · {{.Time}}</div></td>
-<td class="d-none d-md-table-cell">{{.Size}}</td><td class="d-none d-md-table-cell">{{.Time}}</td>
-<td class="text-nowrap"><div class="d-none d-md-flex gap-1"><a class="btn btn-sm btn-outline-primary" href="/admin/backups/{{.Name}}/download" download>下载</a><form method="post" action="/admin/backups/{{.Name}}/delete" onsubmit="return confirm('确定删除该备份？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-danger" type="submit">删除</button></form></div>
+<tbody>{{range .List}}<tr><td class="text-break text-wrap" style="width:100%;max-width:0">{{.Name}}<div class="text-secondary small d-md-none">{{.Size}} · {{.Time}}</div></td>
+<td class="d-none d-md-table-cell text-nowrap">{{.Size}}</td><td class="d-none d-md-table-cell text-nowrap">{{.Time}}</td>
+<td class="text-nowrap"><div class="d-none d-md-flex gap-1"><a class="btn btn-sm btn-primary" href="/admin/backups/{{.Name}}/download" download>下载</a><form method="post" action="/admin/backups/{{.Name}}/delete" onsubmit="return confirm('确定删除该备份？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-danger" type="submit">删除</button></form></div>
 <div class="dropdown d-md-none"><button type="button" class="btn btn-sm btn-ghost-secondary" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="更多操作" title="更多操作"><i class="ti ti-dots-vertical" aria-hidden="true"></i></button><div class="dropdown-menu dropdown-menu-end"><a class="dropdown-item" href="/admin/backups/{{.Name}}/download" download>下载</a>
 <form method="post" action="/admin/backups/{{.Name}}/delete" onsubmit="return confirm('确定删除该备份？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="dropdown-item text-danger">删除</button></form></div></div></td></tr>
 {{else}}<tr><td colspan="4" class="text-center text-secondary py-4">暂无备份</td></tr>{{end}}</tbody></table></div></div>

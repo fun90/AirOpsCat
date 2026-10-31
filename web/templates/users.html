@@ -14,7 +14,7 @@
             {{range .List}}
             <tr>
                 <td class="d-none d-md-table-cell">{{.ID}}</td>
-                <td>{{.Email}}
+                <td class="text-break"><a href="/admin/users/{{.ID}}/edit" class="fw-medium">{{.Email}}</a>
                     <div class="d-md-none mt-1"><span class="badge bg-blue-lt">{{.Role}}</span> {{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}}{{if or .NickName .RemarkName}}<div class="text-secondary small">{{.NickName}}{{if and .NickName .RemarkName}} / {{end}}{{.RemarkName}}</div>{{end}}</div></td>
                 <td class="d-none d-md-table-cell">{{.NickName}}</td>
                 <td class="d-none d-md-table-cell">{{.RemarkName}}{{if .Remark}}<div class="text-secondary small">{{.Remark}}</div>{{end}}</td>
@@ -22,9 +22,9 @@
                 <td class="d-none d-md-table-cell">{{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}}</td>
                 <td class="text-nowrap">
                   <div class="d-none d-md-flex gap-1">
-                    <a href="/admin/users/{{.ID}}/edit" class="btn btn-sm btn-outline-primary">编辑</a>
+                    <a href="/admin/users/{{.ID}}/edit" class="btn btn-sm btn-primary">编辑</a>
                     {{if ne .ID $.User.ID}}<form method="post" action="/admin/users/{{.ID}}/delete" onsubmit="return confirm('确定删除该用户？')"><input type="hidden" name="csrf" value="{{$.CSRF}}">
-                        <button class="btn btn-sm btn-outline-danger" type="submit">删除</button></form>{{end}}
+                        <button class="btn btn-sm btn-danger" type="submit">删除</button></form>{{end}}
                   </div>
                   {{if ne .ID $.User.ID}}<div class="dropdown d-md-none">
                     <button class="btn btn-sm btn-ghost-secondary" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="更多操作" title="更多操作"><i class="ti ti-dots-vertical d-md-none" aria-hidden="true"></i><span class="d-none d-md-inline">更多<i class="ti ti-chevron-down ms-1" aria-hidden="true"></i></span></button>
@@ -33,7 +33,7 @@
                         {{if ne .ID $.User.ID}}<form method="post" action="/admin/users/{{.ID}}/delete" onsubmit="return confirm('确定删除该用户？')"><input type="hidden" name="csrf" value="{{$.CSRF}}">
                             <button class="dropdown-item text-danger" type="submit">删除</button></form>{{end}}
                     </div>
-                  </div>{{else}}<a href="/admin/users/{{.ID}}/edit" class="btn btn-sm btn-outline-primary d-md-none">编辑</a>{{end}}
+                  </div>{{else}}<a href="/admin/users/{{.ID}}/edit" class="btn btn-sm btn-primary d-md-none">编辑</a>{{end}}
                 </td>
             </tr>
             {{else}}
