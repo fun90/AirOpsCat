@@ -79,17 +79,14 @@ func Settings(ctx context.Context, db *sql.DB) ([]Setting, error) {
 
 // SaveSettings 在同一事务中保存多项；任何一项不合法则全部不生效。只更新已有键；敏感值留空保留，API token 不提供清除操作。
 func SaveSettings(ctx context.Context, db *sql.DB, cipher *crypto.Cipher, kv map[string]string) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	for k, v := range kv {
-		if err := saveSetting(ctx, tx, cipher, k, v); err != nil {
-			return fmt.Errorf("%w（%s）", err, k)
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		for k, v := range kv {
+			if err := saveSetting(ctx, tx, cipher, k, v); err != nil {
+				return fmt.Errorf("%w（%s）", err, k)
+			}
 		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 func saveSetting(ctx context.Context, db dbtx, cipher *crypto.Cipher, key, value string) error {
@@ -283,4 +280,11 @@ func CleanupSystemLogs(ctx context.Context, db *sql.DB, days int, at time.Time) 
 			return nil
 		}
 	}
+}
+
+// ConfigValue 读取 system_config 中的明文配置项；不存在返回空串。
+func ConfigValue(ctx context.Context, db *sql.DB, key string) string {
+	var v sql.NullString
+	db.QueryRowContext(ctx, `SELECT config_value FROM system_config WHERE config_key = ?`, key).Scan(&v)
+	return strings.TrimRight(strings.TrimSpace(v.String), "/")
 }

@@ -109,71 +109,68 @@ func RefreshGuardOnline(ctx context.Context, db *sql.DB, nodeIP string, accounts
 	if err != nil {
 		return err
 	}
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	nodes := map[string]int64{}
-	rows, err := tx.QueryContext(ctx, `SELECT n.id FROM node n JOIN node_server p ON p.node_id=n.id JOIN server s ON s.id=p.server_id WHERE s.ip=? AND p.deployed=1 AND n.disabled=0 AND n.type=0`, nodeIP)
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return err
-		}
-		nodes[fmt.Sprintf("node_%d", id)] = id
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return err
-	}
-	for _, a := range accounts {
-		var accountNo string
-		err := tx.QueryRowContext(ctx, `SELECT account_no FROM account WHERE account_no=?`, a.AccountNo).Scan(&accountNo)
-		if errors.Is(err, sql.ErrNoRows) {
-			continue
-		}
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		nodes := map[string]int64{}
+		rows, err := tx.QueryContext(ctx, `SELECT n.id FROM node n JOIN node_server p ON p.node_id=n.id JOIN server s ON s.id=p.server_id WHERE s.ip=? AND p.deployed=1 AND n.disabled=0 AND n.type=0`, nodeIP)
 		if err != nil {
 			return err
 		}
-		var nodeID any
-		if id, ok := nodes[a.NodeTag]; ok {
-			nodeID = id
-		}
-		connections := a.Connections
-		if len(connections) == 0 {
-			for _, ip := range a.ClientIPs {
-				connections = append(connections, GuardConnection{ClientIP: ip})
+		for rows.Next() {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				return err
 			}
+			nodes[fmt.Sprintf("node_%d", id)] = id
 		}
-		for _, c := range connections {
-			if strings.TrimSpace(c.ClientIP) == "" {
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		for _, a := range accounts {
+			var accountNo string
+			err := tx.QueryRowContext(ctx, `SELECT account_no FROM account WHERE account_no=?`, a.AccountNo).Scan(&accountNo)
+			if errors.Is(err, sql.ErrNoRows) {
 				continue
 			}
-			id := c.ConnectionID
-			if strings.TrimSpace(id) == "" {
-				id = fmt.Sprintf("guard-ip|%s|%s|%s|%s", accountNo, c.ClientIP, nodeIP, a.NodeTag)
-			}
-			start, err := time.Parse(time.RFC3339Nano, c.Start)
-			if err != nil {
-				start = now
-			}
-			_, err = tx.ExecContext(ctx, `INSERT INTO account_online_ip (account_no,client_ip,connection_id,node_ip,node_id,node_tag,last_online_time,session_start_time,create_time,update_time)
-    VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(account_no,node_ip,connection_id) DO UPDATE SET
-    client_ip=excluded.client_ip,node_id=excluded.node_id,node_tag=excluded.node_tag,
-    session_start_time=CASE WHEN account_online_ip.last_online_time<=? THEN excluded.session_start_time ELSE account_online_ip.session_start_time END,
-    last_online_time=excluded.last_online_time,update_time=excluded.update_time`, accountNo, c.ClientIP, id, nodeIP, nodeID, a.NodeTag, FormatTime(now), FormatTime(start), FormatTime(now), FormatTime(now), FormatTime(now.Add(-settings.OnlineWindow)))
 			if err != nil {
 				return err
 			}
+			var nodeID any
+			if id, ok := nodes[a.NodeTag]; ok {
+				nodeID = id
+			}
+			connections := a.Connections
+			if len(connections) == 0 {
+				for _, ip := range a.ClientIPs {
+					connections = append(connections, GuardConnection{ClientIP: ip})
+				}
+			}
+			for _, c := range connections {
+				if strings.TrimSpace(c.ClientIP) == "" {
+					continue
+				}
+				id := c.ConnectionID
+				if strings.TrimSpace(id) == "" {
+					id = fmt.Sprintf("guard-ip|%s|%s|%s|%s", accountNo, c.ClientIP, nodeIP, a.NodeTag)
+				}
+				start, err := time.Parse(time.RFC3339Nano, c.Start)
+				if err != nil {
+					start = now
+				}
+				_, err = tx.ExecContext(ctx, `INSERT INTO account_online_ip (account_no,client_ip,connection_id,node_ip,node_id,node_tag,last_online_time,session_start_time,create_time,update_time)
+	    VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(account_no,node_ip,connection_id) DO UPDATE SET
+	    client_ip=excluded.client_ip,node_id=excluded.node_id,node_tag=excluded.node_tag,
+	    session_start_time=CASE WHEN account_online_ip.last_online_time<=? THEN excluded.session_start_time ELSE account_online_ip.session_start_time END,
+	    last_online_time=excluded.last_online_time,update_time=excluded.update_time`, accountNo, c.ClientIP, id, nodeIP, nodeID, a.NodeTag, FormatTime(now), FormatTime(start), FormatTime(now), FormatTime(now), FormatTime(now.Add(-settings.OnlineWindow)))
+				if err != nil {
+					return err
+				}
+			}
 		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 // CleanupGuardOnline 独立提供给保留期任务，固定保留最近 30 天。

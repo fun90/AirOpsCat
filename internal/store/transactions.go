@@ -201,34 +201,31 @@ func SaveTransaction(ctx context.Context, db *sql.DB, t *Transaction) error {
 		t.TransactionDate = nowFunc()
 	}
 	t.TransactionDate = t.TransactionDate.In(Shanghai)
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if err := validateTransaction(ctx, tx, t); err != nil {
-		return err
-	}
-	now := FormatTime(nowFunc())
-	if t.ID == 0 {
-		res, err := tx.ExecContext(ctx, `INSERT INTO transactions (transaction_date,amount,type,business_table,business_id,description,payment_method,remark,create_time,update_time) VALUES (?,?,?,?,?,?,?,?,?,?)`, FormatTime(t.TransactionDate), t.Amount, t.Type, nz(t.BusinessTable), t.BusinessID, nz(t.Description), nz(t.PaymentMethod), nz(t.Remark), now, now)
-		if err != nil {
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		if err := validateTransaction(ctx, tx, t); err != nil {
 			return err
 		}
-		t.ID, err = res.LastInsertId()
-		if err != nil {
-			return err
+		now := FormatTime(nowFunc())
+		if t.ID == 0 {
+			res, err := tx.ExecContext(ctx, `INSERT INTO transactions (transaction_date,amount,type,business_table,business_id,description,payment_method,remark,create_time,update_time) VALUES (?,?,?,?,?,?,?,?,?,?)`, FormatTime(t.TransactionDate), t.Amount, t.Type, nz(t.BusinessTable), t.BusinessID, nz(t.Description), nz(t.PaymentMethod), nz(t.Remark), now, now)
+			if err != nil {
+				return err
+			}
+			t.ID, err = res.LastInsertId()
+			if err != nil {
+				return err
+			}
+		} else {
+			res, err := tx.ExecContext(ctx, `UPDATE transactions SET transaction_date=?,amount=?,type=?,business_table=?,business_id=?,description=?,payment_method=?,remark=?,update_time=? WHERE id=?`, FormatTime(t.TransactionDate), t.Amount, t.Type, nz(t.BusinessTable), t.BusinessID, nz(t.Description), nz(t.PaymentMethod), nz(t.Remark), now, t.ID)
+			if err != nil {
+				return err
+			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				return sql.ErrNoRows
+			}
 		}
-	} else {
-		res, err := tx.ExecContext(ctx, `UPDATE transactions SET transaction_date=?,amount=?,type=?,business_table=?,business_id=?,description=?,payment_method=?,remark=?,update_time=? WHERE id=?`, FormatTime(t.TransactionDate), t.Amount, t.Type, nz(t.BusinessTable), t.BusinessID, nz(t.Description), nz(t.PaymentMethod), nz(t.Remark), now, t.ID)
-		if err != nil {
-			return err
-		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			return sql.ErrNoRows
-		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 func DeleteTransaction(ctx context.Context, db *sql.DB, id int64) error {

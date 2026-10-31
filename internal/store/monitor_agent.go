@@ -67,37 +67,34 @@ func SaveMonitorReport(ctx context.Context, db *sql.DB, r monitor.AgentReport, a
 			return err
 		}
 	}
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	var p monitor.AgentReport
-	err = tx.QueryRowContext(ctx, `SELECT sampled_at,boot_id,uptime_ms,cpu_idle,cpu_total,rx_bytes,tx_bytes FROM monitor_agent WHERE server_id=?`, r.ServerID).Scan(&p.SampledAt, &p.BootID, &p.UptimeMS, &p.CPUIdle, &p.CPUTotal, &p.RxBytes, &p.TxBytes)
-	if errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("监控 agent 未登记")
-	}
-	if err != nil {
-		return err
-	}
-	if r.SampledAt <= p.SampledAt {
-		return fmt.Errorf("重复或乱序采样")
-	}
-	if sample, ok := monitor.SampleFromCounters(p, r); ok {
-		_, err = tx.ExecContext(ctx, `INSERT INTO server_metrics(server_id,kind,sample_time,cpu_usage,memory_usage,memory_used,memory_total,rx_rate,tx_rate,disk_usage,disk_used,disk_total,singbox_down) VALUES(?,'monitor',?,?,?,?,?,?,?,?,?,?,?)`, append([]any{r.ServerID, FormatTime(at), sample.CPU, sample.Memory, sample.MemUsed, sample.MemTotal, sample.RxRate, sample.TxRate}, extraArgs(sample)...)...)
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		var p monitor.AgentReport
+		err = tx.QueryRowContext(ctx, `SELECT sampled_at,boot_id,uptime_ms,cpu_idle,cpu_total,rx_bytes,tx_bytes FROM monitor_agent WHERE server_id=?`, r.ServerID).Scan(&p.SampledAt, &p.BootID, &p.UptimeMS, &p.CPUIdle, &p.CPUTotal, &p.RxBytes, &p.TxBytes)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("监控 agent 未登记")
+		}
 		if err != nil {
 			return err
 		}
-	}
-	if hasVN {
-		_, err = tx.ExecContext(ctx, insertVnstatSQL, vnstatArgs(r.ServerID, vn, at)...)
+		if r.SampledAt <= p.SampledAt {
+			return fmt.Errorf("重复或乱序采样")
+		}
+		if sample, ok := monitor.SampleFromCounters(p, r); ok {
+			_, err = tx.ExecContext(ctx, `INSERT INTO server_metrics(server_id,kind,sample_time,cpu_usage,memory_usage,memory_used,memory_total,rx_rate,tx_rate,disk_usage,disk_used,disk_total,singbox_down) VALUES(?,'monitor',?,?,?,?,?,?,?,?,?,?,?)`, append([]any{r.ServerID, FormatTime(at), sample.CPU, sample.Memory, sample.MemUsed, sample.MemTotal, sample.RxRate, sample.TxRate}, extraArgs(sample)...)...)
+			if err != nil {
+				return err
+			}
+		}
+		if hasVN {
+			_, err = tx.ExecContext(ctx, insertVnstatSQL, vnstatArgs(r.ServerID, vn, at)...)
+			if err != nil {
+				return err
+			}
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE monitor_agent SET last_seen=?,sampled_at=?,boot_id=?,uptime_ms=?,cpu_idle=?,cpu_total=?,rx_bytes=?,tx_bytes=? WHERE server_id=?`, FormatTime(at), r.SampledAt, r.BootID, r.UptimeMS, r.CPUIdle, r.CPUTotal, r.RxBytes, r.TxBytes, r.ServerID)
 		if err != nil {
 			return err
 		}
-	}
-	_, err = tx.ExecContext(ctx, `UPDATE monitor_agent SET last_seen=?,sampled_at=?,boot_id=?,uptime_ms=?,cpu_idle=?,cpu_total=?,rx_bytes=?,tx_bytes=? WHERE server_id=?`, FormatTime(at), r.SampledAt, r.BootID, r.UptimeMS, r.CPUIdle, r.CPUTotal, r.RxBytes, r.TxBytes, r.ServerID)
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
+		return nil
+	})
 }

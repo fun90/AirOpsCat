@@ -8,13 +8,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"github.com/fun90/airopscat/internal/singbox"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/fun90/airopscat/internal/singbox"
 )
 
 // 部署位状态
@@ -29,13 +30,6 @@ const (
 	NodeProxy   = 0
 	NodeLanding = 1
 )
-
-// ErrInvalid 表示用户输入不合法，调用方应把消息回显给用户。
-var ErrInvalid = errors.New("输入不合法")
-
-func invalid(f string, a ...any) error {
-	return fmt.Errorf("%w：%s", ErrInvalid, fmt.Sprintf(f, a...))
-}
 
 // ProtocolsFor 返回节点类型允许的协议（决策沿用 spec-deploy 1.1）。
 func ProtocolsFor(nodeType int) []string {
@@ -77,61 +71,6 @@ func (n *Node) DeployStatus() int {
 	return PendingDeploy
 }
 
-type Placement struct {
-	ID             int64
-	NodeID         int64
-	ServerID       int64
-	ServerName     string
-	ServerIP       string
-	ServerRegion   string
-	ServerType     int
-	ServerExternal bool
-	Disabled       bool // 服务器已禁用
-	AccessHostID   *int64
-	Exposed        bool
-	Priority       int
-	Deployed       int
-	Running        bool // 曾成功部署过（服务器上已有该节点），可承接转移的域名
-	CheapStart     string
-	CheapEnd       string
-	Failover       bool // 已手动切走
-}
-
-// PlacementOps 是节点表单暂存的部署位增删，随节点保存在同一事务中执行。
-type PlacementOps struct {
-	AddServerIDs []int64
-	Deletes      []PlacementDelete
-	NewHosts     []*NewHost
-}
-
-// NewHost 为部署位新建访问域名：在主域名下建指向服务器 IP 的 A 记录，保存成功后 RecordID 为新记录。
-type NewHost struct {
-	ServerID, DomainID int64
-	Name               string
-	RecordID           int64
-}
-
-// PlacementDelete 删除部署位，TargetID 为承接访问域名和订阅定制的部署位（无绑定时可为 0）。
-type PlacementDelete struct {
-	PlacementID, TargetID int64
-}
-
-// PlacementEdit 是节点表单对已有部署位属性的修改。
-type PlacementEdit struct {
-	ServerID     int64
-	Priority     int
-	Exposed      bool
-	CheapStart   string
-	CheapEnd     string
-	AccessHostID *int64
-}
-
-type dbtx interface {
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-	QueryRowContext(context.Context, string, ...any) *sql.Row
-}
-
 var numberSuffix = regexp.MustCompile(`-\d+$`)
 
 // NodeNameWithNumber 保证名称以 -N 结尾，缺省补 -1（订阅按此编号去重）。
@@ -142,8 +81,6 @@ func NodeNameWithNumber(name string) string {
 	}
 	return name + "-1"
 }
-
-var hhmm = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 
 func normJSON(s string) string {
 	if strings.TrimSpace(s) == "" {
@@ -214,17 +151,19 @@ func (f NodeFilter) where() (string, []any) {
 	if f.TagID > 0 {
 		w, args = append(w, "EXISTS (SELECT 1 FROM node_tag nt WHERE nt.node_id = n.id AND nt.tag_id = ?)"), append(args, f.TagID)
 	}
-	const cnt = "(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id%s)"
+	cnt := func(extra string) string {
+		return "(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id" + extra + ")"
+	}
+	all, del, dep := cnt(""), cnt(" AND ns.deployed = 2"), cnt(" AND ns.deployed = 1")
 	switch f.Status {
 	case -1:
-		w = append(w, fmt.Sprintf(cnt, "")+" = 0")
+		w = append(w, all+" = 0")
 	case PendingDelete:
-		w = append(w, fmt.Sprintf(cnt, "")+" > 0 AND "+fmt.Sprintf(cnt, "")+" = "+fmt.Sprintf(cnt, " AND ns.deployed = 2"))
+		w = append(w, all+" > 0 AND "+all+" = "+del)
 	case Deployed:
-		w = append(w, fmt.Sprintf(cnt, "")+" > 0 AND "+fmt.Sprintf(cnt, "")+" = "+fmt.Sprintf(cnt, " AND ns.deployed = 1"))
+		w = append(w, all+" > 0 AND "+all+" = "+dep)
 	case PendingDeploy:
-		w = append(w, fmt.Sprintf(cnt, "")+" > 0 AND "+fmt.Sprintf(cnt, "")+" <> "+fmt.Sprintf(cnt, " AND ns.deployed = 2")+
-			" AND "+fmt.Sprintf(cnt, "")+" <> "+fmt.Sprintf(cnt, " AND ns.deployed = 1"))
+		w = append(w, all+" > 0 AND "+all+" <> "+del+" AND "+all+" <> "+dep)
 	}
 	return strings.Join(w, " AND "), args
 }
@@ -346,56 +285,6 @@ func Regions(ctx context.Context, db *sql.DB) ([]string, error) {
 	return list, rows.Err()
 }
 
-// Placements 返回节点的全部部署位。
-func Placements(ctx context.Context, q dbtx, nodeID int64) ([]*Placement, error) {
-	rows, err := q.QueryContext(ctx, `SELECT ns.id, ns.node_id, ns.server_id, coalesce(s.name,''), s.ip, coalesce(s.region,''), coalesce(s.server_type,0), s.external_server, s.disabled, ns.access_host_id,
-		coalesce(ns.exposed,1) <> 0, coalesce(ns.priority,0), ns.deployed,
-		ns.deployed = 1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id), coalesce(ns.cheap_start,''), coalesce(ns.cheap_end,''), ns.failover
-		FROM node_server ns JOIN server s ON s.id = ns.server_id WHERE ns.node_id = ? ORDER BY ns.priority, ns.id`, nodeID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var list []*Placement
-	for rows.Next() {
-		var p Placement
-		var host sql.NullInt64
-		if err := rows.Scan(&p.ID, &p.NodeID, &p.ServerID, &p.ServerName, &p.ServerIP, &p.ServerRegion, &p.ServerType, &p.ServerExternal, &p.Disabled, &host, &p.Exposed, &p.Priority,
-			&p.Deployed, &p.Running, &p.CheapStart, &p.CheapEnd, &p.Failover); err != nil {
-			return nil, err
-		}
-		if host.Valid {
-			p.AccessHostID = &host.Int64
-		}
-		list = append(list, &p)
-	}
-	return list, rows.Err()
-}
-
-// AccessHostOption 是部署位可选的访问域名：已绑定到该服务器的 DNS 记录。
-type AccessHostOption struct {
-	ID       int64
-	ServerID int64
-	FullName string
-}
-
-func AccessHostOptions(ctx context.Context, q dbtx, serverIDs []int64) (map[int64][]AccessHostOption, error) {
-	out := map[int64][]AccessHostOption{}
-	for _, sid := range serverIDs {
-		rows, err := q.QueryContext(ctx, `SELECT id, coalesce(full_name, name) FROM domain_dns_record WHERE server_id = ? ORDER BY full_name`, sid)
-		if err != nil {
-			return nil, err
-		}
-		for rows.Next() {
-			o := AccessHostOption{ServerID: sid}
-			rows.Scan(&o.ID, &o.FullName)
-			out[sid] = append(out[sid], o)
-		}
-		rows.Close()
-	}
-	return out, nil
-}
-
 func validateNode(ctx context.Context, q dbtx, n *Node) error {
 	n.Name = NodeNameWithNumber(n.Name)
 	n.Region = strings.TrimSpace(n.Region)
@@ -412,11 +301,7 @@ func validateNode(ctx context.Context, q dbtx, n *Node) error {
 	case n.Port < 1 || n.Port > 65535:
 		return invalid("端口范围 1-65535")
 	}
-	ok := false
-	for _, p := range ProtocolsFor(n.Type) {
-		ok = ok || p == n.Protocol
-	}
-	if !ok {
+	if !slices.Contains(ProtocolsFor(n.Type), n.Protocol) {
 		return invalid("协议 %s 不适用于该节点类型，可选：%s", n.Protocol, strings.Join(ProtocolsFor(n.Type), "、"))
 	}
 	var obj map[string]any
@@ -450,390 +335,4 @@ func validateNode(ctx context.Context, q dbtx, n *Node) error {
 		}
 	}
 	return nil
-}
-
-// portConflict 判断服务器上是否已有其他节点（含待删除部署位）占用该端口，返回占用者名称。
-func portConflict(ctx context.Context, q dbtx, serverID int64, port int, nodeID int64) (string, error) {
-	var name string
-	err := q.QueryRowContext(ctx, `SELECT n.name FROM node_server ns JOIN node n ON n.id = ns.node_id
-		WHERE ns.server_id = ? AND n.port = ? AND n.id <> ? LIMIT 1`, serverID, port, nodeID).Scan(&name)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
-	}
-	return name, err
-}
-
-func markPending(ctx context.Context, q dbtx, nodeID int64) error {
-	_, err := q.ExecContext(ctx, `UPDATE node_server SET deployed = 0, update_time = ? WHERE node_id = ? AND deployed <> 2`, FormatTime(nowFunc()), nodeID)
-	return err
-}
-
-func markReferencingPending(ctx context.Context, q dbtx, landingID int64) error {
-	_, err := q.ExecContext(ctx, `UPDATE node_server SET deployed = 0, update_time = ? WHERE deployed <> 2 AND node_id IN (SELECT id FROM node WHERE out_id = ?)`,
-		FormatTime(nowFunc()), landingID)
-	return err
-}
-
-// effectiveServer 返回节点的生效部署位所在服务器：非待删除中 priority 最小、id 最小。
-func effectiveServer(ctx context.Context, q dbtx, nodeID int64) (int64, error) {
-	var sid int64
-	err := q.QueryRowContext(ctx, `SELECT server_id FROM node_server WHERE node_id = ? AND deployed <> 2 ORDER BY priority, id LIMIT 1`, nodeID).Scan(&sid)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, nil
-	}
-	return sid, err
-}
-
-func replaceTags(ctx context.Context, q dbtx, nodeID int64, tagIDs []int64) error {
-	if _, err := q.ExecContext(ctx, `DELETE FROM node_tag WHERE node_id = ?`, nodeID); err != nil {
-		return err
-	}
-	seen := map[int64]bool{}
-	for _, id := range tagIDs {
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
-		if _, err := q.ExecContext(ctx, `INSERT INTO node_tag (node_id, tag_id) VALUES (?, ?)`, nodeID, id); err != nil {
-			return invalid("标签不存在")
-		}
-	}
-	return nil
-}
-
-func normalizeTagIDs(ids []int64) []int64 {
-	seen := map[int64]bool{}
-	var out []int64
-	for _, id := range ids {
-		if !seen[id] {
-			seen[id] = true
-			out = append(out, id)
-		}
-	}
-	return out
-}
-
-// availableNodePort 在写事务内从防火墙节点端口范围取全局未用端口，避免未来部署位合并冲突。
-func availableNodePort(ctx context.Context, q dbtx) (int, error) {
-	rows, err := q.QueryContext(ctx, `SELECT DISTINCT port FROM node WHERE port BETWEEN 8000 AND 10000 ORDER BY port`)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-	candidate := 8000
-	for rows.Next() {
-		var port int
-		if err := rows.Scan(&port); err != nil {
-			return 0, err
-		}
-		if port > candidate {
-			break
-		}
-		if port == candidate {
-			candidate++
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-	if candidate > 10000 {
-		return 0, invalid("没有可自动分配的端口，请手动指定")
-	}
-	return candidate, nil
-}
-
-// SaveNode 新建（ID=0）或更新节点及其标签、部署位属性，返回节点 ID。
-// 新建时传入 ops 则按 ops.AddServerIDs 创建初始部署位，否则按地区和类型匹配；之后地区不再影响部署位；实质变更会把该节点的部署位置为待部署。
-func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []PlacementEdit, ops ...PlacementOps) (int64, error) {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
-	tagIDs = normalizeTagIDs(tagIDs)
-	if n.ID == 0 && n.Port == 0 {
-		port, err := availableNodePort(ctx, tx)
-		if err != nil {
-			return 0, err
-		}
-		n.Port = port
-	}
-	if err := validateNode(ctx, tx, n); err != nil {
-		return 0, err
-	}
-	now := FormatTime(nowFunc())
-	if n.ID == 0 {
-		res, err := tx.ExecContext(ctx, `INSERT INTO node (name, type, protocol, port, inbound, out_id, region, remark, disabled, create_time, update_time)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?)`, n.Name, n.Type, n.Protocol, n.Port, n.Inbound, n.OutID, n.Region, nz(n.Remark), n.Disabled, now, now)
-		if err != nil {
-			return 0, err
-		}
-		if n.ID, err = res.LastInsertId(); err != nil {
-			return 0, err
-		}
-		if err := replaceTags(ctx, tx, n.ID, tagIDs); err != nil {
-			return 0, err
-		}
-		if len(ops) == 0 {
-			if err := initPlacements(ctx, tx, n); err != nil {
-				return 0, err
-			}
-		}
-		for _, op := range ops {
-			for _, sid := range op.AddServerIDs {
-				if err := addPlacement(ctx, tx, n, sid); err != nil {
-					return 0, err
-				}
-			}
-			if err := applyNewHosts(ctx, tx, n.ID, op.NewHosts); err != nil {
-				return 0, err
-			}
-		}
-		return n.ID, tx.Commit()
-	}
-
-	old, err := loadNode(ctx, tx, n.ID)
-	if err != nil {
-		return 0, err
-	}
-	if old == nil {
-		return 0, sql.ErrNoRows
-	}
-	if n.Disabled && !old.Disabled {
-		if err := checkNotOutbound(ctx, tx, n.ID, "禁用"); err != nil {
-			return 0, err
-		}
-	}
-	oldSig, oldOutSig := old.signature(old.TagIDs), old.outboundSignature()
-	prevEffective, err := effectiveServer(ctx, tx, n.ID)
-	if err != nil {
-		return 0, err
-	}
-	if _, err := tx.ExecContext(ctx, `UPDATE node SET name=?, type=?, protocol=?, port=?, inbound=?, out_id=?, region=?, disabled=?, update_time=? WHERE id=?`,
-		n.Name, n.Type, n.Protocol, n.Port, n.Inbound, n.OutID, n.Region, n.Disabled, now, n.ID); err != nil {
-		return 0, err
-	}
-	if err := replaceTags(ctx, tx, n.ID, tagIDs); err != nil {
-		return 0, err
-	}
-	if err := cleanUnauthorizedBindings(ctx, tx, 0); err != nil {
-		return 0, err
-	}
-	// 顺序：先改已有部署位属性，再添加，最后删除（转移目标可以使用刚改好的访问域名）
-	if err := applyPlacementEdits(ctx, tx, n, edits); err != nil {
-		return 0, err
-	}
-	for _, op := range ops {
-		for _, sid := range op.AddServerIDs {
-			if err := addPlacement(ctx, tx, n, sid); err != nil {
-				return 0, err
-			}
-		}
-		if err := applyNewHosts(ctx, tx, n.ID, op.NewHosts); err != nil {
-			return 0, err
-		}
-		for _, d := range op.Deletes {
-			if err := deletePlacement(ctx, tx, n, d.PlacementID, d.TargetID); err != nil {
-				return 0, err
-			}
-		}
-	}
-	// 端口变化时，已有部署位所在服务器上不能冲突
-	pls, err := Placements(ctx, tx, n.ID)
-	if err != nil {
-		return 0, err
-	}
-	var badType []string
-	for _, p := range pls {
-		if p.Deployed == PendingDelete {
-			continue
-		}
-		if other, err := portConflict(ctx, tx, p.ServerID, n.Port, n.ID); err != nil {
-			return 0, err
-		} else if other != "" {
-			return 0, fmt.Errorf("%w：端口 %d 在服务器 %s 上已被节点 %s 占用", ErrConflict, n.Port, p.ServerName, other)
-		}
-		if !serverTypeAllowed(n.Type, p.ServerType, p.ServerExternal) {
-			badType = append(badType, p.ServerName)
-		}
-	}
-	if len(badType) > 0 {
-		return 0, invalid("代理节点只能部署在非外部的代理服务器上，请先删除部署位：%s", strings.Join(badType, "、"))
-	}
-	if n.signature(tagIDs) != oldSig {
-		if err := markPending(ctx, tx, n.ID); err != nil {
-			return 0, err
-		}
-	}
-	if n.Type == NodeLanding {
-		cur, err := effectiveServer(ctx, tx, n.ID)
-		if err != nil {
-			return 0, err
-		}
-		if n.outboundSignature() != oldOutSig || cur != prevEffective {
-			if err := markReferencingPending(ctx, tx, n.ID); err != nil {
-				return 0, err
-			}
-		}
-	}
-	return n.ID, tx.Commit()
-}
-
-func applyPlacementEdits(ctx context.Context, q dbtx, n *Node, edits []PlacementEdit) error {
-	for _, e := range edits {
-		start, end := strings.TrimSpace(e.CheapStart), strings.TrimSpace(e.CheapEnd)
-		if start != "" || end != "" {
-			if !hhmm.MatchString(start) || !hhmm.MatchString(end) || start == end {
-				return invalid("便宜时段起止需为不同的 HH:mm")
-			}
-		}
-		if e.AccessHostID != nil {
-			var n int
-			q.QueryRowContext(ctx, `SELECT count(*) FROM domain_dns_record WHERE id = ? AND server_id = ?`, *e.AccessHostID, e.ServerID).Scan(&n)
-			if n == 0 {
-				return invalid("访问域名必须是已绑定到该服务器的 DNS 记录")
-			}
-		}
-		exposed := e.Exposed && n.Type != NodeLanding // 落地节点不进订阅
-		if _, err := q.ExecContext(ctx, `UPDATE node_server SET priority=?, exposed=?, cheap_start=?, cheap_end=?, access_host_id=?, update_time=?
-			WHERE node_id=? AND server_id=? AND deployed <> 2`, e.Priority, exposed, nz(start), nz(end), e.AccessHostID, FormatTime(nowFunc()), n.ID, e.ServerID); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// applyNewHosts 新建访问域名并替换部署位当前的访问域名；DNS 推送由调用方在提交后处理。
-func applyNewHosts(ctx context.Context, tx *sql.Tx, nodeID int64, hosts []*NewHost) error {
-	for _, h := range hosts {
-		var ip string
-		err := tx.QueryRowContext(ctx, `SELECT s.ip FROM node_server ns JOIN server s ON s.id = ns.server_id WHERE ns.node_id = ? AND ns.server_id = ? AND ns.deployed <> 2`, nodeID, h.ServerID).Scan(&ip)
-		if err == sql.ErrNoRows {
-			return invalid("部署位不存在，无法新增域名")
-		}
-		if err != nil {
-			return err
-		}
-		id, err := createBindingRecord(ctx, tx, h.DomainID, h.Name, h.ServerID, ip)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE node_server SET access_host_id = ?, update_time = ? WHERE node_id = ? AND server_id = ? AND deployed <> 2`,
-			id, FormatTime(nowFunc()), nodeID, h.ServerID); err != nil {
-			return err
-		}
-		h.RecordID = id
-	}
-	return nil
-}
-
-// checkNotOutbound 拒绝删除或禁用仍被节点、路由规则引用为出站的节点：
-// 代理配置不看落地是否禁用，禁用后代理仍会把流量转给已撤掉入站的落地。
-func checkNotOutbound(ctx context.Context, q dbtx, id int64, action string) error {
-	var refs int
-	if err := q.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM node WHERE out_id = ?) + (SELECT count(*) FROM route_rule WHERE outbound_node_id = ?)`, id, id).Scan(&refs); err != nil {
-		return err
-	}
-	if refs > 0 {
-		return fmt.Errorf("%w：该节点被 %d 个节点或路由规则引用为出站，请先解除引用再%s", ErrConflict, refs, action)
-	}
-	return nil
-}
-
-// ToggleNode 启用/禁用节点，本节点及引用它的代理节点置为待部署；仍被引用为出站时拒绝禁用。
-func ToggleNode(ctx context.Context, db *sql.DB, id int64, disabled bool) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if disabled {
-		if err := checkNotOutbound(ctx, tx, id, "禁用"); err != nil {
-			return err
-		}
-	}
-	res, err := tx.ExecContext(ctx, `UPDATE node SET disabled = ?, update_time = ? WHERE id = ?`, disabled, FormatTime(nowFunc()), id)
-	if err != nil {
-		return err
-	}
-	if c, _ := res.RowsAffected(); c == 0 {
-		return sql.ErrNoRows
-	}
-	if err := markPending(ctx, tx, id); err != nil {
-		return err
-	}
-	if err := markReferencingPending(ctx, tx, id); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
-// DeleteNode 删除节点：未部署过的部署位直接删除，部署过的标记待删除（部署后从服务器移除）。
-// 返回 true 表示节点已物理删除。仍被其他节点引用为出站时拒绝。
-func DeleteNode(ctx context.Context, db *sql.DB, id int64) (bool, error) {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback()
-	if err := checkNotOutbound(ctx, tx, id, "删除"); err != nil {
-		return false, err
-	}
-	pls, err := Placements(ctx, tx, id)
-	if err != nil {
-		return false, err
-	}
-	for _, p := range pls {
-		if err := removeOrMarkDeleted(ctx, tx, p); err != nil {
-			return false, err
-		}
-	}
-	left, err := Placements(ctx, tx, id)
-	if err != nil {
-		return false, err
-	}
-	if len(left) == 0 {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM node WHERE id = ?`, id); err != nil {
-			return false, err
-		}
-		return true, tx.Commit()
-	}
-	return false, tx.Commit()
-}
-
-// CancelDeleteNode 把待删除的部署位恢复为待部署，需重新校验端口。
-func CancelDeleteNode(ctx context.Context, db *sql.DB, id int64) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	n, err := loadNode(ctx, tx, id)
-	if err != nil || n == nil {
-		return sql.ErrNoRows
-	}
-	pls, err := Placements(ctx, tx, id)
-	if err != nil {
-		return err
-	}
-	cnt := 0
-	for _, p := range pls {
-		if p.Deployed != PendingDelete {
-			continue
-		}
-		cnt++
-		if other, err := portConflict(ctx, tx, p.ServerID, n.Port, id); err != nil {
-			return err
-		} else if other != "" {
-			return fmt.Errorf("%w：端口 %d 在服务器 %s 上已被节点 %s 占用，无法取消删除", ErrConflict, n.Port, p.ServerName, other)
-		}
-	}
-	if cnt == 0 {
-		return invalid("节点不是待删除状态")
-	}
-	_, err = tx.ExecContext(ctx, `UPDATE node_server SET deployed = 0, update_time = ? WHERE node_id = ? AND deployed = 2`, FormatTime(nowFunc()), id)
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
 }

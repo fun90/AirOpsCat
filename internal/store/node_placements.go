@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -200,4 +201,153 @@ func FailoverServers(ctx context.Context, db *sql.DB) (map[int64][]string, error
 		out[node] = append(out[node], name)
 	}
 	return out, rows.Err()
+}
+
+type Placement struct {
+	ID             int64
+	NodeID         int64
+	ServerID       int64
+	ServerName     string
+	ServerIP       string
+	ServerRegion   string
+	ServerType     int
+	ServerExternal bool
+	Disabled       bool // 服务器已禁用
+	AccessHostID   *int64
+	Exposed        bool
+	Priority       int
+	Deployed       int
+	Running        bool // 曾成功部署过（服务器上已有该节点），可承接转移的域名
+	CheapStart     string
+	CheapEnd       string
+	Failover       bool // 已手动切走
+}
+
+// PlacementOps 是节点表单暂存的部署位增删，随节点保存在同一事务中执行。
+type PlacementOps struct {
+	AddServerIDs []int64
+	Deletes      []PlacementDelete
+	NewHosts     []*NewHost
+}
+
+// NewHost 为部署位新建访问域名：在主域名下建指向服务器 IP 的 A 记录，保存成功后 RecordID 为新记录。
+type NewHost struct {
+	ServerID, DomainID int64
+	Name               string
+	RecordID           int64
+}
+
+// PlacementDelete 删除部署位，TargetID 为承接访问域名和订阅定制的部署位（无绑定时可为 0）。
+type PlacementDelete struct {
+	PlacementID, TargetID int64
+}
+
+// PlacementEdit 是节点表单对已有部署位属性的修改。
+type PlacementEdit struct {
+	ServerID     int64
+	Priority     int
+	Exposed      bool
+	CheapStart   string
+	CheapEnd     string
+	AccessHostID *int64
+}
+
+var hhmm = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
+
+// Placements 返回节点的全部部署位。
+func Placements(ctx context.Context, q dbtx, nodeID int64) ([]*Placement, error) {
+	rows, err := q.QueryContext(ctx, `SELECT ns.id, ns.node_id, ns.server_id, coalesce(s.name,''), s.ip, coalesce(s.region,''), coalesce(s.server_type,0), s.external_server, s.disabled, ns.access_host_id,
+		coalesce(ns.exposed,1) <> 0, coalesce(ns.priority,0), ns.deployed,
+		ns.deployed = 1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id), coalesce(ns.cheap_start,''), coalesce(ns.cheap_end,''), ns.failover
+		FROM node_server ns JOIN server s ON s.id = ns.server_id WHERE ns.node_id = ? ORDER BY ns.priority, ns.id`, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []*Placement
+	for rows.Next() {
+		var p Placement
+		var host sql.NullInt64
+		if err := rows.Scan(&p.ID, &p.NodeID, &p.ServerID, &p.ServerName, &p.ServerIP, &p.ServerRegion, &p.ServerType, &p.ServerExternal, &p.Disabled, &host, &p.Exposed, &p.Priority,
+			&p.Deployed, &p.Running, &p.CheapStart, &p.CheapEnd, &p.Failover); err != nil {
+			return nil, err
+		}
+		if host.Valid {
+			p.AccessHostID = &host.Int64
+		}
+		list = append(list, &p)
+	}
+	return list, rows.Err()
+}
+
+// AccessHostOption 是部署位可选的访问域名：已绑定到该服务器的 DNS 记录。
+type AccessHostOption struct {
+	ID       int64
+	ServerID int64
+	FullName string
+}
+
+func AccessHostOptions(ctx context.Context, q dbtx, serverIDs []int64) (map[int64][]AccessHostOption, error) {
+	out := map[int64][]AccessHostOption{}
+	for _, sid := range serverIDs {
+		rows, err := q.QueryContext(ctx, `SELECT id, coalesce(full_name, name) FROM domain_dns_record WHERE server_id = ? ORDER BY full_name`, sid)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			o := AccessHostOption{ServerID: sid}
+			rows.Scan(&o.ID, &o.FullName)
+			out[sid] = append(out[sid], o)
+		}
+		rows.Close()
+	}
+	return out, nil
+}
+
+func applyPlacementEdits(ctx context.Context, q dbtx, n *Node, edits []PlacementEdit) error {
+	for _, e := range edits {
+		start, end := strings.TrimSpace(e.CheapStart), strings.TrimSpace(e.CheapEnd)
+		if start != "" || end != "" {
+			if !hhmm.MatchString(start) || !hhmm.MatchString(end) || start == end {
+				return invalid("便宜时段起止需为不同的 HH:mm")
+			}
+		}
+		if e.AccessHostID != nil {
+			var n int
+			q.QueryRowContext(ctx, `SELECT count(*) FROM domain_dns_record WHERE id = ? AND server_id = ?`, *e.AccessHostID, e.ServerID).Scan(&n)
+			if n == 0 {
+				return invalid("访问域名必须是已绑定到该服务器的 DNS 记录")
+			}
+		}
+		exposed := e.Exposed && n.Type != NodeLanding // 落地节点不进订阅
+		if _, err := q.ExecContext(ctx, `UPDATE node_server SET priority=?, exposed=?, cheap_start=?, cheap_end=?, access_host_id=?, update_time=?
+			WHERE node_id=? AND server_id=? AND deployed <> 2`, e.Priority, exposed, nz(start), nz(end), e.AccessHostID, FormatTime(nowFunc()), n.ID, e.ServerID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// applyNewHosts 新建访问域名并替换部署位当前的访问域名；DNS 推送由调用方在提交后处理。
+func applyNewHosts(ctx context.Context, tx *sql.Tx, nodeID int64, hosts []*NewHost) error {
+	for _, h := range hosts {
+		var ip string
+		err := tx.QueryRowContext(ctx, `SELECT s.ip FROM node_server ns JOIN server s ON s.id = ns.server_id WHERE ns.node_id = ? AND ns.server_id = ? AND ns.deployed <> 2`, nodeID, h.ServerID).Scan(&ip)
+		if err == sql.ErrNoRows {
+			return invalid("部署位不存在，无法新增域名")
+		}
+		if err != nil {
+			return err
+		}
+		id, err := createBindingRecord(ctx, tx, h.DomainID, h.Name, h.ServerID, ip)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE node_server SET access_host_id = ?, update_time = ? WHERE node_id = ? AND server_id = ? AND deployed <> 2`,
+			id, FormatTime(nowFunc()), nodeID, h.ServerID); err != nil {
+			return err
+		}
+		h.RecordID = id
+	}
+	return nil
 }

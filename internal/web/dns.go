@@ -79,122 +79,28 @@ func (s *Server) saveErr(w http.ResponseWriter, r *http.Request, err error) (str
 	return "", false
 }
 
-// ---------- 服务商 ----------
-
-func (s *Server) dnsClient(ctx context.Context, providerID int64) (*dns.Client, error) {
-	tok, err := store.DNSProviderToken(ctx, s.DB, s.Field, providerID)
-	if err != nil {
-		return nil, err
-	}
-	return &dns.Client{BaseURL: s.DNSBaseURL, Token: tok}, nil
-}
-
-func (s *Server) dnsProviderList(w http.ResponseWriter, r *http.Request) {
-	q := strings.TrimSpace(r.URL.Query().Get("q"))
-	page, size := pageParams(r)
-	list, total, err := store.DNSProviderList(r.Context(), s.DB, q, page, size)
+// domainOr404 查域名；出错或不存在时已写出响应并返回 nil。
+func (s *Server) domainOr404(w http.ResponseWriter, r *http.Request, id int64) *store.DNSDomain {
+	dm, err := store.DNSDomainByID(r.Context(), s.DB, id)
 	if err != nil {
 		s.fail(w, r, err)
-		return
+		return nil
 	}
-	d := s.pageData(r, "DNS 服务商", "dns")
-	d["List"], d["Q"], d["Page"], d["Pages"] = list, q, page, (total+size-1)/size
-	s.render(w, "dns_providers", 200, d)
-}
-
-func (s *Server) dnsProviderForm(w http.ResponseWriter, r *http.Request, status int, p *store.DNSProvider, msg string) {
-	title := "新增 DNS 服务商"
-	if p.ID != 0 {
-		title = "编辑 DNS 服务商"
-	}
-	d := s.pageData(r, title, "dns")
-	d["Form"], d["FormErr"] = p, msg
-	s.render(w, "dns_provider_form", status, d)
-}
-
-func (s *Server) dnsProviderEdit(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(w, r, "id")
-	if !ok {
-		return
-	}
-	p, err := store.DNSProviderByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	if p == nil {
+	if dm == nil {
 		http.NotFound(w, r)
-		return
 	}
-	s.dnsProviderForm(w, r, 200, p, "")
+	return dm
 }
 
-func (s *Server) dnsProviderSave(w http.ResponseWriter, r *http.Request) {
-	p := &store.DNSProvider{Name: formValue(r, "name"), AccountID: formValue(r, "account_id"), Remark: formValue(r, "remark"), Enabled: r.PostFormValue("enabled") == "1"}
-	if r.PathValue("id") != "" {
-		var ok bool
-		if p.ID, ok = pathID(w, r, "id"); !ok {
-			return
-		}
-	}
-	_, err := store.SaveDNSProvider(r.Context(), s.DB, s.Field, p, strings.TrimSpace(r.PostFormValue("api_token")))
+// deleteDone 统一删除类处理器的收尾：失败回显错误，成功回显 okMsg。
+func (s *Server) deleteDone(w http.ResponseWriter, r *http.Request, err error, back, okMsg string) {
 	if err != nil {
-		msg, ok := s.saveErr(w, r, err)
-		if ok {
-			if p.ID != 0 {
-				if cur, _ := store.DNSProviderByID(r.Context(), s.DB, p.ID); cur != nil {
-					p.HasToken = cur.HasToken
-				}
-			}
-			s.dnsProviderForm(w, r, 422, p, msg)
-		}
-		return
-	}
-	redirectMsg(w, r, "/admin/dns-providers", "msg", "DNS 服务商已保存")
-}
-
-func (s *Server) dnsProviderTest(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(w, r, "id")
-	if !ok {
-		return
-	}
-	c, err := s.dnsClient(r.Context(), id)
-	if errors.Is(err, sql.ErrNoRows) {
-		http.NotFound(w, r)
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-	if err == nil {
-		err = c.Verify(ctx)
-	}
-	msg := "Token 验证通过"
-	if err != nil {
-		msg = err.Error()
-	}
-	if e := store.RecordDNSProviderCheck(r.Context(), s.DB, id, err == nil, msg); e != nil {
-		s.fail(w, r, e)
-		return
-	}
-	if err != nil {
-		redirectMsg(w, r, "/admin/dns-providers", "err", "验证失败："+msg)
-		return
-	}
-	redirectMsg(w, r, "/admin/dns-providers", "msg", msg)
-}
-
-func (s *Server) dnsProviderDelete(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(w, r, "id")
-	if !ok {
-		return
-	}
-	if err := store.DeleteDNSProvider(r.Context(), s.DB, id); err != nil {
 		if msg, ok := s.saveErr(w, r, err); ok {
-			redirectMsg(w, r, "/admin/dns-providers", "err", msg)
+			redirectMsg(w, r, back, "err", msg)
 		}
 		return
 	}
-	redirectMsg(w, r, "/admin/dns-providers", "msg", "DNS 服务商已删除")
+	redirectMsg(w, r, back, "msg", okMsg)
 }
 
 // ---------- 域名 ----------
@@ -244,16 +150,9 @@ func (s *Server) domainEdit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	dm, err := store.DNSDomainByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
+	if dm := s.domainOr404(w, r, id); dm != nil {
+		s.domainForm(w, r, 200, dm, "")
 	}
-	if dm == nil {
-		http.NotFound(w, r)
-		return
-	}
-	s.domainForm(w, r, 200, dm, "")
 }
 
 func (s *Server) domainSave(w http.ResponseWriter, r *http.Request) {
@@ -283,13 +182,7 @@ func (s *Server) domainDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer lockDomain(id)()
-	if err := store.DeleteDNSDomain(r.Context(), s.DB, id); err != nil {
-		if msg, ok := s.saveErr(w, r, err); ok {
-			redirectMsg(w, r, "/admin/domains", "err", msg)
-		}
-		return
-	}
-	redirectMsg(w, r, "/admin/domains", "msg", "域名已删除（服务商侧记录不受影响）")
+	s.deleteDone(w, r, store.DeleteDNSDomain(r.Context(), s.DB, id), "/admin/domains", "域名已删除（服务商侧记录不受影响）")
 }
 
 // domainClient 取域名的服务商客户端与 Zone；未绑定或服务商已停用时返回用户可读错误。
@@ -405,13 +298,8 @@ func (s *Server) recordList(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	dm, err := store.DNSDomainByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
+	dm := s.domainOr404(w, r, id)
 	if dm == nil {
-		http.NotFound(w, r)
 		return
 	}
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -455,16 +343,9 @@ func (s *Server) recordNew(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	dm, err := store.DNSDomainByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
+	if dm := s.domainOr404(w, r, id); dm != nil {
+		s.recordForm(w, r, 200, dm, &store.DNSRecord{DomainID: id, TTL: 300}, "")
 	}
-	if dm == nil {
-		http.NotFound(w, r)
-		return
-	}
-	s.recordForm(w, r, 200, dm, &store.DNSRecord{DomainID: id, TTL: 300}, "")
 }
 
 func (s *Server) recordEdit(w http.ResponseWriter, r *http.Request) {
@@ -499,13 +380,8 @@ func (s *Server) recordSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer lockDomain(id)()
-	dm, err := store.DNSDomainByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
+	dm := s.domainOr404(w, r, id)
 	if dm == nil {
-		http.NotFound(w, r)
 		return
 	}
 	rec := &store.DNSRecord{DomainID: id, Name: formValue(r, "name"), Content: formValue(r, "content"), Remark: formValue(r, "remark"), Proxied: r.PostFormValue("proxied") == "1"}
@@ -544,11 +420,5 @@ func (s *Server) recordDelete(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if err := store.DeleteDNSRecord(r.Context(), s.DB, rid); err != nil {
-		if msg, ok := s.saveErr(w, r, err); ok {
-			redirectMsg(w, r, s.recordsBack(id), "err", msg)
-		}
-		return
-	}
-	redirectMsg(w, r, s.recordsBack(id), "msg", "记录已删除（如已存在于服务商，需推送后生效）")
+	s.deleteDone(w, r, store.DeleteDNSRecord(r.Context(), s.DB, rid), s.recordsBack(id), "记录已删除（如已存在于服务商，需推送后生效）")
 }

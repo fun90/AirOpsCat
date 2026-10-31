@@ -153,145 +153,139 @@ func releaseBindingRecord(ctx context.Context, q dbtx, id *int64) error {
 }
 
 func SaveAccountBinding(ctx context.Context, db *sql.DB, b *AccountBinding) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	var nodeID, serverID int64
-	var ip string
-	err = tx.QueryRowContext(ctx, `SELECT ns.node_id,ns.server_id,s.ip FROM node_server ns JOIN server s ON s.id=ns.server_id WHERE ns.id=? AND ns.deployed<>2`, b.PlacementID).Scan(&nodeID, &serverID, &ip)
-	if err != nil {
-		return invalid("请选择有效的部署位")
-	}
-	b.NodeID = nodeID
-	var allowed int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM account_tag at JOIN node_tag nt ON nt.tag_id=at.tag_id WHERE at.account_id=? AND nt.node_id=?`, b.AccountID, nodeID).Scan(&allowed); err != nil {
-		return err
-	}
-	if allowed == 0 {
-		return invalid("节点不属于该账户，请先分配标签")
-	}
-	var oldRecord sql.NullInt64
-	if b.ID != 0 {
-		var owner int64
-		if err := tx.QueryRowContext(ctx, `SELECT account_id,domain_dns_record_id FROM account_node_subscription_domain_binding WHERE id=?`, b.ID).Scan(&owner, &oldRecord); err != nil {
-			return invalid("订阅定制不存在")
-		}
-		if owner != b.AccountID {
-			return invalid("订阅定制不属于该账户")
-		}
-	} else {
-		err := tx.QueryRowContext(ctx, `SELECT id,domain_dns_record_id FROM account_node_subscription_domain_binding WHERE account_id=? AND node_id=?`, b.AccountID, nodeID).Scan(&b.ID, &oldRecord)
-		if err != nil && err != sql.ErrNoRows {
-			return err
-		}
-	}
-	if b.NewName != "" {
-		id, err := createBindingRecord(ctx, tx, b.NewDomainID, b.NewName, serverID, ip)
+	return inTx(ctx, db, func(tx *sql.Tx) (err error) {
+		var nodeID, serverID int64
+		var ip string
+		err = tx.QueryRowContext(ctx, `SELECT ns.node_id,ns.server_id,s.ip FROM node_server ns JOIN server s ON s.id=ns.server_id WHERE ns.id=? AND ns.deployed<>2`, b.PlacementID).Scan(&nodeID, &serverID, &ip)
 		if err != nil {
+			return invalid("请选择有效的部署位")
+		}
+		b.NodeID = nodeID
+		var allowed int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM account_tag at JOIN node_tag nt ON nt.tag_id=at.tag_id WHERE at.account_id=? AND nt.node_id=?`, b.AccountID, nodeID).Scan(&allowed); err != nil {
 			return err
 		}
-		b.RecordID = &id
-	}
-	if b.RecordID != nil {
-		var typ, status, content string
-		var sid sql.NullInt64
-		err := tx.QueryRowContext(ctx, `SELECT upper(type),status,content,server_id FROM domain_dns_record WHERE id=?`, *b.RecordID).Scan(&typ, &status, &content, &sid)
-		if err != nil || typ != "A" || status == "PENDING_DELETE" {
-			return invalid("请选择有效 A 记录")
+		if allowed == 0 {
+			return invalid("节点不属于该账户，请先分配标签")
 		}
-		// 解析不在该部署位服务器时随定制迁移；已绑定服务器但解析不同是自动切换中，保持不动
-		move := (sid.Valid && sid.Int64 != serverID) || (!sid.Valid && content != ip)
-		// 同节点的部署位访问域名和其他定制共用该域名时随本次一起切换，否则会互相卡住无法迁移
-		var refs int
-		err = tx.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM node_server WHERE access_host_id=? AND node_id<>?) + (SELECT count(*) FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=? AND id<>? AND node_id<>?)`, *b.RecordID, nodeID, *b.RecordID, b.ID, nodeID).Scan(&refs)
-		if err != nil {
-			return err
-		}
-		if refs > 0 {
-			return invalid("域名已被不同节点或部署位使用")
-		}
-		if move {
-			err = retargetRecord(ctx, tx, *b.RecordID, serverID, ip, FormatTime(nowFunc()))
+		var oldRecord sql.NullInt64
+		if b.ID != 0 {
+			var owner int64
+			if err := tx.QueryRowContext(ctx, `SELECT account_id,domain_dns_record_id FROM account_node_subscription_domain_binding WHERE id=?`, b.ID).Scan(&owner, &oldRecord); err != nil {
+				return invalid("订阅定制不存在")
+			}
+			if owner != b.AccountID {
+				return invalid("订阅定制不属于该账户")
+			}
 		} else {
-			_, err = tx.ExecContext(ctx, `UPDATE domain_dns_record SET server_id=? WHERE id=?`, serverID, *b.RecordID)
-		}
-		if err != nil {
-			return err
-		}
-		var hosted int
-		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM node_server WHERE access_host_id=? AND id<>?`, *b.RecordID, b.PlacementID).Scan(&hosted); err != nil {
-			return err
-		}
-		if hosted > 0 {
-			// 与删除部署位转移一致：目标已有访问域名时保留目标的
-			if _, err := tx.ExecContext(ctx, `UPDATE node_server SET access_host_id=?, update_time=? WHERE id=? AND access_host_id IS NULL`, *b.RecordID, FormatTime(nowFunc()), b.PlacementID); err != nil {
-				return err
-			}
-			if _, err := tx.ExecContext(ctx, `UPDATE node_server SET access_host_id=NULL WHERE access_host_id=? AND id<>?`, *b.RecordID, b.PlacementID); err != nil {
+			err := tx.QueryRowContext(ctx, `SELECT id,domain_dns_record_id FROM account_node_subscription_domain_binding WHERE account_id=? AND node_id=?`, b.AccountID, nodeID).Scan(&b.ID, &oldRecord)
+			if err != nil && err != sql.ErrNoRows {
 				return err
 			}
 		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM account_node_subscription_placement WHERE binding_id IN (SELECT id FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=? AND id<>?)`, *b.RecordID, b.ID); err != nil {
+		if b.NewName != "" {
+			id, err := createBindingRecord(ctx, tx, b.NewDomainID, b.NewName, serverID, ip)
+			if err != nil {
+				return err
+			}
+			b.RecordID = &id
+		}
+		if b.RecordID != nil {
+			var typ, status, content string
+			var sid sql.NullInt64
+			err := tx.QueryRowContext(ctx, `SELECT upper(type),status,content,server_id FROM domain_dns_record WHERE id=?`, *b.RecordID).Scan(&typ, &status, &content, &sid)
+			if err != nil || typ != "A" || status == "PENDING_DELETE" {
+				return invalid("请选择有效 A 记录")
+			}
+			// 解析不在该部署位服务器时随定制迁移；已绑定服务器但解析不同是自动切换中，保持不动
+			move := (sid.Valid && sid.Int64 != serverID) || (!sid.Valid && content != ip)
+			// 同节点的部署位访问域名和其他定制共用该域名时随本次一起切换，否则会互相卡住无法迁移
+			var refs int
+			err = tx.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM node_server WHERE access_host_id=? AND node_id<>?) + (SELECT count(*) FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=? AND id<>? AND node_id<>?)`, *b.RecordID, nodeID, *b.RecordID, b.ID, nodeID).Scan(&refs)
+			if err != nil {
+				return err
+			}
+			if refs > 0 {
+				return invalid("域名已被不同节点或部署位使用")
+			}
+			if move {
+				err = retargetRecord(ctx, tx, *b.RecordID, serverID, ip, FormatTime(nowFunc()))
+			} else {
+				_, err = tx.ExecContext(ctx, `UPDATE domain_dns_record SET server_id=? WHERE id=?`, serverID, *b.RecordID)
+			}
+			if err != nil {
+				return err
+			}
+			var hosted int
+			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM node_server WHERE access_host_id=? AND id<>?`, *b.RecordID, b.PlacementID).Scan(&hosted); err != nil {
+				return err
+			}
+			if hosted > 0 {
+				// 与删除部署位转移一致：目标已有访问域名时保留目标的
+				if _, err := tx.ExecContext(ctx, `UPDATE node_server SET access_host_id=?, update_time=? WHERE id=? AND access_host_id IS NULL`, *b.RecordID, FormatTime(nowFunc()), b.PlacementID); err != nil {
+					return err
+				}
+				if _, err := tx.ExecContext(ctx, `UPDATE node_server SET access_host_id=NULL WHERE access_host_id=? AND id<>?`, *b.RecordID, b.PlacementID); err != nil {
+					return err
+				}
+			}
+			if _, err := tx.ExecContext(ctx, `DELETE FROM account_node_subscription_placement WHERE binding_id IN (SELECT id FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=? AND id<>?)`, *b.RecordID, b.ID); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO account_node_subscription_placement(binding_id,node_server_id) SELECT id,? FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=? AND id<>?`, b.PlacementID, *b.RecordID, b.ID); err != nil {
+				return err
+			}
+		}
+		now := FormatTime(nowFunc())
+		if b.ID == 0 {
+			res, err := tx.ExecContext(ctx, `INSERT INTO account_node_subscription_domain_binding(account_id,node_id,domain_dns_record_id,enabled,remark,create_time,update_time) VALUES(?,?,?,?,?,?,?)`, b.AccountID, nodeID, b.RecordID, b.Enabled, nz(b.Remark), now, now)
+			if err != nil {
+				return err
+			}
+			b.ID, err = res.LastInsertId()
+			if err != nil {
+				return err
+			}
+		} else {
+			_, err = tx.ExecContext(ctx, `UPDATE account_node_subscription_domain_binding SET node_id=?,domain_dns_record_id=?,enabled=?,remark=?,update_time=? WHERE id=?`, nodeID, b.RecordID, b.Enabled, nz(b.Remark), now, b.ID)
+			if isUnique(err) {
+				return fmt.Errorf("%w：该节点已有订阅定制", ErrConflict)
+			}
+			if err != nil {
+				return err
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM account_node_subscription_placement WHERE binding_id=?`, b.ID); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO account_node_subscription_placement(binding_id,node_server_id) SELECT id,? FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=? AND id<>?`, b.PlacementID, *b.RecordID, b.ID); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO account_node_subscription_placement(binding_id,node_server_id) VALUES(?,?)`, b.ID, b.PlacementID); err != nil {
 			return err
 		}
-	}
-	now := FormatTime(nowFunc())
-	if b.ID == 0 {
-		res, err := tx.ExecContext(ctx, `INSERT INTO account_node_subscription_domain_binding(account_id,node_id,domain_dns_record_id,enabled,remark,create_time,update_time) VALUES(?,?,?,?,?,?,?)`, b.AccountID, nodeID, b.RecordID, b.Enabled, nz(b.Remark), now, now)
-		if err != nil {
-			return err
+		if oldRecord.Valid && (b.RecordID == nil || oldRecord.Int64 != *b.RecordID) {
+			if err := releaseBindingRecord(ctx, tx, &oldRecord.Int64); err != nil {
+				return err
+			}
 		}
-		b.ID, err = res.LastInsertId()
-		if err != nil {
-			return err
-		}
-	} else {
-		_, err = tx.ExecContext(ctx, `UPDATE account_node_subscription_domain_binding SET node_id=?,domain_dns_record_id=?,enabled=?,remark=?,update_time=? WHERE id=?`, nodeID, b.RecordID, b.Enabled, nz(b.Remark), now, b.ID)
-		if isUnique(err) {
-			return fmt.Errorf("%w：该节点已有订阅定制", ErrConflict)
-		}
-		if err != nil {
-			return err
-		}
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM account_node_subscription_placement WHERE binding_id=?`, b.ID); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO account_node_subscription_placement(binding_id,node_server_id) VALUES(?,?)`, b.ID, b.PlacementID); err != nil {
-		return err
-	}
-	if oldRecord.Valid && (b.RecordID == nil || oldRecord.Int64 != *b.RecordID) {
-		if err := releaseBindingRecord(ctx, tx, &oldRecord.Int64); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 func DeleteAccountBinding(ctx context.Context, db *sql.DB, accountID, id int64) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	var old sql.NullInt64
-	if err := tx.QueryRowContext(ctx, `SELECT domain_dns_record_id FROM account_node_subscription_domain_binding WHERE id=? AND account_id=?`, id, accountID).Scan(&old); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM account_node_subscription_domain_binding WHERE id=?`, id); err != nil {
-		return err
-	}
-	if old.Valid {
-		if err := releaseBindingRecord(ctx, tx, &old.Int64); err != nil {
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		var old sql.NullInt64
+		if err := tx.QueryRowContext(ctx, `SELECT domain_dns_record_id FROM account_node_subscription_domain_binding WHERE id=? AND account_id=?`, id, accountID).Scan(&old); err != nil {
 			return err
 		}
-	}
-	return tx.Commit()
+		if _, err := tx.ExecContext(ctx, `DELETE FROM account_node_subscription_domain_binding WHERE id=?`, id); err != nil {
+			return err
+		}
+		if old.Valid {
+			if err := releaseBindingRecord(ctx, tx, &old.Int64); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func cleanUnauthorizedBindings(ctx context.Context, q dbtx, accountID int64) error {

@@ -57,41 +57,38 @@ func RenewResource(ctx context.Context, db *sql.DB, table string, id int64, newE
 	if !slices.Contains(PaymentMethods, method) {
 		return invalid("付款方式不合法")
 	}
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	var expire, name string
-	q := `SELECT coalesce(expire_date,''), coalesce(domain,'') FROM domain WHERE id=?`
-	if table == "server" {
-		q = `SELECT coalesce(expire_date,''), trim(ip || CASE WHEN coalesce(name,'')<>'' THEN ' (' || name || ')' ELSE '' END) FROM server WHERE id=?`
-	}
-	if err := tx.QueryRowContext(ctx, q, id).Scan(&expire, &name); err != nil {
-		return err // sql.ErrNoRows 由调用方映射为 404
-	}
-	today := nowFunc().In(Shanghai)
-	base := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, Shanghai)
-	if expire != "" {
-		old, err := time.ParseInLocation("2006-01-02", expire, Shanghai)
-		if err != nil {
-			return invalid("原到期日格式不正确")
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		var expire, name string
+		q := `SELECT coalesce(expire_date,''), coalesce(domain,'') FROM domain WHERE id=?`
+		if table == "server" {
+			q = `SELECT coalesce(expire_date,''), trim(ip || CASE WHEN coalesce(name,'')<>'' THEN ' (' || name || ')' ELSE '' END) FROM server WHERE id=?`
 		}
-		if old.After(base) {
-			base = old
+		if err := tx.QueryRowContext(ctx, q, id).Scan(&expire, &name); err != nil {
+			return err // sql.ErrNoRows 由调用方映射为 404
 		}
-	}
-	if !next.After(base) {
-		return invalid("新到期日必须晚于 %s", base.Format("2006-01-02"))
-	}
-	now := FormatTime(nowFunc())
-	if _, err := tx.ExecContext(ctx, `UPDATE `+table+` SET expire_date=?, update_time=? WHERE id=?`, newExpire, now, id); err != nil {
-		return err
-	}
-	label := map[string]string{"server": "服务器", "domain": "域名"}[table]
-	if _, err := tx.ExecContext(ctx, `INSERT INTO transactions (transaction_date, amount, type, business_table, business_id, description, payment_method, create_time, update_time)
-		VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)`, now, amountCents, table, id, fmt.Sprintf("%s续费：%s %d个月", label, name, calendarMonths(base, next)), method, now, now); err != nil {
-		return err
-	}
-	return tx.Commit()
+		today := nowFunc().In(Shanghai)
+		base := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, Shanghai)
+		if expire != "" {
+			old, err := time.ParseInLocation("2006-01-02", expire, Shanghai)
+			if err != nil {
+				return invalid("原到期日格式不正确")
+			}
+			if old.After(base) {
+				base = old
+			}
+		}
+		if !next.After(base) {
+			return invalid("新到期日必须晚于 %s", base.Format("2006-01-02"))
+		}
+		now := FormatTime(nowFunc())
+		if _, err := tx.ExecContext(ctx, `UPDATE `+table+` SET expire_date=?, update_time=? WHERE id=?`, newExpire, now, id); err != nil {
+			return err
+		}
+		label := map[string]string{"server": "服务器", "domain": "域名"}[table]
+		if _, err := tx.ExecContext(ctx, `INSERT INTO transactions (transaction_date, amount, type, business_table, business_id, description, payment_method, create_time, update_time)
+			VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)`, now, amountCents, table, id, fmt.Sprintf("%s续费：%s %d个月", label, name, calendarMonths(base, next)), method, now, now); err != nil {
+			return err
+		}
+		return nil
+	})
 }

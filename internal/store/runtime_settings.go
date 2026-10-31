@@ -26,16 +26,13 @@ var SettingDefaults = map[string]struct{ Group, Value string }{
 
 // EnsureSettings 补齐缺失的有效配置，保留已有值；不再消费的旧键保留于数据库但不展示/修改。
 func EnsureSettings(ctx context.Context, db *sql.DB) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	for k, d := range SettingDefaults {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO system_config(config_key,config_value,group_key)VALUES(?,?,?) ON CONFLICT(config_key) DO NOTHING`, k, d.Value, d.Group); err != nil {
-			return err
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		for k, d := range SettingDefaults {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO system_config(config_key,config_value,group_key)VALUES(?,?,?) ON CONFLICT(config_key) DO NOTHING`, k, d.Value, d.Group); err != nil {
+				return err
+			}
 		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 func ActiveSetting(k string) bool { _, ok := SettingDefaults[strings.ToLower(k)]; return ok }

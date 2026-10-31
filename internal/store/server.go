@@ -231,23 +231,20 @@ func retargetServerIP(ctx context.Context, tx dbtx, oldIP, newIP, now string) er
 
 // DeleteServer 删除服务器：存在已部署的部署位时拒绝；其余部署位（待部署/待删除）随服务器一起删除。
 func DeleteServer(ctx context.Context, db *sql.DB, id int64) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	var deployed int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM node_server ns WHERE ns.server_id = ? AND (ns.deployed IN (1, 2) OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id))`, id).Scan(&deployed); err != nil {
-		return err
-	}
-	if deployed > 0 {
-		return fmt.Errorf("%w：服务器上还有 %d 个部署过的节点，需先在节点上移除并完成部署", ErrConflict, deployed)
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM node_server WHERE server_id = ?`, id); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM server WHERE id = ?`, id); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		var deployed int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM node_server ns WHERE ns.server_id = ? AND (ns.deployed IN (1, 2) OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id))`, id).Scan(&deployed); err != nil {
+			return err
+		}
+		if deployed > 0 {
+			return fmt.Errorf("%w：服务器上还有 %d 个部署过的节点，需先在节点上移除并完成部署", ErrConflict, deployed)
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM node_server WHERE server_id = ?`, id); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM server WHERE id = ?`, id); err != nil {
+			return err
+		}
+		return nil
+	})
 }

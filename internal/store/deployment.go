@@ -59,77 +59,74 @@ func DeploymentRevision(ctx context.Context, db *sql.DB) (int64, error) {
 // 成功且部署期间数据未变化时同步部署位状态：待删除物理删除（节点无剩余部署位且未被引用则一并删除），
 // 待部署且节点未禁用的置已部署（禁用节点保持待部署，决策 20 第 5 条）；失败只写结果，部署位不变。
 func recordDeployment(ctx context.Context, db *sql.DB, serverID int64, configSHA256 string, success bool, message string, revision *int64, snapshots []DeploymentSnapshot) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	now := FormatTime(nowFunc())
-	applyPlacements := true
-	if success && revision != nil {
-		var current int64
-		if err := tx.QueryRowContext(ctx, `SELECT revision FROM deploy_revision WHERE id=1`).Scan(&current); err != nil {
-			return err
-		}
-		if current != *revision {
-			applyPlacements = false
-			message += "；部署期间数据已变化，保留原部署位状态，请再次部署"
-		}
-	}
-	if success {
-		if err := saveDeploymentSnapshots(ctx, tx, serverID, snapshots, now); err != nil {
-			return err
-		}
-	}
-	if success && applyPlacements {
-		// 确认部署及清理待删除项不改变待下发配置；事务内保留版本，避免并行部署互相失效。
-		var confirmedRevision int64
-		if err := tx.QueryRowContext(ctx, `SELECT revision FROM deploy_revision WHERE id=1`).Scan(&confirmedRevision); err != nil {
-			return err
-		}
-		rows, err := tx.QueryContext(ctx, `SELECT ns.id, ns.node_id FROM node_server ns WHERE ns.server_id = ? AND ns.deployed = ?`, serverID, PendingDelete)
-		if err != nil {
-			return err
-		}
-		type pl struct{ id, nodeID int64 }
-		var del []pl
-		for rows.Next() {
-			var p pl
-			if err := rows.Scan(&p.id, &p.nodeID); err != nil {
-				rows.Close()
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		now := FormatTime(nowFunc())
+		applyPlacements := true
+		if success && revision != nil {
+			var current int64
+			if err := tx.QueryRowContext(ctx, `SELECT revision FROM deploy_revision WHERE id=1`).Scan(&current); err != nil {
 				return err
 			}
-			del = append(del, p)
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return err
-		}
-		for _, p := range del {
-			if _, err := tx.ExecContext(ctx, `DELETE FROM node_server WHERE id = ?`, p.id); err != nil { // 订阅定制引用、部署记录随外键级联删除
-				return err
+			if current != *revision {
+				applyPlacements = false
+				message += "；部署期间数据已变化，保留原部署位状态，请再次部署"
 			}
-			// 仍被其他节点出站或路由规则引用的节点保留，不算错误
-			if _, err := tx.ExecContext(ctx, `DELETE FROM node WHERE id = ?
-				AND NOT EXISTS (SELECT 1 FROM node_server WHERE node_id = node.id)
-				AND NOT EXISTS (SELECT 1 FROM node o WHERE o.out_id = node.id)
-				AND NOT EXISTS (SELECT 1 FROM route_rule r WHERE r.outbound_node_id = node.id)`, p.nodeID); err != nil {
+		}
+		if success {
+			if err := saveDeploymentSnapshots(ctx, tx, serverID, snapshots, now); err != nil {
 				return err
 			}
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE node_server SET deployed = ?, update_time = ?
-			WHERE server_id = ? AND deployed = 0 AND EXISTS (SELECT 1 FROM node n WHERE n.id = node_server.node_id AND n.disabled = 0)`,
-			Deployed, now, serverID); err != nil {
+		if success && applyPlacements {
+			// 确认部署及清理待删除项不改变待下发配置；事务内保留版本，避免并行部署互相失效。
+			var confirmedRevision int64
+			if err := tx.QueryRowContext(ctx, `SELECT revision FROM deploy_revision WHERE id=1`).Scan(&confirmedRevision); err != nil {
+				return err
+			}
+			rows, err := tx.QueryContext(ctx, `SELECT ns.id, ns.node_id FROM node_server ns WHERE ns.server_id = ? AND ns.deployed = ?`, serverID, PendingDelete)
+			if err != nil {
+				return err
+			}
+			type pl struct{ id, nodeID int64 }
+			var del []pl
+			for rows.Next() {
+				var p pl
+				if err := rows.Scan(&p.id, &p.nodeID); err != nil {
+					rows.Close()
+					return err
+				}
+				del = append(del, p)
+			}
+			rows.Close()
+			if err := rows.Err(); err != nil {
+				return err
+			}
+			for _, p := range del {
+				if _, err := tx.ExecContext(ctx, `DELETE FROM node_server WHERE id = ?`, p.id); err != nil { // 订阅定制引用、部署记录随外键级联删除
+					return err
+				}
+				// 仍被其他节点出站或路由规则引用的节点保留，不算错误
+				if _, err := tx.ExecContext(ctx, `DELETE FROM node WHERE id = ?
+					AND NOT EXISTS (SELECT 1 FROM node_server WHERE node_id = node.id)
+					AND NOT EXISTS (SELECT 1 FROM node o WHERE o.out_id = node.id)
+					AND NOT EXISTS (SELECT 1 FROM route_rule r WHERE r.outbound_node_id = node.id)`, p.nodeID); err != nil {
+					return err
+				}
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE node_server SET deployed = ?, update_time = ?
+				WHERE server_id = ? AND deployed = 0 AND EXISTS (SELECT 1 FROM node n WHERE n.id = node_server.node_id AND n.disabled = 0)`,
+				Deployed, now, serverID); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE deploy_revision SET revision=? WHERE id=1`, confirmedRevision); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO server_deployment (server_id, config_sha256, success, message, deployed_at) VALUES (?,?,?,?,?)
+			ON CONFLICT(server_id) DO UPDATE SET config_sha256 = excluded.config_sha256, success = excluded.success,
+			message = excluded.message, deployed_at = excluded.deployed_at`, serverID, nz(configSHA256), success, nz(message), now); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE deploy_revision SET revision=? WHERE id=1`, confirmedRevision); err != nil {
-			return err
-		}
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO server_deployment (server_id, config_sha256, success, message, deployed_at) VALUES (?,?,?,?,?)
-		ON CONFLICT(server_id) DO UPDATE SET config_sha256 = excluded.config_sha256, success = excluded.success,
-		message = excluded.message, deployed_at = excluded.deployed_at`, serverID, nz(configSHA256), success, nz(message), now); err != nil {
-		return err
-	}
-	return tx.Commit()
+		return nil
+	})
 }

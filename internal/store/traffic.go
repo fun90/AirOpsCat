@@ -217,91 +217,88 @@ type TrafficReading struct {
 // 倍率沿用规格逐次截断到整数 byte，每次每方向的舍入误差小于 1 byte。
 // 未知账户、重复方向、过时或冲突采样、负数及任何溢出均使整批回滚。
 func CollectAccountTraffic(ctx context.Context, db *sql.DB, serverID int64, at time.Time, readings []TrafficReading) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	var multiple sql.NullFloat64
-	if err = tx.QueryRowContext(ctx, `SELECT multiple FROM server WHERE id=?`, serverID).Scan(&multiple); err != nil {
-		return err
-	}
-	m := 1.0
-	if multiple.Valid {
-		m = multiple.Float64
-	}
-	if m <= 0 || math.IsNaN(m) || math.IsInf(m, 0) {
-		return invalid("服务器倍率无效")
-	}
-	// 十进制有理数运算后截断，不让 float64 的舍入溢出或损坏大整数读数。
-	factor, ok := new(big.Rat).SetString(strconv.FormatFloat(m, 'f', -1, 64))
-	if !ok {
-		return invalid("服务器倍率无效")
-	}
-	seen := map[string]bool{}
-	stamp := FormatTime(at)
-	for _, r := range readings {
-		if !accountNoRe.MatchString(r.AccountNo) || (r.Direction != "uplink" && r.Direction != "downlink") || r.Value < 0 {
-			return invalid("流量读数无效")
-		}
-		key := strings.ToLower(r.AccountNo) + ":" + r.Direction
-		if seen[key] {
-			return invalid("重复流量方向")
-		}
-		seen[key] = true
-		var id int64
-		if err = tx.QueryRowContext(ctx, `SELECT id FROM account WHERE account_no=?`, r.AccountNo).Scan(&id); err != nil {
+	return inTx(ctx, db, func(tx *sql.Tx) (err error) {
+		var multiple sql.NullFloat64
+		if err = tx.QueryRowContext(ctx, `SELECT multiple FROM server WHERE id=?`, serverID).Scan(&multiple); err != nil {
 			return err
 		}
-		var previous int64
-		var sampled string
-		err = tx.QueryRowContext(ctx, `SELECT value,sampled_at FROM account_traffic_counter WHERE server_id=? AND account_no=? AND direction=?`, serverID, r.AccountNo, r.Direction).Scan(&previous, &sampled)
-		delta := int64(0)
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-		case err != nil:
-			return err
-		case stamp < sampled || (stamp == sampled && previous != r.Value):
-			return invalid("过时或冲突的流量采样")
-		default:
-			delta = r.Value - previous
-			if delta < 0 {
-				delta = r.Value
+		m := 1.0
+		if multiple.Valid {
+			m = multiple.Float64
+		}
+		if m <= 0 || math.IsNaN(m) || math.IsInf(m, 0) {
+			return invalid("服务器倍率无效")
+		}
+		// 十进制有理数运算后截断，不让 float64 的舍入溢出或损坏大整数读数。
+		factor, ok := new(big.Rat).SetString(strconv.FormatFloat(m, 'f', -1, 64))
+		if !ok {
+			return invalid("服务器倍率无效")
+		}
+		seen := map[string]bool{}
+		stamp := FormatTime(at)
+		for _, r := range readings {
+			if !accountNoRe.MatchString(r.AccountNo) || (r.Direction != "uplink" && r.Direction != "downlink") || r.Value < 0 {
+				return invalid("流量读数无效")
 			}
-		}
-		scaled := new(big.Rat).Mul(new(big.Rat).SetInt64(delta), factor)
-		bytes := new(big.Int).Quo(scaled.Num(), scaled.Denom())
-		if !bytes.IsInt64() {
-			return invalid("倍率流量溢出")
-		}
-		delta = bytes.Int64()
-		if delta > 0 {
-			u, err := accountUsage(ctx, tx, id, at)
-			if err != nil {
+			key := strings.ToLower(r.AccountNo) + ":" + r.Direction
+			if seen[key] {
+				return invalid("重复流量方向")
+			}
+			seen[key] = true
+			var id int64
+			if err = tx.QueryRowContext(ctx, `SELECT id FROM account WHERE account_no=?`, r.AccountNo).Scan(&id); err != nil {
 				return err
 			}
-			if u.UsedBytes > math.MaxInt64-delta {
-				return invalid("账户流量溢出")
+			var previous int64
+			var sampled string
+			err = tx.QueryRowContext(ctx, `SELECT value,sampled_at FROM account_traffic_counter WHERE server_id=? AND account_no=? AND direction=?`, serverID, r.AccountNo, r.Direction).Scan(&previous, &sampled)
+			delta := int64(0)
+			switch {
+			case errors.Is(err, sql.ErrNoRows):
+			case err != nil:
+				return err
+			case stamp < sampled || (stamp == sampled && previous != r.Value):
+				return invalid("过时或冲突的流量采样")
+			default:
+				delta = r.Value - previous
+				if delta < 0 {
+					delta = r.Value
+				}
 			}
-			up, down := int64(0), int64(0)
-			if r.Direction == "uplink" {
-				up = delta
-			} else {
-				down = delta
+			scaled := new(big.Rat).Mul(new(big.Rat).SetInt64(delta), factor)
+			bytes := new(big.Int).Quo(scaled.Num(), scaled.Denom())
+			if !bytes.IsInt64() {
+				return invalid("倍率流量溢出")
 			}
-			_, err = tx.ExecContext(ctx, `INSERT INTO account_traffic_stats(account_id,user_id,period_start,period_end,bandwidth_quota,upload_bytes,download_bytes,create_time,update_time)
- SELECT id,user_id,?,?,bandwidth,?,?,?,? FROM account WHERE id=?
- ON CONFLICT(account_id,period_start) DO UPDATE SET upload_bytes=upload_bytes+excluded.upload_bytes,download_bytes=download_bytes+excluded.download_bytes,update_time=excluded.update_time`, FormatTime(u.PeriodStart), FormatTime(u.PeriodEnd), up, down, stamp, stamp, id)
-			if err != nil {
+			delta = bytes.Int64()
+			if delta > 0 {
+				u, err := accountUsage(ctx, tx, id, at)
+				if err != nil {
+					return err
+				}
+				if u.UsedBytes > math.MaxInt64-delta {
+					return invalid("账户流量溢出")
+				}
+				up, down := int64(0), int64(0)
+				if r.Direction == "uplink" {
+					up = delta
+				} else {
+					down = delta
+				}
+				_, err = tx.ExecContext(ctx, `INSERT INTO account_traffic_stats(account_id,user_id,period_start,period_end,bandwidth_quota,upload_bytes,download_bytes,create_time,update_time)
+	 SELECT id,user_id,?,?,bandwidth,?,?,?,? FROM account WHERE id=?
+	 ON CONFLICT(account_id,period_start) DO UPDATE SET upload_bytes=upload_bytes+excluded.upload_bytes,download_bytes=download_bytes+excluded.download_bytes,update_time=excluded.update_time`, FormatTime(u.PeriodStart), FormatTime(u.PeriodEnd), up, down, stamp, stamp, id)
+				if err != nil {
+					return err
+				}
+			}
+			if _, err = tx.ExecContext(ctx, `INSERT INTO account_traffic_counter(server_id,account_no,direction,value,sampled_at) VALUES(?,?,?,?,?)
+	 ON CONFLICT(server_id,account_no,direction) DO UPDATE SET value=excluded.value,sampled_at=excluded.sampled_at`, serverID, r.AccountNo, r.Direction, r.Value, stamp); err != nil {
 				return err
 			}
 		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO account_traffic_counter(server_id,account_no,direction,value,sampled_at) VALUES(?,?,?,?,?)
- ON CONFLICT(server_id,account_no,direction) DO UPDATE SET value=excluded.value,sampled_at=excluded.sampled_at`, serverID, r.AccountNo, r.Direction, r.Value, stamp); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 // ExpireAccounts 供每小时任务调用，禁用所有 to_date<=at 的账户，相关节点置待部署，返回被禁用的账户。
@@ -346,28 +343,25 @@ func ExpireAccounts(ctx context.Context, db *sql.DB, at time.Time) ([]int64, err
 
 // CleanupTrafficHistory 删除结束超过 30 天的周期及离线超过 30 天的在线历史，保留累计基线。
 func CleanupTrafficHistory(ctx context.Context, db *sql.DB, at time.Time) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	days := 30
-	var raw string
-	e := tx.QueryRowContext(ctx, `SELECT coalesce(config_value,'') FROM system_config WHERE config_key='airopscat.account.traffic.retention-days'`).Scan(&raw)
-	if e != nil && e != sql.ErrNoRows {
-		return e
-	}
-	if n, e := strconv.Atoi(raw); e == nil && n > 0 {
-		days = n
-	}
-	cutoff := FormatTime(at.In(Shanghai).AddDate(0, 0, -days))
-	for _, query := range []string{`DELETE FROM account_traffic_stats WHERE period_end<?`} {
-		if _, err = tx.ExecContext(ctx, query, cutoff); err != nil {
+	return inTx(ctx, db, func(tx *sql.Tx) (err error) {
+		days := 30
+		var raw string
+		e := tx.QueryRowContext(ctx, `SELECT coalesce(config_value,'') FROM system_config WHERE config_key='airopscat.account.traffic.retention-days'`).Scan(&raw)
+		if e != nil && e != sql.ErrNoRows {
+			return e
+		}
+		if n, e := strconv.Atoi(raw); e == nil && n > 0 {
+			days = n
+		}
+		cutoff := FormatTime(at.In(Shanghai).AddDate(0, 0, -days))
+		for _, query := range []string{`DELETE FROM account_traffic_stats WHERE period_end<?`} {
+			if _, err = tx.ExecContext(ctx, query, cutoff); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM account_online_ip WHERE last_online_time<?`, FormatTime(at.In(Shanghai).AddDate(0, 0, -30))); err != nil {
 			return err
 		}
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM account_online_ip WHERE last_online_time<?`, FormatTime(at.In(Shanghai).AddDate(0, 0, -30))); err != nil {
-		return err
-	}
-	return tx.Commit()
+		return nil
+	})
 }

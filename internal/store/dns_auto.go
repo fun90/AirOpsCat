@@ -175,18 +175,15 @@ func BeginDNSOperation(ctx context.Context, db *sql.DB, r AutoDNSRecord, p dns.P
 
 // FinishDNSOperation 删除操作锁和写回必须原子完成；失败时保留操作以便下一轮对账。
 func FinishDNSOperation(ctx context.Context, db *sql.DB, op *DNSOperation, applied bool) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `DELETE FROM dns_auto_operation WHERE record_id=?`, op.RecordID); err != nil {
-		return err
-	}
-	if applied {
-		if _, err := tx.ExecContext(ctx, `UPDATE domain_dns_record SET content=?,failover_home_content=?,last_sync_time=?,update_time=? WHERE id=? AND content=? AND status='SYNCED'`, op.Target, nz(op.Home), FormatTime(time.Now()), FormatTime(time.Now()), op.RecordID, op.Old); err != nil {
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM dns_auto_operation WHERE record_id=?`, op.RecordID); err != nil {
 			return err
 		}
-	}
-	return tx.Commit()
+		if applied {
+			if _, err := tx.ExecContext(ctx, `UPDATE domain_dns_record SET content=?,failover_home_content=?,last_sync_time=?,update_time=? WHERE id=? AND content=? AND status='SYNCED'`, op.Target, nz(op.Home), FormatTime(time.Now()), FormatTime(time.Now()), op.RecordID, op.Old); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
