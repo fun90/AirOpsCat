@@ -14,11 +14,11 @@ import (
 
 // ServerForm 保留用户输入的原始文本，校验失败时原样回显。
 type ServerForm struct {
-	ID                                                     int64
-	Name, IP, SSHPort, AuthType, Username, Region          string
-	ServerType, ExpireDate, BandwidthDay, Supplier, Price  string
-	PriceMonths, Multiple, Bandwidth, CPUCores, Remark     string
-	Disabled, External, HasAuth                            bool
+	ID                                                    int64
+	Name, IP, SSHPort, AuthType, Username, Region         string
+	ServerType, ExpireDate, BandwidthDay, Supplier, Price string
+	PriceMonths, Multiple, Bandwidth, CPUCores, Remark    string
+	Disabled, External, HasAuth                           bool
 }
 
 func formFromServer(s *store.Server) *ServerForm {

@@ -15,28 +15,28 @@ import (
 var ErrConflict = errors.New("冲突")
 
 type Server struct {
-	ID            int64
-	Name          string
-	IP            string
-	SSHPort       int
-	AuthType      string
-	Username      string
-	HasAuth       bool // 是否已保存凭据；明文不回传页面
-	Region        string
-	ServerType    int
-	ExpireDate    string
-	BandwidthDay  string // 每月流量重置日 1-31，空为未设置；超过当月天数按月末
-	Supplier      string
-	Price         *int64 // 分，对应 PriceMonths 个月
-	PriceMonths   int    // 1 月付，12 年付
-	Multiple      float64
-	Bandwidth     *int
-	CPUCores      *int
-	Disabled      bool
-	External      bool
-	Remark        string
-	Failover      int // 已手动切走的部署位数：DNS 自动切到同节点其他部署位
-	Placements    int // 列表用：部署位数量
+	ID           int64
+	Name         string
+	IP           string
+	SSHPort      int
+	AuthType     string
+	Username     string
+	HasAuth      bool // 是否已保存凭据；明文不回传页面
+	Region       string
+	ServerType   int
+	ExpireDate   string
+	BandwidthDay string // 每月流量重置日 1-31，空为未设置；超过当月天数按月末
+	Supplier     string
+	Price        *int64 // 分，对应 PriceMonths 个月
+	PriceMonths  int    // 1 月付，12 年付
+	Multiple     float64
+	Bandwidth    *int
+	CPUCores     *int
+	Disabled     bool
+	External     bool
+	Remark       string
+	Failover     int // 已手动切走的部署位数：DNS 自动切到同节点其他部署位
+	Placements   int // 列表用：部署位数量
 }
 
 const serverCols = `id, coalesce(name,''), ip, coalesce(ssh_port,22), coalesce(auth_type,'PASSWORD'), coalesce(username,''),
