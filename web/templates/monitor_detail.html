@@ -5,7 +5,7 @@
   <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">内存</div><div class="h2 mb-0">{{.MemText}}</div></div></div></div>
   <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">磁盘（/）</div><div class="h2 mb-0">{{.DiskText}}</div></div></div></div>
   <div class="col-12 col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">网速</div><div class="h4 mb-0">{{.RateText}}</div></div></div></div>
-  <div class="col-12 col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">本月流量{{if .Iface}}（{{.Iface}}）{{end}}</div><div class="h4 mb-1">{{.UsageText}}</div>{{if and .BandwidthGB .HasVnstat}}<div class="progress progress-sm"><div class="progress-bar{{if ge .UsagePct 85}} bg-red{{end}}" style="width:{{.UsagePct}}%"></div></div>{{end}}</div></div></div>
+  <div class="col-12 col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">本月流量{{if .Iface}}（{{.Iface}}）{{end}}</div><div class="h4 mb-1">{{.UsageText}}</div>{{if and .BandwidthGB .HasVnstat}}<div class="progress progress-sm"><div class="progress-bar{{if ge .UsagePct 85}} bg-red{{end}}" style="width:{{.UsagePct}}%"></div></div>{{end}}{{if .PeriodText}}<div class="text-secondary small mt-1">{{.PeriodText}}</div>{{end}}</div></div></div>
 </div>
 <div class="mb-2">在线账户：{{.Online}} · sing-box：{{.SingboxText}}</div>
 <div class="text-secondary small mb-3">{{.IP}} · 最近上报 {{if .Sampled}}{{.Sampled}}{{else}}暂无{{end}}{{if .Stale}} <span class="badge bg-yellow-lt">数据陈旧</span>{{end}}</div>

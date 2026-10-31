@@ -37,6 +37,9 @@ func TestMonitorTrafficDecimalGB(t *testing.T) {
 	if got := newStatusView(list[0], at).UsageText; got != "21.0 / 100 GB（21.0%）" {
 		t.Fatalf("应与十进制 GB 一致，实际 %q", got)
 	}
+	if got := newStatusView(list[0], at).PeriodText; got != "2026-10-01 至 2026-10-31" {
+		t.Fatalf("周期应为自然月，实际 %q", got)
+	}
 	list[0].BandwidthGB = 0
 	if got := newStatusView(list[0], at).UsageText; got != "21.0 GB" {
 		t.Fatalf("未设额度时也应使用十进制 GB，实际 %q", got)
@@ -151,7 +154,7 @@ func TestMonitorCollectAndAlerts(t *testing.T) {
 	// 页面
 	h := s.Handler()
 	c := login(t, h, "admin@example.com")
-	if w := do(h, "GET", "/admin/monitor", nil, c, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "HK") {
+	if w := do(h, "GET", "/admin/monitor", nil, c, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "HK") || !strings.Contains(w.Body.String(), time.Now().In(store.Shanghai).Format("2006-01")+"-01 至 ") {
 		t.Fatalf("监控页 %d", w.Code)
 	}
 	if w := do(h, "GET", "/admin/monitor/1", nil, c, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "<polyline") {

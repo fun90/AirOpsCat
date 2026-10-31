@@ -254,6 +254,7 @@ func (s *Server) evaluateServerHealth(ctx context.Context, st store.ServerStatus
 type statusView struct {
 	store.ServerStatus
 	SingboxText, CPUText, MemText, DiskText, RateText, UsageText string
+	PeriodText                                                   string // vnstat 按自然月统计
 	Stale                                                        bool
 	Online                                                       string
 	UsagePct                                                     int
@@ -292,6 +293,9 @@ func newStatusView(st store.ServerStatus, now time.Time) statusView {
 		} else {
 			v.UsageText = fmt.Sprintf("%.1f GB", used)
 		}
+		local := now.In(store.Shanghai)
+		start := time.Date(local.Year(), local.Month(), 1, 0, 0, 0, 0, store.Shanghai)
+		v.PeriodText = start.Format("2006-01-02") + " 至 " + start.AddDate(0, 1, -1).Format("2006-01-02")
 	}
 	if t, err := store.ParseTime(st.Sampled); err == nil {
 		interval := monitorInterval
