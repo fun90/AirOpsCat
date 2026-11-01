@@ -12,10 +12,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="AirOpsCat">
     <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/tabler/css/tabler.min.css?v=p23">
-    <link rel="stylesheet" href="/static/tabler/css/tabler-icons.min.css?v=p15">
+    <link rel="stylesheet" href="/static/tabler/css/tabler.min.css?v=p25">
+    <link rel="stylesheet" href="/static/tabler/css/tabler-icons.min.css?v=p17">
     <link rel="stylesheet" href="/static/vendor/tom-select.bootstrap5.min.css">
-    <link rel="stylesheet" href="/static/css/app.css?v=np19">
+    <link rel="stylesheet" href="/static/css/app.css?v=np32">
 </head>
 {{end}}
 
@@ -117,10 +117,10 @@
 <script src="/static/js/page.js?v=1" defer></script>
 <script src="/static/js/json-editor.js?v=wrap2" defer></script>
 <script src="/static/js/node-form.js?v=6" defer></script>
-<script type="module" src="/static/js/node-placements.js?v=5"></script>
 <script src="/static/js/node-batch.js?v=4" defer></script>
 <script src="/static/js/tag-picker.js?v=3" defer></script>
 <script src="/static/vendor/tom-select.complete.min.js" defer></script>
+<script type="module" src="/static/js/node-placements.js?v=8"></script>
 <script src="/static/js/searchable.js?v=2" defer></script>
 <script src="/static/js/back.js?v=3" defer></script>
 <script type="module" src="/static/js/nav-progress.js?v=6"></script>
@@ -132,3 +132,4 @@
 </body>
 </html>
 {{end}}
+{{define "deployDot"}}{{if eq . -1}}<span class="status-dot status-secondary flex-shrink-0" role="img" aria-label="无部署位" title="无部署位"></span>{{else if eq . 0}}<span class="status-dot status-yellow flex-shrink-0" role="img" aria-label="待部署" title="待部署"></span>{{else if eq . 1}}<span class="status-dot status-green flex-shrink-0" role="img" aria-label="已部署" title="已部署"></span>{{else}}<span class="status-dot status-red flex-shrink-0" role="img" aria-label="待删除" title="待删除"></span>{{end}}{{end}}

@@ -85,3 +85,33 @@
 /* 折叠按钮的向下箭头在展开后转为向上；Tabler 没有按 aria-expanded 切换图标的工具类 */
 [aria-expanded] > .ti-chevron-down { transition: transform .2s; }
 [aria-expanded="true"] > .ti-chevron-down { transform: rotate(180deg); }
+
+/* 节点部署位：移动端两行（域名+优先级、订阅名+便宜时段+开关），除域名和订阅名外均定宽，订阅名各卡片自然同宽；PC 端合成一行。 */
+.placement-fields .input-group-text, .placement-fields .form-control, .placement-fields .btn { padding-left: .5rem; padding-right: .5rem; }
+.placement-fields .form-select { padding-left: .5rem; }
+.placement-row { display: flex; align-items: center; gap: .5rem; }
+.placement-row + .placement-row { margin-top: .5rem; }
+.placement-host, .placement-sub { flex: 1 1 0; min-width: 0; }
+.placement-prio { flex: 0 0 5.5rem; width: 5.5rem; }
+.placement-prio .form-control { width: 3rem; }
+/* 便宜时段按钮按“00:00–00:00”定宽，未设置时不变短 */
+.placement-fields [data-cheap] > .btn { width: 7.75rem; font-variant-numeric: tabular-nums; }
+.placement-meta:not(:has(> :not([hidden]))) { display: none !important; }
+/* 标签行：移动端换到名称下方，PC 端跟在 IP 后同一行 */
+.placement-head > strong { min-width: 0; }
+@media (max-width: 767.98px) { .placement-meta { order: 1; flex-basis: 100%; margin: .25rem 0 0 1rem; } }
+@media (min-width: 768px) {
+    .placement-fields { display: flex; align-items: center; gap: .5rem; }
+    .placement-row { display: contents; }
+    .placement-row + .placement-row { margin-top: 0; }
+    .placement-host { flex: 0 1 20rem; }
+    .placement-sub { flex: 0 0 10rem; }
+}
+.placement-host .ts-control { flex-wrap: nowrap; overflow: hidden; }
+.placement-host .ts-control > .item { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.placement-host .ts-typing .ts-control > .item { display: none; }
+/* 订阅显示开关：隐藏复选框，眼睛图标随勾选切换 */
+.placement-expose { font-size: 1.25rem; line-height: 1; color: var(--tblr-secondary); }
+.placement-expose input:not(:checked) ~ .ti-eye, .placement-expose input:checked ~ .ti-eye-off { display: none; }
+.placement-expose:has(input:checked) { color: var(--tblr-primary); }
+.placement-expose:has(input:focus-visible) { outline: 2px solid var(--tblr-primary); outline-offset: 2px; border-radius: var(--tblr-border-radius); }

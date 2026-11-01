@@ -1,5 +1,5 @@
 // 节点部署位增删：只在表单中暂存，点“保存”后随节点一起提交。
-import { Modal } from '/static/tabler/js/tabler.esm.min.js';
+import { Dropdown, Modal } from '/static/tabler/js/tabler.esm.min.js';
 
 window.AirOpsPage.register(() => {
 const pane = document.querySelector('#placements-pane');
@@ -11,7 +11,6 @@ if (pane && dialog) {
     let current = null;
 
     const cards = () => Array.from(pane.querySelectorAll('[data-placement]'));
-    const staged = (card) => !card.querySelector('[data-del-id]').disabled;
     const hostTpl = pane.querySelector('[data-new-host-tpl]');
 
     // 新增访问域名：已有卡片和待添加项共用模板，字段名按服务器 ID 区分
@@ -35,6 +34,51 @@ if (pane && dialog) {
         if (toggle) { toggle.hidden = false; }
     }
 
+    // 已有部署位的访问域名用 Tom Select：输入完整域名即可新增，按已知主域名拆成 new_name / new_domain_id 提交
+    const domains = Array.from(hostTpl.content.querySelectorAll('[data-new-domain] option'), (o) => ({ id: o.value, name: o.textContent.trim().toLowerCase() }));
+    function splitHost(input) {
+        const s = input.trim().toLowerCase().replace(/\.$/, '');
+        const d = domains.filter((x) => s.endsWith('.' + x.name)).sort((a, b) => b.name.length - a.name.length)[0];
+        return d && { name: s.slice(0, -d.name.length - 1), domain: d.id, full: s };
+    }
+    function syncNewHost(card) {
+        card.querySelectorAll('[data-new-host-field]').forEach((i) => i.remove());
+        const ts = card.querySelector('select[name$="host"]')?.tomselect;
+        const h = ts && ts.getValue() === 'new' && splitHost(ts.options.new.text);
+        if (!h || staged(card)) { return; }
+        const k = 'p' + card.dataset.server + '_';
+        card.append(...[[k + 'new_name', h.name], [k + 'new_domain_id', h.domain]].map(([name, value]) => {
+            const i = Object.assign(document.createElement('input'), { type: 'hidden', name, value });
+            i.dataset.newHostField = '';
+            return i;
+        }));
+    }
+    function hostSelect(card) {
+        const sel = card.querySelector('select[name$="host"]');
+        if (!sel || sel.tomselect || !window.TomSelect) { return; }
+        const example = 'hk01.' + (domains[0]?.name || 'example.com');
+        const ts = new TomSelect(sel, {
+            maxOptions: null, allowEmptyOption: true,
+            createFilter: (input) => !!splitHost(input),
+            create: (input) => {
+                const h = splitHost(input);
+                if (!h) { return false; }
+                if (ts.options.new) { ts.removeOption('new'); }
+                return { value: 'new', text: h.full };
+            },
+            render: {
+                option_create: (data, escape) => '<div class="create">新增 <strong>' + escape(data.input) + '</strong></div>',
+                no_results: (data) => splitHost(data.input) ? null : '<div class="no-results">无匹配项，输入完整域名可新增，如 ' + example + '</div>',
+            },
+            onChange: () => syncNewHost(card),
+            // 输入时隐藏当前项，避免与输入框挤成两行
+            onType: (str) => ts.wrapper.classList.toggle('ts-typing', !!str),
+            onDropdownClose: () => ts.wrapper.classList.remove('ts-typing'),
+        });
+    }
+
+    function staged(card) { const d = card.querySelector('[data-del-id]'); return !!d && !d.disabled; }
+
     function mark(card, targetID) {
         const on = targetID !== null;
         card.querySelector('[data-del-id]').disabled = !on;
@@ -48,8 +92,7 @@ if (pane && dialog) {
         card.querySelector('[data-del-undo]').hidden = !on;
         card.querySelector('[data-placement-remove]').hidden = on;
         card.classList.toggle('opacity-50', on);
-        closeHost(card);
-        card.querySelector('[data-new-host-toggle]').hidden = on;
+        syncNewHost(card);
     }
 
     function addItem(option, auto) {
@@ -88,7 +131,27 @@ if (pane && dialog) {
         type.addEventListener('change', rematch);
     }
 
+    // 便宜时段：两个时间框收在下拉弹层里，按钮文字随输入同步
+    function cheapLabel(box) {
+        const [start, end] = box.querySelectorAll('input[type="time"]');
+        const set = start.value || end.value;
+        box.querySelector('[data-cheap-label]').textContent = set ? start.value + '–' + end.value : '便宜时段';
+        box.querySelector('[data-bs-toggle]').classList.toggle('text-secondary', !set);
+    }
+    pane.addEventListener('input', (e) => {
+        const box = e.target.closest('[data-cheap]');
+        if (box) { cheapLabel(box); }
+    });
+
     pane.addEventListener('click', (e) => {
+        const cheap = e.target.closest('[data-cheap-clear], [data-cheap-done]');
+        if (cheap) {
+            const box = cheap.closest('[data-cheap]');
+            if ('cheapClear' in cheap.dataset) { box.querySelectorAll('input[type="time"]').forEach((i) => { i.value = ''; }); }
+            cheapLabel(box);
+            Dropdown.getOrCreateInstance(box.querySelector('[data-bs-toggle]')).hide();
+            return;
+        }
         const toggle = e.target.closest('[data-new-host-toggle]');
         if (toggle) {
             e.preventDefault();
@@ -148,7 +211,15 @@ if (pane && dialog) {
     });
 
     // 校验失败回显：恢复暂存的新增域名和删除
-    pane.querySelectorAll('[data-server][data-new-name]').forEach((h) => openHost(h, h.dataset.newName, h.dataset.newDomain));
+    cards().forEach(hostSelect);
+    pane.querySelectorAll('[data-server][data-new-name]').forEach((h) => {
+        const ts = h.querySelector('select[name$="host"]')?.tomselect;
+        if (!ts) { openHost(h, h.dataset.newName, h.dataset.newDomain); return; }
+        const d = domains.find((x) => x.id === h.dataset.newDomain);
+        if (!d) { return; }
+        ts.addOption({ value: 'new', text: h.dataset.newName + '.' + d.name });
+        ts.setValue('new');
+    });
     cards().forEach((c) => {
         if ('stagedTarget' in c.dataset && c.querySelector('[data-del-id]')) {
             mark(c, c.dataset.stagedTarget === '0' ? '' : c.dataset.stagedTarget);

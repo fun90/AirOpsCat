@@ -51,50 +51,57 @@
             <div class="col-12" id="placements-pane">
                 {{$fo := false}}{{range $.Placements}}{{if .Failover}}{{$fo = true}}{{end}}{{end}}
                 <div class="d-flex align-items-center"><label class="form-label me-auto">部署位</label>{{if $fo}}<button class="btn btn-sm btn-link" form="placement-switch" name="placement" value="0" onclick="return confirm('取消全部切走、恢复原始解析并立即执行 DNS 切换，确定？')">全部回切</button>{{end}}</div>
-                <div class="form-hint mb-2">{{if .ID}}新建时按地区匹配，之后手动增删；保存后生效。{{else}}选择地区后自动加入同地区服务器，可手动增删；保存后生效。{{end}}</div>
                 {{range $p := $.Placements}}
-                <div class="position-relative border rounded p-3 mb-3{{if eq .Deployed 2}} bg-red-lt{{end}}" data-placement="{{.ID}}" data-server="{{.ServerID}}"{{with index $.NewHosts .ServerID}} data-new-name="{{.Name}}" data-new-domain="{{.DomainID}}"{{end}} data-name="{{.ServerName}}（{{.ServerIP}}）"{{if .Running}} data-running{{end}}{{with index $.DelTargets .ID}} data-staged-target="{{.}}"{{end}}>
+                <div class="position-relative border rounded p-2 mb-2{{if eq .Deployed 2}} bg-red-lt{{end}}" data-placement="{{.ID}}" data-server="{{.ServerID}}"{{with index $.NewHosts .ServerID}} data-new-name="{{.Name}}" data-new-domain="{{.DomainID}}"{{end}} data-name="{{.ServerName}}（{{.ServerIP}}）"{{if .Running}} data-running{{end}}{{with index $.DelTargets .ID}} data-staged-target="{{.}}"{{end}}>
                     {{if ne .Deployed 2}}
                     <button type="button" class="btn-close position-absolute top-0 end-0 m-2" aria-label="删除部署位 {{.ServerName}}" data-placement-remove></button>
                     <input type="hidden" name="del_placement" value="{{.ID}}" disabled data-del-id>
                     <input type="hidden" name="del_target_{{.ID}}" value="" disabled data-del-target>
                     {{end}}
                     {{$sub := ""}}{{with $.SubNames}}{{$sub = index . $p.ID}}{{end}}
-                    <div class="d-flex align-items-baseline gap-2 mb-2 pe-4">
-                        <div class="me-auto">
-                        <div><strong>{{.ServerName}}</strong><span class="text-secondary ms-2">{{.ServerIP}}</span></div>
-                        <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
-                        {{if eq .Deployed 0}}<span class="badge bg-yellow-lt">待部署</span>{{else if eq .Deployed 1}}<span class="badge bg-green-lt">已部署</span>{{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
+                    <div class="placement-head d-flex flex-wrap align-items-center column-gap-2 pe-4">
+                        {{template "deployDot" .Deployed}}<strong class="text-truncate">{{.ServerName}}</strong><span class="text-secondary small text-nowrap">{{.ServerIP}}</span>
+                    <div class="placement-meta d-flex flex-wrap align-items-center gap-1">
                         {{if .Failover}}<span class="badge bg-orange-lt">已切走</span>{{end}}
                         {{with index $.PlacementTargets .ID}}<div class="dropdown"><button type="button" class="badge bg-blue-lt border-0 cursor-pointer" data-bs-toggle="dropdown" aria-expanded="false">当前指向 {{len .}} 个域名</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-1" style="max-width:16rem">{{range .}}<span class="badge bg-blue-lt text-wrap text-break">{{.}}</span>{{end}}</div></div></div>{{end}}
-                        {{with $sub}}<span class="badge bg-purple-lt">订阅名 {{.}}</span>{{end}}
                         {{if .Disabled}}<span class="badge bg-secondary-lt">服务器已禁用</span>{{end}}
                         {{if and $.Probe (eq .Deployed 1) (ne $.Form.Protocol "hysteria2")}}<button type="button" class="btn btn-sm btn-link p-0" data-tcp-probe="{{.ID}}" title="经国内探测服务器检测 {{.ServerIP}}:{{$.Form.Port}}">TCP 检测</button><span class="small" data-tcp-result aria-live="polite"></span>{{end}}
                         <span class="badge bg-red-lt" data-del-badge hidden></span>
                         <button type="button" class="btn btn-sm btn-link p-0" data-del-undo hidden>撤销删除</button>
-                        </div>
-                        </div>
-                        {{if .Failover}}<button class="btn btn-sm btn-link text-warning p-0 text-nowrap" form="placement-switch" name="restore" value="{{.ID}}" onclick="return confirm('取消 {{.ServerName}} 的切走并立即执行 DNS 切换，确定？')">取消切走</button>
-                        {{else if and (gt (len $.Placements) 1) .Running (ne .Deployed 2) (not .Disabled) (not (and (index $.PlacementTargets .ID) (eq (len $.PlacementTargets) 1)))}}<button class="btn btn-sm btn-link text-warning p-0 text-nowrap" form="placement-switch" name="placement" value="{{.ID}}" onclick="return confirm('节点域名将切到 {{.ServerName}} 并立即执行 DNS 切换，确定？')">切到此处</button>{{end}}
+                    </div>
+                        {{if .Failover}}<button class="btn btn-sm btn-link text-warning p-0 text-nowrap ms-auto" form="placement-switch" name="restore" value="{{.ID}}" onclick="return confirm('取消 {{.ServerName}} 的切走并立即执行 DNS 切换，确定？')">取消切走</button>
+                        {{else if and (gt (len $.Placements) 1) .Running (ne .Deployed 2) (not .Disabled) (not (and (index $.PlacementTargets .ID) (eq (len $.PlacementTargets) 1)))}}<button class="btn btn-sm btn-link text-warning p-0 text-nowrap ms-auto" form="placement-switch" name="placement" value="{{.ID}}" onclick="return confirm('节点域名将切到 {{.ServerName}} 并立即执行 DNS 切换，确定？')">切到此处</button>{{end}}
                     </div>
                     {{if ne .Deployed 2}}
                     <template data-domains>{{range index $.PlacementDomains .ID}}<li>{{.}}</li>{{end}}</template>
                     {{$k := printf "p%d_" .ServerID}}
-                    <div class="row g-2">
-                        <div class="col-6 col-md-2"><label class="form-label" for="{{$k}}priority">优先级</label>
-                            <input type="number" class="form-control" id="{{$k}}priority" name="{{$k}}priority" value="{{.Priority}}"></div>
-                        <div class="col-6 col-md-3"><div class="d-flex justify-content-between"><label class="form-label" for="{{$k}}host">访问域名</label><a href="#" class="small ms-2" data-new-host-toggle>新增域名</a></div>
+                    {{$cheap := or .CheapStart .CheapEnd}}
+                    <div class="placement-fields mt-2">
+                        {{$proxy := eq $.Form.Type "0"}}
+                        <div class="placement-row">
+                        <div class="input-group flex-nowrap placement-host">
+                            <label class="input-group-text" for="{{$k}}host" title="访问域名"><i class="ti ti-world" aria-hidden="true"></i><span class="visually-hidden">访问域名</span></label>
                             <select class="form-select" id="{{$k}}host" name="{{$k}}host">
                                 <option value="">使用服务器 IP</option>
                                 {{$ph := .AccessHostID}}
                                 {{range index $.Hosts .ServerID}}<option value="{{.ID}}"{{if $ph}}{{if eq .ID (deref $ph)}} selected{{end}}{{end}}>{{.FullName}}</option>{{end}}
                             </select></div>
-                        <div class="col-6 col-md-2"><label class="form-label" for="{{$k}}cheap_start">便宜开始</label>
-                            <input type="time" step="60" class="form-control" id="{{$k}}cheap_start" name="{{$k}}cheap_start" value="{{.CheapStart}}" placeholder="HH:mm"></div>
-                        <div class="col-6 col-md-2"><label class="form-label" for="{{$k}}cheap_end">便宜结束</label>
-                            <input type="time" step="60" class="form-control" id="{{$k}}cheap_end" name="{{$k}}cheap_end" value="{{.CheapEnd}}" placeholder="HH:mm"></div>
-                        <div class="col-12 col-md-3 d-flex align-items-end"><label class="form-check mb-2"><input type="checkbox" class="form-check-input" name="{{$k}}exposed" value="1"{{if .Exposed}} checked{{end}}>
-                            <span class="form-check-label">出现在订阅（落地节点无效）</span></label></div>
+                        <div class="input-group flex-nowrap placement-prio">
+                            <label class="input-group-text" for="{{$k}}priority" title="优先级"><i class="ti ti-sort-ascending-numbers" aria-hidden="true"></i><span class="visually-hidden">优先级</span></label>
+                            <input type="number" class="form-control" id="{{$k}}priority" name="{{$k}}priority" value="{{.Priority}}"></div>
+                        </div>
+                        <div class="placement-row">
+                        {{if $proxy}}<div class="input-group flex-nowrap placement-sub" title="{{with $sub}}订阅名 {{.}}{{else}}未出现在订阅，开启并保存后生成订阅名{{end}}"><span class="input-group-text"><i class="ti ti-rss" role="img" aria-label="订阅名"></i></span><span class="form-control text-truncate{{if not $sub}} text-secondary{{end}}">{{with $sub}}{{.}}{{else}}未订阅{{end}}</span></div>{{end}}
+                            <div class="dropdown" data-cheap>
+                                <button type="button" class="btn btn-outline-secondary text-nowrap{{if not $cheap}} text-secondary{{end}}" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="便宜时段"><i class="ti ti-moon me-1" aria-hidden="true"></i><span data-cheap-label>{{if $cheap}}{{.CheapStart}}–{{.CheapEnd}}{{else}}便宜时段{{end}}</span></button>
+                                <div class="dropdown-menu p-2">
+                                    <div class="d-flex align-items-center gap-1 mb-2">
+                                        <input type="time" step="60" class="form-control form-control-sm" name="{{$k}}cheap_start" value="{{.CheapStart}}" aria-label="便宜开始">–<input type="time" step="60" class="form-control form-control-sm" name="{{$k}}cheap_end" value="{{.CheapEnd}}" aria-label="便宜结束"></div>
+                                    <div class="d-flex justify-content-between"><button type="button" class="btn btn-sm btn-link text-secondary p-0" data-cheap-clear>清除</button><button type="button" class="btn btn-sm btn-primary" data-cheap-done>确定</button></div>
+                                </div>
+                            </div>
+                            <label class="placement-expose ms-auto m-0 px-1 cursor-pointer" title="出现在订阅（落地节点无效）"><input type="checkbox" class="visually-hidden" name="{{$k}}exposed" value="1"{{if .Exposed}} checked{{end}} aria-label="出现在订阅（落地节点无效）"><i class="ti ti-eye" aria-hidden="true"></i><i class="ti ti-eye-off" aria-hidden="true"></i></label>
+                        </div>
                     </div>
                     {{end}}
                 </div>
