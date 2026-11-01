@@ -95,7 +95,7 @@
 .placement-prio { flex: 0 0 5.5rem; width: 5.5rem; }
 .placement-prio .form-control { width: 3rem; }
 /* 便宜时段按钮按“00:00–00:00”定宽，未设置时不变短 */
-.placement-fields [data-cheap] > .btn { width: 7.75rem; font-variant-numeric: tabular-nums; }
+.placement-fields [data-cheap] > .btn { width: 7.75rem; font-variant-numeric: tabular-nums; --tblr-btn-active-bg: var(--tblr-bg-surface-secondary); --tblr-btn-active-color: var(--tblr-body-color); --tblr-btn-active-border-color: var(--tblr-primary); }
 .placement-meta:not(:has(> :not([hidden]))) { display: none !important; }
 /* 标签行：移动端换到名称下方，PC 端跟在 IP 后同一行 */
 .placement-head > strong { min-width: 0; }
