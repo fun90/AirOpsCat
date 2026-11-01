@@ -139,6 +139,11 @@
       </div>
       <div class="form-hint">移除时绑定域名的部署位会整体失败</div>
     </div>
+    <div class="row g-2 align-items-center mb-3">
+      <div class="col"><div class="input-group"><label class="input-group-text" for="batchPlacementPriority">优先级</label><input type="number" class="form-control" id="batchPlacementPriority" name="priority" placeholder="自动"></div></div>
+      <div class="col-auto"><label class="form-check m-0"><input type="checkbox" class="form-check-input" name="exposed" value="1" checked><span class="form-check-label">显示到订阅</span></label></div>
+      <div class="col-12 form-hint">仅添加时生效；优先级留空按现有顺序排在最后，落地节点始终不显示到订阅</div>
+    </div>
     <div class="list-group">{{range .Servers}}
       <div class="list-group-item d-flex align-items-center gap-2 py-2">
         <label class="d-flex align-items-center gap-2 flex-fill m-0 cursor-pointer" style="min-width:0"><input class="form-check-input m-0 flex-shrink-0" type="checkbox" name="server_ids" value="{{.ID}}"><span class="text-truncate">{{.Name}}</span>{{if ne .Name .IP}}<span class="text-secondary small text-truncate ms-auto">{{.IP}}</span>{{end}}</label>

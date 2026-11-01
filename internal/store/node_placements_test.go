@@ -33,7 +33,7 @@ func TestAddPlacementKeepsOtherNodesDeployed(t *testing.T) {
 			}
 			mustExec(t, db, `UPDATE node_server SET deployed=1`)
 			if batch {
-				if _, err := BatchNodePlacements(ctx, db, ids[:1], []int64{target}, true); err != nil {
+				if _, err := BatchNodePlacements(ctx, db, ids[:1], []int64{target}, true, nil, true); err != nil {
 					t.Fatal(err)
 				}
 			} else {
@@ -71,20 +71,30 @@ func TestBatchNodePlacements(t *testing.T) {
 	a, _ := SaveNode(ctx, db, newNode("a", "HK", NodeProxy, 443), nil, nil)
 	b, _ := SaveNode(ctx, db, newNode("b", "HK", NodeProxy, 444), nil, nil)
 
-	if u, err := BatchNodePlacements(ctx, db, []int64{a, b, a}, []int64{jp}, true); err != nil || u != 2 {
+	if u, err := BatchNodePlacements(ctx, db, []int64{a, b, a}, []int64{jp}, true, nil, true); err != nil || u != 2 {
 		t.Fatalf("添加: %d %v", u, err)
 	}
-	if u, err := BatchNodePlacements(ctx, db, []int64{a, b}, []int64{jp}, true); err != nil || u != 0 {
+	if u, err := BatchNodePlacements(ctx, db, []int64{a, b}, []int64{jp}, true, nil, true); err != nil || u != 0 {
 		t.Fatalf("重复添加应跳过: %d %v", u, err)
 	}
-	if u, err := BatchNodePlacements(ctx, db, []int64{a, b}, []int64{jp}, false); err != nil || u != 2 || len(placementsOf(t, db, a)) != 1 {
+	if u, err := BatchNodePlacements(ctx, db, []int64{a, b}, []int64{jp}, false, nil, true); err != nil || u != 2 || len(placementsOf(t, db, a)) != 1 {
 		t.Fatalf("删除: %d %v", u, err)
 	}
+	prio := 7
+	if _, err := BatchNodePlacements(ctx, db, []int64{a}, []int64{jp}, true, &prio, false); err != nil {
+		t.Fatal(err)
+	}
+	if p := placementsOf(t, db, a)["jp"]; p.Priority != 7 || p.Exposed {
+		t.Fatalf("应按填写的优先级与不显示添加: %+v", p)
+	}
+	if _, err := BatchNodePlacements(ctx, db, []int64{a}, []int64{jp}, false, nil, true); err != nil {
+		t.Fatal(err)
+	}
 	// 最后一个部署位：整体回滚，b 的部署位也不能被动
-	BatchNodePlacements(ctx, db, []int64{b}, []int64{jp}, true)
+	BatchNodePlacements(ctx, db, []int64{b}, []int64{jp}, true, nil, true)
 	hk := addServer(t, db, "hk2", "HK", 0, false, false)
-	BatchNodePlacements(ctx, db, []int64{a}, []int64{hk}, true)
-	if _, err := BatchNodePlacements(ctx, db, []int64{b, a}, []int64{jp, hk0, hk}, false); !errors.Is(err, ErrInvalid) {
+	BatchNodePlacements(ctx, db, []int64{a}, []int64{hk}, true, nil, true)
+	if _, err := BatchNodePlacements(ctx, db, []int64{b, a}, []int64{jp, hk0, hk}, false, nil, true); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("应因最后一个部署位拒绝: %v", err)
 	}
 	if len(placementsOf(t, db, b)) != 2 || len(placementsOf(t, db, a)) != 2 {

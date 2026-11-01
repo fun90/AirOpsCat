@@ -11,8 +11,9 @@ import (
 
 // BatchNodePlacements 原子地为多个节点添加或删除指定服务器上的部署位，返回实际变化的节点数。
 // 添加时节点已在该服务器上的跳过；删除时节点不在该服务器上的跳过。
+// 添加时 priority 为 nil 沿用自增优先级，exposed 控制是否显示到订阅（落地节点恒不显示）。
 // 删除的部署位绑定域名或订阅定制、或是节点最后一个部署位时整体回滚，需到节点编辑页选择转移目标。
-func BatchNodePlacements(ctx context.Context, db *sql.DB, nodeIDs, serverIDs []int64, add bool) (updated int, err error) {
+func BatchNodePlacements(ctx context.Context, db *sql.DB, nodeIDs, serverIDs []int64, add bool, priority *int, exposed bool) (updated int, err error) {
 	nodeIDs, serverIDs = normalizeTagIDs(nodeIDs), normalizeTagIDs(serverIDs)
 	if len(nodeIDs) == 0 || len(serverIDs) == 0 {
 		return 0, invalid("请选择节点和服务器")
@@ -45,6 +46,10 @@ func BatchNodePlacements(ctx context.Context, db *sql.DB, nodeIDs, serverIDs []i
 			case add && i < 0:
 				if err = addPlacement(ctx, tx, n, sid); err != nil {
 					return 0, fmt.Errorf("节点 %s：%w", n.Name, err)
+				}
+				if _, err = tx.ExecContext(ctx, `UPDATE node_server SET priority = coalesce(?, priority), exposed = ? WHERE node_id = ? AND server_id = ? AND deployed <> 2`,
+					priority, exposed && n.Type != NodeLanding, id, sid); err != nil {
+					return 0, err
 				}
 			case !add && i >= 0:
 				if err = deletePlacement(ctx, tx, n, pls[i].ID, 0); err != nil {

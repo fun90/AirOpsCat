@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/fun90/airopscat/internal/store"
 )
@@ -58,7 +59,16 @@ func (s *Server) nodeBatchPlacements(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	add := r.PostFormValue("placement_mode") != "REMOVE"
-	updated, err := store.BatchNodePlacements(r.Context(), s.DB, nodes, servers, add)
+	var priority *int
+	if v := strings.TrimSpace(r.PostFormValue("priority")); add && v != "" {
+		p, err := strconv.Atoi(v)
+		if err != nil {
+			redirectMsg(w, r, "/admin/nodes", "err", "优先级必须是整数")
+			return
+		}
+		priority = &p
+	}
+	updated, err := store.BatchNodePlacements(r.Context(), s.DB, nodes, servers, add, priority, r.PostFormValue("exposed") != "")
 	if err != nil {
 		if errors.Is(err, store.ErrInvalid) || errors.Is(err, store.ErrConflict) {
 			redirectMsg(w, r, "/admin/nodes", "err", err.Error())
