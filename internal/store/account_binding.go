@@ -116,16 +116,25 @@ func BindingDomains(ctx context.Context, db *sql.DB) ([]BindingDomain, error) {
 
 var subdomainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$`)
 
+// relName 把误填的完整域名还原为前缀，避免拼出 hk.example.com.example.com；根域名返回空串。
+func relName(name, domain string) string {
+	name = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), ".")
+	if name == domain {
+		return ""
+	}
+	return strings.TrimSuffix(name, "."+domain)
+}
+
 // createBindingRecord 在主域名下新建指向服务器 IP 的 A 记录（待创建，实际解析下发由 DNS 阶段处理）。
 func createBindingRecord(ctx context.Context, tx *sql.Tx, domainID int64, name string, serverID int64, ip string) (int64, error) {
-	name = strings.ToLower(strings.TrimSpace(name))
-	if !subdomainRe.MatchString(name) || len(name) > 120 {
-		return 0, invalid("子域名只能包含小写字母、数字、连字符和点")
-	}
 	var domain string
 	var prov sql.NullInt64
 	if err := tx.QueryRowContext(ctx, `SELECT domain,dns_provider_config_id FROM domain WHERE id=?`, domainID).Scan(&domain, &prov); err != nil {
 		return 0, invalid("请选择有效的主域名")
+	}
+	name = relName(name, domain)
+	if !subdomainRe.MatchString(name) || len(name) > 120 {
+		return 0, invalid("子域名只能包含小写字母、数字、连字符和点")
 	}
 	full := name + "." + domain
 	var dup int

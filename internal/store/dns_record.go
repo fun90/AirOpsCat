@@ -84,7 +84,7 @@ func SaveDNSRecord(ctx context.Context, db *sql.DB, r *DNSRecord) (int64, error)
 	if d == nil {
 		return 0, sql.ErrNoRows
 	}
-	r.Name = strings.ToLower(strings.TrimSpace(r.Name))
+	r.Name = relName(r.Name, d.Domain)
 	r.Content = strings.TrimSpace(r.Content)
 	r.Remark = strings.TrimSpace(r.Remark)
 	var full string

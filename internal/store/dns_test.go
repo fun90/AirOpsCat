@@ -68,8 +68,8 @@ func TestDNSRecordLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := SaveDNSRecord(ctx, db, &DNSRecord{DomainID: did, Name: "HK", Content: "192.0.2.1", TTL: 300}); !errors.Is(err, ErrConflict) {
-		t.Fatal("同名 A 记录应冲突")
+	if _, err := SaveDNSRecord(ctx, db, &DNSRecord{DomainID: did, Name: "HK.example.com.", Content: "192.0.2.1", TTL: 300}); !errors.Is(err, ErrConflict) {
+		t.Fatal("误填完整域名应还原为前缀并与同名 A 记录冲突")
 	}
 	for _, bad := range []*DNSRecord{{DomainID: did, Name: "a", Content: "::1", TTL: 300}, {DomainID: did, Name: "a", Content: "1.1.1.1", TTL: 30}, {DomainID: did, Name: "A_B", Content: "1.1.1.1", TTL: 300}} {
 		if _, err := SaveDNSRecord(ctx, db, bad); !errors.Is(err, ErrInvalid) {

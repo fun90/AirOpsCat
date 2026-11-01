@@ -206,7 +206,7 @@ func TestBindingNewDomain(t *testing.T) {
 		t.Fatalf("%s %s", full, status)
 	}
 	other := onboard(t, db, "nd2@example.com", func(in *OnboardInput) { in.Account.TagIDs = []int64{tag} })
-	if err := SaveAccountBinding(ctx, db, &AccountBinding{AccountID: other.AccountID, PlacementID: pid, NewDomainID: 1, NewName: "hk01", Enabled: true}); !errors.Is(err, ErrConflict) {
-		t.Fatalf("重复域名 err=%v", err)
+	if err := SaveAccountBinding(ctx, db, &AccountBinding{AccountID: other.AccountID, PlacementID: pid, NewDomainID: 1, NewName: "hk01.example.com", Enabled: true}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("误填完整域名应还原为前缀并判重复 err=%v", err)
 	}
 }
