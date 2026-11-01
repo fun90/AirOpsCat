@@ -115,6 +115,23 @@ func TestGuardSyncTokenAndTrustBoundary(t *testing.T) {
 		t.Fatal(w.Code)
 	}
 }
+func TestGuardSyncServerIDOverridesStaleIP(t *testing.T) {
+	s := guardServer(t)
+	if w := guardCall(s, []byte(`{"serverId":2,"nodeIp":"203.0.113.1"}`), "test-token", ""); w.Code != 403 {
+		t.Fatal("未登记 serverId 应拒绝", w.Code)
+	}
+	w := guardCall(s, []byte(`{"serverId":1,"nodeIp":"198.51.100.9","accounts":[{"accountNo":"A","connections":2}]}`), "test-token", "")
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	snap, err := s.Guard.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := snap.Servers["203.0.113.1"]; !ok || len(snap.Servers) != 1 {
+		t.Fatal("应按登记 IP 归属上报", snap.Servers)
+	}
+}
 func TestGuardSyncGzipResponseAndOnline(t *testing.T) {
 	s := guardServer(t)
 	payload := []byte(`{"nodeIp":"203.0.113.1","generatedAtEpochSeconds":1,"accounts":[{"accountNo":"A","connections":3},{"accountNo":"unknown","connections":9}],"onlineAccountIps":[{"accountNo":"A","nodeTag":"node_1","clientIps":["198.51.100.1"]},{"accountNo":"unknown","clientIps":["bad"]}]}`)

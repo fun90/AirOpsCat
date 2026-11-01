@@ -86,6 +86,18 @@ func (s *Server) guardSync(w http.ResponseWriter, r *http.Request) {
 		guardError(w, http.StatusBadRequest, "无效的 JSON")
 		return
 	}
+	if request.ServerID != 0 {
+		ip, err := store.GuardServerIP(r.Context(), s.DB, request.ServerID)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		if ip == "" {
+			guardError(w, http.StatusForbidden, "未登记的服务器 ID")
+			return
+		}
+		request.NodeIP = ip
+	}
 	if strings.TrimSpace(request.NodeIP) == "" {
 		guardError(w, http.StatusBadRequest, "缺少 nodeIp")
 		return

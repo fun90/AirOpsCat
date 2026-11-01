@@ -20,6 +20,8 @@ type AccountReport struct {
 	ActiveIPs []string `json:"activeIps"`
 }
 type Request struct {
+	// ServerID 非零时由中心按登记 IP 覆盖 NodeIP，服务器换 IP 后 agent 无需重装。
+	ServerID                int64                      `json:"serverId"`
 	NodeIP                  string                     `json:"nodeIp"`
 	GeneratedAtEpochSeconds int64                      `json:"generatedAtEpochSeconds"`
 	Accounts                []AccountReport            `json:"accounts"`

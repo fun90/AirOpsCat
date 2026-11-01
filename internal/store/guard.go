@@ -83,6 +83,16 @@ func GuardToken(ctx context.Context, db *sql.DB) (string, error) {
 	return value.String, err
 }
 
+// GuardServerIP 返回服务器当前登记的 IP；未登记时返回空串。
+func GuardServerIP(ctx context.Context, db *sql.DB, id int64) (string, error) {
+	var ip string
+	err := db.QueryRowContext(ctx, `SELECT ip FROM server WHERE id=?`, id).Scan(&ip)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return ip, err
+}
+
 func GuardNodeRegistered(ctx context.Context, db *sql.DB, ip string) (bool, error) {
 	var exists bool
 	err := db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM server WHERE ip=?)`, ip).Scan(&exists)
