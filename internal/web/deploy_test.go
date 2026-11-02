@@ -27,6 +27,13 @@ func TestDeploymentHTTPExternal(t *testing.T) {
 	if state != 1 {
 		t.Fatal("外部部署未记录成功")
 	}
+	if edit := do(h, "GET", "/admin/servers/99/edit", nil, c, nil).Body.String(); !strings.Contains(edit, `action="/admin/servers/99/deploy"`) {
+		t.Fatal("服务器编辑页应提供整机部署按钮")
+	}
+	w = do(h, "POST", "/admin/servers/99/deploy", url.Values{"csrf": {csrf}}, c, nil)
+	if w.Code != 303 || !strings.Contains(w.Header().Get("Location"), "/admin/servers/99/edit") {
+		t.Fatal("整机部署应回到编辑页", w.Code, w.Header().Get("Location"))
+	}
 	w = do(h, "GET", "/admin/servers/99/config", nil, c, nil)
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "node_99") {
 		t.Fatal(w.Code, w.Body.String())

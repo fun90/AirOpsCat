@@ -14,6 +14,7 @@ func (s *Server) deployRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/nodes/{id}/deploy", s.nodeDeploy)
 	m.HandleFunc("POST /admin/nodes/deploy-pending", s.deployPending)
 	m.HandleFunc("POST /admin/accounts/{id}/deploy", s.accountDeploy)
+	m.HandleFunc("POST /admin/servers/{id}/deploy", s.serverDeploy)
 	m.HandleFunc("GET /admin/servers/{id}/config", s.serverConfigPreview)
 	m.HandleFunc("POST /admin/servers/{id}/ping", s.serverPing)
 	m.HandleFunc("POST /admin/servers/{id}/clear-host-key", s.serverClearHostKey)
@@ -82,6 +83,12 @@ func (s *Server) accountDeploy(w http.ResponseWriter, r *http.Request) {
 		back = fmt.Sprintf("/admin/accounts/%d/edit", idFrom(r))
 	}
 	s.runDeploy(w, r, back, ids, "该账户没有可用节点，无需部署")
+}
+
+// serverDeploy 整机重推本服务器的全部部署位，用于换机或重装后恢复。
+func (s *Server) serverDeploy(w http.ResponseWriter, r *http.Request) {
+	id := idFrom(r)
+	s.runDeploy(w, r, fmt.Sprintf("/admin/servers/%d/edit", id), []int64{id}, "")
 }
 
 func (s *Server) serverConfigPreview(w http.ResponseWriter, r *http.Request) {

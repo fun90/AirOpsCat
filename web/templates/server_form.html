@@ -76,7 +76,7 @@
 </form>
 {{if .ID}}
 <div class="card mt-3">
-    <div class="card-header"><h3 class="card-title">部署位</h3></div>
+    <div class="card-header"><h3 class="card-title">部署位</h3>{{if $.Placements}}<form class="ms-auto" method="post" action="/admin/servers/{{$.Form.ID}}/deploy" onsubmit="return confirm('将按当前配置整机重新部署并重启 sing-box，确定？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-primary"><i class="ti ti-rocket me-1" aria-hidden="true"></i>部署本服务器</button></form>{{end}}</div>
     <div class="list-group list-group-flush">
         {{range $.Placements}}
         <div class="list-group-item d-flex flex-wrap align-items-center gap-2">
