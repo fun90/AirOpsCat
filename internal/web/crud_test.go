@@ -327,9 +327,18 @@ func TestAccountHTTPFlow(t *testing.T) {
 	}
 	for _, query := range []string{"online=online", "user_id=999999"} {
 		filtered := do(h, "GET", "/admin/accounts?"+query, nil, c, nil)
-		if filtered.Code != 200 || !strings.Contains(filtered.Body.String(), "暂无账户") {
+		if filtered.Code != 200 || !strings.Contains(filtered.Body.String(), "没有符合条件的账户") {
 			t.Fatal("账户筛选未生效", query, filtered.Code)
 		}
+	}
+	// 无标签账户：列表标出「无节点」，标签筛选与状态计数口径一致
+	for _, query := range []string{"", "tag=none"} {
+		if w := do(h, "GET", "/admin/accounts?"+query, nil, c, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "无节点") || !strings.Contains(w.Body.String(), "全部 1") {
+			t.Fatal("无标签账户应显示无节点并计入状态计数", query)
+		}
+	}
+	if w := do(h, "GET", "/admin/accounts?tag=999999", nil, c, nil); !strings.Contains(w.Body.String(), "没有符合条件的账户") {
+		t.Fatal("不存在的标签应筛成空")
 	}
 	filtered := do(h, "GET", "/admin/accounts?online=offline&user_id="+strconv.FormatInt(acc.UserID, 10), nil, c, nil)
 	if filtered.Code != 200 || !strings.Contains(filtered.Body.String(), "修改备注") {

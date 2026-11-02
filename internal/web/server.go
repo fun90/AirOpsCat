@@ -339,6 +339,7 @@ var funcs = template.FuncMap{
 	"cents":       store.FormatCents,
 	"deref":       func(p *int64) int64 { return *p },
 	"installText": installText,
+	"accountName": accountName,
 	"json":        func(v any) string { b, _ := json.Marshal(v); return string(b) },
 	"add":         func(a, b int) int { return a + b },
 	"sub":         func(a, b int) int { return a - b },

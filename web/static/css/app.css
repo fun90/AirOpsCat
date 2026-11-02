@@ -118,3 +118,6 @@
 
 /* 提交后页面开始跳转，移动端会停住 .btn 的颜色过渡，文字留在转圈下面；加载态直接隐藏文字 */
 .btn-loading { transition: none; }
+
+/* 流量数字是可点击的按钮，虚线下划线提示可展开周期详情 */
+[data-account-usage] { text-decoration: underline dotted; text-underline-offset: .2em; }

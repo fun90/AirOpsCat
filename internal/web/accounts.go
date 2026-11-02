@@ -13,6 +13,9 @@ import (
 	"github.com/fun90/airopscat/internal/store"
 )
 
+// formDateLayout 是 datetime-local 控件的值格式，精度到分钟。
+const formDateLayout = "2006-01-02T15:04"
+
 type accountForm struct {
 	ID                                                                        int64
 	UserID, UserSource, Email, Password, NickName, Remark                     string
@@ -49,7 +52,31 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 	if userID < 0 {
 		userID = 0
 	}
-	list, total, err := store.AccountList(r.Context(), s.DB, store.AccountFilter{Search: q, Status: status, Online: onlineFilter, UserID: userID, Sort: sort, Asc: asc}, page, size)
+	tagParam := r.URL.Query().Get("tag")
+	tagID, _ := strconv.ParseInt(tagParam, 10, 64)
+	if tagParam == "none" {
+		tagID = -1
+	} else if tagID < 0 {
+		tagID = 0
+	}
+	filter := store.AccountFilter{Search: q, Status: status, Online: onlineFilter, UserID: userID, TagID: tagID, Sort: sort, Asc: asc}
+	list, total, err := store.AccountList(r.Context(), s.DB, filter, page, size)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	tags, err := store.AllTags(r.Context(), s.DB)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	tagNodes, err := store.TagNodeIDs(r.Context(), s.DB)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	var counts [5]int
+	counts[0], counts[1], counts[2], counts[3], counts[4], err = store.AccountStatusCounts(r.Context(), s.DB, filter)
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -63,8 +90,16 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 	online := make(map[int64]accountOnlineView, len(list))
 	lastSeen := make(map[int64]string, len(list))
 	view := make(map[int64]accountView, len(list))
+	noNodes := make(map[int64]bool, len(list)) // 无标签或标签下没有可用节点：订阅为空
 	for _, a := range list {
 		view[a.ID] = accountRowView(a, now)
+		nodes := map[int64]bool{}
+		for _, id := range a.TagIDs {
+			for _, n := range tagNodes[id] {
+				nodes[n] = true
+			}
+		}
+		noNodes[a.ID] = len(nodes) == 0
 		online[a.ID] = accountOnline(snap, a.AccountNo)
 		if !online[a.ID].Online {
 			lastSeen[a.ID] = lastOnlineText(a.LastOnline, now)
@@ -84,7 +119,13 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 			clear.Del(k)
 		}
 		d["ClearUserURL"] = "?" + clear.Encode()
+		if u, err := store.ManagedUserByID(r.Context(), s.DB, userID); err == nil && u != nil {
+			d["UserFilterName"] = u.Email
+		}
 	}
+	d["Tags"], d["TagFilter"], d["NoNodes"] = tags, tagParam, noNodes
+	d["Filtered"] = q != "" || status != "" || onlineFilter != "" || userID > 0 || tagID != 0
+	d["StatusChips"] = statusChips(r.URL.Query(), status, counts)
 	d["SortLast"], d["SortTo"], d["SortUsed"] = sortHeader(r.URL.Query(), "last_online", sort, asc), sortHeader(r.URL.Query(), "to_date", sort, asc), sortHeader(r.URL.Query(), "used", sort, asc)
 	d["List"], d["Q"], d["Status"], d["Page"], d["Pages"] = list, q, status, page, (total+size-1)/size
 	d["Now"] = store.FormatTime(now)
@@ -130,6 +171,12 @@ func (s *Server) accountFormPage(w http.ResponseWriter, r *http.Request, status 
 			return
 		}
 		d["Recent"] = recent
+		if pending, err := s.accountPendingServers(r, f.ID, nil); err != nil {
+			s.fail(w, r, err)
+			return
+		} else {
+			d["PendingServers"] = len(pending)
+		}
 		if len(recent) > 0 {
 			where := recent[0].NodeName
 			if where == "" {
@@ -196,20 +243,20 @@ func (s *Server) accountNew(w http.ResponseWriter, r *http.Request) {
 		if a != nil {
 			f := accountToForm(a)
 			f.ID, f.Remark, f.AccountNo, f.UUID, f.Disabled = 0, "", "", "", false
-			f.FromDate, f.ToDate = now.Format("2006-01-02T15:04:05"), now.AddDate(0, 1, 0).Format("2006-01-02T15:04:05")
+			f.FromDate, f.ToDate = now.Format(formDateLayout), now.AddDate(0, 1, 0).Format(formDateLayout)
 			s.accountFormPage(w, r, 200, f, "")
 			return
 		}
 	}
-	s.accountFormPage(w, r, 200, &accountForm{UserSource: "existing", PeriodType: "MONTHLY", NodeMultiple: "2", NodePrefix: "8", MaxConnections: "100", MaxIPs: "2", Bandwidth: "500", DownloadMbps: "12", UploadMbps: "8", FromDate: now.Format("2006-01-02T15:04:05"), ToDate: now.AddDate(0, 1, 0).Format("2006-01-02T15:04:05"), TagIDs: map[int64]bool{}}, "")
+	s.accountFormPage(w, r, 200, &accountForm{UserSource: "existing", PeriodType: "MONTHLY", NodeMultiple: "2", NodePrefix: "8", MaxConnections: "100", MaxIPs: "2", Bandwidth: "500", DownloadMbps: "12", UploadMbps: "8", FromDate: now.Format(formDateLayout), ToDate: now.AddDate(0, 1, 0).Format(formDateLayout), TagIDs: map[int64]bool{}}, "")
 }
 func accountToForm(a *store.Account) *accountForm {
 	f := &accountForm{ID: a.ID, UserID: strconv.FormatInt(a.UserID, 10), UserSource: "existing", Remark: a.Remark, AccountNo: a.AccountNo, UUID: a.UUID, PeriodType: a.PeriodType, NodePrefix: a.NodePrefix, NodeMultiple: strconv.Itoa(a.NodeMultiple), MaxConnections: strconv.Itoa(a.MaxConnections), MaxIPs: strconv.Itoa(a.MaxIps), Bandwidth: strconv.Itoa(a.Bandwidth), Disabled: a.Disabled, TagIDs: map[int64]bool{}}
 	if a.FromDate != nil {
-		f.FromDate = a.FromDate.Format("2006-01-02T15:04:05")
+		f.FromDate = a.FromDate.Format(formDateLayout)
 	}
 	if a.ToDate != nil {
-		f.ToDate = a.ToDate.Format("2006-01-02T15:04:05")
+		f.ToDate = a.ToDate.Format(formDateLayout)
 	}
 	if a.DownloadMbps > 0 {
 		f.DownloadMbps = strconv.Itoa(a.DownloadMbps)
@@ -238,7 +285,7 @@ func sqlDate(v string) (string, error) {
 	if v == "" {
 		return "", nil
 	}
-	for _, layout := range []string{"2006-01-02T15:04:05", "2006-01-02T15:04"} {
+	for _, layout := range []string{"2006-01-02T15:04:05", formDateLayout} {
 		if t, err := time.ParseInLocation(layout, v, store.Shanghai); err == nil {
 			return t.Format(store.TimeLayout), nil
 		}
@@ -307,7 +354,7 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 		if in.FromDate != nil {
 			start = *in.FromDate
 		}
-		f.ToDate = start.AddDate(0, 1, 0).Format("2006-01-02T15:04:05")
+		f.ToDate = start.AddDate(0, 1, 0).Format("2006-01-02T15:04:05") // 保留秒，与开始时间严格相差一个月
 	}
 	if f.ToDate != "" {
 		in.ToDate = date(f.ToDate)

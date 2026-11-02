@@ -135,3 +135,36 @@ func (s *Server) accountLinks(r *http.Request, a *store.Account) []copyLink {
 	}
 	return out
 }
+
+type statusChip struct {
+	Label, URL string
+	Count      int
+	Active     bool
+}
+
+// statusChips 生成状态筛选 chips：沿用其他筛选条件，页码回到第一页，点已选中的 chip 不再叠加。
+func statusChips(q url.Values, cur string, c [5]int) []statusChip {
+	defs := []struct{ label, value string }{{"全部", ""}, {"有效", "active"}, {"即将到期", "expiring"}, {"已过期", "expired"}, {"已禁用", "disabled"}}
+	out := make([]statusChip, len(defs))
+	for i, d := range defs {
+		next := url.Values{}
+		for k, v := range q {
+			if k != "page" && k != "status" && k != "msg" && k != "err" {
+				next[k] = v
+			}
+		}
+		if d.value != "" {
+			next.Set("status", d.value)
+		}
+		out[i] = statusChip{d.label, "?" + next.Encode(), c[i], cur == d.value}
+	}
+	return out
+}
+
+// accountName 是确认框和标题里的账户称呼：备注优先，缺省用编号。
+func accountName(a store.Account) string {
+	if a.Remark != "" {
+		return a.Remark
+	}
+	return a.AccountNo
+}

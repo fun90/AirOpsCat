@@ -13,7 +13,7 @@ window.AirOpsPage.register(function(){
   document.querySelector('#uuid').value=h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);});}
  var to=document.querySelector('#renew_to_date');
  function pad(n){return String(n).padStart(2,'0');}
- function fmt(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());}
+ function fmt(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());}
  function addMonths(base,n){var day=base.getDate();base.setDate(1);base.setMonth(base.getMonth()+n);
   base.setDate(Math.min(day,new Date(base.getFullYear(),base.getMonth()+1,0).getDate()));return base;}
  document.querySelectorAll('[data-renew-months]').forEach(function(b){b.addEventListener('click',function(){

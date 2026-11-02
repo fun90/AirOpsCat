@@ -70,6 +70,7 @@ type AccountFilter struct {
 	UserID       int64
 	Status       string
 	Online       string
+	TagID        int64         // >0 只看带该标签的账户；-1 只看没有任何标签的账户
 	OnlineWithin time.Duration // 在线判定窗口，默认 10 分钟
 	Sort         string        // create_time（默认）、to_date、last_online 或 used
 	Asc          bool
@@ -237,6 +238,13 @@ func (f AccountFilter) where(now time.Time) (string, []any) {
 		args = append(args, sql.Named("uid", f.UserID))
 		conds = append(conds, `a.user_id = @uid`)
 	}
+	switch {
+	case f.TagID > 0:
+		args = append(args, sql.Named("tag", f.TagID))
+		conds = append(conds, `a.id IN (SELECT account_id FROM account_tag WHERE tag_id = @tag)`)
+	case f.TagID < 0:
+		conds = append(conds, `a.id NOT IN (SELECT account_id FROM account_tag)`)
+	}
 	switch strings.ToLower(f.Status) {
 	case "active":
 		conds = append(conds, `a.disabled = 0 AND (a.to_date IS NULL OR a.to_date >= @now)`)
@@ -378,4 +386,17 @@ func AccountRecentNodes(ctx context.Context, db *sql.DB, accountID int64, since 
 		list = append(list, &r)
 	}
 	return list, rows.Err()
+}
+
+// AccountStatusCounts 按列表同一口径统计各状态账户数；忽略 f.Status，其余筛选条件照常生效。
+// active 含 expiring（与状态筛选一致）。
+func AccountStatusCounts(ctx context.Context, db *sql.DB, f AccountFilter) (all, active, expiring, expired, disabled int, err error) {
+	f.Status = ""
+	where, args := f.where(nowFunc())
+	err = db.QueryRowContext(ctx, `SELECT count(*),
+		coalesce(sum(a.disabled = 0 AND (a.to_date IS NULL OR a.to_date >= @now)), 0),
+		coalesce(sum(a.disabled = 0 AND a.to_date > @now AND a.to_date <= @soon), 0),
+		coalesce(sum(a.disabled = 0 AND a.to_date IS NOT NULL AND a.to_date < @now), 0),
+		coalesce(sum(a.disabled = 1), 0) FROM account a`+where, args...).Scan(&all, &active, &expiring, &expired, &disabled)
+	return
 }
