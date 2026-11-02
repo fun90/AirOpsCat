@@ -143,6 +143,9 @@ func TestNodeFlows(t *testing.T) {
 	if !strings.Contains(list, "n1-1") || !strings.Contains(list, `badge bg-yellow-lt flex-shrink-0">待部署`) || !strings.Contains(list, `<form class="d-none d-lg-block" method="post" action="/admin/nodes/`) {
 		t.Fatal("列表应显示待部署的 n1-1")
 	}
+	if !strings.Contains(list, `title="待部署">hk-1`) {
+		t.Fatal("部署列点开应列出部署位服务器")
+	}
 	if strings.Contains(do(h, "GET", "/admin/nodes?status=1", nil, c, nil).Body.String(), "n1-1") {
 		t.Fatal("状态筛选应排除")
 	}

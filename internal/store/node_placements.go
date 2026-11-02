@@ -242,6 +242,31 @@ func FailoverServers(ctx context.Context, db *sql.DB) (map[int64][]string, error
 	return out, rows.Err()
 }
 
+type PlacementBrief struct {
+	Server   string
+	Deployed int
+}
+
+// NodePlacementBriefs 按节点返回部署位服务器名与部署状态，供列表点开查看。
+func NodePlacementBriefs(ctx context.Context, db *sql.DB) (map[int64][]PlacementBrief, error) {
+	rows, err := db.QueryContext(ctx, `SELECT ns.node_id, coalesce(nullif(s.name,''), s.ip), ns.deployed FROM node_server ns JOIN server s ON s.id = ns.server_id
+		ORDER BY ns.node_id, ns.priority, ns.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64][]PlacementBrief{}
+	for rows.Next() {
+		var node int64
+		var p PlacementBrief
+		if err := rows.Scan(&node, &p.Server, &p.Deployed); err != nil {
+			return nil, err
+		}
+		out[node] = append(out[node], p)
+	}
+	return out, rows.Err()
+}
+
 type Placement struct {
 	ID             int64
 	NodeID         int64

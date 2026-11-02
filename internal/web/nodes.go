@@ -136,6 +136,11 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	briefs, err := store.NodePlacementBriefs(r.Context(), s.DB)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	online := make(map[int64]nodeOnlineView, len(list))
 	for _, n := range list {
 		if n.Type == 0 {
@@ -143,7 +148,7 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	d := s.pageData(r, "节点", "nodes")
-	d["Online"], d["Servers"], d["Pointed"], d["Failover"] = online, servers, pointed, failover
+	d["Online"], d["Servers"], d["Pointed"], d["Failover"], d["Briefs"] = online, servers, pointed, failover, briefs
 	d["List"], d["Tags"], d["Q"], d["Page"], d["Pages"] = list, tags, f.Search, page, (total+size-1)/size
 	d["Type"], d["Status"], d["TagID"] = q.Get("type"), q.Get("status"), q.Get("tag")
 	s.render(w, "nodes", http.StatusOK, d)
