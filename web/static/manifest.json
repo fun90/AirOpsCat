@@ -1,8 +1,0 @@
-{
-  "name": "AirOpsCat",
-  "short_name": "AirOpsCat",
-  "start_url": "/admin",
-  "scope": "/",
-  "display": "standalone",
-  "icons": [{ "src": "/static/img/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }]
-}
