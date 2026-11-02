@@ -78,6 +78,15 @@ func TestServerAndTagFlows(t *testing.T) {
 	if r := post("/admin/nodes/batch-failover", url.Values{"node_ids": {"1"}}); !strings.Contains(r.Header.Get("Location"), url.QueryEscape("跳过 1")) {
 		t.Fatal("单部署位节点应跳过", r.Header.Get("Location"))
 	}
+	// 批量禁用/启用
+	var dis bool
+	if post("/admin/nodes/batch-toggle", url.Values{"node_ids": {"1"}, "disabled": {"1"}}); h2.QueryRow(`SELECT disabled FROM node WHERE id = 1`).Scan(&dis) != nil || !dis {
+		t.Fatal("批量禁用未生效")
+	}
+	if post("/admin/nodes/batch-toggle", url.Values{"node_ids": {"1"}, "disabled": {"0"}}); h2.QueryRow(`SELECT disabled FROM node WHERE id = 1`).Scan(&dis) != nil || dis {
+		t.Fatal("批量启用未生效")
+	}
+	h2.Exec(`UPDATE node_server SET deployed = 1 WHERE node_id = 1`) // 切换会标记待部署，还原给后面的删除校验
 	if r := post("/admin/servers/1/delete", url.Values{}); !strings.Contains(r.Header.Get("Location"), "err=") {
 		t.Fatalf("应拒绝删除: %s", r.Header.Get("Location"))
 	}
@@ -140,14 +149,19 @@ func TestNodeFlows(t *testing.T) {
 		t.Fatalf("端口冲突应回显: %d", w.Code)
 	}
 	list := do(h, "GET", "/admin/nodes?status=0", nil, c, nil).Body.String()
-	if !strings.Contains(list, "n1-1") || !strings.Contains(list, `badge bg-yellow-lt flex-shrink-0">待部署`) || !strings.Contains(list, `<form class="d-none d-lg-block" method="post" action="/admin/nodes/`) {
+	if !strings.Contains(list, "n1-1") || !strings.Contains(list, `（含待部署）`) || !strings.Contains(list, `<form method="post" action="/admin/nodes/1/deploy">`) {
 		t.Fatal("列表应显示待部署的 n1-1")
 	}
-	if !strings.Contains(list, `title="待部署">hk-1`) {
+	if !strings.Contains(list, `title="待部署"><i class="ti ti-clock me-1" aria-hidden="true"></i>hk-1`) {
 		t.Fatal("部署列点开应列出部署位服务器")
 	}
 	if strings.Contains(do(h, "GET", "/admin/nodes?status=1", nil, c, nil).Body.String(), "n1-1") {
 		t.Fatal("状态筛选应排除")
+	}
+	// tab 带数量，保留排序并回到第一页；排序参数与批量操作入口可用
+	sorted := do(h, "GET", "/admin/nodes?sort=name&dir=asc&q=n1&page=1", nil, c, nil).Body.String()
+	if !strings.Contains(sorted, `href="?dir=asc&amp;q=n1&amp;sort=name&amp;status=0">待部署<span class="badge ms-1 bg-yellow-lt">1</span>`) || !strings.Contains(sorted, "/admin/nodes/batch-delete") {
+		t.Fatal("状态 tab 应带数量并保留排序")
 	}
 	if edit := do(h, "GET", "/admin/nodes/1/edit", nil, c, nil).Body.String(); !strings.Contains(edit, "hk-1") || !strings.Contains(edit, `name="p1_priority"`) || !strings.Contains(edit, "订阅名 n1-1") {
 		t.Fatal("编辑页应显示部署位及订阅名")

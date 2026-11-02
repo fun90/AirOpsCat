@@ -69,6 +69,12 @@
 }
 
 
+/* Tabler 没有 min-width:0 / 定宽的工具类：弹性子项截断与下拉浮层宽度 */
+.min-w-0 { min-width: 0; }
+.menu-narrow { max-width: 16rem; }
+.node-batch-card { max-width: 640px; }
+.safe-bottom { padding-bottom: calc(1rem + env(safe-area-inset-bottom)) !important; }
+
 /* 标签列固定单行；长名称截断，为两个标签与展开按钮保留空间。 */
 .node-tags > span { min-width: 0; max-width: 45%; flex-shrink: 1; }
 .node-tags > .dropdown { flex-shrink: 0; }

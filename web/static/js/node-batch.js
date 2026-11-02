@@ -30,7 +30,22 @@ window.AirOpsPage.register(() => {
   };
   mode?.addEventListener('click', () => setMode(!list.classList.contains('node-selecting')));
   bar.querySelector('[data-batch-clear]').addEventListener('click', () => setMode(false));
-  document.querySelectorAll('[data-batch-form]').forEach((form) => form.addEventListener('submit', () => {
+  // 部署位弹窗的服务器过滤
+  document.querySelector('[data-server-filter]')?.addEventListener('input', (e) => {
+    const k = e.target.value.trim().toLowerCase();
+    e.target.nextElementSibling.querySelectorAll('.list-group-item').forEach((li) => {
+      li.classList.toggle('d-none', k !== '' && !li.textContent.toLowerCase().includes(k));
+    });
+  });
+  document.querySelectorAll('[data-batch-form]').forEach((form) => form.addEventListener('submit', (e) => {
+    if (form.dataset.confirm) {
+      const names = boxes().filter((b) => b.checked).map((b) => b.dataset.name);
+      const list = names.slice(0, 8).join('、') + (names.length > 8 ? ` 等共 ${names.length} 个` : '');
+      if (!confirm(`${form.dataset.confirm}\n\n${list}`)) {
+        e.preventDefault();
+        return;
+      }
+    }
     form.querySelectorAll('input[name=node_ids]').forEach((e) => e.remove());
     boxes().filter((b) => b.checked).forEach((b) => {
       const i = document.createElement('input');

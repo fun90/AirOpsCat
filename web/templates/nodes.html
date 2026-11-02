@@ -1,28 +1,27 @@
-{{define "actions"}}<form method="post" action="/admin/nodes/deploy-pending" class="d-inline me-2" onsubmit="return confirm('部署所有存在待部署项的服务器？')"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn btn-outline-primary" type="submit" aria-label="部署待部署" title="部署待部署"><i class="ti ti-rocket me-sm-1" aria-hidden="true"></i><span class="d-none d-sm-inline">部署待部署</span></button></form><a href="/admin/nodes/new" class="btn btn-primary"><i class="ti ti-plus me-1" aria-hidden="true"></i>新增节点</a>{{end}}
-{{define "deployBadge"}}{{if eq . -1}}<span class="badge bg-secondary-lt flex-shrink-0">无部署位</span>{{else if eq . 0}}<span class="badge bg-yellow-lt flex-shrink-0">待部署</span>{{else if eq . 2}}<span class="badge bg-red-lt flex-shrink-0">待删除</span>{{end}}{{end}}
+{{define "actions"}}<form method="post" action="/admin/nodes/deploy-pending" class="d-inline me-2" onsubmit="return confirm('将部署 {{.PendingServers}} 台有待部署项的服务器，确定？')"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn btn-outline-primary" type="submit" aria-label="部署待部署" title="部署待部署"{{if not .PendingServers}} disabled{{end}}><i class="ti ti-rocket me-sm-1" aria-hidden="true"></i><span class="d-none d-sm-inline">部署待部署</span>{{if .PendingServers}}<span class="badge bg-primary-lt ms-1">{{.PendingServers}}</span>{{end}}</button></form><a href="/admin/nodes/new" class="btn btn-primary"><i class="ti ti-plus me-1" aria-hidden="true"></i>新增节点</a>{{end}}
+{{define "deployBadge"}}{{if eq . -1}}<span class="badge bg-secondary-lt flex-shrink-0">无部署位</span>{{end}}{{end}}
 {{define "tagChip"}}<span class="badge text-reset fw-normal text-truncate" style="background-color: color-mix(in srgb, {{if .Color}}{{.Color}}{{else}}#6c757d{{end}} 22%, transparent)" title="{{.Name}}">{{.Name}}</span>{{end}}
-{{define "placementCount"}}<span{{if .PlacementDeleting}} class="text-red"{{else if .PlacementPending}} class="text-yellow"{{end}}>{{.PlacementDeployed}}/{{.PlacementTotal}}</span>{{end}}
-{{define "pointedBadges"}}{{range .}}<div class="dropdown"><button type="button" class="badge bg-blue-lt border-0 cursor-pointer" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="当前指向 {{.Server}}，查看 {{len .Domains}} 个域名"><i class="ti ti-current-location me-1" aria-hidden="true"></i>{{.Server}}</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-1" style="max-width:16rem">{{range .Domains}}<span class="badge bg-blue-lt text-wrap text-break">{{.}}</span>{{end}}</div></div></div>{{end}}{{end}}
+{{define "placementCount"}}<span{{if .PlacementDeleting}} class="text-red"{{else if .PlacementPending}} class="text-yellow"{{end}}>{{if .PlacementDeleting}}<i class="ti ti-trash me-1" aria-hidden="true"></i>{{else if .PlacementPending}}<i class="ti ti-clock me-1" aria-hidden="true"></i>{{end}}{{.PlacementDeployed}}/{{.PlacementTotal}}{{if .PlacementDeleting}}<span class="visually-hidden">（含待删除）</span>{{else if .PlacementPending}}<span class="visually-hidden">（含待部署）</span>{{end}}</span>{{end}}
 {{define "inboundBadge"}}<span class="badge {{if eq .Type 1}}bg-azure-lt{{else}}bg-secondary-lt{{end}} flex-shrink-0" title="{{.Protocol}} 端口 {{.Port}}{{if eq .Type 1}} 落地{{end}}" aria-label="{{.Protocol}} 端口 {{.Port}}{{if eq .Type 1}} 落地{{end}}">{{with .Protocol}}{{if eq . "hysteria2"}}HY2{{else if eq . "vless-reality"}}VR{{else if eq . "vless"}}VL{{else if eq . "shadowsocks"}}SS{{else if eq . "shadowtls"}}ST{{else if eq . "anytls"}}AT{{else if eq . "socks"}}SK{{else}}{{.}}{{end}}{{end}}<span class="border-start ms-1 ps-1 font-monospace">{{.Port}}</span>{{if eq .Type 1}}<span class="border-start ms-1 ps-1">落地</span>{{end}}</span>{{end}}
 {{define "nodeOnline"}}<span class="d-inline-flex align-items-center gap-2 text-nowrap" title="{{.Text}}"><span><i class="ti ti-users me-1" role="img" aria-label="账户"></i>{{.Accounts}}</span>{{if .ShowConns}}<span><i class="ti ti-plug-connected me-1" role="img" aria-label="连接"></i>{{.Connections}}</span>{{end}}{{if .Partial}}<i class="ti ti-alert-triangle text-yellow" role="img" aria-label="部分服务器无上报"></i>{{end}}</span>{{end}}
+{{/* 部署位下拉：各部署位状态、检测结果和当前 DNS 指向。参数：Briefs、Pointed、Rounds */}}
+{{define "placementMenu"}}<div class="dropdown-menu p-2"><div class="d-flex flex-column gap-1 menu-narrow">{{range .Briefs}}<div class="d-flex flex-wrap align-items-center gap-1"><span class="badge {{if eq .Deployed 1}}bg-green-lt{{else if eq .Deployed 0}}bg-yellow-lt{{else}}bg-red-lt{{end}} text-wrap text-break" title="{{if eq .Deployed 1}}已部署{{else if eq .Deployed 0}}待部署{{else}}待删除{{end}}">{{if eq .Deployed 0}}<i class="ti ti-clock me-1" aria-hidden="true"></i>{{else if eq .Deployed 2}}<i class="ti ti-trash me-1" aria-hidden="true"></i>{{end}}{{.Server}}{{if ne .Deployed 1}}<span class="visually-hidden">（{{if eq .Deployed 0}}待部署{{else}}待删除{{end}}）</span>{{end}}</span>{{if .Probes}}<span class="text-secondary small">{{.Network}}</span>{{range .Probes}}<span class="badge {{if .OK}}bg-green-lt{{else if ge .Fails $.Rounds}}bg-red-lt{{else}}bg-yellow-lt{{end}} fw-normal text-wrap" title="定时检测于 {{.Checked}}{{if .LastOK}}，最后成功 {{.LastOK}}{{end}}"><i class="ti {{if .OK}}ti-check{{else if ge .Fails $.Rounds}}ti-x{{else}}ti-alert-triangle{{end}} me-1" aria-hidden="true"></i>{{.ProbeName}} {{if .OK}}{{.Ms}}ms{{else}}{{.Msg}}{{if gt .Fails 1}} ×{{.Fails}}{{end}}{{end}}</span>{{end}}{{end}}</div>{{end}}{{range .Pointed}}<div class="border-top pt-1 mt-1"><div class="small text-secondary mb-1"><i class="ti ti-current-location me-1" aria-hidden="true"></i>当前指向 {{.Server}}</div><div class="d-flex flex-wrap gap-1">{{range .Domains}}<span class="badge bg-blue-lt text-wrap text-break">{{.}}</span>{{end}}</div></div>{{end}}</div></div>{{end}}
+{{/* 部署列：部署位计数、检测告警；国内不可达的服务器直接列在行内。参数：N、Sum、Briefs、Pointed、Rounds */}}
+{{define "placementCell"}}{{with .N}}<div class="d-flex align-items-center gap-1 gap-lg-2 text-nowrap"><i class="ti ti-server text-secondary d-lg-none" role="img" aria-label="部署位" title="部署位"></i>{{template "deployBadge" .DeployStatus}}{{if gt .PlacementTotal 0}}<div class="dropdown"><button type="button" class="btn btn-link p-0 fw-normal small gap-1" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="查看 {{.PlacementTotal}} 个部署位{{if $.Sum.Bad}}，{{$.Sum.Bad}} 个国内不可达{{else if $.Sum.Flaky}}，{{$.Sum.Flaky}} 个检测偶发失败{{end}}">{{template "placementCount" .}}{{if $.Sum.Bad}}<span class="text-red" title="{{$.Sum.Bad}} 个部署位国内不可达"><i class="ti ti-alert-triangle" aria-hidden="true"></i>{{$.Sum.Bad}}</span>{{else if $.Sum.Flaky}}<span class="text-yellow" title="{{$.Sum.Flaky}} 个部署位检测偶发失败"><i class="ti ti-alert-triangle" aria-hidden="true"></i>{{$.Sum.Flaky}}</span>{{end}}{{if $.Pointed}}<i class="ti ti-current-location text-blue" role="img" aria-label="DNS 已切走" title="DNS 已切走"></i>{{end}}</button>{{template "placementMenu" (dict "Briefs" $.Briefs "Pointed" $.Pointed "Rounds" $.Rounds)}}</div>{{end}}</div>{{if $.Sum.Bad}}<div class="d-flex flex-wrap gap-1 mt-1">{{range $.Briefs}}{{if .Unreachable}}<span class="badge bg-red-lt text-wrap text-break" title="{{.Server}} 国内不可达"><i class="ti ti-plug-x me-1" aria-hidden="true"></i>{{.Server}}</span>{{end}}{{end}}</div>{{end}}{{end}}{{end}}
 {{define "content"}}
 <div class="card">
     <div class="card-header">
         <ul class="nav nav-tabs card-header-tabs flex-nowrap overflow-x-auto text-nowrap">
-            <li class="nav-item"><a class="nav-link{{if eq .Status ""}} active{{end}}" href="/admin/nodes?q={{.Q}}&type={{.Type}}&tag={{.TagID}}">全部</a></li>
-            <li class="nav-item"><a class="nav-link{{if eq .Status "0"}} active{{end}}" href="/admin/nodes?status=0&q={{.Q}}&type={{.Type}}&tag={{.TagID}}">待部署</a></li>
-            <li class="nav-item"><a class="nav-link{{if eq .Status "1"}} active{{end}}" href="/admin/nodes?status=1&q={{.Q}}&type={{.Type}}&tag={{.TagID}}">已部署</a></li>
-            <li class="nav-item"><a class="nav-link{{if eq .Status "2"}} active{{end}}" href="/admin/nodes?status=2&q={{.Q}}&type={{.Type}}&tag={{.TagID}}">待删除</a></li>
-            <li class="nav-item"><a class="nav-link{{if eq .Status "-1"}} active{{end}}" href="/admin/nodes?status=-1&q={{.Q}}&type={{.Type}}&tag={{.TagID}}">无部署位</a></li>
-            <li class="nav-item"><a class="nav-link{{if eq .Status "3"}} active{{end}}" href="/admin/nodes?status=3&q={{.Q}}&type={{.Type}}&tag={{.TagID}}">国内不可达</a></li>
+            {{range .Tabs}}<li class="nav-item"><a class="nav-link{{if .Active}} active{{end}}" href="{{.URL}}">{{.Label}}{{if .Count}}<span class="badge ms-1 {{if .Alert}}bg-yellow-lt{{else}}bg-secondary-lt{{end}}">{{.Count}}</span>{{end}}</a></li>{{end}}
         </ul>
     </div>
     <div class="card-body border-bottom py-3">
         <form method="get" class="row g-2" onchange="this.requestSubmit()">
             {{if .Status}}<input type="hidden" name="status" value="{{.Status}}">{{end}}
+            {{if .Sort}}<input type="hidden" name="sort" value="{{.Sort}}"><input type="hidden" name="dir" value="{{if .SortAsc}}asc{{else}}desc{{end}}">{{end}}
             <div class="col-12 col-md-5 d-flex gap-2">
                 <input type="search" name="q" value="{{.Q}}" class="form-control" placeholder="名称 / 协议 / 端口 / 地区 / 备注" aria-label="搜索">
-                <button class="btn btn-icon d-lg-none" type="button" data-node-select-mode aria-pressed="false" aria-label="批量选择" title="批量选择"><i class="ti ti-checkbox" aria-hidden="true"></i></button>
+                <button class="btn d-lg-none text-nowrap" type="button" data-node-select-mode aria-pressed="false" aria-label="批量选择" title="批量选择"><i class="ti ti-checkbox me-1" aria-hidden="true"></i>批量</button>
                 <button class="btn btn-icon d-md-none" type="button" data-bs-toggle="collapse" data-bs-target="#nodeFilters" aria-expanded="{{if or .Type .TagID}}true{{else}}false{{end}}" aria-controls="nodeFilters" aria-label="更多筛选"><i class="ti ti-chevron-down" aria-hidden="true"></i></button>
             </div>
             <div class="col-12 col-md-7 collapse d-md-block{{if or .Type .TagID}} show{{end}}" id="nodeFilters">
@@ -46,9 +45,9 @@
         <div class="list-group-item py-2 small text-secondary node-head">
             <div class="d-flex gap-3 align-items-center">
                 <label class="d-flex align-items-center gap-2 m-0 cursor-pointer"><input class="form-check-input m-0 flex-shrink-0" type="checkbox" data-node-select-all aria-label="全选本页"><span class="d-lg-none">全选本页</span></label>
-                <div class="row gx-3 flex-fill d-none d-lg-flex" style="min-width:0">
-                    <div class="col-3">节点</div>
-                    <div class="col-2">部署</div><div class="col-2">在线</div><div class="col">标签</div><div class="col-auto node-actions"></div>
+                <div class="row gx-3 flex-fill d-none d-lg-flex min-w-0">
+                    <div class="col-3"><a class="text-reset text-decoration-none" href="{{.SortName.URL}}" data-loading title="按名称排序">节点 <i class="ti {{.SortName.Icon}}" aria-hidden="true"></i></a></div>
+                    <div class="col-3"><a class="text-reset text-decoration-none" href="{{.SortStatus.URL}}" data-loading title="按待处理部署位数排序">部署 <i class="ti {{.SortStatus.Icon}}" aria-hidden="true"></i></a></div><div class="col-2">在线</div><div class="col">标签</div><div class="col-auto node-actions"></div>
                 </div>
             </div>
         </div>
@@ -56,17 +55,17 @@
         {{$st := .DeployStatus}}{{$on := index $.Online .ID}}{{$pt := index $.Pointed .ID}}{{$fo := index $.Failover .ID}}
         <div class="list-group-item{{if .Disabled}} text-secondary{{end}}">
             <div class="d-flex gap-3 align-items-start align-items-lg-center">
-                <input class="form-check-input m-0 mt-1 mt-lg-0 flex-shrink-0 node-check" type="checkbox" name="node_ids" value="{{.ID}}" data-node-select aria-label="选择节点 {{.Name}}">
-                <div class="row gx-2 gx-lg-3 gy-1 flex-fill align-items-start align-items-lg-center" style="min-width:0">
-                    <div class="col col-lg-3" style="min-width:0">
-                        <div class="d-flex align-items-center gap-2">{{template "deployDot" $st}}<a class="text-truncate fw-medium" href="/admin/nodes/{{.ID}}/edit">{{.Name}}</a>{{template "inboundBadge" .}}{{if .Disabled}}<span class="badge bg-secondary-lt flex-shrink-0">已禁用</span>{{end}}</div>
-                        {{if .OutName}}<div class="d-flex align-items-center gap-1 small mt-1" style="min-width:0"><i class="ti ti-corner-down-right text-secondary" role="img" aria-label="出站至"></i>{{template "deployDot" .OutStatus}}<a class="text-secondary text-truncate" href="/admin/nodes/{{.OutID}}/edit">{{.OutName}}</a></div>{{end}}
+                <input class="form-check-input m-0 mt-1 mt-lg-0 flex-shrink-0 node-check" type="checkbox" name="node_ids" value="{{.ID}}" data-node-select data-name="{{.Name}}" aria-label="选择节点 {{.Name}}">
+                <div class="row gx-2 gx-lg-3 gy-1 flex-fill align-items-start align-items-lg-center min-w-0">
+                    <div class="col col-lg-3 min-w-0">
+                        <div class="d-flex align-items-center gap-2">{{template "deployDot" $st}}<a class="text-truncate fw-medium" href="/admin/nodes/{{.ID}}/edit">{{.Name}}</a>{{if .Disabled}}<span class="badge bg-secondary-lt flex-shrink-0">已禁用</span>{{end}}</div>
+                        <div class="d-flex align-items-center flex-wrap gap-2 small mt-1">{{template "inboundBadge" .}}{{if .OutName}}<span class="d-inline-flex align-items-center gap-1 min-w-0"><i class="ti ti-corner-down-right text-secondary" role="img" aria-label="出站至"></i>{{template "deployDot" .OutStatus}}<a class="text-secondary text-truncate" href="/admin/nodes/{{.OutID}}/edit">{{.OutName}}</a></span>{{end}}</div>
                     </div>
                     <div class="col-auto order-lg-last node-actions">
                       <div class="d-flex gap-1 align-items-center justify-content-end">
                       {{/* 移动端在线信息放在名称行右侧，只显示有账户在线的节点 */}}
                       {{if and $on.Reported (gt $on.Accounts 0)}}<span class="d-lg-none small text-secondary">{{template "nodeOnline" $on}}</span>{{end}}
-                      {{if or (eq $st 0) (eq $st 2)}}<form class="d-none d-lg-block" method="post" action="/admin/nodes/{{.ID}}/deploy"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-primary" type="submit">部署</button></form>{{end}}
+                      {{if or (eq $st 0) (eq $st 2)}}<form method="post" action="/admin/nodes/{{.ID}}/deploy"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-primary" type="submit">部署</button></form>{{end}}
                       <div class="dropdown">
                         <button class="btn btn-sm btn-ghost-secondary" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="更多操作" title="更多操作"><i class="ti ti-dots-vertical d-lg-none" aria-hidden="true"></i><span class="d-none d-lg-inline">更多<i class="ti ti-chevron-down ms-1" aria-hidden="true"></i></span></button>
                         <div class="dropdown-menu dropdown-menu-end">
@@ -88,13 +87,9 @@
                       </div>
                     </div>
                     <div class="w-100 d-lg-none m-0"></div>
-                    <div class="col-auto col-lg-2 small">
-                        <div class="d-flex align-items-center gap-1 gap-lg-2 text-nowrap"><i class="ti ti-server text-secondary d-lg-none" role="img" aria-label="部署位" title="部署位"></i><span class="d-none d-lg-inline">{{if eq $st 1}}<span class="text-secondary">已部署</span>{{else}}{{template "deployBadge" $st}}{{end}}</span>{{if gt .PlacementTotal 0}}{{$ps := index $.ProbeSum .ID}}<div class="dropdown"><button type="button" class="btn btn-link p-0 fw-normal small gap-1" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="查看 {{.PlacementTotal}} 个部署位{{if $ps.Bad}}，{{$ps.Bad}} 个国内不可达{{else if $ps.Flaky}}，{{$ps.Flaky}} 个检测偶发失败{{end}}">{{template "placementCount" .}}{{if $ps.Bad}}<span class="text-red" title="{{$ps.Bad}} 个部署位国内不可达"><i class="ti ti-alert-triangle" aria-hidden="true"></i>{{$ps.Bad}}</span>{{else if $ps.Flaky}}<span class="text-yellow" title="{{$ps.Flaky}} 个部署位检测偶发失败"><i class="ti ti-alert-triangle" aria-hidden="true"></i>{{$ps.Flaky}}</span>{{end}}</button><div class="dropdown-menu p-2"><div class="d-flex flex-column gap-1" style="max-width:16rem">{{range index $.Briefs .ID}}<div class="d-flex flex-wrap align-items-center gap-1"><span class="badge {{if eq .Deployed 1}}bg-green-lt{{else if eq .Deployed 0}}bg-yellow-lt{{else}}bg-red-lt{{end}} text-wrap text-break" title="{{if eq .Deployed 1}}已部署{{else if eq .Deployed 0}}待部署{{else}}待删除{{end}}">{{.Server}}{{if ne .Deployed 1}}<span class="visually-hidden">（{{if eq .Deployed 0}}待部署{{else}}待删除{{end}}）</span>{{end}}</span>{{if .Probes}}<span class="text-secondary small">{{.Network}}</span>{{range .Probes}}<span class="badge {{if .OK}}bg-green-lt{{else if ge .Fails $.ProbeFailRounds}}bg-red-lt{{else}}bg-yellow-lt{{end}} fw-normal text-wrap" title="定时检测于 {{.Checked}}{{if .LastOK}}，最后成功 {{.LastOK}}{{end}}">{{.ProbeName}} {{if .OK}}{{.Ms}}ms{{else}}{{.Msg}}{{if gt .Fails 1}} ×{{.Fails}}{{end}}{{end}}</span>{{end}}{{end}}</div>{{end}}</div></div></div>{{else}}<span class="d-lg-none text-secondary">0</span>{{end}}</div>
-                        {{if and $fo $pt}}<div class="d-none d-lg-flex flex-wrap gap-1 mt-1">{{template "pointedBadges" $pt}}</div>{{end}}
-                    </div>
-                    {{if and $fo $pt}}<div class="col-auto d-lg-none"><div class="d-flex flex-wrap gap-1">{{template "pointedBadges" $pt}}</div></div>{{end}}
+                    <div class="col-auto col-lg-3 small">{{template "placementCell" (dict "N" . "Sum" (index $.ProbeSum .ID) "Briefs" (index $.Briefs .ID) "Pointed" (and $fo $pt) "Rounds" $.ProbeFailRounds)}}</div>
                     <div class="col-lg-2 small d-none d-lg-block">{{if $on.Reported}}{{template "nodeOnline" $on}}{{else if $on.Text}}{{$on.Text}}{{else}}<span class="text-secondary">—</span>{{end}}</div>
-                    <div class="col small{{if not .Tags}} d-none d-lg-block{{end}}" style="min-width:0">{{if .Tags}}<div class="d-flex flex-nowrap align-items-center gap-2 node-tags"><i class="ti ti-tag text-secondary flex-shrink-0 d-lg-none" role="img" aria-label="标签" title="标签"></i>{{range $i, $t := .Tags}}{{if lt $i 2}}{{template "tagChip" $t}}{{end}}{{end}}{{if gt (len .Tags) 2}}<div class="dropdown"><button type="button" class="badge bg-secondary-lt text-reset fw-normal border-0 cursor-pointer" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="其余 {{sub (len .Tags) 2}} 个标签">+{{sub (len .Tags) 2}}</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-2 small" style="max-width:16rem">{{range $i, $t := .Tags}}{{if ge $i 2}}{{template "tagChip" $t}}{{end}}{{end}}</div></div></div>{{end}}</div>{{end}}</div>
+                    <div class="col small{{if not .Tags}} d-none d-lg-block{{end}} min-w-0">{{if .Tags}}<div class="d-flex flex-nowrap align-items-center gap-2 node-tags"><i class="ti ti-tag text-secondary flex-shrink-0 d-lg-none" role="img" aria-label="标签" title="标签"></i>{{range $i, $t := .Tags}}{{if lt $i 2}}{{template "tagChip" $t}}{{end}}{{end}}{{if gt (len .Tags) 2}}<div class="dropdown"><button type="button" class="badge bg-secondary-lt text-reset fw-normal border-0 cursor-pointer" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="其余 {{sub (len .Tags) 2}} 个标签">+{{sub (len .Tags) 2}}</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-2 small menu-narrow">{{range $i, $t := .Tags}}{{if ge $i 2}}{{template "tagChip" $t}}{{end}}{{end}}</div></div></div>{{end}}</div>{{end}}</div>
                 </div>
             </div>
         </div>
@@ -105,12 +100,21 @@
     <div class="card-footer d-flex">{{template "pager" .}}</div>
 </div>
 
-<div class="fixed-bottom p-3 d-none" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom)) !important" id="nodeBatchBar">
-  <div class="card shadow mx-auto" style="max-width:640px"><div class="card-body d-flex align-items-center gap-2 py-2">
-    <span class="me-auto text-nowrap">已选 <strong data-batch-count>0</strong><span class="d-none d-sm-inline"> 个节点</span></span>
+<div class="fixed-bottom p-3 d-none safe-bottom" id="nodeBatchBar">
+  <div class="card shadow mx-auto node-batch-card"><div class="card-body d-flex align-items-center gap-2 py-2">
+    <span class="me-auto text-nowrap">已选 <strong data-batch-count>0</strong><span class="d-none d-sm-inline"> 个节点（仅本页）</span></span>
+    <form method="post" action="/admin/nodes/batch-deploy" data-batch-form data-confirm="将部署以下节点的待部署项，确定？"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn btn-outline-primary text-nowrap" type="submit" aria-label="部署" title="部署"><i class="ti ti-rocket me-sm-1" aria-hidden="true"></i><span class="d-none d-sm-inline">部署</span></button></form>
     <button type="button" class="btn btn-outline-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#batchTagsModal" aria-label="标签" title="标签"><i class="ti ti-tag me-sm-1" aria-hidden="true"></i><span class="d-none d-sm-inline">标签</span></button>
     <button type="button" class="btn btn-outline-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#batchPlacementsModal" aria-label="部署位" title="部署位"><i class="ti ti-server me-sm-1" aria-hidden="true"></i><span class="d-none d-sm-inline">部署位</span></button>
-    <button type="button" class="btn btn-outline-warning text-nowrap" data-bs-toggle="modal" data-bs-target="#batchFailoverModal" aria-label="手动切换" title="手动切换"><i class="ti ti-switch-horizontal me-sm-1" aria-hidden="true"></i><span class="d-none d-sm-inline">手动切换</span></button>
+    <div class="dropup">
+      <button type="button" class="btn btn-outline-secondary text-nowrap" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="更多批量操作" title="更多"><i class="ti ti-dots" aria-hidden="true"></i></button>
+      <div class="dropdown-menu dropdown-menu-end">
+        <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#batchFailoverModal">手动切换</button>
+        <form method="post" action="/admin/nodes/batch-toggle" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="disabled" value="0"><button class="dropdown-item" type="submit">启用</button></form>
+        <form method="post" action="/admin/nodes/batch-toggle" data-batch-form data-confirm="确定禁用以下节点？禁用后需重新部署生效。"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="disabled" value="1"><button class="dropdown-item" type="submit">禁用</button></form>
+        <form method="post" action="/admin/nodes/batch-delete" data-batch-form data-confirm="确定删除以下节点？已部署的部署位会在下次部署时从服务器移除。"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="dropdown-item text-danger" type="submit">删除</button></form>
+      </div>
+    </div>
     <button type="button" class="btn btn-link px-2 text-nowrap" data-batch-clear>取消</button>
   </div></div>
 </div>
@@ -145,16 +149,16 @@
       <div class="col-auto"><label class="form-check m-0"><input type="checkbox" class="form-check-input" name="exposed" value="1" checked><span class="form-check-label">显示到订阅</span></label></div>
       <div class="col-12 form-hint">仅添加时生效；优先级留空按现有顺序排在最后，落地节点始终不显示到订阅</div>
     </div>
+    <input type="search" class="form-control mb-2" placeholder="搜索服务器" aria-label="搜索服务器" data-server-filter>
     <div class="list-group">{{range .Servers}}
       <div class="list-group-item d-flex align-items-center gap-2 py-2">
         <label class="d-flex align-items-center gap-2 flex-fill m-0 cursor-pointer" style="min-width:0"><input class="form-check-input m-0 flex-shrink-0" type="checkbox" name="server_ids" value="{{.ID}}"><span class="text-truncate">{{.Name}}</span>{{if ne .Name .IP}}<span class="text-secondary small text-truncate ms-auto">{{.IP}}</span>{{end}}</label>
-        <button type="button" class="btn btn-sm btn-icon btn-ghost-secondary flex-shrink-0" data-copy="{{.IP}}" aria-label="复制 IP {{.IP}}"><i class="ti ti-copy" aria-hidden="true"></i></button>
       </div>{{else}}<div class="list-group-item text-secondary">暂无可用服务器</div>{{end}}
     </div>
   </div>
   <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">应用</button></div>
 </form></div></div>
-<div class="modal modal-blur fade" id="batchFailoverModal" tabindex="-1" aria-labelledby="batchFailoverTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form class="modal-content" method="post" action="/admin/nodes/batch-failover" data-batch-form onsubmit="return confirm('将立即执行 DNS 切换，确定？')"><input type="hidden" name="csrf" value="{{.CSRF}}">
+<div class="modal modal-blur fade" id="batchFailoverModal" tabindex="-1" aria-labelledby="batchFailoverTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form class="modal-content" method="post" action="/admin/nodes/batch-failover" data-batch-form data-confirm="将立即对以下节点执行 DNS 切换，确定？"><input type="hidden" name="csrf" value="{{.CSRF}}">
   <div class="modal-header"><h5 class="modal-title" id="batchFailoverTitle">手动切换 · <span data-batch-count>0</span> 个节点</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
   <div class="modal-body">
     <div class="form-selectgroup w-100" role="radiogroup" aria-label="切换方式">

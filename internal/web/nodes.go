@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -83,6 +84,9 @@ func (s *Server) nodeRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/nodes/batch-tags", s.nodeBatchTags)
 	m.HandleFunc("POST /admin/nodes/batch-placements", s.nodeBatchPlacements)
 	m.HandleFunc("POST /admin/nodes/batch-failover", s.nodeBatchFailover)
+	m.HandleFunc("POST /admin/nodes/batch-deploy", s.nodeBatchDeploy)
+	m.HandleFunc("POST /admin/nodes/batch-toggle", s.nodeBatchToggle)
+	m.HandleFunc("POST /admin/nodes/batch-delete", s.nodeBatchDelete)
 	m.HandleFunc("POST /admin/nodes/{id}", s.nodeSave)
 	m.HandleFunc("POST /admin/nodes/{id}/switch", s.nodeSwitch)
 	m.HandleFunc("POST /admin/placements/{id}/probe", s.placementProbe)
@@ -101,7 +105,20 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		f.Status = v
 	}
 	f.TagID, _ = strconv.ParseInt(q.Get("tag"), 10, 64)
+	if sort := q.Get("sort"); sort == "name" || sort == "status" {
+		f.Sort, f.Asc = sort, q.Get("dir") == "asc"
+	}
 	page, size := pageParams(r)
+	counts, err := store.NodeStatusCounts(r.Context(), s.DB, f)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	pendingServers, err := store.PendingDeployServers(r.Context(), s.DB)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	list, total, err := store.NodeList(r.Context(), s.DB, f, page, size)
 	if err != nil {
 		s.fail(w, r, err)
@@ -166,7 +183,43 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 	d["Online"], d["Servers"], d["Pointed"], d["Failover"], d["Briefs"], d["ProbeSum"], d["ProbeFailRounds"] = online, servers, pointed, failover, briefs, probeSum, store.ProbeFailRounds
 	d["List"], d["Tags"], d["Q"], d["Page"], d["Pages"] = list, tags, f.Search, page, (total+size-1)/size
 	d["Type"], d["Status"], d["TagID"] = q.Get("type"), q.Get("status"), q.Get("tag")
+	d["Tabs"], d["PendingServers"] = nodeTabs(q, counts), len(pendingServers)
+	d["Sort"], d["SortAsc"] = f.Sort, f.Asc
+	d["SortName"], d["SortStatus"] = sortHeader(q, "name", f.Sort, f.Asc), sortHeader(q, "status", f.Sort, f.Asc)
 	s.render(w, "nodes", http.StatusOK, d)
+}
+
+type nodeTab struct {
+	Label, URL string
+	Active     bool
+	Count      int
+	Alert      bool // 有数量时需要关注
+}
+
+// nodeTabs 生成状态 tab：保留搜索、类型、标签和排序，页码回到第一页。
+func nodeTabs(q url.Values, counts map[int]int) []nodeTab {
+	cur := q.Get("status")
+	defs := []struct {
+		label  string
+		status string
+		key    int
+		alert  bool
+	}{{"全部", "", -2, false}, {"待部署", "0", store.PendingDeploy, true}, {"已部署", "1", store.Deployed, false},
+		{"待删除", "2", store.PendingDelete, true}, {"无部署位", "-1", -1, true}, {"国内不可达", "3", store.StatusUnreachable, true}}
+	tabs := make([]nodeTab, 0, len(defs))
+	for _, d := range defs {
+		next := url.Values{}
+		for k, v := range q {
+			if k != "page" && k != "status" && k != "msg" && k != "err" {
+				next[k] = v
+			}
+		}
+		if d.status != "" {
+			next.Set("status", d.status)
+		}
+		tabs = append(tabs, nodeTab{d.label, "?" + next.Encode(), cur == d.status, counts[d.key], d.alert && counts[d.key] > 0})
+	}
+	return tabs
 }
 
 func formFromNode(n *store.Node) *NodeForm {

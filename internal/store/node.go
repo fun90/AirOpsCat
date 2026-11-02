@@ -138,6 +138,38 @@ type NodeFilter struct {
 	Type   int // -1 不限
 	Status int // -2 不限；-1 无部署位；0/1/2 汇总状态；StatusUnreachable 有部署位国内不可达
 	TagID  int64
+	Sort   string // "" 按 ID 倒序；name 按名称；status 按待处理部署位数
+	Asc    bool
+}
+
+// orderBy 只接受白名单列，Sort 来自查询参数。
+func (f NodeFilter) orderBy() string {
+	dir := " DESC"
+	if f.Asc {
+		dir = " ASC"
+	}
+	switch f.Sort {
+	case "name":
+		return "n.name COLLATE NOCASE" + dir + ", n.id DESC"
+	case "status":
+		return "(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id AND ns.deployed <> 1)" + dir + ", n.id DESC"
+	}
+	return "n.id DESC"
+}
+
+// NodeStatusCounts 返回当前搜索、类型、标签条件下各状态的节点数，键 -2 为不限状态。
+func NodeStatusCounts(ctx context.Context, db *sql.DB, f NodeFilter) (map[int]int, error) {
+	out := map[int]int{}
+	for _, st := range []int{-2, -1, PendingDeploy, Deployed, PendingDelete, StatusUnreachable} {
+		f.Status = st
+		where, args := f.where()
+		var n int
+		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM node n WHERE "+where, args...).Scan(&n); err != nil {
+			return nil, err
+		}
+		out[st] = n
+	}
+	return out, nil
 }
 
 func (f NodeFilter) where() (string, []any) {
@@ -184,7 +216,7 @@ func NodeList(ctx context.Context, db *sql.DB, f NodeFilter, page, size int) ([]
 		(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id AND ns.deployed = 1),
 		(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id AND ns.deployed = 0),
 		(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id AND ns.deployed = 2)
-		FROM node n WHERE `+where+` ORDER BY n.id DESC LIMIT ? OFFSET ?`, append(args, size, (page-1)*size)...)
+		FROM node n WHERE `+where+` ORDER BY `+f.orderBy()+` LIMIT ? OFFSET ?`, append(args, size, (page-1)*size)...)
 	if err != nil {
 		return nil, 0, err
 	}

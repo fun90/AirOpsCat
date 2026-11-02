@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -167,4 +168,84 @@ func (s *Server) failoverDNS(w http.ResponseWriter, r *http.Request, back, msg s
 		return
 	}
 	redirectMsg(w, r, back, "msg", msg+"并执行 DNS 切换，结果见系统日志")
+}
+
+// nodeBatchDeploy 部署所选节点的待部署/待删除部署位所在的服务器。
+func (s *Server) nodeBatchDeploy(w http.ResponseWriter, r *http.Request) {
+	var nodes []int64
+	if !postIDs(w, r, "节点 ID 不正确", idField{"node_ids", &nodes}) {
+		return
+	}
+	seen := map[int64]bool{}
+	var servers []int64
+	for _, id := range nodes {
+		ids, err := store.NodeDeployServers(r.Context(), s.DB, id, false)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		for _, sid := range ids {
+			if !seen[sid] {
+				seen[sid] = true
+				servers = append(servers, sid)
+			}
+		}
+	}
+	s.runDeploy(w, r, "/admin/nodes", servers, "所选节点没有待部署的部署位")
+}
+
+// batchEach 逐个节点执行 fn；单个失败不中断，汇总成功数和首个失败原因。
+func (s *Server) batchEach(w http.ResponseWriter, r *http.Request, nodes []int64, fn func(id int64) error) (ok int, firstErr string, fatal bool) {
+	failed := 0
+	for _, id := range nodes {
+		if err := fn(id); err != nil {
+			if !errors.Is(err, store.ErrConflict) && !errors.Is(err, store.ErrInvalid) && !errors.Is(err, sql.ErrNoRows) {
+				s.fail(w, r, err)
+				return ok, "", true
+			}
+			if failed++; firstErr == "" {
+				firstErr = err.Error()
+			}
+			continue
+		}
+		ok++
+	}
+	return ok, firstErr, false
+}
+
+func batchResult(w http.ResponseWriter, r *http.Request, verb string, ok, total int, firstErr string) {
+	if firstErr != "" {
+		redirectMsg(w, r, "/admin/nodes", "err", fmt.Sprintf("%s成功 %d 个，失败 %d 个：%s", verb, ok, total-ok, firstErr))
+		return
+	}
+	redirectMsg(w, r, "/admin/nodes", "msg", fmt.Sprintf("已%s %d 个节点；请部署待部署项", verb, ok))
+}
+
+func (s *Server) nodeBatchToggle(w http.ResponseWriter, r *http.Request) {
+	var nodes []int64
+	if !postIDs(w, r, "节点 ID 不正确", idField{"node_ids", &nodes}) {
+		return
+	}
+	disable := r.PostFormValue("disabled") == "1"
+	ok, firstErr, fatal := s.batchEach(w, r, nodes, func(id int64) error { return store.ToggleNode(r.Context(), s.DB, id, disable) })
+	if fatal {
+		return
+	}
+	verb := "启用"
+	if disable {
+		verb = "禁用"
+	}
+	batchResult(w, r, verb, ok, len(nodes), firstErr)
+}
+
+func (s *Server) nodeBatchDelete(w http.ResponseWriter, r *http.Request) {
+	var nodes []int64
+	if !postIDs(w, r, "节点 ID 不正确", idField{"node_ids", &nodes}) {
+		return
+	}
+	ok, firstErr, fatal := s.batchEach(w, r, nodes, func(id int64) error { _, err := store.DeleteNode(r.Context(), s.DB, id); return err })
+	if fatal {
+		return
+	}
+	batchResult(w, r, "删除", ok, len(nodes), firstErr)
 }

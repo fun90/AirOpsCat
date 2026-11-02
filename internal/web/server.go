@@ -342,7 +342,15 @@ var funcs = template.FuncMap{
 	"accountName": accountName,
 	"json":        func(v any) string { b, _ := json.Marshal(v); return string(b) },
 	"add":         func(a, b int) int { return a + b },
-	"sub":         func(a, b int) int { return a - b },
+	// dict 把键值对打包成 map，给子模板传多个参数。
+	"dict": func(kv ...any) map[string]any {
+		m := make(map[string]any, len(kv)/2)
+		for i := 0; i+1 < len(kv); i += 2 {
+			m[kv[i].(string)] = kv[i+1]
+		}
+		return m
+	},
+	"sub": func(a, b int) int { return a - b },
 	"seq": func(n int) []int {
 		r := make([]int, n)
 		for i := range r {
