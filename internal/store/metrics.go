@@ -132,7 +132,7 @@ type ServerStatus struct {
 	AgentSeen          string
 	ID                 int64
 	Name, IP           string
-	BandwidthGB        int64 // 月流量额度，十进制 GB，0 不限
+	BandwidthGB        int64 // 月流量额度，1024 进制 GB，0 不限
 	ResetDay           int   // 流量重置日
 	Sampled            string
 	CPU, Memory, Disk  *float64
@@ -148,7 +148,7 @@ func (s ServerStatus) UsageRatio() float64 {
 	if s.BandwidthGB <= 0 || !s.HasVnstat {
 		return 0
 	}
-	return (float64(s.VnstatRx) + float64(s.VnstatTx)) / (float64(s.BandwidthGB) * 1e9)
+	return (float64(s.VnstatRx) + float64(s.VnstatTx)) / (float64(s.BandwidthGB) * (1 << 30))
 }
 
 // ServerStatuses 只列启用的非外部服务器；最近一条 monitor 与最近一条（当前流量周期）vnstat。

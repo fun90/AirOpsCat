@@ -16,7 +16,7 @@ import (
 	"github.com/fun90/airopscat/internal/store"
 )
 
-func TestMonitorTrafficDecimalGB(t *testing.T) {
+func TestMonitorTrafficBinaryGB(t *testing.T) {
 	at := time.Date(2026, 10, 22, 10, 35, 0, 0, store.Shanghai)
 	raw := `{"interfaces":[{"name":"eth0","traffic":{"month":[{"date":{"year":2026,"month":10},"rx":10569535770,"tx":10479734167}]}}]}`
 	v, ok, err := monitor.CollectVnstat(context.Background(), &vnstatFixtureRemote{raw: raw}, at, 1)
@@ -34,15 +34,15 @@ func TestMonitorTrafficDecimalGB(t *testing.T) {
 	if err != nil || len(list) != 1 {
 		t.Fatalf("读取失败: %v, %+v", err, list)
 	}
-	if got := newStatusView(list[0], at).UsageText; got != "21.0 / 100 GB" {
-		t.Fatalf("应与十进制 GB 一致，实际 %q", got)
+	if got := newStatusView(list[0], at).UsageText; got != "19.6 / 100 GB" {
+		t.Fatalf("应与1024 进制 GB 一致，实际 %q", got)
 	}
 	if got := newStatusView(list[0], at).PeriodText; got != "2026-10-01 至 2026-10-31" {
 		t.Fatalf("周期应为自然月，实际 %q", got)
 	}
 	list[0].BandwidthGB = 0
-	if got := newStatusView(list[0], at).UsageText; got != "21.0 GB" {
-		t.Fatalf("未设额度时也应使用十进制 GB，实际 %q", got)
+	if got := newStatusView(list[0], at).UsageText; got != "19.6 GB" {
+		t.Fatalf("未设额度时也应使用1024 进制 GB，实际 %q", got)
 	}
 	// 重置日 24 号：10-22 属于 9-24 起的周期，不应沿用自然月样本
 	if _, err := a.DB.Exec(`UPDATE server SET bandwidth_date='2026-04-24 00:00:00' WHERE id=1`); err != nil {
@@ -52,7 +52,7 @@ func TestMonitorTrafficDecimalGB(t *testing.T) {
 	if err != nil || list[0].HasVnstat || list[0].ResetDay != 24 {
 		t.Fatalf("不应取到其他周期的样本: %v %+v", err, list[0])
 	}
-	if err := store.InsertVnstatSample(context.Background(), a.DB, 1, monitor.Vnstat{Iface: "eth0", Year: 2026, Month: 9, RxBytes: 5e9}, at); err != nil {
+	if err := store.InsertVnstatSample(context.Background(), a.DB, 1, monitor.Vnstat{Iface: "eth0", Year: 2026, Month: 9, RxBytes: 5 << 30}, at); err != nil {
 		t.Fatal(err)
 	}
 	list, _, _ = store.ServerStatuses(context.Background(), a.DB, "", 1, 20, at)
@@ -72,7 +72,7 @@ type fakeRemote struct{ cmds []string }
 func (f *fakeRemote) Run(_ context.Context, cmd string) (string, string, int, error) {
 	f.cmds = append(f.cmds, cmd)
 	if cmd == monitor.VnstatCommand {
-		return `{"interfaces":[{"name":"eth0","traffic":{"month":[{"date":{"year":` + time.Now().In(store.Shanghai).Format("2006") + `,"month":` + time.Now().In(store.Shanghai).Format("1") + `},"rx":` + "900000000000" + `,"tx":0}]}}]}`, "", 0, nil
+		return `{"interfaces":[{"name":"eth0","traffic":{"month":[{"date":{"year":` + time.Now().In(store.Shanghai).Format("2006") + `,"month":` + time.Now().In(store.Shanghai).Format("1") + `},"rx":` + "966367641600" + `,"tx":0}]}}]}`, "", 0, nil
 	}
 	return "cpu 0 0 10 100\nnet 0 0 1000 2000\nelapsed 1000\nmem 1000 500", "", 0, nil
 }
@@ -122,7 +122,7 @@ func TestMonitorCollectAndAlerts(t *testing.T) {
 	if hk.CPU == nil || *hk.CPU != 0.9 || !hk.HasVnstat {
 		t.Fatalf("采集结果未入库: %+v", hk)
 	}
-	// 十进制 900 GB / 900 GB 额度 = 100% → 流量告警并通知
+	// 1024 进制 900 GB / 900 GB 额度 = 100% → 流量告警并通知
 	mu.Lock()
 	n := len(sent)
 	mu.Unlock()

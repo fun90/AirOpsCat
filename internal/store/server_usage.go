@@ -29,7 +29,7 @@ type IdleServer struct {
 	serverType                             int
 }
 
-func (s IdleServer) TrafficGB() float64 { return float64(s.TrafficBytes) / 1e9 }
+func (s IdleServer) TrafficGB() float64 { return float64(s.TrafficBytes) / (1 << 30) }
 
 // costPerAccount 用于排序：无活跃账户按 1 个计，未设置价格排最后。
 func (s IdleServer) costPerAccount() int64 {

@@ -157,8 +157,8 @@ func TestDNSPullAddsAndLinksPendingCreate(t *testing.T) {
 	}
 }
 
-// 生产案例：961.52 GB / 1000 GB 告警已达 96%，DNS 不得按 GiB 算成 0.8955 而回切。
-func TestDNSCandidatesDecimalGB(t *testing.T) {
+// 额度按 1024 进制：961.52 GiB / 1000 GiB 已达 96%，DNS 应据此回切。
+func TestDNSCandidatesBinaryGB(t *testing.T) {
 	db, ctx := testDB(t)
 	now := time.Now().In(Shanghai)
 	for _, q := range []string{
@@ -170,7 +170,7 @@ func TestDNSCandidatesDecimalGB(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := db.Exec(`INSERT INTO server_metrics(server_id,kind,sample_time,period_year,period_month,rx_bytes,tx_bytes)VALUES(1,'vnstat',?,?,?,478791242211,482727447544)`, FormatTime(now), now.Year(), int(now.Month())); err != nil {
+	if _, err := db.Exec(`INSERT INTO server_metrics(server_id,kind,sample_time,period_year,period_month,rx_bytes,tx_bytes)VALUES(1,'vnstat',?,?,?,479 << 30,482 << 30)`, FormatTime(now), now.Year(), int(now.Month())); err != nil {
 		t.Fatal(err)
 	}
 	cs, err := DNSCandidates(ctx, db, now)

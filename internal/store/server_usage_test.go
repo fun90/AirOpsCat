@@ -15,7 +15,7 @@ func TestIdleServers(t *testing.T) {
 	mustExec(t, db, `INSERT INTO node(id,name,type) VALUES(1,'hk',0),(2,'jp',0)`)
 	mustExec(t, db, `INSERT INTO node_server(node_id,server_id,deployed) VALUES(1,1,1),(1,2,1),(2,3,1)`)
 	for id, gb := range map[int64]int64{1: 1, 2: 100, 3: 1} {
-		InsertVnstatSample(ctx, db, id, monitor.Vnstat{Iface: "eth0", Year: 2026, Month: 10, RxBytes: gb * 1e9}, now)
+		InsertVnstatSample(ctx, db, id, monitor.Vnstat{Iface: "eth0", Year: 2026, Month: 10, RxBytes: gb * (1 << 30)}, now)
 	}
 	online := func(acc, ip string, at time.Time) {
 		mustExec(t, db, `INSERT INTO account_online_ip(account_no,client_ip,connection_id,node_ip,last_online_time) VALUES(?,?,?,?,?)`,
