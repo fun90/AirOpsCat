@@ -46,7 +46,7 @@ func DNSRecordList(ctx context.Context, db *sql.DB, domainID int64, q string, pa
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM domain_dns_record WHERE domain_id=? AND (coalesce(full_name,'') LIKE ? OR content LIKE ?)`, domainID, like, like).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	rows, err := db.QueryContext(ctx, recSel+` WHERE r.domain_id=? AND (coalesce(r.full_name,'') LIKE ? OR r.content LIKE ?) ORDER BY r.full_name,r.type LIMIT ? OFFSET ?`, domainID, like, like, size, (page-1)*size)
+	rows, err := db.QueryContext(ctx, recSel+` WHERE r.domain_id=? AND (coalesce(r.full_name,'') LIKE ? OR r.content LIKE ?) ORDER BY r.status='SYNCED',r.full_name,r.type LIMIT ? OFFSET ?`, domainID, like, like, size, (page-1)*size)
 	if err != nil {
 		return nil, 0, err
 	}
