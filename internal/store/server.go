@@ -37,6 +37,7 @@ type Server struct {
 	Remark       string
 	Failover     int // 已手动切走的部署位数：DNS 自动切到同节点其他部署位
 	Placements   int // 列表用：部署位数量
+	Unreachable  int // 列表用：国内探测判定不可达的部署位数
 }
 
 const serverCols = `id, coalesce(name,''), ip, coalesce(ssh_port,22), coalesce(auth_type,'PASSWORD'), coalesce(username,''),
@@ -82,8 +83,9 @@ func ServerList(ctx context.Context, db *sql.DB, search string, page, size int) 
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM server WHERE "+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	rows, err := db.QueryContext(ctx, `SELECT `+serverCols+`, (SELECT count(*) FROM node_server ns WHERE ns.server_id = server.id)
-		FROM server WHERE `+where+` ORDER BY id DESC LIMIT ? OFFSET ?`, append(args, size, (page-1)*size)...)
+	rows, err := db.QueryContext(ctx, `SELECT `+serverCols+`, (SELECT count(*) FROM node_server ns WHERE ns.server_id = server.id),
+		(SELECT count(*) FROM node_server ns WHERE ns.server_id = server.id AND ns.id IN (`+unreachableSQL+`))
+		FROM server WHERE `+where+` ORDER BY id DESC LIMIT ? OFFSET ?`, append(append([]any{ProbeFailRounds}, args...), size, (page-1)*size)...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -94,7 +96,7 @@ func ServerList(ctx context.Context, db *sql.DB, search string, page, size int) 
 		var price, bw, cpu sql.NullInt64
 		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.SSHPort, &s.AuthType, &s.Username, &s.HasAuth, &s.Region,
 			&s.ServerType, &s.ExpireDate, &s.BandwidthDay, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &cpu,
-			&s.Disabled, &s.External, &s.Remark, &s.Failover, &s.Placements); err != nil {
+			&s.Disabled, &s.External, &s.Remark, &s.Failover, &s.Placements, &s.Unreachable); err != nil {
 			return nil, 0, err
 		}
 		list = append(list, &s)

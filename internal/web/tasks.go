@@ -63,6 +63,7 @@ func (s *Server) initTasks() {
 		}},
 		"server-monitor":    {Name: "服务器指标采集（CPU/内存/磁盘/网速）", Interval: monitorInterval, Run: s.collectMonitor},
 		"server-vnstat":     {Name: "服务器月流量采集（vnstat）", Interval: vnstatInterval, Run: s.collectVnstat},
+		"placement-probe":   {Name: "部署位国内连通检测（TCP/UDP）", Interval: probeInterval, Run: s.probePlacements},
 		"alert-scan":        {Name: "告警扫描（流量超额与到期）", Interval: 5 * time.Minute, Run: s.scanAlerts},
 		"ip-overlap-digest": {Name: "IP 超限每日摘要", Interval: 24 * time.Hour, Run: s.ipOverlapDigest},
 		"guard-evict":       {Name: "风控过期状态回收", Interval: 30 * time.Second, Run: s.Guard.Evict},

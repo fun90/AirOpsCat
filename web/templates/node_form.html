@@ -66,6 +66,7 @@
                         {{with index $.PlacementTargets .ID}}<div class="dropdown"><button type="button" class="badge bg-blue-lt border-0 cursor-pointer" data-bs-toggle="dropdown" aria-expanded="false">当前指向 {{len .}} 个域名</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-1" style="max-width:16rem">{{range .}}<span class="badge bg-blue-lt text-wrap text-break">{{.}}</span>{{end}}</div></div></div>{{end}}
                         {{if .Disabled}}<span class="badge bg-secondary-lt">服务器已禁用</span>{{end}}
                         {{if and $.Probe (eq .Deployed 1)}}<button type="button" class="btn btn-sm btn-link p-0" data-probe="{{.ID}}" title="经国内探测服务器检测 {{.ServerIP}}:{{$.Form.Port}}">{{if eq $.Form.Protocol "hysteria2"}}UDP{{else}}TCP{{end}} 检测</button><span class="small" data-probe-result aria-live="polite"></span>{{end}}
+                        {{with $.ProbeStates}}{{range index . $p.ID}}<span class="badge {{if .OK}}bg-green-lt{{else if ge .Fails $.ProbeFailRounds}}bg-red-lt{{else}}bg-yellow-lt{{end}}" title="定时检测于 {{.Checked}}{{if .LastOK}}，最后成功 {{.LastOK}}{{end}}">{{.ProbeName}} {{if .OK}}{{.Ms}}ms{{else}}{{.Msg}}{{if gt .Fails 1}} ×{{.Fails}}{{end}}{{end}}</span>{{end}}{{end}}
                         <span class="badge bg-red-lt" data-del-badge hidden></span>
                         <button type="button" class="btn btn-sm btn-link p-0" data-del-undo hidden>撤销删除</button>
                     </div>

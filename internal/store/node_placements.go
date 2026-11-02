@@ -244,12 +244,53 @@ func FailoverServers(ctx context.Context, db *sql.DB) (map[int64][]string, error
 
 type PlacementBrief struct {
 	Server   string
+	Network  string // TCP / UDP
 	Deployed int
+	Probes   []ProbeState // 各探测机最新定时检测结果，未检测为空
 }
 
-// NodePlacementBriefs 按节点返回部署位服务器名与部署状态，供列表点开查看。
+// Unreachable 与告警口径一致：所有探测机都已连续失败 ProbeFailRounds 轮。
+func (p PlacementBrief) Unreachable() bool {
+	for _, r := range p.Probes {
+		if r.Fails < ProbeFailRounds {
+			return false
+		}
+	}
+	return len(p.Probes) > 0
+}
+
+// Flaky 表示有探测机最近一次失败但尚未达到不可达。
+func (p PlacementBrief) Flaky() bool {
+	for _, r := range p.Probes {
+		if !r.OK {
+			return !p.Unreachable()
+		}
+	}
+	return false
+}
+
+// NodePlacementBriefs 按节点返回部署位服务器名、部署状态与定时检测结果，供列表点开查看。
 func NodePlacementBriefs(ctx context.Context, db *sql.DB) (map[int64][]PlacementBrief, error) {
-	rows, err := db.QueryContext(ctx, `SELECT ns.node_id, coalesce(nullif(s.name,''), s.ip), ns.deployed FROM node_server ns JOIN server s ON s.id = ns.server_id
+	probes := map[int64][]ProbeState{}
+	prow, err := db.QueryContext(ctx, `SELECT pp.placement_id,coalesce(nullif(s.name,''),s.ip),pp.ok,pp.ms,pp.msg,pp.fails,pp.checked_time,coalesce(pp.last_ok_time,'')
+ FROM placement_probe pp JOIN server s ON s.id=pp.probe_server_id ORDER BY pp.probe_server_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer prow.Close()
+	for prow.Next() {
+		var id int64
+		var st ProbeState
+		if err := prow.Scan(&id, &st.ProbeName, &st.OK, &st.Ms, &st.Msg, &st.Fails, &st.Checked, &st.LastOK); err != nil {
+			return nil, err
+		}
+		probes[id] = append(probes[id], st)
+	}
+	if err := prow.Err(); err != nil {
+		return nil, err
+	}
+	rows, err := db.QueryContext(ctx, `SELECT ns.id, ns.node_id, coalesce(nullif(s.name,''), s.ip), ns.deployed, coalesce(n.protocol,'') FROM node_server ns
+		JOIN server s ON s.id = ns.server_id JOIN node n ON n.id = ns.node_id
 		ORDER BY ns.node_id, ns.priority, ns.id`)
 	if err != nil {
 		return nil, err
@@ -257,11 +298,13 @@ func NodePlacementBriefs(ctx context.Context, db *sql.DB) (map[int64][]Placement
 	defer rows.Close()
 	out := map[int64][]PlacementBrief{}
 	for rows.Next() {
-		var node int64
+		var id, node int64
 		var p PlacementBrief
-		if err := rows.Scan(&node, &p.Server, &p.Deployed); err != nil {
+		if err := rows.Scan(&id, &node, &p.Server, &p.Deployed, &p.Network); err != nil {
 			return nil, err
 		}
+		p.Network = map[bool]string{true: "UDP", false: "TCP"}[p.Network == "hysteria2"]
+		p.Probes = probes[id]
 		out[node] = append(out[node], p)
 	}
 	return out, rows.Err()

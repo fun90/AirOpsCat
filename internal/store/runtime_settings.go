@@ -25,7 +25,7 @@ var SettingDefaults = map[string]struct{ Group, Value string }{
 	ProbeServersKey:                       {"monitor", ""},
 }
 
-// ProbeServersKey 是国内探测服务器 ID 列表（逗号分隔），节点编辑页经其 SSH 拨测部署位端口。
+// ProbeServersKey 是国内探测服务器 ID 列表（逗号分隔），定时任务与节点编辑页经其 SSH 拨测部署位端口。
 const ProbeServersKey = "airopscat.probe.server-ids"
 
 // EnsureSettings 补齐缺失的有效配置，保留已有值；不再消费的旧键保留于数据库但不展示/修改。

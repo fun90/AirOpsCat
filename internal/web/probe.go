@@ -52,25 +52,10 @@ func (s *Server) placementProbe(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	// IP 会拼进远端命令，必须是合法 IP 字面量
-	if net.ParseIP(ip) == nil || port < 1 || port > 65535 {
-		http.Error(w, "部署位不支持检测", 422)
+	cmd, err := probeCommand(ip, port, protocol, inbound)
+	if err != nil {
+		http.Error(w, err.Error(), 422)
 		return
-	}
-	cmd := fmt.Sprintf(probeCmd, ip, port)
-	if protocol == "hysteria2" {
-		var in struct {
-			Obfs *struct{ Type, Password string } `json:"obfs"`
-		}
-		if json.Unmarshal([]byte(inbound), &in) != nil || in.Obfs != nil && in.Obfs.Type != "salamander" {
-			http.Error(w, "仅支持 salamander 混淆或无混淆的 hysteria2", 422)
-			return
-		}
-		pkt := quicInitialPing()
-		if in.Obfs != nil {
-			pkt = salamander(pkt, in.Obfs.Password)
-		}
-		cmd = fmt.Sprintf(udpProbeCmd, ip, port, base64.StdEncoding.EncodeToString(pkt))
 	}
 	ids, err := store.ParseIDs(store.ConfigValue(r.Context(), s.DB, store.ProbeServersKey))
 	if err != nil || len(ids) == 0 {
@@ -91,6 +76,28 @@ func (s *Server) placementProbe(w http.ResponseWriter, r *http.Request) {
 	wg.Wait()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	json.NewEncoder(w).Encode(out)
+}
+
+// probeCommand 生成探测机上执行的检测命令：hysteria2 走 UDP（QUIC Initial，按需 salamander 封装），其余协议走 TCP。
+func probeCommand(ip string, port int, protocol, inbound string) (string, error) {
+	// IP 会拼进远端命令，必须是合法 IP 字面量
+	if net.ParseIP(ip) == nil || port < 1 || port > 65535 {
+		return "", errors.New("部署位不支持检测")
+	}
+	if protocol != "hysteria2" {
+		return fmt.Sprintf(probeCmd, ip, port), nil
+	}
+	var in struct {
+		Obfs *struct{ Type, Password string } `json:"obfs"`
+	}
+	if inbound != "" && json.Unmarshal([]byte(inbound), &in) != nil || in.Obfs != nil && in.Obfs.Type != "salamander" {
+		return "", errors.New("仅支持 salamander 混淆或无混淆的 hysteria2")
+	}
+	pkt := quicInitialPing()
+	if in.Obfs != nil {
+		pkt = salamander(pkt, in.Obfs.Password)
+	}
+	return fmt.Sprintf(udpProbeCmd, ip, port, base64.StdEncoding.EncodeToString(pkt)), nil
 }
 
 func (s *Server) probeFrom(ctx context.Context, probeID int64, cmd string) probeResult {

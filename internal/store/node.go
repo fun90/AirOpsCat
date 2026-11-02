@@ -23,6 +23,8 @@ const (
 	PendingDeploy = 0
 	Deployed      = 1
 	PendingDelete = 2
+	// StatusUnreachable 只用于列表筛选：有部署位被定时检测判定国内不可达
+	StatusUnreachable = 3
 )
 
 // 节点类型
@@ -134,7 +136,7 @@ func scanNode(row interface{ Scan(...any) error }, extra ...any) (*Node, error) 
 type NodeFilter struct {
 	Search string
 	Type   int // -1 不限
-	Status int // -2 不限；-1 无部署位；0/1/2 汇总状态
+	Status int // -2 不限；-1 无部署位；0/1/2 汇总状态；StatusUnreachable 有部署位国内不可达
 	TagID  int64
 }
 
@@ -164,6 +166,8 @@ func (f NodeFilter) where() (string, []any) {
 		w = append(w, all+" > 0 AND "+all+" = "+dep)
 	case PendingDeploy:
 		w = append(w, all+" > 0 AND "+all+" <> "+del+" AND "+all+" <> "+dep)
+	case StatusUnreachable:
+		w, args = append(w, "EXISTS (SELECT 1 FROM node_server ns WHERE ns.node_id = n.id AND ns.id IN ("+unreachableSQL+"))"), append(args, ProbeFailRounds)
 	}
 	return strings.Join(w, " AND "), args
 }

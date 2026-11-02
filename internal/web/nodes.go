@@ -97,7 +97,7 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 	if v, err := strconv.Atoi(q.Get("type")); err == nil && (v == 0 || v == 1) {
 		f.Type = v
 	}
-	if v, err := strconv.Atoi(q.Get("status")); err == nil && v >= -1 && v <= 2 {
+	if v, err := strconv.Atoi(q.Get("status")); err == nil && v >= -1 && v <= store.StatusUnreachable {
 		f.Status = v
 	}
 	f.TagID, _ = strconv.ParseInt(q.Get("tag"), 10, 64)
@@ -141,6 +141,21 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	// 按节点汇总检测异常：Bad 为不可达部署位数，Flaky 为偶发失败数
+	probeSum := map[int64]struct{ Bad, Flaky int }{}
+	for id, bs := range briefs {
+		var v struct{ Bad, Flaky int }
+		for _, b := range bs {
+			if b.Unreachable() {
+				v.Bad++
+			} else if b.Flaky() {
+				v.Flaky++
+			}
+		}
+		if v.Bad+v.Flaky > 0 {
+			probeSum[id] = v
+		}
+	}
 	online := make(map[int64]nodeOnlineView, len(list))
 	for _, n := range list {
 		if n.Type == 0 {
@@ -148,7 +163,7 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	d := s.pageData(r, "节点", "nodes")
-	d["Online"], d["Servers"], d["Pointed"], d["Failover"], d["Briefs"] = online, servers, pointed, failover, briefs
+	d["Online"], d["Servers"], d["Pointed"], d["Failover"], d["Briefs"], d["ProbeSum"], d["ProbeFailRounds"] = online, servers, pointed, failover, briefs, probeSum, store.ProbeFailRounds
 	d["List"], d["Tags"], d["Q"], d["Page"], d["Pages"] = list, tags, f.Search, page, (total+size-1)/size
 	d["Type"], d["Status"], d["TagID"] = q.Get("type"), q.Get("status"), q.Get("tag")
 	s.render(w, "nodes", http.StatusOK, d)
@@ -245,6 +260,14 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 	d["Form"], d["FormErr"], d["Tags"], d["Landing"], d["Regions"], d["Placements"], d["Hosts"] = f, formErr, tags, landing, regions, pls, hosts
 	d["ProxyProtocols"], d["LandingProtocols"] = store.ProtocolsFor(store.NodeProxy), store.ProtocolsFor(store.NodeLanding)
 	d["Probe"] = store.ConfigValue(ctx, s.DB, store.ProbeServersKey) != ""
+	if f.ID != 0 {
+		states, err := store.NodeProbeStates(ctx, s.DB, f.ID)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		d["ProbeStates"], d["ProbeFailRounds"] = states, store.ProbeFailRounds
+	}
 	s.render(w, "node_form", status, d)
 }
 
