@@ -195,23 +195,23 @@ func CleanupGuardOnline(ctx context.Context, db *sql.DB, now time.Time) (int64, 
 	return result.RowsAffected()
 }
 
-// GuardIPOverlapAdd 累计某账户当天处于 IP 超限的秒数及峰值，供每日摘要使用。
-func GuardIPOverlapAdd(ctx context.Context, db *sql.DB, day, accountNo string, seconds, peak, limit int64) error {
-	_, err := db.ExecContext(ctx, `INSERT INTO guard_ip_overlap_daily(day,account_no,seconds,peak_ips,limit_ips) VALUES(?,?,?,?,?)
-		ON CONFLICT(day,account_no) DO UPDATE SET seconds=seconds+excluded.seconds,peak_ips=max(peak_ips,excluded.peak_ips),limit_ips=excluded.limit_ips`, day, accountNo, seconds, peak, limit)
+// GuardIPOverlapAdd 累计某账户当天处于超限（kind 为 ips / connections）的秒数及峰值，供每日摘要使用。
+func GuardIPOverlapAdd(ctx context.Context, db *sql.DB, day, accountNo, kind string, seconds, peak, limit int64) error {
+	_, err := db.ExecContext(ctx, `INSERT INTO guard_ip_overlap_daily(day,account_no,kind,seconds,peak_ips,limit_ips) VALUES(?,?,?,?,?,?)
+		ON CONFLICT(day,account_no,kind) DO UPDATE SET seconds=seconds+excluded.seconds,peak_ips=max(peak_ips,excluded.peak_ips),limit_ips=excluded.limit_ips`, day, accountNo, kind, seconds, peak, limit)
 	return err
 }
 
 type GuardIPOverlap struct {
-	AccountNo, Remark    string
+	AccountNo, Remark, Kind string
 	Seconds, Peak, Limit int64
 	Days                 int // 近 7 天（含当天）出现超限的天数
 }
 
-// GuardIPOverlapTop 返回某天 IP 超限累计时长最长的账户，附近 7 天出现天数。
+// GuardIPOverlapTop 返回某天超限累计时长最长的账户与类型，附近 7 天该类型出现天数。
 func GuardIPOverlapTop(ctx context.Context, db *sql.DB, day string, n int) ([]GuardIPOverlap, error) {
-	rows, err := db.QueryContext(ctx, `SELECT o.account_no, coalesce(a.remark,''), o.seconds, o.peak_ips, o.limit_ips,
-		(SELECT count(*) FROM guard_ip_overlap_daily d WHERE d.account_no=o.account_no AND d.day<=o.day AND d.day>date(o.day,'-7 day'))
+	rows, err := db.QueryContext(ctx, `SELECT o.account_no, coalesce(a.remark,''), o.kind, o.seconds, o.peak_ips, o.limit_ips,
+		(SELECT count(*) FROM guard_ip_overlap_daily d WHERE d.account_no=o.account_no AND d.kind=o.kind AND d.day<=o.day AND d.day>date(o.day,'-7 day'))
 		FROM guard_ip_overlap_daily o LEFT JOIN account a ON a.account_no=o.account_no WHERE o.day=? ORDER BY o.seconds DESC LIMIT ?`, day, n)
 	if err != nil {
 		return nil, err
@@ -220,7 +220,7 @@ func GuardIPOverlapTop(ctx context.Context, db *sql.DB, day string, n int) ([]Gu
 	var out []GuardIPOverlap
 	for rows.Next() {
 		var g GuardIPOverlap
-		if err := rows.Scan(&g.AccountNo, &g.Remark, &g.Seconds, &g.Peak, &g.Limit, &g.Days); err != nil {
+		if err := rows.Scan(&g.AccountNo, &g.Remark, &g.Kind, &g.Seconds, &g.Peak, &g.Limit, &g.Days); err != nil {
 			return nil, err
 		}
 		out = append(out, g)

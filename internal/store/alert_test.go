@@ -106,3 +106,24 @@ func alertActiveCount(db *sql.DB) (n int) {
 	db.QueryRow(`SELECT count(*) FROM alert_state WHERE status='ACTIVE'`).Scan(&n)
 	return
 }
+
+func TestAlertDueBackoff(t *testing.T) {
+	t0 := time.Date(2026, 10, 20, 0, 0, 0, 0, Shanghai)
+	f := FormatTime(t0)
+	// 持续告警：1h、2h、4h、8h、16h、32h，之后每 24h
+	notified, want := t0, []time.Duration{1, 2, 4, 8, 16, 32, 56, 80}
+	for _, h := range want {
+		next := t0.Add(h * time.Hour)
+		if alertDue(f, FormatTime(notified), time.Hour, next.Add(-time.Minute)) || !alertDue(f, FormatTime(notified), time.Hour, next) {
+			t.Fatalf("第 %dh 的提醒时机不对", h)
+		}
+		notified = next
+	}
+	if !alertDue(f, "", time.Hour, t0) {
+		t.Fatal("从未通知过应立即通知")
+	}
+	// 间隔大于封顶时以配置为准
+	if alertDue(f, FormatTime(t0.Add(48*time.Hour)), 72*time.Hour, t0.Add(100*time.Hour)) {
+		t.Fatal("不应短于配置间隔")
+	}
+}

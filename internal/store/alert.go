@@ -33,7 +33,7 @@ type Alert struct {
 }
 
 // AlertTrigger 记录一次触发并判断是否需要通知：
-// 新告警或已恢复后重新触发 → 通知；ACTIVE 且距上次通知已满 interval → 通知；ACKNOWLEDGED 持续静默。
+// 新告警 → 通知；ACTIVE（含已恢复后重新触发）按 alertDue 节流；ACKNOWLEDGED 持续静默。
 func AlertTrigger(ctx context.Context, db *sql.DB, k AlertKey, severity string, value, threshold float64, summary string, interval time.Duration, now time.Time) (id int64, notify bool, err error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -42,9 +42,9 @@ func AlertTrigger(ctx context.Context, db *sql.DB, k AlertKey, severity string, 
 	defer tx.Rollback()
 	ts := FormatTime(now)
 	var status string
-	var notified sql.NullString
-	err = tx.QueryRowContext(ctx, `SELECT id,status,last_notified_time FROM alert_state WHERE alert_type=? AND resource_type=? AND resource_id=? AND fingerprint=?`,
-		k.Type, k.ResourceType, k.ResourceID, k.Fingerprint).Scan(&id, &status, &notified)
+	var first, notified sql.NullString
+	err = tx.QueryRowContext(ctx, `SELECT id,status,first_triggered_time,last_notified_time FROM alert_state WHERE alert_type=? AND resource_type=? AND resource_id=? AND fingerprint=?`,
+		k.Type, k.ResourceType, k.ResourceID, k.Fingerprint).Scan(&id, &status, &first, &notified)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		res, err := tx.ExecContext(ctx, `INSERT INTO alert_state(alert_type,resource_type,resource_id,resource_key,fingerprint,status,severity,first_triggered_time,last_triggered_time,trigger_count,current_value,threshold_value,summary,create_time,update_time)
@@ -58,24 +58,37 @@ func AlertTrigger(ctx context.Context, db *sql.DB, k AlertKey, severity string, 
 		return 0, false, err
 	}
 	if status == AlertRecovered {
-		_, err = tx.ExecContext(ctx, `UPDATE alert_state SET status='ACTIVE',first_triggered_time=?,last_triggered_time=?,last_notified_time=NULL,recovered_time=NULL,acknowledged_time=NULL,acknowledged_by=NULL,trigger_count=1,current_value=?,threshold_value=?,severity=?,summary=?,update_time=? WHERE id=?`,
+		// 保留 last_notified_time：条件抖动（恢复后很快又触发）仍受节流
+		first.String = ts
+		_, err = tx.ExecContext(ctx, `UPDATE alert_state SET status='ACTIVE',first_triggered_time=?,last_triggered_time=?,recovered_time=NULL,acknowledged_time=NULL,acknowledged_by=NULL,trigger_count=1,current_value=?,threshold_value=?,severity=?,summary=?,update_time=? WHERE id=?`,
 			ts, ts, value, threshold, nz(severity), nz(summary), ts, id)
-		notify = true
+		notify = alertDue(first.String, notified.String, interval, now)
 	} else {
 		_, err = tx.ExecContext(ctx, `UPDATE alert_state SET last_triggered_time=?,trigger_count=trigger_count+1,current_value=?,threshold_value=?,severity=?,summary=?,update_time=? WHERE id=?`,
 			ts, value, threshold, nz(severity), nz(summary), ts, id)
-		if status == AlertActive {
-			if !notified.Valid || notified.String == "" {
-				notify = true
-			} else if t, e := ParseTime(notified.String); e != nil || !t.Add(interval).After(now) {
-				notify = true
-			}
-		}
+		notify = status == AlertActive && alertDue(first.String, notified.String, interval, now)
 	}
 	if err != nil {
 		return 0, false, err
 	}
 	return id, notify, tx.Commit()
+}
+
+// alertMaxRepeat 是持续告警重复提醒的最长间隔。
+const alertMaxRepeat = 24 * time.Hour
+
+// alertDue 指数退避：等待 max(interval, 上次通知时已持续时长)，封顶 24h。
+// interval=1h 时在持续 1h、2h、4h、8h、16h 提醒，之后每 24h 一次；从未成功通知过则立即通知。
+func alertDue(first, notified string, interval time.Duration, now time.Time) bool {
+	n, err := ParseTime(notified)
+	if notified == "" || err != nil {
+		return true
+	}
+	wait := interval
+	if f, err := ParseTime(first); err == nil && n.Sub(f) > wait {
+		wait = min(n.Sub(f), max(alertMaxRepeat, interval))
+	}
+	return !n.Add(wait).After(now)
 }
 
 // AlertMarkNotified 只在发送成功后调用，发送失败下一轮继续尝试。

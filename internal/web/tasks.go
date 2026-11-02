@@ -65,7 +65,7 @@ func (s *Server) initTasks() {
 		"server-vnstat":     {Name: "服务器月流量采集（vnstat）", Interval: vnstatInterval, Run: s.collectVnstat},
 		"placement-probe":   {Name: "部署位国内连通检测（TCP/UDP）", Interval: probeInterval, Run: s.probePlacements},
 		"alert-scan":        {Name: "告警扫描（流量超额与到期）", Interval: 5 * time.Minute, Run: s.scanAlerts},
-		"ip-overlap-digest": {Name: "IP 超限每日摘要", Interval: 24 * time.Hour, Run: s.ipOverlapDigest},
+		"ip-overlap-digest": {Name: "超限每日摘要", Interval: 24 * time.Hour, Run: s.ipOverlapDigest},
 		"guard-evict":       {Name: "风控过期状态回收", Interval: 30 * time.Second, Run: s.Guard.Evict},
 		"account-expire":    {Name: "到期账户停用并部署", Interval: time.Hour, Run: s.expireAccounts},
 		"db-backup": {Name: "数据库每日备份", Interval: 24 * time.Hour, Run: func(ctx context.Context) error {
@@ -120,7 +120,7 @@ func (s *Server) expireAccounts(ctx context.Context) error {
 			errs = append(errs, fmt.Errorf("%s：%s", res.ServerName, res.Message))
 			key := store.AlertKey{Type: alertDeployFail, ResourceType: "server", ResourceID: res.ServerID, ResourceKey: res.ServerName, Fingerprint: strconv.FormatInt(res.ServerID, 10)}
 			if err := s.raise(ctx, key, "critical", 0, 0, res.ServerName+" 自动部署失败", 0, notify.Message{Title: "AirOpsCat 自动部署失败 · " + res.ServerName,
-				Body: "账户到期后自动部署失败，已保持待部署：\n" + res.Message, Level: "timeSensitive"}); err != nil {
+				Body: "账户到期后自动部署失败，已保持待部署：\n" + res.Message}); err != nil {
 				errs = append(errs, err)
 			}
 		}

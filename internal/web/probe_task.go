@@ -139,7 +139,7 @@ func (s *Server) alertUnreachablePlacements(ctx context.Context) error {
 		body := fmt.Sprintf("%s\n所有国内探测机连续 %d 轮失败：\n%s", cause, store.ProbeFailRounds, strings.Join(lines, "\n"))
 		key := store.AlertKey{Type: alertUnreachable, ResourceType: "server", ResourceID: u.ServerID, ResourceKey: u.ServerName, Fingerprint: strconv.FormatInt(u.ServerID, 10)}
 		if err := s.raise(ctx, key, "critical", float64(j-i), 0, summary, time.Hour,
-			notify.Message{Title: "AirOpsCat 部署位不可达 · " + u.ServerName, Body: body, Level: "timeSensitive"}); err != nil {
+			notify.Message{Title: "AirOpsCat 部署位不可达 · " + u.ServerName, Body: body}); err != nil {
 			return err
 		}
 		i = j

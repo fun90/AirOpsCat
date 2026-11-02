@@ -51,13 +51,18 @@ func TestAlertsEndToEnd(t *testing.T) {
 		t.Fatal("节流内不应重复发送")
 	}
 
-	// 连接数超限：先告警，条件消失后恢复且默认不通知
+	// 连接数超限：普通超限只记录；≥2 倍即时推送，条件消失后恢复且默认不通知
 	a.DB.Exec(`INSERT INTO account(id,account_no,remark,uuid,auth_code,period_type,from_date) VALUES(1,'acc1','Anna','u','ac','MONTHLY','2026-01-01 00:00:00')`)
-	stats := map[string]guard.Stats{"acc1": {AccountNo: "acc1", Connections: 9, IPs: 2, ActiveNodes: 1, Blocked: &guard.BlockedEntry{Reason: "connections", Total: 9, Limit: 5}}}
-	if err := s.alertConnections(ctx, stats); err != nil {
+	connStats := func(total int64) map[string]guard.Stats {
+		return map[string]guard.Stats{"acc1": {AccountNo: "acc1", Connections: total, IPs: 2, ActiveNodes: 1, Blocked: &guard.BlockedEntry{Reason: "connections", Total: total, Limit: 5}}}
+	}
+	if err := s.alertConnections(ctx, connStats(6)); err != nil || count() != 1 {
+		t.Fatalf("普通连接数超限不应推送: %v %v", sent, err)
+	}
+	if err := s.alertConnections(ctx, connStats(10)); err != nil {
 		t.Fatal(err)
 	}
-	if count() != 2 || !strings.Contains(sent[1]["body"].(string), "Anna") {
+	if count() != 2 || !strings.Contains(sent[1]["body"].(string), "Anna") || sent[1]["level"] != "timeSensitive" || sent[0]["level"] != "active" {
 		t.Fatalf("连接数告警: %v", sent)
 	}
 	s.alertConnections(ctx, map[string]guard.Stats{})
@@ -75,21 +80,28 @@ func TestAlertsEndToEnd(t *testing.T) {
 		return map[string]guard.Stats{"acc1": {AccountNo: "acc1", IPs: total, ActiveIPs: total, Blocked: &guard.BlockedEntry{Reason: "ips", Total: total, Limit: 3}}}
 	}
 	s.alertConnections(ctx, ipStats(4))
+	// 恢复后很快再次触发（抖动）：仍受节流，不重复推送
+	s.alertConnections(ctx, connStats(10))
 	s.alertConnections(ctx, ipStats(4))
 	if count() != 2 {
 		t.Fatalf("普通 IP 超限不应推送: %v", sent)
 	}
 	s.alertConnections(ctx, ipStats(6))
+	if count() != 2 {
+		t.Fatalf("节流内极端 IP 超限也不应重复推送: %v", sent)
+	}
+	a.DB.Exec(`UPDATE alert_state SET last_notified_time=? WHERE alert_type='account-connection-limit'`, store.FormatTime(time.Now().Add(-2*time.Hour)))
+	s.alertConnections(ctx, ipStats(6))
 	if count() != 3 || !strings.Contains(sent[2]["title"].(string), "IP 数超限") {
 		t.Fatalf("极端 IP 超限应推送: %v", sent)
 	}
 	var secs int64
-	a.DB.QueryRow(`SELECT seconds FROM guard_ip_overlap_daily WHERE account_no='acc1'`).Scan(&secs)
-	if secs != 30 {
+	a.DB.QueryRow(`SELECT seconds FROM guard_ip_overlap_daily WHERE account_no='acc1' AND kind='ips'`).Scan(&secs)
+	if secs != 40 {
 		t.Fatalf("每日累计秒数 = %d", secs)
 	}
 	a.DB.Exec(`UPDATE guard_ip_overlap_daily SET day=?`, store.FormatTime(time.Now().AddDate(0, 0, -1))[:10])
-	if err := s.ipOverlapDigest(ctx); err != nil || count() != 4 || !strings.Contains(sent[3]["body"].(string), "acc1（Anna）累计 1 分钟，峰值 6/3") {
+	if err := s.ipOverlapDigest(ctx); err != nil || count() != 4 || !strings.Contains(sent[3]["body"].(string), "acc1（Anna）IP 累计 1 分钟，峰值 6/3") || !strings.Contains(sent[3]["body"].(string), "acc1（Anna）连接数 累计 1 分钟，峰值 10/5") {
 		t.Fatalf("每日摘要: %v %v", sent, err)
 	}
 	s.alertConnections(ctx, map[string]guard.Stats{})

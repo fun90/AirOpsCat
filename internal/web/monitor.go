@@ -183,7 +183,7 @@ func (s *Server) evaluateServerAlerts(ctx context.Context) error {
 			latest := pts[len(pts)-1].Value
 			summary := fmt.Sprintf("%s %s连续%d分钟达到 %.0f%%", label, m.name, int(window.Minutes()), latest*100)
 			if err := s.raise(ctx, store.AlertKey{Type: alertMonitorLoad, ResourceType: "server", ResourceID: st.ID, ResourceKey: st.IP, Fingerprint: fp}, "warning",
-				latest, m.t, summary, interval, notify.Message{Title: "AirOpsCat 服务器负载告警", Body: summary, Level: "timeSensitive"}); err != nil {
+				latest, m.t, summary, interval, notify.Message{Title: "AirOpsCat 服务器负载告警", Body: summary}); err != nil {
 				return err
 			}
 		}
@@ -202,7 +202,7 @@ func (s *Server) evaluateServerAlerts(ctx context.Context) error {
 		used := (float64(st.VnstatRx) + float64(st.VnstatTx)) / 1e9
 		summary := fmt.Sprintf("%s 累计流量达到 %.0f%% (%.2f GB / %d GB)", label, ratio*100, used, st.BandwidthGB)
 		if err := s.raise(ctx, store.AlertKey{Type: alertMonitorLoad, ResourceType: "server", ResourceID: st.ID, ResourceKey: st.IP, Fingerprint: fp}, "warning",
-			ratio, trafficT, summary, interval, notify.Message{Title: "AirOpsCat 服务器流量告警", Body: summary, Level: "timeSensitive"}); err != nil {
+			ratio, trafficT, summary, interval, notify.Message{Title: "AirOpsCat 服务器流量告警", Body: summary}); err != nil {
 			return err
 		}
 	}
@@ -227,7 +227,7 @@ func (s *Server) evaluateServerHealth(ctx context.Context, st store.ServerStatus
 	if now.Sub(sampled) > offlineAfter {
 		summary := fmt.Sprintf("%s 已 %d 分钟没有监控上报，主机或 agent 可能离线", label, int(now.Sub(sampled).Minutes()))
 		return s.raise(ctx, key("offline"), "warning", now.Sub(sampled).Minutes(), offlineAfter.Minutes(), summary, interval,
-			notify.Message{Title: "AirOpsCat 服务器失联告警", Body: summary, Level: "timeSensitive"})
+			notify.Message{Title: "AirOpsCat 服务器失联告警", Body: summary})
 	}
 	if _, err := store.AlertResolveFingerprint(ctx, s.DB, alertMonitorLoad, "server", st.ID, "offline:"+id, now); err != nil {
 		return err
@@ -250,7 +250,7 @@ func (s *Server) evaluateServerHealth(ctx context.Context, st store.ServerStatus
 	}
 	summary := fmt.Sprintf("%s sing-box 已停止运行超过 %d 分钟", label, int(singboxWindow.Minutes()))
 	return s.raise(ctx, key("singbox"), "warning", 1, 1, summary, interval,
-		notify.Message{Title: "AirOpsCat sing-box 停止告警", Body: summary, Level: "timeSensitive"})
+		notify.Message{Title: "AirOpsCat sing-box 停止告警", Body: summary})
 }
 
 // ---------- 页面 ----------

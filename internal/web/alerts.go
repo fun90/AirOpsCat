@@ -89,6 +89,7 @@ func (s *Server) configBool(ctx context.Context, key string, def bool) bool {
 }
 
 // raise 记录触发并按节流发送 Bark；发送成功才记通知时间，未配置 Bark 时只留告警记录。
+// 只有 critical 突破专注模式（timeSensitive），其余按普通通知。
 func (s *Server) raise(ctx context.Context, k store.AlertKey, severity string, value, threshold float64, summary string, interval time.Duration, msg notify.Message) error {
 	now := time.Now()
 	id, due, err := store.AlertTrigger(ctx, s.DB, k, severity, value, threshold, summary, interval, now)
@@ -96,6 +97,10 @@ func (s *Server) raise(ctx context.Context, k store.AlertKey, severity string, v
 		return err
 	}
 	store.Log(ctx, s.DB, "ALERT", "WARN", &k.ResourceID, k.ResourceKey, summary, k.Type)
+	msg.Level = "active"
+	if severity == "critical" {
+		msg.Level = "timeSensitive"
+	}
 	if err := s.bark().Send(ctx, msg); err != nil {
 		if !errors.Is(err, notify.ErrNotConfigured) {
 			slog.Warn("告警通知发送失败", "type", k.Type, "resource", k.ResourceKey, "err", err)
@@ -110,7 +115,7 @@ func (s *Server) raise(ctx context.Context, k store.AlertKey, severity string, v
 // guardEvaluateSeconds 与 guard-evaluate 任务周期一致，用于累计每日超限时长。
 const guardEvaluateSeconds = 10
 
-// ipOverlapDigest 每日推送昨天 IP 超限累计时长最长的账户；没有则不发。
+// ipOverlapDigest 每日推送昨天 IP / 连接数超限累计时长最长的账户；没有则不发。
 func (s *Server) ipOverlapDigest(ctx context.Context) error {
 	if !s.configBool(ctx, "airopscat.account.connection-limit.alert.enabled", true) {
 		return nil
@@ -121,9 +126,13 @@ func (s *Server) ipOverlapDigest(ctx context.Context) error {
 	}
 	var b strings.Builder
 	for _, g := range top {
-		fmt.Fprintf(&b, "%s（%s）累计 %d 分钟，峰值 %d/%d，近 7 天 %d 天\n", g.AccountNo, g.Remark, (g.Seconds+59)/60, g.Peak, g.Limit, g.Days)
+		kind := "IP"
+		if g.Kind == "connections" {
+			kind = "连接数"
+		}
+		fmt.Fprintf(&b, "%s（%s）%s 累计 %d 分钟，峰值 %d/%d，近 7 天 %d 天\n", g.AccountNo, g.Remark, kind, (g.Seconds+59)/60, g.Peak, g.Limit, g.Days)
 	}
-	err = s.bark().Send(ctx, notify.Message{Title: "AirOpsCat 昨日 IP 超限摘要", Body: strings.TrimSpace(b.String())})
+	err = s.bark().Send(ctx, notify.Message{Title: "AirOpsCat 昨日超限摘要", Body: strings.TrimSpace(b.String())})
 	if errors.Is(err, notify.ErrNotConfigured) {
 		return nil
 	}
@@ -147,22 +156,21 @@ func (s *Server) alertConnections(ctx context.Context, stats map[string]guard.St
 			continue
 		}
 		keep[id] = true
-		kind, unit := "连接数", "个"
-		key := store.AlertKey{Type: alertConnection, ResourceType: "account", ResourceID: id, ResourceKey: no, Fingerprint: no}
-		severity, quiet := "warning", false
+		kind, digestKind := "连接数", "connections"
 		if st.Blocked.Reason == "ips" {
-			kind, unit = "IP 数", "个"
-			// 极端超限（≥2 倍）立即推送；其余只记录并进每日摘要
-			if st.Blocked.Total >= 2*st.Blocked.Limit {
-				severity = "critical"
-			}
-			quiet = severity != "critical"
-			if err := store.GuardIPOverlapAdd(ctx, s.DB, store.FormatTime(time.Now())[:10], no, guardEvaluateSeconds, st.Blocked.Total, st.Blocked.Limit); err != nil {
-				return err
-			}
+			kind, digestKind = "IP 数", "ips"
+		}
+		key := store.AlertKey{Type: alertConnection, ResourceType: "account", ResourceID: id, ResourceKey: no, Fingerprint: no}
+		// 极端超限（≥2 倍）立即推送；其余只记录并进每日摘要
+		severity := "warning"
+		if st.Blocked.Total >= 2*st.Blocked.Limit {
+			severity = "critical"
+		}
+		if err := store.GuardIPOverlapAdd(ctx, s.DB, store.FormatTime(time.Now())[:10], no, digestKind, guardEvaluateSeconds, st.Blocked.Total, st.Blocked.Limit); err != nil {
+			return err
 		}
 		summary := fmt.Sprintf("%s %s超限 %d/%d", no, kind, st.Blocked.Total, st.Blocked.Limit)
-		if quiet {
+		if severity != "critical" {
 			if _, _, err := store.AlertTrigger(ctx, s.DB, key, severity, float64(st.Blocked.Total), float64(st.Blocked.Limit), summary, interval, time.Now()); err != nil {
 				return err
 			}
@@ -173,9 +181,9 @@ func (s *Server) alertConnections(ctx context.Context, stats map[string]guard.St
 		if kind == "IP 数" {
 			other = fmt.Sprintf("连接 %d · 节点 %d", st.Connections, st.ActiveNodes)
 		}
-		body := fmt.Sprintf("%s（%s）\n%s %d %s，上限 %d\n%s", no, remark, kind, st.Blocked.Total, unit, st.Blocked.Limit, other)
+		body := fmt.Sprintf("%s（%s）\n%s %d 个，上限 %d\n%s", no, remark, kind, st.Blocked.Total, st.Blocked.Limit, other)
 		if err := s.raise(ctx, key, severity, float64(st.Blocked.Total), float64(st.Blocked.Limit), summary, interval,
-			notify.Message{Title: "AirOpsCat " + kind + "超限 · " + no, Body: body, Level: "timeSensitive"}); err != nil {
+			notify.Message{Title: "AirOpsCat " + kind + "超限 · " + no, Body: body}); err != nil {
 			return err
 		}
 	}
@@ -209,7 +217,7 @@ func (s *Server) scanAlerts(ctx context.Context) error {
 		}
 		if err := s.raise(ctx, store.AlertKey{Type: alertQuota, ResourceType: "account", ResourceID: q.ID, ResourceKey: q.AccountNo, Fingerprint: q.AccountNo + ":" + q.PeriodStart}, "warning",
 			q.UsedGB, q.QuotaGB, fmt.Sprintf("%s 已用 %.2f / %.0f GB", q.AccountNo, q.UsedGB, q.QuotaGB), quotaInterval,
-			notify.Message{Title: "AirOpsCat 账户流量超额", Body: body, Level: "timeSensitive"}); err != nil {
+			notify.Message{Title: "AirOpsCat 账户流量超额", Body: body}); err != nil {
 			return err
 		}
 	}

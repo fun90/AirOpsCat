@@ -36,7 +36,7 @@ func (s *Server) collectTraffic(ctx context.Context) error {
 	}
 	if len(failed) > 0 {
 		body := fmt.Sprintf("流量统计收集完成，成功: %d，失败: %d", len(ids)-len(failed), len(failed))
-		if err := s.bark().Send(ctx, notify.Message{Title: "AirOpsCat 流量统计", Body: body, Level: "timeSensitive"}); err != nil && !errors.Is(err, notify.ErrNotConfigured) {
+		if err := s.bark().Send(ctx, notify.Message{Title: "AirOpsCat 流量统计", Body: body}); err != nil && !errors.Is(err, notify.ErrNotConfigured) {
 			slog.Warn("流量采集汇总通知失败")
 		}
 	}
