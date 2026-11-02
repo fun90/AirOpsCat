@@ -1,3 +1,4 @@
+{{define "actions"}}<a href="{{if .Back}}{{.Back}}{{else}}/admin/transactions{{end}}" class="btn btn-outline-secondary" data-back>返回</a>{{end}}
 {{define "content"}}{{with .Form}}
 <form method="post" action="{{if .ID}}/admin/transactions/{{.ID}}{{else}}/admin/transactions{{end}}" class="card"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="{{$.Back}}">
 <div class="card-body">{{if $.FormErr}}<div class="alert alert-danger" role="alert">{{$.FormErr}}</div>{{end}}<div class="row g-3">

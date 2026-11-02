@@ -38,6 +38,7 @@ window.AirOpsPage.register(function () {
             if (pill) { params.set('id', pill.dataset.tagId); }
             busy = true;
             save.disabled = true;
+            save.classList.add('btn-loading');
             error.textContent = '';
             try {
                 var response = await fetch('/admin/tag-picker', {method: 'POST', body: params});
@@ -63,6 +64,7 @@ window.AirOpsPage.register(function () {
             } finally {
                 busy = false;
                 save.disabled = false;
+                save.classList.remove('btn-loading');
             }
         });
     });

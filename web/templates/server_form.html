@@ -1,3 +1,4 @@
+{{define "actions"}}<a href="/admin/servers" class="btn btn-outline-secondary" data-back>返回</a>{{end}}
 {{define "content"}}
 {{with .Form}}
 <form method="post" action="{{if .ID}}/admin/servers/{{.ID}}{{else}}/admin/servers{{end}}" class="card" autocomplete="off">

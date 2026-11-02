@@ -35,6 +35,7 @@ window.AirOpsPage.register(function () {
         protocol.disabled = true;
         type.disabled = true;
         regenerate.disabled = true;
+        regenerate.classList.add('btn-loading');
         var submit = ta.form.querySelector('[type="submit"]');
         submit.disabled = true;
         try {
@@ -61,6 +62,7 @@ window.AirOpsPage.register(function () {
             protocol.disabled = false;
             type.disabled = false;
             regenerate.disabled = false;
+            regenerate.classList.remove('btn-loading');
             submit.disabled = false;
         }
     }

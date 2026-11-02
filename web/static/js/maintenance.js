@@ -50,6 +50,7 @@ if (form) {
         const states = controls.map(control => control.disabled);
         controls.forEach(control => { control.disabled = true; });
         server.tomselect?.disable();
+        form.querySelector('[data-maintenance-run]').classList.add('btn-loading');
         const beforeUnload = event => { event.preventDefault(); event.returnValue = ''; };
         window.addEventListener('beforeunload', beforeUnload);
         const summary = [];
@@ -90,6 +91,7 @@ if (form) {
             delete document.body.dataset.navigationNative;
             controls.forEach((control, index) => { control.disabled = states[index]; });
             server.tomselect?.enable();
+            form.querySelector('[data-maintenance-run]').classList.remove('btn-loading');
             window.removeEventListener('beforeunload', beforeUnload);
         }
     });
