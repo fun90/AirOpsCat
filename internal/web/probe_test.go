@@ -13,6 +13,7 @@ import (
 	"github.com/fun90/airopscat/internal/crypto"
 	"github.com/fun90/airopscat/internal/deploy"
 	"github.com/fun90/airopscat/internal/store"
+	"golang.org/x/crypto/blake2b"
 )
 
 // probeRemote 在本机 bash 执行探测命令，模拟远端探测机。
@@ -40,6 +41,20 @@ func TestParseProbe(t *testing.T) {
 	}
 }
 
+func TestQUICProbePacket(t *testing.T) {
+	p := quicInitialPing()
+	if len(p) != 1200 || p[0]&0xf0 != 0xc0 || string(p[1:6]) != "\x00\x00\x00\x01\x08" {
+		t.Fatalf("Initial 包头不正确: % x", p[:8])
+	}
+	o := salamander(p, "pw")
+	key := blake2b.Sum256(append([]byte("pw"), o[:8]...))
+	for i, c := range o[8:] {
+		if c^key[i%32] != p[i] {
+			t.Fatal("salamander 异或不正确")
+		}
+	}
+}
+
 func TestPlacementProbe(t *testing.T) {
 	if _, err := exec.LookPath("timeout"); err != nil {
 		t.Skip("本机缺少 coreutils timeout，探测命令只在 Linux 探测机上运行")
@@ -62,6 +77,26 @@ func TestPlacementProbe(t *testing.T) {
 	closed, _ := net.Listen("tcp", "127.0.0.1:0")
 	closedPort := closed.Addr().(*net.TCPAddr).Port
 	closed.Close()
+	// UDP 回显服务模拟 hysteria2 回包
+	udp, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer udp.Close()
+	go func() {
+		b := make([]byte, 2048)
+		for {
+			n, addr, err := udp.ReadFrom(b)
+			if err != nil {
+				return
+			}
+			udp.WriteTo(b[:n], addr)
+		}
+	}()
+	udpOpen := udp.LocalAddr().(*net.UDPAddr).Port
+	udpClosed, _ := net.ListenPacket("udp", "127.0.0.1:0")
+	udpClosedPort := udpClosed.LocalAddr().(*net.UDPAddr).Port
+	udpClosed.Close()
 
 	_, a := newTestServer(t)
 	field, _ := crypto.New(crypto.DeriveKey("0123456789abcdef0123456789abcdef", "field"))
@@ -76,8 +111,10 @@ func TestPlacementProbe(t *testing.T) {
 	s.Deployer.Dial = func(context.Context, *store.SSHTarget) (deploy.Remote, error) { return remote, nil }
 	for _, q := range []string{
 		`INSERT INTO server(id,ip,name) VALUES(1,'127.0.0.1','目标'),(2,'192.0.2.9','电信探测')`,
-		fmt.Sprintf(`INSERT INTO node(id,name,type,protocol,port) VALUES(1,'开',0,'vless',%d),(2,'关',0,'vless',%d),(3,'h2',0,'hysteria2',443)`, open, closedPort),
-		`INSERT INTO node_server(id,node_id,server_id,deployed) VALUES(1,1,1,1),(2,2,1,1),(3,3,1,1)`,
+		fmt.Sprintf(`INSERT INTO node(id,name,type,protocol,port) VALUES(1,'开',0,'vless',%d),(2,'关',0,'vless',%d)`, open, closedPort),
+		fmt.Sprintf(`INSERT INTO node(id,name,type,protocol,port,inbound) VALUES(3,'h2开',0,'hysteria2',%d,'{"obfs":{"type":"salamander","password":"p"}}'),
+			(4,'h2关',0,'hysteria2',%d,'{}'),(5,'h2未知混淆',0,'hysteria2',443,'{"obfs":{"type":"gecko"}}')`, udpOpen, udpClosedPort),
+		`INSERT INTO node_server(id,node_id,server_id,deployed) VALUES(1,1,1,1),(2,2,1,1),(3,3,1,1),(4,4,1,1),(5,5,1,1)`,
 	} {
 		if _, err := a.DB.Exec(q); err != nil {
 			t.Fatal(err)
@@ -95,13 +132,16 @@ func TestPlacementProbe(t *testing.T) {
 	if err := store.SaveSettings(context.Background(), a.DB, field, map[string]string{store.ProbeServersKey: "2"}); err != nil {
 		t.Fatal(err)
 	}
-	if w := do(h, "GET", "/admin/nodes/1/edit", nil, c, nil); !strings.Contains(w.Body.String(), `data-tcp-probe="1"`) {
+	if w := do(h, "GET", "/admin/nodes/1/edit", nil, c, nil); !strings.Contains(w.Body.String(), `data-probe="1"`) {
 		t.Fatal("配置后应显示检测按钮")
 	}
-	if w := do(h, "POST", "/admin/placements/3/probe", form, c, nil); w.Code != 422 {
-		t.Fatal("hysteria2 不应检测", w.Code)
+	if w := do(h, "GET", "/admin/nodes/3/edit", nil, c, nil); !strings.Contains(w.Body.String(), `UDP 检测`) {
+		t.Fatal("hysteria2 应显示 UDP 检测")
 	}
-	for id, want := range map[string]string{"1": "可达", "2": "拒绝连接"} {
+	if w := do(h, "POST", "/admin/placements/5/probe", form, c, nil); w.Code != 422 {
+		t.Fatal("未知混淆不应检测", w.Code)
+	}
+	for id, want := range map[string]string{"1": "可达", "2": "拒绝连接", "3": "可达", "4": "拒绝连接"} {
 		w := do(h, "POST", "/admin/placements/"+id+"/probe", form, c, nil)
 		var res []probeResult
 		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &res) != nil || len(res) != 1 || res[0].Name != "电信探测" || res[0].Msg != want {

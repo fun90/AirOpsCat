@@ -228,13 +228,13 @@ if (pane && dialog) {
 
     // 经服务端配置的国内探测服务器 SSH 拨测部署位端口
     const csrf = document.querySelector('input[name="csrf"]')?.value || '';
-    pane.querySelectorAll('[data-tcp-probe]').forEach((btn) => btn.addEventListener('click', async () => {
+    pane.querySelectorAll('[data-probe]').forEach((btn) => btn.addEventListener('click', async () => {
         const out = btn.nextElementSibling;
         btn.disabled = true;
         out.className = 'small text-secondary';
         out.textContent = '检测中…';
         try {
-            const res = await fetch(`/admin/placements/${btn.dataset.tcpProbe}/probe`, {
+            const res = await fetch(`/admin/placements/${btn.dataset.probe}/probe`, {
                 method: 'POST', redirect: 'error', headers: { Accept: 'application/json' }, body: new URLSearchParams({ csrf })
             });
             if (!res.ok) { throw new Error((await res.text()).trim() || `HTTP ${res.status}`); }
