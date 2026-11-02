@@ -204,8 +204,8 @@ func GuardIPOverlapAdd(ctx context.Context, db *sql.DB, day, accountNo, kind str
 
 type GuardIPOverlap struct {
 	AccountNo, Remark, Kind string
-	Seconds, Peak, Limit int64
-	Days                 int // 近 7 天（含当天）出现超限的天数
+	Seconds, Peak, Limit    int64
+	Days                    int // 近 7 天（含当天）出现超限的天数
 }
 
 // GuardIPOverlapTop 返回某天超限累计时长最长的账户与类型，附近 7 天该类型出现天数。
