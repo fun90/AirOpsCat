@@ -392,7 +392,7 @@ func TestAccountListFilters(t *testing.T) {
 	}
 	check("全部", AccountFilter{}, active, forever, expiring, expired, disabled)
 	check("active", AccountFilter{Status: "active"}, active, forever, expiring)
-	check("expired", AccountFilter{Status: "expired"}, expired)
+	check("expired 已移除，按未筛选处理", AccountFilter{Status: "expired"}, active, forever, expiring, expired, disabled)
 	check("disabled", AccountFilter{Status: "DISABLED"}, disabled)
 	check("expiring", AccountFilter{Status: "expiring"}, expiring)
 	check("备注搜索", AccountFilter{Search: "快到"}, expiring)

@@ -64,7 +64,7 @@ type AccountRow struct {
 	LastOnline  *time.Time
 }
 
-// AccountFilter 是列表筛选；Status 取 active|expired|disabled|expiring，Online 取 online|offline，其他值忽略。
+// AccountFilter 是列表筛选；Status 取 active|expiring|disabled，Online 取 online|offline，其他值忽略。
 type AccountFilter struct {
 	Search       string
 	UserID       int64
@@ -248,8 +248,6 @@ func (f AccountFilter) where(now time.Time) (string, []any) {
 	switch strings.ToLower(f.Status) {
 	case "active":
 		conds = append(conds, `a.disabled = 0 AND (a.to_date IS NULL OR a.to_date >= @now)`)
-	case "expired":
-		conds = append(conds, `a.disabled = 0 AND a.to_date IS NOT NULL AND a.to_date < @now`)
 	case "disabled":
 		conds = append(conds, `a.disabled = 1`)
 	case "expiring":
@@ -386,17 +384,4 @@ func AccountRecentNodes(ctx context.Context, db *sql.DB, accountID int64, since 
 		list = append(list, &r)
 	}
 	return list, rows.Err()
-}
-
-// AccountStatusCounts 按列表同一口径统计各状态账户数；忽略 f.Status，其余筛选条件照常生效。
-// active 含 expiring（与状态筛选一致）。
-func AccountStatusCounts(ctx context.Context, db *sql.DB, f AccountFilter) (all, active, expiring, expired, disabled int, err error) {
-	f.Status = ""
-	where, args := f.where(nowFunc())
-	err = db.QueryRowContext(ctx, `SELECT count(*),
-		coalesce(sum(a.disabled = 0 AND (a.to_date IS NULL OR a.to_date >= @now)), 0),
-		coalesce(sum(a.disabled = 0 AND a.to_date > @now AND a.to_date <= @soon), 0),
-		coalesce(sum(a.disabled = 0 AND a.to_date IS NOT NULL AND a.to_date < @now), 0),
-		coalesce(sum(a.disabled = 1), 0) FROM account a`+where, args...).Scan(&all, &active, &expiring, &expired, &disabled)
-	return
 }

@@ -30,6 +30,8 @@ func (s *Server) accountRoutes(m *http.ServeMux) {
 	m.HandleFunc("GET /admin/accounts", s.accountList)
 	m.HandleFunc("GET /admin/accounts/new", s.accountNew)
 	m.HandleFunc("GET /admin/accounts/{id}/edit", s.accountEdit)
+	m.HandleFunc("POST /admin/accounts/batch-deploy", s.accountBatchDeploy)
+	m.HandleFunc("POST /admin/accounts/batch-tags", s.accountBatchTags)
 	m.HandleFunc("POST /admin/accounts", s.accountSave)
 	m.HandleFunc("POST /admin/accounts/{id}", s.accountSave)
 	m.HandleFunc("POST /admin/accounts/{id}/toggle", s.accountToggle)
@@ -71,12 +73,6 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tagNodes, err := store.TagNodeIDs(r.Context(), s.DB)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	var counts [5]int
-	counts[0], counts[1], counts[2], counts[3], counts[4], err = store.AccountStatusCounts(r.Context(), s.DB, filter)
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -123,9 +119,14 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 			d["UserFilterName"] = u.Email
 		}
 	}
+	pending, err := store.PendingDeployServers(r.Context(), s.DB)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	d["PendingServers"] = len(pending)
 	d["Tags"], d["TagFilter"], d["NoNodes"] = tags, tagParam, noNodes
 	d["Filtered"] = q != "" || status != "" || onlineFilter != "" || userID > 0 || tagID != 0
-	d["StatusChips"] = statusChips(r.URL.Query(), status, counts)
 	d["SortLast"], d["SortTo"], d["SortUsed"] = sortHeader(r.URL.Query(), "last_online", sort, asc), sortHeader(r.URL.Query(), "to_date", sort, asc), sortHeader(r.URL.Query(), "used", sort, asc)
 	d["List"], d["Q"], d["Status"], d["Page"], d["Pages"] = list, q, status, page, (total+size-1)/size
 	d["Now"] = store.FormatTime(now)
@@ -486,6 +487,13 @@ func (s *Server) accountRenew(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == nil {
 		err = renewAccount(r, s, to, amount)
+	}
+	if err == nil {
+		// 续期可能让已过期/已禁用账户重新生效，此时节点上还没有该账户：回编辑页提示部署
+		if ids, e := s.accountPendingServers(r, idFrom(r), nil); e == nil && len(ids) > 0 {
+			redirectMsg(w, r, fmt.Sprintf("/admin/accounts/%d/edit", idFrom(r)), "err", fmt.Sprintf("续期已保存，%d 台服务器待部署，尚未生效，请点「立即部署」", len(ids)))
+			return
+		}
 	}
 	s.accountActionResult(w, r, err, "续期已保存")
 }

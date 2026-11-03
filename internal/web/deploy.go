@@ -69,7 +69,11 @@ func (s *Server) deployPending(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.runDeploy(w, r, "/admin/nodes", ids, "没有待部署的部署位")
+	back := "/admin/nodes"
+	if r.PostFormValue("from") == "accounts" {
+		back = "/admin/accounts"
+	}
+	s.runDeploy(w, r, back, ids, "没有待部署的部署位")
 }
 
 func (s *Server) accountDeploy(w http.ResponseWriter, r *http.Request) {

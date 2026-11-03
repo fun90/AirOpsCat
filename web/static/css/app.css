@@ -127,3 +127,8 @@
 
 /* 流量数字是可点击的按钮，虚线下划线提示可展开周期详情 */
 [data-account-usage] { text-decoration: underline dotted; text-underline-offset: .2em; }
+
+/* 账户列表移动端：勾选列仅在批量选择模式出现。 */
+@media (max-width: 991.98px) {
+    .account-list:not(.account-selecting) .account-check { display: none; }
+}
