@@ -126,14 +126,37 @@ func MetricPoints(ctx context.Context, db *sql.DB, serverID int64, column string
 	return out, rows.Err()
 }
 
+// 月流量额度单位：服务商有的按 GB（1000³）有的按 GiB（1024³）计。
+const (
+	UnitGB  = "GB"
+	UnitGiB = "GiB"
+)
+
+// BandwidthUnitOrDefault 把空值或未知值归为既有的 GiB 口径。
+func BandwidthUnitOrDefault(u string) string {
+	if u == UnitGB {
+		return UnitGB
+	}
+	return UnitGiB
+}
+
+// UnitBytes 返回一个额度单位对应的字节数。
+func UnitBytes(u string) float64 {
+	if u == UnitGB {
+		return 1e9
+	}
+	return 1 << 30
+}
+
 // ServerStatus 是监控页每台服务器的最近状态。
 type ServerStatus struct {
 	Iface              string
 	AgentSeen          string
 	ID                 int64
 	Name, IP           string
-	BandwidthGB        int64 // 月流量额度，1024 进制 GB，0 不限
-	ResetDay           int   // 流量重置日
+	BandwidthGB        int64 // 月流量额度数值，单位见 BandwidthUnit，0 不限
+	BandwidthUnit      string
+	ResetDay           int // 流量重置日
 	Sampled            string
 	CPU, Memory, Disk  *float64
 	SingboxDown        *bool // nil 表示未知
@@ -148,7 +171,7 @@ func (s ServerStatus) UsageRatio() float64 {
 	if s.BandwidthGB <= 0 || !s.HasVnstat {
 		return 0
 	}
-	return (float64(s.VnstatRx) + float64(s.VnstatTx)) / (float64(s.BandwidthGB) * (1 << 30))
+	return (float64(s.VnstatRx) + float64(s.VnstatTx)) / (float64(s.BandwidthGB) * UnitBytes(s.BandwidthUnit))
 }
 
 // ServerStatuses 只列启用的非外部服务器；最近一条 monitor 与最近一条（当前流量周期）vnstat。
@@ -158,7 +181,7 @@ func ServerStatuses(ctx context.Context, db *sql.DB, q string, page, size int, a
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM server WHERE disabled=0 AND external_server=0 AND (coalesce(name,'') LIKE ? OR ip LIKE ?)`, like, like).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	rows, err := db.QueryContext(ctx, `SELECT s.id,coalesce(s.name,''),s.ip,coalesce(s.bandwidth,0),`+resetDaySQL+`,
+	rows, err := db.QueryContext(ctx, `SELECT s.id,coalesce(s.name,''),s.ip,coalesce(s.bandwidth,0),coalesce(s.bandwidth_unit,'GiB'),`+resetDaySQL+`,
  coalesce(m.sample_time,''),m.cpu_usage,m.memory_usage,m.disk_usage,m.singbox_down,m.rx_rate,m.tx_rate,
  coalesce(v.iface,''),coalesce(v.sample_time,''),coalesce(v.rx_bytes,0),coalesce(v.tx_bytes,0),v.id IS NOT NULL,
  coalesce((SELECT last_seen FROM monitor_agent WHERE server_id=s.id),'')
@@ -177,7 +200,7 @@ func ServerStatuses(ctx context.Context, db *sql.DB, q string, page, size int, a
 		var cpu, mem, disk sql.NullFloat64
 		var sb sql.NullInt64
 		var rx, tx sql.NullInt64
-		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.BandwidthGB, &s.ResetDay, &s.Sampled, &cpu, &mem, &disk, &sb, &rx, &tx, &s.Iface, &s.VnstatTime, &s.VnstatRx, &s.VnstatTx, &s.HasVnstat, &s.AgentSeen); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.BandwidthGB, &s.BandwidthUnit, &s.ResetDay, &s.Sampled, &cpu, &mem, &disk, &sb, &rx, &tx, &s.Iface, &s.VnstatTime, &s.VnstatRx, &s.VnstatTx, &s.HasVnstat, &s.AgentSeen); err != nil {
 			return nil, 0, err
 		}
 		if cpu.Valid {

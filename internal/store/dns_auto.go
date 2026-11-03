@@ -89,7 +89,7 @@ func AutoDNSRecords(ctx context.Context, db *sql.DB, domainID int64) ([]AutoDNSR
 	return out, nil
 }
 func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candidate, error) {
-	rows, err := db.QueryContext(ctx, `SELECT ns.id,ns.node_id,ns.server_id,s.ip,ns.priority,coalesce(ns.cheap_start,''),coalesce(ns.cheap_end,''),coalesce(s.bandwidth,0),v.rx_bytes,v.tx_bytes,coalesce(v.sample_time,''),ns.failover
+	rows, err := db.QueryContext(ctx, `SELECT ns.id,ns.node_id,ns.server_id,s.ip,ns.priority,coalesce(ns.cheap_start,''),coalesce(ns.cheap_end,''),coalesce(s.bandwidth,0),coalesce(s.bandwidth_unit,'GiB'),v.rx_bytes,v.tx_bytes,coalesce(v.sample_time,''),ns.failover
  FROM node_server ns JOIN node n ON n.id=ns.node_id JOIN server s ON s.id=ns.server_id
  LEFT JOIN server_metrics v ON v.id=`+latestVnstatSQL+`
  WHERE ns.deployed<>2 AND (ns.deployed=1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id=ns.id AND coalesce(d.disabled,0)=0)) AND n.type=0 AND n.disabled=0 AND s.disabled=0 AND s.external_server=0 AND (s.expire_date IS NULL OR substr(s.expire_date,1,10)>=?)`, append(vnstatPeriodArgs(at), at.In(Shanghai).Format("2006-01-02"))...)
@@ -102,8 +102,8 @@ func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candida
 		var c dns.Candidate
 		var priority, rx, tx sql.NullInt64
 		var bw int64
-		var sampled string
-		if err := rows.Scan(&c.ID, &c.NodeID, &c.ServerID, &c.IP, &priority, &c.CheapStart, &c.CheapEnd, &bw, &rx, &tx, &sampled, &c.Failover); err != nil {
+		var unit, sampled string
+		if err := rows.Scan(&c.ID, &c.NodeID, &c.ServerID, &c.IP, &priority, &c.CheapStart, &c.CheapEnd, &bw, &unit, &rx, &tx, &sampled, &c.Failover); err != nil {
 			return nil, err
 		}
 		if priority.Valid {
@@ -114,8 +114,8 @@ func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candida
 			t, e := ParseTime(sampled)
 			if e == nil && !t.After(at) && at.Sub(t) <= 15*time.Minute {
 				c.Known = true
-				// 额度为 1024 进制 GB，与监控页和流量告警口径一致。
-				c.Usage = (float64(rx.Int64) + float64(tx.Int64)) / float64(bw) / (1 << 30)
+				// 额度单位按服务器设置（GB 或 GiB），与监控页和流量告警口径一致。
+				c.Usage = (float64(rx.Int64) + float64(tx.Int64)) / (float64(bw) * UnitBytes(unit))
 			}
 		}
 		out = append(out, c)

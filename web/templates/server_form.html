@@ -47,9 +47,14 @@
                     </select>
                     <div class="invalid-feedback">{{$.Errors.price}}{{$.Errors.price_months}}</div></div></div>
 
-            <div class="col-md-3"><label class="form-label" for="bandwidth">月流量（GB）</label>
-                <input class="form-control{{if $.Errors.bandwidth}} is-invalid{{end}}" id="bandwidth" name="bandwidth" value="{{.Bandwidth}}" inputmode="numeric">
-                <div class="invalid-feedback">{{$.Errors.bandwidth}}</div></div>
+            <div class="col-md-3"><label class="form-label" for="bandwidth">月流量</label>
+                <div class="input-group has-validation"><input class="form-control{{if $.Errors.bandwidth}} is-invalid{{end}}" id="bandwidth" name="bandwidth" value="{{.Bandwidth}}" inputmode="numeric" aria-describedby="bandwidth_unit_hint">
+                    <select class="form-select flex-grow-0 w-auto{{if $.Errors.bandwidth_unit}} is-invalid{{end}}" name="bandwidth_unit" aria-label="流量单位">
+                        <option value="GB"{{if eq .BandwidthUnit "GB"}} selected{{end}}>GB</option>
+                        <option value="GiB"{{if eq .BandwidthUnit "GiB"}} selected{{end}}>GiB</option>
+                    </select>
+                    <div class="invalid-feedback">{{$.Errors.bandwidth}}{{$.Errors.bandwidth_unit}}</div></div>
+                <div class="form-hint" id="bandwidth_unit_hint">GB=10⁹ 字节，GiB=2³⁰ 字节，与服务商面板一致</div></div>
             <div class="col-md-3"><label class="form-label" for="bandwidth_day">流量重置日（每月）</label>
                 <div class="input-group has-validation"><input type="number" min="1" max="31" class="form-control{{if $.Errors.bandwidth_day}} is-invalid{{end}}" id="bandwidth_day" name="bandwidth_day" value="{{.BandwidthDay}}" inputmode="numeric" aria-describedby="bandwidth_day_hint"><span class="input-group-text">日</span>
                 <div class="invalid-feedback">{{$.Errors.bandwidth_day}}</div></div>

@@ -31,6 +31,7 @@ type Server struct {
 	PriceMonths        int    // 1 月付，12 年付
 	Multiple           float64
 	Bandwidth          *int
+	BandwidthUnit      string // 月流量额度单位：GB（1000³）或 GiB（1024³）
 	CPUCores           *int
 	Disabled           bool
 	External           bool
@@ -43,14 +44,14 @@ type Server struct {
 
 const serverCols = `id, coalesce(name,''), ip, coalesce(ssh_port,22), coalesce(auth_type,'PASSWORD'), coalesce(username,''),
 	coalesce(auth,'') <> '', coalesce(region,''), coalesce(server_type,0), coalesce(expire_date,''),
-	coalesce(cast(cast(strftime('%d',bandwidth_date) AS INTEGER) AS TEXT),''), coalesce(supplier,''), price, price_months, coalesce(multiple,1), bandwidth, cpu_cores,
+	coalesce(cast(cast(strftime('%d',bandwidth_date) AS INTEGER) AS TEXT),''), coalesce(supplier,''), price, price_months, coalesce(multiple,1), bandwidth, bandwidth_unit, cpu_cores,
 	disabled, external_server, coalesce(remark,''), (SELECT count(*) FROM node_server f WHERE f.server_id = server.id AND f.failover = 1)`
 
 func scanServer(row interface{ Scan(...any) error }) (*Server, error) {
 	var s Server
 	var price, bw, cpu sql.NullInt64
 	if err := row.Scan(&s.ID, &s.Name, &s.IP, &s.SSHPort, &s.AuthType, &s.Username, &s.HasAuth, &s.Region,
-		&s.ServerType, &s.ExpireDate, &s.BandwidthDay, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &cpu,
+		&s.ServerType, &s.ExpireDate, &s.BandwidthDay, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &s.BandwidthUnit, &cpu,
 		&s.Disabled, &s.External, &s.Remark, &s.Failover); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -97,7 +98,7 @@ func ServerList(ctx context.Context, db *sql.DB, search string, page, size int) 
 		var s Server
 		var price, bw, cpu sql.NullInt64
 		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.SSHPort, &s.AuthType, &s.Username, &s.HasAuth, &s.Region,
-			&s.ServerType, &s.ExpireDate, &s.BandwidthDay, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &cpu,
+			&s.ServerType, &s.ExpireDate, &s.BandwidthDay, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &s.BandwidthUnit, &cpu,
 			&s.Disabled, &s.External, &s.Remark, &s.Failover, &s.Placements, &s.Unreachable, &s.LandingUnreachable); err != nil {
 			return nil, 0, err
 		}
@@ -150,10 +151,10 @@ func SaveServer(ctx context.Context, db *sql.DB, c *crypto.Cipher, s *Server, au
 	now := FormatTime(nowFunc())
 	if s.ID == 0 {
 		res, err := db.ExecContext(ctx, `INSERT INTO server (name, ip, ssh_port, auth_type, username, auth, region, server_type,
-			expire_date, bandwidth_date, supplier, price, price_months, multiple, bandwidth, cpu_cores, disabled, external_server, remark,
-			create_time, update_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			expire_date, bandwidth_date, supplier, price, price_months, multiple, bandwidth, bandwidth_unit, cpu_cores, disabled, external_server, remark,
+			create_time, update_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			nz(s.Name), s.IP, s.SSHPort, s.AuthType, nz(s.Username), nz(encAuth), nz(s.Region), s.ServerType,
-			nz(s.ExpireDate), bandwidthDate(s.BandwidthDay), nz(s.Supplier), s.Price, s.PriceMonths, s.Multiple, s.Bandwidth, s.CPUCores,
+			nz(s.ExpireDate), bandwidthDate(s.BandwidthDay), nz(s.Supplier), s.Price, s.PriceMonths, s.Multiple, s.Bandwidth, BandwidthUnitOrDefault(s.BandwidthUnit), s.CPUCores,
 			s.Disabled, s.External, nz(s.Remark), now, now)
 		if err != nil {
 			return 0, err
@@ -194,10 +195,10 @@ func SaveServer(ctx context.Context, db *sql.DB, c *crypto.Cipher, s *Server, au
 		}
 	}
 	res, err := tx.ExecContext(ctx, `UPDATE server SET name=?, ip=?, ssh_port=?, auth_type=?, username=?, auth=coalesce(?, auth), region=?,
-		server_type=?, expire_date=?, bandwidth_date=?, supplier=?, price=?, price_months=?, multiple=?, bandwidth=?, cpu_cores=?, disabled=?,
+		server_type=?, expire_date=?, bandwidth_date=?, supplier=?, price=?, price_months=?, multiple=?, bandwidth=?, bandwidth_unit=?, cpu_cores=?, disabled=?,
 		external_server=?, remark=?, update_time=? WHERE id=?`,
 		nz(s.Name), s.IP, s.SSHPort, s.AuthType, nz(s.Username), nz(encAuth), nz(s.Region), s.ServerType,
-		nz(s.ExpireDate), bandwidthDate(s.BandwidthDay), nz(s.Supplier), s.Price, s.PriceMonths, s.Multiple, s.Bandwidth, s.CPUCores,
+		nz(s.ExpireDate), bandwidthDate(s.BandwidthDay), nz(s.Supplier), s.Price, s.PriceMonths, s.Multiple, s.Bandwidth, BandwidthUnitOrDefault(s.BandwidthUnit), s.CPUCores,
 		s.Disabled, s.External, nz(s.Remark), now, s.ID)
 	if err != nil {
 		return 0, err

@@ -199,8 +199,9 @@ func (s *Server) evaluateServerAlerts(ctx context.Context) error {
 			}
 			continue
 		}
-		used := (float64(st.VnstatRx) + float64(st.VnstatTx)) / (1 << 30)
-		summary := fmt.Sprintf("%s 累计流量达到 %.0f%% (%.2f GB / %d GB)", label, ratio*100, used, st.BandwidthGB)
+		used := (float64(st.VnstatRx) + float64(st.VnstatTx)) / store.UnitBytes(st.BandwidthUnit)
+		unit := store.BandwidthUnitOrDefault(st.BandwidthUnit)
+		summary := fmt.Sprintf("%s 累计流量达到 %.0f%% (%.2f %s / %d %s)", label, ratio*100, used, unit, st.BandwidthGB, unit)
 		if err := s.raise(ctx, store.AlertKey{Type: alertMonitorLoad, ResourceType: "server", ResourceID: st.ID, ResourceKey: st.IP, Fingerprint: fp}, "warning",
 			ratio, trafficT, summary, interval, notify.Message{Title: "AirOpsCat 服务器流量告警", Body: summary}); err != nil {
 			return err
@@ -290,13 +291,14 @@ func newStatusView(st store.ServerStatus, now time.Time) statusView {
 		v.RateText = "↓ " + humanRate(*st.RxRate) + " ↑ " + humanRate(*st.TxRate)
 	}
 	if st.HasVnstat {
-		used := (float64(st.VnstatRx) + float64(st.VnstatTx)) / (1 << 30)
+		unit := store.BandwidthUnitOrDefault(st.BandwidthUnit)
+		used := (float64(st.VnstatRx) + float64(st.VnstatTx)) / store.UnitBytes(unit)
 		if st.BandwidthGB > 0 {
-			v.UsageText = fmt.Sprintf("%.1f / %d GB", used, st.BandwidthGB)
+			v.UsageText = fmt.Sprintf("%.1f / %d %s", used, st.BandwidthGB, unit)
 			v.UsagePctText = fmt.Sprintf("%.1f%%", st.UsageRatio()*100)
 			v.UsagePct = min(int(st.UsageRatio()*100), 100)
 		} else {
-			v.UsageText = fmt.Sprintf("%.1f GB", used)
+			v.UsageText = fmt.Sprintf("%.1f %s", used, unit)
 		}
 		start, end := monitor.TrafficPeriod(st.ResetDay, now.In(store.Shanghai))
 		v.PeriodText = start.Format("2006-01-02") + " 至 " + end.Format("2006-01-02")

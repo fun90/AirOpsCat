@@ -34,14 +34,14 @@ func TestMonitorTrafficBinaryGB(t *testing.T) {
 	if err != nil || len(list) != 1 {
 		t.Fatalf("读取失败: %v, %+v", err, list)
 	}
-	if got := newStatusView(list[0], at).UsageText; got != "19.6 / 100 GB" {
+	if got := newStatusView(list[0], at).UsageText; got != "19.6 / 100 GiB" {
 		t.Fatalf("应与1024 进制 GB 一致，实际 %q", got)
 	}
 	if got := newStatusView(list[0], at).PeriodText; got != "2026-10-01 至 2026-10-31" {
 		t.Fatalf("周期应为自然月，实际 %q", got)
 	}
 	list[0].BandwidthGB = 0
-	if got := newStatusView(list[0], at).UsageText; got != "19.6 GB" {
+	if got := newStatusView(list[0], at).UsageText; got != "19.6 GiB" {
 		t.Fatalf("未设额度时也应使用1024 进制 GB，实际 %q", got)
 	}
 	// 重置日 24 号：10-22 属于 9-24 起的周期，不应沿用自然月样本
@@ -56,7 +56,7 @@ func TestMonitorTrafficBinaryGB(t *testing.T) {
 		t.Fatal(err)
 	}
 	list, _, _ = store.ServerStatuses(context.Background(), a.DB, "", 1, 20, at)
-	if v := newStatusView(list[0], at); !list[0].HasVnstat || v.UsageText != "5.0 / 100 GB" || v.PeriodText != "2026-09-24 至 2026-10-23" {
+	if v := newStatusView(list[0], at); !list[0].HasVnstat || v.UsageText != "5.0 / 100 GiB" || v.PeriodText != "2026-09-24 至 2026-10-23" {
 		t.Fatalf("应按重置日取周期：%+v", v)
 	}
 }
@@ -126,7 +126,7 @@ func TestMonitorCollectAndAlerts(t *testing.T) {
 	mu.Lock()
 	n := len(sent)
 	mu.Unlock()
-	if n != 1 || !strings.Contains(sent[0]["body"].(string), "累计流量达到 100% (900.00 GB / 900 GB)") {
+	if n != 1 || !strings.Contains(sent[0]["body"].(string), "累计流量达到 100% (900.00 GiB / 900 GiB)") {
 		t.Fatalf("应发出一条流量告警: %v", sent)
 	}
 
@@ -177,5 +177,26 @@ func TestMonitorCollectAndAlerts(t *testing.T) {
 	}
 	if w := do(h, "GET", "/admin/monitor/999", nil, c, nil); w.Code != 404 {
 		t.Fatal(w.Code)
+	}
+}
+
+func TestMonitorTrafficDecimalGB(t *testing.T) {
+	at := time.Date(2026, 10, 22, 10, 35, 0, 0, store.Shanghai)
+	_, a := newTestServer(t)
+	if _, err := a.DB.Exec(`INSERT INTO server(id,ip,name,bandwidth,bandwidth_unit) VALUES(1,'192.0.2.1','服务商按GB',2000,'GB')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.DB.Exec(`INSERT INTO server_metrics(server_id,kind,sample_time,period_year,period_month,rx_bytes,tx_bytes) VALUES(1,'vnstat',?,2026,10,1000000000000,500000000000)`, store.FormatTime(at)); err != nil {
+		t.Fatal(err)
+	}
+	list, _, err := store.ServerStatuses(context.Background(), a.DB, "", 1, 20, at)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("读取失败: %v, %+v", err, list)
+	}
+	if got := newStatusView(list[0], at).UsageText; got != "1500.0 / 2000 GB" {
+		t.Fatalf("GB 应按 10⁹ 字节计，实际 %q", got)
+	}
+	if r := list[0].UsageRatio(); r < 0.7499 || r > 0.7501 {
+		t.Fatalf("占比应为 75%%，实际 %v", r)
 	}
 }

@@ -18,6 +18,7 @@ type ServerForm struct {
 	Name, IP, SSHPort, AuthType, Username, Region         string
 	ServerType, ExpireDate, BandwidthDay, Supplier, Price string
 	PriceMonths, Multiple, Bandwidth, CPUCores, Remark    string
+	BandwidthUnit                                         string
 	Disabled, External, HasAuth                           bool
 }
 
@@ -25,7 +26,7 @@ func formFromServer(s *store.Server) *ServerForm {
 	f := &ServerForm{ID: s.ID, Name: s.Name, IP: s.IP, SSHPort: strconv.Itoa(s.SSHPort), AuthType: s.AuthType, Username: s.Username,
 		Region: s.Region, ServerType: strconv.Itoa(s.ServerType), ExpireDate: s.ExpireDate, BandwidthDay: s.BandwidthDay,
 		Supplier: s.Supplier, PriceMonths: strconv.Itoa(s.PriceMonths), Multiple: strconv.FormatFloat(s.Multiple, 'f', -1, 64), Remark: s.Remark,
-		Disabled: s.Disabled, External: s.External, HasAuth: s.HasAuth}
+		Disabled: s.Disabled, External: s.External, HasAuth: s.HasAuth, BandwidthUnit: store.BandwidthUnitOrDefault(s.BandwidthUnit)}
 	if s.Price != nil {
 		f.Price = store.FormatCents(*s.Price)
 	}
@@ -39,7 +40,7 @@ func formFromServer(s *store.Server) *ServerForm {
 }
 
 func defaultServerForm() *ServerForm {
-	return &ServerForm{SSHPort: "22", AuthType: "PASSWORD", Username: "root", ServerType: "0", PriceMonths: "12", Multiple: "1"}
+	return &ServerForm{SSHPort: "22", AuthType: "PASSWORD", Username: "root", ServerType: "0", PriceMonths: "12", Multiple: "1", BandwidthUnit: store.UnitGiB}
 }
 
 func formValue(r *http.Request, k string) string { return strings.TrimSpace(r.PostFormValue(k)) }
@@ -49,12 +50,19 @@ func parseServerForm(r *http.Request) (*ServerForm, *store.Server, map[string]st
 	f := &ServerForm{Name: formValue(r, "name"), IP: formValue(r, "ip"), SSHPort: formValue(r, "ssh_port"), AuthType: formValue(r, "auth_type"),
 		Username: formValue(r, "username"), Region: formValue(r, "region"), ServerType: formValue(r, "server_type"),
 		ExpireDate: formValue(r, "expire_date"), BandwidthDay: formValue(r, "bandwidth_day"), Supplier: formValue(r, "supplier"),
-		Price: formValue(r, "price"), PriceMonths: formValue(r, "price_months"), Multiple: formValue(r, "multiple"), Bandwidth: formValue(r, "bandwidth"), CPUCores: formValue(r, "cpu_cores"),
+		Price: formValue(r, "price"), PriceMonths: formValue(r, "price_months"), Multiple: formValue(r, "multiple"), Bandwidth: formValue(r, "bandwidth"), CPUCores: formValue(r, "cpu_cores"), BandwidthUnit: formValue(r, "bandwidth_unit"),
 		Remark:   formValue(r, "remark"),
 		Disabled: r.PostFormValue("disabled") == "1", External: r.PostFormValue("external_server") == "1"}
 	errs := map[string]string{}
 	s := &store.Server{Name: f.Name, IP: f.IP, Username: f.Username, Region: f.Region, ExpireDate: f.ExpireDate,
 		BandwidthDay: f.BandwidthDay, Supplier: f.Supplier, Disabled: f.Disabled, External: f.External, Remark: f.Remark}
+	if f.BandwidthUnit == "" {
+		f.BandwidthUnit = store.UnitGiB
+	}
+	if f.BandwidthUnit != store.UnitGB && f.BandwidthUnit != store.UnitGiB {
+		errs["bandwidth_unit"] = "流量单位不正确"
+	}
+	s.BandwidthUnit = f.BandwidthUnit
 	if f.IP == "" {
 		errs["ip"] = "请填写 IP"
 	}
