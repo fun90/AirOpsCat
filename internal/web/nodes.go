@@ -101,7 +101,7 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 	if v, err := strconv.Atoi(q.Get("type")); err == nil && (v == 0 || v == 1) {
 		f.Type = v
 	}
-	if v, err := strconv.Atoi(q.Get("status")); err == nil && v >= -1 && v <= store.StatusUnreachable {
+	if v, err := strconv.Atoi(q.Get("status")); err == nil && v >= -1 && v <= store.StatusLandingUnreachable {
 		f.Status = v
 	}
 	f.TagID, _ = strconv.ParseInt(q.Get("tag"), 10, 64)
@@ -205,7 +205,7 @@ func nodeTabs(q url.Values, counts map[int]int) []nodeTab {
 		key    int
 		alert  bool
 	}{{"全部", "", -2, false}, {"待部署", "0", store.PendingDeploy, true}, {"已部署", "1", store.Deployed, false},
-		{"待删除", "2", store.PendingDelete, true}, {"无部署位", "-1", -1, true}, {"国内不可达", "3", store.StatusUnreachable, true}}
+		{"待删除", "2", store.PendingDelete, true}, {"无部署位", "-1", -1, true}, {"国内不可达", "3", store.StatusUnreachable, true}, {"落地不可达", "4", store.StatusLandingUnreachable, true}}
 	tabs := make([]nodeTab, 0, len(defs))
 	for _, d := range defs {
 		next := url.Values{}

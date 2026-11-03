@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"strings"
 	"time"
 )
 
@@ -35,6 +34,59 @@ func ProbeTargets(ctx context.Context, db *sql.DB) ([]ProbeTarget, error) {
 		out = append(out, t)
 	}
 	return out, rows.Err()
+}
+
+// LandingProbeTarget 是落地节点的部署位（已部署、节点与服务器均启用，外部服务器也检测），
+// Probers 是引用该落地且已部署的代理节点所在服务器（启用、非外部），由它们 SSH 拨测，贴近真实出站链路。
+type LandingProbeTarget struct {
+	ProbeTarget
+	Probers []int64
+}
+
+func LandingProbeTargets(ctx context.Context, db *sql.DB) ([]LandingProbeTarget, error) {
+	rows, err := db.QueryContext(ctx, `SELECT p.id,s.ip,coalesce(n.port,0),coalesce(n.protocol,''),coalesce(n.inbound,'')
+ FROM node_server p JOIN node n ON n.id=p.node_id JOIN server s ON s.id=p.server_id
+ WHERE p.deployed=1 AND n.disabled=0 AND n.type=? AND s.disabled=0 ORDER BY p.id`, NodeLanding)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []LandingProbeTarget
+	for rows.Next() {
+		var t LandingProbeTarget
+		if err := rows.Scan(&t.ID, &t.IP, &t.Port, &t.Protocol, &t.Inbound); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	prow, err := db.QueryContext(ctx, `SELECT DISTINCT p.id,px.server_id
+ FROM node_server p JOIN node n ON n.id=p.node_id
+ JOIN node x ON x.out_id=n.id AND x.disabled=0 AND coalesce(x.type,0)<>?
+ JOIN node_server px ON px.node_id=x.id AND px.deployed=1
+ JOIN server s2 ON s2.id=px.server_id AND s2.disabled=0 AND s2.external_server=0
+ WHERE n.type=? ORDER BY p.id,px.server_id`, NodeLanding, NodeLanding)
+	if err != nil {
+		return nil, err
+	}
+	defer prow.Close()
+	probers := map[int64][]int64{}
+	for prow.Next() {
+		var pid, sid int64
+		if err := prow.Scan(&pid, &sid); err != nil {
+			return nil, err
+		}
+		probers[pid] = append(probers[pid], sid)
+	}
+	if err := prow.Err(); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].Probers = probers[out[i].ID]
+	}
+	return out, nil
 }
 
 type ProbeOutcome struct {
@@ -73,22 +125,33 @@ func ClearPlacementProbes(ctx context.Context, db *sql.DB, probeID int64) error 
 	return err
 }
 
-// PrunePlacementProbes 删除已移出探测机配置、或已不在检测范围内的部署位的结果。
-func PrunePlacementProbes(ctx context.Context, db *sql.DB, probeIDs, placementIDs []int64) error {
-	in := func(col string, ids []int64) (string, []any) {
-		if len(ids) == 0 {
-			return "1=1", nil
-		}
-		args := make([]any, len(ids))
-		for i, id := range ids {
-			args[i] = id
-		}
-		return col + " NOT IN (?" + strings.Repeat(",?", len(ids)-1) + ")", args
+// PrunePlacementProbes 删除不在有效（部署位, 探测机）组合内的结果：探测机被移出配置、部署位出范围或落地不再被该代理服务器引用。
+func PrunePlacementProbes(ctx context.Context, db *sql.DB, valid map[[2]int64]bool) error {
+	rows, err := db.QueryContext(ctx, `SELECT placement_id,probe_server_id FROM placement_probe`)
+	if err != nil {
+		return err
 	}
-	a, aa := in("probe_server_id", probeIDs)
-	b, ba := in("placement_id", placementIDs)
-	_, err := db.ExecContext(ctx, `DELETE FROM placement_probe WHERE `+a+` OR `+b, append(aa, ba...)...)
-	return err
+	var stale [][2]int64
+	for rows.Next() {
+		var k [2]int64
+		if err := rows.Scan(&k[0], &k[1]); err != nil {
+			rows.Close()
+			return err
+		}
+		if !valid[k] {
+			stale = append(stale, k)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, k := range stale {
+		if _, err := db.ExecContext(ctx, `DELETE FROM placement_probe WHERE placement_id=? AND probe_server_id=?`, k[0], k[1]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ProbeState 是部署位在一台探测机上的最新检测结果。
@@ -130,11 +193,12 @@ type UnreachablePlacement struct {
 	SingboxDown               *bool // nil 表示监控未采到
 }
 
-func UnreachablePlacements(ctx context.Context, db *sql.DB) ([]UnreachablePlacement, error) {
+// UnreachablePlacements 按节点类型返回不可达部署位：landing 为 true 取落地节点，否则取代理节点。
+func UnreachablePlacements(ctx context.Context, db *sql.DB, landing bool) ([]UnreachablePlacement, error) {
 	rows, err := db.QueryContext(ctx, `SELECT s.id,coalesce(nullif(s.name,''),s.ip),coalesce(nullif(n.name,''),'#'||n.id),coalesce(n.protocol,''),coalesce(n.port,0),
  (SELECT group_concat(DISTINCT msg) FROM placement_probe WHERE placement_id=p.id),
  (SELECT singbox_down FROM server_metrics WHERE server_id=s.id AND kind='monitor' ORDER BY sample_time DESC,id DESC LIMIT 1)
- FROM node_server p JOIN node n ON n.id=p.node_id JOIN server s ON s.id=p.server_id WHERE p.id IN (`+unreachableSQL+`) ORDER BY s.id,p.id`, ProbeFailRounds)
+ FROM node_server p JOIN node n ON n.id=p.node_id JOIN server s ON s.id=p.server_id WHERE (coalesce(n.type,0)=?)=? AND p.id IN (`+unreachableSQL+`) ORDER BY s.id,p.id`, NodeLanding, landing, ProbeFailRounds)
 	if err != nil {
 		return nil, err
 	}

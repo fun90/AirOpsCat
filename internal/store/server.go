@@ -15,29 +15,30 @@ import (
 var ErrConflict = errors.New("冲突")
 
 type Server struct {
-	ID           int64
-	Name         string
-	IP           string
-	SSHPort      int
-	AuthType     string
-	Username     string
-	HasAuth      bool // 是否已保存凭据；明文不回传页面
-	Region       string
-	ServerType   int
-	ExpireDate   string
-	BandwidthDay string // 每月流量重置日 1-31，空为未设置；超过当月天数按月末
-	Supplier     string
-	Price        *int64 // 分，对应 PriceMonths 个月
-	PriceMonths  int    // 1 月付，12 年付
-	Multiple     float64
-	Bandwidth    *int
-	CPUCores     *int
-	Disabled     bool
-	External     bool
-	Remark       string
-	Failover     int // 已手动切走的部署位数：DNS 自动切到同节点其他部署位
-	Placements   int // 列表用：部署位数量
-	Unreachable  int // 列表用：国内探测判定不可达的部署位数
+	ID                 int64
+	Name               string
+	IP                 string
+	SSHPort            int
+	AuthType           string
+	Username           string
+	HasAuth            bool // 是否已保存凭据；明文不回传页面
+	Region             string
+	ServerType         int
+	ExpireDate         string
+	BandwidthDay       string // 每月流量重置日 1-31，空为未设置；超过当月天数按月末
+	Supplier           string
+	Price              *int64 // 分，对应 PriceMonths 个月
+	PriceMonths        int    // 1 月付，12 年付
+	Multiple           float64
+	Bandwidth          *int
+	CPUCores           *int
+	Disabled           bool
+	External           bool
+	Remark             string
+	Failover           int // 已手动切走的部署位数：DNS 自动切到同节点其他部署位
+	Placements         int // 列表用：部署位数量
+	Unreachable        int // 列表用：国内探测判定不可达的代理部署位数
+	LandingUnreachable int // 列表用：代理服务器探测判定不可达的落地部署位数
 }
 
 const serverCols = `id, coalesce(name,''), ip, coalesce(ssh_port,22), coalesce(auth_type,'PASSWORD'), coalesce(username,''),
@@ -84,8 +85,9 @@ func ServerList(ctx context.Context, db *sql.DB, search string, page, size int) 
 		return nil, 0, err
 	}
 	rows, err := db.QueryContext(ctx, `SELECT `+serverCols+`, (SELECT count(*) FROM node_server ns WHERE ns.server_id = server.id),
-		(SELECT count(*) FROM node_server ns WHERE ns.server_id = server.id AND ns.id IN (`+unreachableSQL+`))
-		FROM server WHERE `+where+` ORDER BY id DESC LIMIT ? OFFSET ?`, append(append([]any{ProbeFailRounds}, args...), size, (page-1)*size)...)
+		(SELECT count(*) FROM node_server ns JOIN node n ON n.id = ns.node_id WHERE ns.server_id = server.id AND coalesce(n.type,0) <> 1 AND ns.id IN (`+unreachableSQL+`)),
+		(SELECT count(*) FROM node_server ns JOIN node n ON n.id = ns.node_id WHERE ns.server_id = server.id AND n.type = 1 AND ns.id IN (`+unreachableSQL+`))
+		FROM server WHERE `+where+` ORDER BY id DESC LIMIT ? OFFSET ?`, append(append([]any{ProbeFailRounds, ProbeFailRounds}, args...), size, (page-1)*size)...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -96,7 +98,7 @@ func ServerList(ctx context.Context, db *sql.DB, search string, page, size int) 
 		var price, bw, cpu sql.NullInt64
 		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.SSHPort, &s.AuthType, &s.Username, &s.HasAuth, &s.Region,
 			&s.ServerType, &s.ExpireDate, &s.BandwidthDay, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &cpu,
-			&s.Disabled, &s.External, &s.Remark, &s.Failover, &s.Placements, &s.Unreachable); err != nil {
+			&s.Disabled, &s.External, &s.Remark, &s.Failover, &s.Placements, &s.Unreachable, &s.LandingUnreachable); err != nil {
 			return nil, 0, err
 		}
 		list = append(list, &s)

@@ -25,6 +25,8 @@ const (
 	PendingDelete = 2
 	// StatusUnreachable 只用于列表筛选：有部署位被定时检测判定国内不可达
 	StatusUnreachable = 3
+	// StatusLandingUnreachable 只用于列表筛选：落地节点有部署位被代理服务器检测判定不可达
+	StatusLandingUnreachable = 4
 )
 
 // 节点类型
@@ -136,7 +138,7 @@ func scanNode(row interface{ Scan(...any) error }, extra ...any) (*Node, error) 
 type NodeFilter struct {
 	Search string
 	Type   int // -1 不限
-	Status int // -2 不限；-1 无部署位；0/1/2 汇总状态；StatusUnreachable 有部署位国内不可达
+	Status int // -2 不限；-1 无部署位；0/1/2 汇总状态；StatusUnreachable 代理节点有部署位国内不可达；StatusLandingUnreachable 落地节点有部署位不可达
 	TagID  int64
 	Sort   string // "" 按 ID 倒序；name 按名称；status 按待处理部署位数
 	Asc    bool
@@ -160,7 +162,7 @@ func (f NodeFilter) orderBy() string {
 // NodeStatusCounts 返回当前搜索、类型、标签条件下各状态的节点数，键 -2 为不限状态。
 func NodeStatusCounts(ctx context.Context, db *sql.DB, f NodeFilter) (map[int]int, error) {
 	out := map[int]int{}
-	for _, st := range []int{-2, -1, PendingDeploy, Deployed, PendingDelete, StatusUnreachable} {
+	for _, st := range []int{-2, -1, PendingDeploy, Deployed, PendingDelete, StatusUnreachable, StatusLandingUnreachable} {
 		f.Status = st
 		where, args := f.where()
 		var n int
@@ -198,8 +200,9 @@ func (f NodeFilter) where() (string, []any) {
 		w = append(w, all+" > 0 AND "+all+" = "+dep)
 	case PendingDeploy:
 		w = append(w, all+" > 0 AND "+all+" <> "+del+" AND "+all+" <> "+dep)
-	case StatusUnreachable:
-		w, args = append(w, "EXISTS (SELECT 1 FROM node_server ns WHERE ns.node_id = n.id AND ns.id IN ("+unreachableSQL+"))"), append(args, ProbeFailRounds)
+	case StatusUnreachable, StatusLandingUnreachable:
+		cmp := map[int]string{StatusUnreachable: "<>", StatusLandingUnreachable: "="}[f.Status]
+		w, args = append(w, "coalesce(n.type,0) "+cmp+" 1 AND EXISTS (SELECT 1 FROM node_server ns WHERE ns.node_id = n.id AND ns.id IN ("+unreachableSQL+"))"), append(args, ProbeFailRounds)
 	}
 	return strings.Join(w, " AND "), args
 }

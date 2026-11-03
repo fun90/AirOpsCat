@@ -14,13 +14,20 @@ import (
 )
 
 const (
-	alertUnreachable = "placement-unreachable"
-	probeInterval    = 5 * time.Minute
-	probeParallel    = 8 // 每台探测机同时执行的检测数，低于 sshd 默认 MaxSessions 10
-	probeAllFailMin  = 5 // 一台探测机本轮至少这么多目标全部失败，判定为探测机自身网络异常
+	alertUnreachable        = "placement-unreachable"
+	alertLandingUnreachable = "landing-unreachable"
+	probeInterval           = 5 * time.Minute
+	probeParallel           = 8 // 每台探测机同时执行的检测数，低于 sshd 默认 MaxSessions 10
+	probeAllFailMin         = 5 // 一台探测机本轮至少这么多目标全部失败，判定为探测机自身网络异常
 )
 
-// probePlacements 每轮从每台国内探测机检测全部部署位，再按服务器评估不可达告警。
+// probeJob 是一台探测机本轮要执行的检测。
+type probeJob struct {
+	targets []store.ProbeTarget
+	cmds    []string
+}
+
+// probePlacements 每轮从每台国内探测机检测全部代理部署位，并从引用落地的代理服务器检测落地部署位（仅 TCP），再按服务器评估不可达告警。
 func (s *Server) probePlacements(ctx context.Context) error {
 	ids, err := store.ParseIDs(store.ConfigValue(ctx, s.DB, store.ProbeServersKey))
 	if err != nil {
@@ -30,28 +37,46 @@ func (s *Server) probePlacements(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	var cmds []string
-	var checked []store.ProbeTarget
-	var placementIDs []int64
+	landings, err := store.LandingProbeTargets(ctx, s.DB)
+	if err != nil {
+		return err
+	}
+	jobs := map[int64]*probeJob{}
+	valid := map[[2]int64]bool{}
+	add := func(prober int64, t store.ProbeTarget, cmd string) {
+		j := jobs[prober]
+		if j == nil {
+			j = &probeJob{}
+			jobs[prober] = j
+		}
+		j.targets, j.cmds = append(j.targets, t), append(j.cmds, cmd)
+		valid[[2]int64{t.ID, prober}] = true
+	}
 	for _, t := range targets {
 		if cmd, err := probeCommand(t.IP, t.Port, t.Protocol, t.Inbound); err == nil {
-			cmds, checked, placementIDs = append(cmds, cmd), append(checked, t), append(placementIDs, t.ID)
+			for _, pid := range ids {
+				add(pid, t, cmd)
+			}
 		}
 	}
-	if err := store.PrunePlacementProbes(ctx, s.DB, ids, placementIDs); err != nil {
+	for _, l := range landings {
+		if cmd, err := probeCommand(l.IP, l.Port, "tcp", ""); err == nil {
+			for _, pid := range l.Probers {
+				add(pid, l.ProbeTarget, cmd)
+			}
+		}
+	}
+	if err := store.PrunePlacementProbes(ctx, s.DB, valid); err != nil {
 		return err
 	}
 	var mu sync.Mutex
 	var errs []error
 	var wg sync.WaitGroup
-	for _, pid := range ids {
-		if len(checked) == 0 {
-			break
-		}
+	for pid, job := range jobs {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			res, err := s.probeRound(ctx, pid, checked, cmds)
+			res, err := s.probeRound(ctx, pid, job.targets, job.cmds)
 			if err == nil {
 				err = store.SavePlacementProbes(ctx, s.DB, pid, res, time.Now())
 			} else if cerr := store.ClearPlacementProbes(ctx, s.DB, pid); cerr != nil {
@@ -65,7 +90,7 @@ func (s *Server) probePlacements(ctx context.Context) error {
 		}()
 	}
 	wg.Wait()
-	return errors.Join(append(errs, s.alertUnreachablePlacements(ctx))...)
+	return errors.Join(append(errs, s.alertUnreachablePlacements(ctx, false), s.alertUnreachablePlacements(ctx, true))...)
 }
 
 // probeRound 在一台探测机的同一个 SSH 连接上并发执行全部检测；单条命令执行失败只跳过该目标，保留其上轮结果。
@@ -113,8 +138,12 @@ func (s *Server) probeRound(ctx context.Context, probeID int64, targets []store.
 }
 
 // alertUnreachablePlacements 按服务器聚合告警：同一台服务器被墙时其部署位会一起失败，只推一条。
-func (s *Server) alertUnreachablePlacements(ctx context.Context) error {
-	list, err := store.UnreachablePlacements(ctx, s.DB)
+func (s *Server) alertUnreachablePlacements(ctx context.Context, landing bool) error {
+	alertType, scope, probers := alertUnreachable, "国内", "国内探测机"
+	if landing {
+		alertType, scope, probers = alertLandingUnreachable, "落地", "引用它的代理服务器"
+	}
+	list, err := store.UnreachablePlacements(ctx, s.DB, landing)
 	if err != nil {
 		return err
 	}
@@ -135,16 +164,16 @@ func (s *Server) alertUnreachablePlacements(ctx context.Context) error {
 		} else if u.SingboxDown != nil {
 			cause = "sing-box 运行正常，疑似被墙或端口被封"
 		}
-		summary := fmt.Sprintf("%s %d 个部署位国内不可达", u.ServerName, j-i)
-		body := fmt.Sprintf("%s\n所有国内探测机连续 %d 轮失败：\n%s", cause, store.ProbeFailRounds, strings.Join(lines, "\n"))
-		key := store.AlertKey{Type: alertUnreachable, ResourceType: "server", ResourceID: u.ServerID, ResourceKey: u.ServerName, Fingerprint: strconv.FormatInt(u.ServerID, 10)}
+		summary := fmt.Sprintf("%s %d 个部署位%s不可达", u.ServerName, j-i, scope)
+		body := fmt.Sprintf("%s\n所有%s连续 %d 轮失败：\n%s", cause, probers, store.ProbeFailRounds, strings.Join(lines, "\n"))
+		key := store.AlertKey{Type: alertType, ResourceType: "server", ResourceID: u.ServerID, ResourceKey: u.ServerName, Fingerprint: strconv.FormatInt(u.ServerID, 10)}
 		if err := s.raise(ctx, key, "critical", float64(j-i), 0, summary, time.Hour,
-			notify.Message{Title: "AirOpsCat 部署位不可达 · " + u.ServerName, Body: body}); err != nil {
+			notify.Message{Title: "AirOpsCat " + scope + "部署位不可达 · " + u.ServerName, Body: body}); err != nil {
 			return err
 		}
 		i = j
 	}
-	resolved, err := store.AlertResolveMissing(ctx, s.DB, alertUnreachable, "server", keep, now)
+	resolved, err := store.AlertResolveMissing(ctx, s.DB, alertType, "server", keep, now)
 	if err != nil {
 		return err
 	}

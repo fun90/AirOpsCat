@@ -163,3 +163,78 @@ func TestProbePlacementsTask(t *testing.T) {
 		t.Fatal("清空配置后应清理结果", left)
 	}
 }
+
+// 落地部署位由引用它的代理服务器拨测（仅 TCP），全部失败满轮数后按落地类型单独告警；不依赖国内探测机配置。
+func TestProbeLandingPlacements(t *testing.T) {
+	ctx := context.Background()
+	_, a := newTestServer(t)
+	field, _ := crypto.New(crypto.DeriveKey("0123456789abcdef0123456789abcdef", "field"))
+	s, err := New(a.DB, a, field)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.EnsureSettings(ctx, a.DB); err != nil {
+		t.Fatal(err)
+	}
+	f := &fakeProbe{cmds: map[int64][]string{}, up: map[int64]map[int]bool{
+		1: {2001: false},
+		2: {2001: false},
+	}}
+	s.Deployer.Dial = func(_ context.Context, t *store.SSHTarget) (deploy.Remote, error) {
+		return fakeProbeRemote{f, t.ID}, nil
+	}
+	for _, q := range []string{
+		`INSERT INTO server(id,ip,name) VALUES(1,'192.0.2.1','东京'),(2,'192.0.2.2','香港'),(3,'203.0.113.3','落地机')`,
+		`INSERT INTO node(id,name,type,protocol,port,out_id) VALUES(1,'p1',0,'vless',1001,3),(2,'p2',0,'vless',1002,3),(3,'ss',1,'shadowsocks',2001,NULL)`,
+		`INSERT INTO node_server(id,node_id,server_id,deployed) VALUES(1,1,1,1),(2,2,2,1),(3,3,3,1)`,
+	} {
+		if _, err := a.DB.Exec(q); err != nil {
+			t.Fatal(q, err)
+		}
+	}
+	for i := 0; i < store.ProbeFailRounds; i++ {
+		if err := s.probePlacements(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(f.cmds[1]) != store.ProbeFailRounds || len(f.cmds[2]) != store.ProbeFailRounds || strings.Contains(strings.Join(f.cmds[1], ""), "/dev/udp") {
+		t.Fatalf("代理服务器应只做落地 TCP 检测: %v", f.cmds)
+	}
+	var n int
+	var summary string
+	a.DB.QueryRow(`SELECT count(*),coalesce(max(summary),'') FROM alert_state WHERE alert_type=? AND status='ACTIVE'`, alertLandingUnreachable).Scan(&n, &summary)
+	if n != 1 || summary != "落地机 1 个部署位落地不可达" {
+		t.Fatalf("落地告警不正确: %d %q", n, summary)
+	}
+	h := s.Handler()
+	c := login(t, h, "admin@example.com")
+	if w := do(h, "GET", "/admin/servers", nil, c, nil); !strings.Contains(w.Body.String(), "1 个落地不可达") || strings.Contains(w.Body.String(), "个部署位不可达") {
+		t.Fatal("服务器列表应单独显示落地不可达数")
+	}
+	if w := do(h, "GET", "/admin/nodes?status=4", nil, c, nil).Body.String(); !strings.Contains(w, "/admin/nodes/3/edit") || strings.Contains(w, "/admin/nodes/1/edit") {
+		t.Fatal("落地不可达筛选不正确")
+	}
+	if w := do(h, "GET", "/admin/nodes?status=3", nil, c, nil).Body.String(); strings.Contains(w, "/admin/nodes/3/edit") {
+		t.Fatal("国内不可达筛选不应含落地")
+	}
+	// 一台代理服务器恢复即消警
+	f.up[1][2001] = true
+	if err := s.probePlacements(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a.DB.QueryRow(`SELECT count(*) FROM alert_state WHERE alert_type=? AND status='ACTIVE'`, alertLandingUnreachable).Scan(&n)
+	if n != 0 {
+		t.Fatal("恢复后应消警")
+	}
+	// 代理节点不再引用落地后结果清理
+	if _, err := a.DB.Exec(`UPDATE node SET out_id=NULL`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.probePlacements(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a.DB.QueryRow(`SELECT count(*) FROM placement_probe`).Scan(&n)
+	if n != 0 {
+		t.Fatal("无人引用时应清理结果", n)
+	}
+}
