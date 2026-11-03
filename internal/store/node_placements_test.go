@@ -122,3 +122,20 @@ func TestPointedPlacementsSkipsUnexposed(t *testing.T) {
 		t.Fatal("订阅定制选中的部署位应标注", m)
 	}
 }
+
+func TestShownPointedPlacementsNeedsSwitch(t *testing.T) {
+	db, ctx := testDB(t)
+	mustExec(t, db, `INSERT INTO server(id,ip)VALUES(1,'1.1.1.1'),(2,'2.2.2.2')`)
+	mustExec(t, db, `INSERT INTO node(id,name,type,protocol,core_type)VALUES(1,'n',0,'vless','sing-box')`)
+	mustExec(t, db, `INSERT INTO domain(id,domain)VALUES(1,'example.com')`)
+	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES
+		(1,1,'a','a.example.com','A','1.1.1.1','SYNCED'),(2,1,'b','b.example.com','A','2.2.2.2','SYNCED')`)
+	mustExec(t, db, `INSERT INTO node_server(id,node_id,server_id,deployed,exposed,access_host_id)VALUES(1,1,1,1,1,1),(2,1,2,1,1,2)`)
+	if m, err := ShownPointedPlacements(ctx, db); err != nil || len(m[1]) != 0 {
+		t.Fatal("没切换过不应标注", m, err)
+	}
+	mustExec(t, db, `UPDATE domain_dns_record SET content='2.2.2.2', failover_home_content='1.1.1.1' WHERE id=1`)
+	if m, err := ShownPointedPlacements(ctx, db); err != nil || len(m[1]) != 1 || m[1][0].ID != 2 {
+		t.Fatal("切换后应标注承接方", m, err)
+	}
+}

@@ -386,3 +386,34 @@ func PlacementDomains(ctx context.Context, db *sql.DB, nodeID int64) (map[int64]
 	}
 	return out, rows.Err()
 }
+
+// ShownPointedPlacements 供页面标注当前指向：只保留域名被自动或手动切换过的节点（有 failover_home_content）。
+// 没切换过时各部署位用各自的访问域名，不存在“当前指向”。批量切换仍用 PointedPlacements 取实际解析位置。
+func ShownPointedPlacements(ctx context.Context, db *sql.DB) (map[int64][]PointedPlacement, error) {
+	out, err := PointedPlacements(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.QueryContext(ctx, `SELECT DISTINCT ns.node_id FROM node_server ns JOIN domain_dns_record r ON r.id = ns.access_host_id
+		WHERE ns.deployed <> 2 AND r.failover_home_content IS NOT NULL
+		UNION SELECT b.node_id FROM account_node_subscription_domain_binding b JOIN domain_dns_record r ON r.id = b.domain_dns_record_id
+		WHERE b.enabled = 1 AND r.failover_home_content IS NOT NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	switched := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		switched[id] = true
+	}
+	for id := range out {
+		if !switched[id] {
+			delete(out, id)
+		}
+	}
+	return out, rows.Err()
+}

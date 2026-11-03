@@ -143,7 +143,7 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	pointed, err := store.PointedPlacements(r.Context(), s.DB)
+	pointed, err := store.ShownPointedPlacements(r.Context(), s.DB)
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -282,7 +282,7 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 			s.fail(w, r, err)
 			return
 		}
-		pointed, err := store.PointedPlacements(ctx, s.DB)
+		pointed, err := store.ShownPointedPlacements(ctx, s.DB)
 		if err != nil {
 			s.fail(w, r, err)
 			return

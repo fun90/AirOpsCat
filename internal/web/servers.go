@@ -279,7 +279,7 @@ func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status i
 		pls, err := store.ServerPlacements(r.Context(), s.DB, f.ID)
 		var pointed map[int64][]store.PointedPlacement
 		if err == nil {
-			pointed, err = store.PointedPlacements(r.Context(), s.DB)
+			pointed, err = store.ShownPointedPlacements(r.Context(), s.DB)
 		}
 		if err != nil {
 			s.fail(w, r, err)
