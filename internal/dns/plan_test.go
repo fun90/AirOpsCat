@@ -38,6 +38,18 @@ func TestWindowAndPlan(t *testing.T) {
 	if p = PlanRecord(r, cs, .85, at); p.Target != "2.2.2.2" || p.Reason != "CHEAP_WINDOW" {
 		t.Fatal(p)
 	}
+	// 便宜时段外，便宜部署位不可用：原服务器超阈值时保持不动，不切到便宜位。
+	out := time.Date(2026, 10, 20, 12, 0, 0, 0, zone)
+	r2 := AutoRecord{ID: 1, NodeID: 1, ServerID: 1, Content: "1.1.1.1"}
+	cs[0].Usage, cs[1].Usage = .9, .3
+	if p = PlanRecord(r2, cs, .85, out); p.Target != "" {
+		t.Fatal("便宜位不应在时段外使用", p)
+	}
+	cs3 := append([]Candidate{}, cs...)
+	cs3 = append(cs3, Candidate{ID: 3, NodeID: 1, ServerID: 3, IP: "3.3.3.3", Known: true, Usage: .2})
+	if p = PlanRecord(r2, cs3, .85, out); p.Target != "3.3.3.3" || p.Reason != "THRESHOLD" {
+		t.Fatal("应改用非便宜部署位", p)
+	}
 	cs[0].Usage, cs[1].Usage = .9, .9
 	if p = PlanRecord(r, cs, .85, at); p.Target != "" || !p.Exhausted {
 		t.Fatal(p)

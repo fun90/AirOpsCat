@@ -98,7 +98,11 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 	if home != "" && home != origin.IP {
 		return blocked("保存的原始解析与当前归属服务器不一致")
 	}
-	ok := func(c *Candidate) bool { return !c.Failover && c.Known && c.Usage < threshold }
+	// 配置了便宜时段的部署位只在便宜时段内使用；未配置的全天可用。
+	allowed := func(c *Candidate) bool {
+		return (c.CheapStart == "" && c.CheapEnd == "") || Window(c.CheapStart, c.CheapEnd, at)
+	}
+	ok := func(c *Candidate) bool { return !c.Failover && c.Known && c.Usage < threshold && allowed(c) }
 	var target *Candidate
 	for i := range cs {
 		c := &cs[i]
@@ -125,7 +129,7 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 	if target == nil && origin.Failover {
 		// 原服务器已手动切走时，宁可切到超阈值或用量未知的候选，也不留在不可用的服务器上。
 		for i := range cs {
-			if !cs[i].Failover {
+			if !cs[i].Failover && allowed(&cs[i]) {
 				target = &cs[i]
 				break
 			}
