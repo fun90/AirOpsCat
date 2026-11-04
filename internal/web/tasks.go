@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,7 +23,18 @@ type taskState struct {
 	Running           bool
 	Started, Finished time.Time
 	Result            string
+	failLogs          map[string]*failLog
 }
+
+// failLog 记录某条持续失败的错误已写日志的情况，用于压制重复日志。
+type failLog struct {
+	count  int
+	logged time.Time
+}
+
+// repeatLogInterval 同一条错误持续出现时日志的最小间隔。
+const repeatLogInterval = time.Hour
+
 type taskView struct {
 	Name, Last, Result string
 	Running            bool
@@ -44,9 +56,34 @@ func (t *taskState) execute(ctx context.Context) {
 	t.Result = "成功"
 	if err != nil {
 		t.Result = err.Error()
-		slog.Error("定时任务失败", "task", t.Name, "err", err)
 	}
+	t.logFailures(err, t.Finished)
 	t.mu.Unlock()
+}
+
+// logFailures 按行去重失败日志：新错误立即记录，持续出现的同一条错误每小时最多记一次并附带累计次数；
+// 本轮不再出现的错误会被遗忘，再次出现时重新记录。调用方须持有 t.mu。
+func (t *taskState) logFailures(err error, now time.Time) {
+	next := map[string]*failLog{}
+	if err != nil {
+		for _, line := range strings.Split(err.Error(), "\n") {
+			if line = strings.TrimSpace(line); line == "" {
+				continue
+			}
+			f := t.failLogs[line]
+			if f == nil {
+				f = &failLog{}
+				slog.Error("定时任务失败", "task", t.Name, "err", line)
+				f.logged = now
+			} else if now.Sub(f.logged) >= repeatLogInterval {
+				slog.Error("定时任务持续失败", "task", t.Name, "err", line, "累计次数", f.count+1)
+				f.logged = now
+			}
+			f.count++
+			next[line] = f
+		}
+	}
+	t.failLogs = next
 }
 func (s *Server) initTasks() {
 	s.Tasks = map[string]*taskState{
