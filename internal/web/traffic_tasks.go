@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,15 +30,14 @@ func (s *Server) collectTraffic(ctx context.Context) error {
 		return nil
 	}
 	var failed []error
+	interval := time.Duration(s.configInt(ctx, "airopscat.server.monitor.alert.min-interval-minutes", 60)) * time.Minute
 	for _, id := range ids {
-		if err := s.collectServerTraffic(ctx, id); err != nil {
+		err := s.collectServerTraffic(ctx, id)
+		if err != nil {
 			failed = append(failed, fmt.Errorf("服务器 %d：%w", id, err))
 		}
-	}
-	if len(failed) > 0 {
-		body := fmt.Sprintf("流量统计收集完成，成功: %d，失败: %d", len(ids)-len(failed), len(failed))
-		if err := s.bark().Send(ctx, notify.Message{Title: "AirOpsCat 流量统计", Body: body}); err != nil && !errors.Is(err, notify.ErrNotConfigured) {
-			slog.Warn("流量采集汇总通知失败")
+		if aerr := s.trackCollectAlert(ctx, id, err, interval); aerr != nil {
+			slog.Warn("流量采集告警处理失败", "server", id, "err", aerr)
 		}
 	}
 	// 单台采集失败不阻断基于已有数据的限速和独立的 vnstat DNS 检查。
@@ -141,4 +141,29 @@ func (s *Server) collectServerTraffic(ctx context.Context, id int64) error {
 		return err
 	}
 	return nil
+}
+
+// trackCollectAlert 按服务器维护流量采集失败告警：成功即恢复，失败按节流通知；
+// 服务器已处于失联告警时不重复通知，失联本身已说明采集必然失败。
+func (s *Server) trackCollectAlert(ctx context.Context, id int64, collectErr error, interval time.Duration) error {
+	sid := strconv.FormatInt(id, 10)
+	fp := "collect:" + sid
+	now := time.Now()
+	if collectErr == nil {
+		_, err := store.AlertResolveFingerprint(ctx, s.DB, alertMonitorLoad, "server", id, fp, now)
+		return err
+	}
+	var offline int
+	if err := s.DB.QueryRowContext(ctx, `SELECT count(*) FROM alert_state WHERE alert_type=? AND resource_type='server' AND resource_id=? AND fingerprint=? AND status<>'RECOVERED'`,
+		alertMonitorLoad, id, "offline:"+sid).Scan(&offline); err != nil {
+		return err
+	}
+	if offline > 0 {
+		return nil
+	}
+	var ip string
+	_ = s.DB.QueryRowContext(ctx, `SELECT ip FROM server WHERE id=?`, id).Scan(&ip)
+	summary := fmt.Sprintf("服务器 %s (ID %d) 流量统计收集失败，账户流量与超额限速可能停止更新", ip, id)
+	return s.raise(ctx, store.AlertKey{Type: alertMonitorLoad, ResourceType: "server", ResourceID: id, ResourceKey: ip, Fingerprint: fp},
+		"warning", 1, 1, summary, interval, notify.Message{Title: "AirOpsCat 流量统计失败", Body: summary})
 }

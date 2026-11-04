@@ -66,15 +66,31 @@ func TestCollectTrafficFailureStillChecksLimitsAndDNS(t *testing.T) {
 	if len(prepared) != 2 {
 		t.Fatal("限速检查被采集失败阻断", prepared)
 	}
-	if len(sent) != 1 || !strings.Contains(sent[0]["body"].(string), "失败: 2") || strings.Contains(sent[0]["body"].(string), "密钥") {
+	if len(sent) != 2 || strings.Contains(sent[0]["body"].(string), "密钥") || !strings.Contains(sent[0]["body"].(string), "流量统计收集失败") {
 		t.Fatal(sent)
+	}
+	// 再次失败受节流，不重复通知。
+	_ = s.collectTraffic(context.Background())
+	if len(sent) != 2 {
+		t.Fatal("节流失效", len(sent))
+	}
+	// 服务器 2 已失联告警时，采集失败不再通知。
+	if _, err := a.DB.Exec(`DELETE FROM alert_state WHERE fingerprint='collect:2'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.DB.Exec(`INSERT INTO alert_state(alert_type,resource_type,resource_id,resource_key,fingerprint,severity,status) VALUES(?,'server',2,'203.0.113.2','offline:2','warning','ACTIVE')`, alertMonitorLoad); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.collectTraffic(context.Background())
+	if len(sent) != 2 {
+		t.Fatal("失联时仍重复通知", len(sent))
 	}
 	// 无目标时不执行后续检查或发通知。
 	s.TrafficServers = ""
 	if err := s.collectTraffic(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if len(sent) != 1 || len(prepared) != 2 {
+	if len(prepared) != 6 {
 		t.Fatal("空集合仍触发检查")
 	}
 }
