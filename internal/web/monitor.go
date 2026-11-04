@@ -187,6 +187,9 @@ func (s *Server) evaluateServerAlerts(ctx context.Context) error {
 				return err
 			}
 		}
+		if err := s.evaluateTrafficSurge(ctx, st, label, now, interval); err != nil {
+			return err
+		}
 		vnstatAt, vnstatErr := store.ParseTime(st.VnstatTime)
 		if st.BandwidthGB <= 0 || !st.HasVnstat || vnstatErr != nil || now.Sub(vnstatAt) > 3*vnstatInterval {
 			continue
@@ -208,6 +211,34 @@ func (s *Server) evaluateServerAlerts(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+const surgeWindow = 24 * time.Hour
+
+// evaluateTrafficSurge 判定最近 24 小时 vnstat 流量增量（上+下）是否超过阈值（GiB），用于发现被刷流量（如 REALITY 回落）。
+// 与月额度告警互补：额度未设置或尚未接近额度时也能提前发现；窗口未被样本覆盖时不恢复，避免采集中断造成误恢复。
+func (s *Server) evaluateTrafficSurge(ctx context.Context, st store.ServerStatus, label string, now time.Time, interval time.Duration) error {
+	limitGiB := s.configInt(ctx, "airopscat.server.monitor.alert.daily-traffic-gib", 100)
+	since := now.Add(-surgeWindow)
+	growth, first, err := store.VnstatGrowth(ctx, s.DB, st.ID, since)
+	if err != nil {
+		return err
+	}
+	if first.IsZero() {
+		return nil
+	}
+	fp := "traffic-surge:" + strconv.FormatInt(st.ID, 10)
+	used := float64(growth) / (1 << 30)
+	if used < float64(limitGiB) {
+		if first.Sub(since) <= 3*vnstatInterval {
+			_, err := store.AlertResolveFingerprint(ctx, s.DB, alertMonitorLoad, "server", st.ID, fp, now)
+			return err
+		}
+		return nil
+	}
+	summary := fmt.Sprintf("%s 最近 24 小时流量增长 %.1f GiB，超过阈值 %d GiB，疑似被刷流量（如 REALITY 回落）", label, used, limitGiB)
+	return s.raise(ctx, store.AlertKey{Type: alertMonitorLoad, ResourceType: "server", ResourceID: st.ID, ResourceKey: st.IP, Fingerprint: fp}, "warning",
+		used, float64(limitGiB), summary, interval, notify.Message{Title: "AirOpsCat 服务器流量异常告警", Body: summary})
 }
 
 const (

@@ -126,6 +126,38 @@ func MetricPoints(ctx context.Context, db *sql.DB, serverID int64, column string
 	return out, rows.Err()
 }
 
+// VnstatGrowth 返回 since 之后 vnstat 累计流量（上+下）的增量字节数；只累加同一统计周期内相邻样本的正增量，周期切换或计数回退不计入。
+// first 为窗口内最早样本时间，无样本时为零值，供调用方判断窗口是否被覆盖。
+func VnstatGrowth(ctx context.Context, db *sql.DB, serverID int64, since time.Time) (growth int64, first time.Time, err error) {
+	rows, err := db.QueryContext(ctx, `SELECT sample_time,period_year*100+period_month,coalesce(rx_bytes,0)+coalesce(tx_bytes,0) FROM server_metrics WHERE server_id=? AND kind='vnstat' AND sample_time>=? ORDER BY sample_time,id`, serverID, FormatTime(since))
+	if err != nil {
+		return 0, time.Time{}, err
+	}
+	defer rows.Close()
+	var prevPeriod int
+	var prevTotal int64
+	seen := false
+	for rows.Next() {
+		var ts string
+		var period int
+		var total int64
+		if err := rows.Scan(&ts, &period, &total); err != nil {
+			return 0, time.Time{}, err
+		}
+		t, perr := ParseTime(ts)
+		if perr != nil {
+			continue
+		}
+		if !seen {
+			first, seen = t, true
+		} else if period == prevPeriod && total > prevTotal {
+			growth += total - prevTotal
+		}
+		prevPeriod, prevTotal = period, total
+	}
+	return growth, first, rows.Err()
+}
+
 // 月流量额度单位：服务商有的按 GB（1000³）有的按 GiB（1024³）计。
 const (
 	UnitGB  = "GB"

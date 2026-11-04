@@ -200,3 +200,54 @@ func TestMonitorTrafficDecimalGB(t *testing.T) {
 		t.Fatalf("占比应为 75%%，实际 %v", r)
 	}
 }
+
+func TestTrafficSurgeAlert(t *testing.T) {
+	_, a := newTestServer(t)
+	field, _ := crypto.New(crypto.DeriveKey("0123456789abcdef0123456789abcdef", "field"))
+	s, _ := New(a.DB, a, field)
+	ctx := context.Background()
+	a.DB.Exec(`INSERT INTO server(id,ip,name) VALUES(1,'1.1.1.1','HK')`)
+	now := time.Now()
+	at := now.In(store.Shanghai)
+	ins := func(gib int64, ago time.Duration) {
+		t.Helper()
+		if err := store.InsertVnstatSample(ctx, a.DB, 1, monitor.Vnstat{Iface: "eth0", Year: at.Year(), Month: int(at.Month()), RxBytes: gib << 30}, now.Add(-ago)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	state := func() (n int, status string) {
+		a.DB.QueryRow(`SELECT count(*),coalesce(max(status),'') FROM alert_state WHERE fingerprint='traffic-surge:1'`).Scan(&n, &status)
+		return
+	}
+	// 24 小时仅增长 20 GiB：不告警
+	ins(100, 24*time.Hour)
+	ins(120, time.Minute)
+	if err := s.evaluateServerAlerts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := state(); n != 0 {
+		t.Fatal("正常增长不应告警")
+	}
+	// 增长到 220 GiB：超过默认 100 GiB 阈值
+	ins(220, 30*time.Second)
+	if err := s.evaluateServerAlerts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n, st := state(); n != 1 || st != "ACTIVE" {
+		t.Fatalf("应触发流量异常告警: %d %s", n, st)
+	}
+	// 窗口内样本不足以覆盖 24 小时时不恢复
+	a.DB.Exec(`DELETE FROM server_metrics WHERE kind='vnstat'`)
+	ins(300, time.Hour)
+	ins(301, time.Minute)
+	s.evaluateServerAlerts(ctx)
+	if _, st := state(); st != "ACTIVE" {
+		t.Fatalf("窗口未覆盖不应恢复: %s", st)
+	}
+	// 窗口被覆盖且增量回落：恢复
+	ins(300, 23*time.Hour+50*time.Minute)
+	s.evaluateServerAlerts(ctx)
+	if _, st := state(); st != "RECOVERED" {
+		t.Fatalf("应恢复: %s", st)
+	}
+}
