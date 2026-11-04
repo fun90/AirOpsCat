@@ -33,8 +33,13 @@ func TestSubscriptionUsesSnapshotAndBindings(t *testing.T) {
 	}
 	mustExec(t, db, `UPDATE node_server SET deployed=0 WHERE id=?`, pid)
 	nodes, err = SubscriptionNodes(ctx, db, a, nil)
+	if err != nil || len(nodes) != 1 || nodes[0]["port"] != json.Number("443") {
+		t.Fatal("待部署但已有快照的部署位应继续按旧快照输出", nodes, err)
+	}
+	mustExec(t, db, `UPDATE node_server SET deployed=2 WHERE id=?`, pid)
+	nodes, err = SubscriptionNodes(ctx, db, a, nil)
 	if err != nil || len(nodes) != 0 {
-		t.Fatal("待部署不能输出", nodes, err)
+		t.Fatal("待删除不能输出", nodes, err)
 	}
 }
 

@@ -38,13 +38,15 @@ type subscriptionEntry struct {
 	data                map[string]any
 }
 
-// SubscriptionNodes 连接参数来自成功部署快照；名称及已同步域名按既有订阅契约实时读取。
+// SubscriptionNodes 连接参数来自成功部署快照；待部署（deployed=0）但已有快照的部署位仍在服务器上运行，照常输出，
+// 否则任一账户变更会让共享标签的所有账户订阅丢节点；待删除（deployed=2）不输出。
+// 名称及已同步域名按既有订阅契约实时读取。
 func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *int) ([]map[string]any, error) {
 	rows, err := db.QueryContext(ctx, `SELECT DISTINCT n.id,n.name,ns.id,ns.priority,ns.exposed,d.snapshot_json,coalesce(r.full_name,''),coalesce(r.status,''),s.ip
  FROM account_tag at JOIN node_tag nt ON nt.tag_id=at.tag_id JOIN node n ON n.id=nt.node_id
  JOIN node_server ns ON ns.node_id=n.id JOIN node_deployment d ON d.node_server_id=ns.id
  JOIN server s ON s.id=d.server_id LEFT JOIN domain_dns_record r ON r.id=ns.access_host_id
- WHERE at.account_id=? AND n.disabled=0 AND n.type=0 AND ns.deployed=1 AND coalesce(d.snapshot_json,'')<>'' ORDER BY n.id,ns.priority,ns.id`, a.ID)
+ WHERE at.account_id=? AND n.disabled=0 AND n.type=0 AND ns.deployed<>2 AND coalesce(d.snapshot_json,'')<>'' ORDER BY n.id,ns.priority,ns.id`, a.ID)
 	if err != nil {
 		return nil, err
 	}
