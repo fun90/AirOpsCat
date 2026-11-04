@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/fun90/airopscat/internal/crypto"
 )
@@ -73,13 +74,21 @@ func scanServer(row interface{ Scan(...any) error }) (*Server, error) {
 }
 
 // ServerList 分页查询服务器，search 匹配名称、IP、域名、供应商、备注。
-func ServerList(ctx context.Context, db *sql.DB, search string, page, size int) ([]*Server, int, error) {
+func ServerList(ctx context.Context, db *sql.DB, search, filter string, now time.Time, page, size int) ([]*Server, int, error) {
 	where, args := "1=1", []any{}
 	if search != "" {
 		where = `(name LIKE ? OR ip LIKE ? OR supplier LIKE ? OR remark LIKE ?)`
 		for range 4 {
 			args = append(args, "%"+search+"%")
 		}
+	}
+	switch filter {
+	case "external":
+		where += ` AND disabled=0 AND external_server=1`
+	case "expiring":
+		local := now.In(Shanghai)
+		where += ` AND disabled=0 AND external_server=0 AND substr(expire_date,1,10)>=? AND substr(expire_date,1,10)<=?`
+		args = append(args, local.Format("2006-01-02"), local.AddDate(0, 0, 7).Format("2006-01-02"))
 	}
 	var total int
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM server WHERE "+where, args...).Scan(&total); err != nil {

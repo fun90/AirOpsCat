@@ -183,13 +183,18 @@ func (s *Server) serverFailover(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serverList(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	page, size := pageParams(r)
-	list, total, err := store.ServerList(r.Context(), s.DB, q, page, size)
+	filter := r.URL.Query().Get("filter")
+	if filter != "external" && filter != "expiring" {
+		filter = ""
+	}
+	list, total, err := store.ServerList(r.Context(), s.DB, q, filter, time.Now(), page, size)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
 	d := s.pageData(r, "服务器", "servers")
 	d["List"], d["Total"], d["Q"], d["Page"], d["Pages"] = list, total, q, page, (total+size-1)/size
+	d["Filter"] = filter
 	d["Today"] = time.Now().In(store.Shanghai).Format("2006-01-02")
 	s.render(w, "servers", http.StatusOK, d)
 }

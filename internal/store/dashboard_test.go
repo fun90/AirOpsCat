@@ -10,7 +10,7 @@ import (
 func TestDashboardLoad(t *testing.T) {
 	db, ctx := testDB(t)
 	now := time.Date(2026, 10, 20, 4, 0, 0, 0, time.UTC) // 上海中午
-	d, err := DashboardLoad(ctx, db, now)
+	d, err := DashboardLoad(ctx, db, now, 1)
 	if err != nil || !reflect.DeepEqual(d, &Dashboard{}) {
 		t.Fatalf("空库: %+v, %v", d, err)
 	}
@@ -48,20 +48,24 @@ func TestDashboardLoad(t *testing.T) {
 		exec(`INSERT INTO alert_state(alert_type,resource_type,resource_id,fingerprint,status,last_triggered_time)
 			VALUES('server-expiring','server',?,'expiry',?,?)`, i+1, status, FormatTime(now.Add(time.Duration(i/2)*time.Minute)))
 	}
-	d, err = DashboardLoad(ctx, db, now)
+	d, err = DashboardLoad(ctx, db, now, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := &Dashboard{
 		AccountsTotal: 5, AccountsActive: 3, AccountsDisabled: 1, AccountsExpired: 1,
 		NodesEnabled: 2, NodesDisabled: 1, PendingPlacements: 2,
-		ServersEnabled: 7, ServersExternal: 2, ServersExpiring: 2,
+		ServersEnabled: 7, ServersExternal: 1, ServersExpiring: 2,
 		AlertsActive: 2, AlertsAcknowledged: 2,
 	}
-	if len(d.Expiring24Hours) != 2 || d.Expiring24Hours[0].AccountNo != "1" {
-		t.Fatalf("未来24小时内到期账户: %+v", d.Expiring24Hours)
+	if len(d.ExpiringAccounts) != 2 || d.ExpiringAccounts[0].AccountNo != "1" {
+		t.Fatalf("未来24小时内到期账户: %+v", d.ExpiringAccounts)
 	}
-	d.Expiring24Hours = nil
+	d.ExpiringAccounts = nil
+	if len(d.ExpiringServerList) != 2 || d.ExpiringServerList[0].ID != 1 || d.ExpiringServerList[1].Expire != "2026-10-27" {
+		t.Fatalf("即将到期服务器: %+v", d.ExpiringServerList)
+	}
+	d.ExpiringServerList = nil
 	alerts := d.RecentAlerts
 	d.RecentAlerts = nil
 	if !reflect.DeepEqual(d, want) {
@@ -82,7 +86,7 @@ func TestDashboardLoadReturnsErrors(t *testing.T) {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if d, err := DashboardLoad(ctx, db, time.Now()); err == nil || d != nil {
+	if d, err := DashboardLoad(ctx, db, time.Now(), 1); err == nil || d != nil {
 		t.Fatalf("数据库错误不可当作零统计: %+v, %v", d, err)
 	}
 }
@@ -95,8 +99,36 @@ func TestDashboardRolling24Hours(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	d, err := DashboardLoad(ctx, db, time.Date(2026, 10, 20, 4, 0, 0, 0, time.UTC))
-	if err != nil || len(d.Expiring24Hours) != 2 || d.Expiring24Hours[0].AccountNo != "0" || d.Expiring24Hours[1].AccountNo != "1" {
+	d, err := DashboardLoad(ctx, db, time.Date(2026, 10, 20, 4, 0, 0, 0, time.UTC), 1)
+	if err != nil || len(d.ExpiringAccounts) != 2 || d.ExpiringAccounts[0].AccountNo != "0" || d.ExpiringAccounts[1].AccountNo != "1" {
 		t.Fatal(d, err)
+	}
+}
+
+func TestDashboardExpiringWindowAndAbnormal(t *testing.T) {
+	db, ctx := testDB(t)
+	now := time.Date(2026, 10, 20, 4, 0, 0, 0, time.UTC)
+	for i, a := range []struct {
+		hours    int
+		disabled int
+	}{{1, 0}, {1, 1}, {48, 0}, {24 * 6, 0}, {24 * 8, 0}} {
+		k := fmt.Sprint(i)
+		if _, err := db.Exec(`INSERT INTO account(account_no,uuid,auth_code,period_type,to_date,disabled)VALUES(?,?,?,'MONTHLY',?,?)`, k, k, k, FormatTime(now.Add(time.Duration(a.hours)*time.Hour)), a.disabled); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i, st := range []string{AlertActive, AlertActive, AlertAcknowledged} {
+		if _, err := db.Exec(`INSERT INTO alert_state(alert_type,resource_type,resource_id,fingerprint,status,last_triggered_time)VALUES('server-monitor-load','server',?,?,?,?)`, int64(i/2+1), fmt.Sprint(i), st, FormatTime(now)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for days, want := range map[int]int{1: 1, 3: 2, 7: 3} {
+		d, err := DashboardLoad(ctx, db, now, days)
+		if err != nil || len(d.ExpiringAccounts) != want {
+			t.Fatalf("%d 天窗口: %d 个账户, %v", days, len(d.ExpiringAccounts), err)
+		}
+		if d.ServersAbnormal != 1 {
+			t.Fatalf("异常服务器按服务器去重且只计进行中: %d", d.ServersAbnormal)
+		}
 	}
 }

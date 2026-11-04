@@ -3,9 +3,11 @@
 <div class="card">
     <div class="card-header">
         <form method="get" class="d-flex gap-2 w-100" style="max-width: 420px">
+            {{if .Filter}}<input type="hidden" name="filter" value="{{.Filter}}">{{end}}
             <input type="search" name="q" value="{{.Q}}" class="form-control" placeholder="名称 / IP / 供应商 / 备注" aria-label="搜索">
             <button class="btn btn-outline-secondary" type="submit">搜索</button>
         </form>
+        {{if .Filter}}<div class="card-actions"><span class="badge bg-yellow-lt me-2">{{if eq .Filter "expiring"}}7 天内到期{{else}}外部{{end}}</span><a href="/admin/servers" class="btn btn-sm btn-outline-secondary">清除筛选</a></div>{{end}}
     </div>
     <div class="table-responsive">
         <table class="table table-vcenter card-table">
