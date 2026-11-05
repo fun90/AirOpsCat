@@ -2,6 +2,8 @@ package web
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -9,14 +11,16 @@ import (
 
 	"github.com/fun90/airopscat/internal/crypto"
 	"github.com/fun90/airopscat/internal/deploy"
+	"github.com/fun90/airopscat/internal/netprobe"
 	"github.com/fun90/airopscat/internal/store"
 )
 
-// fakeProbe 按「探测机 → 目标端口 → 是否可达」返回 probeCmd 风格输出，不执行真实命令。
+// fakeProbe 按「探测机 → 目标端口 → 是否可达」返回原生探测结果，不执行真实命令。
 type fakeProbe struct {
-	mu   sync.Mutex
-	up   map[int64]map[int]bool
-	cmds map[int64][]string
+	mu       sync.Mutex
+	up       map[int64]map[int]bool
+	cmds     map[int64][]string
+	setupErr bool
 }
 
 type fakeProbeRemote struct {
@@ -25,16 +29,27 @@ type fakeProbeRemote struct {
 }
 
 func (r fakeProbeRemote) Run(_ context.Context, c string) (string, string, int, error) {
+	if r.f.setupErr {
+		return "", "模拟准备失败", 1, nil
+	}
+	return probeSetupOutput(c)
+}
+func (r fakeProbeRemote) RunInput(_ context.Context, c string, input []byte) (string, string, int, error) {
+	var request netprobe.Request
+	if err := json.Unmarshal(input, &request); err != nil {
+		return "", "", 1, err
+	}
+	if strings.Contains(c, request.IP) || strings.Contains(c, "/dev/") || strings.Contains(c, "base64") {
+		return "", "", 1, fmt.Errorf("探测参数进入命令行")
+	}
 	r.f.mu.Lock()
 	defer r.f.mu.Unlock()
-	r.f.cmds[r.id] = append(r.f.cmds[r.id], c)
-	for port, ok := range r.f.up[r.id] {
-		if strings.Contains(c, fmt.Sprintf("/%d;", port)) || strings.Contains(c, fmt.Sprintf("/%d'", port)) {
-			if ok {
-				return "\n0 30", "", 0, nil
-			}
-			return "\n124 5000", "", 0, nil
+	r.f.cmds[r.id] = append(r.f.cmds[r.id], string(input))
+	if ok, exists := r.f.up[r.id][request.Port]; exists {
+		if ok {
+			return "\n0 30", "", 0, nil
 		}
+		return "\n124 5000", "", 0, nil
 	}
 	return "", "", 0, fmt.Errorf("未知目标")
 }
@@ -56,6 +71,7 @@ func TestProbePlacementsTask(t *testing.T) {
 		8: {1001: true, 1002: false, 1003: true},
 		9: {1001: true, 1002: false, 1003: false},
 	}}
+	s.probeLoad = testProbeBinary
 	s.Deployer.Dial = func(_ context.Context, t *store.SSHTarget) (deploy.Remote, error) {
 		return fakeProbeRemote{f, t.ID}, nil
 	}
@@ -87,7 +103,7 @@ func TestProbePlacementsTask(t *testing.T) {
 		}
 	}
 	// 落地、未部署、禁用服务器上的部署位不检测；hysteria2 走 UDP
-	if c := f.cmds[8]; len(c) != 3*store.ProbeFailRounds || !strings.Contains(strings.Join(c, ""), "/dev/udp/192.0.2.1/1002") {
+	if c := f.cmds[8]; len(c) != 3*store.ProbeFailRounds || !strings.Contains(strings.Join(c, ""), `"network":"udp","ip":"192.0.2.1","port":1002`) {
 		t.Fatalf("检测范围不正确: %d", len(c))
 	}
 	// h2 两台都失败满 3 轮才告警；ss 只有联通失败，不告警
@@ -99,6 +115,8 @@ func TestProbePlacementsTask(t *testing.T) {
 	if fails != store.ProbeFailRounds {
 		t.Fatal("连续失败数不正确", fails)
 	}
+
+	assertProbeSetupFailurePreserves(t, s, f)
 
 	h := s.Handler()
 	c := login(t, h, "admin@example.com")
@@ -180,6 +198,7 @@ func TestProbeLandingPlacements(t *testing.T) {
 		1: {2001: false},
 		2: {2001: false},
 	}}
+	s.probeLoad = testProbeBinary
 	s.Deployer.Dial = func(_ context.Context, t *store.SSHTarget) (deploy.Remote, error) {
 		return fakeProbeRemote{f, t.ID}, nil
 	}
@@ -197,7 +216,7 @@ func TestProbeLandingPlacements(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if len(f.cmds[1]) != store.ProbeFailRounds || len(f.cmds[2]) != store.ProbeFailRounds || strings.Contains(strings.Join(f.cmds[1], ""), "/dev/udp") {
+	if len(f.cmds[1]) != store.ProbeFailRounds || len(f.cmds[2]) != store.ProbeFailRounds || strings.Contains(strings.Join(f.cmds[1], ""), `"network":"udp"`) {
 		t.Fatalf("代理服务器应只做落地 TCP 检测: %v", f.cmds)
 	}
 	var n int
@@ -206,6 +225,8 @@ func TestProbeLandingPlacements(t *testing.T) {
 	if n != 1 || summary != "落地机 1 个部署位落地不可达" {
 		t.Fatalf("落地告警不正确: %d %q", n, summary)
 	}
+	assertProbeSetupFailurePreserves(t, s, f)
+
 	h := s.Handler()
 	c := login(t, h, "admin@example.com")
 	if w := do(h, "GET", "/admin/servers", nil, c, nil); !strings.Contains(w.Body.String(), "1 个落地不可达") || strings.Contains(w.Body.String(), "个部署位不可达") {
@@ -236,5 +257,43 @@ func TestProbeLandingPlacements(t *testing.T) {
 	a.DB.QueryRow(`SELECT count(*) FROM placement_probe`).Scan(&n)
 	if n != 0 {
 		t.Fatal("无人引用时应清理结果", n)
+	}
+}
+
+// 国内探测和落地探测都不能把程序分发失败累计为目标失败，也不能清空旧结果。
+func assertProbeSetupFailurePreserves(t *testing.T, s *Server, f *fakeProbe) {
+	t.Helper()
+	snapshot := func() string {
+		rows, err := s.DB.Query(`SELECT placement_id,probe_server_id,ok,fails,checked_time FROM placement_probe ORDER BY placement_id,probe_server_id`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out strings.Builder
+		for rows.Next() {
+			var placement, prober, ok, fails int
+			var checked string
+			if err := rows.Scan(&placement, &prober, &ok, &fails, &checked); err != nil {
+				t.Fatal(err)
+			}
+			fmt.Fprintf(&out, "%d %d %d %d %s\n", placement, prober, ok, fails, checked)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		return out.String()
+	}
+	before := snapshot()
+	if before == "" {
+		t.Fatal("必须先存在历史探测结果")
+	}
+	f.setupErr = true
+	err := s.probePlacements(context.Background())
+	f.setupErr = false
+	if !errors.Is(err, errProbeSetup) {
+		t.Fatalf("应报告探测程序准备失败: %v", err)
+	}
+	if after := snapshot(); after != before {
+		t.Fatalf("准备失败改变了历史探测结果: %q -> %q", before, after)
 	}
 }

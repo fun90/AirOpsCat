@@ -85,6 +85,10 @@ func (r *sshRemote) Run(ctx context.Context, cmd string) (string, string, int, e
 	return r.run(ctx, cmd, nil)
 }
 
+func (r *sshRemote) RunInput(ctx context.Context, cmd string, stdin []byte) (string, string, int, error) {
+	return r.run(ctx, cmd, stdin)
+}
+
 func (r *sshRemote) WriteFile(ctx context.Context, path string, data []byte) error {
 	_, stderr, code, err := r.run(ctx, "cat > "+shQuote(path), data)
 	if err != nil {

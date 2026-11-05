@@ -45,6 +45,7 @@ type Server struct {
 	Field               *crypto.Cipher // 敏感字段加密
 	Deployer            *deploy.Deployer
 	loginRate           *auth.RateLimiter
+	probeLoad           func(string) ([]byte, error) // 测试可注入探测程序；生产使用内嵌产物
 	pages               map[string]*template.Template
 }
 

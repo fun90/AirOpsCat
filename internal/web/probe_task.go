@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fun90/airopscat/internal/deploy"
 	"github.com/fun90/airopscat/internal/notify"
 	"github.com/fun90/airopscat/internal/store"
 )
@@ -21,10 +22,12 @@ const (
 	probeAllFailMin         = 5 // 一台探测机本轮至少这么多目标全部失败，判定为探测机自身网络异常
 )
 
+var errProbeSetup = errors.New("探测程序准备失败")
+
 // probeJob 是一台探测机本轮要执行的检测。
 type probeJob struct {
-	targets []store.ProbeTarget
-	cmds    []string
+	targets  []store.ProbeTarget
+	requests []string
 }
 
 // probePlacements 每轮从每台国内探测机检测全部代理部署位，并从引用落地的代理服务器检测落地部署位（仅 TCP），再按服务器评估不可达告警。
@@ -43,26 +46,26 @@ func (s *Server) probePlacements(ctx context.Context) error {
 	}
 	jobs := map[int64]*probeJob{}
 	valid := map[[2]int64]bool{}
-	add := func(prober int64, t store.ProbeTarget, cmd string) {
+	add := func(prober int64, t store.ProbeTarget, request string) {
 		j := jobs[prober]
 		if j == nil {
 			j = &probeJob{}
 			jobs[prober] = j
 		}
-		j.targets, j.cmds = append(j.targets, t), append(j.cmds, cmd)
+		j.targets, j.requests = append(j.targets, t), append(j.requests, request)
 		valid[[2]int64{t.ID, prober}] = true
 	}
 	for _, t := range targets {
-		if cmd, err := probeCommand(t.IP, t.Port, t.Protocol, t.Inbound); err == nil {
+		if request, err := probeRequest(t.IP, t.Port, t.Protocol, t.Inbound); err == nil {
 			for _, pid := range ids {
-				add(pid, t, cmd)
+				add(pid, t, request)
 			}
 		}
 	}
 	for _, l := range landings {
-		if cmd, err := probeCommand(l.IP, l.Port, "tcp", ""); err == nil {
+		if request, err := probeRequest(l.IP, l.Port, "tcp", ""); err == nil {
 			for _, pid := range l.Probers {
-				add(pid, l.ProbeTarget, cmd)
+				add(pid, l.ProbeTarget, request)
 			}
 		}
 	}
@@ -76,11 +79,13 @@ func (s *Server) probePlacements(ctx context.Context) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			res, err := s.probeRound(ctx, pid, job.targets, job.cmds)
+			res, err := s.probeRound(ctx, pid, job.targets, job.requests)
 			if err == nil {
 				err = store.SavePlacementProbes(ctx, s.DB, pid, res, time.Now())
-			} else if cerr := store.ClearPlacementProbes(ctx, s.DB, pid); cerr != nil {
-				err = errors.Join(err, cerr)
+			} else if !errors.Is(err, errProbeSetup) {
+				if cerr := store.ClearPlacementProbes(ctx, s.DB, pid); cerr != nil {
+					err = errors.Join(err, cerr)
+				}
 			}
 			if err != nil {
 				mu.Lock()
@@ -94,7 +99,7 @@ func (s *Server) probePlacements(ctx context.Context) error {
 }
 
 // probeRound 在一台探测机的同一个 SSH 连接上并发执行全部检测；单条命令执行失败只跳过该目标，保留其上轮结果。
-func (s *Server) probeRound(ctx context.Context, probeID int64, targets []store.ProbeTarget, cmds []string) ([]store.ProbeOutcome, error) {
+func (s *Server) probeRound(ctx context.Context, probeID int64, targets []store.ProbeTarget, requests []string) ([]store.ProbeOutcome, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 	r, closeFn, err := s.dialServer(ctx, probeID)
@@ -102,6 +107,14 @@ func (s *Server) probeRound(ctx context.Context, probeID int64, targets []store.
 		return nil, err
 	}
 	defer closeFn()
+	remote, ok := r.(deploy.Remote)
+	if !ok {
+		return nil, fmt.Errorf("%w：连接不支持文件分发", errProbeSetup)
+	}
+	probe, err := s.prepareProbe(ctx, remote)
+	if err != nil {
+		return nil, fmt.Errorf("%w：%w", errProbeSetup, err)
+	}
 	out := make([]*store.ProbeOutcome, len(targets))
 	sem := make(chan struct{}, probeParallel)
 	var wg sync.WaitGroup
@@ -111,7 +124,7 @@ func (s *Server) probeRound(ctx context.Context, probeID int64, targets []store.
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			stdout, _, _, err := r.Run(ctx, cmds[i])
+			stdout, err := probe.Run(ctx, []byte(requests[i]))
 			if err != nil {
 				return
 			}

@@ -14,13 +14,21 @@
 | `install.sh` | 安装器 |
 | `checksums.txt` | 上述四个文件的 SHA-256 |
 
-两个二进制均使用 `CGO_ENABLED=0`、`-tags timetzdata` 构建，内嵌时区数据。CI 使用 `go.mod` 中的 Go 版本执行 `go vet ./...`、`go test ./...` 和安装器自检查。发布 workflow 仅允许 `v*` tag push，进一步要求 tag 精确匹配 `vX.Y.Z`，且 tag commit 是远端 `release/go` 分支的祖先；只有 `fun90/AirOpsCat` 的发布 job 获得 `contents: write`。`workflow_dispatch` 只构建和上传 Actions artifacts，不创建 Release。
+两个二进制均使用 `CGO_ENABLED=0`、`-tags timetzdata` 构建，内嵌时区数据和 Linux amd64/arm64 原生端口探测程序。CI 和发布构建先运行 `go generate ./internal/probeassets` 生成探测产物，再使用 `go.mod` 中的 Go 版本执行 `go vet ./...`、`go test ./...`；CI 另运行安装器自检查。手动构建控制端前也必须执行该生成命令；未生成时仍可运行不依赖真实产物的单元测试，但实际探测会明确报告准备失败。发布 workflow 仅允许 `v*` tag push，进一步要求 tag 精确匹配 `vX.Y.Z`，且 tag commit 是远端 `release/go` 分支的祖先；只有 `fun90/AirOpsCat` 的发布 job 获得 `contents: write`。`workflow_dispatch` 只构建和上传 Actions artifacts，不创建 Release。
 
 ### 订阅模板与周期任务
 
 订阅模板的目录入口为控制台配置 `airopscat.config.templates.dir`；空值使用进程工作目录下的 `./config`。实际读取 `<目录>/subscription-go/`，单个文件不存在时使用内置模板。导入时丢弃旧 Java 模板目录配置，避免把 Qute 模板当作 Go 模板；不支持 `AIROPSCAT_TEMPLATES_DIR`。
 
 备份与历史清理在进程启动后每 24 小时执行，首次等待一个周期；各任务分别串行，不保证上海时间某个固定时刻执行。
+
+### 端口连通探测
+
+手动与定时探测通过 SSH 调用固定的 Go 原生程序，不使用 shell 的 `/dev/tcp`、`/dev/udp` 网络重定向。探测机及执行落地 TCP 检测的代理服务器需要 Linux amd64/arm64、可写且允许执行程序的 SSH 用户目录，以及 `uname`、`mktemp`、`sha256sum`、`cut` 等常规工具；无需预装 Go 或另开监听端口。
+
+每条 SSH 连接首次检测时，控制端按架构将内嵌程序自动分发至 `$HOME/.local/lib/airopscat/probe-<SHA256>`，校验已有文件，缺失或损坏时在同目录临时上传、校验后原子替换。JSON 请求及 UDP 报文通过 SSH 标准输入传入，命令行不包含报文或混淆密码。TCP 建连与 UDP 等待回包均最多 5 秒；UDP 发送两个独立的 QUIC Initial 数据报，按需使用 salamander 封装，收到回包才记为可达。
+
+程序准备失败不累计目标失败次数，也不清空已有探测结果；单次执行或传输失败跳过该目标，保留其上次结果。云安全告警是否消失需在实际探测机观察验收。
 
 ### 主机监控 agent
 

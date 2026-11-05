@@ -58,6 +58,8 @@ docs/htb-too-many-events/
 /dist/
 /airopscat
 /airopscat-import
+/internal/probeassets/assets/*
+!/internal/probeassets/assets/README.md
 *.db
 *.db-wal
 *.db-shm

@@ -33,6 +33,9 @@ jobs:
           CGO_ENABLED: '0'
           VERSION: ${{ github.ref_name }}
         run: |
+          go generate ./internal/probeassets
+          test -s internal/probeassets/assets/probe-linux-amd64.gz
+          test -s internal/probeassets/assets/probe-linux-arm64.gz
           go vet ./...
           go test ./...
           mkdir -p dist

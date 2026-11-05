@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -20,15 +19,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fun90/airopscat/internal/deploy"
+	"github.com/fun90/airopscat/internal/netprobe"
+	"github.com/fun90/airopscat/internal/probeassets"
 	"github.com/fun90/airopscat/internal/store"
 	"golang.org/x/crypto/blake2b"
 )
-
-// probeCmd 在探测机上用 bash /dev/tcp 拨目标，末行输出「退出码 耗时毫秒」；timeout 超时退出码为 124。
-const probeCmd = `s=$(date +%%s%%N); timeout 5 bash -c 'exec 3<>/dev/tcp/%s/%d' 2>&1; c=$?; echo; echo "$c $(( ($(date +%%s%%N)-s)/1000000 ))"`
-
-// udpProbeCmd 经 bash /dev/udp 发两次 QUIC Initial（防丢包），收到任一回包即退出码 0；端口关闭时读写报 Connection refused。
-const udpProbeCmd = `s=$(date +%%s%%N); timeout 5 bash -c 'exec 3<>/dev/udp/%s/%d; for i in 1 2; do echo %s | base64 -d | dd bs=4k count=1 iflag=fullblock status=none >&3 || exit; done; dd bs=4k count=1 status=none <&3 >/dev/null' 2>&1; c=$?; echo; echo "$c $(( ($(date +%%s%%N)-s)/1000000 ))"`
 
 type probeResult struct {
 	Name string `json:"name"`
@@ -52,7 +48,7 @@ func (s *Server) placementProbe(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	cmd, err := probeCommand(ip, port, protocol, inbound)
+	request, err := probeRequest(ip, port, protocol, inbound)
 	if err != nil {
 		http.Error(w, err.Error(), 422)
 		return
@@ -70,7 +66,7 @@ func (s *Server) placementProbe(w http.ResponseWriter, r *http.Request) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			out[i] = s.probeFrom(ctx, pid, cmd)
+			out[i] = s.probeFrom(ctx, pid, request)
 		}()
 	}
 	wg.Wait()
@@ -78,14 +74,17 @@ func (s *Server) placementProbe(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(out)
 }
 
-// probeCommand 生成探测机上执行的检测命令：hysteria2 走 UDP（QUIC Initial，按需 salamander 封装），其余协议走 TCP。
-func probeCommand(ip string, port int, protocol, inbound string) (string, error) {
-	// IP 会拼进远端命令，必须是合法 IP 字面量
+// probeRequest 生成经标准输入发送的 JSON 请求，不包含远端 shell 命令。
+// hysteria2 走 UDP（QUIC Initial，按需 salamander 封装），其余协议走 TCP。
+func probeRequest(ip string, port int, protocol, inbound string) (string, error) {
+	// 仅允许 IP 字面量，避免探测受远端 DNS 解析影响。
 	if net.ParseIP(ip) == nil || port < 1 || port > 65535 {
 		return "", errors.New("部署位不支持检测")
 	}
+	request := netprobe.Request{Network: "tcp", IP: ip, Port: port}
 	if protocol != "hysteria2" {
-		return fmt.Sprintf(probeCmd, ip, port), nil
+		data, err := json.Marshal(request)
+		return string(data), err
 	}
 	var in struct {
 		Obfs *struct{ Type, Password string } `json:"obfs"`
@@ -97,10 +96,20 @@ func probeCommand(ip string, port int, protocol, inbound string) (string, error)
 	if in.Obfs != nil {
 		pkt = salamander(pkt, in.Obfs.Password)
 	}
-	return fmt.Sprintf(udpProbeCmd, ip, port, base64.StdEncoding.EncodeToString(pkt)), nil
+	request.Network, request.Packet = "udp", pkt
+	data, err := json.Marshal(request)
+	return string(data), err
 }
 
-func (s *Server) probeFrom(ctx context.Context, probeID int64, cmd string) probeResult {
+func (s *Server) prepareProbe(ctx context.Context, remote deploy.Remote) (*deploy.Probe, error) {
+	load := s.probeLoad
+	if load == nil {
+		load = probeassets.Load
+	}
+	return deploy.PrepareProbe(ctx, remote, load)
+}
+
+func (s *Server) probeFrom(ctx context.Context, probeID int64, request string) probeResult {
 	res := probeResult{Name: "#" + strconv.FormatInt(probeID, 10)}
 	t, err := store.SSHTargetByID(ctx, s.DB, probeID)
 	if err != nil {
@@ -118,7 +127,12 @@ func (s *Server) probeFrom(ctx context.Context, probeID int64, cmd string) probe
 		return res
 	}
 	defer remote.Close()
-	stdout, _, _, err := remote.Run(ctx, cmd)
+	probe, err := s.prepareProbe(ctx, remote)
+	if err != nil {
+		res.Msg = "探测程序准备失败"
+		return res
+	}
+	stdout, err := probe.Run(ctx, []byte(request))
 	if err != nil {
 		res.Msg = "探测命令执行失败"
 		return res
@@ -126,7 +140,7 @@ func (s *Server) probeFrom(ctx context.Context, probeID int64, cmd string) probe
 	return parseProbe(res, stdout)
 }
 
-// parseProbe 解析 probeCmd 输出：末行为退出码与耗时，之前为 bash 的连接错误。
+// parseProbe 解析原生探测程序输出：末行为退出码与耗时，之前为规范化的连接错误。
 func parseProbe(res probeResult, stdout string) probeResult {
 	lines := strings.Split(strings.TrimSpace(stdout), "\n")
 	var code, ms int

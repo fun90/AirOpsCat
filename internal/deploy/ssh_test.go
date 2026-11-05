@@ -5,10 +5,12 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -145,6 +147,27 @@ func TestSSHDeployWritesFileAndFailsOnCheck(t *testing.T) {
 	}
 	if body != `{"k":"it's"}` {
 		t.Fatalf("上传内容 %q, files=%v cmds=%v", body, files, *cmds)
+	}
+}
+
+func TestSSHRunInputKeepsPayloadOffCommandLine(t *testing.T) {
+	port, files, cmds, _ := startSSHServer(t)
+	client, err := ssh.Dial("tcp", net.JoinHostPort("127.0.0.1", fmt.Sprint(port)), &ssh.ClientConfig{
+		User: "root", Auth: []ssh.AuthMethod{ssh.Password("pw")},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	remote := &sshRemote{client: client, timeout: time.Second}
+	defer remote.Close()
+	payload := []byte(`{"network":"udp","ip":"192.0.2.1","port":443,"packet":"cGluZw=="}`)
+	_, _, code, err := remote.RunInput(context.Background(), "cat > '/probe-input'", payload)
+	if err != nil || code != 0 {
+		t.Fatal(code, err)
+	}
+	if files["/probe-input"] != string(payload) || len(*cmds) != 1 || (*cmds)[0] != "cat > '/probe-input'" {
+		t.Fatal("SSH 标准输入未保留请求，或请求进入命令行")
 	}
 }
 

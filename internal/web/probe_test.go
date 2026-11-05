@@ -1,31 +1,65 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
-	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fun90/airopscat/internal/crypto"
 	"github.com/fun90/airopscat/internal/deploy"
+	"github.com/fun90/airopscat/internal/netprobe"
 	"github.com/fun90/airopscat/internal/store"
 	"golang.org/x/crypto/blake2b"
 )
 
-// probeRemote 在本机 bash 执行探测命令，模拟远端探测机。
+// probeRemote 在本机执行同一原生探测逻辑，模拟远端标准输入调用。
 type probeRemote struct{ cmds []string }
 
+func probeSetupOutput(c string) (string, string, int, error) {
+	if strings.HasPrefix(c, "uname -sm") {
+		return "Linux x86_64\n\n/home/prober\n", "", 0, nil
+	}
+	if strings.HasSuffix(c, " --check") {
+		return netprobe.Check + "\n", "", 0, nil
+	}
+	return "", "", 0, nil
+}
+
+func testProbeBinary(string) ([]byte, error) { return []byte("test-probe"), nil }
+
 func (p *probeRemote) Run(_ context.Context, c string) (string, string, int, error) {
+	return probeSetupOutput(c)
+}
+func (p *probeRemote) RunInput(_ context.Context, c string, input []byte) (string, string, int, error) {
 	p.cmds = append(p.cmds, c)
-	out, _ := exec.Command("bash", "-c", c).Output()
-	return string(out), "", 0, nil
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var out bytes.Buffer
+	err := netprobe.Serve(ctx, bytes.NewReader(input), &out)
+	return out.String(), "", 0, err
 }
 func (p *probeRemote) WriteFile(context.Context, string, []byte) error { return nil }
 func (p *probeRemote) Close() error                                    { return nil }
+
+func TestProbeRequestNoShellNetworking(t *testing.T) {
+	for _, protocol := range []string{"vless", "hysteria2"} {
+		cmd, err := probeRequest("192.0.2.1", 443, protocol, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, feature := range []string{"/dev/tcp", "/dev/udp", "bash -c", "base64 -d"} {
+			if strings.Contains(cmd, feature) {
+				t.Errorf("%s 探测仍包含 shell 网络执行特征 %q", protocol, feature)
+			}
+		}
+	}
+}
 
 func TestParseProbe(t *testing.T) {
 	for out, want := range map[string]probeResult{
@@ -56,9 +90,6 @@ func TestQUICProbePacket(t *testing.T) {
 }
 
 func TestPlacementProbe(t *testing.T) {
-	if _, err := exec.LookPath("timeout"); err != nil {
-		t.Skip("本机缺少 coreutils timeout，探测命令只在 Linux 探测机上运行")
-	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -107,6 +138,7 @@ func TestPlacementProbe(t *testing.T) {
 	if err := store.EnsureSettings(context.Background(), a.DB); err != nil {
 		t.Fatal(err)
 	}
+	s.probeLoad = testProbeBinary
 	remote := &probeRemote{}
 	s.Deployer.Dial = func(context.Context, *store.SSHTarget) (deploy.Remote, error) { return remote, nil }
 	for _, q := range []string{
