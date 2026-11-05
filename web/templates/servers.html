@@ -1,56 +1,72 @@
 {{define "actions"}}<a href="/admin/servers/idle" class="btn btn-outline-secondary me-2"><i class="ti ti-server-off me-1" aria-hidden="true"></i>下线建议</a><a href="/admin/servers/new" class="btn btn-primary"><i class="ti ti-plus me-1" aria-hidden="true"></i>新增服务器</a>{{end}}
+{{define "placementCell"}}{{if .Placements}}<div class="dropdown d-inline-block"><button type="button" class="btn btn-link p-0 fw-normal small gap-1 text-nowrap justify-content-start{{if or .Unreachable .LandingUnreachable}} text-red{{end}}" style="min-height:0" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="查看 {{.Placements}} 个部署位状态" title="{{.Placements}} 个部署位"><i class="ti ti-server" aria-hidden="true"></i>{{.Placements}}{{if or .Unreachable .LandingUnreachable}}<i class="ti ti-alert-triangle" aria-hidden="true"></i>{{end}}{{if .Failover}}<i class="ti ti-current-location text-blue" aria-hidden="true"></i>{{end}}</button><div class="dropdown-menu p-2 small text-nowrap">{{if .Failover}}<div><i class="ti ti-current-location text-blue me-1" aria-hidden="true"></i>已切走 {{.Failover}}/{{.Placements}} 个部署位</div>{{end}}{{if .Unreachable}}<div class="text-red"><i class="ti ti-alert-triangle me-1" aria-hidden="true"></i>{{.Unreachable}} 个部署位不可达</div>{{end}}{{if .LandingUnreachable}}<div class="text-red"><i class="ti ti-alert-triangle me-1" aria-hidden="true"></i>{{.LandingUnreachable}} 个落地不可达</div>{{end}}{{if not (or .Failover .Unreachable .LandingUnreachable)}}<div class="text-secondary">全部正常</div>{{end}}</div></div>{{else}}<span class="text-secondary" title="未部署"><i class="ti ti-server-off" aria-hidden="true"></i></span>{{end}}{{end}}
+{{define "usage"}}{{if .UsageText}}<div class="text-nowrap">{{.UsageText}}</div>{{if .UsagePct}}<div class="progress progress-sm mt-1" style="width:6rem"><div class="progress-bar{{if .UsageHigh}} bg-red{{end}}" style="width:{{.UsagePct}}%" role="progressbar" aria-label="本期流量用量" aria-valuenow="{{.UsagePct}}" aria-valuemin="0" aria-valuemax="100"></div></div>{{end}}{{else}}<span class="text-secondary">—</span>{{end}}{{end}}
 {{define "content"}}
 <div class="card">
     <div class="card-header">
-        <form method="get" class="d-flex gap-2 w-100" style="max-width: 420px">
-            {{if .Filter}}<input type="hidden" name="filter" value="{{.Filter}}">{{end}}
-            <input type="search" name="q" value="{{.Q}}" class="form-control" placeholder="名称 / IP / 供应商 / 备注" aria-label="搜索">
-            <button class="btn btn-outline-secondary" type="submit">搜索</button>
+        <form method="get" class="d-flex flex-wrap gap-2 w-100" style="max-width: 640px">
+            <input type="hidden" name="sort" value="{{.Sort}}">
+            <input type="hidden" name="dir" value="{{.Dir}}">
+            <select name="filter" class="form-select w-auto" aria-label="筛选">
+                <option value=""{{if not .Filter}} selected{{end}}>全部</option>
+                <option value="expiring"{{if eq .Filter "expiring"}} selected{{end}}>7 天内到期</option>
+                <option value="abnormal"{{if eq .Filter "abnormal"}} selected{{end}}>异常（切走 / 不可达）</option>
+                <option value="external"{{if eq .Filter "external"}} selected{{end}}>外部</option>
+            </select>
+            <input type="search" name="q" value="{{.Q}}" class="form-control w-auto flex-grow-1" placeholder="名称 / IP / 供应商 / 备注" aria-label="搜索">
+            <button class="btn btn-outline-secondary" type="submit">筛选</button>
         </form>
-        {{if .Filter}}<div class="card-actions"><span class="badge bg-yellow-lt me-2">{{if eq .Filter "expiring"}}7 天内到期{{else}}外部{{end}}</span><a href="/admin/servers" class="btn btn-sm btn-outline-secondary">清除筛选</a></div>{{end}}
     </div>
     <div class="table-responsive">
         <table class="table table-vcenter card-table">
-            <thead><tr><th class="d-none d-md-table-cell">ID</th><th>名称</th><th>IP</th><th class="d-none d-md-table-cell">地区</th><th class="d-none d-md-table-cell">类型</th><th class="d-none d-md-table-cell">到期日</th><th class="d-none d-md-table-cell">部署位</th><th class="d-none d-md-table-cell">状态</th><th class="w-1"></th></tr></thead>
+            <thead><tr><th>名称</th><th class="d-none d-md-table-cell">IP</th><th class="d-none d-md-table-cell">类型</th><th class="d-none d-md-table-cell"><a class="text-reset text-decoration-none" href="{{.SortExpire.URL}}" data-loading title="按到期日排序">到期日 <i class="ti {{.SortExpire.Icon}}" aria-hidden="true"></i></a></th><th class="d-none d-md-table-cell">本期流量</th><th class="d-none d-md-table-cell"><a class="text-reset text-decoration-none" href="{{.SortPlacements.URL}}" data-loading title="按部署位数排序">部署位 <i class="ti {{.SortPlacements.Icon}}" aria-hidden="true"></i></a></th><th class="w-1"></th></tr></thead>
             <tbody>
             {{range .List}}
             <tr>
-                <td class="d-none d-md-table-cell">{{.ID}}</td>
-                <td class="text-break"><a href="/admin/servers/{{.ID}}/edit" class="fw-medium">{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}</a>{{if .Supplier}}<div class="text-secondary small">{{.Supplier}}</div>{{end}}
-                    <div class="d-md-none mt-1">{{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}} {{if .External}}<span class="badge bg-azure-lt">外部</span>{{end}} {{if .Failover}}<span class="badge bg-orange-lt">已切走{{if lt .Failover .Placements}} {{.Failover}}/{{.Placements}}{{end}}</span>{{end}}{{if .Unreachable}} <span class="badge bg-red-lt" title="所有国内探测机连续 3 轮检测失败">{{.Unreachable}} 个部署位不可达</span>{{end}}{{if .LandingUnreachable}} <span class="badge bg-red-lt" title="所有引用它的代理服务器连续 3 轮检测失败">{{.LandingUnreachable}} 个落地不可达</span>{{end}}</div></td>
-                <td>{{.IP}}</td>
-                <td class="d-none d-md-table-cell">{{.Region}}</td>
-                <td class="d-none d-md-table-cell">{{if eq .ServerType 1}}落地{{else}}代理{{end}}</td>
-                <td class="d-none d-md-table-cell">{{if .ExpireDate}}<span class="{{if lt .ExpireDate $.Today}}text-danger{{end}}">{{.ExpireDate}}</span>{{end}}</td>
-                <td class="d-none d-md-table-cell">{{.Placements}}</td>
-                <td class="d-none d-md-table-cell">
-                    {{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{else}}<span class="badge bg-green-lt">启用</span>{{end}}
-                    {{if .External}}<span class="badge bg-azure-lt">外部</span>{{end}}
-                    {{if .Failover}}<span class="badge bg-orange-lt">已切走{{if lt .Failover .Placements}} {{.Failover}}/{{.Placements}}{{end}}</span>{{end}}{{if .Unreachable}} <span class="badge bg-red-lt" title="所有国内探测机连续 3 轮检测失败">{{.Unreachable}} 个部署位不可达</span>{{end}}{{if .LandingUnreachable}} <span class="badge bg-red-lt" title="所有引用它的代理服务器连续 3 轮检测失败">{{.LandingUnreachable}} 个落地不可达</span>{{end}}
-                </td>
+                <td class="text-break"><div class="d-flex flex-wrap align-items-center column-gap-2"><span class="status-dot {{.StatusDot}} flex-shrink-0" role="img" aria-label="{{.StatusLabel}}" title="{{.StatusLabel}}{{if .StatusTitle}}：{{.StatusTitle}}{{end}}"></span><a href="/admin/servers/{{.ID}}/edit" class="fw-medium">{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}</a>{{if .External}}<span class="badge bg-azure-lt flex-shrink-0">外部</span>{{end}}{{if .Supplier}}<span class="text-secondary small">{{.Supplier}}</span>{{end}}<span class="text-secondary small d-md-none">{{.IP}}</span></div>
+                    <div class="d-md-none small text-secondary row g-0 align-items-center pt-1">
+                        <div class="col-3">{{template "placementCell" .}}</div>
+                        <div class="col-4 text-nowrap {{.ExpireClass}}">{{if .ExpireDate}}{{.ExpireShort}}{{if .ExpireNote}} {{.ExpireNote}}{{end}}{{end}}</div>
+                        <div class="col text-nowrap">{{.UsageText}}</div>
+                    </div></td>
+                <td class="d-none d-md-table-cell">{{.IP}}</td>
+                <td class="d-none d-md-table-cell">{{if eq .ServerType 1}}<span class="badge bg-purple-lt">落地</span>{{else}}<span class="badge bg-blue-lt">代理</span>{{end}}</td>
+                <td class="d-none d-md-table-cell text-nowrap">{{if .ExpireDate}}<span class="{{.ExpireClass}}">{{.ExpireDate}}</span>{{if .ExpireNote}}<div class="small {{if .ExpireClass}}{{.ExpireClass}}{{else}}text-secondary{{end}}">{{.ExpireNote}}</div>{{end}}{{end}}</td>
+                <td class="d-none d-md-table-cell" style="min-width:7rem">{{template "usage" .}}</td>
+                <td class="d-none d-md-table-cell">{{template "placementCell" .}}</td>
                 <td class="text-nowrap">
                   <div class="dropdown">
                     <button class="btn btn-sm btn-ghost-secondary" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="更多操作" title="更多操作"><i class="ti ti-dots-vertical d-md-none" aria-hidden="true"></i><span class="d-none d-md-inline">更多<i class="ti ti-chevron-down ms-1" aria-hidden="true"></i></span></button>
                     <div class="dropdown-menu dropdown-menu-end">
                         <a class="dropdown-item" href="/admin/servers/{{.ID}}/edit">编辑</a>
+                        {{if not .External}}<button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#calibrate-modal" data-calibrate data-id="{{.ID}}" data-name="{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}" data-unit="{{if eq .BandwidthUnit "GB"}}GB{{else}}GiB{{end}}">校准流量</button>{{end}}
+                        <form method="post" action="/admin/servers/{{.ID}}/ping"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item">测试连接</button></form>
                         <a class="dropdown-item" href="/admin/servers/{{.ID}}/config" target="_blank" rel="noopener">配置预览</a>
                         {{if not .External}}<a class="dropdown-item" href="/admin/maintenance?server_id={{.ID}}">初始化</a>{{end}}
-                        <form method="post" action="/admin/servers/{{.ID}}/ping"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item">测试连接</button></form>
-                        {{if .Failover}}<form method="post" action="/admin/servers/{{.ID}}/failover" onsubmit="return confirm('恢复后相关域名将切回该服务器，确定？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="on" value="0"><button class="dropdown-item">恢复流量</button></form>{{end}}
-                        {{if lt .Failover .Placements}}<form method="post" action="/admin/servers/{{.ID}}/failover" onsubmit="return confirm('将把该服务器全部部署位的域名切到同节点其他部署位，确定？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="on" value="1"><button class="dropdown-item text-warning">切走流量</button></form>{{end}}
-                        <form method="post" action="/admin/servers/{{.ID}}/clear-host-key" onsubmit="return confirm('服务器重装后才需要清除主机密钥，确定？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item">清除主机密钥</button></form>
-                        <form method="post" action="/admin/servers/{{.ID}}/delete" onsubmit="return confirm('确定删除该服务器？')"><input type="hidden" name="csrf" value="{{$.CSRF}}">
-                            <button class="dropdown-item text-danger" type="submit">删除</button></form>
+                        {{if .Failover}}<form method="post" action="/admin/servers/{{.ID}}/failover" data-confirm="恢复后相关域名将切回该服务器，确定？"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="on" value="0"><button class="dropdown-item">恢复流量</button></form>{{end}}
+                        {{if lt .Failover .Placements}}<form method="post" action="/admin/servers/{{.ID}}/failover" data-confirm="将把该服务器全部部署位的域名切到同节点其他部署位，确定？"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="on" value="1"><button class="dropdown-item text-warning">切走流量</button></form>{{end}}
+                        <div class="dropdown-divider"></div>
+                        <form method="post" action="/admin/servers/{{.ID}}/clear-host-key" data-confirm="服务器重装后才需要清除主机密钥，确定？" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item text-danger">清除主机密钥</button></form>
+                        <form method="post" action="/admin/servers/{{.ID}}/delete" data-confirm="确定删除该服务器？" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item text-danger" type="submit">删除</button></form>
                     </div>
                   </div>
                 </td>
             </tr>
             {{else}}
-            <tr><td colspan="8" class="text-center text-secondary py-4">暂无服务器</td></tr>
+            <tr><td colspan="7" class="text-center text-secondary py-4">暂无服务器</td></tr>
             {{end}}
             </tbody>
         </table>
     </div>
-    <div class="card-footer d-flex">{{template "pager" .}}</div>
+    {{if gt .Pages 1}}<div class="card-footer d-flex">{{template "pager" .}}</div>{{end}}
 </div>
+<div class="modal modal-blur fade" id="calibrate-modal" tabindex="-1" aria-labelledby="calibrate-title" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form method="post" class="modal-content">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<div class="modal-header"><h5 class="modal-title" id="calibrate-title">校准本期流量</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+<div class="modal-body"><div class="fw-bold text-break mb-3" data-calibrate-name></div>
+<label class="form-label required" for="calibrate-used">服务商面板显示的本期已用流量</label>
+<div class="input-group"><input type="number" class="form-control" id="calibrate-used" name="used" min="0" step="0.01" inputmode="decimal" required><span class="input-group-text" data-calibrate-unit></span></div>
+<div class="form-hint mt-2">仅对当前流量周期生效，下个周期自动恢复；重复校准以 vnstat 原始值为基准。</div></div>
+<div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">确认校准</button></div>
+</form></div></div>
 {{end}}

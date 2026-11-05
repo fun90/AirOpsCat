@@ -100,6 +100,44 @@ func InsertVnstatSample(ctx context.Context, db *sql.DB, serverID int64, v monit
 	return err
 }
 
+// CalibrateServerTraffic 把服务器当前周期已用流量（上+下，字节）校准为 usedBytes：
+// 差值写入 traffic_offset（仅本周期生效），并同步修正本周期最新一条 vnstat 样本，使页面立即生效。
+func CalibrateServerTraffic(ctx context.Context, db *sql.DB, serverID, usedBytes int64, at time.Time) error {
+	if usedBytes < 0 {
+		return fmt.Errorf("%w：已用流量不能为负", ErrInvalid)
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var sampleID, total, offset int64
+	var period int
+	var offsetPeriod sql.NullString
+	err = tx.QueryRowContext(ctx, `SELECT v.id,v.period_year*100+v.period_month,coalesce(v.rx_bytes,0)+coalesce(v.tx_bytes,0),s.traffic_offset,s.traffic_offset_period
+ FROM server s JOIN server_metrics v ON v.id=`+latestVnstatSQL+` WHERE s.id=?`,
+		append(vnstatPeriodArgs(at), serverID)...).Scan(&sampleID, &period, &total, &offset, &offsetPeriod)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("%w：当前周期暂无 vnstat 数据，无法校准", ErrInvalid)
+	}
+	if err != nil {
+		return err
+	}
+	periodText := fmt.Sprintf("%04d-%02d", period/100, period%100)
+	var oldEff int64
+	if offsetPeriod.Valid && offsetPeriod.String == periodText {
+		oldEff = offset
+	}
+	newOffset := usedBytes - (total - oldEff)
+	if _, err := tx.ExecContext(ctx, `UPDATE server SET traffic_offset=?,traffic_offset_period=? WHERE id=?`, newOffset, periodText, serverID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE server_metrics SET tx_bytes=coalesce(tx_bytes,0)+? WHERE id=?`, newOffset-oldEff, sampleID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // MetricPoints 返回 since 之后某指标列（cpu_usage / memory_usage / disk_usage / singbox_down）的采样，按时间升序。
 func MetricPoints(ctx context.Context, db *sql.DB, serverID int64, column string, since time.Time) ([]monitor.Point, error) {
 	if column != "cpu_usage" && column != "memory_usage" && column != "disk_usage" && column != "singbox_down" {

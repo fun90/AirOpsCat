@@ -17,6 +17,7 @@ func (s *Server) deployRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/servers/{id}/deploy", s.serverDeploy)
 	m.HandleFunc("GET /admin/servers/{id}/config", s.serverConfigPreview)
 	m.HandleFunc("POST /admin/servers/{id}/ping", s.serverPing)
+	m.HandleFunc("POST /admin/servers/{id}/calibrate-traffic", s.serverCalibrateTraffic)
 	m.HandleFunc("POST /admin/servers/{id}/clear-host-key", s.serverClearHostKey)
 }
 

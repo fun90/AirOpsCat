@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -180,22 +182,126 @@ func (s *Server) serverFailover(w http.ResponseWriter, r *http.Request) {
 	redirectMsg(w, r, "/admin/servers", "msg", "已"+action+"并执行 DNS 切换，结果见系统日志")
 }
 
+// serverRow 是列表行：到期与流量的展示文字在这里算好。
+type serverRow struct {
+	*store.Server
+	ExpireClass, ExpireNote string
+	ExpireShort             string
+	UsageText               string
+	UsagePct                int
+	UsageHigh               bool
+	StatusDot, StatusLabel  string // 状态点颜色与简短文字；详情放进 StatusTitle 悬浮提示
+	StatusTitle             string
+}
+
+func newServerRow(sv *store.Server, today time.Time) serverRow {
+	r := serverRow{Server: sv, StatusDot: "status-green", StatusLabel: "正常"}
+	var detail []string
+	if sv.Failover > 0 {
+		detail = append(detail, fmt.Sprintf("已切走 %d/%d 个部署位", sv.Failover, sv.Placements))
+	}
+	if sv.Unreachable > 0 {
+		detail = append(detail, fmt.Sprintf("%d 个部署位不可达", sv.Unreachable))
+	}
+	if sv.LandingUnreachable > 0 {
+		detail = append(detail, fmt.Sprintf("%d 个落地不可达", sv.LandingUnreachable))
+	}
+	switch {
+	case sv.Disabled:
+		r.StatusDot, r.StatusLabel = "status-secondary", "已禁用"
+	case sv.Unreachable > 0 || sv.LandingUnreachable > 0:
+		r.StatusDot, r.StatusLabel = "status-red", "不可达"
+	case sv.Failover > 0:
+		r.StatusDot, r.StatusLabel = "status-yellow", "已切走"
+	}
+	r.StatusTitle = strings.Join(detail, "；")
+	r.ExpireShort = sv.ExpireDate
+	if len(sv.ExpireDate) >= 10 {
+		if exp, err := time.ParseInLocation("2006-01-02", sv.ExpireDate[:10], store.Shanghai); err == nil {
+			if exp.Year() == today.Year() {
+				r.ExpireShort = exp.Format("01-02")
+			}
+			days := int(exp.Sub(today).Hours() / 24)
+			switch {
+			case days < 0:
+				r.ExpireClass, r.ExpireNote = "text-danger", "已过期 "+strconv.Itoa(-days)+" 天"
+			case days <= 7:
+				r.ExpireClass, r.ExpireNote = "text-warning", "剩 "+strconv.Itoa(days)+" 天"
+			case days <= 30:
+				r.ExpireNote = "剩 " + strconv.Itoa(days) + " 天"
+			}
+		}
+	}
+	if sv.HasUsage {
+		unit := store.BandwidthUnitOrDefault(sv.BandwidthUnit)
+		used := float64(sv.UsedBytes) / store.UnitBytes(unit)
+		if sv.Bandwidth != nil && *sv.Bandwidth > 0 {
+			ratio := float64(sv.UsedBytes) / (float64(*sv.Bandwidth) * store.UnitBytes(unit))
+			r.UsageText = serverUsageText(used, float64(*sv.Bandwidth), unit)
+			r.UsagePct, r.UsageHigh = min(int(ratio*100), 100), ratio >= 0.85
+		} else {
+			r.UsageText = serverUsageText(used, 0, unit)
+		}
+	}
+	return r
+}
+
+// serverUsageText 返回「已用 / 额度 单位」；无额度时为「已用 单位」。unit 为 GB 或 GiB，
+// 额度（无额度时用已用值）达到 1 T（GB 为 1000，GiB 为 1024）时分子分母一起换成 TB/TiB，最多两位小数。
+func serverUsageText(used float64, quota float64, unit string) string {
+	base, tUnit := 1024.0, "TiB"
+	if unit == store.UnitGB {
+		base, tUnit = 1000, "TB"
+	}
+	ref := quota
+	if ref <= 0 {
+		ref = used
+	}
+	trim := func(v float64) string { return strconv.FormatFloat(math.Round(v*100)/100, 'f', -1, 64) }
+	if ref >= base {
+		used, quota, unit = used/base, quota/base, tUnit
+		if quota > 0 {
+			return trim(used) + " / " + trim(quota) + " " + unit
+		}
+		return trim(used) + " " + unit
+	}
+	if quota > 0 {
+		return fmt.Sprintf("%.1f / %s %s", used, trim(quota), unit)
+	}
+	return fmt.Sprintf("%.1f %s", used, unit)
+}
+
 func (s *Server) serverList(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	page, size := pageParams(r)
 	filter := r.URL.Query().Get("filter")
-	if filter != "external" && filter != "expiring" {
+	if filter != "external" && filter != "expiring" && filter != "abnormal" {
 		filter = ""
 	}
-	list, total, err := store.ServerList(r.Context(), s.DB, q, filter, time.Now(), page, size)
+	sort, asc := r.URL.Query().Get("sort"), r.URL.Query().Get("dir") == "asc"
+	if sort != "expire" && sort != "placements" {
+		sort = ""
+	}
+	now := time.Now()
+	list, total, err := store.ServerList(r.Context(), s.DB, q, filter, sort, asc, now, page, size)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
+	local := now.In(store.Shanghai)
+	today := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, store.Shanghai)
+	rows := make([]serverRow, len(list))
+	for i, sv := range list {
+		rows[i] = newServerRow(sv, today)
+	}
 	d := s.pageData(r, "服务器", "servers")
-	d["List"], d["Total"], d["Q"], d["Page"], d["Pages"] = list, total, q, page, (total+size-1)/size
-	d["Filter"] = filter
-	d["Today"] = time.Now().In(store.Shanghai).Format("2006-01-02")
+	d["List"], d["Total"], d["Q"], d["Page"], d["Pages"] = rows, total, q, page, (total+size-1)/size
+	d["Filter"], d["Sort"] = filter, sort
+	d["Dir"] = "desc"
+	if asc {
+		d["Dir"] = "asc"
+	}
+	d["SortExpire"], d["SortPlacements"] = sortHeader(r.URL.Query(), "expire", sort, asc), sortHeader(r.URL.Query(), "placements", sort, asc)
 	s.render(w, "servers", http.StatusOK, d)
 }
 

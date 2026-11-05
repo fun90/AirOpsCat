@@ -2,7 +2,9 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -342,6 +344,34 @@ func newStatusView(st store.ServerStatus, now time.Time) statusView {
 		v.Stale = now.Sub(t) > 3*interval
 	}
 	return v
+}
+
+// serverCalibrateTraffic 按服务商面板的实际已用值（服务器额度单位）校准本周期流量。
+func (s *Server) serverCalibrateTraffic(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "id")
+	if !ok {
+		return
+	}
+	used, err := strconv.ParseFloat(strings.TrimSpace(r.PostFormValue("used")), 64)
+	if err != nil || math.IsNaN(used) || used < 0 || used > 1e9 {
+		redirectMsg(w, r, "/admin/servers", "err", "请填写有效的已用流量")
+		return
+	}
+	var unit string
+	if err := s.DB.QueryRowContext(r.Context(), `SELECT coalesce(bandwidth_unit,'GiB') FROM server WHERE id=?`, id).Scan(&unit); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	unit = store.BandwidthUnitOrDefault(unit)
+	if err := store.CalibrateServerTraffic(r.Context(), s.DB, id, int64(used*store.UnitBytes(unit)), time.Now()); err != nil {
+		if errors.Is(err, store.ErrInvalid) {
+			redirectMsg(w, r, "/admin/servers", "err", err.Error())
+			return
+		}
+		s.fail(w, r, err)
+		return
+	}
+	redirectMsg(w, r, "/admin/servers", "msg", fmt.Sprintf("本周期流量已校准为 %s %s", strconv.FormatFloat(used, 'f', -1, 64), unit))
 }
 
 func (s *Server) monitorList(w http.ResponseWriter, r *http.Request) {

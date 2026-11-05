@@ -98,3 +98,57 @@ func TestVnstatTrafficOffset(t *testing.T) {
 		t.Fatalf("校准值只应叠加到所属周期: %v", sums)
 	}
 }
+
+func TestCalibrateServerTraffic(t *testing.T) {
+	db, ctx := testDB(t)
+	mustExec(t, db, `INSERT INTO server(id,ip,name) VALUES(1,'1.1.1.1','HK')`)
+	at := time.Date(2026, 10, 20, 12, 0, 0, 0, Shanghai)
+	if err := CalibrateServerTraffic(ctx, db, 1, 100, at); err == nil {
+		t.Fatal("无 vnstat 数据应报错")
+	}
+	InsertVnstatSample(ctx, db, 1, monitor.Vnstat{Iface: "eth0", Year: 2026, Month: 10, RxBytes: 1000, TxBytes: 2000}, at)
+	for _, want := range []int64{5000, 800} { // 重复校准以原始值为基准，可上调也可下调
+		if err := CalibrateServerTraffic(ctx, db, 1, want, at); err != nil {
+			t.Fatal(err)
+		}
+		var sum int64
+		db.QueryRow(`SELECT rx_bytes+tx_bytes FROM server_metrics WHERE kind='vnstat' ORDER BY id DESC LIMIT 1`).Scan(&sum)
+		if sum != want {
+			t.Fatalf("校准后应为 %d，实际 %d", want, sum)
+		}
+	}
+	// 后续采样沿用校准值：原始 3500 → 800 - 3000 = -2200 偏移
+	InsertVnstatSample(ctx, db, 1, monitor.Vnstat{Iface: "eth0", Year: 2026, Month: 10, RxBytes: 1500, TxBytes: 2000}, at.Add(time.Minute))
+	var sum int64
+	db.QueryRow(`SELECT rx_bytes+tx_bytes FROM server_metrics WHERE kind='vnstat' ORDER BY id DESC LIMIT 1`).Scan(&sum)
+	if sum != 1300 {
+		t.Fatalf("后续样本应叠加校准值: %d", sum)
+	}
+	if err := CalibrateServerTraffic(ctx, db, 1, -1, at); err == nil {
+		t.Fatal("负值应报错")
+	}
+}
+
+func TestServerListUsageSortFilter(t *testing.T) {
+	db, ctx := testDB(t)
+	mustExec(t, db, `INSERT INTO server(id,ip,name,expire_date,bandwidth) VALUES(1,'192.0.2.1','A','2026-12-30',100),(2,'192.0.2.2','B','2026-11-10',0),(3,'192.0.2.3','C',NULL,NULL)`)
+	at := time.Date(2026, 10, 20, 12, 0, 0, 0, Shanghai)
+	InsertVnstatSample(ctx, db, 1, monitor.Vnstat{Iface: "eth0", Year: 2026, Month: 10, RxBytes: 100, TxBytes: 200}, at)
+	list, total, err := ServerList(ctx, db, "", "", "expire", true, at, 1, 10)
+	if err != nil || total != 3 || list[0].ID != 2 || list[1].ID != 1 || list[2].ID != 3 {
+		t.Fatalf("按到期日升序且空值在后: %v %v", err, list)
+	}
+	byID := map[int64]*Server{}
+	for _, s := range list {
+		byID[s.ID] = s
+	}
+	if !byID[1].HasUsage || byID[1].UsedBytes != 300 || byID[2].HasUsage {
+		t.Fatalf("流量只应出现在有 vnstat 的服务器: %+v", byID[1])
+	}
+	if byID[1].Bandwidth == nil || *byID[1].Bandwidth != 100 || byID[2].Bandwidth == nil || *byID[2].Bandwidth != 0 || byID[3].Bandwidth != nil {
+		t.Fatal("列表应保留额度数值，并区分零额度和未设置")
+	}
+	if l, _, err := ServerList(ctx, db, "", "abnormal", "", false, at, 1, 10); err != nil || len(l) != 0 {
+		t.Fatalf("无异常部署位: %v %v", err, l)
+	}
+}

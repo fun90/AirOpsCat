@@ -37,10 +37,12 @@ type Server struct {
 	Disabled           bool
 	External           bool
 	Remark             string
-	Failover           int // 已手动切走的部署位数：DNS 自动切到同节点其他部署位
-	Placements         int // 列表用：部署位数量
-	Unreachable        int // 列表用：国内探测判定不可达的代理部署位数
-	LandingUnreachable int // 列表用：代理服务器探测判定不可达的落地部署位数
+	Failover           int   // 已手动切走的部署位数：DNS 自动切到同节点其他部署位
+	Placements         int   // 列表用：部署位数量
+	Unreachable        int   // 列表用：国内探测判定不可达的代理部署位数
+	LandingUnreachable int   // 列表用：代理服务器探测判定不可达的落地部署位数
+	UsedBytes          int64 // 列表用：当前流量周期 vnstat 已用（上+下）
+	HasUsage           bool  // 列表用：当前周期是否有 vnstat 数据
 }
 
 const serverCols = `id, coalesce(name,''), ip, coalesce(ssh_port,22), coalesce(auth_type,'PASSWORD'), coalesce(username,''),
@@ -73,8 +75,11 @@ func scanServer(row interface{ Scan(...any) error }) (*Server, error) {
 	return &s, nil
 }
 
+// serverLatestVnstat 是 latestVnstatSQL 改写到未起别名的 server 表上的版本。
+var serverLatestVnstat = strings.NewReplacer("s.id", "server.id", "s.bandwidth_date", "server.bandwidth_date").Replace(latestVnstatSQL)
+
 // ServerList 分页查询服务器，search 匹配名称、IP、域名、供应商、备注。
-func ServerList(ctx context.Context, db *sql.DB, search, filter string, now time.Time, page, size int) ([]*Server, int, error) {
+func ServerList(ctx context.Context, db *sql.DB, search, filter, sort string, asc bool, now time.Time, page, size int) ([]*Server, int, error) {
 	where, args := "1=1", []any{}
 	if search != "" {
 		where = `(name LIKE ? OR ip LIKE ? OR supplier LIKE ? OR remark LIKE ?)`
@@ -89,15 +94,33 @@ func ServerList(ctx context.Context, db *sql.DB, search, filter string, now time
 		local := now.In(Shanghai)
 		where += ` AND disabled=0 AND external_server=0 AND substr(expire_date,1,10)>=? AND substr(expire_date,1,10)<=?`
 		args = append(args, local.Format("2006-01-02"), local.AddDate(0, 0, 7).Format("2006-01-02"))
+	case "abnormal":
+		where += ` AND disabled=0 AND EXISTS (SELECT 1 FROM node_server ns WHERE ns.server_id = server.id AND (ns.failover = 1 OR ns.id IN (` + unreachableSQL + `)))`
+		args = append(args, ProbeFailRounds)
+	}
+	dir := "DESC"
+	if asc {
+		dir = "ASC"
+	}
+	order := "id DESC"
+	switch sort {
+	case "expire":
+		order = "(expire_date IS NULL OR expire_date='') ASC, expire_date " + dir + ", id DESC"
+	case "placements":
+		order = "(SELECT count(*) FROM node_server ns WHERE ns.server_id = server.id) " + dir + ", id DESC"
 	}
 	var total int
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM server WHERE "+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
+	queryArgs := append([]any{ProbeFailRounds, ProbeFailRounds}, vnstatPeriodArgs(now)...)
+	queryArgs = append(queryArgs, args...)
+	queryArgs = append(queryArgs, size, (page-1)*size)
 	rows, err := db.QueryContext(ctx, `SELECT `+serverCols+`, (SELECT count(*) FROM node_server ns WHERE ns.server_id = server.id),
 		(SELECT count(*) FROM node_server ns JOIN node n ON n.id = ns.node_id WHERE ns.server_id = server.id AND coalesce(n.type,0) <> 1 AND ns.id IN (`+unreachableSQL+`)),
-		(SELECT count(*) FROM node_server ns JOIN node n ON n.id = ns.node_id WHERE ns.server_id = server.id AND n.type = 1 AND ns.id IN (`+unreachableSQL+`))
-		FROM server WHERE `+where+` ORDER BY id DESC LIMIT ? OFFSET ?`, append(append([]any{ProbeFailRounds, ProbeFailRounds}, args...), size, (page-1)*size)...)
+		(SELECT count(*) FROM node_server ns JOIN node n ON n.id = ns.node_id WHERE ns.server_id = server.id AND n.type = 1 AND ns.id IN (`+unreachableSQL+`)),
+		(SELECT coalesce(v.rx_bytes,0)+coalesce(v.tx_bytes,0) FROM server_metrics v WHERE v.id=`+serverLatestVnstat+`)
+		FROM server WHERE `+where+` ORDER BY `+order+` LIMIT ? OFFSET ?`, queryArgs...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -105,11 +128,18 @@ func ServerList(ctx context.Context, db *sql.DB, search, filter string, now time
 	var list []*Server
 	for rows.Next() {
 		var s Server
-		var price, bw, cpu sql.NullInt64
+		var price, bw, cpu, used sql.NullInt64
 		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.SSHPort, &s.AuthType, &s.Username, &s.HasAuth, &s.Region,
 			&s.ServerType, &s.ExpireDate, &s.BandwidthDay, &s.Supplier, &price, &s.PriceMonths, &s.Multiple, &bw, &s.BandwidthUnit, &cpu,
-			&s.Disabled, &s.External, &s.Remark, &s.Failover, &s.Placements, &s.Unreachable, &s.LandingUnreachable); err != nil {
+			&s.Disabled, &s.External, &s.Remark, &s.Failover, &s.Placements, &s.Unreachable, &s.LandingUnreachable, &used); err != nil {
 			return nil, 0, err
+		}
+		if bw.Valid {
+			v := int(bw.Int64)
+			s.Bandwidth = &v
+		}
+		if used.Valid {
+			s.UsedBytes, s.HasUsage = used.Int64, true
 		}
 		list = append(list, &s)
 	}
