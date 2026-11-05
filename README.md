@@ -12,7 +12,7 @@
 
 ## 本地启动
 
-需要 Go 1.26。首次启动使用环境变量设置管理员；敏感值不要提交到 Git。
+需要 Go 1.27.3 或更新版本。CI 与正式发行构建统一从 `go.mod` 读取 Go 版本。首次启动使用环境变量设置管理员；敏感值不要提交到 Git。
 
 ```bash
 export AIROPSCAT_SECRET_KEY="$(openssl rand -base64 48)"
