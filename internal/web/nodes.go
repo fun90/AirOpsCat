@@ -336,12 +336,7 @@ func prettyJSON(s string) string {
 func (s *Server) nodeEdit(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
 	n, err := store.NodeByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	if n == nil {
-		http.NotFound(w, r)
+	if !s.recordFound(w, r, n != nil, err) {
 		return
 	}
 	s.nodeFormPage(w, r, http.StatusOK, formFromNode(n), "", nil)
@@ -434,11 +429,7 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 			s.nodeFormPage(w, r, http.StatusUnprocessableEntity, f, err.Error(), echo, ops)
 			return
 		}
-		if errors.Is(err, sql.ErrNoRows) {
-			http.NotFound(w, r)
-			return
-		}
-		s.fail(w, r, err)
+		s.requestError(w, r, err)
 		return
 	}
 	msg := "节点已保存"
@@ -497,12 +488,7 @@ func (s *Server) nodeToggle(w http.ResponseWriter, r *http.Request) {
 func (s *Server) nodeDelete(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
 	gone, err := store.DeleteNode(r.Context(), s.DB, id)
-	if err != nil {
-		if errors.Is(err, store.ErrConflict) {
-			redirectMsg(w, r, "/admin/nodes", "err", err.Error())
-			return
-		}
-		s.fail(w, r, err)
+	if s.redirectError(w, r, "/admin/nodes", err, store.ErrConflict) {
 		return
 	}
 	msg := "节点已删除"
@@ -514,12 +500,7 @@ func (s *Server) nodeDelete(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) nodeCancelDelete(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
-	if err := store.CancelDeleteNode(r.Context(), s.DB, id); err != nil {
-		if errors.Is(err, store.ErrInvalid) || errors.Is(err, store.ErrConflict) {
-			redirectMsg(w, r, "/admin/nodes", "err", err.Error())
-			return
-		}
-		s.fail(w, r, err)
+	if s.redirectError(w, r, "/admin/nodes", store.CancelDeleteNode(r.Context(), s.DB, id), store.ErrInvalid, store.ErrConflict) {
 		return
 	}
 	redirectMsg(w, r, "/admin/nodes", "msg", "已取消删除，节点置为待部署")

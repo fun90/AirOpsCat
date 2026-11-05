@@ -1,7 +1,6 @@
 package web
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -39,12 +38,7 @@ func (s *Server) accountBatchTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	updated, unchanged, err := store.BatchAccountTags(r.Context(), s.DB, accounts, tags, r.PostFormValue("mode"))
-	if err != nil {
-		if errors.Is(err, store.ErrInvalid) {
-			redirectMsg(w, r, "/admin/accounts", "err", err.Error())
-			return
-		}
-		s.fail(w, r, err)
+	if s.redirectError(w, r, "/admin/accounts", err, store.ErrInvalid) {
 		return
 	}
 	msg := fmt.Sprintf("标签已更新 %d 个账户，未变化 %d 个", updated, unchanged)

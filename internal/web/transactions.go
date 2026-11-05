@@ -152,12 +152,7 @@ func (s *Server) transactionEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := store.TransactionByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	if t == nil {
-		http.NotFound(w, r)
+	if !s.recordFound(w, r, t != nil, err) {
 		return
 	}
 	s.transactionFormPage(w, r, http.StatusOK, transactionToForm(t), "")
@@ -167,11 +162,7 @@ func transactionFromForm(r *http.Request, id int64) (*transactionForm, *store.Tr
 	f := &transactionForm{ID: id, TransactionDate: formValue(r, "transaction_date"), Amount: formValue(r, "amount"), Type: formValue(r, "type"), BusinessRef: formValue(r, "business_ref"), Description: formValue(r, "description"), PaymentMethod: formValue(r, "payment_method"), Remark: formValue(r, "remark")}
 	t := &store.Transaction{ID: id, Description: f.Description, PaymentMethod: f.PaymentMethod, Remark: f.Remark}
 	var err error
-	for _, layout := range []string{"2006-01-02T15:04:05", "2006-01-02T15:04"} {
-		if t.TransactionDate, err = time.ParseInLocation(layout, f.TransactionDate, store.Shanghai); err == nil {
-			break
-		}
-	}
+	t.TransactionDate, err = parseFormTime(f.TransactionDate)
 	if err != nil {
 		return f, nil, fmt.Errorf("发生时间格式不正确")
 	}
@@ -193,13 +184,9 @@ func transactionFromForm(r *http.Request, id int64) (*transactionForm, *store.Tr
 }
 
 func (s *Server) transactionSave(w http.ResponseWriter, r *http.Request) {
-	id := int64(0)
-	if r.PathValue("id") != "" {
-		var ok bool
-		id, ok = pathID(w, r, "id")
-		if !ok {
-			return
-		}
+	id, ok := optionalPathID(w, r)
+	if !ok {
+		return
 	}
 	f, t, err := transactionFromForm(r, id)
 	if err == nil {
@@ -225,12 +212,7 @@ func (s *Server) transactionDelete(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := store.DeleteTransaction(r.Context(), s.DB, id); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			http.NotFound(w, r)
-			return
-		}
-		s.fail(w, r, err)
+	if s.requestError(w, r, store.DeleteTransaction(r.Context(), s.DB, id)) {
 		return
 	}
 	redirectMsg(w, r, "/admin/transactions", "msg", "流水已删除")

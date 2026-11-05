@@ -49,25 +49,18 @@ func (s *Server) dnsProviderEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := store.DNSProviderByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	if p == nil {
-		http.NotFound(w, r)
+	if !s.recordFound(w, r, p != nil, err) {
 		return
 	}
 	s.dnsProviderForm(w, r, 200, p, "")
 }
 
 func (s *Server) dnsProviderSave(w http.ResponseWriter, r *http.Request) {
-	p := &store.DNSProvider{Name: formValue(r, "name"), AccountID: formValue(r, "account_id"), Remark: formValue(r, "remark"), Enabled: r.PostFormValue("enabled") == "1"}
-	if r.PathValue("id") != "" {
-		var ok bool
-		if p.ID, ok = pathID(w, r, "id"); !ok {
-			return
-		}
+	id, ok := optionalPathID(w, r)
+	if !ok {
+		return
 	}
+	p := &store.DNSProvider{ID: id, Name: formValue(r, "name"), AccountID: formValue(r, "account_id"), Remark: formValue(r, "remark"), Enabled: r.PostFormValue("enabled") == "1"}
 	_, err := store.SaveDNSProvider(r.Context(), s.DB, s.Field, p, strings.TrimSpace(r.PostFormValue("api_token")))
 	if err != nil {
 		msg, ok := s.saveErr(w, r, err)

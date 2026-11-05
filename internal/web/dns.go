@@ -73,12 +73,8 @@ func (s *Server) saveErr(w http.ResponseWriter, r *http.Request, err error) (str
 // domainOr404 查域名；出错或不存在时已写出响应并返回 nil。
 func (s *Server) domainOr404(w http.ResponseWriter, r *http.Request, id int64) *store.DNSDomain {
 	dm, err := store.DNSDomainByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
+	if !s.recordFound(w, r, dm != nil, err) {
 		return nil
-	}
-	if dm == nil {
-		http.NotFound(w, r)
 	}
 	return dm
 }
@@ -147,13 +143,11 @@ func (s *Server) domainEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) domainSave(w http.ResponseWriter, r *http.Request) {
-	dm := &store.DNSDomain{Domain: formValue(r, "domain"), ZoneID: formValue(r, "zone_id"), ExpireDate: formValue(r, "expire_date"), Supplier: formValue(r, "supplier"), Remark: formValue(r, "remark")}
-	if r.PathValue("id") != "" {
-		var ok bool
-		if dm.ID, ok = pathID(w, r, "id"); !ok {
-			return
-		}
+	id, ok := optionalPathID(w, r)
+	if !ok {
+		return
 	}
+	dm := &store.DNSDomain{ID: id, Domain: formValue(r, "domain"), ZoneID: formValue(r, "zone_id"), ExpireDate: formValue(r, "expire_date"), Supplier: formValue(r, "supplier"), Remark: formValue(r, "remark")}
 	defer lockDomain(dm.ID)()
 	if v, err := strconv.ParseInt(formValue(r, "provider_id"), 10, 64); err == nil && v > 0 {
 		dm.ProviderID = &v

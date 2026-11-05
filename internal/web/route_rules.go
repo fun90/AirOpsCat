@@ -71,12 +71,7 @@ func (s *Server) routeRuleEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rule, err := store.RouteRuleByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	if rule == nil {
-		http.NotFound(w, r)
+	if !s.recordFound(w, r, rule != nil, err) {
 		return
 	}
 	f := &RouteRuleForm{ID: id, Name: rule.Name, RuleType: rule.RuleType, RuleValue: prettyJSON(rule.RuleValue), OutboundNodeID: strconv.FormatInt(rule.OutboundNodeID, 10), Remark: rule.Remark, Enabled: rule.Enabled, ServerIDs: map[int64]bool{}}
@@ -87,13 +82,9 @@ func (s *Server) routeRuleEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) routeRuleSave(w http.ResponseWriter, r *http.Request) {
-	var id int64
-	if r.PathValue("id") != "" {
-		var ok bool
-		id, ok = pathID(w, r, "id")
-		if !ok {
-			return
-		}
+	id, ok := optionalPathID(w, r)
+	if !ok {
+		return
 	}
 	f := &RouteRuleForm{ID: id, Name: formValue(r, "name"), RuleType: formValue(r, "rule_type"), RuleValue: r.PostFormValue("rule_value"), OutboundNodeID: formValue(r, "outbound_node_id"), Remark: formValue(r, "remark"), Enabled: r.PostFormValue("enabled") == "1", ServerIDs: map[int64]bool{}}
 	rule := &store.RouteRule{ID: id, Name: f.Name, RuleType: f.RuleType, RuleValue: f.RuleValue, Remark: f.Remark, Enabled: f.Enabled}
@@ -137,12 +128,7 @@ func (s *Server) routeRuleToggle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "状态不正确", 422)
 		return
 	}
-	if err := store.ToggleRouteRule(r.Context(), s.DB, id, enabled == "1"); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			http.NotFound(w, r)
-		} else {
-			s.fail(w, r, err)
-		}
+	if s.requestError(w, r, store.ToggleRouteRule(r.Context(), s.DB, id, enabled == "1")) {
 		return
 	}
 	redirectMsg(w, r, "/admin/routes", "msg", "路由规则状态已更新；"+routeRuleDeployHint)
@@ -153,12 +139,7 @@ func (s *Server) routeRuleDelete(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := store.DeleteRouteRule(r.Context(), s.DB, id); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			http.NotFound(w, r)
-		} else {
-			s.fail(w, r, err)
-		}
+	if s.requestError(w, r, store.DeleteRouteRule(r.Context(), s.DB, id)) {
 		return
 	}
 	redirectMsg(w, r, "/admin/routes", "msg", "路由规则已删除；"+routeRuleDeployHint)

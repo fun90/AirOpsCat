@@ -1,7 +1,6 @@
 package web
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -271,12 +270,7 @@ func accountToForm(a *store.Account) *accountForm {
 }
 func (s *Server) accountEdit(w http.ResponseWriter, r *http.Request) {
 	a, err := store.AccountByID(r.Context(), s.DB, idFrom(r))
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	if a == nil {
-		http.NotFound(w, r)
+	if !s.recordFound(w, r, a != nil, err) {
 		return
 	}
 	s.accountFormPage(w, r, 200, accountToForm(a), "")
@@ -285,12 +279,11 @@ func sqlDate(v string) (string, error) {
 	if v == "" {
 		return "", nil
 	}
-	for _, layout := range []string{"2006-01-02T15:04:05", formDateLayout} {
-		if t, err := time.ParseInLocation(layout, v, store.Shanghai); err == nil {
-			return t.Format(store.TimeLayout), nil
-		}
+	t, err := parseFormTime(v)
+	if err != nil {
+		return "", fmt.Errorf("日期时间格式不正确")
 	}
-	return "", fmt.Errorf("日期时间格式不正确")
+	return t.Format(store.TimeLayout), nil
 }
 func parseAmount(v string) (*int64, error) {
 	if strings.TrimSpace(v) == "" {
@@ -459,15 +452,9 @@ func (s *Server) deployAccountPending(w http.ResponseWriter, r *http.Request, ba
 	s.runDeploy(w, r, back, ids, none)
 }
 func (s *Server) accountActionResult(w http.ResponseWriter, r *http.Request, err error, msg string) {
-	if err != nil {
-		if errors.Is(err, store.ErrInvalid) || errors.Is(err, store.ErrConflict) {
-			redirectMsg(w, r, "/admin/accounts", "err", err.Error())
-			return
-		}
-		s.fail(w, r, err)
-		return
+	if !s.redirectError(w, r, "/admin/accounts", err, store.ErrInvalid, store.ErrConflict) {
+		redirectMsg(w, r, "/admin/accounts", "msg", msg)
 	}
-	redirectMsg(w, r, "/admin/accounts", "msg", msg)
 }
 func (s *Server) accountToggle(w http.ResponseWriter, r *http.Request) {
 	s.accountActionResult(w, r, store.SetAccountDisabled(r.Context(), s.DB, idFrom(r), r.PostFormValue("disabled") == "1"), "账户状态已更新，相关节点需重新部署")
@@ -516,12 +503,7 @@ func (s *Server) accountUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u, err := store.AccountUsage(r.Context(), s.DB, id, time.Now())
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			http.NotFound(w, r)
-		} else {
-			s.fail(w, r, err)
-		}
+	if s.requestError(w, r, err) {
 		return
 	}
 	percent := "不限量"

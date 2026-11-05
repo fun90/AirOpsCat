@@ -83,12 +83,7 @@ func (s *Server) maintenanceRun(w http.ResponseWriter, r *http.Request) {
 	unlock := deploy.Lock(id)
 	defer unlock()
 	t, err := store.SSHTargetByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	if t == nil {
-		http.NotFound(w, r)
+	if !s.recordFound(w, r, t != nil, err) {
 		return
 	}
 	if t.Disabled || t.External {

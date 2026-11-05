@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"math"
@@ -44,8 +43,6 @@ func formFromServer(s *store.Server) *ServerForm {
 func defaultServerForm() *ServerForm {
 	return &ServerForm{SSHPort: "22", AuthType: "PASSWORD", Username: "root", ServerType: "0", PriceMonths: "12", Multiple: "1", BandwidthUnit: store.UnitGiB}
 }
-
-func formValue(r *http.Request, k string) string { return strings.TrimSpace(r.PostFormValue(k)) }
 
 // parseServerForm 校验表单，返回待保存的服务器和字段错误。
 func parseServerForm(r *http.Request) (*ServerForm, *store.Server, map[string]string) {
@@ -149,7 +146,7 @@ func (s *Server) serverPlacementSwitch(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, p := range pls {
 		if p.ID == pid {
-			if !s.failoverErr(w, r, back, store.SwitchNodePlacement(r.Context(), s.DB, p.NodeID, pid)) {
+			if !s.redirectError(w, r, back, store.SwitchNodePlacement(r.Context(), s.DB, p.NodeID, pid), store.ErrInvalid) {
 				s.failoverDNS(w, r, back, p.NodeName+" 已切到本服务器", true)
 			}
 			return
@@ -162,12 +159,7 @@ func (s *Server) serverPlacementSwitch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serverFailover(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
 	on := r.PostFormValue("on") == "1"
-	if err := store.SetServerFailover(r.Context(), s.DB, id, on); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			http.NotFound(w, r)
-			return
-		}
-		s.fail(w, r, err)
+	if s.requestError(w, r, store.SetServerFailover(r.Context(), s.DB, id, on)) {
 		return
 	}
 	action := "恢复"
@@ -320,12 +312,7 @@ func (s *Server) serverIdle(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serverEdit(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
 	srv, err := store.ServerByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	if srv == nil {
-		http.NotFound(w, r)
+	if !s.recordFound(w, r, srv != nil, err) {
 		return
 	}
 	s.serverFormPage(w, r, http.StatusOK, "编辑服务器", formFromServer(srv), map[string]string{})
@@ -339,12 +326,7 @@ func (s *Server) serverSave(w http.ResponseWriter, r *http.Request) {
 	msg := "服务器已保存"
 	if id != 0 {
 		old, err := store.ServerByID(r.Context(), s.DB, id)
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
-		if old == nil {
-			http.NotFound(w, r)
+		if !s.recordFound(w, r, old != nil, err) {
 			return
 		}
 		f.HasAuth = old.HasAuth
@@ -425,12 +407,7 @@ func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status i
 
 func (s *Server) serverDelete(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
-	if err := store.DeleteServer(r.Context(), s.DB, id); err != nil {
-		if errors.Is(err, store.ErrConflict) {
-			redirectMsg(w, r, "/admin/servers", "err", err.Error())
-			return
-		}
-		s.fail(w, r, err)
+	if s.redirectError(w, r, "/admin/servers", store.DeleteServer(r.Context(), s.DB, id), store.ErrConflict) {
 		return
 	}
 	redirectMsg(w, r, "/admin/servers", "msg", "服务器已删除")

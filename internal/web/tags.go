@@ -30,12 +30,7 @@ func (s *Server) tagList(w http.ResponseWriter, r *http.Request) {
 	tag := &store.Tag{Color: "#206bc4"}
 	if id, _ := strconv.ParseInt(r.URL.Query().Get("edit"), 10, 64); id > 0 {
 		t, err := store.TagByID(r.Context(), s.DB, id)
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
-		if t == nil {
-			http.NotFound(w, r)
+		if !s.recordFound(w, r, t != nil, err) {
 			return
 		}
 		if t.Color == "" {
@@ -83,12 +78,7 @@ func (s *Server) tagSave(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) tagDelete(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
-	if err := store.DeleteTag(r.Context(), s.DB, id); err != nil {
-		if errors.Is(err, store.ErrConflict) {
-			redirectMsg(w, r, "/admin/tags", "err", err.Error())
-			return
-		}
-		s.fail(w, r, err)
+	if s.redirectError(w, r, "/admin/tags", store.DeleteTag(r.Context(), s.DB, id), store.ErrConflict) {
 		return
 	}
 	redirectMsg(w, r, "/admin/tags", "msg", "标签已删除")
@@ -119,12 +109,7 @@ func (s *Server) tagPickerSave(w http.ResponseWriter, r *http.Request) {
 	tag := &store.Tag{ID: id, Name: name, Color: color}
 	if id != 0 {
 		old, err := store.TagByID(r.Context(), s.DB, id)
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
-		if old == nil {
-			http.NotFound(w, r)
+		if !s.recordFound(w, r, old != nil, err) {
 			return
 		}
 		tag.Description = old.Description

@@ -50,12 +50,7 @@ func (s *Server) userList(w http.ResponseWriter, r *http.Request) {
 func (s *Server) userEdit(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
 	u, err := store.ManagedUserByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	if u == nil {
-		http.NotFound(w, r)
+	if !s.recordFound(w, r, u != nil, err) {
 		return
 	}
 	s.userForm(w, r, "编辑用户", http.StatusOK, &UserForm{ID: u.ID, Email: u.Email, NickName: u.NickName,
@@ -68,12 +63,7 @@ func (s *Server) userSave(w http.ResponseWriter, r *http.Request) {
 		Remark: formValue(r, "remark"), Role: formValue(r, "role"), Disabled: r.PostFormValue("disabled") == "1"}
 	if id != 0 {
 		old, err := store.ManagedUserByID(r.Context(), s.DB, id)
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
-		if old == nil {
-			http.NotFound(w, r)
+		if !s.recordFound(w, r, old != nil, err) {
 			return
 		}
 	}
@@ -98,12 +88,7 @@ func (s *Server) userSave(w http.ResponseWriter, r *http.Request) {
 func (s *Server) userUnlock(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
 	u, err := store.ManagedUserByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	if u == nil {
-		http.NotFound(w, r)
+	if !s.recordFound(w, r, u != nil, err) {
 		return
 	}
 	if err := store.ResetLoginFailures(r.Context(), s.DB, id); err != nil {
@@ -116,12 +101,7 @@ func (s *Server) userUnlock(w http.ResponseWriter, r *http.Request) {
 func (s *Server) userDelete(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
 	cur := r.Context().Value(userKey).(*store.User).ID
-	if err := store.DeleteManagedUser(r.Context(), s.DB, id, cur); err != nil {
-		if errors.Is(err, store.ErrInvalid) || errors.Is(err, store.ErrConflict) {
-			redirectMsg(w, r, "/admin/users", "err", err.Error())
-			return
-		}
-		s.fail(w, r, err)
+	if s.redirectError(w, r, "/admin/users", store.DeleteManagedUser(r.Context(), s.DB, id, cur), store.ErrInvalid, store.ErrConflict) {
 		return
 	}
 	redirectMsg(w, r, "/admin/users", "msg", "用户已删除")

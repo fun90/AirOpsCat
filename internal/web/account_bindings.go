@@ -13,12 +13,7 @@ import (
 func (s *Server) bindingPage(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
 	a, err := store.AccountByID(r.Context(), s.DB, id)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	if a == nil {
-		http.NotFound(w, r)
+	if !s.recordFound(w, r, a != nil, err) {
 		return
 	}
 	list, err := store.AccountBindings(r.Context(), s.DB, id)

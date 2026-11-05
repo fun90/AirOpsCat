@@ -39,12 +39,7 @@ func (s *Server) nodeBatchTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	updated, unchanged, err := store.BatchNodeTags(r.Context(), s.DB, nodes, tags, r.PostFormValue("mode"))
-	if err != nil {
-		if errors.Is(err, store.ErrInvalid) {
-			redirectMsg(w, r, "/admin/nodes", "err", err.Error())
-			return
-		}
-		s.fail(w, r, err)
+	if s.redirectError(w, r, "/admin/nodes", err, store.ErrInvalid) {
 		return
 	}
 	message := fmt.Sprintf("标签已更新 %d 个节点，未变化 %d 个", updated, unchanged)
@@ -70,12 +65,7 @@ func (s *Server) nodeBatchPlacements(w http.ResponseWriter, r *http.Request) {
 		priority = &p
 	}
 	updated, err := store.BatchNodePlacements(r.Context(), s.DB, nodes, servers, add, priority, r.PostFormValue("exposed") != "")
-	if err != nil {
-		if errors.Is(err, store.ErrInvalid) || errors.Is(err, store.ErrConflict) {
-			redirectMsg(w, r, "/admin/nodes", "err", err.Error())
-			return
-		}
-		s.fail(w, r, err)
+	if s.redirectError(w, r, "/admin/nodes", err, store.ErrInvalid, store.ErrConflict) {
 		return
 	}
 	message := fmt.Sprintf("部署位已调整 %d 个节点", updated)
@@ -95,13 +85,13 @@ func (s *Server) nodeBatchFailover(w http.ResponseWriter, r *http.Request) {
 	var changed bool
 	if r.PostFormValue("failover_mode") == "RESTORE" {
 		n, err := store.RestoreNodeFailover(r.Context(), s.DB, nodes)
-		if s.failoverErr(w, r, "/admin/nodes", err) {
+		if s.redirectError(w, r, "/admin/nodes", err, store.ErrInvalid) {
 			return
 		}
 		msg, changed = fmt.Sprintf("已回切 %d 个部署位", n), n > 0
 	} else {
 		n, skipped, err := store.BatchNodeSwitch(r.Context(), s.DB, nodes)
-		if s.failoverErr(w, r, "/admin/nodes", err) {
+		if s.redirectError(w, r, "/admin/nodes", err, store.ErrInvalid) {
 			return
 		}
 		msg, changed = fmt.Sprintf("已切换 %d 个节点，跳过 %d 个（无指向或无其他可切部署位）", n, skipped), n > 0
@@ -119,7 +109,7 @@ func (s *Server) nodeSwitch(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "部署位 ID 不正确", http.StatusBadRequest)
 			return
 		}
-		if s.failoverErr(w, r, back, store.RestorePlacementFailover(r.Context(), s.DB, id, pid)) {
+		if s.redirectError(w, r, back, store.RestorePlacementFailover(r.Context(), s.DB, id, pid), store.ErrInvalid) {
 			return
 		}
 		s.failoverDNS(w, r, back, "已取消切走", true)
@@ -132,28 +122,16 @@ func (s *Server) nodeSwitch(w http.ResponseWriter, r *http.Request) {
 	}
 	if target == 0 {
 		n, err := store.RestoreNodeFailover(r.Context(), s.DB, []int64{id})
-		if s.failoverErr(w, r, back, err) {
+		if s.redirectError(w, r, back, err, store.ErrInvalid) {
 			return
 		}
 		s.failoverDNS(w, r, back, "已回切", n > 0)
 		return
 	}
-	if s.failoverErr(w, r, back, store.SwitchNodePlacement(r.Context(), s.DB, id, target)) {
+	if s.redirectError(w, r, back, store.SwitchNodePlacement(r.Context(), s.DB, id, target), store.ErrInvalid) {
 		return
 	}
 	s.failoverDNS(w, r, back, "已切到指定部署位", true)
-}
-
-func (s *Server) failoverErr(w http.ResponseWriter, r *http.Request, back string, err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, store.ErrInvalid) {
-		redirectMsg(w, r, back, "err", err.Error())
-	} else {
-		s.fail(w, r, err)
-	}
-	return true
 }
 
 // failoverDNS 切走标记变化后立即执行一轮 DNS 切换，不等定时任务。
