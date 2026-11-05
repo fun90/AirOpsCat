@@ -52,7 +52,6 @@ docs/htb-too-many-events/
 
 .claude/worktrees
 .claude/skills
-.codegraph/
 
 # Go 运行数据与构建产物
 /dist/

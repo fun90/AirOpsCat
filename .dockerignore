@@ -3,7 +3,6 @@
 .vscode
 .agents
 .claude
-.codegraph
 logs
 backup
 target
