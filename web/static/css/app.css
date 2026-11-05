@@ -52,7 +52,7 @@
 .col-actions{width:5.5rem}
 @media (min-width:768px){.col-actions{width:13rem}}
 
-.popover-body { white-space: pre-line; }
+.popover-body, [data-confirm-text] { white-space: pre-line; }
 .log-message { white-space: normal; overflow-wrap: anywhere; min-width: 16rem; }
 @media (max-width: 767.98px) {
     .logs-table { table-layout: fixed; width: 100%; }

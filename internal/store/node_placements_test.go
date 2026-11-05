@@ -123,6 +123,46 @@ func TestPointedPlacementsSkipsUnexposed(t *testing.T) {
 	}
 }
 
+func TestIPOnlyPlacementsAndAutoSwitchedServers(t *testing.T) {
+	db, ctx := testDB(t)
+	mustExec(t, db, `INSERT INTO server(id,ip,name)VALUES(1,'1.1.1.1','s1'),(2,'2.2.2.2','s2'),(3,'3.3.3.3','s3'),(4,'4.4.4.4','s4'),(5,'5.5.5.5','s5')`)
+	mustExec(t, db, `INSERT INTO node(id,name,type,protocol,core_type)VALUES(1,'n',0,'vless','sing-box'),(2,'single',0,'vless','sing-box')`)
+	mustExec(t, db, `INSERT INTO domain(id,domain)VALUES(1,'example.com')`)
+	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES
+		(1,1,'a','a.example.com','A','1.1.1.1','SYNCED'),(2,1,'b','b.example.com','A','2.2.2.2','PENDING_UPDATE')`)
+	// 1 有已同步域名；2 域名未同步仍用 IP；3 无域名；4 未显示到订阅；5 是单部署位节点无从切走；6 无部署快照
+	mustExec(t, db, `INSERT INTO node_server(id,node_id,server_id,deployed,exposed,access_host_id)VALUES
+		(1,1,1,1,1,1),(2,1,2,1,NULL,2),(3,1,3,1,1,NULL),(4,1,4,1,0,NULL),(5,2,3,1,1,NULL)`)
+	for _, id := range []int{1, 2, 3, 4, 5} {
+		mustExec(t, db, `INSERT INTO node_deployment(node_id,node_server_id,server_id,version,snapshot_hash,snapshot_json)
+			SELECT node_id,id,server_id,1,'x','{}' FROM node_server WHERE id=?`, id)
+	}
+	mustExec(t, db, `INSERT INTO node_server(id,node_id,server_id,deployed,exposed)VALUES(6,1,5,0,1)`)
+	list, err := IPOnlyPlacements(ctx, db)
+	if err != nil || fmt.Sprint(list) != "[{2 1 2 n s2} {3 1 3 n s3}]" {
+		t.Fatal("直连 IP 部署位不对", list, err)
+	}
+	// 被订阅定制选中后，未显示的部署位也会下发
+	mustExec(t, db, `INSERT INTO account(id,account_no,uuid,auth_code,period_type)VALUES(1,'x','u','c','MONTHLY')`)
+	mustExec(t, db, `INSERT INTO account_node_subscription_domain_binding(id,account_id,node_id,enabled)VALUES(1,1,1,1)`)
+	mustExec(t, db, `INSERT INTO account_node_subscription_placement(binding_id,node_server_id)VALUES(1,4)`)
+	if list, _ := IPOnlyPlacements(ctx, db); len(list) != 3 || list[2].ID != 4 {
+		t.Fatal("订阅定制选中的部署位应计入", list)
+	}
+
+	if m, err := AutoSwitchedServers(ctx, db); err != nil || len(m) != 0 {
+		t.Fatal("未切走不应返回", m, err)
+	}
+	mustExec(t, db, `UPDATE domain_dns_record SET content='3.3.3.3', failover_home_content='1.1.1.1' WHERE id=1`)
+	if m, _ := AutoSwitchedServers(ctx, db); fmt.Sprint(m) != "map[1:true]" {
+		t.Fatal("自动切走应返回原服务器", m)
+	}
+	mustExec(t, db, `UPDATE node_server SET failover=1 WHERE id=1`)
+	if m, _ := AutoSwitchedServers(ctx, db); len(m) != 0 {
+		t.Fatal("手动切走不算自动切走", m)
+	}
+}
+
 func TestShownPointedPlacementsNeedsSwitch(t *testing.T) {
 	db, ctx := testDB(t)
 	mustExec(t, db, `INSERT INTO server(id,ip)VALUES(1,'1.1.1.1'),(2,'2.2.2.2')`)

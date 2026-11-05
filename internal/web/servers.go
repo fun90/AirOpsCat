@@ -192,6 +192,7 @@ type serverRow struct {
 	UsageHigh               bool
 	StatusDot, StatusLabel  string // 状态点颜色与简短文字；详情放进 StatusTitle 悬浮提示
 	StatusTitle             string
+	FailoverWarn            string // 切走确认框追加的提示：订阅里直连本服务器 IP 的节点
 }
 
 func newServerRow(sv *store.Server, today time.Time) serverRow {
@@ -290,9 +291,15 @@ func (s *Server) serverList(w http.ResponseWriter, r *http.Request) {
 	}
 	local := now.In(store.Shanghai)
 	today := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, store.Shanghai)
+	direct, err := s.loadIPOnly(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	rows := make([]serverRow, len(list))
 	for i, sv := range list {
 		rows[i] = newServerRow(sv, today)
+		rows[i].FailoverWarn = direct.serverWarn(sv.ID)
 	}
 	d := s.pageData(r, "服务器", "servers")
 	d["List"], d["Total"], d["Q"], d["Page"], d["Pages"] = rows, total, q, page, (total+size-1)/size
@@ -373,6 +380,7 @@ type serverPlacementView struct {
 	Here      []string // 当前指向本部署位的域名
 	Elsewhere []string // 节点域名当前指向的其他服务器
 	CanSwitch bool
+	Warn      string // 切到此处确认框追加的提示
 }
 
 // serverFormPage 带上已有地区供选择，避免与节点地区写法不一致导致部署位匹配不上。
@@ -390,6 +398,10 @@ func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status i
 		if err == nil {
 			pointed, err = store.ShownPointedPlacements(r.Context(), s.DB)
 		}
+		var direct ipOnly
+		if err == nil {
+			direct, err = s.loadIPOnly(r.Context())
+		}
 		if err != nil {
 			s.fail(w, r, err)
 			return
@@ -406,6 +418,9 @@ func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status i
 			}
 			// 与节点编辑页「切到此处」一致：节点全部域名已指向这里时不再提供
 			v.CanSwitch = p.Peers > 0 && p.Running && p.Deployed != 2 && !f.Disabled && (v.Here == nil || v.Elsewhere != nil)
+			if v.CanSwitch {
+				v.Warn = direct.switchWarn(p.NodeID, p.ID)
+			}
 			views[i] = v
 		}
 		d["Placements"] = views

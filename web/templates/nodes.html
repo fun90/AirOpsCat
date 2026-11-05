@@ -54,7 +54,7 @@
         {{$st := .DeployStatus}}{{$on := index $.Online .ID}}{{$pt := index $.Pointed .ID}}{{$fo := index $.Failover .ID}}{{$ps := index $.ProbeSum .ID}}{{$br := index $.Briefs .ID}}
         <div class="list-group-item{{if .Disabled}} text-secondary{{end}}">
             <div class="d-flex gap-3 align-items-start align-items-lg-center">
-                <input class="form-check-input m-0 mt-1 mt-lg-0 flex-shrink-0 node-check" type="checkbox" name="node_ids" value="{{.ID}}" data-node-select data-name="{{.Name}}" aria-label="选择节点 {{.Name}}">
+                <input class="form-check-input m-0 mt-1 mt-lg-0 flex-shrink-0 node-check" type="checkbox" name="node_ids" value="{{.ID}}" data-node-select data-name="{{.Name}}"{{with index $.SwitchWarn .ID}} data-ip-only="{{.}}"{{end}} aria-label="选择节点 {{.Name}}">
                 <div class="row gx-2 gx-lg-3 gy-1 flex-fill align-items-start align-items-lg-center min-w-0">
                     <div class="col col-lg-3 min-w-0">
                         <div class="d-flex align-items-center gap-2">{{template "deployDot" $st}}<a class="text-truncate fw-medium" href="/admin/nodes/{{.ID}}/edit">{{.Name}}</a>{{template "inboundBadge" .}}{{if .Disabled}}<span class="badge bg-secondary-lt flex-shrink-0">已禁用</span>{{end}}</div>
@@ -142,7 +142,7 @@
   </div>
   <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">应用</button></div>
 </form></div></div>
-<div class="modal modal-blur fade" id="batchFailoverModal" tabindex="-1" aria-labelledby="batchFailoverTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form class="modal-content" method="post" action="/admin/nodes/batch-failover" data-batch-form data-confirm="将立即对以下节点执行 DNS 切换，确定？"><input type="hidden" name="csrf" value="{{.CSRF}}">
+<div class="modal modal-blur fade" id="batchFailoverModal" tabindex="-1" aria-labelledby="batchFailoverTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form class="modal-content" method="post" action="/admin/nodes/batch-failover" data-batch-form data-confirm="将立即对以下节点执行 DNS 切换，确定？" data-confirm-ip-only><input type="hidden" name="csrf" value="{{.CSRF}}">
   <div class="modal-header"><h5 class="modal-title" id="batchFailoverTitle">手动切换 · <span data-batch-count>0</span> 个节点</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
   <div class="modal-body">
     <div class="form-selectgroup w-100" role="radiogroup" aria-label="切换方式">

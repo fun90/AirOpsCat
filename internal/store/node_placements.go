@@ -222,6 +222,62 @@ func ServerPlacements(ctx context.Context, db *sql.DB, serverID int64) ([]Server
 	return list, rows.Err()
 }
 
+// IPOnlyPlacement 是订阅里直连服务器 IP 的部署位：DNS 切换改不到它，切走后客户端仍连原服务器。
+type IPOnlyPlacement struct {
+	ID, NodeID, ServerID int64
+	NodeName, Server     string
+}
+
+// IPOnlyPlacements 返回订阅会输出、但没有已同步访问域名的部署位，只统计节点还有其他部署位（可切走）的情况。
+// 口径与 SubscriptionNodes 一致：显示到订阅或被账户订阅定制选中，且已有部署快照。
+// shortcut: 账户绑定的订阅域名会让该账户改用域名，这里不区分账户，一律按直连 IP 提示。
+func IPOnlyPlacements(ctx context.Context, db *sql.DB) ([]IPOnlyPlacement, error) {
+	rows, err := db.QueryContext(ctx, `SELECT ns.id, ns.node_id, ns.server_id, coalesce(n.name,''), coalesce(nullif(s.name,''), s.ip)
+		FROM node_server ns JOIN node n ON n.id = ns.node_id JOIN server s ON s.id = ns.server_id
+		LEFT JOIN domain_dns_record r ON r.id = ns.access_host_id
+		WHERE ns.deployed <> 2 AND n.type = 0 AND n.disabled = 0
+		AND NOT (coalesce(r.status,'') = 'SYNCED' AND trim(coalesce(r.full_name,'')) <> '')
+		AND (coalesce(ns.exposed, 1) <> 0 OR EXISTS (SELECT 1 FROM account_node_subscription_placement bp
+			JOIN account_node_subscription_domain_binding b ON b.id = bp.binding_id WHERE bp.node_server_id = ns.id AND b.enabled = 1))
+		AND EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id AND coalesce(d.snapshot_json,'') <> '')
+		AND EXISTS (SELECT 1 FROM node_server o WHERE o.node_id = ns.node_id AND o.id <> ns.id AND o.deployed <> 2)
+		ORDER BY n.name, ns.priority, ns.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []IPOnlyPlacement
+	for rows.Next() {
+		var p IPOnlyPlacement
+		if err := rows.Scan(&p.ID, &p.NodeID, &p.ServerID, &p.NodeName, &p.Server); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// AutoSwitchedServers 返回因流量或时段被自动切走（非手动切走）的原服务器：其 IP 是某条记录保存的原始解析。
+func AutoSwitchedServers(ctx context.Context, db *sql.DB) (map[int64]bool, error) {
+	rows, err := db.QueryContext(ctx, `SELECT DISTINCT s.id FROM domain_dns_record r JOIN server s ON s.ip = r.failover_home_content
+		WHERE coalesce(r.failover_home_content,'') <> '' AND r.content <> r.failover_home_content
+		AND NOT EXISTS (SELECT 1 FROM node_server ns WHERE ns.server_id = s.id AND ns.failover = 1 AND (ns.access_host_id = r.id
+			OR ns.node_id IN (SELECT node_id FROM account_node_subscription_domain_binding WHERE domain_dns_record_id = r.id AND enabled = 1)))`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
 // FailoverServers 按节点返回已手动切走的部署位服务器名，供列表标注。
 func FailoverServers(ctx context.Context, db *sql.DB) (map[int64][]string, error) {
 	rows, err := db.QueryContext(ctx, `SELECT ns.node_id, coalesce(nullif(s.name,''), s.ip) FROM node_server ns JOIN server s ON s.id = ns.server_id

@@ -28,6 +28,9 @@ func (s *Server) autoDNS(ctx context.Context) error {
 			failures = append(failures, fmt.Sprintf("域名 %d：%v", id, err))
 		}
 	}
+	if err := s.alertIPOnly(ctx); err != nil {
+		failures = append(failures, "直连 IP 告警："+err.Error())
+	}
 	// 同一轮的切换（如时段窗口批量切换）合并为一条推送。
 	if len(switched) > 0 {
 		title := "AirOpsCat 服务器自动切换"

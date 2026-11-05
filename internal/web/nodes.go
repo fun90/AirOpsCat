@@ -153,6 +153,20 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	// 批量切换从当前指向切走，口径与 BatchNodeSwitch 一致
+	allPointed, err := store.PointedPlacements(r.Context(), s.DB)
+	var direct ipOnly
+	if err == nil {
+		direct, err = s.loadIPOnly(r.Context())
+	}
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	switchWarn := map[int64]string{}
+	for _, n := range list {
+		switchWarn[n.ID] = direct.pointedWarn(allPointed[n.ID])
+	}
 	briefs, err := store.NodePlacementBriefs(r.Context(), s.DB)
 	if err != nil {
 		s.fail(w, r, err)
@@ -180,6 +194,7 @@ func (s *Server) nodeList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	d := s.pageData(r, "节点", "nodes")
+	d["SwitchWarn"] = switchWarn
 	d["Online"], d["Servers"], d["Pointed"], d["Failover"], d["Briefs"], d["ProbeSum"], d["ProbeFailRounds"] = online, servers, pointed, failover, briefs, probeSum, store.ProbeFailRounds
 	d["List"], d["Tags"], d["Q"], d["Page"], d["Pages"] = list, tags, f.Search, page, (total+size-1)/size
 	d["Type"], d["Status"], d["TagID"] = q.Get("type"), q.Get("status"), q.Get("tag")
@@ -271,7 +286,7 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 		s.fail(w, r, err)
 		return
 	}
-	d["ServerOptions"] = opts
+	d["ServerOptions"], d["SwitchWarn"] = opts, map[int64]string{}
 	if d["Domains"], err = store.BindingDomains(ctx, s.DB); err != nil {
 		s.fail(w, r, err)
 		return
@@ -291,7 +306,16 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 		for _, p := range pointed[f.ID] {
 			targets[p.ID] = p.Domains
 		}
-		d["PlacementDomains"], d["PlacementTargets"] = domains, targets
+		direct, err := s.loadIPOnly(ctx)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		warn := map[int64]string{}
+		for _, p := range pls {
+			warn[p.ID] = direct.switchWarn(f.ID, p.ID)
+		}
+		d["PlacementDomains"], d["PlacementTargets"], d["SwitchWarn"] = domains, targets, warn
 		if f.Type == strconv.Itoa(store.NodeProxy) {
 			d["SubNames"] = store.PlacementSubscriptionNames(f.Name, pls)
 		}
