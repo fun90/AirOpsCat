@@ -35,14 +35,7 @@ func AccountTrafficHistory(ctx context.Context, db *sql.DB, accountID int64) ([]
 	var out []TrafficPeriod
 	for rows.Next() {
 		var p TrafficPeriod
-		var s, e string
-		if err = rows.Scan(&s, &e, &p.UploadBytes, &p.DownloadBytes, &p.QuotaGB); err != nil {
-			return nil, err
-		}
-		if p.PeriodStart, err = ParseTime(s); err != nil {
-			return nil, err
-		}
-		if p.PeriodEnd, err = ParseTime(e); err != nil {
+		if err = rows.Scan(scanTime(&p.PeriodStart), scanTime(&p.PeriodEnd), &p.UploadBytes, &p.DownloadBytes, &p.QuotaGB); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -76,26 +69,22 @@ func trafficPeriod(anchor, at time.Time, period string) (time.Time, time.Time, e
 }
 
 func accountUsage(ctx context.Context, q dbtx, id int64, at time.Time) (*TrafficUsage, error) {
-	var anchor, period string
+	var anchor time.Time
+	var period string
 	var quota sql.NullInt64
-	if err := q.QueryRowContext(ctx, `SELECT traffic_anchor, period_type, bandwidth FROM account WHERE id=?`, id).Scan(&anchor, &period, &quota); err != nil {
+	if err := q.QueryRowContext(ctx, `SELECT traffic_anchor, period_type, bandwidth FROM account WHERE id=?`, id).Scan(scanTime(&anchor), &period, &quota); err != nil {
 		return nil, err
 	}
-	a, err := ParseTime(anchor)
-	if err != nil {
-		return nil, err
-	}
-	start, end, err := trafficPeriod(a, at, period)
+	start, end, err := trafficPeriod(anchor, at, period)
 	if err != nil {
 		return nil, err
 	}
 	u := &TrafficUsage{QuotaGB: quota.Int64, PeriodStart: start, PeriodEnd: end}
 	// 导入的现存周期优先，避免续期或迁移重新划分已计费流量。
-	var s, e string
 	var up, down int64
 	var snapshot sql.NullInt64
 	err = q.QueryRowContext(ctx, `SELECT period_start,period_end,upload_bytes,download_bytes,bandwidth_quota FROM account_traffic_stats
- WHERE account_id=? AND period_start<=? AND period_end>? ORDER BY period_start DESC,id DESC LIMIT 1`, id, FormatTime(at), FormatTime(at)).Scan(&s, &e, &up, &down, &snapshot)
+ WHERE account_id=? AND period_start<=? AND period_end>? ORDER BY period_start DESC,id DESC LIMIT 1`, id, FormatTime(at), FormatTime(at)).Scan(scanTime(&u.PeriodStart), scanTime(&u.PeriodEnd), &up, &down, &snapshot)
 	if errors.Is(err, sql.ErrNoRows) {
 		return u, nil
 	}
@@ -108,12 +97,6 @@ func accountUsage(ctx context.Context, q dbtx, id int64, at time.Time) (*Traffic
 	u.UsedBytes = up + down
 	if snapshot.Valid {
 		u.QuotaGB = snapshot.Int64
-	}
-	if u.PeriodStart, err = ParseTime(s); err != nil {
-		return nil, err
-	}
-	if u.PeriodEnd, err = ParseTime(e); err != nil {
-		return nil, err
 	}
 	return u, nil
 }

@@ -57,16 +57,11 @@ const transactionColumns = `t.id,t.transaction_date,t.amount,t.type,coalesce(t.b
 
 func scanTransaction(row interface{ Scan(...any) error }) (*Transaction, error) {
 	var t Transaction
-	var date string
 	var businessID sql.NullInt64
-	if err := row.Scan(&t.ID, &date, &t.Amount, &t.Type, &t.BusinessTable, &businessID, &t.Description, &t.PaymentMethod, &t.Remark, &t.BusinessName); err != nil {
+	if err := row.Scan(&t.ID, scanTime(&t.TransactionDate), &t.Amount, &t.Type, &t.BusinessTable, &businessID, &t.Description, &t.PaymentMethod, &t.Remark, &t.BusinessName); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, err
-	}
-	var err error
-	if t.TransactionDate, err = ParseTime(date); err != nil {
 		return nil, err
 	}
 	if businessID.Valid {

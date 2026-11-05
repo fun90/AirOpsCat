@@ -22,19 +22,11 @@ const userColumns = `id, email, coalesce(nick_name, ''), password, role, disable
 
 func scanUser(row interface{ Scan(...any) error }) (*User, error) {
 	var u User
-	var lock sql.NullString
-	if err := row.Scan(&u.ID, &u.Email, &u.NickName, &u.Password, &u.Role, &u.Disabled, &u.FailedAttempts, &lock); err != nil {
+	if err := row.Scan(&u.ID, &u.Email, &u.NickName, &u.Password, &u.Role, &u.Disabled, &u.FailedAttempts, scanOptionalTime(&u.LockTime)); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
-	}
-	if lock.Valid {
-		t, err := ParseTime(lock.String)
-		if err != nil {
-			return nil, err
-		}
-		u.LockTime = &t
 	}
 	return &u, nil
 }

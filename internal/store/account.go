@@ -170,23 +170,10 @@ const accountCols = `a.id, coalesce(a.node_multiple,0), coalesce(a.node_prefix,'
 
 func scanAccount(row interface{ Scan(...any) error }, extra ...any) (*Account, error) {
 	var a Account
-	var from, to sql.NullString
-	dest := []any{&a.ID, &a.NodeMultiple, &a.NodePrefix, &from, &to, &a.PeriodType, &a.UUID, &a.AccountNo, &a.AuthCode,
+	dest := []any{&a.ID, &a.NodeMultiple, &a.NodePrefix, scanOptionalTime(&a.FromDate), scanOptionalTime(&a.ToDate), &a.PeriodType, &a.UUID, &a.AccountNo, &a.AuthCode,
 		&a.MaxConnections, &a.MaxIps, &a.Bandwidth, &a.DownloadMbps, &a.UploadMbps, &a.Disabled, &a.Remark, &a.UserID}
 	if err := row.Scan(append(dest, extra...)...); err != nil {
 		return nil, err
-	}
-	for _, d := range []struct {
-		s   sql.NullString
-		dst **time.Time
-	}{{from, &a.FromDate}, {to, &a.ToDate}} {
-		if d.s.Valid {
-			t, err := ParseTime(d.s.String)
-			if err != nil {
-				return nil, err
-			}
-			*d.dst = &t
-		}
 	}
 	return &a, nil
 }
@@ -314,20 +301,12 @@ func AccountList(ctx context.Context, db *sql.DB, f AccountFilter, page, size in
 	var ids []any
 	for rows.Next() {
 		var r AccountRow
-		var last sql.NullString
-		a, err := scanAccount(rows, &r.UserEmail, &r.UserNick, &r.UsedBytes, &r.QuotaGB, &r.OnlineConns, &last)
+		a, err := scanAccount(rows, &r.UserEmail, &r.UserNick, &r.UsedBytes, &r.QuotaGB, &r.OnlineConns, scanOptionalTime(&r.LastOnline))
 		if err != nil {
 			return nil, 0, err
 		}
 		r.Account = *a
 		r.TagIDs = []int64{}
-		if last.Valid {
-			t, err := ParseTime(last.String)
-			if err != nil {
-				return nil, 0, err
-			}
-			r.LastOnline = &t
-		}
 		list = append(list, &r)
 		byID[r.ID] = &r
 		ids = append(ids, r.ID)
@@ -374,11 +353,7 @@ func AccountRecentNodes(ctx context.Context, db *sql.DB, accountID int64, since 
 	var list []*RecentNode
 	for rows.Next() {
 		var r RecentNode
-		var last string
-		if err := rows.Scan(&r.NodeID, &r.NodeName, &r.NodeIP, &last); err != nil {
-			return nil, err
-		}
-		if r.LastOnline, err = ParseTime(last); err != nil {
+		if err := rows.Scan(&r.NodeID, &r.NodeName, &r.NodeIP, scanTime(&r.LastOnline)); err != nil {
 			return nil, err
 		}
 		list = append(list, &r)
