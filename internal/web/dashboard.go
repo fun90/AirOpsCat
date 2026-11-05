@@ -29,7 +29,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		if name == "" {
 			name = a.Type
 		}
-		alerts[i] = alertView{a, name}
+		alerts[i] = alertView{Alert: a, TypeName: name}
 	}
 	d := s.pageData(r, "概览", "dashboard")
 	var latest time.Time

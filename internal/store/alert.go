@@ -149,6 +149,22 @@ func scanAlerts(rows *sql.Rows) ([]Alert, error) {
 	return out, rows.Err()
 }
 
+// AlertByID 不存在时返回 sql.ErrNoRows。
+func AlertByID(ctx context.Context, db *sql.DB, id int64) (*Alert, error) {
+	rows, err := db.QueryContext(ctx, alertSel+` WHERE id=?`, id)
+	if err != nil {
+		return nil, err
+	}
+	list, err := scanAlerts(rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(list) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return &list[0], nil
+}
+
 // AlertList status 为空表示全部；进行中的排在前面。
 func AlertList(ctx context.Context, db *sql.DB, status, q string, page, size int) ([]Alert, int, error) {
 	where, args := ` WHERE 1=1`, []any{}

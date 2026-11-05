@@ -63,8 +63,8 @@ func TestOpenMigratesOnceAndEnforcesForeignKeys(t *testing.T) {
 
 	var version int
 	db.QueryRow("PRAGMA user_version").Scan(&version)
-	if version != 19 {
-		t.Fatalf("user_version = %d, want 19", version)
+	if version != 20 {
+		t.Fatalf("user_version = %d, want 20", version)
 	}
 
 	// 连接池中多个连接都必须开启外键

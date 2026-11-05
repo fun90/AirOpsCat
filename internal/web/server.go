@@ -28,7 +28,8 @@ import (
 )
 
 type Server struct {
-	DNSAutoDomains      string // 自动 DNS 域名 ID 白名单或 all；空表示关闭
+	rotating            sync.Map // 正在换端口封禁的服务器 ID，防止重复提交
+	DNSAutoDomains      string   // 自动 DNS 域名 ID 白名单或 all；空表示关闭
 	MaintenanceDeployer *deploy.Deployer
 	ScriptDir           string // AIROPSCAT_SCRIPTS_DIR 优先于系统配置目录
 	Guard               *guard.Aggregator

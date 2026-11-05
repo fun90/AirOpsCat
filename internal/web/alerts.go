@@ -34,6 +34,14 @@ func (s *Server) alertRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/alerts/test", s.alertTest)
 	m.HandleFunc("POST /admin/alerts/{id}/ack", s.alertAck)
 	m.HandleFunc("POST /admin/alerts/{id}/recover", s.alertRecover)
+	m.HandleFunc("POST /admin/alerts/{id}/rotate-ports", s.alertRotatePorts)
+}
+
+// surgeFingerprint 是流量防刷告警的指纹前缀，见 evaluateTrafficSurge。
+const surgeFingerprint = "traffic-surge:"
+
+func isSurgeAlert(a *store.Alert) bool {
+	return a.Type == alertMonitorLoad && a.ResourceType == "server" && strings.HasPrefix(a.Fingerprint, surgeFingerprint)
 }
 
 // barkConfig 每次发送都重新读取；敏感项解密失败视为未配置，不回退为明文。
@@ -253,6 +261,11 @@ func (s *Server) scanAlerts(ctx context.Context) error {
 type alertView struct {
 	store.Alert
 	TypeName string
+	// 服务器类告警且服务器仍存在时提供跳转；MonitorLink 只给监控类告警
+	ServerLink, MonitorLink bool
+	// 流量防刷告警未恢复且服务器上有可处置的 VLESS+REALITY 节点时提供「换端口封禁」
+	RealityNodes int
+	CanRotate    bool
 }
 
 func (s *Server) alertList(w http.ResponseWriter, r *http.Request) {
@@ -267,13 +280,30 @@ func (s *Server) alertList(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	var serverIDs []int64
+	for _, a := range list {
+		if a.ResourceType == "server" {
+			serverIDs = append(serverIDs, a.ResourceID)
+		}
+	}
+	nodes, err := store.ServerRealityNodes(r.Context(), s.DB, serverIDs)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	views := make([]alertView, len(list))
 	for i, a := range list {
 		name := alertTypeNames[a.Type]
 		if name == "" {
 			name = a.Type
 		}
-		views[i] = alertView{a, name}
+		v := alertView{Alert: a, TypeName: name}
+		if a.ResourceType == "server" {
+			v.ServerLink, v.MonitorLink = true, a.Type == alertMonitorLoad
+			v.RealityNodes = nodes[a.ResourceID]
+			v.CanRotate = isSurgeAlert(&a) && a.Status != store.AlertRecovered && v.RealityNodes > 0
+		}
+		views[i] = v
 	}
 	d := s.pageData(r, "告警", "alerts")
 	d["List"], d["Status"], d["Q"], d["Page"], d["Pages"], d["ListURL"] = views, status, q, page, (total+size-1)/size, r.URL.RequestURI()
@@ -306,6 +336,86 @@ func (s *Server) alertRecover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redirectMsg(w, r, "/admin/alerts", "msg", "已标记恢复；条件仍满足时会再次触发")
+}
+
+// alertRotatePorts 是流量防刷告警的处置入口：给该服务器上的 VLESS+REALITY 节点换端口并重新部署，
+// 旧端口由部署流程在服务器防火墙上封禁（规则记录在 server_blocked_port，每次部署后补齐），成功后确认告警并记录处置人。
+// 告警保持已确认而非恢复：流量增长回落到阈值以下后由评估任务自动恢复。
+func (s *Server) alertRotatePorts(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "id")
+	if !ok {
+		return
+	}
+	a, err := store.AlertByID(r.Context(), s.DB, id)
+	if s.requestError(w, r, err) {
+		return
+	}
+	if !isSurgeAlert(a) || a.Status == store.AlertRecovered {
+		redirectMsg(w, r, "/admin/alerts", "err", "只有未恢复的流量防刷告警可以在此处置")
+		return
+	}
+	t, err := store.SSHTargetByID(r.Context(), s.DB, a.ResourceID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if t == nil {
+		redirectMsg(w, r, "/admin/alerts", "err", "服务器已不存在")
+		return
+	}
+	if t.External || t.Disabled {
+		redirectMsg(w, r, "/admin/alerts", "err", "外部或已禁用的服务器无法通过 SSH 封禁端口")
+		return
+	}
+	if _, busy := s.rotating.LoadOrStore(a.ResourceID, true); busy {
+		redirectMsg(w, r, "/admin/alerts", "err", "该服务器正在处置中，请稍后刷新查看结果")
+		return
+	}
+	defer s.rotating.Delete(a.ResourceID)
+	by := r.Context().Value(userKey).(*store.User).Email
+	// 换端口与部署不随浏览器请求取消：中途断开会让订阅端口与服务器实际监听不一致。
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 10*time.Minute)
+	defer cancel()
+	http.NewResponseController(w).SetWriteDeadline(time.Now().Add(11 * time.Minute))
+	res, err := store.RotateRealityPorts(ctx, s.DB, a.ResourceID)
+	if err != nil {
+		if msg, ok := s.saveErr(w, r, err); ok {
+			redirectMsg(w, r, "/admin/alerts", "err", msg)
+		}
+		return
+	}
+	var changes []string
+	for _, c := range res.Rotations {
+		changes = append(changes, fmt.Sprintf("%s %d→%d", c.Name, c.OldPort, c.NewPort))
+	}
+	detail := strings.Join(changes, "；")
+	store.Log(ctx, s.DB, "ALERT", "INFO", &a.ResourceID, a.ResourceKey, "流量防刷告警处置：REALITY 节点换端口并封禁旧端口（"+by+"）", detail)
+
+	var failed []string
+	surgeOK := false
+	for _, r := range s.Deployer.DeployServers(ctx, res.DeployServers, true) {
+		if r.ServerID == a.ResourceID {
+			surgeOK = r.Success
+		}
+		if !r.Success {
+			failed = append(failed, fmt.Sprintf("%s：%s", r.ServerName, r.Message))
+		}
+	}
+	if !surgeOK {
+		redirectMsg(w, r, "/admin/alerts", "err", "已更换端口（"+detail+"），但本服务器部署失败，旧端口尚未封禁，订阅已使用新端口；请排查后在服务器页重新部署，部署成功会自动封禁。"+strings.Join(failed, "；"))
+		return
+	}
+	if a.Status == store.AlertActive {
+		if err := store.AlertAcknowledge(ctx, s.DB, id, by, time.Now()); err != nil && !errors.Is(err, store.ErrInvalid) {
+			s.fail(w, r, err)
+			return
+		}
+	}
+	if len(failed) > 0 {
+		redirectMsg(w, r, "/admin/alerts", "err", "本服务器已换端口并封禁旧端口（"+detail+"），告警已确认；其他服务器部署失败，需重新部署："+strings.Join(failed, "；"))
+		return
+	}
+	redirectMsg(w, r, "/admin/alerts", "msg", "已换端口并封禁旧端口（"+detail+"），告警已确认")
 }
 
 func (s *Server) alertTest(w http.ResponseWriter, r *http.Request) {

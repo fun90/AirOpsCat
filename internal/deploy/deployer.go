@@ -255,7 +255,50 @@ func (d *Deployer) push(ctx context.Context, t *store.SSHTarget, cfg []byte, act
 	if err := runOK(ctx, r, "systemctl "+action+" sing-box"); err != nil {
 		return fmt.Errorf("配置已替换，%s 失败: %w", action, err)
 	}
+	if err := d.syncBlockedPorts(ctx, r, t); err != nil {
+		return fmt.Errorf("配置已部署，但补防火墙封禁规则失败（再次部署会重试）: %w", err)
+	}
 	return nil
+}
+
+// firewallBlockCommand 幂等地在 INPUT 链最前面封禁端口的 TCP/UDP（先于 ESTABLISHED 放行，存量连接也会被切断），并保存规则。
+func firewallBlockCommand(ports []int) string {
+	var b strings.Builder
+	b.WriteString("set -e\n")
+	for _, p := range ports {
+		for _, proto := range []string{"tcp", "udp"} {
+			rule := fmt.Sprintf("INPUT -p %s --dport %d -j DROP", proto, p)
+			fmt.Fprintf(&b, "iptables -C %s 2>/dev/null || iptables -I %s\n", rule, rule)
+		}
+	}
+	b.WriteString("mkdir -p /etc/iptables\niptables-save > /etc/iptables/rules.v4\n")
+	return b.String()
+}
+
+// syncBlockedPorts 补齐该服务器记录的封禁端口规则；没有记录时不执行任何命令。
+// 初始化防火墙的脚本会清空规则，因此每次部署后都重新确保。
+// 硬性保护：SSH 端口和该服务器上任何节点正在使用的端口不封（导入、手工改库等路径可能绕过写入时的校验），跳过并记日志。
+func (d *Deployer) syncBlockedPorts(ctx context.Context, r Remote, t *store.SSHTarget) error {
+	ports, err := store.BlockedPorts(ctx, d.DB, t.ID)
+	if err != nil {
+		return err
+	}
+	inUse, err := store.ServerNodePorts(ctx, d.DB, t.ID)
+	if err != nil {
+		return err
+	}
+	var safe []int
+	for _, p := range ports {
+		if p == t.Port || inUse[p] {
+			store.Log(ctx, d.DB, "DEPLOY", "WARN", &t.ID, t.Name, fmt.Sprintf("端口 %d 是 SSH 端口或节点在用端口，已跳过防火墙封禁", p), "")
+			continue
+		}
+		safe = append(safe, p)
+	}
+	if len(safe) == 0 {
+		return nil
+	}
+	return runOK(ctx, r, firewallBlockCommand(safe))
 }
 
 // runOK 执行命令，传输错误或非零退出码都转成带输出的错误。

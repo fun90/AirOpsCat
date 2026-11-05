@@ -13,10 +13,20 @@ func portConflict(ctx context.Context, q dbtx, serverID int64, port int, nodeID 
 	var name string
 	err := q.QueryRowContext(ctx, `SELECT n.name FROM node_server ns JOIN node n ON n.id = ns.node_id
 		WHERE ns.server_id = ? AND n.port = ? AND n.id <> ? LIMIT 1`, serverID, port, nodeID).Scan(&name)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
+	if err == nil {
+		return name, nil
 	}
-	return name, err
+	if !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	var blocked bool
+	if err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM server_blocked_port WHERE server_id = ? AND port = ?)`, serverID, port).Scan(&blocked); err != nil {
+		return "", err
+	}
+	if blocked {
+		return "（防刷封禁的旧端口）", nil
+	}
+	return "", nil
 }
 
 func markPending(ctx context.Context, q dbtx, nodeID int64) error {
@@ -71,7 +81,7 @@ func normalizeTagIDs(ids []int64) []int64 {
 
 // availableNodePort 在写事务内从防火墙节点端口范围取全局未用端口，避免未来部署位合并冲突。
 func availableNodePort(ctx context.Context, q dbtx) (int, error) {
-	rows, err := q.QueryContext(ctx, `SELECT DISTINCT port FROM node WHERE port BETWEEN 8000 AND 10000 ORDER BY port`)
+	rows, err := q.QueryContext(ctx, `SELECT DISTINCT port FROM (SELECT port FROM node UNION SELECT port FROM server_blocked_port) WHERE port BETWEEN 8000 AND 10000 ORDER BY port`)
 	if err != nil {
 		return 0, err
 	}

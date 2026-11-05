@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/fun90/airopscat/internal/crypto"
+	"github.com/fun90/airopscat/internal/deploy"
 	"github.com/fun90/airopscat/internal/guard"
 	"github.com/fun90/airopscat/internal/store"
 )
@@ -172,5 +173,80 @@ func TestQuotaAlertMentionsNativeLimitOnlyWhenEnabled(t *testing.T) {
 	}
 	if len(bodies) != 2 || !strings.Contains(bodies[1], "sing-box 原生超额限速") {
 		t.Fatal(bodies)
+	}
+}
+
+type recordRemote struct{ cmds *[]string }
+
+func (r recordRemote) Run(_ context.Context, cmd string) (string, string, int, error) {
+	*r.cmds = append(*r.cmds, cmd)
+	return "", "", 0, nil
+}
+func (recordRemote) WriteFile(context.Context, string, []byte) error { return nil }
+func (recordRemote) Close() error                                    { return nil }
+
+func TestSurgeAlertRotatePortsEntry(t *testing.T) {
+	_, a := newTestServer(t)
+	s, _ := New(a.DB, a, nil)
+	h := s.Handler()
+	ctx := context.Background()
+	var cmds []string
+	s.Deployer.Prepare = nil
+	s.Deployer.Config = func(context.Context, int64) ([]byte, error) { return []byte("{}"), nil }
+	s.Deployer.Dial = func(context.Context, *store.SSHTarget) (deploy.Remote, error) { return recordRemote{&cmds}, nil }
+	a.DB.Exec(`INSERT INTO server(id,ip,name,auth_type,username,auth) VALUES(1,'1.1.1.1','HK','PASSWORD','root','x')`)
+	a.DB.Exec(`INSERT INTO node (id, name, type, protocol, port) VALUES (1, 'r', 0, 'vless-reality', 8000), (2, 'p', 0, 'vless', 8001)`)
+	a.DB.Exec(`INSERT INTO node_server (node_id, server_id, deployed) VALUES (1, 1, 1), (2, 1, 1)`)
+	surge, _, err := store.AlertTrigger(ctx, a.DB, store.AlertKey{Type: alertMonitorLoad, ResourceType: "server", ResourceID: 1, ResourceKey: "1.1.1.1", Fingerprint: surgeFingerprint + "1"}, "warning", 150, 100, "HK 疑似被刷", time.Hour, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cpu, _, _ := store.AlertTrigger(ctx, a.DB, store.AlertKey{Type: alertMonitorLoad, ResourceType: "server", ResourceID: 1, ResourceKey: "1.1.1.1", Fingerprint: "cpu:1"}, "warning", 0.95, 0.9, "HK CPU", time.Hour, time.Now())
+
+	c := login(t, h, "admin@example.com")
+	csrf := a.CSRFToken(c.Value)
+	list := func() string { return do(h, "GET", "/admin/alerts", nil, c, nil).Body.String() }
+	page := list()
+	if strings.Count(page, "/admin/alerts/"+itoa(surge)+"/rotate-ports") != 2 || strings.Contains(page, "/admin/alerts/"+itoa(cpu)+"/rotate-ports") || strings.Contains(page, "/failover") {
+		t.Fatal("只有流量防刷告警提供换端口封禁（PC 与移动端各一）")
+	}
+	if !strings.Contains(page, `href="/admin/monitor/1"`) || !strings.Contains(page, `href="/admin/servers/1/edit"`) {
+		t.Fatal("服务器类告警应提供监控与服务器跳转")
+	}
+	post := func(id int64) string {
+		return do(h, "POST", "/admin/alerts/"+itoa(id)+"/rotate-ports", url.Values{"csrf": {csrf}}, c, nil).Header().Get("Location")
+	}
+	if loc := post(cpu); !strings.Contains(loc, "err=") {
+		t.Fatal("非防刷告警不应可处置", loc)
+	}
+	if loc := post(surge); !strings.Contains(loc, "msg=") {
+		t.Fatal(loc)
+	}
+	var p1, p2 int
+	var status, by string
+	a.DB.QueryRow(`SELECT port FROM node WHERE id=1`).Scan(&p1)
+	a.DB.QueryRow(`SELECT port FROM node WHERE id=2`).Scan(&p2)
+	a.DB.QueryRow(`SELECT status,coalesce(acknowledged_by,'') FROM alert_state WHERE id=?`, surge).Scan(&status, &by)
+	if p1 == 8000 || p2 != 8001 || status != store.AlertAcknowledged || by != "admin@example.com" {
+		t.Fatalf("应只给 REALITY 节点换端口并确认告警: p1=%d p2=%d status=%s by=%s", p1, p2, status, by)
+	}
+	joined := strings.Join(cmds, "\n")
+	for _, want := range []string{"iptables -I INPUT -p tcp --dport 8000 -j DROP", "iptables -I INPUT -p udp --dport 8000 -j DROP", "systemctl restart sing-box"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("缺少命令 %q:\n%s", want, joined)
+		}
+	}
+	if strings.Index(joined, "systemctl restart") > strings.Index(joined, "--dport 8000 -j DROP") {
+		t.Fatal("应先部署新端口再封禁旧端口")
+	}
+	if !strings.Contains(list(), "/admin/alerts/"+itoa(surge)+"/rotate-ports") {
+		t.Fatal("已确认但未恢复时仍可再次换端口（刷量追上新端口的情况）")
+	}
+	store.AlertRecoverManual(ctx, a.DB, surge, time.Now())
+	if loc := post(surge); !strings.Contains(loc, "err=") {
+		t.Fatal("已恢复告警不应可处置", loc)
+	}
+	if w := do(h, "POST", "/admin/alerts/999/rotate-ports", url.Values{"csrf": {csrf}}, c, nil); w.Code != 404 {
+		t.Fatalf("不存在的告警: %d", w.Code)
 	}
 }
