@@ -459,6 +459,37 @@ func TestAccountListFilters(t *testing.T) {
 	}
 }
 
+func TestAccountActiveFilterAtExpiration(t *testing.T) {
+	db, ctx := testDB(t)
+	now := time.Date(2026, 8, 1, 12, 0, 0, 0, Shanghai)
+	previousNow := nowFunc
+	nowFunc = func() time.Time { return now }
+	t.Cleanup(func() { nowFunc = previousNow })
+	expiring := onboard(t, db, "boundary@example.com", func(in *OnboardInput) {
+		in.Account.FromDate = ptr(now.Add(-time.Hour))
+		in.Account.ToDate = ptr(now)
+	})
+	active := onboard(t, db, "future@example.com", func(in *OnboardInput) {
+		in.Account.ToDate = ptr(now.Add(time.Second))
+	})
+	list, total, err := AccountList(ctx, db, AccountFilter{Status: "active"}, 1, 20)
+	if err != nil || total != 1 || len(list) != 1 || list[0].ID != active.AccountID {
+		t.Fatalf("恰好到期的账户不应出现在有效列表: total=%d list=%v err=%v", total, list, err)
+	}
+	dashboard, err := DashboardLoad(ctx, db, now, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dashboard.AccountsActive != 1 || dashboard.AccountsExpired != 1 || len(dashboard.ExpiringAccounts) != 1 || dashboard.ExpiringAccounts[0].ID != active.AccountID {
+		t.Fatalf("概览应与列表采用相同的到期边界: %+v", dashboard)
+	}
+	// 到期任务使用相同边界，且只停用到期账户。
+	ids, err := ExpireAccounts(ctx, db, now)
+	if err != nil || len(ids) != 1 || ids[0] != expiring.AccountID {
+		t.Fatalf("到期任务与列表边界不一致: ids=%v err=%v", ids, err)
+	}
+}
+
 func TestAccountRecentNodes(t *testing.T) {
 	db, ctx := testDB(t)
 	r := onboard(t, db, "a@example.com", nil)

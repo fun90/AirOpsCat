@@ -78,7 +78,7 @@ AIROPSCAT_LISTEN=127.0.0.1:8080
 
 secret 仅在缺少配置且没有已有数据库时生成；已有库缺少 secret 将中止安装，以免失去解密能力。升级保留 secret 与管理员凭据，不输出密码或 secret，不执行环境文件内容。安装器拒绝其他 DB 或监听路径，避免备份错误的数据库。配置不得含续行、重复配置或 shell 语法。
 
-首次管理员邮箱为 `admin@airopscat.local`，密码在 `initial-admin.env`，只在空库创建管理员时生效。请在 root 终端私下读取，勿将其复制到日志；首次登录立即改密。升级不会再次生成或重置密码。确认管理员已创建后，可用 `truncate -s 0 /etc/airopscat/initial-admin.env` 清除初始凭据；保留空文件供 systemd 读取，安装器在已有数据库时保留它。请勿对空数据库清空该文件，否则应用会自行生成密码并写日志。
+首次管理员邮箱为 `admin@airopscat.local`，密码在 `initial-admin.env`，只在空库创建管理员时生效。请在 root 终端私下读取，勿将其复制到日志；首次登录立即改密。升级不会再次生成或重置密码。确认管理员已创建后，可用 `truncate -s 0 /etc/airopscat/initial-admin.env` 清除初始凭据；保留空文件供 systemd 读取，安装器在已有数据库时保留它。空数据库必须配置 `AIROPSCAT_ADMIN_PASSWORD`；缺少密码时应用拒绝初始化，不会生成密码或将密码写入日志。
 
 默认仅监听 `127.0.0.1:8080`，通过本机反向代理或 SSH 隧道访问。服务日志写入 journal，以下日志轮转配置适用于原有文件日志部署，不是 Go 服务的必需安装步骤。
 

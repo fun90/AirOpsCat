@@ -111,7 +111,7 @@ func (s *Server) nodeBatchFailover(w http.ResponseWriter, r *http.Request) {
 
 // nodeSwitch 把单个节点的域名切到指定部署位；placement 为 0 时全部回切，restore 只取消指定部署位的切走。
 func (s *Server) nodeSwitch(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	back := fmt.Sprintf("/admin/nodes/%d/edit", id)
 	if raw := r.PostFormValue("restore"); raw != "" {
 		pid, err := strconv.ParseInt(raw, 10, 64)

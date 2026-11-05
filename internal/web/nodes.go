@@ -334,7 +334,7 @@ func prettyJSON(s string) string {
 }
 
 func (s *Server) nodeEdit(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	n, err := store.NodeByID(r.Context(), s.DB, id)
 	if err != nil {
 		s.fail(w, r, err)
@@ -348,7 +348,7 @@ func (s *Server) nodeEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	f := &NodeForm{ID: id, Name: formValue(r, "name"), Type: formValue(r, "type"), Protocol: formValue(r, "protocol"), Port: formValue(r, "port"),
 		Inbound: strings.TrimSpace(r.PostFormValue("inbound")), OutID: formValue(r, "out_id"), Region: formValue(r, "region"),
 		Disabled: r.PostFormValue("disabled") == "1", TagIDs: map[int64]bool{}}
@@ -478,7 +478,7 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) nodeToggle(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	if err := store.ToggleNode(r.Context(), s.DB, id, r.PostFormValue("disabled") == "1"); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.NotFound(w, r)
@@ -495,7 +495,7 @@ func (s *Server) nodeToggle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) nodeDelete(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	gone, err := store.DeleteNode(r.Context(), s.DB, id)
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
@@ -513,7 +513,7 @@ func (s *Server) nodeDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) nodeCancelDelete(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	if err := store.CancelDeleteNode(r.Context(), s.DB, id); err != nil {
 		if errors.Is(err, store.ErrInvalid) || errors.Is(err, store.ErrConflict) {
 			redirectMsg(w, r, "/admin/nodes", "err", err.Error())

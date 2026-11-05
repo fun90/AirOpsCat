@@ -46,10 +46,7 @@ func BatchNodeTags(ctx context.Context, db *sql.DB, nodeIDs, tagIDs []int64, mod
 		if mode == "APPEND" {
 			target = normalizeTagIDs(append(target, node.TagIDs...))
 		}
-		current := slices.Clone(node.TagIDs)
-		slices.Sort(current)
-		slices.Sort(target)
-		if slices.Equal(current, target) {
+		if sameIDs(node.TagIDs, target) {
 			unchanged++
 			continue
 		}

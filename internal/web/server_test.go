@@ -76,6 +76,23 @@ func login(t *testing.T, h http.Handler, email string) *http.Cookie {
 	return nil
 }
 
+func TestStrictResourceIDsRejectInvalidPaths(t *testing.T) {
+	h, a := newTestServer(t)
+	cookie := login(t, h, "admin@example.com")
+	for _, resource := range []string{"routes", "transactions"} {
+		for _, id := range []string{"0", "-1", "invalid", "1.5", "9223372036854775808"} {
+			path := "/admin/" + resource + "/" + id
+			if w := do(h, "GET", path+"/edit", nil, cookie, nil); w.Code != http.StatusNotFound {
+				t.Errorf("GET %s/edit: status=%d，预期 404", path, w.Code)
+			}
+			form := url.Values{"csrf": {a.CSRFToken(cookie.Value)}}
+			if w := do(h, "POST", path, form, cookie, nil); w.Code != http.StatusNotFound {
+				t.Errorf("POST %s: status=%d，预期 404", path, w.Code)
+			}
+		}
+	}
+}
+
 func TestAdminRequiresLogin(t *testing.T) {
 	h, _ := newTestServer(t)
 	if w := do(h, "GET", "/admin", nil, nil, nil); w.Code != http.StatusFound || w.Header().Get("Location") != "/login" {

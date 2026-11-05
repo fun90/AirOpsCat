@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -12,7 +13,9 @@ import (
 
 func (im *importer) verify(ctx context.Context) error {
 	// 外键检查需要开启外键后的新连接
-	chk, err := sql.Open("sqlite", "file:"+im.tmp+"?_pragma=foreign_keys(1)")
+	q := url.Values{"_pragma": {"foreign_keys(1)"}}
+	dsn := (&url.URL{Scheme: "file", OmitHost: true, Path: im.tmp, RawQuery: q.Encode()}).String()
+	chk, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return err
 	}

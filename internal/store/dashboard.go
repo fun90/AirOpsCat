@@ -42,9 +42,9 @@ func DashboardLoad(ctx context.Context, db *sql.DB, now time.Time, days int) (*D
 	local := now.In(Shanghai)
 	err := db.QueryRowContext(ctx, `SELECT
 		(SELECT count(*) FROM account),
-		(SELECT count(*) FROM account WHERE disabled=0 AND (to_date IS NULL OR to_date>=@now)),
+		(SELECT count(*) FROM account WHERE disabled=0 AND (to_date IS NULL OR to_date>@now)),
 		(SELECT count(*) FROM account WHERE disabled=1),
-		(SELECT count(*) FROM account WHERE disabled=0 AND to_date<@now),
+		(SELECT count(*) FROM account WHERE disabled=0 AND to_date<=@now),
 		(SELECT count(*) FROM node WHERE disabled=0),
 		(SELECT count(*) FROM node WHERE disabled=1),
 		(SELECT count(*) FROM node_server ns JOIN node n ON n.id=ns.node_id WHERE ns.deployed=0 AND n.disabled=0),
@@ -73,7 +73,7 @@ func DashboardLoad(ctx context.Context, db *sql.DB, now time.Time, days int) (*D
 		return nil, fmt.Errorf("读取近期告警: %w", err)
 	}
 	rows, err = db.QueryContext(ctx, `SELECT id,coalesce(nullif(remark,''),account_no),account_no,to_date,disabled FROM account
-		WHERE disabled=0 AND to_date>=? AND to_date<? ORDER BY to_date,id`, FormatTime(now), FormatTime(now.AddDate(0, 0, days)))
+		WHERE disabled=0 AND to_date>? AND to_date<? ORDER BY to_date,id`, FormatTime(now), FormatTime(now.AddDate(0, 0, days)))
 	if err != nil {
 		return nil, fmt.Errorf("读取到期账户: %w", err)
 	}

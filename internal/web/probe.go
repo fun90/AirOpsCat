@@ -35,7 +35,7 @@ type probeResult struct {
 
 // placementProbe 从配置的国内探测服务器经 SSH 拨测部署位 IP:端口，返回每台探测机的结果。
 func (s *Server) placementProbe(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	var ip, protocol, inbound string
 	var port int
 	err := s.DB.QueryRowContext(r.Context(), `SELECT s.ip, n.port, n.protocol, coalesce(n.inbound,'') FROM node_server p

@@ -9,8 +9,6 @@ import (
 	"github.com/fun90/airopscat/internal/store"
 )
 
-var userRoles = []string{"ADMIN", "PARTNER", "VIP"}
-
 // UserForm 保留用户输入的原始文本，校验失败时原样回显；密码不回传。
 type UserForm struct {
 	ID                                        int64
@@ -32,7 +30,7 @@ func (s *Server) userRoutes(m *http.ServeMux) {
 
 func (s *Server) userForm(w http.ResponseWriter, r *http.Request, title string, status int, f *UserForm, msg string) {
 	d := s.pageData(r, title, "users")
-	d["Form"], d["Roles"], d["FormErr"] = f, userRoles, msg
+	d["Form"], d["Roles"], d["FormErr"] = f, store.UserRoles, msg
 	s.render(w, "user_form", status, d)
 }
 
@@ -50,7 +48,7 @@ func (s *Server) userList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) userEdit(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	u, err := store.ManagedUserByID(r.Context(), s.DB, id)
 	if err != nil {
 		s.fail(w, r, err)
@@ -65,7 +63,7 @@ func (s *Server) userEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) userSave(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	f := &UserForm{ID: id, Email: formValue(r, "email"), NickName: formValue(r, "nick_name"), RemarkName: formValue(r, "remark_name"),
 		Remark: formValue(r, "remark"), Role: formValue(r, "role"), Disabled: r.PostFormValue("disabled") == "1"}
 	if id != 0 {
@@ -116,7 +114,7 @@ func (s *Server) userUnlock(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) userDelete(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	cur := r.Context().Value(userKey).(*store.User).ID
 	if err := store.DeleteManagedUser(r.Context(), s.DB, id, cur); err != nil {
 		if errors.Is(err, store.ErrInvalid) || errors.Is(err, store.ErrConflict) {

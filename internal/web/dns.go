@@ -54,15 +54,6 @@ func (s *Server) dnsRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/domains/{id}/records/{rid}/delete", s.recordDelete)
 }
 
-func pathID(w http.ResponseWriter, r *http.Request, key string) (int64, bool) {
-	id, err := strconv.ParseInt(r.PathValue(key), 10, 64)
-	if err != nil || id < 1 {
-		http.NotFound(w, r)
-		return 0, false
-	}
-	return id, true
-}
-
 // saveErr 把输入/冲突错误转成表单提示；其他错误按 500 处理并返回 false。
 func (s *Server) saveErr(w http.ResponseWriter, r *http.Request, err error) (string, bool) {
 	if strings.Contains(err.Error(), "DNS 自动操作尚待对账") {

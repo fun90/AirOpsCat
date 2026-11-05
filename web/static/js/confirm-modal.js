@@ -25,7 +25,12 @@ document.addEventListener('submit', event => {
     event.preventDefault();
     if (!dialog?.isConnected) { build(); }
     pending = form;
-    dialog.querySelector('[data-confirm-text]').textContent = form.dataset.confirm;
+    let text = form.dataset.confirm;
+    if (form.hasAttribute('data-batch-form')) {
+        const names = [...document.querySelectorAll('[data-node-select]:checked')].map(input => input.dataset.name);
+        if (names.length) text += '\n\n' + names.slice(0, 8).join('、') + (names.length > 8 ? ` 等共 ${names.length} 个` : '');
+    }
+    dialog.querySelector('[data-confirm-text]').textContent = text;
     dialog.querySelector('[data-confirm-ok]').className = 'btn ' + ('confirmDanger' in form.dataset ? 'btn-danger' : 'btn-primary');
     modal.show();
 }, true);

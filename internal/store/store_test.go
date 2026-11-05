@@ -2,10 +2,48 @@ package store
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 	"testing/fstest"
 )
+
+func TestOpenPreservesFilename(t *testing.T) {
+	for _, name := range []string{"question?.db", "fragment#.db", "percent%41.db", "quote'.db", "plain.db"} {
+		t.Run(name, func(t *testing.T) {
+			// 相对路径也必须保留原始文件名和连接选项。
+			t.Chdir(t.TempDir())
+			db, err := Open(context.Background(), name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			if _, err := os.Stat(name); err != nil {
+				t.Fatalf("数据库应位于原始路径: %v", err)
+			}
+			var fk int
+			if err := db.QueryRow("PRAGMA foreign_keys").Scan(&fk); err != nil || fk != 1 {
+				t.Fatalf("路径编码不应丢失连接选项: foreign_keys=%d err=%v", fk, err)
+			}
+			if _, err := db.Exec("CREATE TABLE path_marker(value); INSERT INTO path_marker VALUES(42)"); err != nil {
+				t.Fatal(err)
+			}
+			absolute, err := filepath.Abs(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			reopened, err := Open(context.Background(), absolute)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reopened.Close()
+			var marker int
+			if err := reopened.QueryRow("SELECT value FROM path_marker").Scan(&marker); err != nil || marker != 42 {
+				t.Fatalf("绝对路径应打开同一文件: marker=%d err=%v", marker, err)
+			}
+		})
+	}
+}
 
 func TestOpenMigratesOnceAndEnforcesForeignKeys(t *testing.T) {
 	ctx := context.Background()

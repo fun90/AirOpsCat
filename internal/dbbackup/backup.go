@@ -6,11 +6,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -35,7 +35,7 @@ func (m *Manager) now() time.Time {
 	return time.Now()
 }
 
-// Create 先写临时文件，通过完整性检查后原子改名；失败不留半成品。
+// Create 先写独占临时文件，通过完整性检查后原子发布；失败不留半成品。
 func (m *Manager) Create(ctx context.Context) (string, error) {
 	if err := os.MkdirAll(m.Dir, 0o700); err != nil {
 		return "", err
@@ -44,27 +44,37 @@ func (m *Manager) Create(ctx context.Context) (string, error) {
 	final := filepath.Join(m.Dir, name)
 	if _, err := os.Lstat(final); err == nil {
 		return "", errors.New("同一秒内已存在备份，请稍后重试")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
 	}
-	tmp := filepath.Join(m.Dir, "."+name+".tmp")
-	os.Remove(tmp)
+	// 每次调用独占临时文件，且从创建起即为 0600，避免并发备份互相删除。
+	f, err := os.CreateTemp(m.Dir, "."+name+"-*.tmp")
+	if err != nil {
+		return "", err
+	}
+	tmp := f.Name()
 	defer os.Remove(tmp)
-	if _, err := m.DB.ExecContext(ctx, "VACUUM INTO '"+strings.ReplaceAll(tmp, "'", "''")+"'"); err != nil {
+	if err := f.Close(); err != nil {
+		return "", err
+	}
+	if _, err := m.DB.ExecContext(ctx, "VACUUM INTO ?", tmp); err != nil {
 		return "", fmt.Errorf("生成备份: %w", err)
 	}
 	if err := check(ctx, tmp); err != nil {
 		return "", err
 	}
-	if err := os.Chmod(tmp, 0o600); err != nil {
-		return "", err
-	}
-	if err := os.Rename(tmp, final); err != nil {
-		return "", err
+	// Link 原子发布且拒绝覆盖，保护不同 Manager 或进程同时生成的同名备份。
+	if err := os.Link(tmp, final); errors.Is(err, os.ErrExist) {
+		return "", errors.New("同一秒内已存在备份，请稍后重试")
+	} else if err != nil {
+		return "", fmt.Errorf("发布备份: %w", err)
 	}
 	return name, nil
 }
 
 func check(ctx context.Context, path string) error {
-	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
+	dsn := (&url.URL{Scheme: "file", OmitHost: true, Path: path, RawQuery: "mode=ro"}).String()
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return err
 	}

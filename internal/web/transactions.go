@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -33,15 +34,6 @@ func (s *Server) transactionRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/transactions/{id}/delete", s.transactionDelete)
 }
 
-func transactionID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil || id < 1 {
-		http.NotFound(w, r)
-		return 0, false
-	}
-	return id, true
-}
-
 func transactionListURL(r *http.Request) string {
 	q := r.URL.Query()
 	q.Del("msg")
@@ -54,7 +46,7 @@ func transactionListURL(r *http.Request) string {
 
 func transactionFilter(r *http.Request) (store.TransactionFilter, string, string, error) {
 	f := store.TransactionFilter{Q: strings.TrimSpace(r.URL.Query().Get("q")), BusinessTable: r.URL.Query().Get("business")}
-	if f.BusinessTable != "" && !slicesContains(store.TransactionBusinessTables, f.BusinessTable) {
+	if f.BusinessTable != "" && !slices.Contains(store.TransactionBusinessTables, f.BusinessTable) {
 		return f, "", "", fmt.Errorf("业务类型不正确")
 	}
 	if raw := r.URL.Query().Get("type"); raw != "" {
@@ -155,7 +147,7 @@ func (s *Server) transactionNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) transactionEdit(w http.ResponseWriter, r *http.Request) {
-	id, ok := transactionID(w, r)
+	id, ok := pathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -192,7 +184,7 @@ func transactionFromForm(r *http.Request, id int64) (*transactionForm, *store.Tr
 	if f.BusinessRef != "" {
 		table, rawID, ok := strings.Cut(f.BusinessRef, ":")
 		businessID, parseErr := strconv.ParseInt(rawID, 10, 64)
-		if !ok || parseErr != nil || businessID < 1 || !slicesContains(store.TransactionBusinessTables, table) {
+		if !ok || parseErr != nil || businessID < 1 || !slices.Contains(store.TransactionBusinessTables, table) {
 			return f, nil, fmt.Errorf("关联业务不正确")
 		}
 		t.BusinessTable, t.BusinessID = table, &businessID
@@ -204,7 +196,7 @@ func (s *Server) transactionSave(w http.ResponseWriter, r *http.Request) {
 	id := int64(0)
 	if r.PathValue("id") != "" {
 		var ok bool
-		id, ok = transactionID(w, r)
+		id, ok = pathID(w, r, "id")
 		if !ok {
 			return
 		}
@@ -229,7 +221,7 @@ func (s *Server) transactionSave(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) transactionDelete(w http.ResponseWriter, r *http.Request) {
-	id, ok := transactionID(w, r)
+	id, ok := pathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -242,17 +234,4 @@ func (s *Server) transactionDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redirectMsg(w, r, "/admin/transactions", "msg", "流水已删除")
-}
-
-func slicesContains(values []string, value string) bool {
-	return slicesIndex(values, value) >= 0
-}
-
-func slicesIndex(values []string, value string) int {
-	for i, v := range values {
-		if v == value {
-			return i
-		}
-	}
-	return -1
 }

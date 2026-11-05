@@ -398,6 +398,22 @@ func backTarget(r *http.Request, path string) string {
 	return ""
 }
 
+// idFrom 读取路径 ID，沿用调用方忽略解析错误的行为；需返回 404 的入口使用 pathID。
+func idFrom(r *http.Request) int64 {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	return id
+}
+
+// pathID 要求指定的路径参数是正整数，无效时返回 404。
+func pathID(w http.ResponseWriter, r *http.Request, key string) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue(key), 10, 64)
+	if err != nil || id < 1 {
+		http.NotFound(w, r)
+		return 0, false
+	}
+	return id, true
+}
+
 // pageParams 解析分页参数。
 func pageParams(r *http.Request) (page, size int) {
 	page, _ = strconv.Atoi(r.URL.Query().Get("page"))

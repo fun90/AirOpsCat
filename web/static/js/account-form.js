@@ -1,7 +1,6 @@
 window.AirOpsPage.register(function(){
  var source=document.querySelector('#user_source');
  if(source){function update(){document.querySelector('[data-new-user]').hidden=source.value!=='new';document.querySelector('[data-existing-user]').hidden=source.value==='new';}source.addEventListener('change',update);update();}
- document.querySelectorAll('form').forEach(function(form){form.addEventListener('invalid',function(e){var pane=e.target.closest('.tab-pane');if(pane&&!pane.classList.contains('active')){var tab=document.querySelector('[data-bs-target="#'+pane.id+'"]');if(tab){tab.click();}}},true);});
 
  var pw=document.querySelector('#new_password');
  function gen(){var c='abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789',a=new Uint32Array(12);crypto.getRandomValues(a);return Array.from(a,function(n){return c[n%c.length];}).join('');}

@@ -6,9 +6,8 @@
 {{define "nodeOnline"}}<span class="d-inline-flex align-items-center gap-2 text-nowrap" title="{{.Text}}"><span><i class="ti ti-users me-1" role="img" aria-label="账户"></i>{{.Accounts}}</span>{{if .ShowConns}}<span><i class="ti ti-plug-connected me-1" role="img" aria-label="连接"></i>{{.Connections}}</span>{{end}}{{if .Partial}}<i class="ti ti-alert-triangle text-yellow" role="img" aria-label="部分服务器无上报"></i>{{end}}</span>{{end}}
 {{/* 部署位下拉：各部署位状态、检测结果和当前 DNS 指向。参数：Briefs、Pointed、Rounds */}}
 {{define "placementMenu"}}<div class="dropdown-menu p-2"><div class="d-flex flex-column gap-1 menu-narrow">{{range .Briefs}}<div class="d-flex flex-wrap align-items-center gap-1"><span class="badge {{if eq .Deployed 1}}bg-green-lt{{else if eq .Deployed 0}}bg-yellow-lt{{else}}bg-red-lt{{end}} text-wrap text-break" title="{{if eq .Deployed 1}}已部署{{else if eq .Deployed 0}}待部署{{else}}待删除{{end}}">{{if eq .Deployed 0}}<i class="ti ti-clock me-1" aria-hidden="true"></i>{{else if eq .Deployed 2}}<i class="ti ti-trash me-1" aria-hidden="true"></i>{{end}}{{.Server}}{{if ne .Deployed 1}}<span class="visually-hidden">（{{if eq .Deployed 0}}待部署{{else}}待删除{{end}}）</span>{{end}}</span>{{if .Probes}}<span class="text-secondary small">{{.Network}}</span>{{range .Probes}}<span class="badge {{if .OK}}bg-green-lt{{else if ge .Fails $.Rounds}}bg-red-lt{{else}}bg-yellow-lt{{end}} fw-normal text-wrap" title="定时检测于 {{.Checked}}{{if .LastOK}}，最后成功 {{.LastOK}}{{end}}"><i class="ti {{if .OK}}ti-check{{else if ge .Fails $.Rounds}}ti-x{{else}}ti-alert-triangle{{end}} me-1" aria-hidden="true"></i>{{.ProbeName}} {{if .OK}}{{.Ms}}ms{{else}}{{.Msg}}{{if gt .Fails 1}} ×{{.Fails}}{{end}}{{end}}</span>{{end}}{{end}}</div>{{end}}{{range .Pointed}}<div class="border-top pt-1 mt-1"><div class="small text-secondary mb-1"><i class="ti ti-current-location me-1" aria-hidden="true"></i>当前指向 {{.Server}}</div><div class="d-flex flex-wrap gap-1">{{range .Domains}}<span class="badge bg-blue-lt text-wrap text-break">{{.}}</span>{{end}}</div></div>{{end}}</div></div>{{end}}
-{{/* 部署列：部署位计数、检测告警；国内不可达的服务器直接列在行内。参数：N、Sum、Briefs、Pointed、Rounds */}}
+{{/* 部署列：部署位计数、检测告警；详细检测结果见下拉菜单。参数：N、Sum、Briefs、Pointed、Rounds */}}
 {{define "placementCell"}}{{with .N}}<div class="d-flex align-items-center gap-1 gap-lg-2 text-nowrap"><i class="ti ti-server text-secondary d-lg-none" role="img" aria-label="部署位" title="部署位"></i>{{template "deployBadge" .DeployStatus}}{{if gt .PlacementTotal 0}}<div class="dropdown"><button type="button" class="btn btn-link p-0 fw-normal small gap-1" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="查看 {{.PlacementTotal}} 个部署位{{if $.Sum.Bad}}，{{$.Sum.Bad}} 个{{if eq .Type 1}}落地{{else}}国内{{end}}不可达{{else if $.Sum.Flaky}}，{{$.Sum.Flaky}} 个检测偶发失败{{end}}">{{template "placementCount" .}}{{if $.Sum.Bad}}<span class="text-red" title="{{$.Sum.Bad}} 个部署位{{if eq .Type 1}}落地{{else}}国内{{end}}不可达"><i class="ti ti-alert-triangle" aria-hidden="true"></i>{{$.Sum.Bad}}</span>{{else if $.Sum.Flaky}}<span class="text-yellow" title="{{$.Sum.Flaky}} 个部署位检测偶发失败"><i class="ti ti-alert-triangle" aria-hidden="true"></i>{{$.Sum.Flaky}}</span>{{end}}{{if $.Pointed}}<i class="ti ti-current-location text-blue" role="img" aria-label="DNS 已切走" title="DNS 已切走"></i>{{end}}</button>{{template "placementMenu" (dict "Briefs" $.Briefs "Pointed" $.Pointed "Rounds" $.Rounds)}}</div>{{end}}</div>{{end}}{{end}}
-{{define "placementBad"}}<div class="d-flex flex-wrap gap-1">{{range .}}{{if .Unreachable}}<span class="badge bg-red-lt text-wrap text-break" title="{{.Server}} 不可达"><i class="ti ti-plug-x me-1" aria-hidden="true"></i>{{.Server}}</span>{{end}}{{end}}</div>{{end}}
 {{define "content"}}
 <div class="card">
     <div class="card-header">
@@ -87,10 +86,9 @@
                       </div>
                     </div>
                     <div class="w-100 d-lg-none m-0"></div>
-                    <div class="col-auto col-lg-3 small align-self-center">{{template "placementCell" (dict "N" . "Sum" $ps "Briefs" $br "Pointed" (and $fo $pt) "Rounds" $.ProbeFailRounds)}}{{if $ps.Bad}}<div class="d-none d-lg-block mt-1">{{template "placementBad" $br}}</div>{{end}}</div>
+                    <div class="col-auto col-lg-3 small align-self-center">{{template "placementCell" (dict "N" . "Sum" $ps "Briefs" $br "Pointed" (and $fo $pt) "Rounds" $.ProbeFailRounds)}}</div>
                     <div class="col-lg-2 small d-none d-lg-block">{{if $on.Reported}}{{template "nodeOnline" $on}}{{else if $on.Text}}{{$on.Text}}{{else}}<span class="text-secondary">—</span>{{end}}</div>
                     <div class="col small align-self-center{{if not .Tags}} d-none d-lg-block{{end}} min-w-0">{{if .Tags}}<div class="d-flex flex-nowrap align-items-center gap-2 node-tags"><i class="ti ti-tag text-secondary flex-shrink-0 d-lg-none" role="img" aria-label="标签" title="标签"></i>{{range $i, $t := .Tags}}{{if lt $i 2}}{{template "tagChip" $t}}{{end}}{{end}}{{if gt (len .Tags) 2}}<div class="dropdown"><button type="button" class="badge bg-secondary-lt text-reset fw-normal border-0 cursor-pointer" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="其余 {{sub (len .Tags) 2}} 个标签">+{{sub (len .Tags) 2}}</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-2 small menu-narrow">{{range $i, $t := .Tags}}{{if ge $i 2}}{{template "tagChip" $t}}{{end}}{{end}}</div></div></div>{{end}}</div>{{end}}</div>
-                    {{if $ps.Bad}}<div class="col-12 d-lg-none">{{template "placementBad" $br}}</div>{{end}}
                 </div>
             </div>
         </div>
@@ -101,7 +99,7 @@
     <div class="card-footer d-flex">{{template "pager" .}}</div>
 </div>
 
-<div class="fixed-bottom p-3 d-none safe-bottom" id="nodeBatchBar">
+<div class="fixed-bottom p-3 d-none safe-bottom" id="nodeBatchBar" data-batch-kind="node">
   <div class="card shadow mx-auto node-batch-card"><div class="card-body d-flex align-items-center gap-2 py-2">
     <span class="me-auto text-nowrap">已选 <strong data-batch-count>0</strong><span class="d-none d-sm-inline"> 个节点（仅本页）</span></span>
     <form method="post" action="/admin/nodes/batch-deploy" data-batch-form data-confirm="将部署以下节点的待部署项，确定？"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn btn-outline-primary text-nowrap" type="submit" aria-label="部署" title="部署"><i class="ti ti-rocket me-sm-1" aria-hidden="true"></i><span class="d-none d-sm-inline">部署</span></button></form>
@@ -119,22 +117,7 @@
     <button type="button" class="btn btn-link px-2 text-nowrap" data-batch-clear>取消</button>
   </div></div>
 </div>
-<div class="modal modal-blur fade" id="batchTagsModal" tabindex="-1" aria-labelledby="batchTagsTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="/admin/nodes/batch-tags" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}">
-  <div class="modal-header"><h5 class="modal-title" id="batchTagsTitle">调整标签 · <span data-batch-count>0</span> 个节点</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
-  <div class="modal-body">
-    <div class="mb-3">
-      <div class="form-selectgroup w-100" role="radiogroup" aria-label="调整方式">
-        <label class="form-selectgroup-item flex-fill"><input type="radio" name="mode" value="APPEND" class="form-selectgroup-input" checked><span class="form-selectgroup-label">追加</span></label>
-        <label class="form-selectgroup-item flex-fill"><input type="radio" name="mode" value="REPLACE" class="form-selectgroup-input"><span class="form-selectgroup-label">替换</span></label>
-      </div>
-      <div class="form-hint">替换时不选标签即清空，相关节点需重新部署</div>
-    </div>
-    <div class="d-flex flex-wrap gap-2">{{range .Tags}}
-      <label class="tag-pill d-inline-flex align-items-center rounded-pill border px-2 py-1 small m-0 cursor-pointer"><input type="checkbox" class="visually-hidden" name="tag_ids" value="{{.ID}}"><span class="status-dot flex-shrink-0 me-1" style="background-color: {{if .Color}}{{.Color}}{{else}}#6c757d{{end}}"></span>{{.Name}}<i class="ti ti-check tag-check ms-1" aria-hidden="true"></i></label>{{else}}<span class="text-secondary">暂无标签</span>{{end}}
-    </div>
-  </div>
-  <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">应用</button></div>
-</form></div></div>
+{{template "batchTagsModal" (dict "ID" "batchTagsModal" "TitleID" "batchTagsTitle" "Kind" "nodes" "Label" "节点" "Hint" "替换时不选标签即清空，相关节点需重新部署" "Tags" .Tags "CSRF" .CSRF)}}
 <div class="modal modal-blur fade" id="batchPlacementsModal" tabindex="-1" aria-labelledby="batchPlacementsTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="/admin/nodes/batch-placements" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}">
   <div class="modal-header"><h5 class="modal-title" id="batchPlacementsTitle">调整部署位 · <span data-batch-count>0</span> 个节点</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
   <div class="modal-body">

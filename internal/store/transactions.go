@@ -215,28 +215,14 @@ func SaveTransaction(ctx context.Context, db *sql.DB, t *Transaction) error {
 			if err != nil {
 				return err
 			}
-		} else {
-			res, err := tx.ExecContext(ctx, `UPDATE transactions SET transaction_date=?,amount=?,type=?,business_table=?,business_id=?,description=?,payment_method=?,remark=?,update_time=? WHERE id=?`, FormatTime(t.TransactionDate), t.Amount, t.Type, nz(t.BusinessTable), t.BusinessID, nz(t.Description), nz(t.PaymentMethod), nz(t.Remark), now, t.ID)
-			if err != nil {
-				return err
-			}
-			if n, _ := res.RowsAffected(); n == 0 {
-				return sql.ErrNoRows
-			}
+			return nil
 		}
-		return nil
+		return execOne(tx.ExecContext(ctx, `UPDATE transactions SET transaction_date=?,amount=?,type=?,business_table=?,business_id=?,description=?,payment_method=?,remark=?,update_time=? WHERE id=?`, FormatTime(t.TransactionDate), t.Amount, t.Type, nz(t.BusinessTable), t.BusinessID, nz(t.Description), nz(t.PaymentMethod), nz(t.Remark), now, t.ID))
 	})
 }
 
 func DeleteTransaction(ctx context.Context, db *sql.DB, id int64) error {
-	res, err := db.ExecContext(ctx, "DELETE FROM transactions WHERE id = ?", id)
-	if err != nil {
-		return err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
+	return execOne(db.ExecContext(ctx, "DELETE FROM transactions WHERE id = ?", id))
 }
 
 // TransactionBusinessOptions 返回可关联的现有业务记录，用于可搜索选择器。

@@ -88,6 +88,19 @@ func main() {
 	}
 }
 
+// openImportDB 使用单连接并关闭外键，允许按旧库顺序导入；结束后独立校验外键。
+func openImportDB(path string) (*sql.DB, error) {
+	q := url.Values{}
+	q.Add("_pragma", "foreign_keys(0)")
+	dsn := (&url.URL{Scheme: "file", OmitHost: true, Path: path, RawQuery: q.Encode()}).String()
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(1)
+	return db, nil
+}
+
 func run(dsn, oldKey, out string, dropSpeed bool) error {
 	secret := os.Getenv("AIROPSCAT_SECRET_KEY")
 	if dsn == "" || out == "" || len(secret) < crypto.MinSecretLen {
@@ -121,13 +134,10 @@ func run(dsn, oldKey, out string, dropSpeed bool) error {
 	}
 	db.Close()
 
-	q := url.Values{}
-	q.Add("_pragma", "foreign_keys(0)")
-	dst, err := sql.Open("sqlite", "file:"+tmp+"?"+q.Encode())
+	dst, err := openImportDB(tmp)
 	if err != nil {
 		return err
 	}
-	dst.SetMaxOpenConns(1)
 	field, _ := crypto.New(crypto.DeriveKey(secret, "field"))
 	im := &importer{src: snap, dst: dst, legacy: oldKey, field: field, tmp: tmp, regen: map[string]bool{}}
 

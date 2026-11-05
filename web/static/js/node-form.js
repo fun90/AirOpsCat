@@ -85,14 +85,6 @@ window.AirOpsPage.register(function () {
         }
         initialize(false);
     });
-    // 浏览器验证隐藏 Tab 中的字段失败时，先打开对应页签再聚焦。
-    ta.form.addEventListener('invalid', function (e) {
-        var pane = e.target.closest('.tab-pane');
-        if (pane && !pane.classList.contains('active')) {
-            var trigger = document.querySelector('[data-bs-target="#' + pane.id + '"]');
-            if (trigger) { trigger.click(); }
-        }
-    }, true);
     options();
     return function () { ++serial; observer.disconnect(); };
 });

@@ -65,17 +65,8 @@ func (s *Server) routeRuleFormPage(w http.ResponseWriter, r *http.Request, statu
 	s.render(w, "route_rule_form", status, d)
 }
 
-func routeRuleID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil || id < 1 {
-		http.NotFound(w, r)
-		return 0, false
-	}
-	return id, true
-}
-
 func (s *Server) routeRuleEdit(w http.ResponseWriter, r *http.Request) {
-	id, ok := routeRuleID(w, r)
+	id, ok := pathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -99,7 +90,7 @@ func (s *Server) routeRuleSave(w http.ResponseWriter, r *http.Request) {
 	var id int64
 	if r.PathValue("id") != "" {
 		var ok bool
-		id, ok = routeRuleID(w, r)
+		id, ok = pathID(w, r, "id")
 		if !ok {
 			return
 		}
@@ -137,7 +128,7 @@ func (s *Server) routeRuleSave(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) routeRuleToggle(w http.ResponseWriter, r *http.Request) {
-	id, ok := routeRuleID(w, r)
+	id, ok := pathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -158,7 +149,7 @@ func (s *Server) routeRuleToggle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) routeRuleDelete(w http.ResponseWriter, r *http.Request) {
-	id, ok := routeRuleID(w, r)
+	id, ok := pathID(w, r, "id")
 	if !ok {
 		return
 	}

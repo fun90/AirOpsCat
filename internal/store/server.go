@@ -233,17 +233,13 @@ func SaveServer(ctx context.Context, db *sql.DB, c *crypto.Cipher, s *Server, au
 			return 0, invalid("服务器上还有代理节点的部署位，不能改为落地或外部服务器，请先在节点中删除：%s", strings.Join(names, "、"))
 		}
 	}
-	res, err := tx.ExecContext(ctx, `UPDATE server SET name=?, ip=?, ssh_port=?, auth_type=?, username=?, auth=coalesce(?, auth), region=?,
+	if err := execOne(tx.ExecContext(ctx, `UPDATE server SET name=?, ip=?, ssh_port=?, auth_type=?, username=?, auth=coalesce(?, auth), region=?,
 		server_type=?, expire_date=?, bandwidth_date=?, supplier=?, price=?, price_months=?, multiple=?, bandwidth=?, bandwidth_unit=?, cpu_cores=?, disabled=?,
 		external_server=?, remark=?, update_time=? WHERE id=?`,
 		nz(s.Name), s.IP, s.SSHPort, s.AuthType, nz(s.Username), nz(encAuth), nz(s.Region), s.ServerType,
 		nz(s.ExpireDate), bandwidthDate(s.BandwidthDay), nz(s.Supplier), s.Price, s.PriceMonths, s.Multiple, s.Bandwidth, BandwidthUnitOrDefault(s.BandwidthUnit), s.CPUCores,
-		s.Disabled, s.External, nz(s.Remark), now, s.ID)
-	if err != nil {
+		s.Disabled, s.External, nz(s.Remark), now, s.ID)); err != nil {
 		return 0, err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return 0, sql.ErrNoRows
 	}
 	if oldIP != s.IP {
 		if err := retargetServerIP(ctx, tx, oldIP, s.IP, now); err != nil {

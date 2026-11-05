@@ -259,8 +259,7 @@ func UpdateAccount(ctx context.Context, db *sql.DB, id int64, a *Account) error 
 			if err := cleanUnauthorizedBindings(ctx, tx, id); err != nil {
 				return err
 			}
-		}
-		if affectsNodes {
+			// 标签变化后再覆盖新标签的节点；其他字段变化只需置位一次。
 			if err := markAccountPending(ctx, tx, id); err != nil {
 				return err
 			}

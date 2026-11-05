@@ -150,6 +150,29 @@ func TestDeleteManagedUserGuards(t *testing.T) {
 	}
 }
 
+func TestDeleteDisabledAdminKeepsLastEnabledAdmin(t *testing.T) {
+	db, ctx := testDB(t)
+	active := &ManagedUser{Email: "active@example.com", Role: "ADMIN"}
+	disabled := &ManagedUser{Email: "disabled@example.com", Role: "ADMIN", Disabled: true}
+	for _, u := range []*ManagedUser{active, disabled} {
+		if err := SaveManagedUser(ctx, db, u, "test-password"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := DeleteManagedUser(ctx, db, active.ID, disabled.ID); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("禁用管理员不能替代最后一个启用管理员: %v", err)
+	}
+	if err := DeleteManagedUser(ctx, db, disabled.ID, active.ID); err != nil {
+		t.Fatalf("删除禁用管理员不影响启用管理员，应允许: %v", err)
+	}
+	if got, err := ManagedUserByID(ctx, db, active.ID); err != nil || got == nil || got.Disabled {
+		t.Fatalf("启用管理员应保留: %v %v", got, err)
+	}
+	if got, err := ManagedUserByID(ctx, db, disabled.ID); err != nil || got != nil {
+		t.Fatalf("禁用管理员应已删除: %v %v", got, err)
+	}
+}
+
 func TestCannotDisableOrDemoteLastEnabledAdmin(t *testing.T) {
 	db, ctx := testDB(t)
 	u := &ManagedUser{Email: "last@example.com", Role: "ADMIN"}

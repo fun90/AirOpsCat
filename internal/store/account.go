@@ -247,7 +247,7 @@ func (f AccountFilter) where(now time.Time) (string, []any) {
 	}
 	switch strings.ToLower(f.Status) {
 	case "active":
-		conds = append(conds, `a.disabled = 0 AND (a.to_date IS NULL OR a.to_date >= @now)`)
+		conds = append(conds, `a.disabled = 0 AND (a.to_date IS NULL OR a.to_date > @now)`)
 	case "disabled":
 		conds = append(conds, `a.disabled = 1`)
 	case "expiring":

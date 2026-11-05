@@ -128,14 +128,7 @@ func AlertAcknowledge(ctx context.Context, db *sql.DB, id int64, by string, now 
 // AlertRecoverManual 人工恢复：下次条件仍满足会重新触发。
 func AlertRecoverManual(ctx context.Context, db *sql.DB, id int64, now time.Time) error {
 	ts := FormatTime(now)
-	res, err := db.ExecContext(ctx, `UPDATE alert_state SET status='RECOVERED',recovered_time=?,update_time=? WHERE id=? AND status<>'RECOVERED'`, ts, ts, id)
-	if err != nil {
-		return err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
+	return execOne(db.ExecContext(ctx, `UPDATE alert_state SET status='RECOVERED',recovered_time=?,update_time=? WHERE id=? AND status<>'RECOVERED'`, ts, ts, id))
 }
 
 const alertSel = `SELECT id,alert_type,resource_type,resource_id,coalesce(resource_key,''),fingerprint,status,coalesce(severity,''),coalesce(summary,''),

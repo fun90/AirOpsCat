@@ -3,9 +3,7 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -124,11 +122,8 @@ func ensureAdmin(ctx context.Context, db *sql.DB) error {
 	}
 	email := env("AIROPSCAT_ADMIN_EMAIL", "admin@airopscat.local")
 	password := os.Getenv("AIROPSCAT_ADMIN_PASSWORD")
-	generated := password == ""
-	if generated {
-		b := make([]byte, 12)
-		rand.Read(b)
-		password = base64.RawURLEncoding.EncodeToString(b)
+	if password == "" {
+		return errors.New("首次初始化必须设置 AIROPSCAT_ADMIN_PASSWORD")
 	}
 	hash, err := auth.HashPassword(password)
 	if err != nil {
@@ -137,11 +132,6 @@ func ensureAdmin(ctx context.Context, db *sql.DB) error {
 	if _, err := store.CreateUser(ctx, db, email, hash, "ADMIN", "管理员"); err != nil {
 		return err
 	}
-	if generated {
-		// 只在首次创建时输出一次，登录后应立即修改
-		slog.Warn("已创建初始管理员", "email", email, "password", password)
-	} else {
-		slog.Info("已创建初始管理员", "email", email)
-	}
+	slog.Info("已创建初始管理员", "email", email)
 	return nil
 }

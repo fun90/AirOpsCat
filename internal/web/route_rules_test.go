@@ -61,6 +61,11 @@ func TestRouteRuleHTTPFlow(t *testing.T) {
 	if w := post("/admin/routes", good); w.Code != 303 || !strings.Contains(w.Header().Get("Location"), "%E5%BC%BA%E5%88%B6%E9%83%A8%E7%BD%B2") {
 		t.Fatalf("创建 %d %s", w.Code, w.Header().Get("Location"))
 	}
+	for _, id := range []string{"+1", "01"} {
+		if w := do(h, "GET", "/admin/routes/"+id+"/edit", nil, c, nil); w.Code != http.StatusOK {
+			t.Errorf("合法数字 ID %q 不应被拒绝: status=%d", id, w.Code)
+		}
+	}
 	var deployed int
 	a.DB.QueryRow(`SELECT deployed FROM node_server`).Scan(&deployed)
 	if deployed != 1 {

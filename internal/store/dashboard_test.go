@@ -53,12 +53,12 @@ func TestDashboardLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := &Dashboard{
-		AccountsTotal: 5, AccountsActive: 3, AccountsDisabled: 1, AccountsExpired: 1,
+		AccountsTotal: 5, AccountsActive: 2, AccountsDisabled: 1, AccountsExpired: 2,
 		NodesEnabled: 2, NodesDisabled: 1, PendingPlacements: 2,
 		ServersEnabled: 7, ServersExternal: 1, ServersExpiring: 2,
 		AlertsActive: 2, AlertsAcknowledged: 2,
 	}
-	if len(d.ExpiringAccounts) != 2 || d.ExpiringAccounts[0].AccountNo != "1" {
+	if len(d.ExpiringAccounts) != 1 || d.ExpiringAccounts[0].AccountNo != "2" {
 		t.Fatalf("未来24小时内到期账户: %+v", d.ExpiringAccounts)
 	}
 	d.ExpiringAccounts = nil
@@ -100,7 +100,7 @@ func TestDashboardRolling24Hours(t *testing.T) {
 		}
 	}
 	d, err := DashboardLoad(ctx, db, time.Date(2026, 10, 20, 4, 0, 0, 0, time.UTC), 1)
-	if err != nil || len(d.ExpiringAccounts) != 2 || d.ExpiringAccounts[0].AccountNo != "0" || d.ExpiringAccounts[1].AccountNo != "1" {
+	if err != nil || len(d.ExpiringAccounts) != 1 || d.ExpiringAccounts[0].AccountNo != "1" {
 		t.Fatal(d, err)
 	}
 }

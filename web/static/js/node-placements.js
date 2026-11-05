@@ -136,7 +136,6 @@ if (pane && dialog) {
         const [start, end] = box.querySelectorAll('input[type="time"]');
         const set = start.value || end.value;
         box.querySelector('[data-cheap-label]').textContent = set ? start.value + '–' + end.value : '便宜时段';
-        box.querySelector('[data-bs-toggle]').classList.toggle('text-secondary', !set);
     }
     pane.addEventListener('input', (e) => {
         const box = e.target.closest('[data-cheap]');

@@ -59,6 +59,11 @@ func TestTransactionHTTPFlow(t *testing.T) {
 	if w := post("/admin/transactions", good); w.Code != http.StatusSeeOther {
 		t.Fatalf("创建 %d %s", w.Code, w.Body.String())
 	}
+	for _, id := range []string{"+1", "01"} {
+		if w := do(h, "GET", "/admin/transactions/"+id+"/edit", nil, cookie, nil); w.Code != http.StatusOK {
+			t.Errorf("合法数字 ID %q 不应被拒绝: status=%d", id, w.Code)
+		}
+	}
 	var cents int64
 	a.DB.QueryRow(`SELECT amount FROM transactions WHERE id=1`).Scan(&cents)
 	if cents != 12345 {

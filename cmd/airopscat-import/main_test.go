@@ -9,7 +9,35 @@ import (
 	"testing"
 
 	"github.com/fun90/airopscat/internal/crypto"
+	"github.com/fun90/airopscat/internal/store"
 )
+
+func TestImportConnectionsPreserveFilename(t *testing.T) {
+	for _, name := range []string{"question?.db", "fragment#.db", "percent%41.db"} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			path := filepath.Join(t.TempDir(), name)
+			db, err := store.Open(ctx, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			db.Close()
+			dst, err := openImportDB(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer dst.Close()
+			// 导入连接必须写入建好 schema 的原文件，且允许暂时违反外键。
+			if _, err := dst.ExecContext(ctx, `INSERT INTO node_tag(node_id,tag_id) VALUES(999,999)`); err != nil {
+				t.Fatalf("导入连接未打开原数据库或未关闭外键: %v", err)
+			}
+			im := &importer{src: dst, dst: dst, tmp: path}
+			if err := im.verify(ctx); err == nil || !strings.Contains(err.Error(), "foreign_key_check 失败") {
+				t.Fatalf("对账连接应检查原文件中的外键错误: %v", err)
+			}
+		})
+	}
+}
 
 func TestToCentsExact(t *testing.T) {
 	for in, want := range map[string]string{"0": "0", "12.5": "1250", "-0.07": "-7", "1234567890123.45": "123456789012345", "3.10": "310"} {

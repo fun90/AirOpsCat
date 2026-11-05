@@ -50,7 +50,7 @@ func (s *Server) tagList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) tagSave(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	t := &store.Tag{ID: id, Name: formValue(r, "name"), Description: formValue(r, "description"), Color: formValue(r, "color")}
 	if !colorRe.MatchString(t.Color) {
 		t.Color = ""
@@ -82,7 +82,7 @@ func (s *Server) tagSave(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) tagDelete(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	if err := store.DeleteTag(r.Context(), s.DB, id); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			redirectMsg(w, r, "/admin/tags", "err", err.Error())

@@ -28,7 +28,7 @@
 </div></div></td></tr>{{else}}<tr><td colspan="7" class="text-center text-secondary py-4">{{if .Filtered}}没有符合条件的账户 <a href="/admin/accounts">清除筛选</a>{{else}}暂无账户 <a href="/admin/accounts/new">开户</a>{{end}}</td></tr>{{end}}
 </tbody></table></div><div class="card-footer d-flex">{{template "pager" .}}</div></div>
 
-<div class="fixed-bottom p-3 d-none safe-bottom" id="accountBatchBar">
+<div class="fixed-bottom p-3 d-none safe-bottom" id="accountBatchBar" data-batch-kind="account">
   <div class="card shadow mx-auto node-batch-card"><div class="card-body d-flex align-items-center gap-2 py-2">
     <span class="me-auto text-nowrap">已选 <strong data-batch-count>0</strong><span class="d-none d-sm-inline"> 个账户（仅本页）</span></span>
     <form method="post" action="/admin/accounts/batch-deploy" data-batch-form data-confirm="将重新下发所选账户可用节点所在服务器的配置，确定？"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn btn-outline-primary text-nowrap" type="submit"><i class="ti ti-rocket me-sm-1" aria-hidden="true"></i><span class="d-none d-sm-inline">部署</span></button></form>
@@ -36,20 +36,5 @@
     <button type="button" class="btn btn-link px-2 text-nowrap" data-batch-clear>取消</button>
   </div></div>
 </div>
-<div class="modal modal-blur fade" id="accountBatchTagsModal" tabindex="-1" aria-labelledby="accountBatchTagsTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="/admin/accounts/batch-tags" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}">
-  <div class="modal-header"><h5 class="modal-title" id="accountBatchTagsTitle">调整标签 · <span data-batch-count>0</span> 个账户</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
-  <div class="modal-body">
-    <div class="mb-3">
-      <div class="form-selectgroup w-100" role="radiogroup" aria-label="调整方式">
-        <label class="form-selectgroup-item flex-fill"><input type="radio" name="mode" value="APPEND" class="form-selectgroup-input" checked><span class="form-selectgroup-label">追加</span></label>
-        <label class="form-selectgroup-item flex-fill"><input type="radio" name="mode" value="REPLACE" class="form-selectgroup-input"><span class="form-selectgroup-label">替换</span></label>
-      </div>
-      <div class="form-hint">替换时不选标签即清空，账户将没有可用节点；相关节点需重新部署</div>
-    </div>
-    <div class="d-flex flex-wrap gap-2">{{range .Tags}}
-      <label class="tag-pill d-inline-flex align-items-center rounded-pill border px-2 py-1 small m-0 cursor-pointer"><input type="checkbox" class="visually-hidden" name="tag_ids" value="{{.ID}}"><span class="status-dot flex-shrink-0 me-1" style="background-color: {{if .Color}}{{.Color}}{{else}}#6c757d{{end}}"></span>{{.Name}}<i class="ti ti-check tag-check ms-1" aria-hidden="true"></i></label>{{else}}<span class="text-secondary">暂无标签</span>{{end}}
-    </div>
-  </div>
-  <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">应用</button></div>
-</form></div></div>
+{{template "batchTagsModal" (dict "ID" "accountBatchTagsModal" "TitleID" "accountBatchTagsTitle" "Kind" "accounts" "Label" "账户" "Hint" "替换时不选标签即清空，账户将没有可用节点；相关节点需重新部署" "Tags" .Tags "CSRF" .CSRF)}}
 {{end}}

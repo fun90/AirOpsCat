@@ -43,7 +43,6 @@ func (s *Server) accountRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/accounts/{id}/bindings", s.bindingSave)
 	m.HandleFunc("POST /admin/accounts/{id}/bindings/{binding}/delete", s.bindingDelete)
 }
-func idFrom(r *http.Request) int64 { id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64); return id }
 func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 	page, size := pageParams(r)
 	q := strings.TrimSpace(r.URL.Query().Get("q"))

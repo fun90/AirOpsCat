@@ -19,13 +19,15 @@ type Tag struct {
 
 func TagList(ctx context.Context, db *sql.DB, search string, page, size int) ([]*Tag, int, error) {
 	var total int
-	like := "%" + search + "%"
-	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM tag WHERE name LIKE ? OR description LIKE ?`, like, like).Scan(&total); err != nil {
+	like := "%" + likeEscape(search) + "%"
+	const where = ` WHERE name LIKE ? ESCAPE '\' OR description LIKE ? ESCAPE '\'`
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM tag`+where, like, like).Scan(&total); err != nil {
 		return nil, 0, err
 	}
+	limit, offset := pageArgs(page, size)
 	rows, err := db.QueryContext(ctx, `SELECT t.id, t.name, coalesce(t.description,''), coalesce(t.color,''),
 		(SELECT count(*) FROM account_tag WHERE tag_id = t.id), (SELECT count(*) FROM node_tag WHERE tag_id = t.id)
-		FROM tag t WHERE t.name LIKE ? OR t.description LIKE ? ORDER BY t.id DESC LIMIT ? OFFSET ?`, like, like, size, (page-1)*size)
+		FROM tag t`+where+` ORDER BY t.id DESC LIMIT ? OFFSET ?`, like, like, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -78,16 +80,19 @@ func SaveTag(ctx context.Context, db *sql.DB, t *Tag) error {
 
 // DeleteTag 删除标签；仍被账户或节点使用时拒绝，避免悄悄收回授权。
 func DeleteTag(ctx context.Context, db *sql.DB, id int64) error {
-	var a, n int
-	db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM account_tag WHERE tag_id=?), (SELECT count(*) FROM node_tag WHERE tag_id=?)`, id, id).Scan(&a, &n)
-	if a+n > 0 {
-		return fmt.Errorf("%w：标签仍被 %d 个账户、%d 个节点使用，请先解除关联", ErrConflict, a, n)
-	}
-	_, err := db.ExecContext(ctx, `DELETE FROM tag WHERE id = ?`, id)
-	return err
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		var a, n int
+		if err := tx.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM account_tag WHERE tag_id=?), (SELECT count(*) FROM node_tag WHERE tag_id=?)`, id, id).Scan(&a, &n); err != nil {
+			return err
+		}
+		if a+n > 0 {
+			return fmt.Errorf("%w：标签仍被 %d 个账户、%d 个节点使用，请先解除关联", ErrConflict, a, n)
+		}
+		_, err := tx.ExecContext(ctx, `DELETE FROM tag WHERE id = ?`, id)
+		return err
+	})
 }
 
-// AllTags 返回全部标签，用于表单选择。
 // TagNodeIDs 返回各标签下可供账户使用的节点：启用的代理节点且至少有一个未待删除的部署位。
 func TagNodeIDs(ctx context.Context, db *sql.DB) (map[int64][]int64, error) {
 	rows, err := db.QueryContext(ctx, `SELECT nt.tag_id, nt.node_id FROM node_tag nt JOIN node n ON n.id = nt.node_id
@@ -108,6 +113,7 @@ func TagNodeIDs(ctx context.Context, db *sql.DB) (map[int64][]int64, error) {
 	return out, rows.Err()
 }
 
+// AllTags 返回全部标签，用于表单选择。
 func AllTags(ctx context.Context, db *sql.DB) ([]*Tag, error) {
 	rows, err := db.QueryContext(ctx, `SELECT id, name, coalesce(color,'') FROM tag ORDER BY name`)
 	if err != nil {

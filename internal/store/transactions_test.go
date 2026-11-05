@@ -62,6 +62,9 @@ func TestTransactionCRUDFiltersAndBusinessValidation(t *testing.T) {
 	if err := DeleteTransaction(ctx, db, expense.ID); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal(err)
 	}
+	if err := SaveTransaction(ctx, db, &Transaction{ID: 999, Amount: 1, Type: TransactionIncome}); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("更新不存在的流水应返回 sql.ErrNoRows: %v", err)
+	}
 }
 
 func TestTransactionBusinessOptionsAndDeletedAccount(t *testing.T) {

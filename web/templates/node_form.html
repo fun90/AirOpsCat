@@ -95,7 +95,7 @@
                         <div class="placement-row">
                         {{if $proxy}}<div class="input-group flex-nowrap placement-sub" title="{{with $sub}}订阅名 {{.}}{{else}}未出现在订阅，开启并保存后生成订阅名{{end}}"><span class="input-group-text"><i class="ti ti-rss" role="img" aria-label="订阅名"></i></span><span class="form-control text-truncate{{if not $sub}} text-secondary{{end}}">{{with $sub}}{{.}}{{else}}未订阅{{end}}</span></div>{{end}}
                             <div class="dropdown" data-cheap>
-                                <button type="button" class="btn btn-outline-secondary text-nowrap{{if not $cheap}} text-secondary{{end}}" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="便宜时段"><i class="ti ti-moon me-1" aria-hidden="true"></i><span data-cheap-label>{{if $cheap}}{{.CheapStart}}–{{.CheapEnd}}{{else}}便宜时段{{end}}</span></button>
+                                <button type="button" class="btn text-nowrap" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="便宜时段"><i class="ti ti-moon me-1" aria-hidden="true"></i><span data-cheap-label>{{if $cheap}}{{.CheapStart}}–{{.CheapEnd}}{{else}}便宜时段{{end}}</span></button>
                                 <div class="dropdown-menu p-2">
                                     <div class="d-flex align-items-center gap-1 mb-2">
                                         <input type="time" step="60" class="form-control form-control-sm" name="{{$k}}cheap_start" value="{{.CheapStart}}" aria-label="便宜开始">–<input type="time" step="60" class="form-control form-control-sm" name="{{$k}}cheap_end" value="{{.CheapEnd}}" aria-label="便宜结束"></div>

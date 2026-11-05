@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,8 +26,127 @@ func newMgr(t *testing.T) *Manager {
 	return &Manager{DB: db, Dir: filepath.Join(dir, "bk")}
 }
 
+func TestCreatePreservesSpecialDirectory(t *testing.T) {
+	for _, dir := range []string{"question?", "fragment#", "percent%41", "quote'"} {
+		t.Run(dir, func(t *testing.T) {
+			m := newMgr(t)
+			m.Dir = filepath.Join(m.Dir, dir)
+			name, err := m.Create(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(filepath.Join(m.Dir, name)); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestCreateDoesNotRemoveAnotherTemporaryFile(t *testing.T) {
+	m := newMgr(t)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	m.Now = func() time.Time { return now }
+	if err := os.MkdirAll(m.Dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// 模拟同秒的另一项备份已经在写入临时文件。
+	other := filepath.Join(m.Dir, ".airopscat-20260101-000000.db.tmp")
+	if err := os.WriteFile(other, []byte("another backup in progress"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Create(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if body, err := os.ReadFile(other); err != nil || string(body) != "another backup in progress" {
+		t.Fatalf("不应删除或修改另一项备份的临时文件: %v", err)
+	}
+}
+
+func TestConcurrentCreatePublishesOneBackup(t *testing.T) {
+	m := newMgr(t)
+	m.DB.SetMaxOpenConns(1)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	m.Now = func() time.Time { return now }
+	ctx := context.Background()
+	start := make(chan struct{})
+	results := make(chan error, 8)
+	var wg sync.WaitGroup
+	for range cap(results) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			// 不同 Manager 共用目录，覆盖进程内互斥无法保护的情况。
+			other := &Manager{DB: m.DB, Dir: m.Dir, Now: m.Now}
+			_, err := other.Create(ctx)
+			results <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+	succeeded := 0
+	for err := range results {
+		if err == nil {
+			succeeded++
+		}
+	}
+	if succeeded != 1 {
+		t.Fatalf("同秒备份应且仅应发布一次，成功次数=%d", succeeded)
+	}
+	files, err := m.List()
+	if err != nil || len(files) != 1 {
+		t.Fatalf("备份列表: %v %v", files, err)
+	}
+	if err := check(ctx, filepath.Join(m.Dir, files[0].Name)); err != nil {
+		t.Fatalf("发布的备份应完整: %v", err)
+	}
+	entries, err := os.ReadDir(m.Dir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("不应残留临时文件: %v %v", entries, err)
+	}
+}
+
+func TestListAndCleanupIgnoreTemporaryFiles(t *testing.T) {
+	m := newMgr(t)
+	if err := os.MkdirAll(m.Dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	name := ".airopscat-20260101-000000.db-other.tmp"
+	path := filepath.Join(m.Dir, name)
+	if err := os.WriteFile(path, []byte("in progress"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if files, err := m.List(); err != nil || len(files) != 0 {
+		t.Fatalf("列表不应包含临时文件: %v %v", files, err)
+	}
+	if _, err := m.Path(name); !os.IsNotExist(err) {
+		t.Fatalf("临时文件不应可下载或删除: %v", err)
+	}
+	if n, err := m.Cleanup(-time.Second); err != nil || n != 0 {
+		t.Fatalf("清理不应移除临时文件: n=%d err=%v", n, err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCreateFailureRemovesTemporaryFile(t *testing.T) {
+	m := newMgr(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := m.Create(ctx); err == nil {
+		t.Fatal("已取消的备份应失败")
+	}
+	if entries, err := os.ReadDir(m.Dir); err != nil || len(entries) != 0 {
+		t.Fatalf("失败后不应残留临时文件: %v %v", entries, err)
+	}
+}
+
 func TestCreateListDeleteCleanup(t *testing.T) {
 	m := newMgr(t)
+	now := time.Now()
+	m.Now = func() time.Time { return now }
 	name, err := m.Create(context.Background())
 	if err != nil {
 		t.Fatal(err)

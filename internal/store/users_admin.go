@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -52,7 +53,7 @@ func (u *ManagedUser) normalize() error {
 	if u.Role == "" {
 		u.Role = "VIP"
 	}
-	if !contains(UserRoles, u.Role) {
+	if !slices.Contains(UserRoles, u.Role) {
 		return invalid("角色不合法")
 	}
 	if utf8.RuneCountInString(u.NickName) > 64 || utf8.RuneCountInString(u.RemarkName) > 64 {
@@ -62,15 +63,6 @@ func (u *ManagedUser) normalize() error {
 		return invalid("备注最多 200 个字符")
 	}
 	return nil
-}
-
-func contains(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }
 
 func hashPassword(pw string) (string, error) {
@@ -161,13 +153,12 @@ func SaveManagedUser(ctx context.Context, db *sql.DB, u *ManagedUser, password s
 	if err := u.normalize(); err != nil {
 		return err
 	}
-	return inTx(ctx, db, func(tx *sql.Tx) (err error) {
-		var oldRole string
-		var oldDisabled bool
-		if err := tx.QueryRowContext(ctx, `SELECT role,disabled FROM user WHERE id=?`, u.ID).Scan(&oldRole, &oldDisabled); err != nil {
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		var enabledAdmin bool
+		if err := tx.QueryRowContext(ctx, `SELECT role='ADMIN' AND disabled=0 FROM user WHERE id=?`, u.ID).Scan(&enabledAdmin); err != nil {
 			return err
 		}
-		if oldRole == "ADMIN" && !oldDisabled && (u.Role != "ADMIN" || u.Disabled) {
+		if enabledAdmin && (u.Role != "ADMIN" || u.Disabled) {
 			var count int
 			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM user WHERE role='ADMIN' AND disabled=0`).Scan(&count); err != nil {
 				return err
@@ -176,46 +167,37 @@ func SaveManagedUser(ctx context.Context, db *sql.DB, u *ManagedUser, password s
 				return invalid("必须保留至少一个启用的管理员")
 			}
 		}
-		now := FormatTime(nowFunc())
-		var res sql.Result
-		if password == "" {
-			res, err = tx.ExecContext(ctx, `UPDATE user SET email=?, nick_name=?, remark_name=?, remark=?, role=?, disabled=?, update_time=? WHERE id=?`,
-				u.Email, nz(u.NickName), nz(u.RemarkName), nz(u.Remark), u.Role, u.Disabled, now, u.ID)
-		} else {
-			var hash string
-			if hash, err = hashPassword(password); err != nil {
+		var passwordHash any // nil 表示保留原密码，不把空字符串写进数据库。
+		if password != "" {
+			hash, err := hashPassword(password)
+			if err != nil {
 				return err
 			}
-			res, err = tx.ExecContext(ctx, `UPDATE user SET email=?, nick_name=?, remark_name=?, remark=?, role=?, disabled=?, password=?, update_time=? WHERE id=?`,
-				u.Email, nz(u.NickName), nz(u.RemarkName), nz(u.Remark), u.Role, u.Disabled, hash, now, u.ID)
+			passwordHash = hash
 		}
-		if err != nil {
-			return emailTaken(err)
-		}
-		if c, _ := res.RowsAffected(); c == 0 {
-			return sql.ErrNoRows
-		}
-		return nil
+		now := FormatTime(nowFunc())
+		return emailTaken(execOne(tx.ExecContext(ctx, `UPDATE user SET email=?, nick_name=?, remark_name=?, remark=?, role=?, disabled=?, password=coalesce(?,password), update_time=? WHERE id=?`,
+			u.Email, nz(u.NickName), nz(u.RemarkName), nz(u.Remark), u.Role, u.Disabled, passwordHash, now, u.ID)))
 	})
 }
 
-// DeleteManagedUser 删除用户。禁止删除自己、最后一个 ADMIN 和名下仍有账户的用户。
+// DeleteManagedUser 删除用户。禁止删除自己、最后一个启用的 ADMIN 和名下仍有账户的用户。
 func DeleteManagedUser(ctx context.Context, db *sql.DB, id, currentUserID int64) error {
 	if id == currentUserID {
 		return invalid("不能删除当前登录的用户")
 	}
 	return inTx(ctx, db, func(tx *sql.Tx) (err error) {
-		var role string
+		var enabledAdmin bool
 		var accounts, admins int
-		err = tx.QueryRowContext(ctx, `SELECT role, (SELECT count(*) FROM account WHERE user_id = ?),
-			(SELECT count(*) FROM user WHERE role = 'ADMIN' AND disabled=0) FROM user WHERE id = ?`, id, id).Scan(&role, &accounts, &admins)
+		err = tx.QueryRowContext(ctx, `SELECT role='ADMIN' AND disabled=0, (SELECT count(*) FROM account WHERE user_id = ?),
+			(SELECT count(*) FROM user WHERE role = 'ADMIN' AND disabled=0) FROM user WHERE id = ?`, id, id).Scan(&enabledAdmin, &accounts, &admins)
 		if err != nil {
 			return err // 含 sql.ErrNoRows
 		}
 		if accounts > 0 {
 			return fmt.Errorf("%w：该用户名下还有 %d 个账户，请先删除或转移", ErrConflict, accounts)
 		}
-		if role == "ADMIN" && admins <= 1 {
+		if enabledAdmin && admins <= 1 {
 			return invalid("不能删除最后一个管理员")
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM user WHERE id = ?`, id); err != nil {

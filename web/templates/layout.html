@@ -114,26 +114,43 @@
     </div>
 </div>
 <script type="module" src="/static/tabler/js/tabler.esm.min.js"></script>
-<script src="/static/js/page.js?v=1" defer></script>
+<script src="/static/js/page.js?v=2" defer></script>
 <script src="/static/js/json-editor.js?v=wrap2" defer></script>
-<script src="/static/js/node-form.js?v=7" defer></script>
-<script src="/static/js/node-batch.js?v=4" defer></script>
+<script src="/static/js/node-form.js?v=8" defer></script>
+<script src="/static/js/batch.js?v=1" defer></script>
 <script src="/static/js/tag-picker.js?v=4" defer></script>
 <script src="/static/vendor/tom-select.complete.min.js" defer></script>
-<script type="module" src="/static/js/node-placements.js?v=8"></script>
+<script type="module" src="/static/js/node-placements.js?v=9"></script>
 <script src="/static/js/searchable.js?v=2" defer></script>
 <script src="/static/js/back.js?v=3" defer></script>
 <script type="module" src="/static/js/nav-progress.js?v=6"></script>
 <script src="/static/js/copy.js?v=1" defer></script>
 <script src="/static/js/loading.js?v=1" defer></script>
-<script src="/static/js/account-form.js?v=5" defer></script>
+<script src="/static/js/account-form.js?v=6" defer></script>
 <script src="/static/js/renewals.js?v=3" defer></script>
 <script src="/static/js/traffic-calibrate.js?v=1" defer></script>
 <script type="module" src="/static/js/account-usage.js?v=5"></script>
-<script type="module" src="/static/js/confirm-modal.js?v=1"></script>
-<script src="/static/js/account-batch.js?v=2" defer></script>
+<script type="module" src="/static/js/confirm-modal.js?v=2"></script>
 <script type="module" src="/static/js/maintenance.js?v=6"></script>
 </body>
 </html>
+{{end}}
+{{define "batchTagsModal"}}
+<div class="modal modal-blur fade" id="{{.ID}}" tabindex="-1" aria-labelledby="{{.TitleID}}" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="/admin/{{.Kind}}/batch-tags" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}">
+  <div class="modal-header"><h5 class="modal-title" id="{{.TitleID}}">调整标签 · <span data-batch-count>0</span> 个{{.Label}}</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+  <div class="modal-body">
+    <div class="mb-3">
+      <div class="form-selectgroup w-100" role="radiogroup" aria-label="调整方式">
+        <label class="form-selectgroup-item flex-fill"><input type="radio" name="mode" value="APPEND" class="form-selectgroup-input" checked><span class="form-selectgroup-label">追加</span></label>
+        <label class="form-selectgroup-item flex-fill"><input type="radio" name="mode" value="REPLACE" class="form-selectgroup-input"><span class="form-selectgroup-label">替换</span></label>
+      </div>
+      <div class="form-hint">{{.Hint}}</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">{{range .Tags}}
+      <label class="tag-pill d-inline-flex align-items-center rounded-pill border px-2 py-1 small m-0 cursor-pointer"><input type="checkbox" class="visually-hidden" name="tag_ids" value="{{.ID}}"><span class="status-dot flex-shrink-0 me-1" style="background-color: {{if .Color}}{{.Color}}{{else}}#6c757d{{end}}"></span>{{.Name}}<i class="ti ti-check tag-check ms-1" aria-hidden="true"></i></label>{{else}}<span class="text-secondary">暂无标签</span>{{end}}
+    </div>
+  </div>
+  <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">应用</button></div>
+</form></div></div>
 {{end}}
 {{define "deployDot"}}{{if eq . -1}}<span class="status-dot status-secondary flex-shrink-0" role="img" aria-label="无部署位" title="无部署位"></span>{{else if eq . 0}}<span class="status-dot status-yellow flex-shrink-0" role="img" aria-label="待部署" title="待部署"></span>{{else if eq . 1}}<span class="status-dot status-green flex-shrink-0" role="img" aria-label="已部署" title="已部署"></span>{{else}}<span class="status-dot status-red flex-shrink-0" role="img" aria-label="待删除" title="待删除"></span>{{end}}{{end}}

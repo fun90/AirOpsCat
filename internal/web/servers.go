@@ -135,7 +135,7 @@ func (s *Server) serverRoutes(m *http.ServeMux) {
 
 // serverPlacementSwitch 把部署位所属节点的域名切到本服务器的该部署位，随后立即执行 DNS 切换。
 func (s *Server) serverPlacementSwitch(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	back := "/admin/servers/" + strconv.FormatInt(id, 10) + "/edit"
 	pid, err := strconv.ParseInt(r.PostFormValue("placement"), 10, 64)
 	if err != nil || pid <= 0 {
@@ -160,7 +160,7 @@ func (s *Server) serverPlacementSwitch(w http.ResponseWriter, r *http.Request) {
 
 // serverFailover 标记后立即执行一轮 DNS 切换，不等定时任务；切走与回切都复用自动切换的对账流程。
 func (s *Server) serverFailover(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	on := r.PostFormValue("on") == "1"
 	if err := store.SetServerFailover(r.Context(), s.DB, id, on); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -318,7 +318,7 @@ func (s *Server) serverIdle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serverEdit(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	srv, err := store.ServerByID(r.Context(), s.DB, id)
 	if err != nil {
 		s.fail(w, r, err)
@@ -332,7 +332,7 @@ func (s *Server) serverEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serverSave(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	f, srv, errs := parseServerForm(r)
 	f.ID, srv.ID = id, id
 	auth := r.PostFormValue("auth")
@@ -424,7 +424,7 @@ func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status i
 }
 
 func (s *Server) serverDelete(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := idFrom(r)
 	if err := store.DeleteServer(r.Context(), s.DB, id); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			redirectMsg(w, r, "/admin/servers", "err", err.Error())
