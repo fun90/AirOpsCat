@@ -35,6 +35,10 @@
                 <datalist id="regions">{{range $.Regions}}<option value="{{.}}">{{end}}</datalist></div>
             <div class="col-md-3"><label class="form-label" for="supplier">供应商</label>
                 <input class="form-control" id="supplier" name="supplier" value="{{.Supplier}}"></div>
+            <div class="col-md-6"><label class="form-label" for="supplier_url">供应商网址（可选）</label>
+                <div class="input-group has-validation"><input type="url" class="form-control{{if $.Errors.supplier_url}} is-invalid{{end}}" id="supplier_url" name="supplier_url" value="{{.SupplierURL}}" placeholder="https://example.com" maxlength="2048">
+                    {{if .SupplierURL}}{{if not $.Errors.supplier_url}}<a class="btn btn-outline-secondary" href="{{.SupplierURL}}" target="_blank" rel="noopener noreferrer">打开</a>{{end}}{{end}}
+                    <div class="invalid-feedback">{{$.Errors.supplier_url}}</div></div></div>
             <div class="col-md-3"><label class="form-label" for="expire_date">到期日</label>
                 <input type="date" class="form-control{{if $.Errors.expire_date}} is-invalid{{end}}" id="expire_date" name="expire_date" value="{{.ExpireDate}}">
                 <div class="invalid-feedback">{{$.Errors.expire_date}}</div></div>

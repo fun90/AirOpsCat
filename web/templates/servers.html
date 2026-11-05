@@ -23,7 +23,7 @@
             <tbody>
             {{range .List}}
             <tr>
-                <td class="text-break"><div class="d-flex flex-wrap align-items-center column-gap-2"><span class="status-dot {{.StatusDot}} flex-shrink-0" role="img" aria-label="{{.StatusLabel}}" title="{{.StatusLabel}}{{if .StatusTitle}}：{{.StatusTitle}}{{end}}"></span><a href="/admin/servers/{{.ID}}/edit" class="fw-medium">{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}</a>{{if .External}}<span class="badge bg-azure-lt flex-shrink-0">外部</span>{{end}}{{if .Supplier}}<span class="text-secondary small">{{.Supplier}}</span>{{end}}<span class="text-secondary small d-md-none">{{.IP}}</span></div>
+                <td class="text-break"><div class="d-flex flex-wrap align-items-center column-gap-2"><span class="status-dot {{.StatusDot}} flex-shrink-0" role="img" aria-label="{{.StatusLabel}}" title="{{.StatusLabel}}{{if .StatusTitle}}：{{.StatusTitle}}{{end}}"></span><a href="/admin/servers/{{.ID}}/edit" class="fw-medium">{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}</a>{{if .External}}<span class="badge bg-azure-lt flex-shrink-0">外部</span>{{end}}{{if .Supplier}}{{if .SupplierURL}}<a href="{{.SupplierURL}}" target="_blank" rel="noopener noreferrer" class="small">{{.Supplier}}</a>{{else}}<span class="text-secondary small">{{.Supplier}}</span>{{end}}{{end}}<span class="text-secondary small d-md-none">{{.IP}}</span></div>
                     <div class="d-md-none small text-secondary row g-0 align-items-center pt-1">
                         <div class="col-3">{{template "placementCell" .}}</div>
                         <div class="col-4 text-nowrap {{.ExpireClass}}">{{if .ExpireDate}}{{.ExpireShort}}{{if .ExpireNote}} {{.ExpireNote}}{{end}}{{end}}</div>

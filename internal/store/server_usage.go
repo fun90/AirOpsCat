@@ -18,15 +18,15 @@ const (
 
 // IdleServer 是下线建议页的一行。
 type IdleServer struct {
-	ID                                     int64
-	Name, IP, Region, Supplier, ExpireDate string
-	MonthlyCents                           *int64 // 价格折算到每月，未设置价格为 nil
-	ActiveAccounts                         int    // 近 30 天 guard 上报的去重账户数
-	TrafficBytes                           int64  // 当前流量周期 vnstat 上下行合计
-	HasTraffic                             bool
-	Blockers                               []string // 下线前须先处理的原因
-	Candidate                              bool
-	serverType                             int
+	ID                                                  int64
+	Name, IP, Region, Supplier, SupplierURL, ExpireDate string
+	MonthlyCents                                        *int64 // 价格折算到每月，未设置价格为 nil
+	ActiveAccounts                                      int    // 近 30 天 guard 上报的去重账户数
+	TrafficBytes                                        int64  // 当前流量周期 vnstat 上下行合计
+	HasTraffic                                          bool
+	Blockers                                            []string // 下线前须先处理的原因
+	Candidate                                           bool
+	serverType                                          int
 }
 
 func (s IdleServer) TrafficGB() float64 { return float64(s.TrafficBytes) / (1 << 30) }
@@ -42,7 +42,7 @@ func (s IdleServer) costPerAccount() int64 {
 // IdleServers 列出启用的非外部服务器的使用情况：候选在前，其余按单位账户月成本降序。
 func IdleServers(ctx context.Context, db *sql.DB, at time.Time) ([]IdleServer, error) {
 	at = at.In(Shanghai)
-	rows, err := db.QueryContext(ctx, `SELECT s.id, coalesce(s.name,''), s.ip, coalesce(s.region,''), coalesce(s.supplier,''), coalesce(s.expire_date,''),
+	rows, err := db.QueryContext(ctx, `SELECT s.id, coalesce(s.name,''), s.ip, coalesce(s.region,''), coalesce(s.supplier,''), coalesce(s.supplier_url,''), coalesce(s.expire_date,''),
  coalesce(s.server_type,0), s.price, s.price_months,
  (SELECT count(DISTINCT o.account_no) FROM account_online_ip o WHERE o.node_ip=s.ip AND o.last_online_time>=?),
  coalesce(v.rx_bytes,0)+coalesce(v.tx_bytes,0), v.id IS NOT NULL
@@ -62,7 +62,7 @@ func IdleServers(ctx context.Context, db *sql.DB, at time.Time) ([]IdleServer, e
 		var s IdleServer
 		var price sql.NullInt64
 		var months int64
-		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.Region, &s.Supplier, &s.ExpireDate, &s.serverType, &price, &months,
+		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.Region, &s.Supplier, &s.SupplierURL, &s.ExpireDate, &s.serverType, &price, &months,
 			&s.ActiveAccounts, &s.TrafficBytes, &s.HasTraffic); err != nil {
 			return nil, err
 		}

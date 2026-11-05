@@ -63,8 +63,8 @@ func TestOpenMigratesOnceAndEnforcesForeignKeys(t *testing.T) {
 
 	var version int
 	db.QueryRow("PRAGMA user_version").Scan(&version)
-	if version != 18 {
-		t.Fatalf("user_version = %d, want 18", version)
+	if version != 19 {
+		t.Fatalf("user_version = %d, want 19", version)
 	}
 
 	// 连接池中多个连接都必须开启外键
@@ -99,9 +99,13 @@ func TestMigrateRollsBackFailedFile(t *testing.T) {
 	}
 	defer db.Close()
 
+	var originalVersion int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&originalVersion); err != nil {
+		t.Fatal(err)
+	}
 	bad := fstest.MapFS{
 		"schema/0001_init.sql": {Data: []byte("SELECT 1;")},
-		"schema/0019_bad.sql":  {Data: []byte("CREATE TABLE t2 (id INTEGER); SELECT * FROM missing_table;")},
+		"schema/9999_bad.sql":  {Data: []byte("CREATE TABLE t2 (id INTEGER); SELECT * FROM missing_table;")},
 	}
 	if err := migrate(ctx, db, bad); err == nil {
 		t.Fatal("迁移应失败")
@@ -109,7 +113,7 @@ func TestMigrateRollsBackFailedFile(t *testing.T) {
 	var version, n int
 	db.QueryRow("PRAGMA user_version").Scan(&version)
 	db.QueryRow("SELECT count(*) FROM sqlite_master WHERE name = 't2'").Scan(&n)
-	if version != 18 || n != 0 {
+	if version != originalVersion || n != 0 {
 		t.Fatalf("失败的迁移未回滚: version=%d t2=%d", version, n)
 	}
 }

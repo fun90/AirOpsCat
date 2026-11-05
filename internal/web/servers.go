@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ type ServerForm struct {
 	Name, IP, SSHPort, AuthType, Username, Region         string
 	ServerType, ExpireDate, BandwidthDay, Supplier, Price string
 	PriceMonths, Multiple, Bandwidth, CPUCores, Remark    string
+	SupplierURL                                           string
 	BandwidthUnit                                         string
 	Disabled, External, HasAuth                           bool
 }
@@ -26,7 +28,7 @@ type ServerForm struct {
 func formFromServer(s *store.Server) *ServerForm {
 	f := &ServerForm{ID: s.ID, Name: s.Name, IP: s.IP, SSHPort: strconv.Itoa(s.SSHPort), AuthType: s.AuthType, Username: s.Username,
 		Region: s.Region, ServerType: strconv.Itoa(s.ServerType), ExpireDate: s.ExpireDate, BandwidthDay: s.BandwidthDay,
-		Supplier: s.Supplier, PriceMonths: strconv.Itoa(s.PriceMonths), Multiple: strconv.FormatFloat(s.Multiple, 'f', -1, 64), Remark: s.Remark,
+		Supplier: s.Supplier, SupplierURL: s.SupplierURL, PriceMonths: strconv.Itoa(s.PriceMonths), Multiple: strconv.FormatFloat(s.Multiple, 'f', -1, 64), Remark: s.Remark,
 		Disabled: s.Disabled, External: s.External, HasAuth: s.HasAuth, BandwidthUnit: store.BandwidthUnitOrDefault(s.BandwidthUnit)}
 	if s.Price != nil {
 		f.Price = store.FormatCents(*s.Price)
@@ -48,13 +50,19 @@ func defaultServerForm() *ServerForm {
 func parseServerForm(r *http.Request) (*ServerForm, *store.Server, map[string]string) {
 	f := &ServerForm{Name: formValue(r, "name"), IP: formValue(r, "ip"), SSHPort: formValue(r, "ssh_port"), AuthType: formValue(r, "auth_type"),
 		Username: formValue(r, "username"), Region: formValue(r, "region"), ServerType: formValue(r, "server_type"),
-		ExpireDate: formValue(r, "expire_date"), BandwidthDay: formValue(r, "bandwidth_day"), Supplier: formValue(r, "supplier"),
+		ExpireDate: formValue(r, "expire_date"), BandwidthDay: formValue(r, "bandwidth_day"), Supplier: formValue(r, "supplier"), SupplierURL: formValue(r, "supplier_url"),
 		Price: formValue(r, "price"), PriceMonths: formValue(r, "price_months"), Multiple: formValue(r, "multiple"), Bandwidth: formValue(r, "bandwidth"), CPUCores: formValue(r, "cpu_cores"), BandwidthUnit: formValue(r, "bandwidth_unit"),
 		Remark:   formValue(r, "remark"),
 		Disabled: r.PostFormValue("disabled") == "1", External: r.PostFormValue("external_server") == "1"}
 	errs := map[string]string{}
 	s := &store.Server{Name: f.Name, IP: f.IP, Username: f.Username, Region: f.Region, ExpireDate: f.ExpireDate,
-		BandwidthDay: f.BandwidthDay, Supplier: f.Supplier, Disabled: f.Disabled, External: f.External, Remark: f.Remark}
+		BandwidthDay: f.BandwidthDay, Supplier: f.Supplier, SupplierURL: f.SupplierURL, Disabled: f.Disabled, External: f.External, Remark: f.Remark}
+	if f.SupplierURL != "" {
+		u, err := url.Parse(f.SupplierURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || len(f.SupplierURL) > 2048 {
+			errs["supplier_url"] = "请填写有效的 HTTP 或 HTTPS 网址，不能包含账号密码"
+		}
+	}
 	if f.BandwidthUnit == "" {
 		f.BandwidthUnit = store.UnitGiB
 	}
