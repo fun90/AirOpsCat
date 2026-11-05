@@ -27,6 +27,7 @@ var alertTypeNames = map[string]string{
 	alertQuota: "账户流量超额", alertConnection: "账户连接数超限",
 	"server-expiring": "服务器到期", "domain-expiring": "域名到期", "account-expiring": "账户到期",
 	alertMonitorLoad: "服务器负载与流量", alertDeployFail: "自动部署失败", alertUnreachable: "部署位国内不可达", alertLandingUnreachable: "落地部署位不可达",
+	"dns-ip-only": "自动切换未覆盖直连 IP", "dns-candidates-exhausted": "DNS 候选服务器耗尽", "dns-reset-blocked": "DNS 回切受阻",
 }
 
 func (s *Server) alertRoutes(m *http.ServeMux) {
@@ -263,6 +264,8 @@ type alertView struct {
 	TypeName string
 	// 服务器类告警且服务器仍存在时提供跳转；MonitorLink 只给监控类告警
 	ServerLink, MonitorLink bool
+	// 账户类告警（连接数超限、流量超额）提供账户编辑页跳转
+	AccountLink bool
 	// 流量防刷告警未恢复且服务器上有可处置的 VLESS+REALITY 节点时提供「换端口封禁」
 	RealityNodes int
 	CanRotate    bool
@@ -303,6 +306,7 @@ func (s *Server) alertList(w http.ResponseWriter, r *http.Request) {
 			v.RealityNodes = nodes[a.ResourceID]
 			v.CanRotate = isSurgeAlert(&a) && a.Status != store.AlertRecovered && v.RealityNodes > 0
 		}
+		v.AccountLink = a.ResourceType == "account" && (a.Type == alertConnection || a.Type == alertQuota)
 		views[i] = v
 	}
 	d := s.pageData(r, "告警", "alerts")
