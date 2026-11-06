@@ -150,6 +150,10 @@ func (s *Server) probeRound(ctx context.Context, probeID int64, targets []store.
 	return res, nil
 }
 
+// unreachableRecoverHold 是条件消失后保持告警不恢复的时长。探测结果时好时坏时，若每次好转都恢复，
+// 下次触发会重置指数退避并再推一条恢复通知，实测一天可推数十条；连续好转超过此时长才算真正恢复。
+const unreachableRecoverHold = 30 * time.Minute
+
 // alertUnreachablePlacements 按服务器聚合告警：同一台服务器被墙时其部署位会一起失败，只推一条。
 func (s *Server) alertUnreachablePlacements(ctx context.Context, landing bool) error {
 	alertType, scope, probers := alertUnreachable, "国内", "国内探测机"
@@ -185,6 +189,13 @@ func (s *Server) alertUnreachablePlacements(ctx context.Context, landing bool) e
 			return err
 		}
 		i = j
+	}
+	held, err := store.AlertRecentlyTriggered(ctx, s.DB, alertType, "server", now.Add(-unreachableRecoverHold))
+	if err != nil {
+		return err
+	}
+	for id := range held {
+		keep[id] = true
 	}
 	resolved, err := store.AlertResolveMissing(ctx, s.DB, alertType, "server", keep, now)
 	if err != nil {

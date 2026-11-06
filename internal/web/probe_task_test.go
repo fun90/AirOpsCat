@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/fun90/airopscat/internal/crypto"
 	"github.com/fun90/airopscat/internal/deploy"
@@ -142,8 +143,20 @@ func TestProbePlacementsTask(t *testing.T) {
 	if err := s.probePlacements(ctx); err != nil {
 		t.Fatal(err)
 	}
+	if n, _ := alerts(); n != 1 {
+		t.Fatal("恢复后 30 分钟内应保持告警，避免抖动反复推送")
+	}
+	age := func(typ string) {
+		if _, err := a.DB.Exec(`UPDATE alert_state SET last_triggered_time=? WHERE alert_type=?`, store.FormatTime(time.Now().Add(-unreachableRecoverHold-time.Minute)), typ); err != nil {
+			t.Fatal(err)
+		}
+	}
+	age(alertUnreachable)
+	if err := s.probePlacements(ctx); err != nil {
+		t.Fatal(err)
+	}
 	if n, _ := alerts(); n != 0 {
-		t.Fatal("恢复后应消警")
+		t.Fatal("恢复满 30 分钟应消警")
 	}
 
 	// 探测机全部目标失败视为其自身异常：丢弃并清空其结果
@@ -238,14 +251,20 @@ func TestProbeLandingPlacements(t *testing.T) {
 	if w := do(h, "GET", "/admin/nodes?status=3", nil, c, nil).Body.String(); strings.Contains(w, "/admin/nodes/3/edit") {
 		t.Fatal("国内不可达筛选不应含落地")
 	}
-	// 一台代理服务器恢复即消警
+	// 一台代理服务器恢复，保持 30 分钟后消警
 	f.up[1][2001] = true
+	if err := s.probePlacements(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.DB.Exec(`UPDATE alert_state SET last_triggered_time=? WHERE alert_type=?`, store.FormatTime(time.Now().Add(-unreachableRecoverHold-time.Minute)), alertLandingUnreachable); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.probePlacements(ctx); err != nil {
 		t.Fatal(err)
 	}
 	a.DB.QueryRow(`SELECT count(*) FROM alert_state WHERE alert_type=? AND status='ACTIVE'`, alertLandingUnreachable).Scan(&n)
 	if n != 0 {
-		t.Fatal("恢复后应消警")
+		t.Fatal("恢复满 30 分钟应消警")
 	}
 	// 代理节点不再引用落地后结果清理
 	if _, err := a.DB.Exec(`UPDATE node SET out_id=NULL`); err != nil {

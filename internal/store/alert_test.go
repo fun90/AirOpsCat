@@ -127,3 +127,18 @@ func TestAlertDueBackoff(t *testing.T) {
 		t.Fatal("不应短于配置间隔")
 	}
 }
+
+func TestAlertRecentlyTriggered(t *testing.T) {
+	db, ctx := testDB(t)
+	t0 := time.Date(2026, 11, 1, 10, 0, 0, 0, Shanghai)
+	k := AlertKey{Type: "placement-unreachable", ResourceType: "server", ResourceID: 7, ResourceKey: "s", Fingerprint: "7"}
+	if _, _, err := AlertTrigger(ctx, db, k, "critical", 1, 0, "x", time.Hour, t0); err != nil {
+		t.Fatal(err)
+	}
+	if m, _ := AlertRecentlyTriggered(ctx, db, k.Type, "server", t0.Add(-time.Minute)); !m[7] {
+		t.Fatal("窗口内触发应返回")
+	}
+	if m, _ := AlertRecentlyTriggered(ctx, db, k.Type, "server", t0.Add(time.Minute)); m[7] {
+		t.Fatal("早于窗口不应返回")
+	}
+}

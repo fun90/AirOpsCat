@@ -189,6 +189,24 @@ func AlertList(ctx context.Context, db *sql.DB, status, q string, page, size int
 	return list, total, err
 }
 
+// AlertRecentlyTriggered 返回某类型下未恢复、且最近触发时间不早于 since 的资源 ID，用于恢复前的防抖。
+func AlertRecentlyTriggered(ctx context.Context, db *sql.DB, alertType, resourceType string, since time.Time) (map[int64]bool, error) {
+	rows, err := db.QueryContext(ctx, `SELECT resource_id FROM alert_state WHERE alert_type=? AND resource_type=? AND status<>'RECOVERED' AND last_triggered_time>=?`, alertType, resourceType, FormatTime(since))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
 // AlertResolveMissing 恢复某类型下资源不在 keep 中的所有未恢复告警（资源被删除、禁用或不再满足条件）。
 func AlertResolveMissing(ctx context.Context, db *sql.DB, alertType, resourceType string, keep map[int64]bool, now time.Time) ([]Alert, error) {
 	rows, err := db.QueryContext(ctx, alertSel+` WHERE alert_type=? AND resource_type=? AND status<>'RECOVERED'`, alertType, resourceType)
