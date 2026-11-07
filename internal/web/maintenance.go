@@ -161,12 +161,13 @@ func (s *Server) maintenanceRun(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	remote, err := s.MaintenanceDeployer.Dial(ctx, t)
 	if err != nil {
-		store.Log(r.Context(), s.DB, "MAINTENANCE", "ERROR", &id, t.Name, "维护脚本连接失败", "")
+		msg := "连接服务器失败：" + err.Error()
+		store.Log(r.Context(), s.DB, "MAINTENANCE", "ERROR", &id, t.Name, msg, "script="+script.Name)
 		if strings.Contains(r.Header.Get("Accept"), "application/json") {
-			http.Error(w, "连接服务器失败，请查看系统日志", http.StatusBadGateway)
+			http.Error(w, msg, http.StatusBadGateway)
 			return
 		}
-		redirectMsg(w, r, "/admin/maintenance", "err", "连接服务器失败，请查看系统日志")
+		redirectMsg(w, r, "/admin/maintenance", "err", msg)
 		return
 	}
 	defer remote.Close()

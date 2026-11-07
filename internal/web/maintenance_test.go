@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"os"
@@ -47,6 +48,7 @@ func TestMaintenanceFlow(t *testing.T) {
 	}
 	s.ScriptDir = t.TempDir()
 	os.WriteFile(filepath.Join(s.ScriptDir, "01-test.sh"), []byte("# @title: 测试\necho ok\n"), 0600)
+	os.WriteFile(filepath.Join(s.ScriptDir, "99-smoke.sh"), []byte("# @title: 冒烟\n# @reboot-prompt: true\nexit 0\n"), 0600)
 	script, _ := maintenance.Read(s.ScriptDir, "01-test.sh")
 	token, _ := field.Encrypt("secret-token")
 	if _, err := a.DB.Exec(`INSERT INTO system_config(config_key,config_value,group_key)VALUES('airopscat.api.token',?,'open')`, token); err != nil {
@@ -62,8 +64,9 @@ func TestMaintenanceFlow(t *testing.T) {
 	c := login(t, h, "admin@example.com")
 	csrf := a.CSRFToken(c.Value)
 	v := url.Values{"csrf": {csrf}, "server_id": {"1"}, "script": {script.Name}, "hash": {script.Hash}, "confirm": {"run"}}
-	if w := do(h, "GET", "/admin/maintenance", nil, c, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "预览脚本") {
-		t.Fatal(w.Code)
+	if w := do(h, "GET", "/admin/maintenance", nil, c, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "预览脚本") ||
+		!strings.Contains(w.Body.String(), `value="99-smoke.sh" data-hash="`) || strings.Count(w.Body.String(), "data-reboot-prompt") != 1 {
+		t.Fatal("维护页应只为声明 @reboot-prompt 的脚本标记重启确认", w.Code)
 	}
 	noCSRF := url.Values{"server_id": {"1"}}
 	if w := do(h, "POST", "/admin/maintenance/run", noCSRF, c, nil); w.Code != 403 {
@@ -138,5 +141,16 @@ func TestMaintenanceFlow(t *testing.T) {
 	if w := do(h, "POST", "/admin/maintenance/run", v, c, headers); w.Code != 502 {
 		t.Fatal("失败不得返回200或重定向", w.Code)
 	}
-
+	s.MaintenanceDeployer.Dial = func(context.Context, *store.SSHTarget) (deploy.Remote, error) {
+		return nil, errors.New("已禁用外发连接")
+	}
+	if w := do(h, "POST", "/admin/maintenance/run", v, c, headers); w.Code != 502 || !strings.Contains(w.Body.String(), "连接服务器失败：已禁用外发连接") ||
+		!strings.HasPrefix(w.Header().Get("Content-Type"), "text/plain") {
+		t.Fatal("连接失败应以纯文本返回具体原因", w.Code, w.Body.String())
+	}
+	var logged string
+	a.DB.QueryRow(`SELECT message FROM system_log WHERE category='MAINTENANCE' ORDER BY id DESC LIMIT 1`).Scan(&logged)
+	if logged != "连接服务器失败：已禁用外发连接" {
+		t.Fatal("系统日志应记录连接失败原因", logged)
+	}
 }

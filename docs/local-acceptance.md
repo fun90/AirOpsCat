@@ -16,6 +16,6 @@
 
 ## 约束
 
-- 只用 `scripts/local-prod.sh`，不要自己拼环境变量。它会关闭后台任务和通知，并禁止 SSH 与 DNS 外发。
+- 只用 `scripts/local-prod.sh`，不要自己拼环境变量。它会关闭后台任务和通知，并禁止 SSH 与 DNS 外发；维护页脚本取自同工作区的 `../profile/airopscat/shell/`，可列出和预览，但执行会因外发禁用而在连接阶段失败。
 - 生产快照含真实账户数据：不要把页面内容、订阅链接或授权码贴进回复。
 - 脚本因缺少 `AIROPSCAT_DEPLOY_HOST` 或 secret 文件失败时，向用户报告失败原因，不要改用其他数据库凑合验收。

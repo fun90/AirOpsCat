@@ -19,7 +19,11 @@ var scriptName = regexp.MustCompile(`^[0-9]{2}-[a-zA-Z0-9-]+\.sh$`)
 
 const maxScript = 1 << 20
 
-type Script struct{ Name, Title, Description, Hash, Body string }
+// Script 的 RebootPrompt 来自头部 `# @reboot-prompt: true`：执行成功后维护页弹窗确认重启。
+type Script struct {
+	Name, Title, Description, Hash, Body string
+	RebootPrompt                         bool
+}
 
 func Read(dir, name string) (*Script, error) {
 	if !scriptName.MatchString(name) {
@@ -48,6 +52,9 @@ func Read(dir, name string) (*Script, error) {
 		}
 		if strings.HasPrefix(l, "# @description:") {
 			s.Description = strings.TrimSpace(strings.TrimPrefix(l, "# @description:"))
+		}
+		if strings.HasPrefix(l, "# @reboot-prompt:") {
+			s.RebootPrompt = strings.TrimSpace(strings.TrimPrefix(l, "# @reboot-prompt:")) == "true"
 		}
 	}
 	return s, nil

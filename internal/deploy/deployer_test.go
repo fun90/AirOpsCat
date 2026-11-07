@@ -437,3 +437,24 @@ func TestBeforeApplyHook(t *testing.T) {
 		t.Fatal("采集失败应写 WARN 日志")
 	}
 }
+
+func TestRebootRunsDelayedRebootAndRejectsExternal(t *testing.T) {
+	db := newTestDB(t)
+	sid := addServer(t, db, false, false)
+	h := &fakeHost{}
+	d := newTestDeployer(db, h)
+	if err := d.Reboot(context.Background(), sid); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.cmds) != 1 || h.cmds[0] != RebootCommand || h.active != 0 {
+		t.Fatalf("应只执行延迟重启并关闭连接: %v active=%d", h.cmds, h.active)
+	}
+	h.failOn = "reboot"
+	if err := d.Reboot(context.Background(), sid); err == nil || !strings.Contains(err.Error(), "退出码 1") {
+		t.Fatalf("重启命令失败应返回错误: %v", err)
+	}
+	ext := exec(t, db, `INSERT INTO server (ip, name, external_server) VALUES ('203.0.113.2','ext',1)`)
+	if err := d.Reboot(context.Background(), ext); err == nil || h.dials != 2 {
+		t.Fatalf("外部服务器不应连接: %v dials=%d", err, h.dials)
+	}
+}

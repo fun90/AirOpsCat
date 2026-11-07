@@ -40,6 +40,9 @@ for pid in $(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null); do
 done
 
 cd "$(dirname "$0")/.."
+# 生产库里的脚本目录是服务器路径；本地默认用同工作区 profile 仓库的维护脚本，可用 AIROPSCAT_SCRIPTS_DIR 覆盖
+scripts_dir="${AIROPSCAT_SCRIPTS_DIR:-$PWD/../profile/airopscat/shell}"
+[[ -d "$scripts_dir" ]] || echo "未找到维护脚本目录 $scripts_dir，维护页将无脚本可选" >&2
 # 管理员会话令牌供 curl -b "airopscat_session=$(cat $dir/token)" 与 scripts/screenshot.mjs 自查页面，12 小时有效
 rm -f "$dir/token"
 AIROPSCAT_SECRET_KEY="$secret" AIROPSCAT_DB="$dir/prod.db" go run ./scripts/localtoken "$dir/token"
@@ -47,5 +50,5 @@ lan_ip=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/nul
 [[ ${listen%:*} == 0.0.0.0 && -n "$lan_ip" ]] && echo "局域网访问 http://$lan_ip:$port"
 echo "启动 http://$listen （数据库 $dir/prod.db，外发已禁用，会话令牌 $dir/token）"
 AIROPSCAT_SECRET_KEY="$secret" AIROPSCAT_DB="$dir/prod.db" AIROPSCAT_LISTEN="$listen" \
-	AIROPSCAT_BACKUP_DIR="$dir/backup" AIROPSCAT_TASKS_DISABLED=1 AIROPSCAT_OUTBOUND_DISABLED=1 \
+	AIROPSCAT_BACKUP_DIR="$dir/backup" AIROPSCAT_SCRIPTS_DIR="$scripts_dir" AIROPSCAT_TASKS_DISABLED=1 AIROPSCAT_OUTBOUND_DISABLED=1 \
 	exec go run ./cmd/airopscat

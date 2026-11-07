@@ -38,6 +38,13 @@ func TestReadAndExecute(t *testing.T) {
 	if err != nil || s.Title != "测试" || len(s.Hash) != 64 {
 		t.Fatal(s, err)
 	}
+	if s.RebootPrompt {
+		t.Fatal("未声明 @reboot-prompt 不应触发重启确认")
+	}
+	os.WriteFile(filepath.Join(dir, "99-smoke.sh"), []byte("#!/bin/bash\n# @title: 冒烟\n# @reboot-prompt: true\nexit 0\n"), 0600)
+	if p, err := Read(dir, "99-smoke.sh"); err != nil || !p.RebootPrompt {
+		t.Fatal("应解析 @reboot-prompt", p, err)
+	}
 	r := &remote{files: map[string][]byte{}}
 	env := Env(map[string]string{"airopscat_api_token": "secret-token", "server_host": "a'$(touch /tmp/bad)"}, []string{"a.example.com"})
 	if err := Execute(context.Background(), r, s, env); err != nil {

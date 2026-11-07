@@ -1,9 +1,12 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/fun90/airopscat/internal/deploy"
 	"github.com/fun90/airopscat/internal/singbox"
 	"github.com/fun90/airopscat/internal/store"
 )
@@ -17,6 +20,7 @@ func (s *Server) deployRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/servers/{id}/ping", s.serverPing)
 	m.HandleFunc("POST /admin/servers/{id}/calibrate-traffic", s.serverCalibrateTraffic)
 	m.HandleFunc("POST /admin/servers/{id}/clear-host-key", s.serverClearHostKey)
+	m.HandleFunc("POST /admin/servers/{id}/reboot", s.serverReboot)
 }
 
 // buildConfig 是部署与预览共用的配置来源（装载 + 生成）。
@@ -135,6 +139,49 @@ func (s *Server) serverPing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redirectMsg(w, r, "/admin/servers", "msg", "SSH 连接正常")
+}
+
+// serverReboot 重启服务器主机。重启会清零 sing-box 计数，持锁先采集一次流量。
+// Accept: application/json 时返回 JSON（维护页初始化后调用），否则重定向回服务器列表。
+func (s *Server) serverReboot(w http.ResponseWriter, r *http.Request) {
+	id := idFrom(r)
+	t, err := store.SSHTargetByID(r.Context(), s.DB, id)
+	if !s.recordFound(w, r, t != nil, err) {
+		return
+	}
+	jsonReply := strings.Contains(r.Header.Get("Accept"), "application/json")
+	reply := func(status int, msg string) {
+		if jsonReply {
+			if status != http.StatusOK {
+				http.Error(w, msg, status)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.Write([]byte(`{"success":true}`))
+			return
+		}
+		key := "msg"
+		if status != http.StatusOK {
+			key = "err"
+		}
+		redirectMsg(w, r, "/admin/servers", key, msg)
+	}
+	if t.External {
+		reply(http.StatusUnprocessableEntity, "外部服务器不支持重启")
+		return
+	}
+	unlock := deploy.Lock(id)
+	defer unlock()
+	if err := s.trafficBeforeRestart(r.Context(), id, "restart"); err != nil {
+		store.Log(context.WithoutCancel(r.Context()), s.DB, "MAINTENANCE", "WARN", &id, t.Name, "重启前采集流量失败，继续重启: "+err.Error(), "")
+	}
+	if err := s.Deployer.Reboot(r.Context(), id); err != nil {
+		store.Log(context.WithoutCancel(r.Context()), s.DB, "MAINTENANCE", "ERROR", &id, t.Name, "重启服务器失败: "+err.Error(), "")
+		reply(http.StatusBadGateway, "重启失败："+err.Error())
+		return
+	}
+	store.Log(context.WithoutCancel(r.Context()), s.DB, "MAINTENANCE", "INFO", &id, t.Name, "已发送重启命令", "")
+	reply(http.StatusOK, "已发送重启命令，服务器约 1 分钟后恢复")
 }
 
 func (s *Server) serverClearHostKey(w http.ResponseWriter, r *http.Request) {

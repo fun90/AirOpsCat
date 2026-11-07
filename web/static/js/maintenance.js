@@ -1,3 +1,36 @@
+import { Modal } from '/static/tabler/js/tabler.esm.min.js';
+
+// 初始化（01～10 全部执行）或执行了 @reboot-prompt 脚本且全部成功后弹窗确认重启，结果追加到执行结果区。
+function confirmReboot(targets, csrf, result) {
+    const dialog = document.getElementById('maintenance-reboot');
+    if (!dialog || !targets.length) return;
+    const modal = Modal.getOrCreateInstance(dialog);
+    const ok = dialog.querySelector('[data-maintenance-reboot-ok]');
+    const list = dialog.querySelector('[data-maintenance-reboot-list]');
+    list.replaceChildren(...targets.map(t => { const div = document.createElement('div'); div.textContent = t.label; return div; }));
+    ok.onclick = async () => {
+        ok.classList.add('btn-loading');
+        ok.disabled = true;
+        const lines = await Promise.all(targets.map(async target => {
+            try {
+                const response = await fetch(`/admin/servers/${encodeURIComponent(target.id)}/reboot`, {
+                    method: 'POST', redirect: 'error', headers: { Accept: 'application/json' },
+                    body: new URLSearchParams({ csrf })
+                });
+                if (response.ok) return `${target.label}：已发送重启命令，约 1 分钟后恢复。`;
+                return `${target.label}：${(await response.text()).trim() || '重启失败'}`;
+            } catch {
+                return `${target.label}：重启请求失败，请检查系统日志。`;
+            }
+        }));
+        lines.forEach(line => { const p = document.createElement('div'); p.textContent = line; result.append(p); });
+        ok.classList.remove('btn-loading');
+        ok.disabled = false;
+        modal.hide();
+    };
+    modal.show();
+}
+
 window.AirOpsPage.register(() => {
 const form = document.querySelector('[data-maintenance-batch]');
 if (form) {
@@ -54,6 +87,10 @@ if (form) {
         const beforeUnload = event => { event.preventDefault(); event.returnValue = ''; };
         window.addEventListener('beforeunload', beforeUnload);
         const summary = [];
+        const succeeded = [];
+        const initScripts = scripts.filter(input => Number(input.value.slice(0, 2)) <= 10);
+        const promptReboot = (initScripts.length > 0 && initScripts.every(input => input.checked)) ||
+            selected.some(input => 'rebootPrompt' in input.dataset);
         try {
             for (const target of targets) {
             const label = target.label;
@@ -68,7 +105,10 @@ if (form) {
                         body: new URLSearchParams({ ...common, server_id: target.id, script: input.value, hash: input.dataset.hash })
                     });
                     if (!response.ok || !response.headers.get('Content-Type')?.includes('application/json')) {
-                        throw new Error('执行失败或连接中断，请检查系统日志和服务器实际状态。');
+                        // 只采用后端 http.Error 的纯文本原因，代理返回的 HTML 错误页仍用通用提示
+                        const plain = !response.ok && response.headers.get('Content-Type')?.startsWith('text/plain');
+                        const reason = plain ? (await response.text().catch(() => '')).trim().slice(0, 300) : '';
+                        throw new Error(reason ? `${reason}。` : '执行失败或连接中断，请检查系统日志和服务器实际状态。');
                     }
                     const data = await response.json();
                     if (!data.success) throw new Error('执行未成功，请检查系统日志。');
@@ -82,7 +122,7 @@ if (form) {
                 completed++;
                 status(input, '成功', 'green');
             }
-            if (completed >= 0) summary.push(`${label}：全部 ${completed} 项执行成功。`);
+            if (completed >= 0) { summary.push(`${label}：全部 ${completed} 项执行成功。`); succeeded.push(target); }
             }
             result.innerHTML = '';
             summary.forEach(line => { const p = document.createElement('div'); p.textContent = line; result.append(p); });
@@ -94,6 +134,7 @@ if (form) {
             form.querySelector('[data-maintenance-run]').classList.remove('btn-loading');
             window.removeEventListener('beforeunload', beforeUnload);
         }
+        if (promptReboot) confirmReboot(succeeded, common.csrf, result);
     });
 }
 });

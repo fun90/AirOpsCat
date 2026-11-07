@@ -119,6 +119,36 @@ func (d *Deployer) Ping(ctx context.Context, serverID int64) error {
 	return nil
 }
 
+// RebootCommand 用 systemd 定时器延迟重启，让 SSH 命令先正常返回再断开连接。
+const RebootCommand = "systemd-run --quiet --on-active=3 systemctl reboot"
+
+// Reboot 重启服务器主机；外部服务器不归本系统维护，拒绝执行。调用方负责持有服务器锁。
+func (d *Deployer) Reboot(ctx context.Context, serverID int64) error {
+	t, err := store.SSHTargetByID(ctx, d.DB, serverID)
+	if err != nil {
+		return err
+	}
+	if t == nil {
+		return errors.New("服务器不存在")
+	}
+	if t.External {
+		return errors.New("外部服务器不支持重启")
+	}
+	r, err := d.Dial(ctx, t)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	_, stderr, code, err := r.Run(ctx, RebootCommand)
+	if err != nil {
+		return err
+	}
+	if code != 0 {
+		return fmt.Errorf("重启命令执行失败(退出码 %d): %s", code, strings.TrimSpace(stderr))
+	}
+	return nil
+}
+
 // DeployServers 对每台服务器整机下发配置并 restart sing-box，同时最多 Parallel 台并行，结果与 serverIDs 顺序一致。
 // 每台服务器总是用其全部部署位重建完整配置，所以 force 只影响调用方如何选取服务器，这里不使用。
 func (d *Deployer) DeployServers(ctx context.Context, serverIDs []int64, force bool) []Result {
