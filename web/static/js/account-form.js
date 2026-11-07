@@ -48,6 +48,9 @@ window.AirOpsPage.register(function(){
  if(rec){var fields=document.querySelector('[data-batch-renew-fields]');
   function sync(){fields.disabled=!rec.querySelector('input[value=same]').checked;}
   rec.addEventListener('change',sync);sync();}
+ // 编辑时改流量周期类型会立即开始新周期，保存前确认
+ var period=document.querySelector('[data-period-original]');
+ if(period){period.closest('form').addEventListener('submit',function(e){if(!e.defaultPrevented&&period.value!==period.dataset.periodOriginal&&!confirm('修改流量周期类型将从现在开始新周期，本期已用流量清零（原周期保留在历史中）。继续？')){e.preventDefault();}});}
  // 按所选标签统计可用节点（标签并集），为 0 时保存前二次确认
  var hint=document.querySelector('[data-tag-nodes]');
  if(hint){var form=hint.closest('form');

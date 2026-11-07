@@ -58,7 +58,7 @@ func RotateRealityPorts(ctx context.Context, db *sql.DB, serverID int64) (*PortR
 		servers := map[int64]bool{}
 		for _, it := range items {
 			// 先把旧端口封禁，再分配：避免新端口恰好取到刚释放的旧端口
-			if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO server_blocked_port (server_id, port, create_time) VALUES (?,?,?)`, serverID, it.OldPort, now); err != nil {
+			if err := blockServerPort(ctx, tx, serverID, it.OldPort, now); err != nil {
 				return err
 			}
 			port, err := availableNodePort(ctx, tx)
@@ -105,6 +105,65 @@ func RotateRealityPorts(ctx context.Context, db *sql.DB, serverID int64) (*PortR
 		return nil, err
 	}
 	return res, nil
+}
+
+// blockServerPort 封禁端口并撤销同一端口尚未执行的远端解封动作。
+func blockServerPort(ctx context.Context, tx *sql.Tx, serverID int64, port int, now string) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM server_unblocked_port WHERE server_id=? AND port=?`, serverID, port); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO server_blocked_port(server_id,port,create_time) VALUES(?,?,?)`, serverID, port, now)
+	return err
+}
+
+// UnblockServerPort 解除封禁并记录远端待解封动作；部署成功执行后才释放端口重用。
+func UnblockServerPort(ctx context.Context, db *sql.DB, serverID int64, port int) error {
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `DELETE FROM server_blocked_port WHERE server_id=? AND port=?`, serverID, port)
+		if err != nil {
+			return err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return invalid("封禁端口不存在")
+		}
+		_, err = tx.ExecContext(ctx, `INSERT INTO server_unblocked_port(server_id,port,create_time) VALUES(?,?,?)
+			ON CONFLICT(server_id,port) DO UPDATE SET create_time=excluded.create_time`, serverID, port, FormatTime(nowFunc()))
+		return err
+	})
+}
+
+// UnblockedPorts 返回尚待部署清理远端规则的端口。
+func UnblockedPorts(ctx context.Context, db *sql.DB, serverID int64) ([]int, error) {
+	rows, err := db.QueryContext(ctx, `SELECT port FROM server_unblocked_port WHERE server_id=? ORDER BY port`, serverID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ports []int
+	for rows.Next() {
+		var p int
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		ports = append(ports, p)
+	}
+	return ports, rows.Err()
+}
+
+// ConfirmUnblockedPorts 只确认本次成功执行的端口，避免并发补录的新动作被误清理。
+func ConfirmUnblockedPorts(ctx context.Context, db *sql.DB, serverID int64, ports []int) error {
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		for _, p := range ports {
+			if _, err := tx.ExecContext(ctx, `DELETE FROM server_unblocked_port WHERE server_id=? AND port=?`, serverID, p); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // BlockedPorts 返回服务器上需要防火墙封禁的端口。

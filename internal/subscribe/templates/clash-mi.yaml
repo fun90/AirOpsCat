@@ -107,7 +107,7 @@ proxies:
     password: {{text $.account.uuid}}
     obfs: salamander
     obfs-password: {{text $node.inbound.obfs.password}}
-    sni: {{text $node.inbound.tls.server_name}}
+    sni: {{text $node.sni}}
     skip-cert-verify: true
     client-fingerprint: chrome
     alpn:
@@ -130,7 +130,7 @@ proxies:
     server: {{text $node.serverHost}}
     port: {{text $node.port}}
     password: {{text $.account.uuid}}
-    sni: {{text $node.inbound.tls.server_name}}
+    sni: {{text $node.sni}}
     skip-cert-verify: true
     client-fingerprint: chrome
     udp: true

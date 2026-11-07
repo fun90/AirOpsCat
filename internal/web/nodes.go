@@ -87,6 +87,7 @@ func (s *Server) nodeRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/nodes/batch-deploy", s.nodeBatchDeploy)
 	m.HandleFunc("POST /admin/nodes/batch-toggle", s.nodeBatchToggle)
 	m.HandleFunc("POST /admin/nodes/batch-delete", s.nodeBatchDelete)
+	m.HandleFunc("POST /admin/nodes/batch-ports", s.nodeBatchPorts)
 	m.HandleFunc("POST /admin/nodes/{id}", s.nodeSave)
 	m.HandleFunc("POST /admin/nodes/{id}/switch", s.nodeSwitch)
 	m.HandleFunc("POST /admin/placements/{id}/probe", s.placementProbe)

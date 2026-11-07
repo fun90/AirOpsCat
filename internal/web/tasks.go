@@ -103,7 +103,7 @@ func (s *Server) initTasks() {
 		"ip-overlap-digest": {Name: "超限每日摘要", Interval: 24 * time.Hour, Run: s.ipOverlapDigest},
 		"guard-evict":       {Name: "风控过期状态回收", Interval: 30 * time.Second, Run: s.Guard.Evict},
 		"account-expire":    {Name: "到期账户停用并部署", Interval: time.Hour, Run: s.expireAccounts},
-		"deploy-retry":      {Name: "部署失败重试", Interval: deployRetryEvery, Run: s.retryDeploys},
+		"deploy-retry":      {Name: "部署失败重试与待部署补偿", Interval: deployRetryEvery, Run: s.retryDeploys},
 		"db-backup": {Name: "数据库每日备份", Interval: 24 * time.Hour, Run: func(ctx context.Context) error {
 			if _, err := s.Backup.Create(ctx); err != nil {
 				return err

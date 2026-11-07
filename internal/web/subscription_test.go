@@ -138,6 +138,36 @@ func TestPublicSubscriptionAndDocs(t *testing.T) {
 
 }
 
+func TestSubscriptionAndDocsExcludeMissingDeployedClient(t *testing.T) {
+	h, a := newTestServer(t)
+	code := "client-consistency-code"
+	expires := store.FormatTime(time.Now().AddDate(0, 1, 0))
+	if _, err := a.DB.Exec(`INSERT INTO account(id,uuid,account_no,auth_code,remark,period_type,to_date,bandwidth) VALUES(901,'uuid','A901',?,'订阅','MONTHLY',?,500);
+ INSERT INTO tag(id,name) VALUES(901,'sub'); INSERT INTO account_tag VALUES(901,901);
+ INSERT INTO server(id,ip) VALUES(901,'203.0.113.91');
+ INSERT INTO node(id,name,type,port,protocol,core_type,inbound) VALUES(901,'测试',0,443,'vless','sing-box','{"type":"vless"}');
+ INSERT INTO node_tag VALUES(901,901); INSERT INTO node_server(id,node_id,server_id,deployed) VALUES(901,901,901,1);
+ INSERT INTO node_deployment(node_id,node_server_id,server_id,version,snapshot_hash,snapshot_json) VALUES(901,901,901,1,'x','{"type":0,"disabled":false,"clients":[]}')`, code, expires); err != nil {
+		t.Fatal(err)
+	}
+	path := "/subscribe/config/" + code + "/windows/sing-box/"
+	if w := do(h, "GET", path, nil, nil, nil); w.Code != 400 || !strings.Contains(w.Body.String(), "没有可用的节点") {
+		t.Fatal(path, w.Code, w.Body.String())
+	}
+	// docs-info 只提供账户用量与订阅链接，并不列节点；保持 200 契约。
+	if w := do(h, "GET", "/api/open/docs-info/"+code, nil, nil, nil); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if _, err := a.DB.Exec(`UPDATE node_deployment SET snapshot_json='{"type":0,"disabled":false,"port":443,"protocol":"vless","coreType":"sing-box","inbound":{"type":"vless"}}' WHERE node_server_id=901`); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/subscribe/config/" + code + "/windows/sing-box/", "/api/open/docs-info/" + code} {
+		if w := do(h, "GET", path, nil, nil, nil); w.Code != 200 {
+			t.Fatal(path, w.Code, w.Body.String())
+		}
+	}
+}
+
 func TestUsedGiBHalfUp(t *testing.T) {
 	for _, bytes := range []int64{0, 5368709, 5368710, 67108863, 67108864, 67108865, 1068373114, 1068373115, 1 << 30, math.MaxInt64} {
 		// 独立精确有理数计算舍入结果，覆盖中点、进位及最大计数。

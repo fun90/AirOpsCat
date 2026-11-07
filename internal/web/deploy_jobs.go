@@ -22,11 +22,13 @@ import (
 var deployDebounce = 2 * time.Second
 
 const (
-	deployDebounceMax  = 30 * time.Second
-	deployJobsKept     = 50 // 内存保留的最近任务数；未完成的任务不淘汰
-	deployRetryEvery   = 10 * time.Minute
-	deployReasonRetry  = "失败重试"
-	deployReasonExpire = "账户到期"
+	deployDebounceMax    = 30 * time.Second
+	deployJobsKept       = 50 // 内存保留的最近任务数；未完成的任务不淘汰
+	deployRetryEvery     = 10 * time.Minute
+	deployReasonRetry    = "失败重试"
+	deployReasonExpire   = "账户到期"
+	deployReasonConflict = "版本冲突补偿"
+	deployConflictDelay  = 2 * time.Second // 连续冲突至少间隔一次去抖，不让后台队列紧密自旋
 )
 
 // deployJob 是一次入队请求；同一服务器的多个任务合并为一次部署，结果分别记入各任务。
@@ -109,6 +111,10 @@ func (j *deployJob) finishLocked(now time.Time) func() {
 }
 
 func (q *deployQueue) enqueue(reason string, serverIDs []int64, done func(map[int64]deploy.Result)) int64 {
+	return q.enqueueAfter(reason, serverIDs, done, 0)
+}
+
+func (q *deployQueue) enqueueAfter(reason string, serverIDs []int64, done func(map[int64]deploy.Result), delay time.Duration) int64 {
 	var ids []int64
 	for _, id := range serverIDs {
 		if !slices.Contains(ids, id) {
@@ -141,9 +147,12 @@ func (q *deployQueue) enqueue(reason string, serverIDs []int64, done func(map[in
 			st.first = now
 		}
 		st.waiting = append(st.waiting, job)
-		st.due = now.Add(q.debounce)
+		st.due = now.Add(max(q.debounce, delay))
 		if limit := st.first.Add(deployDebounceMax); st.due.After(limit) {
 			st.due = limit
+		}
+		if delay > 0 && st.due.Before(now.Add(delay)) {
+			st.due = now.Add(delay) // 补偿入队即使与旧请求合并，也不能被合并窗口缩成紧密循环
 		}
 	}
 	q.pumpLocked()
@@ -335,9 +344,20 @@ func (q *deployQueue) activeJobs() int {
 	return n
 }
 
-// deployJobResult 失败时沿用自动部署失败告警（同一服务器一条，按持续时长退避通知）；成功由 Deployer.Applied 恢复告警。
+// deployJobResult 成功但版本冲突时补偿未确认的部署位；失败沿用告警，成功由 Deployer.Applied 恢复告警。
 func (s *Server) deployJobResult(reasons []string, res deploy.Result) {
-	if res.Success || res.Skipped {
+	if res.Success {
+		if strings.Contains(res.Message, "部署期间数据已变化，保留原部署位状态，请再次部署") && s.autoDeployOn(context.Background()) {
+			ids, err := s.pendingAmong(context.Background(), []int64{res.ServerID})
+			if err != nil {
+				slog.Warn("版本冲突补偿读取待部署服务器失败", "server", res.ServerID, "err", err)
+			} else if len(ids) > 0 {
+				s.deployQ.enqueueAfter(deployReasonConflict, ids, nil, deployConflictDelay)
+			}
+		}
+		return
+	}
+	if res.Skipped {
 		return
 	}
 	ctx := context.Background()
@@ -349,11 +369,22 @@ func (s *Server) deployJobResult(reasons []string, res deploy.Result) {
 	}
 }
 
-// retryDeploys 把仍需部署且最近一次部署失败的服务器重新入队（含到期自动部署失败的服务器）。
+// retryDeploys 始终重试最近部署失败的服务器；自动部署开启时补偿进程关闭、开关切换及其他同步留下的待部署位。
 func (s *Server) retryDeploys(ctx context.Context) error {
 	ids, err := store.RetryDeployServers(ctx, s.DB)
-	if err != nil || len(ids) == 0 {
+	if err != nil {
 		return err
+	}
+	if s.autoDeployOn(ctx) {
+		pending, err := store.PendingDeployServers(ctx, s.DB)
+		if err != nil {
+			return err
+		}
+		for _, id := range pending {
+			if !slices.Contains(ids, id) {
+				ids = append(ids, id)
+			}
+		}
 	}
 	s.EnqueueDeploy(deployReasonRetry, ids)
 	return nil

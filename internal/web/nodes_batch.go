@@ -236,10 +236,27 @@ func (s *Server) nodeBatchDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sc := s.beginDeploy(r.Context())
-	sc.nodes(nodes) // 删除前的部署位与引用方
-	ok, firstErr, fatal := s.batchEach(w, r, nodes, func(id int64) error { _, err := store.DeleteNode(r.Context(), s.DB, id); return err })
-	if fatal {
+	sc.nodes(nodes)
+	count, err := store.BatchDeleteNodes(r.Context(), s.DB, nodes)
+	if s.redirectError(w, r, "/admin/nodes", err, store.ErrConflict, store.ErrInvalid) {
 		return
 	}
-	batchResult(w, r, sc, nodes, "删除", ok, len(nodes), firstErr)
+	batchResult(w, r, sc, nodes, "删除", count, count, "")
+}
+
+// nodeBatchPorts 在写事务中为所选代理重新分配端口，可选封禁旧端口。
+func (s *Server) nodeBatchPorts(w http.ResponseWriter, r *http.Request) {
+	var nodes []int64
+	if !postIDs(w, r, "节点 ID 不正确", idField{"node_ids", &nodes}) {
+		return
+	}
+	sc := s.beginDeploy(r.Context())
+	sc.nodes(nodes)
+	result, err := store.ReallocateNodePorts(r.Context(), s.DB, nodes, r.PostFormValue("block_old") == "1")
+	if s.redirectError(w, r, "/admin/nodes", err, store.ErrInvalid, store.ErrConflict) {
+		return
+	}
+	sc.nodes(nodes)
+	sc.add(result.DeployServers, nil)
+	redirectMsg(w, r, "/admin/nodes", "msg", fmt.Sprintf("已为 %d 个代理节点重新分配端口", len(result.Rotations))+sc.finish("批量重新分配端口", "；请部署待部署项"))
 }

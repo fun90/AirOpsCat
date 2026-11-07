@@ -22,7 +22,7 @@
 
 - 指纹基线只在内存，重启后每台服务器首轮各 reload 一次。
 - `AIROPSCAT_TRAFFIC_SERVERS` 白名单为空时，`limit-sync` 与 `traffic-collect` 都不处理任何服务器。
-- `Reload` 下发整份当前配置，会连带生效其他待部署变更。
+- `Reload` 下发整份当前配置，会连带生效其他待部署变更：开启自动部署时符合最终一致行为；关闭自动部署时，限速同步仍会顺带下发待部署改动。
 - [x] 到期账户过滤后的用户集合变化已补双服务器与失败重试测试。每分钟限速同步仅覆盖 `AIROPSCAT_TRAFFIC_SERVERS` 允许且满足运行条件的服务器；其余服务器由每小时到期任务提交后台部署，不能保证全局一分钟撤权。
 
 ### 目标行为
@@ -32,6 +32,7 @@
 - [x] 下发失败保留待同步状态，后续可重试；成功后确认实际应用状态。
 - [x] 有效配置未变化时，不因持续超额反复 reload。
 - [x] 沿用服务器互斥、部署校验和成功快照，保持部署与限速同步一致。
+- [x] 自动部署开启时，版本冲突成功下发后补偿再次入队（最短间隔 2 秒）；每 10 分钟的 deploy-retry 同时补偿所有仍需部署的服务器，包括关停时丢失的排队任务与开关重新开启后的积压。自动部署关闭时只重试最近部署失败的服务器；后台任务未禁用时，进程启动后首次等待完整周期，不立即运行。
 
 ### 验收
 
@@ -112,8 +113,8 @@
 ### 小问题与待实测
 
 - [x] `store/settings.go` 已移除失效请求日志、Clash 端口/重试和倍率配置的不可达校验；`ActiveSetting` 继续限制可保存键。SQL 层长度校验未扩展，沿用业务入口校验。
-- 订阅：[x] 已补 `Referrer-Policy`，成功文本和 JSON 响应统一带 charset（保留旧 `charset` 头兼容）；`TestPublicSubscriptionAndDocs` 验证订阅响应头。`X-XSS-Protection` 为旧浏览器废弃机制，沿用现有安全头；[x] `docs-info` 空 `nickName` 已省略并补 HTTP 测试；[x] 快照 `disabled`/`type` 过滤与历史规格一致（订阅字段来自快照），`TestSubscriptionSnapshotBoundaryFilters` 固定可输出、快照禁用、快照落地类型三种边界；未发现程序写入的快照会误伤正常代理节点。生产快照样本对照仍待验收；[x] HEAD、`%2F`、`?dns=` / `?version=1&dns2=` 空值已由 `TestPublicSubscriptionAndDocs` 回放验证。
-- [x] 部署版本触发器已在迁移 0007 收窄：普通流量增长和无关展示配置不递增；限速跨界、配额/周期变更、相关系统配置及无效流量仍保护部署。`TestDeploymentRevision*` 覆盖旧库升级、NULL/零配额、溢出、配置键迁移与删除；`TestDeploymentConfirmationSurvivesOrdinaryTraffic` 验证普通采集不阻止确认、跨界仍保留待部署。真实并发采集部署观察待验收。
+- 订阅：新成功部署快照记录客户端身份摘要集合，开户、改标签或 UUID 后，未下发该客户端的部署位不进入订阅与 docs-info；旧快照没有客户端集合时沿用原口径。[x] 已补 `Referrer-Policy`，成功文本和 JSON 响应统一带 charset（保留旧 `charset` 头兼容）；`TestPublicSubscriptionAndDocs` 验证订阅响应头。`X-XSS-Protection` 为旧浏览器废弃机制，沿用现有安全头；[x] `docs-info` 空 `nickName` 已省略并补 HTTP 测试；[x] 快照 `disabled`/`type` 过滤与历史规格一致（订阅字段来自快照），`TestSubscriptionSnapshotBoundaryFilters` 固定可输出、快照禁用、快照落地类型三种边界；未发现程序写入的快照会误伤正常代理节点。生产快照样本对照仍待验收；[x] HEAD、`%2F`、`?dns=` / `?version=1&dns2=` 空值已由 `TestPublicSubscriptionAndDocs` 回放验证。
+- [x] 部署版本触发器已在迁移 0007、0022 收窄：普通流量增长、无关展示配置、账户备注及订阅授权码等不递增；客户端身份/有效期/速度、限速配额与周期、相关系统配置及无效流量仍保护部署。`TestDeploymentRevision*` 覆盖旧库升级、NULL/零配额、溢出、配置键迁移与删除；`TestDeploymentConfirmationSurvivesOrdinaryTraffic` 验证普通采集不阻止确认、跨界仍保留待部署。真实并发采集部署观察待验收。
 - [x] 账户列表已接在线/离线与所属用户 ID 筛选，复用 store 谓词和原分页参数；`TestAccountHTTPFlow` 覆盖空结果及组合筛选。
 - [x] 超额告警正文在超额限速开关开启时说明已启用 sing-box 原生限速并由同步任务持续下发；关闭时不声称限速（`TestQuotaAlertMentionsNativeLimitOnlyWhenEnabled`）。正文不承诺各服务器已实际生效，真机验收仍待补。
 

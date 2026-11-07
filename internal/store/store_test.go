@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -63,8 +64,12 @@ func TestOpenMigratesOnceAndEnforcesForeignKeys(t *testing.T) {
 
 	var version int
 	db.QueryRow("PRAGMA user_version").Scan(&version)
-	if version != 21 {
-		t.Fatalf("user_version = %d, want 21", version)
+	files, err := fs.Glob(schemaFS, "schema/*.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version != len(files) {
+		t.Fatalf("user_version = %d, want %d", version, len(files))
 	}
 
 	// 连接池中多个连接都必须开启外键

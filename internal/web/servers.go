@@ -140,6 +140,8 @@ func (s *Server) serverRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/servers/{id}/retire", s.serverRetire)
 	m.HandleFunc("POST /admin/servers/{id}/migrate", s.serverMigrate)
 	m.HandleFunc("POST /admin/servers/{id}/migrate-finish", s.serverMigrateFinish)
+	m.HandleFunc("POST /admin/servers/{id}/migrate-cancel", s.serverMigrateCancel)
+	m.HandleFunc("POST /admin/servers/{id}/unblock-port", s.serverUnblockPort)
 }
 
 // serverPlacementSwitch 把部署位所属节点的域名切到本服务器的该部署位，随后立即执行 DNS 切换。
@@ -440,19 +442,25 @@ func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status i
 			}
 		}
 		d["Placements"] = views
+		targets, err := store.MigrationTargets(r.Context(), s.DB, f.ID)
+		var opts []store.BatchServerOption
+		if err == nil && active > 0 {
+			opts, err = store.BatchServerOptions(r.Context(), s.DB)
+		}
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		d["MigrationTargets"] = targets
 		if active > 0 {
-			targets, err := store.MigrationTargets(r.Context(), s.DB, f.ID)
-			var opts []store.BatchServerOption
-			if err == nil {
-				opts, err = store.BatchServerOptions(r.Context(), s.DB)
-			}
-			if err != nil {
-				s.fail(w, r, err)
-				return
-			}
-			d["MigrationTargets"] = targets
 			d["MigrateOptions"] = slices.DeleteFunc(opts, func(o store.BatchServerOption) bool { return o.ID == f.ID })
 		}
+		blocked, err := store.BlockedPorts(r.Context(), s.DB, f.ID)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		d["BlockedPorts"] = blocked
 	}
 	s.render(w, "server_form", status, d)
 }

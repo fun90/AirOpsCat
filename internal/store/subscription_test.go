@@ -119,3 +119,50 @@ func TestPlacementSubscriptionNames(t *testing.T) {
 		}
 	}
 }
+
+// SNI 不依赖入站 server_name：域名访问地址优先，其次服务器证书域名（与证书脚本同口径），最后兼容旧入站值。
+func TestSubscriptionSNI(t *testing.T) {
+	db, ctx := testDB(t)
+	tag := mustTag(t, db, "sni")
+	nid := deployedNode(t, db, "SNI", tag)
+	r := onboard(t, db, "sni@example.test", func(in *OnboardInput) { in.Account.TagIDs = []int64{tag} })
+	a, _ := AccountByID(ctx, db, r.AccountID)
+	var pid, sid int64
+	var ip string
+	db.QueryRow(`SELECT ns.id,ns.server_id,s.ip FROM node_server ns JOIN server s ON s.id=ns.server_id WHERE ns.node_id=?`, nid).Scan(&pid, &sid, &ip)
+	mustExec(t, db, `UPDATE node_server SET deployed=1 WHERE id=?`, pid)
+	setInbound := func(name string) {
+		raw, _ := json.Marshal(map[string]any{"type": 0, "disabled": 0, "protocol": "hysteria2", "inbound": map[string]any{"tls": map[string]any{"server_name": name}}})
+		mustExec(t, db, `INSERT INTO node_deployment(node_id,node_server_id,server_id,version,snapshot_hash,snapshot_json) VALUES(?,?,?,1,'x',?) ON CONFLICT(node_server_id) DO UPDATE SET snapshot_json=excluded.snapshot_json`, nid, pid, sid, string(raw))
+	}
+	sni := func() any {
+		t.Helper()
+		nodes, err := SubscriptionNodes(ctx, db, a, nil)
+		if err != nil || len(nodes) != 1 {
+			t.Fatal(nodes, err)
+		}
+		return nodes[0]["sni"]
+	}
+	setInbound("legacy.example.test")
+	mustExec(t, db, `INSERT INTO domain(id,domain) VALUES(1,'example.test')`)
+	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,server_id,name,full_name,type,content,status) VALUES
+		(1,1,?,'*','*.example.test','A',?,'SYNCED'),
+		(2,1,?,'cert','cert.example.test','A',?,'SYNCED'),
+		(3,1,NULL,'hk','hk.example.test','A',?,'SYNCED')`, sid, ip, sid, ip, ip)
+	if got := sni(); got != "cert.example.test" {
+		t.Fatal("IP 访问时应取服务器证书域名（跳过通配）", got)
+	}
+	mustExec(t, db, `UPDATE node_server SET access_host_id=3 WHERE id=?`, pid)
+	if got := sni(); got != "hk.example.test" {
+		t.Fatal("域名访问时应取访问域名", got)
+	}
+	mustExec(t, db, `UPDATE node_server SET access_host_id=NULL WHERE id=?`, pid)
+	mustExec(t, db, `UPDATE domain_dns_record SET status='PENDING_UPDATE' WHERE id=2`)
+	if got := sni(); got != "legacy.example.test" {
+		t.Fatal("服务器无证书域名时兼容旧入站值", got)
+	}
+	setInbound(ip)
+	if got := sni(); got != ip {
+		t.Fatal("没有任何域名时退回访问地址", got)
+	}
+}

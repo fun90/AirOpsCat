@@ -77,6 +77,41 @@ func (s *Server) serverMigrateFinish(w http.ResponseWriter, r *http.Request) {
 	redirectMsg(w, r, back, "msg", fmt.Sprintf("已迁移 %d 个部署位，本服务器部署位待删除；转移的域名需推送 DNS 后生效", moved)+sc.finish("完成迁移服务器 #"+r.PathValue("id"), ""))
 }
 
+// serverMigrateCancel 撤销迁移新建的目标部署位，并部署受影响服务器。
+func (s *Server) serverMigrateCancel(w http.ResponseWriter, r *http.Request) {
+	id := idFrom(r)
+	back := fmt.Sprintf("/admin/servers/%d/edit", id)
+	target, err := strconv.ParseInt(r.PostFormValue("target"), 10, 64)
+	if err != nil || target <= 0 {
+		redirectMsg(w, r, back, "err", "请选择迁移目标")
+		return
+	}
+	sc := s.beginDeploy(r.Context())
+	sc.server(id, true)
+	sc.server(target, true)
+	if s.redirectError(w, r, back, store.CancelServerMigration(r.Context(), s.DB, id, target), store.ErrInvalid, store.ErrConflict) {
+		return
+	}
+	sc.server(id, true)
+	sc.server(target, true)
+	redirectMsg(w, r, back, "msg", "已取消迁移；本次新增的目标部署位已移除或待删除"+sc.finish("取消迁移服务器 #"+r.PathValue("id"), ""))
+}
+
+// serverUnblockPort 删除封禁记录并将远端规则解封加入下次部署。
+func (s *Server) serverUnblockPort(w http.ResponseWriter, r *http.Request) {
+	id := idFrom(r)
+	back := fmt.Sprintf("/admin/servers/%d/edit", id)
+	port, err := strconv.Atoi(r.PostFormValue("port"))
+	if err != nil || port < 1 || port > 65535 {
+		redirectMsg(w, r, back, "err", "端口不正确")
+		return
+	}
+	if s.redirectError(w, r, back, store.UnblockServerPort(r.Context(), s.DB, id, port), store.ErrInvalid) {
+		return
+	}
+	redirectMsg(w, r, back, "msg", fmt.Sprintf("已解除端口 %d 的封禁，下次部署时清除远端规则", port)+deployNote(s.autoDeploy(r.Context(), "解除防刷封禁 #"+r.PathValue("id"), []int64{id})))
+}
+
 // notFound 在服务器不存在时返回 404。
 func notFound(w http.ResponseWriter, r *http.Request, err error) bool {
 	if errors.Is(err, sql.ErrNoRows) {

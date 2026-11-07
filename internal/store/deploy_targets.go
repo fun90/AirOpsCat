@@ -35,9 +35,10 @@ func NodeDeployServers(ctx context.Context, db *sql.DB, nodeID int64, force bool
 	return serverIDs(ctx, db, q+` ORDER BY ns.server_id`, nodeID)
 }
 
-// PendingDeployServers 返回所有存在需要部署的部署位的启用服务器。
+// PendingDeployServers 返回需要部署位变更或待解封远端规则的启用服务器。
 func PendingDeployServers(ctx context.Context, db *sql.DB) ([]int64, error) {
-	return serverIDs(ctx, db, `SELECT DISTINCT ns.server_id`+deployTargetFrom+` WHERE `+placementNeedsDeploySQL+` ORDER BY ns.server_id`)
+	return serverIDs(ctx, db, `SELECT DISTINCT ns.server_id`+deployTargetFrom+` WHERE `+placementNeedsDeploySQL+`
+		UNION SELECT s.id FROM server_unblocked_port u JOIN server s ON s.id=u.server_id WHERE s.disabled=0 ORDER BY 1`)
 }
 
 // AccountDeployServers 返回账户经标签可用的所有节点所在的启用服务器（账户部署，整机重推）。
@@ -47,11 +48,13 @@ func AccountDeployServers(ctx context.Context, db *sql.DB, accountID int64) ([]i
 		WHERE at.account_id = ? ORDER BY ns.server_id`, accountID)
 }
 
-// RetryDeployServers 返回仍有需要部署的部署位、且最近一次整机部署失败的启用服务器，供失败重试任务重新入队。
+// RetryDeployServers 返回最近部署失败且部署位未确认或远端解封待执行的启用服务器。
 func RetryDeployServers(ctx context.Context, db *sql.DB) ([]int64, error) {
 	return serverIDs(ctx, db, `SELECT DISTINCT ns.server_id`+deployTargetFrom+`
 		JOIN server_deployment sd ON sd.server_id = ns.server_id AND sd.success = 0
-		WHERE `+placementNeedsDeploySQL+` ORDER BY ns.server_id`)
+		WHERE `+placementNeedsDeploySQL+`
+		UNION SELECT s.id FROM server_unblocked_port u JOIN server s ON s.id=u.server_id AND s.disabled=0
+		JOIN server_deployment sd ON sd.server_id=s.id AND sd.success=0 ORDER BY 1`)
 }
 
 // NodeRelatedServers 返回节点变更可能影响的启用服务器：节点自身部署位所在服务器、以它为出站的代理节点部署位所在服务器、

@@ -90,6 +90,10 @@ func RetireServer(ctx context.Context, db *sql.DB, id int64, deleteServer bool) 
 		if err != nil {
 			return err
 		}
+		// 禁用保留的服务器也不能留下可继续完成的旧迁移。
+		if _, err := tx.ExecContext(ctx, `DELETE FROM server_migration WHERE source_server_id=? OR target_server_id=?`, id, id); err != nil {
+			return err
+		}
 		var items []string
 		landings := map[int64]string{}
 		for _, p := range pls {
@@ -248,16 +252,27 @@ func MigrateServerPlacements(ctx context.Context, db *sql.DB, srcID, dstID int64
 		}
 		var items []string
 		active := 0
+		var migrationID int64
+		if err := tx.QueryRowContext(ctx, `INSERT INTO server_migration(source_server_id,target_server_id,create_time) VALUES(?,?,?)
+			ON CONFLICT(source_server_id,target_server_id) DO UPDATE SET create_time=create_time RETURNING id`, srcID, dstID, FormatTime(nowFunc())).Scan(&migrationID); err != nil {
+			return err
+		}
 		for _, p := range pls {
 			if p.deployed == PendingDelete {
 				continue
 			}
 			active++
-			var exists bool
-			if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM node_server WHERE node_id = ? AND server_id = ? AND deployed <> 2)`, p.nodeID, dstID).Scan(&exists); err != nil {
+			var targetID int64
+			err := tx.QueryRowContext(ctx, `SELECT id FROM node_server WHERE node_id = ? AND server_id = ? AND deployed <> 2`, p.nodeID, dstID).Scan(&targetID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return err
 			}
-			if exists {
+			created := 0
+			if err == nil {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO server_migration_placement(migration_id,source_placement_id,target_placement_id,created) VALUES(?,?,?,0)
+					ON CONFLICT(migration_id,source_placement_id) DO NOTHING`, migrationID, p.id, targetID); err != nil {
+					return err
+				}
 				continue
 			}
 			n, err := loadNode(ctx, tx, p.nodeID)
@@ -277,6 +292,14 @@ func MigrateServerPlacements(ctx context.Context, db *sql.DB, srcID, dstID int64
 			}
 			if _, err := tx.ExecContext(ctx, `UPDATE node_server SET priority = ?, exposed = ? WHERE node_id = ? AND server_id = ? AND deployed <> 2`,
 				p.priority, p.exposed && n.Type != NodeLanding, n.ID, dstID); err != nil {
+				return err
+			}
+			if err := tx.QueryRowContext(ctx, `SELECT id FROM node_server WHERE node_id=? AND server_id=? AND deployed<>2`, n.ID, dstID).Scan(&targetID); err != nil {
+				return err
+			}
+			created = 1
+			if _, err := tx.ExecContext(ctx, `INSERT INTO server_migration_placement(migration_id,source_placement_id,target_placement_id,created) VALUES(?,?,?,?)
+				ON CONFLICT(migration_id,source_placement_id) DO NOTHING`, migrationID, p.id, targetID, created); err != nil {
 				return err
 			}
 			added++
@@ -335,6 +358,12 @@ func FinishServerMigration(ctx context.Context, db *sql.DB, srcID, dstID int64) 
 		if dstDisabled {
 			return invalid("目标服务器 %s 已禁用", dstName)
 		}
+		var migrationID int64
+		if err := tx.QueryRowContext(ctx, `SELECT id FROM server_migration WHERE source_server_id=? AND target_server_id=?`, srcID, dstID).Scan(&migrationID); errors.Is(err, sql.ErrNoRows) {
+			return invalid("请先添加迁移部署位")
+		} else if err != nil {
+			return err
+		}
 		pls, err := serverPlacementRows(ctx, tx, srcID)
 		if err != nil {
 			return err
@@ -351,8 +380,9 @@ func FinishServerMigration(ctx context.Context, db *sql.DB, srcID, dstID int64) 
 			}
 			var target int64
 			var running bool
-			err := tx.QueryRowContext(ctx, `SELECT id, deployed = 1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = node_server.id)
-				FROM node_server WHERE node_id = ? AND server_id = ? AND deployed <> 2`, p.nodeID, dstID).Scan(&target, &running)
+			err := tx.QueryRowContext(ctx, `SELECT b.id, b.deployed = 1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = b.id)
+				FROM server_migration_placement mp JOIN node_server b ON b.id=mp.target_placement_id
+				WHERE mp.migration_id=? AND mp.source_placement_id=? AND b.node_id=? AND b.server_id=? AND b.deployed<>2`, migrationID, p.id, p.nodeID, dstID).Scan(&target, &running)
 			switch {
 			case errors.Is(err, sql.ErrNoRows):
 				items = append(items, fmt.Sprintf("节点 %s 在目标服务器上没有部署位", p.nodeName))
@@ -405,6 +435,9 @@ func FinishServerMigration(ctx context.Context, db *sql.DB, srcID, dstID int64) 
 				}
 			}
 		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM server_migration WHERE id=?`, migrationID); err != nil {
+			return err
+		}
 		return writeLog(ctx, tx, "SERVER", "INFO", &srcID, srcName, fmt.Sprintf("整机迁移完成：%d 个部署位已转移到 %s，本服务器部署位待删除", moved, dstName),
 			fmt.Sprintf("action=migrate-finish target=%d", dstID))
 	})
@@ -414,7 +447,99 @@ func FinishServerMigration(ctx context.Context, db *sql.DB, srcID, dstID int64) 
 	return moved, nil
 }
 
-// MigrationTarget 是可完成整机迁移的目标：源服务器全部非待删除部署位的节点在其上都有部署位。
+// CancelServerMigration 只移除本次迁移新建的目标部署位，原有目标部署位保持不变。
+func CancelServerMigration(ctx context.Context, db *sql.DB, srcID, dstID int64) error {
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		var id int64
+		if err := tx.QueryRowContext(ctx, `SELECT id FROM server_migration WHERE source_server_id=? AND target_server_id=?`, srcID, dstID).Scan(&id); errors.Is(err, sql.ErrNoRows) {
+			return invalid("迁移记录不存在")
+		} else if err != nil {
+			return err
+		}
+		rows, err := tx.QueryContext(ctx, `SELECT target_placement_id FROM server_migration_placement WHERE migration_id=? AND created=1`, id)
+		if err != nil {
+			return err
+		}
+		var targets []int64
+		for rows.Next() {
+			var pid int64
+			if err := rows.Scan(&pid); err != nil {
+				rows.Close()
+				return err
+			}
+			targets = append(targets, pid)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		for _, pid := range targets {
+			var other int
+			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM server_migration_placement WHERE target_placement_id=? AND migration_id<>?`, pid, id).Scan(&other); err != nil {
+				return err
+			}
+			if other > 0 {
+				return fmt.Errorf("%w：目标部署位 #%d 同时属于其他迁移，请先处理该迁移", ErrConflict, pid)
+			}
+			var nodeID int64
+			if err := tx.QueryRowContext(ctx, `SELECT node_id FROM node_server WHERE id=?`, pid).Scan(&nodeID); errors.Is(err, sql.ErrNoRows) {
+				continue
+			} else if err != nil {
+				return err
+			}
+			n, err := loadNode(ctx, tx, nodeID)
+			if err != nil {
+				return err
+			}
+			prev, err := effectiveServer(ctx, tx, nodeID)
+			if err != nil {
+				return err
+			}
+			// 域名及订阅定制可能在迁移期间新增；按正常部署位删除校验，失败时整体回滚。
+			if err := deletePlacement(ctx, tx, n, pid, 0); err != nil {
+				// 只有目标是唯一剩余部署位时，允许删除没有绑定的部署位。
+				if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "最后一个部署位") {
+					return err
+				}
+				bound, e := placementBound(ctx, tx, pid)
+				if e != nil {
+					return e
+				}
+				if bound {
+					return err
+				}
+				p, e := Placements(ctx, tx, nodeID)
+				if e != nil {
+					return e
+				}
+				for _, x := range p {
+					if x.ID == pid {
+						if e := removeOrMarkDeleted(ctx, tx, x); e != nil {
+							return e
+						}
+					}
+				}
+			}
+			if n.Type == NodeLanding {
+				cur, err := effectiveServer(ctx, tx, nodeID)
+				if err != nil {
+					return err
+				}
+				if prev != cur {
+					if err := markReferencingPending(ctx, tx, nodeID); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM server_migration WHERE id=?`, id); err != nil {
+			return err
+		}
+		return writeLog(ctx, tx, "SERVER", "INFO", &srcID, "", fmt.Sprintf("已取消迁移到服务器 #%d", dstID), "action=migrate-cancel")
+	})
+}
+
+// MigrationTarget 是存在迁移记录的目标；源服务器全部非待删除部署位必须仍有对应映射。
 // Pending 为其中尚未部署运行的部署位数，为 0 时可完成迁移。
 type MigrationTarget struct {
 	ID       int64
@@ -422,17 +547,16 @@ type MigrationTarget struct {
 	Pending  int
 }
 
-// MigrationTargets 返回源服务器可完成迁移的目标服务器（未禁用）。
+// MigrationTargets 返回源服务器已有迁移记录的目标；禁用目标仍显示以便取消迁移，完成动作会拒绝。
 func MigrationTargets(ctx context.Context, db *sql.DB, srcID int64) ([]MigrationTarget, error) {
 	rows, err := db.QueryContext(ctx, `SELECT s.id, coalesce(nullif(s.name,''), s.ip), s.ip,
-		(SELECT count(*) FROM node_server b WHERE b.server_id = s.id AND b.deployed <> 2
-			AND b.node_id IN (SELECT a.node_id FROM node_server a WHERE a.server_id = ? AND a.deployed <> 2)
-			AND NOT (b.deployed = 1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = b.id)))
-		FROM server s WHERE s.id <> ? AND s.disabled = 0
-		AND EXISTS (SELECT 1 FROM node_server a WHERE a.server_id = ? AND a.deployed <> 2)
-		AND NOT EXISTS (SELECT 1 FROM node_server a WHERE a.server_id = ? AND a.deployed <> 2
-			AND NOT EXISTS (SELECT 1 FROM node_server b WHERE b.server_id = s.id AND b.node_id = a.node_id AND b.deployed <> 2))
-		ORDER BY s.name, s.id`, srcID, srcID, srcID, srcID)
+		(SELECT count(*) FROM server_migration_placement mp JOIN node_server b ON b.id=mp.target_placement_id
+		 WHERE mp.migration_id=m.id AND b.deployed<>2 AND (s.disabled=1 OR NOT (b.deployed=1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id=b.id))))
+		 + (SELECT count(*) FROM node_server a WHERE a.server_id=m.source_server_id AND a.deployed<>2
+		 AND NOT EXISTS (SELECT 1 FROM server_migration_placement mp JOIN node_server b ON b.id=mp.target_placement_id
+		 WHERE mp.migration_id=m.id AND mp.source_placement_id=a.id AND b.deployed<>2))
+		FROM server_migration m JOIN server s ON s.id=m.target_server_id
+		WHERE m.source_server_id=? ORDER BY s.name,s.id`, srcID)
 	if err != nil {
 		return nil, err
 	}

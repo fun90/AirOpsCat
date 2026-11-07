@@ -79,6 +79,14 @@ func TestRouteRuleHTTPFlow(t *testing.T) {
 	if edit.Code != 200 || !strings.Contains(edit.Body.String(), `option value="2" selected`) {
 		t.Fatalf("编辑未回显服务器 %d", edit.Code)
 	}
+	a.DB.Exec(`UPDATE node_server SET deployed=2 WHERE node_id=1`)
+	if w := post("/admin/routes", url.Values{"name": {"new"}, "rule_type": {"domain"}, "rule_value": {`"example.test"`}, "outbound_node_id": {"1"}}); w.Code != 422 || !strings.Contains(w.Body.String(), "没有可用部署位") {
+		t.Fatalf("新建不能使用无部署位的落地出站：%d", w.Code)
+	}
+	good.Set("remark", "仅编辑备注")
+	if w := post("/admin/routes/1", good); w.Code != 303 {
+		t.Fatalf("存量规则无关编辑不应被阻止：%d", w.Code)
+	}
 	bad := url.Values{"name": {"bad"}, "rule_type": {"custom"}, "rule_value": {`{"outbound":"oops"}`}, "outbound_node_id": {"1"}, "servers": {"2"}}
 	if w := post("/admin/routes/1", bad); w.Code != 422 || !strings.Contains(w.Body.String(), "不能包含 outbound") || !strings.Contains(w.Body.String(), `option value="2" selected`) {
 		t.Fatalf("非法回显 %d %s", w.Code, w.Body.String())

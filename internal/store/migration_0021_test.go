@@ -194,7 +194,8 @@ func TestMigration21RebuildKeepsChildrenAndConstraints(t *testing.T) {
 	}
 	fks := foreignKeyList(t, db)
 
-	if err := migrate(ctx, db, schemaFS); err != nil {
+	// 这里只核对 0021 重建表；0022 会有意收窄账户 UPDATE 触发器。
+	if err := migrate(ctx, db, schemaBefore(t, "schema/0022")); err != nil {
 		t.Fatal(err)
 	}
 	var version, fk int

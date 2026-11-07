@@ -298,10 +298,36 @@ func firewallBlockCommand(ports []int) string {
 	return b.String()
 }
 
-// syncBlockedPorts 补齐该服务器记录的封禁端口规则；没有记录时不执行任何命令。
+// firewallUnblockCommand 反复删除同一端口所有 TCP/UDP DROP 规则，避免旧规则重复时仍封禁。
+func firewallUnblockCommand(ports []int) string {
+	var b strings.Builder
+	b.WriteString("set -e\n")
+	for _, p := range ports {
+		for _, proto := range []string{"tcp", "udp"} {
+			rule := fmt.Sprintf("INPUT -p %s --dport %d -j DROP", proto, p)
+			fmt.Fprintf(&b, "while iptables -C %s 2>/dev/null; do iptables -D %s; done\n", rule, rule)
+		}
+	}
+	b.WriteString("mkdir -p /etc/iptables\niptables-save > /etc/iptables/rules.v4\n")
+	return b.String()
+}
+
+// syncBlockedPorts 补齐封禁，并执行待解封动作；没有记录时不执行任何命令。
 // 初始化防火墙的脚本会清空规则，因此每次部署后都重新确保。
 // 硬性保护：SSH 端口和该服务器上任何节点正在使用的端口不封（导入、手工改库等路径可能绕过写入时的校验），跳过并记日志。
 func (d *Deployer) syncBlockedPorts(ctx context.Context, r Remote, t *store.SSHTarget) error {
+	unblock, err := store.UnblockedPorts(ctx, d.DB, t.ID)
+	if err != nil {
+		return err
+	}
+	if len(unblock) > 0 {
+		if err := runOK(ctx, r, firewallUnblockCommand(unblock)); err != nil {
+			return err
+		}
+		if err := store.ConfirmUnblockedPorts(ctx, d.DB, t.ID, unblock); err != nil {
+			return err
+		}
+	}
 	ports, err := store.BlockedPorts(ctx, d.DB, t.ID)
 	if err != nil {
 		return err

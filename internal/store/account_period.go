@@ -12,6 +12,32 @@ func periodLabel(u *TrafficUsage) string {
 	return u.PeriodStart.Format("2006-01-02") + " 至 " + u.PeriodEnd.Format("2006-01-02")
 }
 
+var periodNames = map[string]string{PeriodMonthly: "月度", PeriodYearly: "年度"}
+
+// restartTrafficPeriod 在周期类型变化时从 at 起开始新周期：锚点移到 at，当期行截断到 at 保留为历史，
+// 从 at 起的行（同一时刻再次修改留下的零长度周期）删除；新周期用量从 0 计，配额取账户配额。
+// 超额解除与限速由 limit-sync 自动下发，无需部署。
+func restartTrafficPeriod(ctx context.Context, tx *sql.Tx, old *Account, period string, at time.Time) error {
+	u, err := accountUsage(ctx, tx, old.ID, at)
+	if err != nil {
+		return err
+	}
+	stamp := FormatTime(at)
+	if _, err := tx.ExecContext(ctx, `DELETE FROM account_traffic_stats WHERE account_id=? AND period_start>=?`, old.ID, stamp); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE account_traffic_stats SET period_end=?, update_time=? WHERE account_id=? AND period_start<? AND period_end>?`,
+		stamp, stamp, old.ID, stamp, stamp); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE account SET traffic_anchor=? WHERE id=?`, stamp, old.ID); err != nil {
+		return err
+	}
+	return writeLog(ctx, tx, "ACCOUNT", "INFO", &old.ID, accountLabel(old),
+		fmt.Sprintf("流量周期由%s改为%s，从现在开始新周期", periodNames[old.PeriodType], periodNames[period]),
+		fmt.Sprintf("原周期 %s 截断到 %s，已用 %.2f GB 保留为历史，本期用量从 0 计", periodLabel(u), stamp, float64(u.UsedBytes)/(1<<30)))
+}
+
 func accountForPeriodOp(ctx context.Context, tx *sql.Tx, id int64) (*Account, error) {
 	a, err := loadAccount(ctx, tx, id)
 	if err != nil {

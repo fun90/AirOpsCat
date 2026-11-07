@@ -121,6 +121,8 @@ func TestRouteRuleSearchPagination(t *testing.T) {
 	if _, err := db.Exec(`INSERT INTO node(id,name,type) VALUES(1,'landing',1)`); err != nil {
 		t.Fatal(err)
 	}
+	mustExec(t, db, `INSERT INTO server(id,ip) VALUES(1,'192.0.2.1')`)
+	mustExec(t, db, `INSERT INTO node_server(node_id,server_id) VALUES(1,1)`)
 	for i := 0; i < 21; i++ {
 		r := &RouteRule{Name: fmt.Sprintf("rule-%02d", i), RuleType: "domain", RuleValue: `"example.com"`, OutboundNodeID: 1, Enabled: true}
 		if err := SaveRouteRule(ctx, db, r); err != nil {

@@ -109,6 +109,7 @@
       <button type="button" class="btn btn-outline-secondary text-nowrap" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="更多批量操作" title="更多"><i class="ti ti-dots" aria-hidden="true"></i></button>
       <div class="dropdown-menu dropdown-menu-end">
         <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#batchFailoverModal">手动切换</button>
+        <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#batchPortsModal">重新分配端口</button>
         <form method="post" action="/admin/nodes/batch-toggle" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="disabled" value="0"><button class="dropdown-item" type="submit">启用</button></form>
         <form method="post" action="/admin/nodes/batch-toggle" data-batch-form data-confirm="确定禁用以下节点？禁用后需重新部署生效。"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="disabled" value="1"><button class="dropdown-item" type="submit">禁用</button></form>
         <form method="post" action="/admin/nodes/batch-delete" data-batch-form data-confirm="确定删除以下节点？已部署的部署位会在下次部署时从服务器移除。"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="dropdown-item text-danger" type="submit">删除</button></form>
@@ -117,6 +118,7 @@
     <button type="button" class="btn btn-link px-2 text-nowrap" data-batch-clear>取消</button>
   </div></div>
 </div>
+<div class="modal modal-blur fade" id="batchPortsModal" tabindex="-1" aria-labelledby="batchPortsTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form class="modal-content" method="post" action="/admin/nodes/batch-ports" data-batch-form data-confirm="确定为所选代理节点重新分配端口？"><input type="hidden" name="csrf" value="{{.CSRF}}"><div class="modal-header"><h5 class="modal-title" id="batchPortsTitle">重新分配端口 · <span data-batch-count>0</span> 个节点</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div><div class="modal-body"><label class="form-check"><input type="checkbox" class="form-check-input" name="block_old" value="1"><span class="form-check-label">同时封禁旧端口</span></label></div><div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">重新分配</button></div></form></div></div>
 {{template "batchTagsModal" (dict "ID" "batchTagsModal" "TitleID" "batchTagsTitle" "Kind" "nodes" "Label" "节点" "Hint" "替换时不选标签即清空，相关节点需重新部署" "Tags" .Tags "CSRF" .CSRF)}}
 <div class="modal modal-blur fade" id="batchPlacementsModal" tabindex="-1" aria-labelledby="batchPlacementsTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="/admin/nodes/batch-placements" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}">
   <div class="modal-header"><h5 class="modal-title" id="batchPlacementsTitle">调整部署位 · <span data-batch-count>0</span> 个节点</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>

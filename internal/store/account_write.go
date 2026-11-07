@@ -207,7 +207,8 @@ func expired(t *time.Time) bool { return t != nil && !t.After(nowFunc()) }
 
 // UpdateAccount 全量覆盖账户字段，所属用户必填。AccountNo、AuthCode 不可修改（传空或原值），重置订阅码用 ResetAuthCode；
 // TagIDs 为 nil 时不改标签。进入节点配置的字段（UUID、IP 数、限速、配额）、启停、到期导致的有效性、标签变化
-// 会把相关节点置为待部署；最大连接数只供 guard 实时读取，不触发部署。流量配额变化同步到当期统计行。
+// 会把相关节点置为待部署；最大连接数只供 guard 实时读取，不触发部署。流量配额变化同步到当期统计行；
+// 周期类型变化从当前时刻开始新周期、本期用量清零（restartTrafficPeriod）。
 func UpdateAccount(ctx context.Context, db *sql.DB, id int64, a *Account) error {
 	in := *a
 	if err := in.normalize(false); err != nil {
@@ -267,7 +268,12 @@ func UpdateAccount(ctx context.Context, db *sql.DB, id int64, a *Account) error 
 				return err
 			}
 		}
-		if in.Bandwidth != old.Bandwidth { // 本轮周期锚点未单独存储：直接改当期行配额
+		if in.PeriodType != old.PeriodType {
+			if err := restartTrafficPeriod(ctx, tx, old, in.PeriodType, nowFunc()); err != nil {
+				return err
+			}
+		}
+		if in.Bandwidth != old.Bandwidth { // 直接改当期行配额；周期刚重启时当期行尚未创建，由采集按账户配额新建
 			now := FormatTime(nowFunc())
 			if _, err := tx.ExecContext(ctx, `UPDATE account_traffic_stats SET bandwidth_quota = ?, update_time = ? WHERE account_id = ? AND period_start <= ? AND period_end > ?`,
 				nzInt(in.Bandwidth), now, id, now, now); err != nil {

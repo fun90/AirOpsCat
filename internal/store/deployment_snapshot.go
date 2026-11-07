@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/fun90/airopscat/internal/singbox"
@@ -28,6 +29,14 @@ type DeploymentSnapshot struct {
 	Name         string         `json:"name"`
 	Remark       string         `json:"remark"`
 	TagIDs       []int64        `json:"tagIds"`
+	// nil 表示旧快照或无客户端协议；非 nil 的空列表表示已下发零个客户端。
+	Clients *[]string `json:"clients,omitempty"`
+}
+
+// deploymentClientDigest 避免在快照中额外保存账户号及 UUID 明文；账户号与 UUID 的组合对应内核客户端身份。
+func deploymentClientDigest(accountNo, uuid string) string {
+	sum := sha256.Sum256([]byte(accountNo + "\x00" + uuid))
+	return hex.EncodeToString(sum[:16])
 }
 
 // CapturedDeployment 在同一数据库读取版本中保存配置输入与部署快照。
@@ -90,6 +99,23 @@ func CaptureDeployment(ctx context.Context, db *sql.DB, serverID int64, opts Loa
 	}
 	for i := range c.Snapshots {
 		s := &c.Snapshots[i]
+		// 与 loadServerConfigInput 的 nodeClients 使用同一读事务、同一份实际下发的输入。
+		if strings.EqualFold(strings.TrimSpace(s.CoreType), "sing-box") {
+			switch strings.ToLower(strings.TrimSpace(s.Protocol)) {
+			case "vless", "vless-reality", "hysteria2", "shadowtls", "anytls":
+				clients := []string{}
+				for _, node := range c.Input.Nodes {
+					if node.ID == s.NodeID {
+						for _, client := range node.Clients {
+							clients = append(clients, deploymentClientDigest(client.Name, client.UUID))
+						}
+						break
+					}
+				}
+				slices.Sort(clients)
+				s.Clients = &clients
+			}
+		}
 		s.TagIDs = []int64{}
 		rows, err := tx.QueryContext(ctx, `SELECT tag_id FROM node_tag WHERE node_id=? ORDER BY tag_id`, s.NodeID)
 		if err != nil {

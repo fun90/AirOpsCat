@@ -101,16 +101,28 @@ func recordDeployment(ctx context.Context, db *sql.DB, serverID int64, configSHA
 			if err := rows.Err(); err != nil {
 				return err
 			}
+			cleanup := map[int64]bool{}
 			for _, p := range del {
+				cleanup[p.nodeID] = true
+				var outID sql.NullInt64
+				if err := tx.QueryRowContext(ctx, `SELECT out_id FROM node WHERE id=?`, p.nodeID).Scan(&outID); err != nil {
+					return err
+				}
+				if outID.Valid {
+					cleanup[outID.Int64] = true
+				}
 				if _, err := tx.ExecContext(ctx, `DELETE FROM node_server WHERE id = ?`, p.id); err != nil { // 订阅定制引用、部署记录随外键级联删除
 					return err
 				}
-				// 仍被其他节点出站或路由规则引用的节点保留，不算错误
-				if _, err := tx.ExecContext(ctx, `DELETE FROM node WHERE id = ?
-					AND NOT EXISTS (SELECT 1 FROM node_server WHERE node_id = node.id)
-					AND NOT EXISTS (SELECT 1 FROM node o WHERE o.out_id = node.id)
-					AND NOT EXISTS (SELECT 1 FROM route_rule r WHERE r.outbound_node_id = node.id)`, p.nodeID); err != nil {
-					return err
+			}
+			// 先清理本次移除的代理，再清理它们原先引用、如今不再被引用的落地。
+			for _, typ := range []int{NodeProxy, NodeLanding} {
+				for id := range cleanup {
+					if _, err := tx.ExecContext(ctx, `DELETE FROM node WHERE id=? AND type=? AND NOT EXISTS (SELECT 1 FROM node_server WHERE node_id=node.id)
+						AND NOT EXISTS (SELECT 1 FROM node o WHERE o.out_id=node.id)
+						AND NOT EXISTS (SELECT 1 FROM route_rule r WHERE r.outbound_node_id=node.id)`, id, typ); err != nil {
+						return err
+					}
 				}
 			}
 			if _, err := tx.ExecContext(ctx, `UPDATE node_server SET deployed = ?, update_time = ?

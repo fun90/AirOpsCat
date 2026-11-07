@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"net"
 	"sort"
 	"strings"
 )
@@ -31,18 +32,18 @@ func SubscriptionAccount(ctx context.Context, db *sql.DB, code string) (*Account
 }
 
 type subscriptionEntry struct {
-	nodeID, placementID int64
-	name, host          string
-	priority            sql.NullInt64
-	exposed             sql.NullBool
-	data                map[string]any
+	nodeID, placementID, serverID int64
+	name, host                    string
+	priority                      sql.NullInt64
+	exposed                       sql.NullBool
+	data                          map[string]any
 }
 
 // SubscriptionNodes 连接参数来自成功部署快照；待部署（deployed=0）但已有快照的部署位仍在服务器上运行，照常输出，
 // 否则任一账户变更会让共享标签的所有账户订阅丢节点；待删除（deployed=2）不输出。
 // 名称及已同步域名按既有订阅契约实时读取。
 func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *int) ([]map[string]any, error) {
-	rows, err := db.QueryContext(ctx, `SELECT DISTINCT n.id,n.name,ns.id,ns.priority,ns.exposed,d.snapshot_json,coalesce(r.full_name,''),coalesce(r.status,''),s.ip
+	rows, err := db.QueryContext(ctx, `SELECT DISTINCT n.id,n.name,ns.id,ns.priority,ns.exposed,d.snapshot_json,coalesce(r.full_name,''),coalesce(r.status,''),s.ip,s.id
  FROM account_tag at JOIN node_tag nt ON nt.tag_id=at.tag_id JOIN node n ON n.id=nt.node_id
  JOIN node_server ns ON ns.node_id=n.id JOIN node_deployment d ON d.node_server_id=ns.id
  JOIN server s ON s.id=d.server_id LEFT JOIN domain_dns_record r ON r.id=ns.access_host_id
@@ -54,7 +55,7 @@ func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *in
 	for rows.Next() {
 		var e subscriptionEntry
 		var raw, domain, status, ip string
-		if err := rows.Scan(&e.nodeID, &e.name, &e.placementID, &e.priority, &e.exposed, &raw, &domain, &status, &ip); err != nil {
+		if err := rows.Scan(&e.nodeID, &e.name, &e.placementID, &e.priority, &e.exposed, &raw, &domain, &status, &ip, &e.serverID); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -71,6 +72,26 @@ func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *in
 		if fmt.Sprint(e.data["type"]) != "0" {
 			continue
 		}
+		if clients, known := e.data["clients"]; known {
+			list, ok := clients.([]any)
+			if !ok {
+				rows.Close()
+				return nil, fmt.Errorf("部署位 %d 客户端快照损坏", e.placementID)
+			}
+			digest := deploymentClientDigest(a.AccountNo, a.UUID)
+			found := false
+			for _, v := range list {
+				if v == digest {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+			// 客户端集合只用于过滤，不进入外部订阅字段。
+			delete(e.data, "clients")
+		}
 		e.host = ip
 		if status == "SYNCED" && strings.TrimSpace(domain) != "" {
 			e.host = strings.TrimSpace(domain)
@@ -81,6 +102,10 @@ func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *in
 	}
 	err = rows.Err()
 	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	certHosts, err := serverCertHosts(ctx, db)
 	if err != nil {
 		return nil, err
 	}
@@ -169,10 +194,54 @@ func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *in
 				data["name"] = base + "-" + a.NodePrefix + new(big.Int).Add(num, big.NewInt(int64(i))).String()
 			}
 			data["serverHost"] = e.host
+			data["sni"] = subscriptionSNI(e.host, certHosts[e.serverID], e.data)
 			out = append(out, data)
 		}
 	}
 	return out, nil
+}
+
+// serverCertHosts 返回每台服务器证书对应的域名：与证书脚本 05 的 server_host 同口径，
+// 取指向该服务器、已同步的首条非通配 A 记录。
+func serverCertHosts(ctx context.Context, db *sql.DB) (map[int64]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT server_id,trim(coalesce(full_name,name)) FROM domain_dns_record
+ WHERE server_id IS NOT NULL AND upper(type)='A' AND status='SYNCED' ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]string{}
+	for rows.Next() {
+		var id int64
+		var host string
+		if err := rows.Scan(&id, &host); err != nil {
+			return nil, err
+		}
+		if _, ok := out[id]; !ok && isDomainName(host) && !strings.Contains(host, "*") {
+			out[id] = host
+		}
+	}
+	return out, rows.Err()
+}
+
+func isDomainName(host string) bool { return host != "" && net.ParseIP(host) == nil }
+
+// subscriptionSNI 是 TLS 类协议（Hysteria2、AnyTLS）的客户端 SNI，不依赖入站 server_name（服务端不使用该字段）：
+// 访问地址是域名时用它（DNS 指向本服务器）；否则用服务器证书域名；都没有时兼容旧快照的入站值，最后退回访问地址。
+func subscriptionSNI(host, certHost string, snapshot map[string]any) string {
+	if isDomainName(host) {
+		return host
+	}
+	if certHost != "" {
+		return certHost
+	}
+	inbound, _ := snapshot["inbound"].(map[string]any)
+	if tls, ok := inbound["tls"].(map[string]any); ok {
+		if name, _ := tls["server_name"].(string); isDomainName(strings.TrimSpace(name)) {
+			return strings.TrimSpace(name)
+		}
+	}
+	return host
 }
 
 // uniqueSubscriptionNames 按传入顺序（部署位 ID 升序）保留首个重名，其后的重名递增编号。

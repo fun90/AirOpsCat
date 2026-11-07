@@ -59,7 +59,7 @@ var settingMeta = map[string][2]string{
 
 	"airopscat.config.templates.dir": {"模板目录", "订阅模板从其 subscription-go 子目录读取"},
 	"airopscat.install.scripts.dir":  {"运维脚本目录", ""},
-	"airopscat.deploy.auto.enabled":  {"操作后自动部署", "账户、节点、服务器、路由规则改动成功后，把受影响且需要部署的服务器提交后台部署；关闭后需手动部署"},
+	"airopscat.deploy.auto.enabled":  {"操作后自动部署", "开启后提交相关待部署服务器，并每 10 分钟补偿待部署位（启动后首次等待一个周期）；限速同步重载会顺带下发待部署改动，关闭时也如此"},
 
 	"airopscat.account.traffic.retention-days": {"账户流量保留（天）", ""},
 	"airopscat.system-log.retention-days":      {"系统日志保留（天）", ""},

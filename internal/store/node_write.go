@@ -20,11 +20,12 @@ func portConflict(ctx context.Context, q dbtx, serverID int64, port int, nodeID 
 		return "", err
 	}
 	var blocked bool
-	if err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM server_blocked_port WHERE server_id = ? AND port = ?)`, serverID, port).Scan(&blocked); err != nil {
+	if err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM server_blocked_port WHERE server_id = ? AND port = ?)
+		OR EXISTS (SELECT 1 FROM server_unblocked_port WHERE server_id = ? AND port = ?)`, serverID, port, serverID, port).Scan(&blocked); err != nil {
 		return "", err
 	}
 	if blocked {
-		return "（防刷封禁的旧端口）", nil
+		return "（防刷封禁或待解封的旧端口）", nil
 	}
 	return "", nil
 }
@@ -112,7 +113,11 @@ func normalizeTagIDs(ids []int64) []int64 {
 
 // availableNodePort 在写事务内从防火墙节点端口范围取全局未用端口，避免未来部署位合并冲突。
 func availableNodePort(ctx context.Context, q dbtx) (int, error) {
-	rows, err := q.QueryContext(ctx, `SELECT DISTINCT port FROM (SELECT port FROM node UNION SELECT port FROM server_blocked_port) WHERE port BETWEEN 8000 AND 10000 ORDER BY port`)
+	return availableNodePortExcept(ctx, q, nil)
+}
+
+func availableNodePortExcept(ctx context.Context, q dbtx, reserved map[int]bool) (int, error) {
+	rows, err := q.QueryContext(ctx, `SELECT DISTINCT port FROM (SELECT port FROM node UNION SELECT port FROM server_blocked_port UNION SELECT port FROM server_unblocked_port) WHERE port BETWEEN 8000 AND 10000 ORDER BY port`)
 	if err != nil {
 		return 0, err
 	}
@@ -123,6 +128,9 @@ func availableNodePort(ctx context.Context, q dbtx) (int, error) {
 		if err := rows.Scan(&port); err != nil {
 			return 0, err
 		}
+		for reserved[candidate] {
+			candidate++
+		}
 		if port > candidate {
 			break
 		}
@@ -132,6 +140,9 @@ func availableNodePort(ctx context.Context, q dbtx) (int, error) {
 	}
 	if err := rows.Err(); err != nil {
 		return 0, err
+	}
+	for reserved[candidate] {
+		candidate++
 	}
 	if candidate > 10000 {
 		return 0, invalid("没有可自动分配的端口，请手动指定")

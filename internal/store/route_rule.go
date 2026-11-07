@@ -174,12 +174,30 @@ func SaveRouteRule(ctx context.Context, db *sql.DB, r *RouteRule) error {
 	}
 	defer tx.Rollback()
 	var typ int
-	err = tx.QueryRowContext(ctx, `SELECT type FROM node WHERE id=? AND lower(trim(core_type))='sing-box'`, r.OutboundNodeID).Scan(&typ)
+	var disabled bool
+	err = tx.QueryRowContext(ctx, `SELECT type,disabled FROM node WHERE id=? AND lower(trim(core_type))='sing-box'`, r.OutboundNodeID).Scan(&typ, &disabled)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && typ != NodeLanding {
 		return invalid("出站必须是已存在的 sing-box 落地节点")
 	}
 	if err != nil {
 		return err
+	}
+	changed := r.ID == 0
+	if !changed {
+		var previous int64
+		if err := tx.QueryRowContext(ctx, `SELECT outbound_node_id FROM route_rule WHERE id=?`, r.ID).Scan(&previous); err != nil {
+			return err
+		}
+		changed = previous != r.OutboundNodeID
+	}
+	if changed {
+		var available bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM node_server WHERE node_id=? AND deployed<>2)`, r.OutboundNodeID).Scan(&available); err != nil {
+			return err
+		}
+		if disabled || !available {
+			return invalid("出站落地节点已禁用或没有可用部署位")
+		}
 	}
 	ids := normalizeTagIDs(r.ServerIDs)
 	for _, sid := range ids {

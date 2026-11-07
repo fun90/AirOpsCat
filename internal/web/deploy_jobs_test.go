@@ -313,6 +313,110 @@ func TestDeployRetryTaskRequeuesFailedServers(t *testing.T) {
 	}
 }
 
+func TestDeployRetryIncludesPendingOnlyWhenAutoOn(t *testing.T) {
+	for _, on := range []bool{false, true} {
+		t.Run(map[bool]string{true: "开启", false: "关闭"}[on], func(t *testing.T) {
+			s, _, _, _ := deployTestServer(t)
+			value := "false"
+			if on {
+				value = "true"
+			}
+			if _, err := s.DB.Exec(`INSERT INTO system_config(config_key,config_value,group_key) VALUES(?,?,'template')`, store.AutoDeployKey, value); err != nil {
+				t.Fatal(err)
+			}
+			s.deployQ.run = (&fakeRuns{}).run
+			if err := s.retryDeploys(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			want := 0
+			if on {
+				want = 1
+			}
+			if got := jobCount(s); got != want {
+				t.Fatalf("待部署入队数=%d，期望 %d", got, want)
+			}
+			if !s.deployQ.wait(5 * time.Second) {
+				t.Fatal("队列未空闲")
+			}
+		})
+	}
+}
+
+func TestDeployRevisionConflictEventuallyConfirms(t *testing.T) {
+	s, _, _, _ := deployTestServer(t)
+	if _, err := s.DB.Exec(`INSERT INTO system_config(config_key,config_value,group_key) VALUES(?,'true','template')`, store.AutoDeployKey); err != nil {
+		t.Fatal(err)
+	}
+	s.Deployer.Dial = func(context.Context, *store.SSHTarget) (deploy.Remote, error) { return &reloadHost{}, nil }
+	prepare := s.Deployer.Prepare
+	first := true
+	s.Deployer.Prepare = func(ctx context.Context, id int64) (*deploy.Prepared, error) {
+		p, err := prepare(ctx, id)
+		if err == nil && first {
+			first = false
+			if _, err := s.DB.ExecContext(ctx, `UPDATE node SET port=8443 WHERE id=1`); err != nil {
+				return nil, err
+			}
+		}
+		return p, err
+	}
+	s.EnqueueDeploy("首次部署", []int64{1})
+	eventually(t, "版本冲突补偿任务入队", func() bool { return jobCount(s) >= 2 })
+	if got := deployedState(t, s, 1); got != 0 {
+		t.Fatalf("首次冲突不能确认部署位: %d", got)
+	}
+	eventually(t, "补偿部署确认", func() bool { return deployedState(t, s, 1) == 1 })
+	if !s.deployQ.wait(5*time.Second) || jobCount(s) != 2 {
+		t.Fatal("应只补偿一次", jobCount(s))
+	}
+}
+
+func TestDeployRevisionConflictOffKeepsManualPending(t *testing.T) {
+	s, _, _, _ := deployTestServer(t)
+	s.deployQ.run = func(_ context.Context, id int64) deploy.Result {
+		return deploy.Result{ServerID: id, Success: true, Message: "部署成功；部署期间数据已变化，保留原部署位状态，请再次部署"}
+	}
+	processed := make(chan struct{})
+	onResult := s.deployQ.onResult
+	s.deployQ.onResult = func(reasons []string, res deploy.Result) { onResult(reasons, res); close(processed) }
+	s.EnqueueDeploy("手动部署", []int64{1})
+	select {
+	case <-processed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("结果处理超时")
+	}
+	if n := jobCount(s); n != 1 {
+		t.Fatalf("自动部署关闭时不应补偿入队: %d", n)
+	}
+}
+
+func TestDeployRevisionConflictCompensatesWithoutSpinning(t *testing.T) {
+	s, _, _, _ := deployTestServer(t)
+	if _, err := s.DB.Exec(`INSERT INTO system_config(config_key,config_value,group_key) VALUES(?, 'true','template')`, store.AutoDeployKey); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	runs := 0
+	s.deployQ.run = func(_ context.Context, id int64) deploy.Result {
+		mu.Lock()
+		runs++
+		mu.Unlock()
+		return deploy.Result{ServerID: id, Success: true, Message: "部署成功；部署期间数据已变化，保留原部署位状态，请再次部署"}
+	}
+	s.EnqueueDeploy("冲突", []int64{1})
+	eventually(t, "首次部署及补偿入队", func() bool { return jobCount(s) >= 2 })
+	time.Sleep(100 * time.Millisecond)
+	mu.Lock()
+	count := runs
+	mu.Unlock()
+	if count != 1 {
+		t.Fatalf("连续冲突紧密自旋: %d 次", count)
+	}
+	if err := s.ShutdownDeploys(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // restart 前在持有服务器锁时先采流量，不死锁，且先于 SSH 推送。
 func TestDeployCollectsTrafficBeforeRestart(t *testing.T) {
 	s, _, _, _ := deployTestServer(t)
