@@ -62,10 +62,13 @@ func TestDashboardLoad(t *testing.T) {
 		t.Fatalf("未来24小时内到期账户: %+v", d.ExpiringAccounts)
 	}
 	d.ExpiringAccounts = nil
-	if len(d.ExpiringServerList) != 2 || d.ExpiringServerList[0].ID != 1 || d.ExpiringServerList[1].Expire != "2026-10-27" {
-		t.Fatalf("即将到期服务器: %+v", d.ExpiringServerList)
+	if len(d.ExpiringRenewals) != 2 || d.ExpiringRenewals[0].ID != 1 || d.ExpiringRenewals[1].Expire != "2026-10-27" {
+		t.Fatalf("即将到期服务器: %+v", d.ExpiringRenewals)
 	}
-	d.ExpiringServerList = nil
+	d.ExpiringRenewals = nil
+	if len(d.ActiveAlerts) != 0 {
+		t.Fatalf("到期类告警不进入待处理: %+v", d.ActiveAlerts)
+	}
 	alerts := d.RecentAlerts
 	d.RecentAlerts = nil
 	if !reflect.DeepEqual(d, want) {
@@ -124,11 +127,38 @@ func TestDashboardExpiringWindowAndAbnormal(t *testing.T) {
 	}
 	for days, want := range map[int]int{1: 1, 3: 2, 7: 3} {
 		d, err := DashboardLoad(ctx, db, now, days)
+		if err != nil || len(d.ActiveAlerts) != 2 || d.ActiveAlerts[0].Status != AlertActive || d.ActiveAlerts[1].Status != AlertActive {
+			t.Fatalf("待处理告警只含进行中: %+v, %v", d.ActiveAlerts, err)
+		}
 		if err != nil || len(d.ExpiringAccounts) != want {
 			t.Fatalf("%d 天窗口: %d 个账户, %v", days, len(d.ExpiringAccounts), err)
 		}
 		if d.ServersAbnormal != 1 {
 			t.Fatalf("异常服务器按服务器去重且只计进行中: %d", d.ServersAbnormal)
 		}
+	}
+}
+
+func TestDashboardRenewalsIncludeDomains(t *testing.T) {
+	db, ctx := testDB(t)
+	now := time.Date(2026, 10, 20, 4, 0, 0, 0, time.UTC)
+	for _, q := range []string{
+		`INSERT INTO server(id,name,ip,expire_date) VALUES(1,'','203.0.113.1','2026-10-22 00:00:00')`,
+		`INSERT INTO domain(id,domain,expire_date) VALUES(1,'a.example','2026-10-22'),(2,'b.example','2026-10-19'),(3,'c.example','2026-10-28'),(4,'d.example',NULL)`,
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d, err := DashboardLoad(ctx, db, now, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []DashboardRenewal{
+		{Table: "server", ID: 1, Name: "203.0.113.1", Detail: "203.0.113.1", Expire: "2026-10-22"},
+		{Table: "domain", ID: 1, Name: "a.example", Detail: "域名", Expire: "2026-10-22"},
+	}
+	if !reflect.DeepEqual(d.ExpiringRenewals, want) || d.ServersExpiring != 1 {
+		t.Fatalf("续费清单: %+v, 服务器到期数 %d", d.ExpiringRenewals, d.ServersExpiring)
 	}
 }

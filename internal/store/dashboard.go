@@ -14,26 +14,29 @@ type DashboardExpiry struct {
 	Disabled                 bool
 }
 
-// DashboardServerExpiry 是即将到期的服务器。
-type DashboardServerExpiry struct {
-	ID               int64
-	Name, IP, Expire string
+// DashboardRenewal 是 7 天内到期、需要续费的服务器或域名。
+type DashboardRenewal struct {
+	Table                string // server / domain
+	ID                   int64
+	Name, Detail, Expire string
 }
 
 type Dashboard struct {
 	ExpiringAccounts                                                 []DashboardExpiry
-	ExpiringServerList                                               []DashboardServerExpiry
+	ExpiringRenewals                                                 []DashboardRenewal
 	ServersAbnormal                                                  int
 	AccountsTotal, AccountsActive, AccountsDisabled, AccountsExpired int
 	NodesEnabled, NodesDisabled, PendingPlacements                   int
 	ServersEnabled, ServersExternal, ServersExpiring                 int
 	AlertsActive, AlertsAcknowledged                                 int
 	RecentAlerts                                                     []Alert
+	ActiveAlerts                                                     []Alert
 }
 
-// DashboardLoad 汇总资源状态及最近触发的五条告警（包含已恢复）。
-// 服务器按上海日期统计今天至第七天到期的启用、非外部服务器；
+// DashboardLoad 汇总资源状态、最近触发的五条告警（包含已恢复）及待处理告警。
+// 服务器按上海日期统计今天至第七天到期的启用、非外部服务器，续费清单另含同窗口内到期的域名；
 // 到期账户列出未来 days 天内到期且未禁用的账户。
+// 待处理告警只取进行中且非到期类的告警：到期类与到期清单重复。
 func DashboardLoad(ctx context.Context, db *sql.DB, now time.Time, days int) (*Dashboard, error) {
 	if days < 1 {
 		days = 1
@@ -88,19 +91,30 @@ func DashboardLoad(ctx context.Context, db *sql.DB, now time.Time, days int) (*D
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	srows, err := db.QueryContext(ctx, `SELECT id,coalesce(nullif(name,''),ip),ip,substr(expire_date,1,10) FROM server
-		WHERE disabled=0 AND external_server=0 AND substr(expire_date,1,10)>=? AND substr(expire_date,1,10)<=?
-		ORDER BY expire_date,id`, local.Format("2006-01-02"), local.AddDate(0, 0, 7).Format("2006-01-02"))
+	rows, err = db.QueryContext(ctx, alertSel+` WHERE status='ACTIVE' AND alert_type NOT LIKE '%-expiring'
+		ORDER BY last_triggered_time DESC, id DESC LIMIT 50`)
 	if err != nil {
-		return nil, fmt.Errorf("读取即将到期服务器: %w", err)
+		return nil, fmt.Errorf("读取待处理告警: %w", err)
+	}
+	if d.ActiveAlerts, err = scanAlerts(rows); err != nil {
+		return nil, fmt.Errorf("读取待处理告警: %w", err)
+	}
+	srows, err := db.QueryContext(ctx, `SELECT t,id,name,detail,expire FROM (
+		SELECT 'server' t,id,coalesce(nullif(name,''),ip) name,ip detail,substr(expire_date,1,10) expire FROM server
+			WHERE disabled=0 AND external_server=0
+		UNION ALL SELECT 'domain',id,coalesce(domain,''),'域名',substr(expire_date,1,10) FROM domain)
+		WHERE expire>=@today AND expire<=@soon ORDER BY expire,t DESC,id`,
+		sql.Named("today", local.Format("2006-01-02")), sql.Named("soon", local.AddDate(0, 0, 7).Format("2006-01-02")))
+	if err != nil {
+		return nil, fmt.Errorf("读取即将到期续费项: %w", err)
 	}
 	defer srows.Close()
 	for srows.Next() {
-		var e DashboardServerExpiry
-		if err := srows.Scan(&e.ID, &e.Name, &e.IP, &e.Expire); err != nil {
+		var e DashboardRenewal
+		if err := srows.Scan(&e.Table, &e.ID, &e.Name, &e.Detail, &e.Expire); err != nil {
 			return nil, err
 		}
-		d.ExpiringServerList = append(d.ExpiringServerList, e)
+		d.ExpiringRenewals = append(d.ExpiringRenewals, e)
 	}
 	return d, srows.Err()
 }
