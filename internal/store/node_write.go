@@ -34,10 +34,41 @@ func markPending(ctx context.Context, q dbtx, nodeID int64) error {
 	return err
 }
 
+// markReferencingPending 落地节点出站参数（端口、入站、生效部署位 IP 等）变化后，把以它为出站的代理节点、
+// 以及引用它的已启用路由规则所在服务器上的部署位置为待部署。
 func markReferencingPending(ctx context.Context, q dbtx, landingID int64) error {
-	_, err := q.ExecContext(ctx, `UPDATE node_server SET deployed = 0, update_time = ? WHERE deployed <> 2 AND node_id IN (SELECT id FROM node WHERE out_id = ?)`,
-		FormatTime(nowFunc()), landingID)
+	_, err := q.ExecContext(ctx, `UPDATE node_server SET deployed = 0, update_time = ? WHERE deployed <> 2 AND (node_id IN (SELECT id FROM node WHERE out_id = ?)
+		OR server_id IN (SELECT rs.server_id FROM route_rule_server rs JOIN route_rule r ON r.id = rs.route_rule_id WHERE r.outbound_node_id = ? AND r.enabled = 1))`,
+		FormatTime(nowFunc()), landingID, landingID)
 	return err
+}
+
+// markServerLandingsReferencing 对生效部署位在该服务器上的落地节点调用 markReferencingPending（服务器 IP 变化时使用）。
+func markServerLandingsReferencing(ctx context.Context, q dbtx, serverID int64) error {
+	rows, err := q.QueryContext(ctx, `SELECT n.id FROM node n WHERE n.type = ? AND (SELECT p.server_id FROM node_server p
+		WHERE p.node_id = n.id AND p.deployed <> 2 ORDER BY p.priority, p.id LIMIT 1) = ?`, NodeLanding, serverID)
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if err := markReferencingPending(ctx, q, id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // effectiveServer 返回节点的生效部署位所在服务器：非待删除中 priority 最小、id 最小。
@@ -124,7 +155,16 @@ func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []
 		}
 		n.Port = port
 	}
-	if err := validateNode(ctx, tx, n); err != nil {
+	var old *Node
+	if n.ID != 0 {
+		if old, err = loadNode(ctx, tx, n.ID); err != nil {
+			return 0, err
+		}
+		if old == nil {
+			return 0, sql.ErrNoRows
+		}
+	}
+	if err := validateNode(ctx, tx, n, old); err != nil {
 		return 0, err
 	}
 	now := FormatTime(nowFunc())
@@ -158,15 +198,14 @@ func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []
 		return n.ID, tx.Commit()
 	}
 
-	old, err := loadNode(ctx, tx, n.ID)
-	if err != nil {
-		return 0, err
-	}
-	if old == nil {
-		return 0, sql.ErrNoRows
-	}
 	if n.Disabled && !old.Disabled {
 		if err := checkNotOutbound(ctx, tx, n.ID, "禁用"); err != nil {
+			return 0, err
+		}
+	}
+	if n.Type != old.Type {
+		// 落地改为代理后，引用它的代理节点和路由规则会失去出站
+		if err := checkNotOutbound(ctx, tx, n.ID, "修改类型"); err != nil {
 			return 0, err
 		}
 	}

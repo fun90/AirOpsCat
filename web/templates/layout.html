@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="AirOpsCat">
     <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/tabler/css/tabler.min.css?v=p26">
+    <link rel="stylesheet" href="/static/tabler/css/tabler.min.css?v=p27">
     <link rel="stylesheet" href="/static/tabler/css/tabler-icons.min.css?v=p17">
     <link rel="stylesheet" href="/static/vendor/tom-select.bootstrap5.min.css">
     <link rel="stylesheet" href="/static/css/app.css?v=np37">
@@ -34,6 +34,9 @@
                 <img src="/static/img/logo-light.png" class="navbar-brand-image" alt="AirOpsCat">
             </a>
             <div class="navbar-nav flex-row order-md-last">
+                {{with .DeployActive}}<div class="nav-item">
+                    <a class="nav-link text-nowrap" href="/admin/deploy-jobs" title="后台部署进行中" aria-label="后台部署进行中，{{.}} 个任务"><span class="spinner-border spinner-border-sm text-blue me-1" aria-hidden="true"></span><span class="badge bg-blue-lt">{{.}}</span></a>
+                </div>{{end}}
                 <div class="nav-item dropdown">
                     <button type="button" class="nav-link dropdown-toggle d-flex align-items-center gap-2 py-0" data-bs-toggle="dropdown" aria-expanded="false" aria-label="账户菜单">
                         <span class="avatar avatar-sm bg-primary-lt"><i class="ti ti-user" aria-hidden="true"></i></span>
@@ -81,12 +84,13 @@
                             <a class="dropdown-item{{if eq .Nav "dns"}} active{{end}}" href="/admin/dns-providers"><i class="ti ti-cloud me-2" aria-hidden="true"></i>DNS 服务商</a>
                         </div>
                     </li>
-                    <li class="nav-item dropdown{{if or (eq .Nav "alerts") (eq .Nav "settings") (eq .Nav "tasks") (eq .Nav "backups") (eq .Nav "logs")}} active{{end}}">
+                    <li class="nav-item dropdown{{if or (eq .Nav "alerts") (eq .Nav "settings") (eq .Nav "tasks") (eq .Nav "deploy-jobs") (eq .Nav "backups") (eq .Nav "logs")}} active{{end}}">
                         <a class="nav-link dropdown-toggle text-nowrap" href="#" data-bs-toggle="dropdown" data-bs-auto-close="true" role="button" aria-expanded="false"><i class="ti ti-settings me-1" aria-hidden="true"></i>系统</a>
                         <div class="dropdown-menu">
                             <a class="dropdown-item{{if eq .Nav "alerts"}} active{{end}}" href="/admin/alerts"><i class="ti ti-bell me-2" aria-hidden="true"></i>告警</a>
                             <a class="dropdown-item{{if eq .Nav "settings"}} active{{end}}" href="/admin/settings"><i class="ti ti-settings me-2" aria-hidden="true"></i>系统配置</a>
                             <a class="dropdown-item{{if eq .Nav "tasks"}} active{{end}}" href="/admin/tasks"><i class="ti ti-clock me-2" aria-hidden="true"></i>定时任务</a>
+                            <a class="dropdown-item{{if eq .Nav "deploy-jobs"}} active{{end}}" href="/admin/deploy-jobs"><i class="ti ti-rocket me-2" aria-hidden="true"></i>部署任务{{with .DeployActive}}<span class="badge bg-blue-lt ms-auto">{{.}}</span>{{end}}</a>
                             <a class="dropdown-item{{if eq .Nav "backups"}} active{{end}}" href="/admin/backups"><i class="ti ti-database-export me-2" aria-hidden="true"></i>数据库备份</a>
                             <a class="dropdown-item{{if eq .Nav "logs"}} active{{end}}" href="/admin/logs"><i class="ti ti-list-details me-2" aria-hidden="true"></i>系统日志</a>
                         </div>
@@ -126,8 +130,9 @@
 <script type="module" src="/static/js/nav-progress.js?v=6"></script>
 <script src="/static/js/copy.js?v=1" defer></script>
 <script src="/static/js/loading.js?v=1" defer></script>
-<script src="/static/js/account-form.js?v=6" defer></script>
+<script src="/static/js/account-form.js?v=7" defer></script>
 <script src="/static/js/renewals.js?v=3" defer></script>
+<script src="/static/js/deploy-jobs.js?v=1" defer></script>
 <script src="/static/js/traffic-calibrate.js?v=1" defer></script>
 <script type="module" src="/static/js/account-usage.js?v=5"></script>
 <script type="module" src="/static/js/confirm-modal.js?v=4"></script>
@@ -142,6 +147,8 @@
     <div class="mb-3">
       <div class="form-selectgroup w-100" role="radiogroup" aria-label="调整方式">
         <label class="form-selectgroup-item flex-fill"><input type="radio" name="mode" value="APPEND" class="form-selectgroup-input" checked><span class="form-selectgroup-label">追加</span></label>
+{{if .Remove}}
+        <label class="form-selectgroup-item flex-fill"><input type="radio" name="mode" value="REMOVE" class="form-selectgroup-input"><span class="form-selectgroup-label">移除</span></label>{{end}}
         <label class="form-selectgroup-item flex-fill"><input type="radio" name="mode" value="REPLACE" class="form-selectgroup-input"><span class="form-selectgroup-label">替换</span></label>
       </div>
       <div class="form-hint">{{.Hint}}</div>

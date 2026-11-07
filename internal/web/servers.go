@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -136,6 +137,9 @@ func (s *Server) serverRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/servers/{id}/delete", s.serverDelete)
 	m.HandleFunc("POST /admin/servers/{id}/failover", s.serverFailover)
 	m.HandleFunc("POST /admin/servers/{id}/placement-switch", s.serverPlacementSwitch)
+	m.HandleFunc("POST /admin/servers/{id}/retire", s.serverRetire)
+	m.HandleFunc("POST /admin/servers/{id}/migrate", s.serverMigrate)
+	m.HandleFunc("POST /admin/servers/{id}/migrate-finish", s.serverMigrateFinish)
 }
 
 // serverPlacementSwitch 把部署位所属节点的域名切到本服务器的该部署位，随后立即执行 DNS 切换。
@@ -350,7 +354,15 @@ func (s *Server) serverSave(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(errs) == 0 {
+		sc := s.beginDeploy(r.Context())
+		if id != 0 {
+			sc.server(id, false) // 改 IP 会把引用其落地节点的代理与路由规则所在服务器置为待部署
+		}
 		saved, err := store.SaveServer(r.Context(), s.DB, s.Field, srv, auth)
+		if err == nil && id != 0 {
+			sc.server(id, false)
+			msg += sc.finish("保存服务器 #"+r.PathValue("id"), "")
+		}
 		if err == nil && r.PostFormValue("test") == "1" {
 			if err := s.Deployer.Ping(r.Context(), saved); err != nil {
 				redirectMsg(w, r, "/admin/servers", "err", msg+"，但 SSH 连接失败："+err.Error())
@@ -407,6 +419,7 @@ func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status i
 			return
 		}
 		views := make([]serverPlacementView, len(pls))
+		active := 0
 		for i, p := range pls {
 			v := serverPlacementView{ServerPlacement: p}
 			for _, pp := range pointed[p.NodeID] {
@@ -422,8 +435,24 @@ func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status i
 				v.Warn = direct.switchWarn(p.NodeID, p.ID)
 			}
 			views[i] = v
+			if p.Deployed != 2 {
+				active++
+			}
 		}
 		d["Placements"] = views
+		if active > 0 {
+			targets, err := store.MigrationTargets(r.Context(), s.DB, f.ID)
+			var opts []store.BatchServerOption
+			if err == nil {
+				opts, err = store.BatchServerOptions(r.Context(), s.DB)
+			}
+			if err != nil {
+				s.fail(w, r, err)
+				return
+			}
+			d["MigrationTargets"] = targets
+			d["MigrateOptions"] = slices.DeleteFunc(opts, func(o store.BatchServerOption) bool { return o.ID == f.ID })
+		}
 	}
 	s.render(w, "server_form", status, d)
 }

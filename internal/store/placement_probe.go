@@ -9,7 +9,7 @@ import (
 // ProbeFailRounds 是判定部署位不可达所需的连续失败轮数（每台探测机都要达到）。
 const ProbeFailRounds = 3
 
-// ProbeTarget 是定时检测的部署位：已部署、节点与服务器均启用、非外部服务器、非落地节点。
+// ProbeTarget 是定时检测的部署位：运行中（含仍按旧配置运行的待部署位）、节点与服务器均启用、非外部服务器、非落地节点。
 type ProbeTarget struct {
 	ID           int64
 	IP, Protocol string
@@ -18,9 +18,9 @@ type ProbeTarget struct {
 }
 
 func ProbeTargets(ctx context.Context, db *sql.DB) ([]ProbeTarget, error) {
-	rows, err := db.QueryContext(ctx, `SELECT p.id,s.ip,coalesce(n.port,0),coalesce(n.protocol,''),coalesce(n.inbound,'')
- FROM node_server p JOIN node n ON n.id=p.node_id JOIN server s ON s.id=p.server_id
- WHERE p.deployed=1 AND n.disabled=0 AND coalesce(n.type,0)<>? AND s.disabled=0 AND s.external_server=0 ORDER BY p.id`, NodeLanding)
+	rows, err := db.QueryContext(ctx, `SELECT ns.id,s.ip,coalesce(n.port,0),coalesce(n.protocol,''),coalesce(n.inbound,'')
+ FROM node_server ns JOIN node n ON n.id=ns.node_id JOIN server s ON s.id=ns.server_id
+ WHERE `+placementRunningSQL+` AND n.disabled=0 AND coalesce(n.type,0)<>? AND s.disabled=0 AND s.external_server=0 ORDER BY ns.id`, NodeLanding)
 	if err != nil {
 		return nil, err
 	}
@@ -36,17 +36,17 @@ func ProbeTargets(ctx context.Context, db *sql.DB) ([]ProbeTarget, error) {
 	return out, rows.Err()
 }
 
-// LandingProbeTarget 是落地节点的部署位（已部署、节点与服务器均启用，外部服务器也检测），
-// Probers 是引用该落地且已部署的代理节点所在服务器（启用、非外部），由它们 SSH 拨测，贴近真实出站链路。
+// LandingProbeTarget 是落地节点的部署位（运行中、节点与服务器均启用，外部服务器也检测），
+// Probers 是引用该落地且运行中的代理节点所在服务器（启用、非外部），由它们 SSH 拨测，贴近真实出站链路。
 type LandingProbeTarget struct {
 	ProbeTarget
 	Probers []int64
 }
 
 func LandingProbeTargets(ctx context.Context, db *sql.DB) ([]LandingProbeTarget, error) {
-	rows, err := db.QueryContext(ctx, `SELECT p.id,s.ip,coalesce(n.port,0),coalesce(n.protocol,''),coalesce(n.inbound,'')
- FROM node_server p JOIN node n ON n.id=p.node_id JOIN server s ON s.id=p.server_id
- WHERE p.deployed=1 AND n.disabled=0 AND n.type=? AND s.disabled=0 ORDER BY p.id`, NodeLanding)
+	rows, err := db.QueryContext(ctx, `SELECT ns.id,s.ip,coalesce(n.port,0),coalesce(n.protocol,''),coalesce(n.inbound,'')
+ FROM node_server ns JOIN node n ON n.id=ns.node_id JOIN server s ON s.id=ns.server_id
+ WHERE `+placementRunningSQL+` AND n.disabled=0 AND n.type=? AND s.disabled=0 ORDER BY ns.id`, NodeLanding)
 	if err != nil {
 		return nil, err
 	}
@@ -62,12 +62,12 @@ func LandingProbeTargets(ctx context.Context, db *sql.DB) ([]LandingProbeTarget,
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	prow, err := db.QueryContext(ctx, `SELECT DISTINCT p.id,px.server_id
- FROM node_server p JOIN node n ON n.id=p.node_id
+	prow, err := db.QueryContext(ctx, `SELECT DISTINCT lp.id,ns.server_id
+ FROM node_server lp JOIN node n ON n.id=lp.node_id
  JOIN node x ON x.out_id=n.id AND x.disabled=0 AND coalesce(x.type,0)<>?
- JOIN node_server px ON px.node_id=x.id AND px.deployed=1
- JOIN server s2 ON s2.id=px.server_id AND s2.disabled=0 AND s2.external_server=0
- WHERE n.type=? ORDER BY p.id,px.server_id`, NodeLanding, NodeLanding)
+ JOIN node_server ns ON ns.node_id=x.id AND `+placementRunningSQL+`
+ JOIN server s2 ON s2.id=ns.server_id AND s2.disabled=0 AND s2.external_server=0
+ WHERE n.type=? ORDER BY lp.id,ns.server_id`, NodeLanding, NodeLanding)
 	if err != nil {
 		return nil, err
 	}

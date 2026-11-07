@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/fun90/airopscat/internal/notify"
 	"github.com/fun90/airopscat/internal/store"
 )
 
@@ -105,6 +103,7 @@ func (s *Server) initTasks() {
 		"ip-overlap-digest": {Name: "超限每日摘要", Interval: 24 * time.Hour, Run: s.ipOverlapDigest},
 		"guard-evict":       {Name: "风控过期状态回收", Interval: 30 * time.Second, Run: s.Guard.Evict},
 		"account-expire":    {Name: "到期账户停用并部署", Interval: time.Hour, Run: s.expireAccounts},
+		"deploy-retry":      {Name: "部署失败重试", Interval: deployRetryEvery, Run: s.retryDeploys},
 		"db-backup": {Name: "数据库每日备份", Interval: 24 * time.Hour, Run: func(ctx context.Context) error {
 			if _, err := s.Backup.Create(ctx); err != nil {
 				return err
@@ -127,40 +126,29 @@ func (s *Server) initTasks() {
 	}
 }
 
-// expireAccounts 停用到期账户后整机部署其节点所在服务器；各服务器独立部署，失败的保持待部署、告警并汇总报错。
+// expireAccounts 识别新到期的账户（不改手动禁用标记），把其节点所在、确实需要部署的服务器提交后台部署以移除该账户。
+// 到期移除是本任务的职责，不受「操作后自动部署」开关影响；各服务器独立部署，失败由部署队列告警并保持待部署，失败重试任务会重新入队。
 func (s *Server) expireAccounts(ctx context.Context) error {
 	accounts, err := store.ExpireAccounts(ctx, s.DB, time.Now())
 	if err != nil {
 		return err
 	}
 	var errs []error
-	seen := map[int64]bool{}
-	var servers []int64
+	var related []int64
 	for _, id := range accounts {
 		ids, err := store.AccountDeployServers(ctx, s.DB, id)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("读取账户 %d 的服务器失败: %w", id, err))
 			continue
 		}
-		for _, sid := range ids {
-			if !seen[sid] {
-				seen[sid] = true
-				servers = append(servers, sid)
-			}
-		}
+		related = append(related, ids...)
 	}
-	if len(servers) > 0 {
-		for _, res := range s.Deployer.DeployServers(ctx, servers, true) {
-			if res.Success {
-				continue
-			}
-			errs = append(errs, fmt.Errorf("%s：%s", res.ServerName, res.Message))
-			key := store.AlertKey{Type: alertDeployFail, ResourceType: "server", ResourceID: res.ServerID, ResourceKey: res.ServerName, Fingerprint: strconv.FormatInt(res.ServerID, 10)}
-			if err := s.raise(ctx, key, "critical", 0, 0, res.ServerName+" 自动部署失败", 0, notify.Message{Title: "AirOpsCat 自动部署失败 · " + res.ServerName,
-				Body: "账户到期后自动部署失败，已保持待部署：\n" + res.Message}); err != nil {
-				errs = append(errs, err)
-			}
+	if len(related) > 0 {
+		servers, err := s.pendingAmong(ctx, related)
+		if err != nil {
+			return errors.Join(append(errs, err)...)
 		}
+		s.enqueueAuto(deployReasonExpire, servers)
 	}
 	return errors.Join(errs...)
 }

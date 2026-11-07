@@ -1,10 +1,12 @@
 package web
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -31,12 +33,17 @@ func (s *Server) accountRoutes(m *http.ServeMux) {
 	m.HandleFunc("GET /admin/accounts/{id}/edit", s.accountEdit)
 	m.HandleFunc("POST /admin/accounts/batch-deploy", s.accountBatchDeploy)
 	m.HandleFunc("POST /admin/accounts/batch-tags", s.accountBatchTags)
+	m.HandleFunc("POST /admin/accounts/batch-renew", s.accountBatchRenew)
+	m.HandleFunc("POST /admin/accounts/batch-toggle", s.accountBatchToggle)
+	m.HandleFunc("POST /admin/accounts/batch-delete", s.accountBatchDelete)
 	m.HandleFunc("POST /admin/accounts", s.accountSave)
 	m.HandleFunc("POST /admin/accounts/{id}", s.accountSave)
 	m.HandleFunc("POST /admin/accounts/{id}/toggle", s.accountToggle)
 	m.HandleFunc("POST /admin/accounts/{id}/delete", s.accountDelete)
 	m.HandleFunc("POST /admin/accounts/{id}/auth-code", s.accountResetCode)
 	m.HandleFunc("POST /admin/accounts/{id}/renew", s.accountRenew)
+	m.HandleFunc("POST /admin/accounts/{id}/period-quota", s.accountPeriodQuota)
+	m.HandleFunc("POST /admin/accounts/{id}/period-reset", s.accountPeriodReset)
 	m.HandleFunc("GET /admin/accounts/{id}/usage", s.accountUsage)
 	m.HandleFunc("GET /admin/accounts/{id}/bindings", s.bindingPage)
 	m.HandleFunc("POST /admin/accounts/{id}/bindings", s.bindingSave)
@@ -123,6 +130,15 @@ func (s *Server) accountList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d["PendingServers"] = len(pending)
+	ids := make([]int64, len(list))
+	for i, a := range list {
+		ids[i] = a.ID
+	}
+	// 续期弹窗预填最近一笔账户收入的金额与付款方式
+	if d["Incomes"], err = store.AccountLastIncomes(r.Context(), s.DB, ids); err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	d["Tags"], d["TagFilter"], d["NoNodes"] = tags, tagParam, noNodes
 	d["Filtered"] = q != "" || status != "" || onlineFilter != "" || userID > 0 || tagID != 0
 	d["SortLast"], d["SortTo"], d["SortUsed"] = sortHeader(r.URL.Query(), "last_online", sort, asc), sortHeader(r.URL.Query(), "to_date", sort, asc), sortHeader(r.URL.Query(), "used", sort, asc)
@@ -242,12 +258,12 @@ func (s *Server) accountNew(w http.ResponseWriter, r *http.Request) {
 		if a != nil {
 			f := accountToForm(a)
 			f.ID, f.Remark, f.AccountNo, f.UUID, f.Disabled = 0, "", "", "", false
-			f.FromDate, f.ToDate = now.Format(formDateLayout), now.AddDate(0, 1, 0).Format(formDateLayout)
+			f.FromDate, f.ToDate = now.Format(formDateLayout), store.AddMonths(now, 1).Format(formDateLayout)
 			s.accountFormPage(w, r, 200, f, "")
 			return
 		}
 	}
-	s.accountFormPage(w, r, 200, &accountForm{UserSource: "existing", PeriodType: "MONTHLY", NodeMultiple: "2", NodePrefix: "8", MaxConnections: "100", MaxIPs: "2", Bandwidth: "500", DownloadMbps: "12", UploadMbps: "8", FromDate: now.Format(formDateLayout), ToDate: now.AddDate(0, 1, 0).Format(formDateLayout), TagIDs: map[int64]bool{}}, "")
+	s.accountFormPage(w, r, 200, &accountForm{UserSource: "existing", PeriodType: "MONTHLY", NodeMultiple: "2", NodePrefix: "8", MaxConnections: "100", MaxIPs: "2", Bandwidth: "500", DownloadMbps: "12", UploadMbps: "8", FromDate: now.Format(formDateLayout), ToDate: store.AddMonths(now, 1).Format(formDateLayout), TagIDs: map[int64]bool{}}, "")
 }
 func accountToForm(a *store.Account) *accountForm {
 	f := &accountForm{ID: a.ID, UserID: strconv.FormatInt(a.UserID, 10), UserSource: "existing", Remark: a.Remark, AccountNo: a.AccountNo, UUID: a.UUID, PeriodType: a.PeriodType, NodePrefix: a.NodePrefix, NodeMultiple: strconv.Itoa(a.NodeMultiple), MaxConnections: strconv.Itoa(a.MaxConnections), MaxIPs: strconv.Itoa(a.MaxIps), Bandwidth: strconv.Itoa(a.Bandwidth), Disabled: a.Disabled, TagIDs: map[int64]bool{}}
@@ -347,7 +363,7 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 		if in.FromDate != nil {
 			start = *in.FromDate
 		}
-		f.ToDate = start.AddDate(0, 1, 0).Format("2006-01-02T15:04:05") // 保留秒，与开始时间严格相差一个月
+		f.ToDate = store.AddMonths(start, 1).Format("2006-01-02T15:04:05") // 保留秒，与开始时间严格相差一个月（月末钳制）
 	}
 	if f.ToDate != "" {
 		in.ToDate = date(f.ToDate)
@@ -380,6 +396,7 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	deploy := r.PostFormValue("deploy") == "1"
+	sc := s.beginDeploy(r.Context())
 	var before []int64 // 保存前的服务器：换标签后旧标签节点也要下发移除
 	if f.ID == 0 {
 		onboard.Account = *in
@@ -390,7 +407,8 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 				s.deployAccountPending(w, r, back, res.AccountID, nil, "开户成功，该账户没有可用节点，无需部署")
 				return
 			}
-			redirectMsg(w, r, back, "msg", "开户成功：复制安装说明发给客户，点「部署」下发到节点")
+			sc.account(res.AccountID)
+			redirectMsg(w, r, back, "msg", "开户成功：复制安装说明发给客户"+sc.finish(fmt.Sprintf("开户 #%d", res.AccountID), "，点「部署」下发到节点"))
 			return
 		}
 	} else if before, parseErr = store.AccountDeployServers(r.Context(), s.DB, f.ID); parseErr == nil {
@@ -406,6 +424,12 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 	}
 	if deploy {
 		s.deployAccountPending(w, r, "/admin/accounts", f.ID, before, "账户已保存，无需部署")
+		return
+	}
+	if sc.on {
+		sc.add(before, nil)
+		sc.account(f.ID)
+		redirectMsg(w, r, "/admin/accounts", "msg", "账户已保存"+cmp.Or(sc.finish(fmt.Sprintf("保存账户 #%d", f.ID), ""), "，无需部署"))
 		return
 	}
 	ids, err := s.accountPendingServers(r, f.ID, before)
@@ -457,31 +481,85 @@ func (s *Server) accountActionResult(w http.ResponseWriter, r *http.Request, err
 	}
 }
 func (s *Server) accountToggle(w http.ResponseWriter, r *http.Request) {
-	s.accountActionResult(w, r, store.SetAccountDisabled(r.Context(), s.DB, idFrom(r), r.PostFormValue("disabled") == "1"), "账户状态已更新，相关节点需重新部署")
+	disable := r.PostFormValue("disabled") == "1"
+	sc := s.beginDeploy(r.Context())
+	sc.account(idFrom(r))
+	err := store.SetAccountDisabled(r.Context(), s.DB, idFrom(r), disable)
+	var msg string
+	if err == nil {
+		msg = "账户状态已更新" + sc.finish("启停账户 #"+r.PathValue("id"), "，相关节点需重新部署")
+	}
+	if err == nil && !disable {
+		// 到期与禁用相互独立：启用已到期账户不会恢复可用
+		a, e := store.AccountByID(r.Context(), s.DB, idFrom(r))
+		if e != nil {
+			err = e
+		} else if a != nil && a.ToDate != nil && !a.ToDate.After(time.Now()) {
+			msg = "已启用，但账户已到期，需续期后才可用"
+		}
+	}
+	s.accountActionResult(w, r, err, msg)
 }
 func (s *Server) accountDelete(w http.ResponseWriter, r *http.Request) {
-	s.accountActionResult(w, r, store.DeleteAccount(r.Context(), s.DB, idFrom(r)), "账户已删除，流水已保留，相关节点需重新部署")
+	sc := s.beginDeploy(r.Context())
+	sc.account(idFrom(r)) // 删除后无法再查账户的服务器
+	err := store.DeleteAccount(r.Context(), s.DB, idFrom(r))
+	var msg string
+	if err == nil {
+		msg = "账户已删除，流水已保留" + sc.finish("删除账户 #"+r.PathValue("id"), "，相关节点需重新部署")
+	}
+	s.accountActionResult(w, r, err, msg)
 }
 func (s *Server) accountResetCode(w http.ResponseWriter, r *http.Request) {
 	s.accountActionResult(w, r, resetAccountCode(r, s), "订阅授权码已重置，旧订阅链接立即失效")
 }
+
+// renewBack 仅允许返回账户列表本身，保留列表筛选与排序，不信任表单提供的其它路径。
+func renewBack(r *http.Request) string {
+	if r.PostFormValue("from") != "list" {
+		return fmt.Sprintf("/admin/accounts/%d/edit", idFrom(r))
+	}
+	back := r.PostFormValue("back")
+	u, err := url.Parse(back)
+	if err != nil || u.Path != "/admin/accounts" || u.Host != "" || u.Scheme != "" || u.Fragment != "" {
+		return "/admin/accounts"
+	}
+	return back
+}
+
 func (s *Server) accountRenew(w http.ResponseWriter, r *http.Request) {
+	back := renewBack(r)
 	to, err := sqlDate(formValue(r, "to_date"))
 	amount, e := parseAmount(formValue(r, "amount"))
 	if err == nil {
 		err = e
 	}
+	sc := s.beginDeploy(r.Context())
+	sc.account(idFrom(r))
 	if err == nil {
 		err = renewAccount(r, s, to, amount)
 	}
-	if err == nil {
-		// 续期可能让已过期/已禁用账户重新生效，此时节点上还没有该账户：回编辑页提示部署
+	msg := "续期已保存"
+	if err == nil && sc.on {
+		msg += sc.finish("续期账户 #"+r.PathValue("id"), "")
+	} else if err == nil {
+		// 续期可能让已过期账户重新生效，此时节点上还没有该账户：提示部署（列表弹窗续期留在列表，编辑页回编辑页）
 		if ids, e := s.accountPendingServers(r, idFrom(r), nil); e == nil && len(ids) > 0 {
-			redirectMsg(w, r, fmt.Sprintf("/admin/accounts/%d/edit", idFrom(r)), "err", fmt.Sprintf("续期已保存，%d 台服务器待部署，尚未生效，请点「立即部署」", len(ids)))
+			redirectMsg(w, r, back, "err", fmt.Sprintf("续期已保存，%d 台服务器待部署，尚未生效，请点「立即部署」", len(ids)))
 			return
 		}
 	}
-	s.accountActionResult(w, r, err, "续期已保存")
+	if err == nil {
+		// 续期不解除手动禁用
+		if a, e := store.AccountByID(r.Context(), s.DB, idFrom(r)); e != nil {
+			err = e
+		} else if a != nil && a.Disabled {
+			msg += "；账户仍处于禁用状态，启用后才可用"
+		}
+	}
+	if !s.redirectError(w, r, back, err, store.ErrInvalid, store.ErrConflict) {
+		redirectMsg(w, r, back, "msg", msg)
+	}
 }
 
 func resetAccountCode(r *http.Request, s *Server) error {

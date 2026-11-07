@@ -359,7 +359,7 @@ func TestAccountHTTPFlow(t *testing.T) {
 		t.Fatal("离线与用户组合筛选错误")
 	}
 	// 概览在 {{with .Form}} 内，必须经 $ 取页面数据；无上报时应明确显示“暂无上报”。
-	if body := do(h, "GET", "/admin/accounts/"+strconv.FormatInt(id, 10)+"/edit", nil, c, nil).Body.String(); !strings.Contains(body, `data-online-summary>暂无上报</div>`) || !strings.Contains(body, `id="account-online" role="tabpanel">`) || !strings.Contains(body, "保存续期") {
+	if body := do(h, "GET", "/admin/accounts/"+strconv.FormatInt(id, 10)+"/edit", nil, c, nil).Body.String(); !strings.Contains(body, `data-online-summary>暂无上报</div>`) || !strings.Contains(body, `id="account-online" role="tabpanel">`) || strings.Contains(body, "保存续期") { // 上面编辑未提交到期时间，账户已改为长期有效，不显示续期
 		t.Fatal("账户编辑页在线面板为空")
 	}
 	for _, query := range []string{

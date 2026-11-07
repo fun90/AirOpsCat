@@ -166,7 +166,8 @@ func addPlacement(ctx context.Context, tx dbtx, n *Node, serverID int64) error {
 	case err == nil && deployed != PendingDelete:
 		return fmt.Errorf("%w：节点已部署在服务器 %s 上", ErrConflict, name)
 	case err == nil:
-		if _, err := tx.ExecContext(ctx, `UPDATE node_server SET deployed = 0, update_time = ? WHERE id = ?`, FormatTime(nowFunc()), id); err != nil {
+		// 重新添加视同新部署位：旧的切走标记不再沿用
+		if _, err := tx.ExecContext(ctx, `UPDATE node_server SET deployed = 0, failover = 0, update_time = ? WHERE id = ?`, FormatTime(nowFunc()), id); err != nil {
 			return err
 		}
 	case errors.Is(err, sql.ErrNoRows):

@@ -63,8 +63,8 @@ func TestOpenMigratesOnceAndEnforcesForeignKeys(t *testing.T) {
 
 	var version int
 	db.QueryRow("PRAGMA user_version").Scan(&version)
-	if version != 20 {
-		t.Fatalf("user_version = %d, want 20", version)
+	if version != 21 {
+		t.Fatalf("user_version = %d, want 21", version)
 	}
 
 	// 连接池中多个连接都必须开启外键
@@ -115,6 +115,74 @@ func TestMigrateRollsBackFailedFile(t *testing.T) {
 	db.QueryRow("SELECT count(*) FROM sqlite_master WHERE name = 't2'").Scan(&n)
 	if version != originalVersion || n != 0 {
 		t.Fatalf("失败的迁移未回滚: version=%d t2=%d", version, n)
+	}
+}
+
+// fkOffSchema 构造一个父子级联的旧库，再用声明关闭外键的迁移重建父表。
+func fkOffSchema(rebuild string) fstest.MapFS {
+	return fstest.MapFS{
+		"schema/0001_init.sql": {Data: []byte(`CREATE TABLE p (id INTEGER PRIMARY KEY);
+CREATE TABLE c (id INTEGER PRIMARY KEY, p_id INTEGER NOT NULL REFERENCES p (id) ON DELETE CASCADE);
+INSERT INTO p VALUES (1), (2);
+INSERT INTO c VALUES (1, 1), (2, 2);`)},
+		"schema/0002_rebuild.sql": {Data: []byte(rebuild)},
+	}
+}
+
+func TestMigrateForeignKeysOffRebuildKeepsChildren(t *testing.T) {
+	ctx := context.Background()
+	db := openRawFK(t, filepath.Join(t.TempDir(), "fk.db"))
+	db.SetMaxOpenConns(1) // 迁移与后续检查必然复用同一连接
+	err := migrate(ctx, db, fkOffSchema(foreignKeysOffMarker+`
+CREATE TABLE p_new (id INTEGER PRIMARY KEY AUTOINCREMENT);
+INSERT INTO p_new SELECT id FROM p;
+DROP TABLE p;
+ALTER TABLE p_new RENAME TO p;`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var children, fk, version int
+	db.QueryRow(`SELECT count(*) FROM c`).Scan(&children)
+	db.QueryRow(`PRAGMA foreign_keys`).Scan(&fk)
+	db.QueryRow(`PRAGMA user_version`).Scan(&version)
+	if children != 2 || fk != 1 || version != 2 {
+		t.Fatalf("children=%d foreign_keys=%d version=%d", children, fk, version)
+	}
+	if _, err := db.Exec(`DELETE FROM p WHERE id=1`); err != nil {
+		t.Fatal(err)
+	}
+	db.QueryRow(`SELECT count(*) FROM c`).Scan(&children)
+	if children != 1 {
+		t.Fatal("重建后级联删除失效", children)
+	}
+}
+
+func TestMigrateForeignKeysOffRejectsDanglingAndRestores(t *testing.T) {
+	for name, body := range map[string]string{
+		// 删除父行留下悬空子行：foreign_key_check 必须阻止提交
+		"dangling": `DELETE FROM p WHERE id=1;`,
+		"sqlerror": `CREATE TABLE p_new (id INTEGER PRIMARY KEY); SELECT * FROM missing_table;`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			db := openRawFK(t, filepath.Join(t.TempDir(), "fk.db"))
+			db.SetMaxOpenConns(1)
+			fsys := fkOffSchema(foreignKeysOffMarker + "\n" + body)
+			if err := migrate(ctx, db, fsys); err == nil {
+				t.Fatal("迁移应失败")
+			}
+			var parents, version, fk, tables int
+			db.QueryRow(`SELECT count(*) FROM p`).Scan(&parents)
+			db.QueryRow(`PRAGMA user_version`).Scan(&version)
+			db.QueryRow(`PRAGMA foreign_keys`).Scan(&fk)
+			db.QueryRow(`SELECT count(*) FROM sqlite_schema WHERE name='p_new'`).Scan(&tables)
+			if parents != 2 || version != 1 || tables != 0 {
+				t.Fatalf("失败的迁移未回滚: parents=%d version=%d p_new=%d", parents, version, tables)
+			}
+			if fk != 1 {
+				t.Fatal("失败后连接未恢复外键")
+			}
+		})
 	}
 }
 

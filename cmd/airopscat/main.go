@@ -100,9 +100,18 @@ func run() error {
 		return err
 	case <-ctx.Done():
 	}
+	// systemd TimeoutStopSec=30：HTTP 关停与等待后台部署并行，部署最多等 20 秒，超时则中断并落库结果。
+	deployCtx, cancelDeploy := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancelDeploy()
+	deployDone := make(chan error, 1)
+	go func() { deployDone <- srv.ShutdownDeploys(deployCtx) }()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := hs.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	err = hs.Shutdown(shutdownCtx)
+	if derr := <-deployDone; derr != nil {
+		slog.Warn("后台部署未正常结束", "err", derr)
+	}
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil

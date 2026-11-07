@@ -103,6 +103,35 @@
         {{else}}<div class="list-group-item text-secondary">暂无部署位</div>{{end}}
     </div>
 </div>
+<div class="card mt-3">
+    <div class="card-header"><h3 class="card-title">迁移与报废</h3></div>
+    <div class="list-group list-group-flush">
+        {{range $.MigrationTargets}}
+        <div class="list-group-item d-flex flex-wrap align-items-center gap-2">
+            <div class="me-auto text-break"><i class="ti ti-route me-1" aria-hidden="true"></i>迁移到 <a href="/admin/servers/{{.ID}}/edit"><strong>{{.Name}}</strong></a> <span class="text-secondary small">{{.IP}}</span></div>
+            {{if .Pending}}<span class="badge bg-yellow-lt">{{.Pending}} 个待部署</span>
+            <form method="post" action="/admin/servers/{{.ID}}/deploy" data-confirm="请部署目标服务器：将按当前配置整机重新部署 {{.Name}} 并重启 sing-box，确定？"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-primary text-nowrap"><i class="ti ti-rocket me-1" aria-hidden="true"></i>部署目标服务器</button></form>
+            {{else}}<span class="badge bg-green-lt">已部署</span>{{end}}
+            <form method="post" action="/admin/servers/{{$.Form.ID}}/migrate-finish" data-confirm="本服务器部署位的访问域名、DNS 记录与订阅定制将转移到 {{.Name}}，本服务器部署位标记待删除，确定完成迁移？"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-primary text-nowrap" name="target" value="{{.ID}}"{{if .Pending}} disabled{{end}}>完成迁移</button></form>
+        </div>
+        {{end}}
+        {{with $.MigrateOptions}}
+        <form class="list-group-item" method="post" action="/admin/servers/{{$.Form.ID}}/migrate" data-confirm="将在目标服务器上为本服务器的全部节点添加部署位（继承优先级与订阅显示），之后需部署目标服务器，确定？">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text">迁移节点到</span>
+                <select class="form-select" name="target" aria-label="目标服务器" required><option value="">选择目标服务器</option>{{range .}}<option value="{{.ID}}">{{.Name}}（{{.IP}}）</option>{{end}}</select>
+                <button class="btn">添加部署位</button>
+            </div>
+        </form>
+        {{end}}
+        <form class="list-group-item d-flex flex-wrap align-items-center gap-2" method="post" action="/admin/servers/{{$.Form.ID}}/retire" data-confirm="报废将直接删除本服务器的全部部署位：不会连接服务器，远端 sing-box 配置不会清理；绑定的域名转移到同节点其他部署位。确定报废？" data-confirm-danger>
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <label class="form-check mb-0 me-auto"><input type="checkbox" class="form-check-input" name="delete_server" value="1"><span class="form-check-label">同时删除服务器</span></label>
+            <button class="btn btn-sm btn-outline-danger text-nowrap"><i class="ti ti-trash me-1" aria-hidden="true"></i>报废并强制移除</button>
+        </form>
+    </div>
+</div>
 {{end}}
 {{end}}
 {{end}}

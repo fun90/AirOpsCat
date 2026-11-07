@@ -274,16 +274,16 @@ func TestRenewToggleResetAndDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 	a, _ := AccountByID(ctx, db, r.AccountID)
-	if a.Disabled || a.ToDate.Before(time.Now()) {
-		t.Fatalf("续期后应启用且到期时间更新: %+v", a)
+	if !a.Disabled || a.ToDate.Before(time.Now()) {
+		t.Fatalf("续期只更新到期时间，不解除手动禁用: %+v", a)
 	}
 	var desc string
 	db.QueryRow(`SELECT description FROM transactions WHERE business_id = ? ORDER BY id DESC LIMIT 1`, r.AccountID).Scan(&desc)
 	if desc != "账号：1月" {
 		t.Fatalf("续期流水描述 = %q", desc)
 	}
-	if nodeDeployed(t, db, nid) != PendingDeploy {
-		t.Fatal("续期应置待部署")
+	if nodeDeployed(t, db, nid) != Deployed {
+		t.Fatal("禁用账户续期不改变节点配置，不应置待部署")
 	}
 
 	for _, to := range []time.Time{*a.ToDate, a.ToDate.Add(-time.Hour)} {
@@ -392,7 +392,7 @@ func TestAccountListFilters(t *testing.T) {
 	}
 	check("全部", AccountFilter{}, active, forever, expiring, expired, disabled)
 	check("active", AccountFilter{Status: "active"}, active, forever, expiring)
-	check("expired 已移除，按未筛选处理", AccountFilter{Status: "expired"}, active, forever, expiring, expired, disabled)
+	check("expired", AccountFilter{Status: "expired"}, expired)
 	check("disabled", AccountFilter{Status: "DISABLED"}, disabled)
 	check("expiring", AccountFilter{Status: "expiring"}, expiring)
 	check("备注搜索", AccountFilter{Search: "快到"}, expiring)
@@ -483,7 +483,7 @@ func TestAccountActiveFilterAtExpiration(t *testing.T) {
 	if dashboard.AccountsActive != 1 || dashboard.AccountsExpired != 1 || len(dashboard.ExpiringAccounts) != 1 || dashboard.ExpiringAccounts[0].ID != active.AccountID {
 		t.Fatalf("概览应与列表采用相同的到期边界: %+v", dashboard)
 	}
-	// 到期任务使用相同边界，且只停用到期账户。
+	// 到期任务使用相同边界，且只处理到期账户。
 	ids, err := ExpireAccounts(ctx, db, now)
 	if err != nil || len(ids) != 1 || ids[0] != expiring.AccountID {
 		t.Fatalf("到期任务与列表边界不一致: ids=%v err=%v", ids, err)

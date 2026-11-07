@@ -12,7 +12,7 @@
     <div class="card card-sm"><div class="card-body">
       <div class="d-flex align-items-center mb-1"><a href="/admin/accounts" class="subheader text-reset">账户</a><i class="ti ti-user-circle text-secondary ms-auto" aria-hidden="true"></i></div>
       <div class="h1 mb-1"><a href="/admin/accounts?status=active" class="text-reset">{{.Stats.AccountsActive}}</a> <span class="fs-3 fw-normal text-secondary">/ {{.Stats.AccountsTotal}}</span></div>
-      <div class="small text-secondary"><a href="/admin/accounts?status=disabled" class="text-secondary">禁用 {{.Stats.AccountsDisabled}}</a> · <span{{if .Stats.AccountsExpired}} class="text-red"{{end}}>过期 {{.Stats.AccountsExpired}}</span></div>
+      <div class="small text-secondary"><a href="/admin/accounts?status=disabled" class="text-secondary">禁用 {{.Stats.AccountsDisabled}}</a> · <a href="/admin/accounts?status=expired" class="{{if .Stats.AccountsExpired}}text-red{{else}}text-secondary{{end}}">过期 {{.Stats.AccountsExpired}}</a></div>
     </div></div>
   </div>
   <div class="col-6 col-md-4 col-xl">

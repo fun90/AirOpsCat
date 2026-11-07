@@ -10,6 +10,7 @@ import (
 	"github.com/fun90/airopscat/internal/deploy"
 	"github.com/fun90/airopscat/internal/guard"
 	"github.com/fun90/airopscat/internal/singbox"
+	"github.com/fun90/airopscat/internal/traffic"
 	"html/template"
 	"io/fs"
 	"log/slog"
@@ -48,6 +49,10 @@ type Server struct {
 	loginRate           *auth.RateLimiter
 	probeLoad           func(string) ([]byte, error) // 测试可注入探测程序；生产使用内嵌产物
 	pages               map[string]*template.Template
+
+	deployQ *deployQueue // 后台部署任务队列
+	// trafficCollect 仅测试注入；生产为空，经 SSH 读取内核统计。
+	trafficCollect func(context.Context, *sql.DB, *crypto.Cipher, int64) (map[string]traffic.Counters, error)
 }
 
 type ctxKey int
@@ -77,6 +82,7 @@ func New(db *sql.DB, a *auth.Service, field *crypto.Cipher) (*Server, error) {
 		}
 		return &deploy.Prepared{Config: body, Revision: captured.Revision, Snapshots: captured.Snapshots, LimitsKey: limitsKey(captured.Input)}, nil
 	}
+	s.Deployer.BeforeApply = s.trafficBeforeRestart
 	s.Deployer.Applied = func(id int64, key string) {
 		s.markLimits(id, key)
 		// 整机下发成功即视为部署恢复
@@ -85,6 +91,7 @@ func New(db *sql.DB, a *auth.Service, field *crypto.Cipher) (*Server, error) {
 	s.MaintenanceDeployer = deploy.NewDeployer(db, field, nil)
 	s.MaintenanceDeployer.CommandTimeout = 30 * time.Minute
 	s.Guard = guard.New(db)
+	s.deployQ = s.newDeployQueue()
 	s.initTasks()
 	base, err := template.New("").Funcs(funcs).ParseFS(assets.FS, "templates/layout.html", "templates/pager.html")
 	if err != nil {
@@ -133,6 +140,7 @@ func (s *Server) Handler() http.Handler {
 	s.maintenanceRoutes(admin)
 	admin.HandleFunc("GET /admin/tasks", s.taskPage)
 	admin.HandleFunc("POST /admin/tasks/{task}/run", s.taskRun)
+	admin.HandleFunc("GET /admin/deploy-jobs", s.deployJobsPage)
 	mux.Handle("/admin", s.requireRole("ADMIN", admin))
 	mux.Handle("/admin/", s.requireRole("ADMIN", admin))
 
@@ -172,6 +180,8 @@ func (s *Server) pageData(r *http.Request, title, nav string) map[string]any {
 		"Nav":   nav,
 		"User":  r.Context().Value(userKey).(*store.User),
 		"CSRF":  s.Auth.CSRFToken(r.Context().Value(tokenKey).(string)),
+		// 导航栏据此提示后台部署进行中
+		"DeployActive": s.deployQ.activeJobs(),
 	}
 }
 
@@ -305,7 +315,7 @@ func recoverer(next http.Handler) http.Handler {
 	})
 }
 
-var pageNames = []string{"login", "dashboard", "servers", "server_idle", "server_form", "tags", "nodes", "node_form", "accounts", "account_form", "account_bindings", "users", "user_form", "tasks", "route_rules", "route_rule_form", "transactions", "transaction_form", "renewals", "settings", "logs", "backups", "dns_providers", "dns_provider_form", "domains", "domain_form", "dns_records", "dns_record_form", "alerts", "monitor", "monitor_detail", "maintenance"}
+var pageNames = []string{"login", "dashboard", "servers", "server_idle", "server_form", "tags", "nodes", "node_form", "accounts", "account_form", "account_bindings", "users", "user_form", "tasks", "route_rules", "route_rule_form", "transactions", "transaction_form", "renewals", "settings", "logs", "backups", "dns_providers", "dns_provider_form", "domains", "domain_form", "dns_records", "dns_record_form", "alerts", "monitor", "monitor_detail", "maintenance", "deploy_jobs"}
 
 // pageURL 用结构化参数生成完整地址，避免 html/template 把筛选分隔符编码进 q。
 func pageURL(query string, page int) string {

@@ -64,7 +64,7 @@ type AccountRow struct {
 	LastOnline  *time.Time
 }
 
-// AccountFilter 是列表筛选；Status 取 active|expiring|disabled，Online 取 online|offline，其他值忽略。
+// AccountFilter 是列表筛选；Status 取 active|expiring|expired|disabled（expired 与 disabled 互不排斥），Online 取 online|offline，其他值忽略。
 type AccountFilter struct {
 	Search       string
 	UserID       int64
@@ -235,8 +235,10 @@ func (f AccountFilter) where(now time.Time) (string, []any) {
 	switch strings.ToLower(f.Status) {
 	case "active":
 		conds = append(conds, `a.disabled = 0 AND (a.to_date IS NULL OR a.to_date > @now)`)
-	case "disabled":
+	case "disabled": // 手动禁用，与是否到期无关
 		conds = append(conds, `a.disabled = 1`)
+	case "expired": // 已到期，与是否禁用无关
+		conds = append(conds, `a.to_date IS NOT NULL AND a.to_date <= @now`)
 	case "expiring":
 		conds = append(conds, `a.disabled = 0 AND a.to_date > @now AND a.to_date <= @soon`)
 	}

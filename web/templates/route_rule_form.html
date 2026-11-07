@@ -5,7 +5,7 @@
 <input type="hidden" name="csrf" value="{{$.CSRF}}">
 <div class="card-body">
 {{if $.FormErr}}<div class="alert alert-danger" role="alert">{{$.FormErr}}</div>{{end}}
-<div class="alert alert-info">变更需强制部署相关服务器后生效。</div>
+<div class="alert alert-info">{{if $.AutoDeploy}}变更保存后自动提交相关服务器的后台部署。{{else}}变更需强制部署相关服务器后生效。{{end}}</div>
 <div class="row g-3">
 <div class="col-md-8"><label for="name" class="form-label required">名称</label><input id="name" name="name" class="form-control" value="{{.Name}}" maxlength="255" required></div>
 <div class="col-md-4"><label for="rule_type" class="form-label required">规则类型</label><select id="rule_type" name="rule_type" class="form-select">{{range $.RuleTypes}}<option value="{{.}}"{{if eq . $.Form.RuleType}} selected{{end}}>{{.}}</option>{{end}}</select></div>

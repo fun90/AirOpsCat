@@ -33,6 +33,8 @@ type Candidate struct {
 	Priority                 *int64
 	Usage                    float64
 	Known, Failover          bool
+	// Unavailable 表示服务器已禁用或到期：只用于识别原服务器并切走，不作为切换目标。
+	Unavailable bool
 }
 type AutoRecord struct {
 	ID            int64
@@ -102,7 +104,11 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 	allowed := func(c *Candidate) bool {
 		return (c.CheapStart == "" && c.CheapEnd == "") || Window(c.CheapStart, c.CheapEnd, at)
 	}
-	ok := func(c *Candidate) bool { return !c.Failover && c.Known && c.Usage < threshold && allowed(c) }
+	// leave：原服务器已手动切走或不可用（禁用、到期），必须切走且不回切。
+	leave := origin.Failover || origin.Unavailable
+	ok := func(c *Candidate) bool {
+		return !c.Failover && !c.Unavailable && c.Known && c.Usage < threshold && allowed(c)
+	}
 	var target *Candidate
 	for i := range cs {
 		c := &cs[i]
@@ -111,7 +117,7 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 			break
 		}
 	}
-	if target == nil && !origin.Known && !origin.Failover {
+	if target == nil && !origin.Known && !leave {
 		// 原服务器无新鲜用量时无法判定超阈值，保持当前解析，避免误切后又回切。
 		return Plan{}
 	}
@@ -126,16 +132,16 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 			}
 		}
 	}
-	if target == nil && origin.Failover {
-		// 原服务器已手动切走时，宁可切到超阈值或用量未知的候选，也不留在不可用的服务器上。
+	if target == nil && leave {
+		// 原服务器已手动切走或不可用时，宁可切到超阈值或用量未知的候选，也不留在不可用的服务器上。
 		for i := range cs {
-			if !cs[i].Failover && allowed(&cs[i]) {
+			if !cs[i].Failover && !cs[i].Unavailable && allowed(&cs[i]) {
 				target = &cs[i]
 				break
 			}
 		}
 	}
-	if target == nil && origin.Failover {
+	if target == nil && leave {
 		return Plan{}
 	}
 	if target == nil {
@@ -151,6 +157,8 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 		reason = "THRESHOLD"
 		if origin.Failover {
 			reason = "MANUAL"
+		} else if origin.Unavailable {
+			reason = "UNAVAILABLE"
 		} else if Window(target.CheapStart, target.CheapEnd, at) {
 			reason = "CHEAP_WINDOW"
 		}

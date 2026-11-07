@@ -118,7 +118,34 @@ func (s *Server) syncLimits(ctx context.Context) error {
 
 func (s *Server) collectServerTraffic(ctx context.Context, id int64) error {
 	defer deploy.Lock(id)()
-	readings, err := traffic.CollectSSH(ctx, s.DB, s.Field, id)
+	return s.collectServerTrafficLocked(ctx, id)
+}
+
+// trafficBeforeRestart 是 Deployer.BeforeApply：restart 会清零内核计数，部署持锁推送前先采集一次。
+// 只采集流量采集白名单内且有运行中部署位的服务器；reload 由限速同步在刚采集后触发，不重复采集。
+func (s *Server) trafficBeforeRestart(ctx context.Context, id int64, action string) error {
+	if action != "restart" {
+		return nil
+	}
+	ids, err := store.RuntimeTrafficServers(ctx, s.DB, s.TrafficServers, time.Now())
+	if err != nil {
+		return err
+	}
+	for _, v := range ids {
+		if v == id {
+			return s.collectServerTrafficLocked(ctx, id)
+		}
+	}
+	return nil
+}
+
+// collectServerTrafficLocked 要求调用方已持有该服务器的 deploy.Lock（锁不可重入）。
+func (s *Server) collectServerTrafficLocked(ctx context.Context, id int64) error {
+	collect := traffic.CollectSSH
+	if s.trafficCollect != nil {
+		collect = s.trafficCollect
+	}
+	readings, err := collect(ctx, s.DB, s.Field, id)
 	if err != nil {
 		return err
 	}

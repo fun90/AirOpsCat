@@ -284,37 +284,47 @@ func CollectAccountTraffic(ctx context.Context, db *sql.DB, serverID int64, at t
 	})
 }
 
-// ExpireAccounts 供每小时任务调用，禁用所有 to_date<=at 的账户，相关节点置待部署，返回被禁用的账户。
-// 无关联节点也禁用；禁用和待部署标记属于同一事务。
+// ExpireAccounts 供每小时任务调用，识别新进入到期（to_date<=at 且该 to_date 尚未处理）的账户：
+// 记录已处理的 to_date，未禁用账户的相关节点置待部署并返回其 ID。不修改 disabled，它只表示手动封禁；
+// 手动禁用的账户已不在节点配置中，无需部署。记录与待部署标记属于同一事务。
 func ExpireAccounts(ctx context.Context, db *sql.DB, at time.Time) ([]int64, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
-	rows, err := tx.QueryContext(ctx, `SELECT id FROM account WHERE disabled=0 AND to_date IS NOT NULL AND to_date<=?`, FormatTime(at))
+	rows, err := tx.QueryContext(ctx, `SELECT id, disabled FROM account
+		WHERE to_date IS NOT NULL AND to_date<=? AND expire_handled_to IS NOT to_date ORDER BY id`, FormatTime(at))
 	if err != nil {
 		return nil, err
 	}
-	var ids []int64
+	type expiring struct {
+		id       int64
+		disabled bool
+	}
+	var list []expiring
 	for rows.Next() {
-		var id int64
-		if err = rows.Scan(&id); err != nil {
+		var e expiring
+		if err = rows.Scan(&e.id, &e.disabled); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		ids = append(ids, id)
+		list = append(list, e)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
 		return nil, err
 	}
-	for _, id := range ids {
-		if err = markAccountPending(ctx, tx, id); err != nil {
-			return nil, err
+	var ids []int64
+	for _, e := range list {
+		if !e.disabled {
+			if err = markAccountPending(ctx, tx, e.id); err != nil {
+				return nil, err
+			}
+			ids = append(ids, e.id)
 		}
-		if _, err = tx.ExecContext(ctx, `UPDATE account SET disabled=1,update_time=? WHERE id=?`, FormatTime(at), id); err != nil {
+		if _, err = tx.ExecContext(ctx, `UPDATE account SET expire_handled_to=to_date WHERE id=?`, e.id); err != nil {
 			return nil, err
 		}
 	}

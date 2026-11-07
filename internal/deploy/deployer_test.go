@@ -369,3 +369,71 @@ func TestEditDuringDeploymentKeepsPending(t *testing.T) {
 		t.Fatal("部署期间的修改不应确认已部署")
 	}
 }
+
+// 配置已替换并 restart 后补防火墙失败：配置已生效，按成功记录快照与部署位，结果附告警并写 WARN 日志。
+func TestFirewallFailureAfterRestartRecordsSuccessWithWarning(t *testing.T) {
+	db := newTestDB(t)
+	sid := addServer(t, db, false, false)
+	p := place(t, db, addNode(t, db, false, nil), sid, 0)
+	exec(t, db, `INSERT INTO server_blocked_port(server_id,port,create_time) VALUES(?,20001,'2026-01-01 00:00:00')`, sid)
+	h := &fakeHost{failOn: "iptables"}
+	d := newTestDeployer(db, h)
+	d.Prepare = func(ctx context.Context, id int64) (*Prepared, error) {
+		c, err := store.CaptureDeployment(ctx, db, id, store.LoadOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return &Prepared{Config: []byte(`{}`), Revision: c.Revision, Snapshots: c.Snapshots}, nil
+	}
+	res := d.DeployServers(context.Background(), []int64{sid}, false)[0]
+	if !res.Success || res.Warning == "" || !strings.Contains(res.Message, "防火墙") {
+		t.Fatalf("结果 = %+v", res)
+	}
+	if count(t, db, `SELECT deployed FROM node_server WHERE id = ?`, p) != 1 {
+		t.Fatal("配置已生效，部署位应确认")
+	}
+	if count(t, db, `SELECT count(*) FROM node_deployment WHERE node_server_id = ?`, p) != 1 {
+		t.Fatal("应记录部署快照")
+	}
+	if count(t, db, `SELECT success FROM server_deployment WHERE server_id = ?`, sid) != 1 {
+		t.Fatal("应记录成功结果")
+	}
+	if count(t, db, `SELECT count(*) FROM system_log WHERE level='WARN' AND category='DEPLOY' AND message LIKE '%防火墙%'`) == 0 {
+		t.Fatal("应写 WARN 日志")
+	}
+}
+
+// BeforeApply 在持有服务器锁、推送配置前调用；失败只记日志不阻断部署；外部与禁用服务器不调用。
+func TestBeforeApplyHook(t *testing.T) {
+	db := newTestDB(t)
+	sid := addServer(t, db, false, false)
+	ext := addServer(t, db, false, true)
+	off := addServer(t, db, true, false)
+	h := &fakeHost{}
+	d := newTestDeployer(db, h)
+	var calls []string
+	d.BeforeApply = func(_ context.Context, id int64, action string) error {
+		m, _ := locks.Load(id)
+		if m == nil || m.(*sync.Mutex).TryLock() {
+			t.Error("BeforeApply 应在持有服务器锁时调用")
+		}
+		h.mu.Lock()
+		pushed := len(h.cmds)
+		h.mu.Unlock()
+		if pushed != 0 {
+			t.Error("BeforeApply 应在推送前调用")
+		}
+		calls = append(calls, fmt.Sprintf("%d:%s", id, action))
+		return errors.New("采集探针失败")
+	}
+	res := d.DeployServers(context.Background(), []int64{sid, ext, off}, true)
+	if !res[0].Success || !res[1].Success || res[2].Success || !res[2].Skipped {
+		t.Fatalf("结果 = %+v", res)
+	}
+	if len(calls) != 1 || calls[0] != fmt.Sprintf("%d:restart", sid) {
+		t.Fatalf("calls = %v", calls)
+	}
+	if count(t, db, `SELECT count(*) FROM system_log WHERE level='WARN' AND message LIKE '%采集探针失败%'`) != 1 {
+		t.Fatal("采集失败应写 WARN 日志")
+	}
+}

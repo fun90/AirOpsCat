@@ -447,6 +447,10 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 		s.nodeFormPage(w, r, http.StatusUnprocessableEntity, f, portErr.Error(), echo, ops)
 		return
 	}
+	sc := s.beginDeploy(r.Context())
+	if id != 0 {
+		sc.node(id) // 保存前的部署位与引用方
+	}
 	nodeID, err := store.SaveNode(r.Context(), s.DB, n, tagIDs, edits, ops)
 	if err != nil {
 		if errors.Is(err, store.ErrInvalid) || errors.Is(err, store.ErrConflict) {
@@ -489,11 +493,14 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 		s.runDeploy(w, r, "/admin/nodes", ids, msg+"，没有待部署的部署位")
 		return
 	}
-	redirectMsg(w, r, "/admin/nodes", "msg", msg)
+	sc.node(nodeID)
+	redirectMsg(w, r, "/admin/nodes", "msg", msg+sc.finish("保存节点 #"+strconv.FormatInt(nodeID, 10), ""))
 }
 
 func (s *Server) nodeToggle(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
+	sc := s.beginDeploy(r.Context())
+	sc.node(id)
 	if err := store.ToggleNode(r.Context(), s.DB, id, r.PostFormValue("disabled") == "1"); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.NotFound(w, r)
@@ -506,11 +513,13 @@ func (s *Server) nodeToggle(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	redirectMsg(w, r, "/admin/nodes", "msg", "节点状态已更新，需重新部署后生效")
+	redirectMsg(w, r, "/admin/nodes", "msg", "节点状态已更新"+sc.finish("启停节点 #"+r.PathValue("id"), "，需重新部署后生效"))
 }
 
 func (s *Server) nodeDelete(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
+	sc := s.beginDeploy(r.Context())
+	sc.node(id) // 删除前的部署位与引用方
 	gone, err := store.DeleteNode(r.Context(), s.DB, id)
 	if s.redirectError(w, r, "/admin/nodes", err, store.ErrConflict) {
 		return
@@ -519,13 +528,15 @@ func (s *Server) nodeDelete(w http.ResponseWriter, r *http.Request) {
 	if !gone {
 		msg = "节点已标记待删除，部署成功后会从服务器移除"
 	}
-	redirectMsg(w, r, "/admin/nodes", "msg", msg)
+	redirectMsg(w, r, "/admin/nodes", "msg", msg+sc.finish("删除节点 #"+r.PathValue("id"), ""))
 }
 
 func (s *Server) nodeCancelDelete(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
+	sc := s.beginDeploy(r.Context())
 	if s.redirectError(w, r, "/admin/nodes", store.CancelDeleteNode(r.Context(), s.DB, id), store.ErrInvalid, store.ErrConflict) {
 		return
 	}
-	redirectMsg(w, r, "/admin/nodes", "msg", "已取消删除，节点置为待部署")
+	sc.node(id)
+	redirectMsg(w, r, "/admin/nodes", "msg", "已取消删除"+sc.finish("取消删除节点 #"+r.PathValue("id"), "，节点置为待部署"))
 }

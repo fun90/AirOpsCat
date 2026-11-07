@@ -38,13 +38,15 @@ func (s *Server) nodeBatchTags(w http.ResponseWriter, r *http.Request) {
 	if !postIDs(w, r, "节点或标签 ID 不正确", idField{"node_ids", &nodes}, idField{"tag_ids", &tags}) {
 		return
 	}
+	sc := s.beginDeploy(r.Context())
 	updated, unchanged, err := store.BatchNodeTags(r.Context(), s.DB, nodes, tags, r.PostFormValue("mode"))
 	if s.redirectError(w, r, "/admin/nodes", err, store.ErrInvalid) {
 		return
 	}
 	message := fmt.Sprintf("标签已更新 %d 个节点，未变化 %d 个", updated, unchanged)
 	if updated > 0 {
-		message += "；请部署待部署项"
+		sc.nodes(nodes)
+		message += sc.finish("批量调整节点标签", "；请部署待部署项")
 	}
 	redirectMsg(w, r, "/admin/nodes", "msg", message)
 }
@@ -64,13 +66,17 @@ func (s *Server) nodeBatchPlacements(w http.ResponseWriter, r *http.Request) {
 		}
 		priority = &p
 	}
+	sc := s.beginDeploy(r.Context())
+	sc.nodes(nodes) // 调整前的部署位与引用方
 	updated, err := store.BatchNodePlacements(r.Context(), s.DB, nodes, servers, add, priority, r.PostFormValue("exposed") != "")
 	if s.redirectError(w, r, "/admin/nodes", err, store.ErrInvalid, store.ErrConflict) {
 		return
 	}
 	message := fmt.Sprintf("部署位已调整 %d 个节点", updated)
 	if updated > 0 {
-		message += "；请部署待部署项"
+		sc.nodes(nodes)
+		sc.add(servers, nil)
+		message += sc.finish("批量调整部署位", "；请部署待部署项")
 	}
 	redirectMsg(w, r, "/admin/nodes", "msg", message)
 }
@@ -191,12 +197,18 @@ func (s *Server) batchEach(w http.ResponseWriter, r *http.Request, nodes []int64
 	return ok, firstErr, false
 }
 
-func batchResult(w http.ResponseWriter, r *http.Request, verb string, ok, total int, firstErr string) {
+// batchResult 汇总批量结果；成功的节点按开关自动部署（失败项不影响已成功项的部署）。
+func batchResult(w http.ResponseWriter, r *http.Request, sc *deployScope, nodes []int64, verb string, ok, total int, firstErr string) {
+	note := ""
+	if ok > 0 {
+		sc.nodes(nodes)
+		note = sc.finish("批量"+verb+"节点", "；请部署待部署项")
+	}
 	if firstErr != "" {
-		redirectMsg(w, r, "/admin/nodes", "err", fmt.Sprintf("%s成功 %d 个，失败 %d 个：%s", verb, ok, total-ok, firstErr))
+		redirectMsg(w, r, "/admin/nodes", "err", fmt.Sprintf("%s成功 %d 个，失败 %d 个：%s", verb, ok, total-ok, firstErr)+note)
 		return
 	}
-	redirectMsg(w, r, "/admin/nodes", "msg", fmt.Sprintf("已%s %d 个节点；请部署待部署项", verb, ok))
+	redirectMsg(w, r, "/admin/nodes", "msg", fmt.Sprintf("已%s %d 个节点", verb, ok)+note)
 }
 
 func (s *Server) nodeBatchToggle(w http.ResponseWriter, r *http.Request) {
@@ -205,6 +217,8 @@ func (s *Server) nodeBatchToggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	disable := r.PostFormValue("disabled") == "1"
+	sc := s.beginDeploy(r.Context())
+	sc.nodes(nodes)
 	ok, firstErr, fatal := s.batchEach(w, r, nodes, func(id int64) error { return store.ToggleNode(r.Context(), s.DB, id, disable) })
 	if fatal {
 		return
@@ -213,7 +227,7 @@ func (s *Server) nodeBatchToggle(w http.ResponseWriter, r *http.Request) {
 	if disable {
 		verb = "禁用"
 	}
-	batchResult(w, r, verb, ok, len(nodes), firstErr)
+	batchResult(w, r, sc, nodes, verb, ok, len(nodes), firstErr)
 }
 
 func (s *Server) nodeBatchDelete(w http.ResponseWriter, r *http.Request) {
@@ -221,9 +235,11 @@ func (s *Server) nodeBatchDelete(w http.ResponseWriter, r *http.Request) {
 	if !postIDs(w, r, "节点 ID 不正确", idField{"node_ids", &nodes}) {
 		return
 	}
+	sc := s.beginDeploy(r.Context())
+	sc.nodes(nodes) // 删除前的部署位与引用方
 	ok, firstErr, fatal := s.batchEach(w, r, nodes, func(id int64) error { _, err := store.DeleteNode(r.Context(), s.DB, id); return err })
 	if fatal {
 		return
 	}
-	batchResult(w, r, "删除", ok, len(nodes), firstErr)
+	batchResult(w, r, sc, nodes, "删除", ok, len(nodes), firstErr)
 }

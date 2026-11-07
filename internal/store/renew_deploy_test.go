@@ -21,12 +21,12 @@ func TestRenewActiveAccountKeepsDeployment(t *testing.T) {
 			if err := RenewAccount(ctx, db, a.AccountID, expires.AddDate(0, 1, 0), nil, ""); err != nil {
 				t.Fatal(err)
 			}
-			want := Deployed
-			if disabled {
-				want = PendingDeploy
+			// 有效期内续期不改变有效性；手动禁用的账户续期后仍禁用，同样无需部署
+			if got := nodeDeployed(t, db, nid); got != Deployed {
+				t.Fatalf("deployed=%d want=%d", got, Deployed)
 			}
-			if got := nodeDeployed(t, db, nid); got != want {
-				t.Fatalf("deployed=%d want=%d", got, want)
+			if a, _ := AccountByID(ctx, db, a.AccountID); a.Disabled != disabled {
+				t.Fatal("续期不应改变禁用状态")
 			}
 		})
 	}

@@ -425,5 +425,19 @@ func (im *importer) fixups(ctx context.Context, tx *sql.Tx) error {
 	if len(legacy) > 0 {
 		im.note("旧服务器域名（未绑定 DNS 记录，需人工确认是否补建）: %s", strings.Join(legacy, "; "))
 	}
-	return nil
+	return bumpSequences(ctx, tx)
+}
+
+// bumpSequences 把 account/server/domain 的自增起点抬到现存最大 ID 与流水中该表出现过的最大 business_id 的较大值，
+// 源库已删除记录的 ID 不再分配给新记录，避免旧流水关联到新记录。
+func bumpSequences(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM sqlite_sequence WHERE name IN ('account', 'server', 'domain')`); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `INSERT INTO sqlite_sequence (name, seq)
+SELECT t.name, max(coalesce(t.max_id, 0), coalesce((SELECT max(business_id) FROM transactions WHERE business_table = t.name), 0))
+FROM (SELECT 'account' AS name, (SELECT max(id) FROM account) AS max_id
+      UNION ALL SELECT 'server', (SELECT max(id) FROM server)
+      UNION ALL SELECT 'domain', (SELECT max(id) FROM domain)) t`)
+	return err
 }

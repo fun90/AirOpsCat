@@ -205,9 +205,9 @@ func sameIDs(a, b []int64) bool {
 // expired 判断到期时间是否已过；节点配置只按有效性筛账户，有效期内改到期时间无需重新部署。
 func expired(t *time.Time) bool { return t != nil && !t.After(nowFunc()) }
 
-// UpdateAccount 全量覆盖账户字段。AccountNo、AuthCode 不可修改（传空或原值），重置订阅码用 ResetAuthCode；
-// TagIDs 为 nil 时不改标签。UUID、启停、到期导致的有效性、标签变化会把相关节点置为待部署；
-// 流量配额变化同步到当期统计行。
+// UpdateAccount 全量覆盖账户字段，所属用户必填。AccountNo、AuthCode 不可修改（传空或原值），重置订阅码用 ResetAuthCode；
+// TagIDs 为 nil 时不改标签。进入节点配置的字段（UUID、IP 数、限速、配额）、启停、到期导致的有效性、标签变化
+// 会把相关节点置为待部署；最大连接数只供 guard 实时读取，不触发部署。流量配额变化同步到当期统计行。
 func UpdateAccount(ctx context.Context, db *sql.DB, id int64, a *Account) error {
 	in := *a
 	if err := in.normalize(false); err != nil {
@@ -230,13 +230,16 @@ func UpdateAccount(ctx context.Context, db *sql.DB, id int64, a *Account) error 
 		if err := checkUnique(ctx, tx, "uuid", "UUID", in.UUID, id); err != nil {
 			return err
 		}
-		if in.UserID != 0 && in.UserID != old.UserID {
+		if in.UserID == 0 {
+			return invalid("请选择所属用户")
+		}
+		if in.UserID != old.UserID {
 			if err := userExists(ctx, tx, in.UserID); err != nil {
 				return err
 			}
 		}
 		tagsChanged := in.TagIDs != nil && !sameIDs(in.TagIDs, old.TagIDs)
-		affectsNodes := in.MaxConnections != old.MaxConnections || in.MaxIps != old.MaxIps || in.DownloadMbps != old.DownloadMbps || in.UploadMbps != old.UploadMbps || in.Bandwidth != old.Bandwidth || tagsChanged || in.UUID != old.UUID || in.Disabled != old.Disabled || expired(in.ToDate) != expired(old.ToDate)
+		affectsNodes := in.MaxIps != old.MaxIps || in.DownloadMbps != old.DownloadMbps || in.UploadMbps != old.UploadMbps || in.Bandwidth != old.Bandwidth || tagsChanged || in.UUID != old.UUID || in.Disabled != old.Disabled || expired(in.ToDate) != expired(old.ToDate)
 		if affectsNodes { // 先按旧标签置位，覆盖被移除的标签
 			if err := markAccountPending(ctx, tx, id); err != nil {
 				return err
@@ -275,13 +278,9 @@ func UpdateAccount(ctx context.Context, db *sql.DB, id int64, a *Account) error 
 	})
 }
 
-// RenewAccount 设置新的到期时间（须晚于当前时刻及已有到期时间），自动启用被禁用的账户，
-// amountCents 非 nil 时按「起点取 max(旧到期, 当前)」记一笔收入；恢复失效或禁用账户时相关节点置为待部署。
+// RenewAccount 设置新的到期时间（须晚于当前时刻及已有到期时间），不改手动禁用状态；长期有效账户拒绝续期。
+// amountCents 非 nil 时按「起点取 max(旧到期, 当前)」记一笔收入；未禁用的已到期账户恢复有效时相关节点置为待部署。
 func RenewAccount(ctx context.Context, db *sql.DB, id int64, newToDate time.Time, amountCents *int64, paymentMethod string) error {
-	now := nowFunc()
-	if !newToDate.After(now) {
-		return invalid("新的到期时间必须晚于当前时间")
-	}
 	if err := validatePayment(amountCents, paymentMethod); err != nil {
 		return err
 	}
@@ -293,40 +292,148 @@ func RenewAccount(ctx context.Context, db *sql.DB, id int64, newToDate time.Time
 		if old == nil {
 			return sql.ErrNoRows
 		}
-		if old.ToDate != nil && !newToDate.After(*old.ToDate) {
-			return invalid("续期到期时间必须晚于原到期时间；调整到期时间请编辑账户")
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE account SET to_date = ?, disabled = 0, update_time = ? WHERE id = ?`,
-			FormatTime(newToDate), FormatTime(now), id); err != nil {
+		return renewAccountTx(ctx, tx, old, newToDate, amountCents, paymentMethod, nowFunc())
+	})
+}
+
+// renewAccountTx 是单个与批量续期共用的校验与写入，调用方已校验付款信息。
+func renewAccountTx(ctx context.Context, tx *sql.Tx, old *Account, newToDate time.Time, amountCents *int64, paymentMethod string, now time.Time) error {
+	if !newToDate.After(now) {
+		return invalid("新的到期时间必须晚于当前时间")
+	}
+	if old.ToDate == nil {
+		return invalid("该账户长期有效，如需设置到期日请编辑账户")
+	}
+	if !newToDate.After(*old.ToDate) {
+		return invalid("续期到期时间必须晚于原到期时间；调整到期时间请编辑账户")
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE account SET to_date = ?, update_time = ? WHERE id = ?`,
+		FormatTime(newToDate), FormatTime(now), old.ID); err != nil {
+		return err
+	}
+	if !old.Disabled && !old.ToDate.After(now) {
+		if err := markAccountPending(ctx, tx, old.ID); err != nil {
 			return err
 		}
-		if old.Disabled || (old.ToDate != nil && !old.ToDate.After(now)) {
-			if err := markAccountPending(ctx, tx, id); err != nil {
-				return err
-			}
+	}
+	if amountCents != nil {
+		start := now
+		if old.ToDate.After(now) {
+			start = *old.ToDate
 		}
-		if amountCents != nil {
-			start := now
-			if old.ToDate != nil && old.ToDate.After(now) {
-				start = *old.ToDate
-			}
-			desc := fmt.Sprintf("账号：%d月", calendarMonths(start, newToDate))
-			if _, err := insertAccountIncome(ctx, tx, id, *amountCents, paymentMethod, desc, old.Remark); err != nil {
+		desc := fmt.Sprintf("账号：%d月", calendarMonths(start, newToDate))
+		if _, err := insertAccountIncome(ctx, tx, old.ID, *amountCents, paymentMethod, desc, old.Remark); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RenewStart 返回续期起点：max(原到期, 当前)。
+func RenewStart(toDate *time.Time, now time.Time) time.Time {
+	if toDate != nil && toDate.After(now) {
+		return *toDate
+	}
+	return now
+}
+
+// BatchRenewAccounts 在一个事务内为多个账户各自从 max(原到期, 当前) 续期 months 个月（月末钳制）；
+// 长期有效账户跳过并计入 skipped。amountCents 非 nil 时每户记同一金额的收入流水。任一账户失败整体回滚。
+func BatchRenewAccounts(ctx context.Context, db *sql.DB, ids []int64, months int, amountCents *int64, paymentMethod string) (renewed, skipped int, err error) {
+	ids = normalizeTagIDs(ids)
+	if len(ids) == 0 {
+		return 0, 0, invalid("请选择要续期的账户")
+	}
+	if months < 1 || months > 120 {
+		return 0, 0, invalid("续期月数需为 1–120")
+	}
+	if err := validatePayment(amountCents, paymentMethod); err != nil {
+		return 0, 0, err
+	}
+	err = inTx(ctx, db, func(tx *sql.Tx) error {
+		now := nowFunc()
+		for _, id := range ids {
+			old, err := loadAccount(ctx, tx, id)
+			if err != nil {
 				return err
+			}
+			if old == nil {
+				return invalid("部分账户不存在，无法批量续期")
+			}
+			if old.ToDate == nil {
+				skipped++
+				continue
+			}
+			if err := renewAccountTx(ctx, tx, old, AddMonths(RenewStart(old.ToDate, now), months), amountCents, paymentMethod, now); err != nil {
+				return fmt.Errorf("账户「%s」：%w", accountLabel(old), err)
+			}
+			renewed++
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	return renewed, skipped, nil
+}
+
+// accountLabel 是提示里的账户名称：备注优先，否则编号。
+func accountLabel(a *Account) string {
+	if a.Remark != "" {
+		return a.Remark
+	}
+	return a.AccountNo
+}
+
+// SetAccountDisabled 手动启停账户。已到期账户本就不在节点配置中，启停不改变配置；其余情况相关节点置为待部署。
+func SetAccountDisabled(ctx context.Context, db *sql.DB, id int64, disabled bool) error {
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		_, err := setAccountDisabledTx(ctx, tx, id, disabled)
+		return err
+	})
+}
+
+// setAccountDisabledTx 返回状态是否实际变化；账户不存在返回 sql.ErrNoRows。
+func setAccountDisabledTx(ctx context.Context, tx *sql.Tx, id int64, disabled bool) (bool, error) {
+	now := FormatTime(nowFunc())
+	var old, valid bool
+	if err := tx.QueryRowContext(ctx, `SELECT disabled, to_date IS NULL OR to_date > ? FROM account WHERE id = ?`, now, id).Scan(&old, &valid); err != nil {
+		return false, err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE account SET disabled = ?, update_time = ? WHERE id = ?`, disabled, now, id); err != nil {
+		return false, err
+	}
+	if !valid {
+		return old != disabled, nil
+	}
+	return old != disabled, markAccountPending(ctx, tx, id)
+}
+
+// BatchSetAccountsDisabled 在一个事务内批量启停账户，返回状态实际变化的账户数；任一账户不存在整体回滚。
+func BatchSetAccountsDisabled(ctx context.Context, db *sql.DB, ids []int64, disabled bool) (changed int, err error) {
+	ids = normalizeTagIDs(ids)
+	if len(ids) == 0 {
+		return 0, invalid("请选择账户")
+	}
+	err = inTx(ctx, db, func(tx *sql.Tx) error {
+		for _, id := range ids {
+			ok, err := setAccountDisabledTx(ctx, tx, id, disabled)
+			if errors.Is(err, sql.ErrNoRows) {
+				return invalid("部分账户不存在，无法批量启停")
+			}
+			if err != nil {
+				return err
+			}
+			if ok {
+				changed++
 			}
 		}
 		return nil
 	})
-}
-
-// SetAccountDisabled 启停账户，相关节点置为待部署。
-func SetAccountDisabled(ctx context.Context, db *sql.DB, id int64, disabled bool) error {
-	return inTx(ctx, db, func(tx *sql.Tx) error {
-		if err := execOne(tx.ExecContext(ctx, `UPDATE account SET disabled = ?, update_time = ? WHERE id = ?`, disabled, FormatTime(nowFunc()), id)); err != nil {
-			return err
-		}
-		return markAccountPending(ctx, tx, id)
-	})
+	if err != nil {
+		return 0, err
+	}
+	return changed, nil
 }
 
 // ResetAuthCode 重新生成订阅码并返回；订阅码不进节点配置，不需要部署。
@@ -347,51 +454,75 @@ func ResetAuthCode(ctx context.Context, db *sql.DB, id int64) (string, error) {
 // DeleteAccount 删除账户及其订阅定制绑定、告警状态、在线记录和流量统计，收支流水保留。
 // 相关节点置为待部署。
 func DeleteAccount(ctx context.Context, db *sql.DB, id int64) error {
-	return inTx(ctx, db, func(tx *sql.Tx) error {
-		a, err := loadAccount(ctx, tx, id)
-		if err != nil {
-			return err
-		}
-		if a == nil {
-			return sql.ErrNoRows
-		}
-		if err := markAccountPending(ctx, tx, id); err != nil {
-			return err
-		}
-		var records []int64
-		rows, err := tx.QueryContext(ctx, `SELECT domain_dns_record_id FROM account_node_subscription_domain_binding WHERE account_id = ? AND domain_dns_record_id IS NOT NULL`, id)
-		if err != nil {
-			return err
-		}
-		for rows.Next() {
-			var r int64
-			if err := rows.Scan(&r); err != nil {
-				rows.Close()
-				return err
-			}
-			records = append(records, r)
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return err
-		}
-		for _, stmt := range []struct {
-			sql string
-			arg any
-		}{
-			{`DELETE FROM alert_state WHERE resource_type = 'account' AND resource_id = ?`, id},
-			{`DELETE FROM account_online_ip WHERE account_no = ?`, a.AccountNo},
-			{`DELETE FROM account WHERE id = ?`, id}, // 绑定、标签关联、流量统计随外键级联删除
-		} {
-			if _, err := tx.ExecContext(ctx, stmt.sql, stmt.arg); err != nil {
-				return err
-			}
-		}
-		for _, r := range records {
-			if err := releaseBindingRecord(ctx, tx, &r); err != nil {
+	return inTx(ctx, db, func(tx *sql.Tx) error { return deleteAccountTx(ctx, tx, id) })
+}
+
+// BatchDeleteAccounts 在一个事务内批量删除账户，语义同 DeleteAccount；任一账户不存在整体回滚。
+func BatchDeleteAccounts(ctx context.Context, db *sql.DB, ids []int64) (int, error) {
+	ids = normalizeTagIDs(ids)
+	if len(ids) == 0 {
+		return 0, invalid("请选择要删除的账户")
+	}
+	err := inTx(ctx, db, func(tx *sql.Tx) error {
+		for _, id := range ids {
+			if err := deleteAccountTx(ctx, tx, id); errors.Is(err, sql.ErrNoRows) {
+				return invalid("部分账户不存在，无法批量删除")
+			} else if err != nil {
 				return err
 			}
 		}
 		return nil
 	})
+	if err != nil {
+		return 0, err
+	}
+	return len(ids), nil
+}
+
+func deleteAccountTx(ctx context.Context, tx *sql.Tx, id int64) error {
+	a, err := loadAccount(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	if a == nil {
+		return sql.ErrNoRows
+	}
+	if err := markAccountPending(ctx, tx, id); err != nil {
+		return err
+	}
+	var records []int64
+	rows, err := tx.QueryContext(ctx, `SELECT domain_dns_record_id FROM account_node_subscription_domain_binding WHERE account_id = ? AND domain_dns_record_id IS NOT NULL`, id)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var r int64
+		if err := rows.Scan(&r); err != nil {
+			rows.Close()
+			return err
+		}
+		records = append(records, r)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, stmt := range []struct {
+		sql string
+		arg any
+	}{
+		{`DELETE FROM alert_state WHERE resource_type = 'account' AND resource_id = ?`, id},
+		{`DELETE FROM account_online_ip WHERE account_no = ?`, a.AccountNo},
+		{`DELETE FROM account WHERE id = ?`, id}, // 绑定、标签关联、流量统计随外键级联删除
+	} {
+		if _, err := tx.ExecContext(ctx, stmt.sql, stmt.arg); err != nil {
+			return err
+		}
+	}
+	for _, r := range records {
+		if err := releaseBindingRecord(ctx, tx, &r); err != nil {
+			return err
+		}
+	}
+	return nil
 }

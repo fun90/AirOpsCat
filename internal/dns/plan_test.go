@@ -76,3 +76,39 @@ func TestWindowAndPlan(t *testing.T) {
 		t.Fatal(p)
 	}
 }
+
+// 原服务器禁用或到期（不可用）时应能切走，不可用的服务器不作为切换目标。
+func TestPlanLeavesUnavailableOrigin(t *testing.T) {
+	zone, _ := time.LoadLocation("Asia/Shanghai")
+	at := time.Date(2026, 10, 20, 12, 0, 0, 0, zone)
+	r := AutoRecord{ID: 1, NodeID: 1, ServerID: 1, Content: "1.1.1.1"}
+	cs := []Candidate{{ID: 1, NodeID: 1, ServerID: 1, IP: "1.1.1.1", Known: true, Usage: .1, Unavailable: true},
+		{ID: 2, NodeID: 1, ServerID: 2, IP: "2.2.2.2", Known: true, Usage: .9}}
+	if p := PlanRecord(r, cs, .85, at); p.Target != "2.2.2.2" || p.Home != "1.1.1.1" || p.Reason != "UNAVAILABLE" || p.BlockedReason != "" {
+		t.Fatal("原服务器不可用时应切走", p)
+	}
+	// 已切走后原服务器仍不可用：保持当前解析，不回切也不告警
+	r.Content, r.Home = "2.2.2.2", "1.1.1.1"
+	if p := PlanRecord(r, cs, .85, at); p.Target != "2.2.2.2" || p.Home != "1.1.1.1" || p.BlockedReason != "" {
+		t.Fatal("原服务器不可用时不应回切", p)
+	}
+	// 不可用的服务器不作为目标：原服务器超阈值，另一候选不可用时保持不动
+	r = AutoRecord{ID: 1, NodeID: 1, ServerID: 1, Content: "1.1.1.1"}
+	cs = []Candidate{{ID: 1, NodeID: 1, ServerID: 1, IP: "1.1.1.1", Known: true, Usage: .9},
+		{ID: 2, NodeID: 1, ServerID: 2, IP: "2.2.2.2", Known: true, Usage: .1, Unavailable: true}}
+	if p := PlanRecord(r, cs, .85, at); p.Target != "" {
+		t.Fatal("不可用服务器不应作为切换目标", p)
+	}
+	// 当前解析在不可用的非原服务器上，原服务器可用：回切
+	r.Content, r.Home = "2.2.2.2", "1.1.1.1"
+	cs[0].Usage = .1
+	if p := PlanRecord(r, cs, .85, at); p.Target != "1.1.1.1" || p.Home != "" {
+		t.Fatal("应回切到可用的原服务器", p)
+	}
+	// 全部不可用：保持当前解析
+	r = AutoRecord{ID: 1, NodeID: 1, ServerID: 1, Content: "1.1.1.1"}
+	cs[0].Unavailable = true
+	if p := PlanRecord(r, cs, .85, at); p.Target != "" || p.BlockedReason != "" {
+		t.Fatal("没有可用目标时保持不动", p)
+	}
+}

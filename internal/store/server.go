@@ -246,6 +246,10 @@ func SaveServer(ctx context.Context, db *sql.DB, c *crypto.Cipher, s *Server, au
 		if err := retargetServerIP(ctx, tx, oldIP, s.IP, now); err != nil {
 			return 0, err
 		}
+		// 代理节点出站地址取落地节点生效部署位的服务器 IP
+		if err := markServerLandingsReferencing(ctx, tx, s.ID); err != nil {
+			return 0, err
+		}
 	}
 	return s.ID, tx.Commit()
 }

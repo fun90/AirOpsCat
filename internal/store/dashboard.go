@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Dashboard 是概览页的真实统计；账户状态与账户列表筛选口径一致。
+// Dashboard 是概览页的真实统计；账户状态与账户列表筛选口径一致：禁用（手动）与过期各自独立计数，可重叠。
 type DashboardExpiry struct {
 	ID                       int64
 	Name, AccountNo, Expires string
@@ -47,10 +47,10 @@ func DashboardLoad(ctx context.Context, db *sql.DB, now time.Time, days int) (*D
 		(SELECT count(*) FROM account),
 		(SELECT count(*) FROM account WHERE disabled=0 AND (to_date IS NULL OR to_date>@now)),
 		(SELECT count(*) FROM account WHERE disabled=1),
-		(SELECT count(*) FROM account WHERE disabled=0 AND to_date<=@now),
+		(SELECT count(*) FROM account WHERE to_date<=@now),
 		(SELECT count(*) FROM node WHERE disabled=0),
 		(SELECT count(*) FROM node WHERE disabled=1),
-		(SELECT count(*) FROM node_server ns JOIN node n ON n.id=ns.node_id WHERE ns.deployed=0 AND n.disabled=0),
+		(SELECT count(*) FROM node_server ns JOIN node n ON n.id=ns.node_id JOIN server s ON s.id=ns.server_id AND s.disabled=0 WHERE ns.deployed=0 AND `+placementNeedsDeploySQL+`),
 		(SELECT count(*) FROM server WHERE disabled=0),
 		(SELECT count(*) FROM server WHERE disabled=0 AND external_server=1),
 		(SELECT count(*) FROM server WHERE disabled=0 AND external_server=0

@@ -121,7 +121,7 @@ func RefreshGuardOnline(ctx context.Context, db *sql.DB, nodeIP string, accounts
 	}
 	return inTx(ctx, db, func(tx *sql.Tx) error {
 		nodes := map[string]int64{}
-		rows, err := tx.QueryContext(ctx, `SELECT n.id FROM node n JOIN node_server p ON p.node_id=n.id JOIN server s ON s.id=p.server_id WHERE s.ip=? AND p.deployed=1 AND n.disabled=0 AND n.type=0`, nodeIP)
+		rows, err := tx.QueryContext(ctx, `SELECT n.id FROM node n JOIN node_server ns ON ns.node_id=n.id JOIN server s ON s.id=ns.server_id WHERE s.ip=? AND `+placementRunningSQL+` AND n.disabled=0 AND n.type=0`, nodeIP)
 		if err != nil {
 			return err
 		}
@@ -228,9 +228,9 @@ func GuardIPOverlapTop(ctx context.Context, db *sql.DB, day string, n int) ([]Gu
 	return out, rows.Err()
 }
 
-// NodeServerIPs 返回每个节点已部署的服务器 IP，用于判断在线数据覆盖范围。
+// NodeServerIPs 返回每个节点正在运行的服务器 IP，用于判断在线数据覆盖范围。
 func NodeServerIPs(ctx context.Context, db *sql.DB) (map[int64][]string, error) {
-	rows, err := db.QueryContext(ctx, `SELECT p.node_id, s.ip FROM node_server p JOIN server s ON s.id=p.server_id WHERE p.deployed=1 ORDER BY p.node_id, s.ip`)
+	rows, err := db.QueryContext(ctx, `SELECT ns.node_id, s.ip FROM node_server ns JOIN server s ON s.id=ns.server_id WHERE `+placementRunningSQL+` ORDER BY ns.node_id, s.ip`)
 	if err != nil {
 		return nil, err
 	}

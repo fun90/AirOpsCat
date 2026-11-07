@@ -21,8 +21,10 @@ func usageText(gb float64) string {
 	return strings.TrimSuffix(fmt.Sprintf("%.1f", gb), ".0") + " " + unit
 }
 
-// accountView 是列表行的展示状态：Badge 只给异常状态，口径与 store 的状态筛选一致。
+// accountView 是列表行的展示状态：Badge 只给到期类异常状态，Disabled 为手动禁用，两者独立、可同时显示，
+// 口径与 store 的状态筛选一致。
 type accountView struct {
+	Disabled          bool
 	Badge, BadgeClass string
 	Left, LeftClass   string
 	Usage, BarClass   string
@@ -47,9 +49,10 @@ func accountRowView(a *store.AccountRow, now time.Time) accountView {
 			v.Left, v.LeftClass = fmt.Sprintf("剩 %d 天", days), "text-orange"
 		}
 	}
+	if a.Disabled { // 手动禁用后到期提醒无需醒目
+		v.Disabled, v.LeftClass = true, "text-secondary"
+	}
 	switch t := a.ToDate; {
-	case a.Disabled:
-		v.Badge, v.BadgeClass, v.LeftClass = "已禁用", "bg-secondary-lt", "text-secondary"
 	case t != nil && t.Before(now):
 		v.Badge, v.BadgeClass = "已过期", "bg-red-lt"
 	case t != nil && t.After(now) && !t.After(soon):

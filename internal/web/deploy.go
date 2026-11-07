@@ -3,8 +3,6 @@ package web
 import (
 	"fmt"
 	"net/http"
-	"strings"
-	"time"
 
 	"github.com/fun90/airopscat/internal/singbox"
 	"github.com/fun90/airopscat/internal/store"
@@ -30,29 +28,38 @@ func (s *Server) buildConfig(r *http.Request, serverID int64) ([]byte, error) {
 	return singbox.BuildServerConfig(*in)
 }
 
-// runDeploy 同步部署并重定向回 back，成功和失败用不同提示。部署可能较慢，放宽本次请求的写超时。
+// runDeploy 把服务器提交到后台部署队列后立即重定向回 back；结果见部署任务页。
 func (s *Server) runDeploy(w http.ResponseWriter, r *http.Request, back string, ids []int64, none string) {
 	if len(ids) == 0 {
 		redirectMsg(w, r, back, "msg", none)
 		return
 	}
-	http.NewResponseController(w).SetWriteDeadline(time.Now().Add(10 * time.Minute))
-	results := s.Deployer.DeployServers(r.Context(), ids, true)
-	var failed []string
-	for _, res := range results {
-		if !res.Success {
-			failed = append(failed, fmt.Sprintf("%s：%s", res.ServerName, res.Message))
-		}
+	id := s.EnqueueDeploy(deployReason(r), ids)
+	redirectMsg(w, r, back, "msg", fmt.Sprintf("已提交后台部署 %d 台，结果见「部署任务」#%d", len(ids), id))
+}
+
+// deployReason 按触发部署的路由生成任务原因。
+func deployReason(r *http.Request) string {
+	id := r.PathValue("id")
+	switch r.Pattern {
+	case "POST /admin/nodes/{id}/deploy":
+		return "部署节点 #" + id
+	case "POST /admin/nodes/{id}", "POST /admin/nodes":
+		return "保存并部署节点"
+	case "POST /admin/nodes/batch-deploy":
+		return "批量部署节点"
+	case "POST /admin/nodes/deploy-pending":
+		return "部署全部待部署"
+	case "POST /admin/accounts/{id}/deploy":
+		return "部署账户 #" + id
+	case "POST /admin/accounts/{id}", "POST /admin/accounts":
+		return "保存并部署账户"
+	case "POST /admin/accounts/batch-deploy":
+		return "批量部署账户"
+	case "POST /admin/servers/{id}/deploy":
+		return "整机部署服务器 #" + id
 	}
-	if len(failed) == 0 {
-		redirectMsg(w, r, back, "msg", fmt.Sprintf("部署完成，%d 台服务器成功", len(results)))
-		return
-	}
-	failedCount := len(failed)
-	if len(failed) > 3 {
-		failed = append(failed[:3], fmt.Sprintf("等共 %d 台失败", len(failed)))
-	}
-	redirectMsg(w, r, back, "err", fmt.Sprintf("成功 %d 台，失败 %d 台：%s", len(results)-failedCount, failedCount, strings.Join(failed, "；")))
+	return "手动部署"
 }
 
 func (s *Server) nodeDeploy(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +100,21 @@ func (s *Server) accountDeploy(w http.ResponseWriter, r *http.Request) {
 // serverDeploy 整机重推本服务器的全部部署位，用于换机或重装后恢复。
 func (s *Server) serverDeploy(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
-	s.runDeploy(w, r, fmt.Sprintf("/admin/servers/%d/edit", id), []int64{id}, "")
+	back := fmt.Sprintf("/admin/servers/%d/edit", id)
+	t, err := store.SSHTargetByID(r.Context(), s.DB, id)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if t == nil {
+		http.NotFound(w, r)
+		return
+	}
+	if t.Disabled {
+		redirectMsg(w, r, back, "err", "服务器已禁用，已跳过部署")
+		return
+	}
+	s.runDeploy(w, r, back, []int64{id}, "")
 }
 
 func (s *Server) serverConfigPreview(w http.ResponseWriter, r *http.Request) {

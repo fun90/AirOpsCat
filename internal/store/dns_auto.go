@@ -88,11 +88,24 @@ func AutoDNSRecords(ctx context.Context, db *sql.DB, domainID int64) ([]AutoDNSR
 	}
 	return out, nil
 }
+
+// dnsPlacementSQL 是部署位参与 DNS 切换的条件（ns/n/s 为部署位、节点、服务器别名）：
+// 非待删除且在服务器上运行（已部署或有未禁用快照）的代理节点，服务器非外部。
+const dnsPlacementSQL = placementRunningSQL + ` AND n.type=0 AND n.disabled=0 AND s.external_server=0`
+
+// dnsServerUsableSQL 是服务器可承接切换的条件：未禁用且未到期，参数为上海当天日期。
+const dnsServerUsableSQL = `s.disabled=0 AND (s.expire_date IS NULL OR substr(s.expire_date,1,10)>=?)`
+
+func shanghaiDay(at time.Time) string { return at.In(Shanghai).Format("2006-01-02") }
+
+// DNSCandidates 返回参与 DNS 切换的部署位。服务器禁用或到期的部署位也返回并标记 Unavailable：
+// 它仍可作为原服务器被识别并切走，但不作为切换目标。
 func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candidate, error) {
-	rows, err := db.QueryContext(ctx, `SELECT ns.id,ns.node_id,ns.server_id,s.ip,ns.priority,coalesce(ns.cheap_start,''),coalesce(ns.cheap_end,''),coalesce(s.bandwidth,0),coalesce(s.bandwidth_unit,'GiB'),v.rx_bytes,v.tx_bytes,coalesce(v.sample_time,''),ns.failover
+	rows, err := db.QueryContext(ctx, `SELECT ns.id,ns.node_id,ns.server_id,s.ip,ns.priority,coalesce(ns.cheap_start,''),coalesce(ns.cheap_end,''),coalesce(s.bandwidth,0),coalesce(s.bandwidth_unit,'GiB'),v.rx_bytes,v.tx_bytes,coalesce(v.sample_time,''),ns.failover,
+ NOT (`+dnsServerUsableSQL+`)
  FROM node_server ns JOIN node n ON n.id=ns.node_id JOIN server s ON s.id=ns.server_id
  LEFT JOIN server_metrics v ON v.id=`+latestVnstatSQL+`
- WHERE ns.deployed<>2 AND (ns.deployed=1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id=ns.id AND coalesce(d.disabled,0)=0)) AND n.type=0 AND n.disabled=0 AND s.disabled=0 AND s.external_server=0 AND (s.expire_date IS NULL OR substr(s.expire_date,1,10)>=?)`, append(vnstatPeriodArgs(at), at.In(Shanghai).Format("2006-01-02"))...)
+ WHERE `+dnsPlacementSQL, append([]any{shanghaiDay(at)}, vnstatPeriodArgs(at)...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +116,7 @@ func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candida
 		var priority, rx, tx sql.NullInt64
 		var bw int64
 		var unit, sampled string
-		if err := rows.Scan(&c.ID, &c.NodeID, &c.ServerID, &c.IP, &priority, &c.CheapStart, &c.CheapEnd, &bw, &unit, &rx, &tx, &sampled, &c.Failover); err != nil {
+		if err := rows.Scan(&c.ID, &c.NodeID, &c.ServerID, &c.IP, &priority, &c.CheapStart, &c.CheapEnd, &bw, &unit, &rx, &tx, &sampled, &c.Failover, &c.Unavailable); err != nil {
 			return nil, err
 		}
 		if priority.Valid {

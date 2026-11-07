@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"regexp"
 	"slices"
@@ -129,9 +130,11 @@ func BatchNodeSwitch(ctx context.Context, db *sql.DB, nodeIDs []int64) (switched
 			continue
 		}
 		in := `(?` + strings.Repeat(",?", len(ids)-1) + `)`
+		// 其余部署位须能承接切换（与 DNSCandidates 口径一致），否则切走后 DNS 计划为空
 		var rest int
-		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM node_server WHERE node_id = ? AND deployed <> 2 AND failover = 0 AND id NOT IN `+in,
-			append([]any{id}, ids...)...).Scan(&rest); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM node_server ns JOIN node n ON n.id = ns.node_id JOIN server s ON s.id = ns.server_id
+			WHERE ns.node_id = ? AND ns.failover = 0 AND `+dnsPlacementSQL+` AND `+dnsServerUsableSQL+` AND ns.id NOT IN `+in,
+			append([]any{id, shanghaiDay(nowFunc())}, ids...)...).Scan(&rest); err != nil {
 			return 0, 0, err
 		}
 		if rest == 0 {
@@ -176,14 +179,41 @@ func RestorePlacementFailover(ctx context.Context, db *sql.DB, nodeID, placement
 }
 
 // SwitchNodePlacement 让节点域名都切到指定部署位：其余部署位标记切走，目标取消切走。
+// 目标须处于 DNS 切换的运行口径（与 DNSCandidates 一致），否则切换计划为空却提示成功。
 func SwitchNodePlacement(ctx context.Context, db *sql.DB, nodeID, placementID int64) error {
-	res, err := db.ExecContext(ctx, `UPDATE node_server SET failover = (id <> ?) WHERE node_id = ? AND deployed <> 2
-		AND EXISTS (SELECT 1 FROM node_server t WHERE t.id = ? AND t.node_id = ? AND t.deployed <> 2)`, placementID, nodeID, placementID, nodeID)
-	if err != nil {
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		if err := checkSwitchTarget(ctx, tx, nodeID, placementID); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE node_server SET failover = (id <> ?) WHERE node_id = ? AND deployed <> 2`, placementID, nodeID)
 		return err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	})
+}
+
+// checkSwitchTarget 校验部署位能承接 DNS 切换，不能时返回具体原因。
+func checkSwitchTarget(ctx context.Context, q dbtx, nodeID, placementID int64) error {
+	var deployed, typ int
+	var running, nodeDisabled, external, usable bool
+	var server string
+	err := q.QueryRowContext(ctx, `SELECT ns.deployed, ns.deployed = 1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id AND coalesce(d.disabled,0) = 0),
+		coalesce(n.type,0), n.disabled, s.external_server, `+dnsServerUsableSQL+`, coalesce(nullif(s.name,''), s.ip)
+		FROM node_server ns JOIN node n ON n.id = ns.node_id JOIN server s ON s.id = ns.server_id WHERE ns.id = ? AND ns.node_id = ?`,
+		shanghaiDay(nowFunc()), placementID, nodeID).Scan(&deployed, &running, &typ, &nodeDisabled, &external, &usable, &server)
+	switch {
+	case errors.Is(err, sql.ErrNoRows) || err == nil && deployed == PendingDelete:
 		return invalid("部署位不存在或待删除")
+	case err != nil:
+		return err
+	case typ != NodeProxy:
+		return invalid("落地节点不参与 DNS 切换")
+	case nodeDisabled:
+		return invalid("节点已禁用，不能切换")
+	case !running:
+		return invalid("服务器 %s 上的部署位尚未部署运行，请先部署", server)
+	case external:
+		return invalid("服务器 %s 是外部服务器，不能承接切换", server)
+	case !usable:
+		return invalid("服务器 %s 已禁用或已到期，不能承接切换", server)
 	}
 	return nil
 }
@@ -230,7 +260,7 @@ type IPOnlyPlacement struct {
 
 // IPOnlyPlacements 返回订阅会输出、但没有已同步访问域名的部署位，只统计节点还有其他部署位（可切走）的情况。
 // 口径与 SubscriptionNodes 一致：显示到订阅或被账户订阅定制选中，且已有部署快照。
-// shortcut: 账户绑定的订阅域名会让该账户改用域名，这里不区分账户，一律按直连 IP 提示。
+// 被账户订阅定制选中的部署位，若该绑定带已同步的订阅域名，则该账户按域名连接，不算直连 IP。
 func IPOnlyPlacements(ctx context.Context, db *sql.DB) ([]IPOnlyPlacement, error) {
 	rows, err := db.QueryContext(ctx, `SELECT ns.id, ns.node_id, ns.server_id, coalesce(n.name,''), coalesce(nullif(s.name,''), s.ip)
 		FROM node_server ns JOIN node n ON n.id = ns.node_id JOIN server s ON s.id = ns.server_id
@@ -238,7 +268,8 @@ func IPOnlyPlacements(ctx context.Context, db *sql.DB) ([]IPOnlyPlacement, error
 		WHERE ns.deployed <> 2 AND n.type = 0 AND n.disabled = 0
 		AND NOT (coalesce(r.status,'') = 'SYNCED' AND trim(coalesce(r.full_name,'')) <> '')
 		AND (coalesce(ns.exposed, 1) <> 0 OR EXISTS (SELECT 1 FROM account_node_subscription_placement bp
-			JOIN account_node_subscription_domain_binding b ON b.id = bp.binding_id WHERE bp.node_server_id = ns.id AND b.enabled = 1))
+			JOIN account_node_subscription_domain_binding b ON b.id = bp.binding_id LEFT JOIN domain_dns_record br ON br.id = b.domain_dns_record_id
+			WHERE bp.node_server_id = ns.id AND b.enabled = 1 AND NOT (coalesce(br.status,'') = 'SYNCED' AND trim(coalesce(br.full_name,'')) <> '')))
 		AND EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id AND coalesce(d.snapshot_json,'') <> '')
 		AND EXISTS (SELECT 1 FROM node_server o WHERE o.node_id = ns.node_id AND o.id <> ns.id AND o.deployed <> 2)
 		ORDER BY n.name, ns.priority, ns.id`)
@@ -345,7 +376,7 @@ func NodePlacementBriefs(ctx context.Context, db *sql.DB) (map[int64][]Placement
 	if err := prow.Err(); err != nil {
 		return nil, err
 	}
-	rows, err := db.QueryContext(ctx, `SELECT ns.id, ns.node_id, coalesce(nullif(s.name,''), s.ip), ns.deployed, coalesce(n.protocol,'') FROM node_server ns
+	rows, err := db.QueryContext(ctx, `SELECT ns.id, ns.node_id, coalesce(nullif(s.name,''), s.ip), CASE WHEN `+placementSyncedSQL+` THEN 1 ELSE ns.deployed END, coalesce(n.protocol,'') FROM node_server ns
 		JOIN server s ON s.id = ns.server_id JOIN node n ON n.id = ns.node_id
 		ORDER BY ns.node_id, ns.priority, ns.id`)
 	if err != nil {

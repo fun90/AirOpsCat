@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
-	"strings"
 	"testing"
+	"time"
 
 	"github.com/fun90/airopscat/internal/auth"
 	"github.com/fun90/airopscat/internal/crypto"
@@ -41,15 +41,19 @@ func TestExpireAccountsDeploysEachServer(t *testing.T) {
  INSERT INTO account_tag VALUES(1,1)`); err != nil {
 		t.Fatal(err)
 	}
-	err = s.expireAccounts(ctx)
-	if err == nil || !strings.Contains(err.Error(), "a：") {
-		t.Fatal("应报告失败的服务器", err)
+	// 到期移除不受「操作后自动部署」开关影响，入队后由队列逐台部署。
+	if err = s.expireAccounts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s.deployQ.wait(5 * time.Second)
+	if v, _ := s.deployQ.views(nil); len(v) != 1 || v[0].Reason != deployReasonExpire || len(v[0].Servers) != 2 {
+		t.Fatalf("应把两台服务器作为一个到期任务入队：%+v", v)
 	}
 	var a, b, disabled int
 	db.QueryRow(`SELECT deployed FROM node_server WHERE id=1`).Scan(&a)
 	db.QueryRow(`SELECT deployed FROM node_server WHERE id=2`).Scan(&b)
 	db.QueryRow(`SELECT disabled FROM account WHERE id=1`).Scan(&disabled)
-	if disabled != 1 || a != 0 || b != 1 {
+	if disabled != 0 || a != 0 || b != 1 { // 到期只部署移除，不改手动禁用标记
 		t.Fatalf("一台失败不应影响另一台：disabled=%d a=%d b=%d", disabled, a, b)
 	}
 	status := func() (st string) {

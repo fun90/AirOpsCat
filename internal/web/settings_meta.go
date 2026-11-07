@@ -59,6 +59,7 @@ var settingMeta = map[string][2]string{
 
 	"airopscat.config.templates.dir": {"模板目录", "订阅模板从其 subscription-go 子目录读取"},
 	"airopscat.install.scripts.dir":  {"运维脚本目录", ""},
+	"airopscat.deploy.auto.enabled":  {"操作后自动部署", "账户、节点、服务器、路由规则改动成功后，把受影响且需要部署的服务器提交后台部署；关闭后需手动部署"},
 
 	"airopscat.account.traffic.retention-days": {"账户流量保留（天）", ""},
 	"airopscat.system-log.retention-days":      {"系统日志保留（天）", ""},
@@ -110,6 +111,7 @@ var settingOrder = map[string]int{
 	"airopscat.probe.server-ids":                                       46,
 	"airopscat.config.templates.dir":                                   48,
 	"airopscat.install.scripts.dir":                                    49,
+	"airopscat.deploy.auto.enabled":                                    47,
 	"airopscat.account.traffic.retention-days":                         52,
 	"airopscat.system-log.retention-days":                              56,
 	"airopscat.backup.retention-days":                                  63,

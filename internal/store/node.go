@@ -62,7 +62,8 @@ type Node struct {
 	OutStatus                                                              int // 出站落地节点的 DeployStatus，仅列表填充
 }
 
-// DeployStatus 汇总部署位状态：全部待删除→待删除；全部已部署→已部署；没有部署位→无；其余→待部署。
+// DeployStatus 汇总部署位状态：全部待删除→待删除；全部已同步（PlacementDeployed，含禁用节点未运行的部署位）→已部署；
+// 没有部署位→无；其余→待部署。
 func (n *Node) DeployStatus() int {
 	switch {
 	case n.PlacementTotal == 0:
@@ -154,7 +155,7 @@ func (f NodeFilter) orderBy() string {
 	case "name":
 		return "n.name COLLATE NOCASE" + dir + ", n.id DESC"
 	case "status":
-		return "(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id AND ns.deployed <> 1)" + dir + ", n.id DESC"
+		return "(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id AND " + placementNeedsDeploySQL + ")" + dir + ", n.id DESC"
 	}
 	return "n.id DESC"
 }
@@ -190,7 +191,8 @@ func (f NodeFilter) where() (string, []any) {
 	cnt := func(extra string) string {
 		return "(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id" + extra + ")"
 	}
-	all, del, dep := cnt(""), cnt(" AND ns.deployed = 2"), cnt(" AND ns.deployed = 1")
+	// 已同步：已部署，或节点已禁用且服务器上本就没有运行的待部署部署位（与 placementNeedsDeploySQL 互补）。
+	all, del, dep := cnt(""), cnt(" AND ns.deployed = 2"), cnt(" AND "+placementSyncedSQL)
 	switch f.Status {
 	case -1:
 		w = append(w, all+" = 0")
@@ -216,8 +218,8 @@ func NodeList(ctx context.Context, db *sql.DB, f NodeFilter, page, size int) ([]
 	}
 	rows, err := db.QueryContext(ctx, `SELECT `+nodeCols+`,
 		(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id),
-		(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id AND ns.deployed = 1),
-		(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id AND ns.deployed = 0),
+		(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id AND `+placementSyncedSQL+`),
+		(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id AND ns.deployed = 0 AND `+placementNeedsDeploySQL+`),
 		(SELECT count(*) FROM node_server ns WHERE ns.node_id = n.id AND ns.deployed = 2)
 		FROM node n WHERE `+where+` ORDER BY `+f.orderBy()+` LIMIT ? OFFSET ?`, append(args, size, (page-1)*size)...)
 	if err != nil {
@@ -245,8 +247,8 @@ func NodeList(ctx context.Context, db *sql.DB, f NodeFilter, page, size int) ([]
 		}
 		if n.OutID != nil {
 			var o Node
-			if err = db.QueryRowContext(ctx, `SELECT count(*), coalesce(sum(deployed = 1), 0), coalesce(sum(deployed = 2), 0)
-				FROM node_server WHERE node_id = ?`, *n.OutID).Scan(&o.PlacementTotal, &o.PlacementDeployed, &o.PlacementDeleting); err != nil {
+			if err = db.QueryRowContext(ctx, `SELECT count(*), coalesce(sum(`+placementSyncedSQL+`), 0), coalesce(sum(ns.deployed = 2), 0)
+				FROM node_server ns JOIN node n ON n.id = ns.node_id WHERE ns.node_id = ?`, *n.OutID).Scan(&o.PlacementTotal, &o.PlacementDeployed, &o.PlacementDeleting); err != nil {
 				return nil, 0, err
 			}
 			n.OutStatus = o.DeployStatus()
@@ -324,7 +326,8 @@ func Regions(ctx context.Context, db *sql.DB) ([]string, error) {
 	return list, rows.Err()
 }
 
-func validateNode(ctx context.Context, q dbtx, n *Node) error {
+// validateNode 校验并规范化节点；old 为更新前的节点（新建为 nil）。
+func validateNode(ctx context.Context, q dbtx, n *Node, old *Node) error {
 	n.Name = NodeNameWithNumber(n.Name)
 	n.Region = strings.TrimSpace(n.Region)
 	n.Protocol = strings.ToLower(strings.TrimSpace(n.Protocol))
@@ -369,8 +372,19 @@ func validateNode(ctx context.Context, q dbtx, n *Node) error {
 			return invalid("出站不能是自己")
 		}
 		var t int
-		if err := q.QueryRowContext(ctx, `SELECT type FROM node WHERE id = ?`, *n.OutID).Scan(&t); err != nil || t != NodeLanding {
+		var disabled, placed bool
+		if err := q.QueryRowContext(ctx, `SELECT type, disabled, EXISTS (SELECT 1 FROM node_server p WHERE p.node_id = node.id AND p.deployed <> 2)
+			FROM node WHERE id = ?`, *n.OutID).Scan(&t, &disabled, &placed); err != nil || t != NodeLanding {
 			return invalid("出站必须是已存在的落地节点")
+		}
+		// 只在新设置或更换出站时校验可用性，存量节点的无关保存不被阻断
+		if old == nil || old.OutID == nil || *old.OutID != *n.OutID {
+			switch {
+			case disabled:
+				return invalid("出站落地节点已禁用")
+			case !placed:
+				return invalid("出站落地节点没有可用的部署位")
+			}
 		}
 	}
 	return nil

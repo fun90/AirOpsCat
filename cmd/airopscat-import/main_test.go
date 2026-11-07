@@ -190,3 +190,51 @@ func TestMoneyReconciliationRejectsMismatch(t *testing.T) {
 		t.Fatal("未发现服务器价格不一致")
 	}
 }
+
+// TestBumpSequencesSkipsDeletedBusinessIDs 导入后新建账户、服务器、域名不得复用流水中已删除记录的 ID。
+func TestBumpSequencesSkipsDeletedBusinessIDs(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "seq.db")
+	db, err := store.Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	dst, err := openImportDB(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dst.Close()
+	if _, err := dst.ExecContext(ctx, `INSERT INTO server(id,ip) VALUES(3,'203.0.113.3');
+		INSERT INTO domain(id,domain) VALUES(90,'example.test');
+		INSERT INTO transactions(transaction_date,amount,type,business_table,business_id) VALUES
+			('2020-01-01',1,0,'account',40),('2020-01-01',1,1,'server',30),('2020-01-01',1,1,'domain',5)`); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := dst.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := bumpSequences(ctx, tx); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		insert string
+		min    int64
+	}{
+		{`INSERT INTO account(uuid,account_no,auth_code,period_type) VALUES('u','A','c','MONTHLY')`, 40},
+		{`INSERT INTO server(ip) VALUES('203.0.113.4')`, 30},
+		{`INSERT INTO domain(domain) VALUES('new.test')`, 90},
+	} {
+		res, err := dst.ExecContext(ctx, c.insert)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if id, _ := res.LastInsertId(); id <= c.min {
+			t.Fatalf("%s 得到 ID %d，应大于 %d", c.insert, id, c.min)
+		}
+	}
+}

@@ -48,3 +48,12 @@ func scanOptionalTime(dst **time.Time) sql.Scanner {
 		return nil
 	})
 }
+
+// AddMonths 在上海时区按日历月加减 n 个月，目标月没有该日时取月末（1/31 加 1 月为 2 月末），时分秒不变。
+// 与前端续期快捷按钮的月末钳制口径一致；Go 的 AddDate 会溢出到下月（1/31 加 1 月得 3/3）。
+func AddMonths(t time.Time, n int) time.Time {
+	t = t.In(Shanghai)
+	first := time.Date(t.Year(), t.Month()+time.Month(n), 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), Shanghai)
+	last := time.Date(first.Year(), first.Month()+1, 0, 0, 0, 0, 0, Shanghai).Day()
+	return first.AddDate(0, 0, min(t.Day(), last)-1)
+}

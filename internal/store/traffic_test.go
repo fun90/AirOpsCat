@@ -251,7 +251,7 @@ func TestTrafficExpirationAtomic(t *testing.T) {
 	trafficExec(t, db, `INSERT INTO node_tag VALUES(1,1)`)
 	trafficExec(t, db, `INSERT INTO node_server(node_id,server_id,deployed) VALUES(1,?,1)`, sid)
 	at := trafficTime(t, "2026-02-01 00:00:00")
-	trafficExec(t, db, `CREATE TRIGGER fail_expire BEFORE UPDATE OF disabled ON account BEGIN SELECT RAISE(ABORT,'test'); END`)
+	trafficExec(t, db, `CREATE TRIGGER fail_expire BEFORE UPDATE OF expire_handled_to ON account BEGIN SELECT RAISE(ABORT,'test'); END`)
 	if _, err := ExpireAccounts(ctx, db, at); err == nil {
 		t.Fatal("应失败")
 	}
@@ -267,9 +267,10 @@ func TestTrafficExpirationAtomic(t *testing.T) {
 	}
 	for _, id := range []int64{a, b} {
 		var disabled int
-		db.QueryRow(`SELECT disabled FROM account WHERE id=?`, id).Scan(&disabled)
-		if disabled != 1 {
-			t.Fatal("无节点账户也必须禁用")
+		var handled string
+		db.QueryRow(`SELECT disabled,coalesce(expire_handled_to,'') FROM account WHERE id=?`, id).Scan(&disabled, &handled)
+		if disabled != 0 || handled != "2026-02-01 00:00:00" {
+			t.Fatal("无节点账户也必须记为已处理，且不改禁用状态", disabled, handled)
 		}
 	}
 	db.QueryRow(`SELECT deployed FROM node_server`).Scan(&deployed)

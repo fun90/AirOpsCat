@@ -35,7 +35,7 @@ func settingType(key string) string {
 	switch key {
 	case "airopscat.bark.url", "airopscat.bark.default-icon", "airopscat.subscription.url", "airopscat.docs.url":
 		return "url"
-	case "airopscat.bark.encrypt-enabled", "airopscat.ratelimit.enabled", "airopscat.account.connection-limit.alert.enabled", "airopscat.account.connection-limit.alert.recovery-notify-enabled", "airopscat.server.monitor.enabled":
+	case "airopscat.bark.encrypt-enabled", "airopscat.ratelimit.enabled", "airopscat.account.connection-limit.alert.enabled", "airopscat.account.connection-limit.alert.recovery-notify-enabled", "airopscat.server.monitor.enabled", AutoDeployKey:
 		return "boolean"
 	}
 	for _, suffix := range []string{"-mbps", "-minutes", "-seconds", "-hours", "-days", ".batch-size", "-times", "-servers"} {
@@ -189,6 +189,11 @@ func logLimit(s string, n int) string {
 // Log 供部署和任务写安全摘要；调用方不得传凭据、完整配置或含秘密的命令输出。
 // 常见凭据格式脱敏仅为补充，无法识别无标记的孤立秘密。
 func Log(ctx context.Context, db *sql.DB, category, level string, id *int64, name, msg, detail string) error {
+	return writeLog(ctx, db, category, level, id, name, msg, detail)
+}
+
+// writeLog 是 Log 的实现，可在事务内调用，使日志与业务变更一起提交或回滚。
+func writeLog(ctx context.Context, db dbtx, category, level string, id *int64, name, msg, detail string) error {
 	category = strings.ToUpper(strings.TrimSpace(category))
 	level = strings.ToUpper(strings.TrimSpace(level))
 	if category == "" || len(category) > 32 || (level != "INFO" && level != "WARN" && level != "ERROR") || strings.TrimSpace(msg) == "" {

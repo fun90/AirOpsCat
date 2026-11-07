@@ -1,0 +1,9 @@
+{{define "content"}}
+<div class="card"{{if .Active}} data-deploy-refresh{{end}}><div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>任务</th><th>原因</th><th>提交时间</th><th>状态</th><th>服务器结果</th></tr></thead><tbody>{{range .Jobs}}<tr>
+<td class="text-nowrap">#{{.ID}}</td>
+<td class="text-nowrap">{{.Reason}}</td>
+<td class="text-nowrap">{{.Created}}{{with .Duration}}<div class="small text-secondary">耗时 {{.}}</div>{{end}}</td>
+<td class="text-nowrap"><span class="badge {{.Badge}}">{{.Status}}</span></td>
+<td>{{range .Servers}}<div class="d-flex align-items-baseline gap-2"><span class="status-dot {{.Dot}} flex-shrink-0" role="img" aria-label="{{.State}}" title="{{.State}}"></span><div class="min-w-0"><span class="fw-medium">{{.Name}}</span> <span class="text-secondary">{{.State}}</span>{{with .Message}}<div class="small text-secondary text-break">{{.}}</div>{{end}}</div></div>{{end}}</td>
+</tr>{{else}}<tr><td colspan="5" class="text-center text-secondary py-4">暂无部署任务</td></tr>{{end}}</tbody></table></div></div>
+{{end}}

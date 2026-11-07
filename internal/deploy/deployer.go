@@ -41,7 +41,9 @@ type Result struct {
 	ServerID   int64
 	ServerName string
 	Success    bool
+	Skipped    bool // 服务器已禁用而跳过，不算部署失败
 	Message    string
+	Warning    string // 配置已生效但附带操作未完成（如补防火墙规则失败），已并入 Message
 }
 
 // Deployer 把配置推送到服务器。零值超时/并发度取默认值。
@@ -52,7 +54,10 @@ type Deployer struct {
 	// Prepare 优先于 Config；捕获输入和快照后构建配置，保持两者一致。
 	Prepare func(ctx context.Context, serverID int64) (*Prepared, error)
 	// Applied 在某台服务器配置成功下发并落库后调用，参数为 Prepared.LimitsKey。
-	Applied        func(serverID int64, limitsKey string)
+	Applied func(serverID int64, limitsKey string)
+	// BeforeApply 在持有服务器锁、配置生成成功后、推送前调用（外部服务器不调用），
+	// 用于 restart 清零内核计数前先采集流量；不得再获取同一服务器锁。返回错误只记日志，不阻断部署。
+	BeforeApply    func(ctx context.Context, serverID int64, action string) error
 	Parallel       int           // 同时部署的服务器数，默认 4
 	ConnectTimeout time.Duration // 默认 30s
 	CommandTimeout time.Duration // 单条命令整体超时，默认 120s
@@ -82,6 +87,14 @@ func (d *Deployer) commandTimeout() time.Duration {
 	return defaultCommandTimeout
 }
 
+// ParallelLimit 返回同时部署的服务器数上限。
+func (d *Deployer) ParallelLimit() int {
+	if d.Parallel < 1 {
+		return defaultParallel
+	}
+	return d.Parallel
+}
+
 // Ping 测试 SSH 连通性（首次连接会信任并保存主机密钥）。
 func (d *Deployer) Ping(ctx context.Context, serverID int64) error {
 	t, err := store.SSHTargetByID(ctx, d.DB, serverID)
@@ -109,10 +122,7 @@ func (d *Deployer) Ping(ctx context.Context, serverID int64) error {
 // DeployServers 对每台服务器整机下发配置并 restart sing-box，同时最多 Parallel 台并行，结果与 serverIDs 顺序一致。
 // 每台服务器总是用其全部部署位重建完整配置，所以 force 只影响调用方如何选取服务器，这里不使用。
 func (d *Deployer) DeployServers(ctx context.Context, serverIDs []int64, force bool) []Result {
-	parallel := d.Parallel
-	if parallel < 1 {
-		parallel = defaultParallel
-	}
+	parallel := d.ParallelLimit()
 	results := make([]Result, len(serverIDs))
 	sem := make(chan struct{}, parallel)
 	var wg sync.WaitGroup
@@ -144,6 +154,7 @@ func (d *Deployer) apply(ctx context.Context, serverID int64, action string) Res
 	}
 	res := Result{ServerID: serverID, ServerName: t.Name}
 	if t.Disabled {
+		res.Skipped = true
 		res.Message = "服务器已禁用，已跳过部署"
 		return res
 	}
@@ -183,10 +194,18 @@ func (d *Deployer) apply(ctx context.Context, serverID int64, action string) Res
 		case t.External:
 			res.Message = "外部服务器，仅生成配置，未连接"
 		default:
-			err = d.push(ctx, t, cfg, action)
+			if d.BeforeApply != nil {
+				if herr := d.BeforeApply(ctx, serverID, action); herr != nil {
+					store.Log(context.WithoutCancel(ctx), d.DB, "DEPLOY", "WARN", &serverID, t.Name, "部署前采集流量失败，继续部署: "+herr.Error(), "action="+action)
+				}
+			}
+			res.Warning, err = d.push(ctx, t, cfg, action)
 			res.Message = "部署成功"
 			if action == "reload" {
 				res.Message = "配置已重载"
+			}
+			if res.Warning != "" {
+				res.Message += "；" + res.Warning
 			}
 		}
 	} else {
@@ -211,6 +230,8 @@ func (d *Deployer) apply(ctx context.Context, serverID int64, action string) Res
 	level := "INFO"
 	if !res.Success {
 		level = "ERROR"
+	} else if res.Warning != "" {
+		level = "WARN"
 	}
 	store.Log(context.WithoutCancel(ctx), d.DB, "DEPLOY", level, &serverID, t.Name, res.Message, "action="+action)
 	if res.Success && d.Applied != nil {
@@ -221,10 +242,11 @@ func (d *Deployer) apply(ctx context.Context, serverID int64, action string) Res
 
 // push 连接服务器并安全替换配置：上传临时文件 → check → 备份 → 原子 mv → systemctl <action>。
 // 临时文件与备份都不以 .json 结尾，因为 systemd 以 -C /etc/sing-box 加载目录下所有 *.json。
-func (d *Deployer) push(ctx context.Context, t *store.SSHTarget, cfg []byte, action string) error {
+// 配置生效后的附带操作失败不算部署失败，以 warning 返回。
+func (d *Deployer) push(ctx context.Context, t *store.SSHTarget, cfg []byte, action string) (warning string, err error) {
 	r, err := d.Dial(ctx, t)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer r.Close()
 
@@ -234,31 +256,32 @@ func (d *Deployer) push(ctx context.Context, t *store.SSHTarget, cfg []byte, act
 	cleanup := func() { r.Run(context.WithoutCancel(ctx), "rm -f "+shQuote(tmp)) }
 
 	if err := runOK(ctx, r, "mkdir -p "+shQuote(configDir)); err != nil {
-		return fmt.Errorf("创建配置目录失败: %w", err)
+		return "", fmt.Errorf("创建配置目录失败: %w", err)
 	}
 	if err := r.WriteFile(ctx, tmp, cfg); err != nil {
 		cleanup()
-		return fmt.Errorf("配置上传失败: %w", err)
+		return "", fmt.Errorf("配置上传失败: %w", err)
 	}
 	if err := runOK(ctx, r, singBox+" check -c "+shQuote(tmp)); err != nil {
 		cleanup()
-		return fmt.Errorf("配置校验失败，线上配置未改动: %w", err)
+		return "", fmt.Errorf("配置校验失败，线上配置未改动: %w", err)
 	}
 	if err := runOK(ctx, r, fmt.Sprintf("if [ -f %s ]; then cp -p %s %s; fi", shQuote(configPath), shQuote(configPath), shQuote(backup))); err != nil {
 		cleanup()
-		return fmt.Errorf("备份旧配置失败，线上配置未改动: %w", err)
+		return "", fmt.Errorf("备份旧配置失败，线上配置未改动: %w", err)
 	}
 	if err := runOK(ctx, r, fmt.Sprintf("mv -f %s %s", shQuote(tmp), shQuote(configPath))); err != nil {
 		cleanup()
-		return fmt.Errorf("替换配置失败: %w", err)
+		return "", fmt.Errorf("替换配置失败: %w", err)
 	}
 	if err := runOK(ctx, r, "systemctl "+action+" sing-box"); err != nil {
-		return fmt.Errorf("配置已替换，%s 失败: %w", action, err)
+		return "", fmt.Errorf("配置已替换，%s 失败: %w", action, err)
 	}
+	// 配置已生效：防火墙失败只附告警，部署位照常确认；每次部署都会重新补齐规则。
 	if err := d.syncBlockedPorts(ctx, r, t); err != nil {
-		return fmt.Errorf("配置已部署，但补防火墙封禁规则失败（再次部署会重试）: %w", err)
+		return "配置已生效，但补防火墙封禁规则失败（下次部署会重试）: " + err.Error(), nil
 	}
-	return nil
+	return "", nil
 }
 
 // firewallBlockCommand 幂等地在 INPUT 链最前面封禁端口的 TCP/UDP（先于 ESTABLISHED 放行，存量连接也会被切断），并保存规则。

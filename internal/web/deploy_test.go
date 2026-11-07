@@ -22,11 +22,11 @@ func TestDeploymentHTTPExternal(t *testing.T) {
 	if w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	var state int
-	db.QueryRowContext(context.Background(), `SELECT deployed FROM node_server WHERE node_id=99`).Scan(&state)
-	if state != 1 {
-		t.Fatal("外部部署未记录成功")
-	}
+	eventually(t, "外部部署记录成功", func() bool {
+		var state int
+		db.QueryRowContext(context.Background(), `SELECT deployed FROM node_server WHERE node_id=99`).Scan(&state)
+		return state == 1
+	})
 	if edit := do(h, "GET", "/admin/servers/99/edit", nil, c, nil).Body.String(); !strings.Contains(edit, `action="/admin/servers/99/deploy"`) {
 		t.Fatal("服务器编辑页应提供整机部署按钮")
 	}

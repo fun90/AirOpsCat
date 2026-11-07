@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fun90/airopscat/internal/deploy"
 	"github.com/fun90/airopscat/internal/guard"
 	"github.com/fun90/airopscat/internal/notify"
 	"github.com/fun90/airopscat/internal/store"
@@ -342,9 +343,9 @@ func (s *Server) alertRecover(w http.ResponseWriter, r *http.Request) {
 	redirectMsg(w, r, "/admin/alerts", "msg", "已标记恢复；条件仍满足时会再次触发")
 }
 
-// alertRotatePorts 是流量防刷告警的处置入口：给该服务器上的 VLESS+REALITY 节点换端口并重新部署，
-// 旧端口由部署流程在服务器防火墙上封禁（规则记录在 server_blocked_port，每次部署后补齐），成功后确认告警并记录处置人。
-// 告警保持已确认而非恢复：流量增长回落到阈值以下后由评估任务自动恢复。
+// alertRotatePorts 是流量防刷告警的处置入口：给该服务器上的 VLESS+REALITY 节点换端口并提交后台部署，
+// 旧端口由部署流程在服务器防火墙上封禁（规则记录在 server_blocked_port，每次部署后补齐）；本服务器部署成功后确认告警并记录处置人。
+// 部署失败由部署队列告警并保持待部署。告警保持已确认而非恢复：流量增长回落到阈值以下后由评估任务自动恢复。
 func (s *Server) alertRotatePorts(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(w, r, "id")
 	if !ok {
@@ -375,12 +376,14 @@ func (s *Server) alertRotatePorts(w http.ResponseWriter, r *http.Request) {
 		redirectMsg(w, r, "/admin/alerts", "err", "该服务器正在处置中，请稍后刷新查看结果")
 		return
 	}
-	defer s.rotating.Delete(a.ResourceID)
+	queued := false
+	defer func() {
+		if !queued { // 已入队时由部署完成回调释放，防止部署期间重复换端口
+			s.rotating.Delete(a.ResourceID)
+		}
+	}()
 	by := r.Context().Value(userKey).(*store.User).Email
-	// 换端口与部署不随浏览器请求取消：中途断开会让订阅端口与服务器实际监听不一致。
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 10*time.Minute)
-	defer cancel()
-	http.NewResponseController(w).SetWriteDeadline(time.Now().Add(11 * time.Minute))
+	ctx := context.WithoutCancel(r.Context())
 	res, err := store.RotateRealityPorts(ctx, s.DB, a.ResourceID)
 	if err != nil {
 		if msg, ok := s.saveErr(w, r, err); ok {
@@ -394,32 +397,26 @@ func (s *Server) alertRotatePorts(w http.ResponseWriter, r *http.Request) {
 	}
 	detail := strings.Join(changes, "；")
 	store.Log(ctx, s.DB, "ALERT", "INFO", &a.ResourceID, a.ResourceKey, "流量防刷告警处置：REALITY 节点换端口并封禁旧端口（"+by+"）", detail)
-
-	var failed []string
-	surgeOK := false
-	for _, r := range s.Deployer.DeployServers(ctx, res.DeployServers, true) {
-		if r.ServerID == a.ResourceID {
-			surgeOK = r.Success
-		}
-		if !r.Success {
-			failed = append(failed, fmt.Sprintf("%s：%s", r.ServerName, r.Message))
-		}
-	}
-	if !surgeOK {
-		redirectMsg(w, r, "/admin/alerts", "err", "已更换端口（"+detail+"），但本服务器部署失败，旧端口尚未封禁，订阅已使用新端口；请排查后在服务器页重新部署，部署成功会自动封禁。"+strings.Join(failed, "；"))
+	if len(res.DeployServers) == 0 {
+		redirectMsg(w, r, "/admin/alerts", "err", "已更换端口（"+detail+"），但没有可部署的服务器；请在服务器页重新部署，部署成功会自动封禁旧端口")
 		return
 	}
-	if a.Status == store.AlertActive {
-		if err := store.AlertAcknowledge(ctx, s.DB, id, by, time.Now()); err != nil && !errors.Is(err, store.ErrInvalid) {
-			s.fail(w, r, err)
+	surge := a.ResourceID
+	jobID := s.EnqueueDeployThen("流量防刷换端口 · "+a.ResourceKey, res.DeployServers, func(results map[int64]deploy.Result) {
+		defer s.rotating.Delete(surge)
+		if !results[surge].Success {
+			return // 失败已由部署队列告警，部署成功时旧端口才会封禁
+		}
+		cur, err := store.AlertByID(context.Background(), s.DB, id)
+		if err != nil || cur == nil || cur.Status != store.AlertActive {
 			return
 		}
-	}
-	if len(failed) > 0 {
-		redirectMsg(w, r, "/admin/alerts", "err", "本服务器已换端口并封禁旧端口（"+detail+"），告警已确认；其他服务器部署失败，需重新部署："+strings.Join(failed, "；"))
-		return
-	}
-	redirectMsg(w, r, "/admin/alerts", "msg", "已换端口并封禁旧端口（"+detail+"），告警已确认")
+		if err := store.AlertAcknowledge(context.Background(), s.DB, id, by, time.Now()); err != nil && !errors.Is(err, store.ErrInvalid) {
+			slog.Warn("换端口后确认告警失败", "alert", id, "err", err)
+		}
+	})
+	queued = true
+	redirectMsg(w, r, "/admin/alerts", "msg", "已更换端口（"+detail+"）"+deployNote(jobID, len(res.DeployServers))+"；本服务器部署成功后封禁旧端口并确认告警")
 }
 
 func (s *Server) alertTest(w http.ResponseWriter, r *http.Request) {

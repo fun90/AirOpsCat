@@ -149,6 +149,11 @@ func TestIPOnlyPlacementsAndAutoSwitchedServers(t *testing.T) {
 	if list, _ := IPOnlyPlacements(ctx, db); len(list) != 3 || list[2].ID != 4 {
 		t.Fatal("订阅定制选中的部署位应计入", list)
 	}
+	// 绑定带已同步订阅域名时，选中的部署位按域名连接，不再计入
+	mustExec(t, db, `UPDATE account_node_subscription_domain_binding SET domain_dns_record_id=1 WHERE id=1`)
+	if list, _ := IPOnlyPlacements(ctx, db); len(list) != 2 {
+		t.Fatal("绑定已同步订阅域名的选中部署位不应计入", list)
+	}
 
 	if m, err := AutoSwitchedServers(ctx, db); err != nil || len(m) != 0 {
 		t.Fatal("未切走不应返回", m, err)

@@ -219,9 +219,11 @@ func TestSurgeAlertRotatePortsEntry(t *testing.T) {
 	if loc := post(cpu); !strings.Contains(loc, "err=") {
 		t.Fatal("非防刷告警不应可处置", loc)
 	}
-	if loc := post(surge); !strings.Contains(loc, "msg=") {
+	if loc, _ := url.QueryUnescape(post(surge)); !strings.Contains(loc, "msg=") || !strings.Contains(loc, "已提交后台部署 1 台") {
 		t.Fatal(loc)
 	}
+	s.deployQ.wait(5 * time.Second)
+	eventually(t, "部署完成后释放处置锁", func() bool { _, busy := s.rotating.Load(int64(1)); return !busy })
 	var p1, p2 int
 	var status, by string
 	a.DB.QueryRow(`SELECT port FROM node WHERE id=1`).Scan(&p1)

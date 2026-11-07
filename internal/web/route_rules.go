@@ -3,7 +3,9 @@ package web
 import (
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -29,7 +31,33 @@ func (s *Server) routeRuleRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /admin/routes/{id}/delete", s.routeRuleDelete)
 }
 
-const routeRuleDeployHint = "强制部署相关服务器后生效"
+const routeRuleDeployHint = "；强制部署相关服务器后生效"
+
+// routeRuleServers 返回已启用规则所选的服务器；规则不存在或已停用时为空（停用规则不进入配置）。
+func (s *Server) routeRuleServers(r *http.Request, id int64) []int64 {
+	if id == 0 {
+		return nil
+	}
+	rule, err := store.RouteRuleByID(r.Context(), s.DB, id)
+	if err != nil || rule == nil || !rule.Enabled {
+		return nil
+	}
+	return rule.ServerIDs
+}
+
+// routeRuleDeploy 路由规则不标记待部署：开关开启时直接把规则变更前后关联的启用服务器提交后台部署，返回提示后缀；
+// 关闭时提示手动强制部署。
+func (s *Server) routeRuleDeploy(r *http.Request, reason string, before, after []int64) string {
+	if !s.autoDeployOn(r.Context()) {
+		return routeRuleDeployHint
+	}
+	ids, err := store.DeployableServers(r.Context(), s.DB, append(slices.Clone(before), after...))
+	if err != nil {
+		slog.Warn("路由规则自动部署读取服务器失败", "err", err)
+		return routeRuleDeployHint
+	}
+	return deployNote(s.enqueueAuto(reason, ids))
+}
 
 func (s *Server) routeRuleList(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -41,6 +69,7 @@ func (s *Server) routeRuleList(w http.ResponseWriter, r *http.Request) {
 	}
 	d := s.pageData(r, "路由规则", "routes")
 	d["List"], d["Q"], d["Page"], d["Pages"] = list, q, page, (total+size-1)/size
+	d["AutoDeploy"] = s.autoDeployOn(r.Context())
 	s.render(w, "route_rules", 200, d)
 }
 
@@ -61,6 +90,7 @@ func (s *Server) routeRuleFormPage(w http.ResponseWriter, r *http.Request, statu
 	}
 	d := s.pageData(r, title, "routes")
 	d["Form"], d["FormErr"], d["Servers"], d["Landing"] = f, msg, servers, landing
+	d["AutoDeploy"] = s.autoDeployOn(r.Context())
 	d["RuleTypes"] = []string{"domain", "ip", "source_ip", "port", "network", "inbound", "custom"}
 	s.render(w, "route_rule_form", status, d)
 }
@@ -99,6 +129,7 @@ func (s *Server) routeRuleSave(w http.ResponseWriter, r *http.Request) {
 		f.ServerIDs[sid] = true
 		rule.ServerIDs = append(rule.ServerIDs, sid)
 	}
+	before := s.routeRuleServers(r, id)
 	if msg == "" {
 		err := store.SaveRouteRule(r.Context(), s.DB, rule)
 		if errors.Is(err, store.ErrInvalid) {
@@ -115,7 +146,7 @@ func (s *Server) routeRuleSave(w http.ResponseWriter, r *http.Request) {
 		s.routeRuleFormPage(w, r, 422, f, msg)
 		return
 	}
-	redirectMsg(w, r, "/admin/routes", "msg", "路由规则已保存；"+routeRuleDeployHint)
+	redirectMsg(w, r, "/admin/routes", "msg", "路由规则已保存"+s.routeRuleDeploy(r, "保存路由规则 #"+strconv.FormatInt(rule.ID, 10), before, s.routeRuleServers(r, rule.ID)))
 }
 
 func (s *Server) routeRuleToggle(w http.ResponseWriter, r *http.Request) {
@@ -128,10 +159,11 @@ func (s *Server) routeRuleToggle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "状态不正确", 422)
 		return
 	}
+	before := s.routeRuleServers(r, id)
 	if s.requestError(w, r, store.ToggleRouteRule(r.Context(), s.DB, id, enabled == "1")) {
 		return
 	}
-	redirectMsg(w, r, "/admin/routes", "msg", "路由规则状态已更新；"+routeRuleDeployHint)
+	redirectMsg(w, r, "/admin/routes", "msg", "路由规则状态已更新"+s.routeRuleDeploy(r, "启停路由规则 #"+r.PathValue("id"), before, s.routeRuleServers(r, id)))
 }
 
 func (s *Server) routeRuleDelete(w http.ResponseWriter, r *http.Request) {
@@ -139,8 +171,9 @@ func (s *Server) routeRuleDelete(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	before := s.routeRuleServers(r, id)
 	if s.requestError(w, r, store.DeleteRouteRule(r.Context(), s.DB, id)) {
 		return
 	}
-	redirectMsg(w, r, "/admin/routes", "msg", "路由规则已删除；"+routeRuleDeployHint)
+	redirectMsg(w, r, "/admin/routes", "msg", "路由规则已删除"+s.routeRuleDeploy(r, "删除路由规则 #"+r.PathValue("id"), before, nil))
 }

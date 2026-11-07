@@ -19,11 +19,15 @@ var SettingDefaults = map[string]struct{ Group, Value string }{
 	"airopscat.server.monitor.alert.cpu-threshold": {"monitor", "0.9"}, "airopscat.server.monitor.alert.memory-threshold": {"monitor", "0.95"}, "airopscat.server.monitor.alert.disk-threshold": {"monitor", "0.9"}, "airopscat.server.monitor.alert.traffic-threshold": {"monitor", "0.85"}, "airopscat.server.monitor.alert.continuous-minutes": {"monitor", "30"}, "airopscat.server.monitor.alert.daily-traffic-gib": {"monitor", "100"}, "airopscat.server.monitor.alert.min-interval-minutes": {"monitor", "60"},
 	"airopscat.server.expiring.alert.min-interval-hours": {"monitor", "23"}, "airopscat.domain.expiring.alert.min-interval-hours": {"monitor", "23"}, "airopscat.account.expiring.alert.min-interval-hours": {"monitor", "23"},
 	"airopscat.config.templates.dir": {"template", ""}, "airopscat.install.scripts.dir": {"template", ""},
+	AutoDeployKey: {"template", "true"},
 	"airopscat.account.traffic.retention-days": {"history", "30"}, "airopscat.system-log.retention-days": {"history", "90"},
 	"airopscat.backup.retention-days":     {"backup", "15"},
 	"airopscat.sing-box.clash-api.secret": {"monitor", ""},
 	ProbeServersKey:                       {"monitor", ""},
 }
+
+// AutoDeployKey 控制控制台操作成功后是否把受影响且需要部署的服务器提交后台部署；不进入部署内容，不触发 deploy_revision。
+const AutoDeployKey = "airopscat.deploy.auto.enabled"
 
 // ProbeServersKey 是国内探测服务器 ID 列表（逗号分隔），定时任务与节点编辑页经其 SSH 拨测部署位端口。
 const ProbeServersKey = "airopscat.probe.server-ids"

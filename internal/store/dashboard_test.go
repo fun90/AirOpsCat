@@ -53,7 +53,7 @@ func TestDashboardLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := &Dashboard{
-		AccountsTotal: 5, AccountsActive: 2, AccountsDisabled: 1, AccountsExpired: 2,
+		AccountsTotal: 5, AccountsActive: 2, AccountsDisabled: 1, AccountsExpired: 3, // 禁用且过期的账户两边都计
 		NodesEnabled: 2, NodesDisabled: 1, PendingPlacements: 2,
 		ServersEnabled: 7, ServersExternal: 1, ServersExpiring: 2,
 		AlertsActive: 2, AlertsAcknowledged: 2,
