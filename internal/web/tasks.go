@@ -111,7 +111,7 @@ func (s *Server) initTasks() {
 			_, err := s.Backup.Cleanup(time.Duration(s.configInt(ctx, "airopscat.backup.retention-days", 15)) * 24 * time.Hour)
 			return err
 		}},
-		"history-cleanup": {Name: "流量与在线历史清理", Interval: 24 * time.Hour, Run: func(ctx context.Context) error {
+		"history-cleanup": {Name: "历史数据与系统日志清理", Interval: 24 * time.Hour, Run: func(ctx context.Context) error {
 			if _, err := store.CleanupGuardOnline(ctx, s.DB, time.Now()); err != nil {
 				return err
 			}
