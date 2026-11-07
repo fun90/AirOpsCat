@@ -320,6 +320,61 @@ func CleanupMetrics(ctx context.Context, db *sql.DB, keepDays, batch int, at tim
 	}
 }
 
+// 降采样参数：一定时间以前的 monitor 样本每台服务器每 2 分钟保留最早一条（与 SSH 采集粒度一致），
+// vnstat 样本每个流量周期每小时保留最后一条（周期最新累计值始终保留）。
+const (
+	thinMonitorBucket = 120 // 秒
+	thinLookback      = 7   // 天；每次只处理切分点之前这么多天，更早的数据按保留期删除
+)
+
+// ThinMetrics 对 before 之前的指标降采样，返回删除行数。before 向下对齐到整点，使 2 分钟与 1 小时的桶不被切开，
+// 重复执行不再删除；按服务器、按天分块，每块一条语句走 (server_id, kind, sample_time) 索引，写锁时间短。
+func ThinMetrics(ctx context.Context, db *sql.DB, before time.Time) (int64, error) {
+	end := before.In(Shanghai).Truncate(time.Hour)
+	start := end.AddDate(0, 0, -thinLookback)
+	rows, err := db.QueryContext(ctx, `SELECT DISTINCT server_id FROM server_metrics`)
+	if err != nil {
+		return 0, err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	// 桶键只用于分组：strftime 把上海时间文本当 UTC 解析，整点边界不受影响。
+	monitorSQL := `DELETE FROM server_metrics WHERE server_id=? AND kind='monitor' AND sample_time>=? AND sample_time<? AND id NOT IN
+ (SELECT min(id) FROM server_metrics WHERE server_id=? AND kind='monitor' AND sample_time>=? AND sample_time<? GROUP BY CAST(strftime('%s',sample_time) AS INTEGER)/` + strconv.Itoa(thinMonitorBucket) + `)`
+	const vnstatSQL = `DELETE FROM server_metrics WHERE server_id=? AND kind='vnstat' AND sample_time>=? AND sample_time<? AND id NOT IN
+ (SELECT max(id) FROM server_metrics WHERE server_id=? AND kind='vnstat' AND sample_time>=? AND sample_time<? GROUP BY period_year,period_month,substr(sample_time,1,13))`
+	var total int64
+	for _, id := range ids {
+		for from := start; from.Before(end); from = from.AddDate(0, 0, 1) {
+			to := from.AddDate(0, 0, 1)
+			if to.After(end) {
+				to = end
+			}
+			f, t := FormatTime(from), FormatTime(to)
+			for _, q := range []string{monitorSQL, vnstatSQL} {
+				res, err := db.ExecContext(ctx, q, id, f, t, id, f, t)
+				if err != nil {
+					return total, err
+				}
+				n, _ := res.RowsAffected()
+				total += n
+			}
+		}
+	}
+	return total, nil
+}
+
 // AlertResolveFingerprint 恢复指定指纹的告警；用于同一类型下按 cpu/memory/traffic 区分的告警。
 func AlertResolveFingerprint(ctx context.Context, db *sql.DB, alertType, resourceType string, resourceID int64, fingerprint string, now time.Time) (bool, error) {
 	ts := FormatTime(now)

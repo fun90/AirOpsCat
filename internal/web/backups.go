@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/fun90/airopscat/internal/store"
@@ -56,7 +57,12 @@ func (s *Server) backupDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
-	w.Header().Set("Content-Type", "application/octet-stream")
+	// 新备份为 gzip 压缩；按附件原样下载，不设 Content-Encoding，避免浏览器自动解压后文件名与内容不符。
+	ctype := "application/octet-stream"
+	if strings.HasSuffix(p, ".gz") {
+		ctype = "application/gzip"
+	}
+	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Content-Disposition", `attachment; filename="`+r.PathValue("name")+`"`)
 	http.ServeContent(w, r, r.PathValue("name"), time.Time{}, f)
 }

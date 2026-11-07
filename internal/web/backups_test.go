@@ -1,7 +1,9 @@
 package web
 
 import (
+	"compress/gzip"
 	"html/template"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -45,8 +47,17 @@ func TestBackupHTTPFlow(t *testing.T) {
 	if w := do(m, "GET", "/admin/backups", nil, c, nil); w.Code != 200 || !strings.Contains(w.Body.String(), l[0].Name) {
 		t.Fatalf("列表 %d", w.Code)
 	}
-	if w := do(m, "GET", "/admin/backups/"+l[0].Name+"/download", nil, c, nil); w.Code != 200 || !strings.HasPrefix(w.Body.String(), "SQLite format 3") {
-		t.Fatalf("下载 %d", w.Code)
+	w := do(m, "GET", "/admin/backups/"+l[0].Name+"/download", nil, c, nil)
+	if w.Code != 200 || w.Header().Get("Content-Type") != "application/gzip" || w.Header().Get("Content-Encoding") != "" ||
+		!strings.Contains(w.Header().Get("Content-Disposition"), `filename="`+l[0].Name+`"`) || !strings.HasSuffix(l[0].Name, ".db.gz") {
+		t.Fatalf("下载 %d %v", w.Code, w.Header())
+	}
+	zr, err := gzip.NewReader(w.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if head, err := io.ReadAll(io.LimitReader(zr, 15)); err != nil || string(head) != "SQLite format 3" {
+		t.Fatalf("解压后应为 SQLite 文件: %q %v", head, err)
 	}
 	if w := do(m, "GET", "/admin/backups/..%2Fa.db/download", nil, c, nil); w.Code != 404 {
 		t.Fatalf("穿越 %d", w.Code)

@@ -22,6 +22,38 @@ type taskState struct {
 	Started, Finished time.Time
 	Result            string
 	failLogs          map[string]*failLog
+	// persist 在每次执行结束后记录本次开始时间；只对周期不短于 persistTaskMin 的任务设置。
+	persist func(context.Context, time.Time) error
+}
+
+const (
+	// persistTaskMin：周期不短于此的任务持久化上次开始时间，重启后续排，不因频繁部署重启而一直推迟。
+	persistTaskMin = time.Hour
+	// taskStartDelay：重启后已到期或从未执行的持久化任务最短等待，启动时不立即访问远端。
+	taskStartDelay = 5 * time.Minute
+)
+
+// firstDelay 返回启动后首次执行前的等待。短周期任务等一个周期；持久化任务按上次开始时间续排，
+// 不少于 taskStartDelay、不多于一个周期；last 为零值（无记录）时取最短等待。
+func firstDelay(interval time.Duration, last, now time.Time) time.Duration {
+	if interval < persistTaskMin {
+		return interval
+	}
+	floor := min(taskStartDelay, interval)
+	if last.IsZero() {
+		return floor
+	}
+	return max(floor, min(last.Add(interval).Sub(now), interval))
+}
+
+// untilDue 返回距离下次应执行的时长；手动执行会把下次定时执行顺延一个周期。
+func (t *taskState) untilDue(now time.Time) time.Duration {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.Started.IsZero() {
+		return 0
+	}
+	return t.Started.Add(t.Interval).Sub(now)
 }
 
 // failLog 记录某条持续失败的错误已写日志的情况，用于压制重复日志。
@@ -46,8 +78,15 @@ func (t *taskState) execute(ctx context.Context) {
 	}
 	t.Running = true
 	t.Started = time.Now()
+	started := t.Started
 	t.mu.Unlock()
 	err := t.Run(ctx)
+	// 执行结束后才记录：进程在运行中退出时不留记录，重启后会补跑；记录失败只影响重启后的排期，不改任务结果。
+	if t.persist != nil {
+		if perr := t.persist(context.WithoutCancel(ctx), started); perr != nil {
+			slog.Warn("记录定时任务执行时间失败", "task", t.Name, "err", perr)
+		}
+	}
 	t.mu.Lock()
 	t.Running = false
 	t.Finished = time.Now()
@@ -121,7 +160,11 @@ func (s *Server) initTasks() {
 			if err := store.CleanupSystemLogs(ctx, s.DB, s.configInt(ctx, "airopscat.system-log.retention-days", 90), time.Now()); err != nil {
 				return err
 			}
-			return store.CleanupTrafficHistory(ctx, s.DB, time.Now())
+			if err := store.CleanupTrafficHistory(ctx, s.DB, time.Now()); err != nil {
+				return err
+			}
+			_, err := store.ThinMetrics(ctx, s.DB, time.Now().Add(-s.thinMetricsAge(ctx)))
+			return err
 		}},
 	}
 }
@@ -153,21 +196,55 @@ func (s *Server) expireAccounts(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-// StartTasks 每项任务各自串行；首次等待一个周期，启动时不立即访问远端。
+// thinMetricsAge 是监控指标保留原始粒度的时长：覆盖详情页 24 小时图表与 24 小时流量异常窗口，
+// 并不少于持续超阈值告警窗口加 1 小时，避免告警把降采样后的稀疏样本当成采集中断。
+func (s *Server) thinMetricsAge(ctx context.Context) time.Duration {
+	window := time.Duration(s.configInt(ctx, "airopscat.server.monitor.alert.continuous-minutes", 30)) * time.Minute
+	return max(48*time.Hour, window+time.Hour)
+}
+
+// StartTasks 每项任务各自串行。短周期任务首次等待一个周期；周期不短于 1 小时的任务按数据库中的上次开始时间续排，
+// 重启后至少等待 taskStartDelay，启动时不立即访问远端。
 func (s *Server) StartTasks(ctx context.Context) {
-	for _, t := range s.Tasks {
-		go func() {
-			timer := time.NewTicker(t.Interval)
-			defer timer.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-timer.C:
-					t.execute(ctx)
-				}
+	last, err := store.TaskLastStarts(ctx, s.DB)
+	if err != nil {
+		slog.Warn("读取定时任务执行记录失败，按无记录排期", "err", err)
+	}
+	now := time.Now()
+	for key, t := range s.Tasks {
+		var prev time.Time
+		if t.Interval >= persistTaskMin {
+			// 时钟回拨导致记录在未来时视为无记录，避免任务被推迟超过一个周期。
+			if at := last[key]; !at.After(now) {
+				prev = at
 			}
-		}()
+			t.mu.Lock()
+			t.persist = func(ctx context.Context, at time.Time) error { return store.SaveTaskStart(ctx, s.DB, key, at) }
+			if t.Started.IsZero() {
+				t.Started = prev
+			}
+			t.mu.Unlock()
+		}
+		go t.loop(ctx, firstDelay(t.Interval, prev, now))
+	}
+}
+
+func (t *taskState) loop(ctx context.Context, wait time.Duration) {
+	for {
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		// 等待期间被手动执行过，则按那次开始时间顺延。
+		if rest := t.untilDue(time.Now()); rest > 100*time.Millisecond {
+			wait = rest
+			continue
+		}
+		t.execute(ctx)
+		wait = max(t.untilDue(time.Now()), 0)
 	}
 }
 func (s *Server) taskPage(w http.ResponseWriter, r *http.Request) {

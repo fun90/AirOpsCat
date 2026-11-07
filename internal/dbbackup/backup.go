@@ -1,20 +1,27 @@
-// Package dbbackup 用 SQLite VACUUM INTO 生成一致性快照，不复制 WAL。
+// Package dbbackup 用 SQLite VACUUM INTO 生成一致性快照，不复制 WAL；快照校验后以 gzip 压缩发布。
 package dbbackup
 
 import (
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 )
 
-var namePattern = regexp.MustCompile(`^airopscat-\d{8}-\d{6}\.db$`)
+// namePattern 兼容压缩前发布的 .db 备份，新备份为 .db.gz。
+var namePattern = regexp.MustCompile(`^airopscat-\d{8}-\d{6}\.db(\.gz)?$`)
+
+// staleTemp 是崩溃残留临时文件的判定时长；远长于单次备份耗时，不会误删进行中的备份。
+const staleTemp = 6 * time.Hour
 
 type Manager struct {
 	DB  *sql.DB
@@ -35,41 +42,119 @@ func (m *Manager) now() time.Time {
 	return time.Now()
 }
 
-// Create 先写独占临时文件，通过完整性检查后原子发布；失败不留半成品。
+// Create 先写独占临时快照并做完整性检查，再压缩到另一个独占临时文件并校验，最后原子发布；失败不留半成品。
 func (m *Manager) Create(ctx context.Context) (string, error) {
 	if err := os.MkdirAll(m.Dir, 0o700); err != nil {
 		return "", err
 	}
-	name := "airopscat-" + m.now().Format("20060102-150405") + ".db"
+	stamp := "airopscat-" + m.now().Format("20060102-150405")
+	name := stamp + ".db.gz"
 	final := filepath.Join(m.Dir, name)
-	if _, err := os.Lstat(final); err == nil {
-		return "", errors.New("同一秒内已存在备份，请稍后重试")
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", err
+	for _, p := range []string{final, filepath.Join(m.Dir, stamp+".db")} {
+		if _, err := os.Lstat(p); err == nil {
+			return "", errors.New("同一秒内已存在备份，请稍后重试")
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
 	}
 	// 每次调用独占临时文件，且从创建起即为 0600，避免并发备份互相删除。
-	f, err := os.CreateTemp(m.Dir, "."+name+"-*.tmp")
+	raw, err := m.tempFile(name)
 	if err != nil {
 		return "", err
 	}
-	tmp := f.Name()
-	defer os.Remove(tmp)
-	if err := f.Close(); err != nil {
-		return "", err
-	}
-	if _, err := m.DB.ExecContext(ctx, "VACUUM INTO ?", tmp); err != nil {
+	defer os.Remove(raw)
+	if _, err := m.DB.ExecContext(ctx, "VACUUM INTO ?", raw); err != nil {
 		return "", fmt.Errorf("生成备份: %w", err)
 	}
-	if err := check(ctx, tmp); err != nil {
+	if err := check(ctx, raw); err != nil {
 		return "", err
 	}
+	gz, err := m.tempFile(name)
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(gz)
+	if err := compress(raw, gz); err != nil {
+		return "", fmt.Errorf("压缩备份: %w", err)
+	}
+	os.Remove(raw) // 压缩完成即释放未压缩快照，降低峰值占用
+	if err := verifyGzip(gz); err != nil {
+		return "", fmt.Errorf("校验压缩备份: %w", err)
+	}
 	// Link 原子发布且拒绝覆盖，保护不同 Manager 或进程同时生成的同名备份。
-	if err := os.Link(tmp, final); errors.Is(err, os.ErrExist) {
+	if err := os.Link(gz, final); errors.Is(err, os.ErrExist) {
 		return "", errors.New("同一秒内已存在备份，请稍后重试")
 	} else if err != nil {
 		return "", fmt.Errorf("发布备份: %w", err)
 	}
+	if err := syncDir(m.Dir); err != nil {
+		return "", fmt.Errorf("发布备份: %w", err)
+	}
 	return name, nil
+}
+
+func (m *Manager) tempFile(name string) (string, error) {
+	f, err := os.CreateTemp(m.Dir, "."+name+"-*.tmp")
+	if err != nil {
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(f.Name())
+		return "", err
+	}
+	return f.Name(), nil
+}
+
+func compress(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_TRUNC, 0)
+	if err != nil {
+		return err
+	}
+	zw := gzip.NewWriter(out)
+	if _, err := io.Copy(zw, in); err != nil {
+		out.Close()
+		return err
+	}
+	if err := zw.Close(); err != nil {
+		out.Close()
+		return err
+	}
+	if err := out.Sync(); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
+}
+
+// verifyGzip 完整解压一遍，借助 gzip 尾部 CRC 与长度确认写入无误。
+func verifyGzip(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	zr, err := gzip.NewReader(f)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(io.Discard, zr); err != nil {
+		return err
+	}
+	return zr.Close()
+}
+
+func syncDir(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	return d.Sync()
 }
 
 func check(ctx context.Context, path string) error {
@@ -132,7 +217,7 @@ func (m *Manager) Delete(name string) error {
 	return os.Remove(p)
 }
 
-// Cleanup 删除超过 keep 的备份，返回删除数量。
+// Cleanup 删除超过 keep 的备份，返回删除数量；顺带移除崩溃残留、超过 staleTemp 的临时文件（不计入数量）。
 func (m *Manager) Cleanup(keep time.Duration) (int, error) {
 	files, err := m.List()
 	if err != nil {
@@ -146,5 +231,22 @@ func (m *Manager) Cleanup(keep time.Duration) (int, error) {
 			}
 		}
 	}
+	m.removeStaleTemps()
 	return n, nil
+}
+
+func (m *Manager) removeStaleTemps() {
+	entries, err := os.ReadDir(m.Dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasPrefix(name, ".airopscat-") || !strings.HasSuffix(name, ".tmp") || !e.Type().IsRegular() {
+			continue
+		}
+		if info, err := e.Info(); err == nil && m.now().Sub(info.ModTime()) > staleTemp {
+			os.Remove(filepath.Join(m.Dir, name))
+		}
+	}
 }

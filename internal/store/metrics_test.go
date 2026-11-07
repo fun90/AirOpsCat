@@ -152,3 +152,93 @@ func TestServerListUsageSortFilter(t *testing.T) {
 		t.Fatalf("无异常部署位: %v %v", err, l)
 	}
 }
+
+func TestThinMetrics(t *testing.T) {
+	db, ctx := testDB(t)
+	mustExec(t, db, `INSERT INTO server(id,ip,name) VALUES(1,'192.0.2.1','A'),(2,'192.0.2.2','B')`)
+	now := time.Date(2026, 11, 7, 14, 37, 0, 0, Shanghai)
+	before := now.Add(-48 * time.Hour) // 2026-11-05 14:37，对齐到 14:00
+	count := func(server int64, kind, from, to string) int {
+		var n int
+		if err := db.QueryRow(`SELECT count(*) FROM server_metrics WHERE server_id=? AND kind=? AND sample_time>=? AND sample_time<?`, server, kind, from, to).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	// 服务器 1：agent 每 10 秒一条，覆盖切分点前后各 1 小时
+	for at := time.Date(2026, 11, 5, 13, 0, 0, 0, Shanghai); at.Before(time.Date(2026, 11, 5, 15, 0, 0, 0, Shanghai)); at = at.Add(10 * time.Second) {
+		if err := InsertMonitorSample(ctx, db, 1, monitor.Sample{CPU: 0.1}, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// 服务器 2：SSH 每 2 分钟一条，跨天；降采样后不应减少
+	for at := time.Date(2026, 11, 4, 23, 1, 0, 0, Shanghai); at.Before(time.Date(2026, 11, 5, 1, 0, 0, 0, Shanghai)); at = at.Add(2 * time.Minute) {
+		if err := InsertMonitorSample(ctx, db, 2, monitor.Sample{CPU: 0.1}, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// vnstat：服务器 1 每 5 分钟一条，跨月份周期边界（10 月 31 日 23:00 至 11 月 1 日 01:00），以及切分点前后
+	var total int64 = 100
+	for at := time.Date(2026, 10, 31, 23, 0, 0, 0, Shanghai); at.Before(time.Date(2026, 11, 1, 1, 0, 0, 0, Shanghai)); at = at.Add(5 * time.Minute) {
+		total += 10
+		m := 11
+		if at.Month() == time.October {
+			m = 10
+		}
+		if err := InsertVnstatSample(ctx, db, 1, monitor.Vnstat{Iface: "eth0", Year: 2026, Month: m, RxBytes: total}, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for at := time.Date(2026, 11, 5, 13, 0, 0, 0, Shanghai); at.Before(time.Date(2026, 11, 5, 15, 0, 0, 0, Shanghai)); at = at.Add(5 * time.Minute) {
+		total += 10
+		if err := InsertVnstatSample(ctx, db, 1, monitor.Vnstat{Iface: "eth0", Year: 2026, Month: 11, RxBytes: total}, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	n, err := ThinMetrics(ctx, db, before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// agent：13:00-14:00 降为 30 条（每 2 分钟 1 条，删除 330 条），14:00 之后不动
+	if got := count(1, "monitor", "2026-11-05 13:00:00", "2026-11-05 14:00:00"); got != 30 {
+		t.Fatalf("切分点前应每 2 分钟保留 1 条，got %d", got)
+	}
+	if got := count(1, "monitor", "2026-11-05 14:00:00", "2026-11-05 15:00:00"); got != 360 {
+		t.Fatalf("切分点后的原始样本应保留，got %d", got)
+	}
+	var first string
+	db.QueryRow(`SELECT min(sample_time) FROM server_metrics WHERE server_id=1 AND kind='monitor'`).Scan(&first)
+	if first != "2026-11-05 13:00:00" {
+		t.Fatalf("每桶应保留最早一条，got %s", first)
+	}
+	if got := count(2, "monitor", "2026-11-04 00:00:00", "2026-11-06 00:00:00"); got != 60 {
+		t.Fatalf("2 分钟粒度的 SSH 样本不应被删除，got %d", got)
+	}
+	// vnstat：周期边界两侧各自保留每小时最后一条，10 月周期的最终累计值保留
+	if got := count(1, "vnstat", "2026-10-31 00:00:00", "2026-11-01 02:00:00"); got != 2 {
+		t.Fatalf("跨周期的两个小时各保留 1 条，got %d", got)
+	}
+	var octLast, novLast int64
+	db.QueryRow(`SELECT rx_bytes FROM server_metrics WHERE kind='vnstat' AND period_month=10`).Scan(&octLast)
+	db.QueryRow(`SELECT rx_bytes FROM server_metrics WHERE kind='vnstat' AND sample_time<'2026-11-01 01:00:00' AND period_month=11`).Scan(&novLast)
+	if octLast != 220 || novLast != 340 {
+		t.Fatalf("应保留每小时最后一条累计值: oct=%d nov=%d", octLast, novLast)
+	}
+	if got := count(1, "vnstat", "2026-11-05 13:00:00", "2026-11-05 14:00:00"); got != 1 {
+		t.Fatalf("切分点前 vnstat 每小时 1 条，got %d", got)
+	}
+	if got := count(1, "vnstat", "2026-11-05 14:00:00", "2026-11-05 15:00:00"); got != 12 {
+		t.Fatalf("切分点后 vnstat 原样保留，got %d", got)
+	}
+	if want := int64(330 + 22 + 11); n != want {
+		t.Fatalf("删除数 %d，期望 %d", n, want)
+	}
+	// 幂等：同一切分点再执行不再删除；切分点后移 30 分钟（同一整点）也不删除
+	if n, err := ThinMetrics(ctx, db, before); err != nil || n != 0 {
+		t.Fatalf("重复执行应不删除: n=%d err=%v", n, err)
+	}
+	if n, err := ThinMetrics(ctx, db, before.Add(20*time.Minute)); err != nil || n != 0 {
+		t.Fatalf("同一整点内不应切开桶: n=%d err=%v", n, err)
+	}
+}
