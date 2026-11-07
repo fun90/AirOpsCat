@@ -1,9 +1,9 @@
 {{define "content"}}
-<div class="card"{{if .Active}} data-deploy-refresh{{end}}><div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>任务</th><th>原因</th><th>提交时间</th><th>状态</th><th>服务器结果</th></tr></thead><tbody>{{range .Jobs}}<tr>
-<td class="text-nowrap">#{{.ID}}</td>
-<td class="text-nowrap">{{.Reason}}</td>
-<td class="text-nowrap">{{.Created}}{{with .Duration}}<div class="small text-secondary">耗时 {{.}}</div>{{end}}</td>
-<td class="text-nowrap"><span class="badge {{.Badge}}">{{.Status}}</span></td>
-<td>{{range .Servers}}<div class="d-flex align-items-baseline gap-2"><span class="status-dot {{.Dot}} flex-shrink-0" role="img" aria-label="{{.State}}" title="{{.State}}"></span><div class="min-w-0"><span class="fw-medium">{{.Name}}</span> <span class="text-secondary">{{.State}}</span>{{with .Message}}<div class="small text-secondary text-break">{{.}}</div>{{end}}</div></div>{{end}}</td>
+<div class="card"{{if .Active}} data-deploy-refresh{{end}}><div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th class="d-none d-md-table-cell">任务</th><th class="d-none d-md-table-cell">原因</th><th class="d-none d-md-table-cell">提交时间</th><th class="d-none d-md-table-cell">状态</th><th><span class="d-md-none">任务</span><span class="d-none d-md-inline">服务器结果</span></th></tr></thead><tbody>{{range .Jobs}}<tr>
+<td class="text-nowrap d-none d-md-table-cell">#{{.ID}}</td>
+<td class="text-nowrap d-none d-md-table-cell">{{.Reason}}</td>
+<td class="text-nowrap d-none d-md-table-cell">{{.Created}}{{with .Duration}}<div class="small text-secondary">耗时 {{.}}</div>{{end}}</td>
+<td class="text-nowrap d-none d-md-table-cell"><span class="badge {{.Badge}}">{{.Status}}</span></td>
+<td><div class="d-md-none mb-2"><div class="d-flex flex-wrap align-items-center gap-2"><span class="fw-medium text-break">#{{.ID}} {{.Reason}}</span><span class="badge {{.Badge}}">{{.Status}}</span></div><div class="small text-secondary">{{.Created}}{{with .Duration}} · 耗时 {{.}}{{end}}</div></div>{{range .Servers}}<div class="d-flex align-items-baseline gap-2"><span class="status-dot {{.Dot}} flex-shrink-0" role="img" aria-label="{{.State}}" title="{{.State}}"></span><div class="min-w-0"><span class="fw-medium">{{.Name}}</span> <span class="text-secondary">{{.State}}</span>{{with .Message}}<div class="small text-secondary text-break">{{.}}</div>{{end}}</div></div>{{end}}</td>
 </tr>{{else}}<tr><td colspan="5" class="text-center text-secondary py-4">暂无部署任务</td></tr>{{end}}</tbody></table></div></div>
 {{end}}
