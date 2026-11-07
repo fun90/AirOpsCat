@@ -50,8 +50,16 @@ func allServers(ctx context.Context, q dbtx) ([]serverRow, error) {
 	return list, rows.Err()
 }
 
-// removeOrMarkDeleted 曾部署过的部署位标记待删除，否则直接删除。
+// removeOrMarkDeleted 启用服务器上曾部署过的部署位标记待删除；禁用服务器只清理管理记录。
 func removeOrMarkDeleted(ctx context.Context, q dbtx, p *Placement) error {
+	var disabled bool
+	if err := q.QueryRowContext(ctx, `SELECT disabled FROM server WHERE id = ?`, p.ServerID).Scan(&disabled); err != nil {
+		return err
+	}
+	if disabled {
+		_, err := q.ExecContext(ctx, `DELETE FROM node_server WHERE id = ?`, p.ID)
+		return err
+	}
 	if p.Deployed == PendingDelete {
 		return nil
 	}

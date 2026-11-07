@@ -242,6 +242,11 @@ func SaveServer(ctx context.Context, db *sql.DB, c *crypto.Cipher, s *Server, au
 		s.Disabled, s.External, nz(s.Remark), now, s.ID)); err != nil {
 		return 0, err
 	}
+	if s.Disabled {
+		if err := cleanupDisabledPlacements(ctx, tx, s.ID); err != nil {
+			return 0, err
+		}
+	}
 	if oldIP != s.IP {
 		if err := retargetServerIP(ctx, tx, oldIP, s.IP, now); err != nil {
 			return 0, err

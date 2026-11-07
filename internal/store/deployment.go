@@ -116,14 +116,8 @@ func recordDeployment(ctx context.Context, db *sql.DB, serverID int64, configSHA
 				}
 			}
 			// 先清理本次移除的代理，再清理它们原先引用、如今不再被引用的落地。
-			for _, typ := range []int{NodeProxy, NodeLanding} {
-				for id := range cleanup {
-					if _, err := tx.ExecContext(ctx, `DELETE FROM node WHERE id=? AND type=? AND NOT EXISTS (SELECT 1 FROM node_server WHERE node_id=node.id)
-						AND NOT EXISTS (SELECT 1 FROM node o WHERE o.out_id=node.id)
-						AND NOT EXISTS (SELECT 1 FROM route_rule r WHERE r.outbound_node_id=node.id)`, id, typ); err != nil {
-						return err
-					}
-				}
+			if err := cleanupPlacementNodes(ctx, tx, cleanup); err != nil {
+				return err
 			}
 			if _, err := tx.ExecContext(ctx, `UPDATE node_server SET deployed = ?, update_time = ?
 				WHERE server_id = ? AND deployed = 0 AND EXISTS (SELECT 1 FROM node n WHERE n.id = node_server.node_id AND n.disabled = 0)`,
