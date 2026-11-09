@@ -57,7 +57,7 @@
                     <li class="nav-item{{if eq .Nav "dashboard"}} active{{end}}">
                         <a class="nav-link text-nowrap" href="/admin"><i class="ti ti-home me-1" aria-hidden="true"></i>概览</a>
                     </li>
-                    <li class="nav-item dropdown{{if or (eq .Nav "servers") (eq .Nav "monitor") (eq .Nav "maintenance") (eq .Nav "nodes") (eq .Nav "routes") (eq .Nav "tags")}} active{{end}}">
+                    <li class="nav-item dropdown{{if or (eq .Nav "servers") (eq .Nav "monitor") (eq .Nav "maintenance") (eq .Nav "nodes") (eq .Nav "reality-sni") (eq .Nav "routes") (eq .Nav "tags")}} active{{end}}">
                         <a class="nav-link dropdown-toggle text-nowrap" href="#" data-bs-toggle="dropdown" data-bs-auto-close="true" role="button" aria-expanded="false"><i class="ti ti-server me-1" aria-hidden="true"></i>资源</a>
                         <div class="dropdown-menu">
                             <a class="dropdown-item{{if eq .Nav "servers"}} active{{end}}" href="/admin/servers"><i class="ti ti-server me-2" aria-hidden="true"></i>服务器</a>
@@ -65,6 +65,7 @@
                             <a class="dropdown-item{{if eq .Nav "monitor"}} active{{end}}" href="/admin/monitor"><i class="ti ti-activity me-2" aria-hidden="true"></i>监控</a>
                             <a class="dropdown-item{{if eq .Nav "nodes"}} active{{end}}" href="/admin/nodes"><i class="ti ti-route me-2" aria-hidden="true"></i>节点</a>
                             <a class="dropdown-item{{if eq .Nav "routes"}} active{{end}}" href="/admin/routes"><i class="ti ti-route-2 me-2" aria-hidden="true"></i>路由规则</a>
+                            <a class="dropdown-item{{if eq .Nav "reality-sni"}} active{{end}}" href="/admin/reality-sni"><i class="ti ti-world me-2" aria-hidden="true"></i>Reality SNI</a>
                             <a class="dropdown-item{{if eq .Nav "tags"}} active{{end}}" href="/admin/tags"><i class="ti ti-tags me-2" aria-hidden="true"></i>标签</a>
                         </div>
                     </li>
@@ -120,7 +121,7 @@
 <script type="module" src="/static/tabler/js/tabler.esm.min.js"></script>
 <script src="/static/js/page.js?v=2" defer></script>
 <script src="/static/js/json-editor.js?v=wrap2" defer></script>
-<script src="/static/js/node-form.js?v=8" defer></script>
+<script src="/static/js/node-form.js?v=9" defer></script>
 <script src="/static/js/batch.js?v=1" defer></script>
 <script src="/static/js/tag-picker.js?v=4" defer></script>
 <script src="/static/vendor/tom-select.complete.min.js" defer></script>

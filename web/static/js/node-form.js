@@ -5,6 +5,43 @@ window.AirOpsPage.register(function () {
     var ta = document.querySelector('#inbound');
     var regenerate = document.querySelector('[data-regenerate-inbound]');
     if (!protocol || !type || !ta || !regenerate) { return; }
+    var sniPanel = document.querySelector('[data-reality-sni]');
+    var sniSelect = document.querySelector('#reality-sni');
+    var sniStatus = document.querySelector('[data-reality-sni-status]');
+    var sniApply = document.querySelector('[data-apply-reality-sni]');
+    function syncSNI() {
+        if (!sniPanel) { return; }
+        sniPanel.hidden = protocol.value !== 'vless-reality';
+        sniStatus.textContent = '';
+        var host = '';
+        try { host = JSON.parse(ta.value).tls.server_name; } catch (_) {}
+        sniSelect.value = Array.from(sniSelect.options).some(function (o) { return o.value === host; }) ? host : '';
+    }
+    if (sniApply) {
+        sniApply.addEventListener('click', function () {
+            sniStatus.classList.remove('text-danger', 'text-success');
+            try {
+                if (protocol.disabled) { throw new Error('请等待入站配置生成完成'); }
+                if (protocol.value !== 'vless-reality' || !sniSelect.value) { throw new Error('请先选择 Reality 候选域名'); }
+                var obj;
+                try { obj = JSON.parse(ta.value); } catch (_) { throw new Error('入站 JSON 不合法，请先修正'); }
+                if (!obj || obj.type !== 'vless' || !obj.tls || !obj.tls.reality || obj.tls.reality.enabled !== true) { throw new Error('当前配置不是已启用的 Reality 入站'); }
+                var handshake = obj.tls.reality.handshake;
+                if (!handshake || typeof handshake !== 'object' || Array.isArray(handshake)) { throw new Error('当前配置缺少有效的 Reality 握手目标'); }
+                obj.tls.server_name = sniSelect.value;
+                handshake.server = sniSelect.value;
+                handshake.server_port = 443;
+                ta.value = JSON.stringify(obj, null, 2);
+                ta.dispatchEvent(new Event('input', {bubbles: true}));
+                sniStatus.classList.add('text-success');
+                sniStatus.textContent = '域名已应用，请保存节点。';
+            } catch (e) {
+                sniStatus.classList.add('text-danger');
+                sniStatus.textContent = e.message;
+            }
+        });
+        ta.addEventListener('input', syncSNI);
+    }
     var previous = protocol.value;
     var previousType = type.value;
     var serial = 0;
@@ -64,6 +101,7 @@ window.AirOpsPage.register(function () {
             regenerate.disabled = false;
             regenerate.classList.remove('btn-loading');
             submit.disabled = false;
+            syncSNI();
         }
     }
     protocol.addEventListener('change', function () { initialize(false); });
@@ -86,5 +124,6 @@ window.AirOpsPage.register(function () {
         initialize(false);
     });
     options();
+    syncSNI();
     return function () { ++serial; observer.disconnect(); };
 });

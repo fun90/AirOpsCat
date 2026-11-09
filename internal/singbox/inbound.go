@@ -55,6 +55,24 @@ func DefaultInboundForHost(protocol, host string) (json.RawMessage, error) {
 	return json.MarshalIndent(obj, "", "  ")
 }
 
+// DefaultRealityInbound 使用管理池选定的域名；SNI 与握手目标保持一致。
+func DefaultRealityInbound(host string) (json.RawMessage, error) {
+	body, err := DefaultInbound("vless-reality")
+	if err != nil {
+		return nil, err
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return nil, err
+	}
+	tls := obj["tls"].(map[string]any)
+	tls["server_name"] = host
+	handshake := tls["reality"].(map[string]any)["handshake"].(map[string]any)
+	handshake["server"] = host
+	handshake["server_port"] = 443
+	return json.MarshalIndent(obj, "", "  ")
+}
+
 // DefaultInbound 复用现有协议模板，随机凭据使用系统密码学随机源。
 func DefaultInbound(protocol string) (json.RawMessage, error) {
 	switch protocol {

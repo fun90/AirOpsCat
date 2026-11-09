@@ -149,6 +149,12 @@
                     <optgroup label="落地节点">{{range $.LandingProtocols}}<option value="{{.}}"{{if eq . $.Form.Protocol}} selected{{end}}>{{.}}</option>{{end}}</optgroup>
                 </select><button type="button" class="btn btn-outline-secondary" data-regenerate-inbound>重新生成</button></div></div>
 
+            <div class="col-12" data-reality-sni{{if ne .Protocol "vless-reality"}} hidden{{end}}>
+                <div class="d-flex align-items-center justify-content-between mb-2"><label class="form-label mb-0" for="reality-sni">Reality SNI</label><a href="/admin/reality-sni" target="_blank" rel="noopener">管理候选域名</a></div>
+                <div class="d-flex flex-wrap gap-2"><select class="form-select w-auto mw-100" id="reality-sni"><option value="">选择启用的候选域名</option>{{range $.RealitySNIs}}<option value="{{.Domain}}">{{.Domain}}{{if .Note}} · {{.Note}}{{end}}</option>{{end}}</select><button type="button" class="btn btn-outline-primary" data-apply-reality-sni>应用域名</button></div>
+                <div class="form-hint">仅替换 SNI 与握手目标（443），保留密钥；保存节点后生效。</div>
+                <div class="small mt-1" role="status" data-reality-sni-status></div>
+            </div>
             <div class="col-12"><label class="form-label required" for="inbound">入站配置（JSON 对象）</label>
                 <textarea id="inbound" name="inbound" data-json-editor required>{{.Inbound}}</textarea>
                 <div class="form-hint">tag、listen、listen_port 由系统生成，不要填写。多个部署位共用此配置，Hysteria2、AnyTLS 需各目标都有证书。</div></div>

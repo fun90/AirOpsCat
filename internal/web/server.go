@@ -126,6 +126,7 @@ func (s *Server) Handler() http.Handler {
 	s.serverRoutes(admin)
 	s.tagRoutes(admin)
 	s.nodeRoutes(admin)
+	s.realitySNIRoutes(admin)
 	s.deployRoutes(admin)
 	s.accountRoutes(admin)
 	s.userRoutes(admin)
@@ -315,7 +316,7 @@ func recoverer(next http.Handler) http.Handler {
 	})
 }
 
-var pageNames = []string{"login", "dashboard", "servers", "server_idle", "server_form", "tags", "nodes", "node_form", "accounts", "account_form", "account_bindings", "users", "user_form", "tasks", "route_rules", "route_rule_form", "transactions", "transaction_form", "renewals", "settings", "logs", "backups", "dns_providers", "dns_provider_form", "domains", "domain_form", "dns_records", "dns_record_form", "alerts", "monitor", "monitor_detail", "maintenance", "deploy_jobs"}
+var pageNames = []string{"login", "dashboard", "servers", "server_idle", "server_form", "tags", "nodes", "node_form", "reality_sni", "accounts", "account_form", "account_bindings", "users", "user_form", "tasks", "route_rules", "route_rule_form", "transactions", "transaction_form", "renewals", "settings", "logs", "backups", "dns_providers", "dns_provider_form", "domains", "domain_form", "dns_records", "dns_record_form", "alerts", "monitor", "monitor_detail", "maintenance", "deploy_jobs"}
 
 // pageURL 用结构化参数生成完整地址，避免 html/template 把筛选分隔符编码进 q。
 func pageURL(query string, page int) string {

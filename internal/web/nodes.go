@@ -61,7 +61,17 @@ func (s *Server) nodeRoutes(m *http.ServeMux) {
 				return
 			}
 		}
-		body, err := singbox.DefaultInboundForHost(protocol, host)
+		var body json.RawMessage
+		var err error
+		if protocol == "vless-reality" {
+			body, err = s.realityInbound(r)
+			if err != nil && !errors.Is(err, errEmptyRealitySNI) {
+				s.fail(w, r, err)
+				return
+			}
+		} else {
+			body, err = singbox.DefaultInboundForHost(protocol, host)
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -72,12 +82,15 @@ func (s *Server) nodeRoutes(m *http.ServeMux) {
 	})
 	m.HandleFunc("GET /admin/nodes", s.nodeList)
 	m.HandleFunc("GET /admin/nodes/new", func(w http.ResponseWriter, r *http.Request) {
-		inbound, err := singbox.DefaultInbound("vless-reality")
-		if err != nil {
+		inbound, err := s.realityInbound(r)
+		formErr := ""
+		if errors.Is(err, errEmptyRealitySNI) {
+			formErr = err.Error()
+		} else if err != nil {
 			s.fail(w, r, err)
 			return
 		}
-		s.nodeFormPage(w, r, http.StatusOK, &NodeForm{Type: "0", Protocol: "vless-reality", Inbound: string(inbound), TagIDs: map[int64]bool{}}, "", nil)
+		s.nodeFormPage(w, r, http.StatusOK, &NodeForm{Type: "0", Protocol: "vless-reality", Inbound: string(inbound), TagIDs: map[int64]bool{}}, formErr, nil)
 	})
 	m.HandleFunc("GET /admin/nodes/{id}/edit", s.nodeEdit)
 	m.HandleFunc("POST /admin/nodes", s.nodeSave)
@@ -288,6 +301,10 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 		return
 	}
 	d["ServerOptions"], d["SwitchWarn"] = opts, map[int64]string{}
+	if d["RealitySNIs"], err = store.RealitySNIs(ctx, s.DB, true); err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	if d["Domains"], err = store.BindingDomains(ctx, s.DB); err != nil {
 		s.fail(w, r, err)
 		return

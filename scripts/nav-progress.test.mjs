@@ -25,6 +25,12 @@ function html(name, extra = '') {
 <div class="page-wrapper"><h2 class="page-title">${name}</h2>${content}${extra}${'<p>内容</p>'.repeat(100)}</div></div>${scripts}`;
 }
 
+const realityInbound = {type:'vless', tls:{enabled:true, server_name:'old.example.test', reality:{enabled:true, private_key:'test-private', public_key:'test-public', short_id:['abcd'], handshake:{server:'old.example.test', server_port:8443, detour:'keep'}}}, custom:{keep:true}};
+function realityContent() {
+  return `<form data-node-id="1"><select id="protocol"><option value="vless-reality">Reality</option></select><select id="type"><option value="0">代理</option></select><button type="button" data-regenerate-inbound>生成</button><textarea id="inbound">${JSON.stringify(realityInbound)}</textarea>
+<div data-reality-sni><select id="reality-sni"><option value="">选择</option><option value="new.example.test">候选</option></select><button type="button" data-apply-reality-sni>应用域名</button><div data-reality-sni-status></div></div><button type="submit">保存</button></form>`;
+}
+
 function batchContent(kind) {
   return `<button data-${kind}-select-mode type="button">批量选择</button>
 <div class="${kind}-list"><input type="checkbox" data-${kind}-select-all>
@@ -56,7 +62,7 @@ test('Tabler 局部导航浏览器回归', { skip: !existsSync(chromeBin), timeo
     if (name === 'failed' && req.headers['sec-fetch-dest'] !== 'document') { res.writeHead(503).end('失败'); return; }
     if (name === 'expired') { res.writeHead(302, { Location: '/login' }).end(); return; }
     if (name === 'login') { res.end('<title>登录</title><p>登录</p>'); return; }
-    let body = html(name, name === 'node-batch' ? batchContent('node') : name === 'account-batch' ? batchContent('account') : name === 'cheap-button' ? cheapButtons : '');
+    let body = html(name, name === 'node-batch' ? batchContent('node') : name === 'account-batch' ? batchContent('account') : name === 'cheap-button' ? cheapButtons : name === 'reality' ? realityContent() : '');
     if (name === 'changed') body = body.replace('/static/css/app.css', '/static/css/app.css?v=changed');
     if (name === 'slow') setTimeout(() => res.end(body), 900);
     else res.end(body);
@@ -267,6 +273,23 @@ test('Tabler 局部导航浏览器回归', { skip: !existsSync(chromeBin), timeo
           }
           await evaluate(`document.querySelectorAll('[data-cheap] > button')[${index}].click()`);
         }
+      }
+    });
+    await t.test('Reality 候选只替换握手域名，局部导航后仍可用，错误配置保留原文', async () => {
+      await open('/admin/a');
+      for (let pass = 0; pass < 2; pass++) {
+        await click('/admin/reality'); await ready('reality');
+        await evaluate(`document.querySelector('#reality-sni').value='new.example.test';document.querySelector('[data-apply-reality-sni]').click()`);
+        const expected = structuredClone(realityInbound);
+        expected.tls.server_name = expected.tls.reality.handshake.server = 'new.example.test';
+        expected.tls.reality.handshake.server_port = 443;
+        assert.deepEqual(await evaluate(`JSON.parse(document.querySelector('#inbound').value)`), expected);
+        assert.match(await evaluate(`document.querySelector('[data-reality-sni-status]').textContent`), /请保存节点/);
+        for (const invalid of ['{broken', '{}', 'null', '{"type":"vless","tls":{"reality":{"enabled":true,"handshake":[]}}}']) {
+          const result = await evaluate(`{const ta=document.querySelector('#inbound');ta.value=${JSON.stringify(invalid)};document.querySelector('#reality-sni').value='new.example.test';document.querySelector('[data-apply-reality-sni]').click();[ta.value,document.querySelector('[data-reality-sni-status]').classList.contains('text-danger')]}`);
+          assert.deepEqual(result, [invalid, true]);
+        }
+        await click('/admin/a'); await ready('a');
       }
     });
     await t.test('登录失效跳转到登录页', async () => {
