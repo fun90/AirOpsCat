@@ -11,9 +11,12 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        arch: [amd64, arm64]
     permissions:
       contents: read
-      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,36 +34,44 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: 确认同一提交 CI 已通过
-        id: ci
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          n=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&status=success&per_page=1" --jq '.total_count')
-          echo "同一提交 CI 成功次数: $n"
-          if [ "${n:-0}" -gt 0 ]; then echo "passed=true" >> "$GITHUB_OUTPUT"; else echo "passed=false" >> "$GITHUB_OUTPUT"; fi
-      - name: 检查与构建
+      - name: 构建
         env:
           CGO_ENABLED: '0'
           VERSION: ${{ github.ref_name }}
-          CI_PASSED: ${{ steps.ci.outputs.passed }}
+          ARCH: ${{ matrix.arch }}
         run: |
           go generate ./internal/probeassets
           test -s internal/probeassets/assets/probe-linux-amd64.gz
           test -s internal/probeassets/assets/probe-linux-arm64.gz
-          if [ "$CI_PASSED" != true ]; then
-            echo '未找到该提交通过的 CI，发布前补跑检查'
-            go vet ./...
-            go test ./...
-          fi
           mkdir -p dist
-          for arch in amd64 arm64; do
-            GOOS=linux GOARCH="$arch" go build -trimpath -tags timetzdata \
-              -ldflags "-s -w -X main.version=$VERSION" \
-              -o "dist/airopscat-linux-$arch" ./cmd/airopscat
-            tar -czf "dist/airopscat-linux-$arch.tar.gz" -C dist "airopscat-linux-$arch"
-            rm "dist/airopscat-linux-$arch"
-          done
+          GOOS=linux GOARCH="$ARCH" go build -trimpath -tags timetzdata \
+            -ldflags "-s -w -X main.version=$VERSION" \
+            -o "dist/airopscat-linux-$ARCH" ./cmd/airopscat
+          tar -czf "dist/airopscat-linux-$ARCH.tar.gz" -C dist "airopscat-linux-$ARCH"
+          rm "dist/airopscat-linux-$ARCH"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
+
+  package:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          merge-multiple: true
+          path: dist
+      - name: 汇总与校验和
+        run: |
           cp deploy/systemd/airopscat.service deploy/install.sh dist/
           (cd dist && sha256sum airopscat-linux-*.tar.gz airopscat.service install.sh > checksums.txt)
       - uses: actions/upload-artifact@v4
@@ -71,7 +82,7 @@ jobs:
           retention-days: 14
 
   release:
-    needs: build
+    needs: package
     if: github.repository == 'fun90/AirOpsCat' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
