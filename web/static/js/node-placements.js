@@ -34,20 +34,33 @@ if (pane && dialog) {
         if (toggle) { toggle.hidden = false; }
     }
 
-    // 已有部署位的访问域名用 Tom Select：输入完整域名即可新增，按已知主域名拆成 new_name / new_domain_id 提交
+    // 已有部署位的访问域名用 Tom Select：输入完整域名即可新增，属于已登记主域名的拆成 new_name / new_domain_id 提交（新建 DNS 记录），
+    // 其他域名作为外部自定义访问域名以 custom_host 提交（DNS 由外部维护）
     const domains = Array.from(hostTpl.content.querySelectorAll('[data-new-domain] option'), (o) => ({ id: o.value, name: o.textContent.trim().toLowerCase() }));
     function splitHost(input) {
         const s = input.trim().toLowerCase().replace(/\.$/, '');
         const d = domains.filter((x) => s.endsWith('.' + x.name)).sort((a, b) => b.name.length - a.name.length)[0];
         return d && { name: s.slice(0, -d.name.length - 1), domain: d.id, full: s };
     }
+    // 与服务端 normalizeCustomHost 同口径：至少两级的合法域名，不是 IP
+    const hostRe = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
+    function customHost(input) {
+        const s = input.trim().toLowerCase().replace(/\.$/, '');
+        return hostRe.test(s) && !/^[\d.]+$/.test(s) && s.length <= 253 && !splitHost(s) ? s : '';
+    }
     function syncNewHost(card) {
         card.querySelectorAll('[data-new-host-field]').forEach((i) => i.remove());
         const ts = card.querySelector('select[name$="host"]')?.tomselect;
-        const h = ts && ts.getValue() === 'new' && splitHost(ts.options.new.text);
-        if (!h || staged(card)) { return; }
+        if (!ts || staged(card)) { return; }
         const k = 'p' + card.dataset.server + '_';
-        card.append(...[[k + 'new_name', h.name], [k + 'new_domain_id', h.domain]].map(([name, value]) => {
+        let fields = [];
+        if (ts.getValue() === 'new') {
+            const h = splitHost(ts.options.new.text);
+            if (h) { fields = [[k + 'new_name', h.name], [k + 'new_domain_id', h.domain]]; }
+        } else if (ts.getValue() === 'custom') {
+            fields = [[k + 'custom_host', ts.options.custom.text]];
+        }
+        card.append(...fields.map(([name, value]) => {
             const i = Object.assign(document.createElement('input'), { type: 'hidden', name, value });
             i.dataset.newHostField = '';
             return i;
@@ -59,16 +72,20 @@ if (pane && dialog) {
         const example = 'hk01.' + (domains[0]?.name || 'example.com');
         const ts = new TomSelect(sel, {
             maxOptions: null, allowEmptyOption: true,
-            createFilter: (input) => !!splitHost(input),
+            createFilter: (input) => !!(splitHost(input) || customHost(input)),
             create: (input) => {
                 const h = splitHost(input);
-                if (!h) { return false; }
-                if (ts.options.new) { ts.removeOption('new'); }
-                return { value: 'new', text: h.full };
+                const c = !h && customHost(input);
+                if (!h && !c) { return false; }
+                const value = h ? 'new' : 'custom';
+                if (ts.options[value]) { ts.removeOption(value); }
+                return { value, text: h ? h.full : c };
             },
             render: {
-                option_create: (data, escape) => '<div class="create">新增 <strong>' + escape(data.input) + '</strong></div>',
-                no_results: (data) => splitHost(data.input) ? null : '<div class="no-results">无匹配项，输入完整域名可新增，如 ' + example + '</div>',
+                option_create: (data, escape) => splitHost(data.input)
+                    ? '<div class="create">新增 <strong>' + escape(data.input) + '</strong></div>'
+                    : '<div class="create">使用外部域名 <strong>' + escape(data.input) + '</strong><div class="small text-secondary">不建 DNS 记录，需自行解析到该服务器</div></div>',
+                no_results: (data) => (splitHost(data.input) || customHost(data.input)) ? null : '<div class="no-results">无匹配项，输入完整域名可新增，如 ' + example + '</div>',
             },
             onChange: () => syncNewHost(card),
             // 输入时隐藏当前项，避免与输入框挤成两行

@@ -41,9 +41,9 @@ type subscriptionEntry struct {
 
 // SubscriptionNodes 连接参数来自成功部署快照；待部署（deployed=0）但已有快照的部署位仍在服务器上运行，照常输出，
 // 否则任一账户变更会让共享标签的所有账户订阅丢节点；待删除（deployed=2）不输出。
-// 名称及已同步域名按既有订阅契约实时读取。
+// 名称、外部自定义域名及已同步域名按既有订阅契约实时读取。
 func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *int) ([]map[string]any, error) {
-	rows, err := db.QueryContext(ctx, `SELECT DISTINCT n.id,n.name,ns.id,ns.priority,ns.exposed,d.snapshot_json,coalesce(r.full_name,''),coalesce(r.status,''),s.ip,s.id
+	rows, err := db.QueryContext(ctx, `SELECT DISTINCT n.id,n.name,ns.id,ns.priority,ns.exposed,d.snapshot_json,coalesce(r.full_name,''),coalesce(r.status,''),s.ip,s.id,trim(coalesce(ns.access_host_custom,''))
  FROM account_tag at JOIN node_tag nt ON nt.tag_id=at.tag_id JOIN node n ON n.id=nt.node_id
  JOIN node_server ns ON ns.node_id=n.id JOIN node_deployment d ON d.node_server_id=ns.id
  JOIN server s ON s.id=d.server_id LEFT JOIN domain_dns_record r ON r.id=ns.access_host_id
@@ -54,8 +54,8 @@ func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *in
 	var entries []*subscriptionEntry
 	for rows.Next() {
 		var e subscriptionEntry
-		var raw, domain, status, ip string
-		if err := rows.Scan(&e.nodeID, &e.name, &e.placementID, &e.priority, &e.exposed, &raw, &domain, &status, &ip, &e.serverID); err != nil {
+		var raw, domain, status, ip, custom string
+		if err := rows.Scan(&e.nodeID, &e.name, &e.placementID, &e.priority, &e.exposed, &raw, &domain, &status, &ip, &e.serverID, &custom); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -92,8 +92,11 @@ func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *in
 			// 客户端集合只用于过滤，不进入外部订阅字段。
 			delete(e.data, "clients")
 		}
+		// 连接地址：外部自定义域名（DNS 不归本系统管理）> 已同步访问域名 > 服务器 IP；账户订阅定制域名在后面覆盖
 		e.host = ip
-		if status == "SYNCED" && strings.TrimSpace(domain) != "" {
+		if custom != "" {
+			e.host = custom
+		} else if status == "SYNCED" && strings.TrimSpace(domain) != "" {
 			e.host = strings.TrimSpace(domain)
 		}
 		e.data["serverIp"] = ip

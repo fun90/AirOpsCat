@@ -181,6 +181,31 @@ func TestNodeFlows(t *testing.T) {
 	if fo != 0 {
 		t.Fatal("应已取消该部署位的切走")
 	}
+	// 外部自定义访问域名：host=custom 时取 custom_host 并规范化，编辑页回显为已选项；非法值回显错误
+	customForm := func(host, custom string) url.Values {
+		v := form("n1-1", "443")
+		v.Set("p1_exposed", "1")
+		v.Set("p1_host", host)
+		v.Set("p1_custom_host", custom)
+		return v
+	}
+	customHost := func() string {
+		var s string
+		a.DB.QueryRow(`SELECT coalesce(access_host_custom,'') FROM node_server WHERE node_id = 1`).Scan(&s)
+		return s
+	}
+	if w := post("/admin/nodes/1", customForm("custom", "Edge.Partner.Example")); w.Code != http.StatusSeeOther || customHost() != "edge.partner.example" {
+		t.Fatalf("应保存外部自定义域名: %d %q", w.Code, customHost())
+	}
+	if edit := do(h, "GET", "/admin/nodes/1/edit", nil, c, nil).Body.String(); !strings.Contains(edit, `<option value="custom" selected>edge.partner.example</option>`) || !strings.Contains(edit, `name="p1_custom_host" value="edge.partner.example"`) {
+		t.Fatal("编辑页应回显外部自定义域名")
+	}
+	if w := post("/admin/nodes/1", customForm("custom", "203.0.113.9")); w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), "不是合法域名") || customHost() != "edge.partner.example" {
+		t.Fatalf("非法自定义域名应拒绝并回显: %d", w.Code)
+	}
+	if w := post("/admin/nodes/1", customForm("", "edge.partner.example")); w.Code != http.StatusSeeOther || customHost() != "" {
+		t.Fatalf("未选 custom 时应清空自定义域名: %d %q", w.Code, customHost())
+	}
 	// 新增服务器不再自动关联，需在节点中手动添加部署位（不限地区）
 	post("/admin/servers", url.Values{"name": {"jp-2"}, "ip": {"2.2.2.2"}, "ssh_port": {"22"}, "auth_type": {"PASSWORD"}, "server_type": {"0"}, "multiple": {"1"}, "price_months": {"1"}, "region": {"JP"}})
 	var n int

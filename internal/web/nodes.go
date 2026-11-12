@@ -437,12 +437,15 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 			e := store.PlacementEdit{ServerID: p.ServerID, Exposed: r.PostFormValue(k+"exposed") == "1",
 				CheapStart: formValue(r, k+"cheap_start"), CheapEnd: formValue(r, k+"cheap_end")}
 			e.Priority, _ = strconv.Atoi(formValue(r, k+"priority"))
-			if h, err := strconv.ParseInt(formValue(r, k+"host"), 10, 64); err == nil {
+			// host=custom 表示外部自定义访问域名，取 custom_host；否则为 DNS 记录 ID 或空（服务器 IP）
+			if hv := formValue(r, k+"host"); hv == "custom" {
+				e.CustomHost = formValue(r, k+"custom_host")
+			} else if h, err := strconv.ParseInt(hv, 10, 64); err == nil {
 				e.AccessHostID = &h
 			}
 			edits = append(edits, e)
 			newHost(p.ServerID)
-			p.Priority, p.Exposed, p.CheapStart, p.CheapEnd, p.AccessHostID = e.Priority, e.Exposed, e.CheapStart, e.CheapEnd, e.AccessHostID
+			p.Priority, p.Exposed, p.CheapStart, p.CheapEnd, p.AccessHostID, p.CustomHost = e.Priority, e.Exposed, e.CheapStart, e.CheapEnd, e.AccessHostID, e.CustomHost
 			echo = append(echo, p)
 		}
 	}

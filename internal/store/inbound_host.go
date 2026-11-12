@@ -7,7 +7,7 @@ import (
 )
 
 // DefaultInboundHost 选择 Hysteria2/AnyTLS 默认入站的主机名。
-// 已有节点优先取生效部署位（不看地区）：已同步访问域名，否则服务器 IP；
+// 已有节点优先取生效部署位（不看地区）：外部自定义访问域名，其次已同步访问域名，否则服务器 IP；
 // 新建节点优先取表单中首个待添加部署位的服务器 IP（新部署位尚未绑定访问域名）；
 // 未选部署位或尚无部署位时按地区/类型匹配规则选首台服务器，与新建节点的初始部署位一致。
 func DefaultInboundHost(ctx context.Context, db *sql.DB, nodeID, serverID int64, region string, nodeType int) (string, error) {
@@ -32,7 +32,7 @@ func DefaultInboundHost(ctx context.Context, db *sql.DB, nodeID, serverID int64,
 			return "", sql.ErrNoRows
 		}
 		var host string
-		err = db.QueryRowContext(ctx, `SELECT CASE WHEN r.status='SYNCED' AND trim(coalesce(r.full_name,''))<>'' THEN trim(r.full_name) ELSE s.ip END
+		err = db.QueryRowContext(ctx, `SELECT CASE WHEN trim(coalesce(p.access_host_custom,''))<>'' THEN trim(p.access_host_custom) WHEN r.status='SYNCED' AND trim(coalesce(r.full_name,''))<>'' THEN trim(r.full_name) ELSE s.ip END
  FROM node_server p JOIN server s ON s.id=p.server_id LEFT JOIN domain_dns_record r ON r.id=p.access_host_id
  WHERE p.node_id=? AND p.deployed<>2 ORDER BY p.priority, p.id LIMIT 1`, nodeID).Scan(&host)
 		if err == nil {

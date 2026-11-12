@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net"
 	"regexp"
 	"slices"
 	"strings"
@@ -232,7 +233,7 @@ type ServerPlacement struct {
 
 // ServerPlacements 返回服务器上的全部部署位。
 func ServerPlacements(ctx context.Context, db *sql.DB, serverID int64) ([]ServerPlacement, error) {
-	rows, err := db.QueryContext(ctx, `SELECT ns.id, ns.node_id, coalesce(n.name,''), coalesce(r.full_name, r.name, ''), coalesce(ns.priority,0), ns.deployed, ns.failover,
+	rows, err := db.QueryContext(ctx, `SELECT ns.id, ns.node_id, coalesce(n.name,''), coalesce(nullif(ns.access_host_custom,''), r.full_name, r.name, ''), coalesce(ns.priority,0), ns.deployed, ns.failover,
 		ns.deployed = 1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id),
 		(SELECT count(*) FROM node_server o WHERE o.node_id = ns.node_id AND o.id <> ns.id AND o.deployed <> 2)
 		FROM node_server ns JOIN node n ON n.id = ns.node_id LEFT JOIN domain_dns_record r ON r.id = ns.access_host_id
@@ -252,13 +253,13 @@ func ServerPlacements(ctx context.Context, db *sql.DB, serverID int64) ([]Server
 	return list, rows.Err()
 }
 
-// IPOnlyPlacement 是订阅里直连服务器 IP 的部署位：DNS 切换改不到它，切走后客户端仍连原服务器。
+// IPOnlyPlacement 是订阅里直连服务器 IP 或外部自定义域名的部署位：DNS 切换改不到它，切走后客户端仍连原服务器。
 type IPOnlyPlacement struct {
 	ID, NodeID, ServerID int64
 	NodeName, Server     string
 }
 
-// IPOnlyPlacements 返回订阅会输出、但没有已同步访问域名的部署位，只统计节点还有其他部署位（可切走）的情况。
+// IPOnlyPlacements 返回订阅会输出、但没有已同步访问域名的部署位（外部自定义域名同样不受本系统切换），只统计节点还有其他部署位（可切走）的情况。
 // 口径与 SubscriptionNodes 一致：显示到订阅或被账户订阅定制选中，且已有部署快照。
 // 被账户订阅定制选中的部署位，若该绑定带已同步的订阅域名，则该账户按域名连接，不算直连 IP。
 func IPOnlyPlacements(ctx context.Context, db *sql.DB) ([]IPOnlyPlacement, error) {
@@ -408,6 +409,7 @@ type Placement struct {
 	ServerExternal bool
 	Disabled       bool // 服务器已禁用
 	AccessHostID   *int64
+	CustomHost     string // 外部自定义访问域名，与 AccessHostID 互斥
 	Exposed        bool
 	Priority       int
 	Deployed       int
@@ -444,13 +446,14 @@ type PlacementEdit struct {
 	CheapStart   string
 	CheapEnd     string
 	AccessHostID *int64
+	CustomHost   string // 非空时使用外部自定义访问域名，忽略 AccessHostID
 }
 
 var hhmm = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 
 // Placements 返回节点的全部部署位。
 func Placements(ctx context.Context, q dbtx, nodeID int64) ([]*Placement, error) {
-	rows, err := q.QueryContext(ctx, `SELECT ns.id, ns.node_id, ns.server_id, coalesce(s.name,''), s.ip, coalesce(s.region,''), coalesce(s.server_type,0), s.external_server, s.disabled, ns.access_host_id,
+	rows, err := q.QueryContext(ctx, `SELECT ns.id, ns.node_id, ns.server_id, coalesce(s.name,''), s.ip, coalesce(s.region,''), coalesce(s.server_type,0), s.external_server, s.disabled, ns.access_host_id, coalesce(ns.access_host_custom,''),
 		coalesce(ns.exposed,1) <> 0, coalesce(ns.priority,0), ns.deployed,
 		ns.deployed = 1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id), coalesce(ns.cheap_start,''), coalesce(ns.cheap_end,''), ns.failover
 		FROM node_server ns JOIN server s ON s.id = ns.server_id WHERE ns.node_id = ? ORDER BY ns.priority, ns.id`, nodeID)
@@ -462,7 +465,7 @@ func Placements(ctx context.Context, q dbtx, nodeID int64) ([]*Placement, error)
 	for rows.Next() {
 		var p Placement
 		var host sql.NullInt64
-		if err := rows.Scan(&p.ID, &p.NodeID, &p.ServerID, &p.ServerName, &p.ServerIP, &p.ServerRegion, &p.ServerType, &p.ServerExternal, &p.Disabled, &host, &p.Exposed, &p.Priority,
+		if err := rows.Scan(&p.ID, &p.NodeID, &p.ServerID, &p.ServerName, &p.ServerIP, &p.ServerRegion, &p.ServerType, &p.ServerExternal, &p.Disabled, &host, &p.CustomHost, &p.Exposed, &p.Priority,
 			&p.Deployed, &p.Running, &p.CheapStart, &p.CheapEnd, &p.Failover); err != nil {
 			return nil, err
 		}
@@ -506,6 +509,13 @@ func applyPlacementEdits(ctx context.Context, q dbtx, n *Node, edits []Placement
 				return invalid("便宜时段起止需为不同的 HH:mm")
 			}
 		}
+		custom, err := normalizeCustomHost(e.CustomHost)
+		if err != nil {
+			return err
+		}
+		if custom != "" {
+			e.AccessHostID = nil
+		}
 		if e.AccessHostID != nil {
 			var n int
 			q.QueryRowContext(ctx, `SELECT count(*) FROM domain_dns_record WHERE id = ? AND server_id = ?`, *e.AccessHostID, e.ServerID).Scan(&n)
@@ -514,12 +524,24 @@ func applyPlacementEdits(ctx context.Context, q dbtx, n *Node, edits []Placement
 			}
 		}
 		exposed := e.Exposed && n.Type != NodeLanding // 落地节点不进订阅
-		if _, err := q.ExecContext(ctx, `UPDATE node_server SET priority=?, exposed=?, cheap_start=?, cheap_end=?, access_host_id=?, update_time=?
-			WHERE node_id=? AND server_id=? AND deployed <> 2`, e.Priority, exposed, nz(start), nz(end), e.AccessHostID, FormatTime(nowFunc()), n.ID, e.ServerID); err != nil {
+		if _, err := q.ExecContext(ctx, `UPDATE node_server SET priority=?, exposed=?, cheap_start=?, cheap_end=?, access_host_id=?, access_host_custom=?, update_time=?
+			WHERE node_id=? AND server_id=? AND deployed <> 2`, e.Priority, exposed, nz(start), nz(end), e.AccessHostID, nz(custom), FormatTime(nowFunc()), n.ID, e.ServerID); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// normalizeCustomHost 规范化外部自定义访问域名：小写、去末尾点；必须是至少两级的合法域名，不接受 IP 和通配符。空串表示不使用。
+func normalizeCustomHost(s string) (string, error) {
+	s = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(s)), ".")
+	if s == "" {
+		return "", nil
+	}
+	if net.ParseIP(s) != nil || len(s) > 253 || !strings.Contains(s, ".") || !subdomainRe.MatchString(s) {
+		return "", invalid("自定义访问域名 %s 不是合法域名（只能包含小写字母、数字、连字符和点，不能是 IP）", s)
+	}
+	return s, nil
 }
 
 // applyNewHosts 新建访问域名并替换部署位当前的访问域名；DNS 推送由调用方在提交后处理。
@@ -537,7 +559,7 @@ func applyNewHosts(ctx context.Context, tx *sql.Tx, nodeID int64, hosts []*NewHo
 		if err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE node_server SET access_host_id = ?, update_time = ? WHERE node_id = ? AND server_id = ? AND deployed <> 2`,
+		if _, err := tx.ExecContext(ctx, `UPDATE node_server SET access_host_id = ?, access_host_custom = NULL, update_time = ? WHERE node_id = ? AND server_id = ? AND deployed <> 2`,
 			id, FormatTime(nowFunc()), nodeID, h.ServerID); err != nil {
 			return err
 		}

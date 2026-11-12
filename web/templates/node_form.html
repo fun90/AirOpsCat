@@ -85,9 +85,10 @@
                             <label class="input-group-text" for="{{$k}}host" title="访问域名"><i class="ti ti-world" aria-hidden="true"></i><span class="visually-hidden">访问域名</span></label>
                             <select class="form-select" id="{{$k}}host" name="{{$k}}host">
                                 <option value="">使用服务器 IP</option>
-                                {{$ph := .AccessHostID}}
-                                {{range index $.Hosts .ServerID}}<option value="{{.ID}}"{{if $ph}}{{if eq .ID (deref $ph)}} selected{{end}}{{end}}>{{.FullName}}</option>{{end}}
-                            </select></div>
+                                {{$ph := .AccessHostID}}{{$custom := .CustomHost}}
+                                {{range index $.Hosts .ServerID}}<option value="{{.ID}}"{{if not $custom}}{{if $ph}}{{if eq .ID (deref $ph)}} selected{{end}}{{end}}{{end}}>{{.FullName}}</option>{{end}}
+                                {{with $custom}}<option value="custom" selected>{{.}}</option>{{end}}
+                            </select></div>{{with $custom}}<input type="hidden" name="{{$k}}custom_host" value="{{.}}" data-new-host-field>{{end}}
                         <div class="input-group flex-nowrap placement-prio">
                             <label class="input-group-text" for="{{$k}}priority" title="优先级"><i class="ti ti-sort-ascending-numbers" aria-hidden="true"></i><span class="visually-hidden">优先级</span></label>
                             <input type="number" class="form-control" id="{{$k}}priority" name="{{$k}}priority" value="{{.Priority}}"></div>
