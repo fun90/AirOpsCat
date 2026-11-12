@@ -84,7 +84,8 @@ proxies:
     reality-opts:
       public-key: {{text $node.inbound.streamSettings.realitySettings.publicKey}}
       short-id: {{text (index $node.inbound.streamSettings.realitySettings.shortIds 0)}}
-{{end}}{{else}}    skip-cert-verify: true
+{{end}}{{else}}{{if (ne (text $node.sni) (text $node.serverHost))}}    servername: {{text $node.sni}}
+{{end}}    skip-cert-verify: true
 {{end}}    client-fingerprint: chrome
 {{end}}{{if (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box"))}}  - name: {{text $node.name}}
     type: hysteria2

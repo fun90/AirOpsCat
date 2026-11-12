@@ -29,7 +29,9 @@ func fixture(scenario string) map[string]any {
 	}
 	nodes := []map[string]any{a}
 	if scenario == "multi" || scenario == "dns" {
-		nodes = append(nodes, node("hysteria2", "新加坡-2"), node("vless", "美国-3"))
+		plain := node("vless", "美国-3")
+		plain["sni"] = "example.com" // 真实数据中域名访问时 SNI 等于访问地址，金样据此生成
+		nodes = append(nodes, node("hysteria2", "新加坡-2"), plain)
 	}
 	data := map[string]any{"nodes": nodes, "account": map[string]any{"uuid": "account-uuid", "authCode": "test-auth"}, "subscriptionUrl": "https://example.com/subscribe", "timestamp": 123456789, "osName": "ios", "appName": "test"}
 	if scenario == "dns" {
@@ -359,4 +361,32 @@ var quteGolden = map[string]string{
 	"special/shadowrocket.conf":       "3ce5f3fcc9da9b39bb387d10d7f2c783968f497d8bb395b38eaf05ee8751b8df",
 	"special/sing-box.json":           "0884cd0a0dd4de02ac282754fbae24aa30c870ee44b2dffc6db582f7e27f2edd",
 	"special/stash.yaml":              "f73c7c27035bd44e2ad38face415509e08fdea41f9d6488a0beb2de133e8cdea",
+}
+
+// 普通 vless 的 SNI 取节点 sni 字段，可与访问地址不同。
+func TestVlessSNIDiffersFromServerHost(t *testing.T) {
+	data := fixture("multi")
+	nodes := data["nodes"].([]map[string]any)
+	nodes[2]["serverHost"] = "ccn.example.com"
+	nodes[2]["sni"] = "cert.example.net"
+	for path, want := range map[string]string{
+		"sing-box.json":           `"server_name": "cert.example.net"`,
+		"clash-meta.yaml":         "servername: cert.example.net",
+		"clash-meta2.yaml":        "servername: cert.example.net",
+		"clash-mi.yaml":           "servername: cert.example.net",
+		"clash-verge.yaml":        "servername: cert.example.net",
+		"clash-verge-mrs.yaml":    "servername: cert.example.net",
+		"stash.yaml":              "servername: cert.example.net",
+		"shadowrocket.conf":       "sni=cert.example.net",
+		"nodes/shadowrocket.html": "sni=cert.example.net",
+		"nodes/loon.html":         "sni=cert.example.net",
+	} {
+		out, err := Render(Templates, path, data)
+		if err != nil {
+			t.Fatal(path, err)
+		}
+		if !strings.Contains(string(out), want) {
+			t.Errorf("%s 缺少 %q", path, want)
+		}
+	}
 }

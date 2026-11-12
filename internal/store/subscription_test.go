@@ -166,3 +166,18 @@ func TestSubscriptionSNI(t *testing.T) {
 		t.Fatal("没有任何域名时退回访问地址", got)
 	}
 }
+
+// 普通 vless 的入站 tls.server_name 是域名时优先作为 SNI；其他协议不受影响。
+func TestSubscriptionSNIVlessExplicit(t *testing.T) {
+	inbound := map[string]any{"tls": map[string]any{"server_name": "cert.example.test"}}
+	snap := func(proto string) map[string]any { return map[string]any{"protocol": proto, "inbound": inbound} }
+	if got := subscriptionSNI("edge.example.test", "", snap("vless")); got != "cert.example.test" {
+		t.Fatal("vless 应使用入站 server_name", got)
+	}
+	if got := subscriptionSNI("edge.example.test", "", snap("hysteria2")); got != "edge.example.test" {
+		t.Fatal("其他协议仍用访问域名", got)
+	}
+	if got := subscriptionSNI("edge.example.test", "", map[string]any{"protocol": "vless", "inbound": map[string]any{}}); got != "edge.example.test" {
+		t.Fatal("未指定时保持原行为", got)
+	}
+}

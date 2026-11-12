@@ -229,9 +229,18 @@ func serverCertHosts(ctx context.Context, db *sql.DB) (map[int64]string, error) 
 
 func isDomainName(host string) bool { return host != "" && net.ParseIP(host) == nil }
 
-// subscriptionSNI 是 TLS 类协议（Hysteria2、AnyTLS）的客户端 SNI，不依赖入站 server_name（服务端不使用该字段）：
+// subscriptionSNI 是 TLS 类协议的客户端 SNI。普通 vless 若入站 tls.server_name 是域名则优先用它；其余协议不依赖该字段（服务端不使用）：
 // 访问地址是域名时用它（DNS 指向本服务器）；否则用服务器证书域名；都没有时兼容旧快照的入站值，最后退回访问地址。
 func subscriptionSNI(host, certHost string, snapshot map[string]any) string {
+	if p, _ := snapshot["protocol"].(string); p == "vless" {
+		// 普通 vless 允许在入站 tls.server_name 显式指定 SNI（与访问地址、证书域名不同时使用）。
+		inbound, _ := snapshot["inbound"].(map[string]any)
+		if tls, ok := inbound["tls"].(map[string]any); ok {
+			if name, _ := tls["server_name"].(string); isDomainName(strings.TrimSpace(name)) {
+				return strings.TrimSpace(name)
+			}
+		}
+	}
 	if isDomainName(host) {
 		return host
 	}

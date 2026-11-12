@@ -210,7 +210,7 @@
           "public_key": "{{text $node.inbound.streamSettings.realitySettings.publicKey}}",
           "short_id": "{{text (index $node.inbound.streamSettings.realitySettings.shortIds 0)}}"
         },
-{{end}}{{else}}        "server_name": "{{text $node.serverHost}}",
+{{end}}{{else}}        "server_name": "{{text $node.sni}}",
 {{end}}        "utls": {
           "enabled": true,
           "fingerprint": "chrome"
