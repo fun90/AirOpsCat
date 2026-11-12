@@ -11,6 +11,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,16 +31,28 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: 确认同一提交 CI 已通过
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&status=success&per_page=1" --jq '.total_count')
+          echo "同一提交 CI 成功次数: $n"
+          if [ "${n:-0}" -gt 0 ]; then echo "passed=true" >> "$GITHUB_OUTPUT"; else echo "passed=false" >> "$GITHUB_OUTPUT"; fi
       - name: 检查与构建
         env:
           CGO_ENABLED: '0'
           VERSION: ${{ github.ref_name }}
+          CI_PASSED: ${{ steps.ci.outputs.passed }}
         run: |
           go generate ./internal/probeassets
           test -s internal/probeassets/assets/probe-linux-amd64.gz
           test -s internal/probeassets/assets/probe-linux-arm64.gz
-          go vet ./...
-          go test ./...
+          if [ "$CI_PASSED" != true ]; then
+            echo '未找到该提交通过的 CI，发布前补跑检查'
+            go vet ./...
+            go test ./...
+          fi
           mkdir -p dist
           for arch in amd64 arm64; do
             GOOS=linux GOARCH="$arch" go build -trimpath -tags timetzdata \
