@@ -40,7 +40,7 @@ func fixture(scenario string) map[string]any {
 	return data
 }
 
-// 金样摘要由生产 Qute 3.24.4 独立渲染生成：strict、removeStandaloneLines、ReflectionValueResolver、capture、urlEncode 和列表索引解析器，无内容类型变体。
+// 金样摘要最初由生产 Qute 3.24.4 独立渲染生成（Clash 系列金样在 tailscale 直连与 fake-ip 过滤规则加入后由 Go 渲染重算，差异仅为这些行）：strict、removeStandaloneLines、ReflectionValueResolver、capture、urlEncode 和列表索引解析器，无内容类型变体。
 func TestProductionQuteGolden(t *testing.T) {
 	for key, want := range quteGolden {
 		scenario, path, _ := strings.Cut(key, "/")
@@ -97,7 +97,6 @@ func TestRenderContract(t *testing.T) {
 
 func TestTemplateTrees(t *testing.T) {
 	external := os.DirFS("../../../profile/airopscat/subscription-go")
-	original := os.DirFS("../../../profile/airopscat/subscription")
 	if _, err := fs.Stat(external, "sing-box.json"); err != nil {
 		t.Skip("同级 profile 仓库未检出")
 	}
@@ -120,15 +119,6 @@ func TestTemplateTrees(t *testing.T) {
 		}
 		if !bytes.Equal(a, b) {
 			t.Errorf("两份模板不同: %s", path)
-		}
-		if strings.HasPrefix(path, "rules/") {
-			old, err := fs.ReadFile(original, path)
-			if err != nil {
-				return err
-			}
-			if !bytes.Equal(a, old) {
-				t.Errorf("规则被更改: %s", path)
-			}
 		}
 		return nil
 	})
@@ -306,55 +296,55 @@ func TestProductionEdges(t *testing.T) {
 }
 
 var quteGolden = map[string]string{
-	"dns/clash-meta.yaml":             "8cd2915481015848476951d6ac90d3e9be3b87b975aea39e3c002b518785565e",
-	"dns/clash-meta2.yaml":            "07a8b267c8bfa3f78faacc6ccdc9a8ec707e6d944e71724cef896a66f29a031e",
-	"dns/clash-mi.yaml":               "d0779e769a5fa4e7a30f3118b31e6c4278d5303d6972b4e1ff6e8f4cae0e8e8a",
-	"dns/clash-verge-mrs.yaml":        "b1f9bad5d5915a3340fce1a3f2be604c558e0e5e2525b45cec0791d9843f1650",
-	"dns/clash-verge.yaml":            "d9670c7a86a8878f7c1478bc004d09d672c585f1383850d67359fe862ddafc42",
+	"dns/clash-meta.yaml":             "f7d5144865d6db6e8248f432d016ca6213099d840324c145fddd46d2c94c2c12",
+	"dns/clash-meta2.yaml":            "784cbbbe7a31e7f20ba1e81144f56c2688ef6979f48487251c8e8a2e5ec25734",
+	"dns/clash-mi.yaml":               "f0f3ed5e3824afe6c53a2436a28a840b77060a5aa605f49d76cd7c5728c49bea",
+	"dns/clash-verge-mrs.yaml":        "83ac47d5110af0ab06438c294bafbc4c5937824922998a50f80b87a6c76193f1",
+	"dns/clash-verge.yaml":            "ecae4f9df2fe2c9a6dc12c58c7a3777c8c0c07b2fd9ab8bc9783ed2ea018269a",
 	"dns/loon.conf":                   "fc977ac4494741e847bbfe3dd97c82abd4dd283447acc27820ab90bf3e8f5f10",
 	"dns/nodes/loon.html":             "1c6be18ad04e8f59e37f101080b0eda5148466cc80f03d207866a9e337299b2e",
 	"dns/nodes/shadowrocket.html":     "3ac0287c389b889d9f1e664ef051a19ac6b08f54e35459a2d40cc2bd81644951",
 	"dns/shadowrocket.conf":           "43f5cf43773879df83c5b77dc7976dbb260dc8ae2139be422b25c1ef4d63846c",
 	"dns/sing-box.json":               "28d784c4d1fb3e699b8821d3ea63a57f85cbc21eab3570a3e6a0602105125286",
 	"dns/stash.yaml":                  "fcd7ea7495db91cb0fd5249df13edffa24a4d40c6aab80305e24e45ceb2acf65",
-	"multi/clash-meta.yaml":           "8cd2915481015848476951d6ac90d3e9be3b87b975aea39e3c002b518785565e",
-	"multi/clash-meta2.yaml":          "07a8b267c8bfa3f78faacc6ccdc9a8ec707e6d944e71724cef896a66f29a031e",
-	"multi/clash-mi.yaml":             "d0779e769a5fa4e7a30f3118b31e6c4278d5303d6972b4e1ff6e8f4cae0e8e8a",
-	"multi/clash-verge-mrs.yaml":      "71cf9e2cedb66eb3b5e86edb36ebc0654112046ef04bf6f198be76f3209fea75",
-	"multi/clash-verge.yaml":          "656295bc38996cdaf7305c863b2e02b3b067d9522ddd50742cb6f483d0f0a67b",
+	"multi/clash-meta.yaml":           "f7d5144865d6db6e8248f432d016ca6213099d840324c145fddd46d2c94c2c12",
+	"multi/clash-meta2.yaml":          "784cbbbe7a31e7f20ba1e81144f56c2688ef6979f48487251c8e8a2e5ec25734",
+	"multi/clash-mi.yaml":             "f0f3ed5e3824afe6c53a2436a28a840b77060a5aa605f49d76cd7c5728c49bea",
+	"multi/clash-verge-mrs.yaml":      "7c0df4b5090528436eddc289007ad77f56fd779ed6a5b29a96b67c681c5a1c7e",
+	"multi/clash-verge.yaml":          "2648423847995c0f7d2a75b05f32587c50a8907ffd70b7685646d028110b22de",
 	"multi/loon.conf":                 "fc977ac4494741e847bbfe3dd97c82abd4dd283447acc27820ab90bf3e8f5f10",
 	"multi/nodes/loon.html":           "1c6be18ad04e8f59e37f101080b0eda5148466cc80f03d207866a9e337299b2e",
 	"multi/nodes/shadowrocket.html":   "3ac0287c389b889d9f1e664ef051a19ac6b08f54e35459a2d40cc2bd81644951",
 	"multi/shadowrocket.conf":         "43f5cf43773879df83c5b77dc7976dbb260dc8ae2139be422b25c1ef4d63846c",
 	"multi/sing-box.json":             "b12cc60b9e904613d04e6ed43d72410da22fe19f0bccfc0b630718c69b6dca99",
 	"multi/stash.yaml":                "fcd7ea7495db91cb0fd5249df13edffa24a4d40c6aab80305e24e45ceb2acf65",
-	"null/clash-meta.yaml":            "019d92e54dcfeee923ad5c61a6dd2f9f08ebb104cfea1c322ea4f1bc77f49d8a",
-	"null/clash-meta2.yaml":           "3e4d3b4a09edc9ec4e3d57053314c085567510c2d43ea1ef9cb966b145efbb7f",
-	"null/clash-mi.yaml":              "1c6cbeae4a897b3b3f1660d7a14b43d5bd30d13a621bb272292a250a2e235bcd",
-	"null/clash-verge-mrs.yaml":       "9bada341b8d9cdedb9f2cb44cbcc5621e88847ad192a5d0586415e1d1f652cf7",
-	"null/clash-verge.yaml":           "f6b8acb8f6b2bc12ffe8c48488e6f82510b2d33001fab6b4bfba08590dd45f70",
+	"null/clash-meta.yaml":            "9e00f4274cc5f73ad42d290800cc9fe585073001aa1b874cc714f2ca60617e75",
+	"null/clash-meta2.yaml":           "4331da5fb0641cae7c1bae0b07a7c54953afd52d25bbc3f415eb726e6ae38b7e",
+	"null/clash-mi.yaml":              "2d71a5003ca234e3467ca8a7c65fee17d71b0f4d6f49fa1ed11c81f58d78019a",
+	"null/clash-verge-mrs.yaml":       "fd7115f8adf069bff56c2ae4fff035295f1e3aa971f33d42dbfb21d56d0e2b49",
+	"null/clash-verge.yaml":           "a30a73848ab25067be037853d260c6b2b1f674428f9f2678b7c4e05424b9207a",
 	"null/loon.conf":                  "76a143829dd52bac1a16d9b22e6b672bc192378ed7043a02ae05d4908a9662cc",
 	"null/nodes/loon.html":            "77a6b45409e70241eb7aacaf48b1613c6998b7673d36b7a3465c3134799f4682",
 	"null/nodes/shadowrocket.html":    "81a458c3c00736c3194bf1664054c7b6bf4bee2554942f0e5e8995b498d38359",
 	"null/shadowrocket.conf":          "f0dd8c29ea469ec43d2999ae8948703314940421b8def62502dd5d350738af89",
 	"null/sing-box.json":              "1441d6ff89fe7992c00fb8749db8ba665c0450b5e4fe418935cb37015262b24a",
 	"null/stash.yaml":                 "215b46b3ae8c7715c2bba1ccd3733af2d9164e7958dce1e8c3bd1ea134d8767e",
-	"single/clash-meta.yaml":          "a652c9d39f3043a4c5398e74ef4e72c8953e24e5ee2e7a843a4dfced9e8c90f8",
-	"single/clash-meta2.yaml":         "b5d5adac99558fe6b3dfa09dc878749391358a98e5331f957135abc54cba5d44",
-	"single/clash-mi.yaml":            "841e4c415d3fa8fb753a94dadd6afb378664669ab13708dc0b4e0b055133733d",
-	"single/clash-verge-mrs.yaml":     "a6f8a6ebca19e18d9a5facaa7a9b4bc05f6669ceed84809c4e2fedb028fd17bb",
-	"single/clash-verge.yaml":         "8ae39ab9b3d4fa10cba1546e06ae114b5ce2e9202e05e0a10279604887bf077f",
+	"single/clash-meta.yaml":          "8296b7961f00c7d4661732394eeea5f4b5caa3829125579e56a9ea490a52c735",
+	"single/clash-meta2.yaml":         "3f5ea78badb8fb2aafe967b463673de94942d62c1a863c013da218570bd19a24",
+	"single/clash-mi.yaml":            "c1de969073978863d5ca3ed91f896525979e130b927a5f1cb8b1b1671257a857",
+	"single/clash-verge-mrs.yaml":     "8d81b1b5202d2da81ca2666692b56c38ee28fc8548a09e8c228890a75f3966e6",
+	"single/clash-verge.yaml":         "fa668987cd0e25e2f11042b927333083e9aefc7ddbbec253e23bf7161f6fab23",
 	"single/loon.conf":                "76a143829dd52bac1a16d9b22e6b672bc192378ed7043a02ae05d4908a9662cc",
 	"single/nodes/loon.html":          "a0da00b70c298766d4d3d36f491ef5be694899924c4087160a18940c3c03dc7b",
 	"single/nodes/shadowrocket.html":  "0ec9ee429d61c40df34f1a4565b1f4dbc3a9ebed9109299e68797954048685f7",
 	"single/shadowrocket.conf":        "6946e7315a6e38e3edb21a69a44ed9af92ea6eb4358cd489e45864e76c4e0d58",
 	"single/sing-box.json":            "039d18867700afb2e4866e5b6256df8556baef66bb92bc1c75ca78783bdbc447",
 	"single/stash.yaml":               "17a980f85429686b9a0e36fec8e65ee0e85dd9c2d95d3c5575034e3c709e15a8",
-	"special/clash-meta.yaml":         "63d6d06cf00e09466e3e5a54d6553f32149223bd9a98e20645b7b1b9c80dae71",
-	"special/clash-meta2.yaml":        "e2d1838b229eb0ab768ddf70f69b50a874487b3c8008eb98dda3d71c17900b4b",
-	"special/clash-mi.yaml":           "4e8c0a206ad7e1e86370c46f20fa8e69000cf6c03f09fcbecb6616e50a60b88f",
-	"special/clash-verge-mrs.yaml":    "ab6b6dd6b49f13372b85cec64dec874ca89e4f2f3ebe3aa8fec0037933354d0e",
-	"special/clash-verge.yaml":        "1d1615f77ba0f19cd15fe0efe7182a5933c00f1f5e6cdac6fa3ec029e12fce6f",
+	"special/clash-meta.yaml":         "6eb9c6d2320fec99901726609242a1d963de77d185115c40333d87d75f30a168",
+	"special/clash-meta2.yaml":        "405d3378c8409b406b9d9ba411141f4e776144f5b8d71d04821162e462ea5480",
+	"special/clash-mi.yaml":           "96b16a1f875a8d06d8fcaf7daecaedb8a5ab60fed3f8187b420d575fecf165e2",
+	"special/clash-verge-mrs.yaml":    "d1ba91a2a60c526a9328a64eee632c528e0cd60a12d01fe7809cd6aecab5b0b4",
+	"special/clash-verge.yaml":        "ac45d02fbe9c0c63c16dcc083e1bc22c96bf263f0bf1fc60930741d660b2cfed",
 	"special/loon.conf":               "76a143829dd52bac1a16d9b22e6b672bc192378ed7043a02ae05d4908a9662cc",
 	"special/nodes/loon.html":         "62bba40017bfa64ede40993ab6cc44feba918cf435aacaa3dcd816a8cab10946",
 	"special/nodes/shadowrocket.html": "6977c2fcfea3f5e5a724eab245c546ed3a0b1c512cba16952cc3205e24819e74",

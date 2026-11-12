@@ -1,3 +1,4 @@
 payload:
   #放一个内容防止报错
   - www.google.com
+  - +.zozo.jp

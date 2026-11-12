@@ -6,8 +6,8 @@ payload:
   - DOMAIN,download.jetbrains.com
   - DOMAIN-SUFFIX,fun90.com
   - DOMAIN-SUFFIX,jetbrains-ls.org
+  - PROCESS-NAME,tailscaled
   - PROCESS-NAME,CorelDRW,DIRECT
-  - DOMAIN-SUFFIX,zozo.jp
   - DOMAIN-SUFFIX,hsbc.com
   - DOMAIN-SUFFIX,hsbc.com.cn
   - DOMAIN-SUFFIX,hsbc.com.hk

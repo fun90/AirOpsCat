@@ -12,7 +12,6 @@
       "domain_suffix": [
         "fun90.com",
         "jetbrains-ls.org",
-        "zozo.jp",
         "hsbc.com",
         "hsbc.com.cn",
         "hsbc.com.hk",
@@ -26,7 +25,8 @@
     },
     {
       "process_name": [
-        "CorelDRW"
+        "CorelDRW",
+        "tailscaled"
       ]
     }
   ]

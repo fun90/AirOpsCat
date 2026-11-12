@@ -44,6 +44,9 @@ dns:
     - "xbox.*.microsoft.com"
     - "*.xboxlive.com"
     - "*.fun90.com"
+    - "+.tailscale.com"
+    - "+.tailscale.io"
+    - "+.ts.net"
   nameserver:
     - tls://223.5.5.5:853
     - tls://223.6.6.6:853
