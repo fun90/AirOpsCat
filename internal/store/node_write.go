@@ -269,12 +269,12 @@ func SaveNode(ctx context.Context, db *sql.DB, n *Node, tagIDs []int64, edits []
 		} else if other != "" {
 			return 0, fmt.Errorf("%w：端口 %d 在服务器 %s 上已被节点 %s 占用", ErrConflict, n.Port, p.ServerName, other)
 		}
-		if !serverTypeAllowed(n.Type, p.ServerType, p.ServerExternal) {
+		if !serverTypeAllowed(n.Type, p.ServerType) {
 			badType = append(badType, p.ServerName)
 		}
 	}
 	if len(badType) > 0 {
-		return 0, invalid("代理节点只能部署在非外部的代理服务器上，请先删除部署位：%s", strings.Join(badType, "、"))
+		return 0, invalid("代理节点不能部署在落地服务器上，请先删除部署位：%s", strings.Join(badType, "、"))
 	}
 	if n.signature(tagIDs) != oldSig {
 		if err := markPending(ctx, tx, n.ID); err != nil {

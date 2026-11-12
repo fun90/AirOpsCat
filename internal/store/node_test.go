@@ -66,7 +66,22 @@ func TestInitialPlacementRules(t *testing.T) {
 	}
 	pm := placementsOf(t, db, pid)
 	if len(pm) != 1 || pm["hk-proxy"] == nil || !pm["hk-proxy"].Exposed || pm["hk-proxy"].Priority != 1 || pm["hk-proxy"].Deployed != PendingDeploy {
-		t.Fatalf("代理节点应只落在启用的非外部代理服务器: %+v", pm)
+		t.Fatalf("代理节点应只自动落在启用的非外部代理服务器: %+v", pm)
+	}
+
+	// 外部服务器可手动承载代理节点；落地服务器仍拒绝
+	var ext, land int64
+	db.QueryRow(`SELECT id FROM server WHERE name='hk-ext'`).Scan(&ext)
+	db.QueryRow(`SELECT id FROM server WHERE name='hk-land'`).Scan(&land)
+	mid, err := SaveNode(ctx, db, newNode("m", "JP", NodeProxy, 444), nil, nil, PlacementOps{AddServerIDs: []int64{ext}})
+	if err != nil {
+		t.Fatal("代理节点应可手动添加外部服务器", err)
+	}
+	if mm := placementsOf(t, db, mid); len(mm) != 1 || mm["hk-ext"] == nil || !mm["hk-ext"].Exposed {
+		t.Fatalf("外部服务器部署位应进订阅: %+v", mm)
+	}
+	if _, err := SaveNode(ctx, db, newNode("x", "JP", NodeProxy, 445), nil, nil, PlacementOps{AddServerIDs: []int64{land}}); !errors.Is(err, ErrInvalid) {
+		t.Fatal("代理节点不能添加落地服务器", err)
 	}
 
 	lid, err := SaveNode(ctx, db, newNode("l", "HK", NodeLanding, 8388), nil, nil)

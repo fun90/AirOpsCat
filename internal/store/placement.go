@@ -9,19 +9,25 @@ import (
 	"strings"
 )
 
-// serverMatches 判断服务器是否适合承载节点（不看服务器是否禁用）：
-// 节点地区非空且与服务器地区区分大小写相等；代理节点只能落在非外部的代理服务器，落地节点可落在任何服务器。
+// serverMatches 判断新建节点按地区自动匹配的服务器（不看服务器是否禁用）：
+// 节点地区非空且与服务器地区区分大小写相等；代理节点只自动落在非外部的代理服务器，落地节点可落在任何服务器。
 func serverMatches(nodeRegion string, nodeType int, srvRegion sql.NullString, srvType int, srvExternal bool) bool {
 	nr := strings.TrimSpace(nodeRegion)
 	if nr == "" || !srvRegion.Valid || strings.TrimSpace(srvRegion.String) != nr {
 		return false
 	}
-	return serverTypeAllowed(nodeType, srvType, srvExternal)
+	return autoPlaceAllowed(nodeType, srvType, srvExternal)
 }
 
-// serverTypeAllowed 是手动添加也必须遵守的类型规则：代理节点只能落在非外部的代理服务器。
-func serverTypeAllowed(nodeType, srvType int, srvExternal bool) bool {
-	return nodeType == NodeLanding || (!srvExternal && srvType != NodeLanding)
+// autoPlaceAllowed 是自动匹配的类型规则：在手动规则基础上，代理节点跳过外部服务器（外部服务器须手动添加）。
+func autoPlaceAllowed(nodeType, srvType int, srvExternal bool) bool {
+	return serverTypeAllowed(nodeType, srvType) && (nodeType == NodeLanding || !srvExternal)
+}
+
+// serverTypeAllowed 是手动添加也必须遵守的类型规则：代理节点不能落在落地服务器。
+// 外部服务器可以手动承载代理节点：部署只生成配置不连接，由外部自行运行。
+func serverTypeAllowed(nodeType, srvType int) bool {
+	return nodeType == NodeLanding || srvType != NodeLanding
 }
 
 type serverRow struct {
@@ -109,7 +115,7 @@ func insertPlacement(ctx context.Context, q dbtx, n *Node, serverID int64, prior
 	return err
 }
 
-// PlacementServerOption 是节点可手动添加部署位的服务器，不限地区。ProxyOK 表示可承载代理节点。
+// PlacementServerOption 是节点可手动添加部署位的服务器，不限地区。ProxyOK 表示新建代理节点时可按地区自动匹配。
 type PlacementServerOption struct {
 	ID               int64
 	Name, IP, Region string
@@ -139,8 +145,8 @@ func PlacementServerOptions(ctx context.Context, db *sql.DB, nodeID int64) ([]Pl
 		if err := rows.Scan(&o.ID, &o.Name, &o.IP, &o.Region, &typ, &external); err != nil {
 			return nil, err
 		}
-		o.ProxyOK = serverTypeAllowed(NodeProxy, typ, external)
-		if serverTypeAllowed(nodeType, typ, external) {
+		o.ProxyOK = autoPlaceAllowed(NodeProxy, typ, external)
+		if serverTypeAllowed(nodeType, typ) {
 			out = append(out, o)
 		}
 	}
@@ -159,8 +165,8 @@ func addPlacement(ctx context.Context, tx dbtx, n *Node, serverID int64) error {
 	if disabled {
 		return invalid("服务器 %s 已禁用", name)
 	}
-	if !serverTypeAllowed(n.Type, typ, external) {
-		return invalid("代理节点只能部署在非外部的代理服务器上")
+	if !serverTypeAllowed(n.Type, typ) {
+		return invalid("代理节点不能部署在落地服务器上")
 	}
 	if other, err := portConflict(ctx, tx, serverID, n.Port, n.ID); err != nil {
 		return err
