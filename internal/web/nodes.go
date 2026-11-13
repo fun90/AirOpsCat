@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -82,6 +83,17 @@ func (s *Server) nodeRoutes(m *http.ServeMux) {
 	})
 	m.HandleFunc("GET /admin/nodes", s.nodeList)
 	m.HandleFunc("GET /admin/nodes/new", func(w http.ResponseWriter, r *http.Request) {
+		// 复制为新节点：沿用类型、协议、入站配置、出站、地区与标签；名称加后缀，端口自动分配，不复制部署位
+		if from, _ := strconv.ParseInt(r.URL.Query().Get("from"), 10, 64); from > 0 {
+			n, err := store.NodeByID(r.Context(), s.DB, from)
+			if !s.recordFound(w, r, n != nil, err) {
+				return
+			}
+			f := formFromNode(n)
+			f.ID, f.Port, f.Disabled, f.Name = 0, "", false, n.Name+" 副本"
+			s.nodeFormPage(w, r, http.StatusOK, f, "", nil)
+			return
+		}
 		inbound, err := s.realityInbound(r)
 		formErr := ""
 		if errors.Is(err, errEmptyRealitySNI) {
@@ -352,6 +364,22 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 		}
 	}
 	d["AddIDs"], d["DelTargets"], d["NewHosts"] = addIDs, delTargets, newHosts
+	// 部署位复制内容：订阅使用的访问地址:端口，换行后接协议配置
+	copyAddr := map[int64]string{}
+	for _, p := range pls {
+		host := p.ServerIP
+		if p.CustomHost != "" {
+			host = p.CustomHost
+		} else if p.AccessHostID != nil {
+			for _, h := range hosts[p.ServerID] {
+				if h.ID == *p.AccessHostID {
+					host = h.FullName
+				}
+			}
+		}
+		copyAddr[p.ID] = net.JoinHostPort(host, f.Port) + "\n" + f.Inbound
+	}
+	d["CopyAddr"] = copyAddr
 	d["Form"], d["FormErr"], d["Tags"], d["Landing"], d["Regions"], d["Placements"], d["Hosts"] = f, formErr, tags, landing, regions, pls, hosts
 	d["ProxyProtocols"], d["LandingProtocols"] = store.ProtocolsFor(store.NodeProxy), store.ProtocolsFor(store.NodeLanding)
 	d["Probe"] = store.ConfigValue(ctx, s.DB, store.ProbeServersKey) != ""

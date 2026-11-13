@@ -144,6 +144,11 @@ func TestNodeFlows(t *testing.T) {
 	if w := post("/admin/nodes", create("n1", "443")); w.Code != http.StatusSeeOther {
 		t.Fatalf("创建: %d %s", w.Code, w.Body.String())
 	}
+	// 复制节点：沿用入站配置，名称加后缀，端口留空，保存目标为新建
+	var nid int64 = 1
+	if page := do(h, "GET", "/admin/nodes/new?from="+strconv.FormatInt(nid, 10), nil, c, nil).Body.String(); !strings.Contains(page, ` 副本" required`) || !strings.Contains(page, `&#34;type&#34;: &#34;vless&#34;`) || !strings.Contains(page, `action="/admin/nodes"`) || strings.Contains(page, `value="443"`) {
+		t.Fatal("复制页应预填副本名称与入站配置，且端口留空、提交为新建")
+	}
 	// 同服务器同端口冲突
 	if w := post("/admin/nodes", create("n2", "443")); w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), "已被节点") {
 		t.Fatalf("端口冲突应回显: %d", w.Code)

@@ -1,4 +1,4 @@
-{{define "actions"}}<a href="/admin/nodes" class="btn btn-outline-secondary" data-back>返回</a>{{end}}
+{{define "actions"}}{{with .Form}}{{if .ID}}<a class="btn" href="/admin/nodes/new?from={{.ID}}">复制节点</a>{{end}}{{end}}<a href="/admin/nodes" class="btn btn-outline-secondary" data-back>返回</a>{{end}}
 {{define "content"}}
 {{with .Form}}
 <form method="post" action="{{if .ID}}/admin/nodes/{{.ID}}{{else}}/admin/nodes{{end}}" class="card" autocomplete="off" data-node-id="{{.ID}}">
@@ -61,7 +61,7 @@
                     {{end}}
                     {{$sub := ""}}{{with $.SubNames}}{{$sub = index . $p.ID}}{{end}}
                     <div class="placement-head d-flex flex-wrap align-items-center column-gap-2 pe-4">
-                        {{template "deployDot" .Deployed}}<a href="/admin/servers/{{.ServerID}}/edit" class="text-truncate fw-bold text-reset" title="打开服务器编辑页">{{.ServerName}}</a><span class="text-secondary small text-nowrap">{{.ServerIP}}</span>
+                        {{template "deployDot" .Deployed}}<a href="/admin/servers/{{.ServerID}}/edit" class="text-truncate fw-bold text-reset" title="打开服务器编辑页">{{.ServerName}}</a><span class="text-secondary small text-nowrap">{{.ServerIP}}</span>{{with index $.CopyAddr .ID}}<button type="button" class="btn btn-sm btn-ghost-secondary p-0" data-copy="{{.}}" title="复制地址、端口与协议配置" aria-label="复制地址、端口与协议配置"><i class="ti ti-copy" aria-hidden="true"></i></button>{{end}}
                     <div class="placement-meta d-flex flex-wrap align-items-center gap-1">
                         {{if .Failover}}<span class="badge bg-orange-lt">已切走</span>{{end}}
                         {{with index $.PlacementTargets .ID}}<div class="dropdown"><button type="button" class="badge bg-blue-lt border-0 cursor-pointer" data-bs-toggle="dropdown" aria-expanded="false">当前指向 {{len .}} 个域名</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-1" style="max-width:16rem">{{range .}}<span class="badge bg-blue-lt text-wrap text-break">{{.}}</span>{{end}}</div></div></div>{{end}}

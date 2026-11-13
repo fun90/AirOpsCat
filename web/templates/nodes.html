@@ -69,6 +69,7 @@
                         <button class="btn btn-sm btn-ghost-secondary" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="更多操作" title="更多操作"><i class="ti ti-dots-vertical d-lg-none" aria-hidden="true"></i><span class="d-none d-lg-inline">更多<i class="ti ti-chevron-down ms-1" aria-hidden="true"></i></span></button>
                         <div class="dropdown-menu dropdown-menu-end">
                             <a class="dropdown-item" href="/admin/nodes/{{.ID}}/edit">编辑</a>
+                            <a class="dropdown-item" href="/admin/nodes/new?from={{.ID}}">复制节点</a>
                             <form method="post" action="/admin/nodes/{{.ID}}/deploy"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="dropdown-item" type="submit">部署</button></form>
                             <form method="post" action="/admin/nodes/{{.ID}}/deploy"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="force" value="1"><button class="dropdown-item" type="submit">强制部署</button></form>
                             <form method="post" action="/admin/nodes/{{.ID}}/toggle">
