@@ -148,7 +148,7 @@
 {{if (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box"))}}      "type": "hysteria2",
       "server": "{{text $node.serverHost}}",
       "server_port": {{text $node.port}},
-      "password": "{{text $.account.uuid}}",
+      "password": "{{text $node.uuid}}",
       "obfs": {
           "type": "salamander",
           "password": "{{text $node.inbound.obfs.password}}"
@@ -164,7 +164,7 @@
 {{else if (and (eq $node.protocol "anytls") (eq $node.coreType "sing-box"))}}      "type": "anytls",
       "server": "{{text $node.serverHost}}",
       "server_port": {{text $node.port}},
-      "password": "{{text $.account.uuid}}",
+      "password": "{{text $node.uuid}}",
       "tls": {
         "enabled": true,
         "insecure": true,
@@ -175,7 +175,7 @@
       "server": "{{text $node.serverHost}}",
       "server_port": {{text $node.port}},
       "method": "chacha20-ietf-poly1305",
-      "password": "{{text $.account.uuid}}",
+      "password": "{{text $node.uuid}}",
       "network": "tcp",
       "detour": "{{shadowTag $i $.nodes}}"
     },
@@ -194,7 +194,7 @@
 {{else}}      "type": "vless",
       "server": "{{text $node.serverHost}}",
       "server_port": {{text $node.port}},
-      "uuid": "{{text $.account.uuid}}",
+      "uuid": "{{text $node.uuid}}",
       "tls": {
         "enabled": true,
         "insecure": true,

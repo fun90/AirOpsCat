@@ -13,6 +13,7 @@ type AccountBinding struct {
 	ID, AccountID, NodeID, PlacementID       int64
 	NodeName, ServerName, RecordName, Remark string
 	RecordID                                 *int64
+	ExternalUUID                             string // 外部服务器无法下发账户 UUID，使用外部分配的凭据
 	Enabled                                  bool
 	NewDomainID                              int64  // 新增域名：所属主域名
 	NewName                                  string // 新增域名：子域名前缀，非空时创建指向部署位 IP 的 A 记录
@@ -33,7 +34,7 @@ type BindingDomain struct {
 }
 
 func AccountBindings(ctx context.Context, db *sql.DB, accountID int64) ([]*AccountBinding, error) {
-	rows, err := db.QueryContext(ctx, `SELECT b.id,b.account_id,b.node_id,coalesce(p.node_server_id,0),n.name,coalesce(s.name,s.ip,''),coalesce(r.full_name,''),coalesce(b.remark,''),b.domain_dns_record_id,b.enabled FROM account_node_subscription_domain_binding b JOIN node n ON n.id=b.node_id LEFT JOIN account_node_subscription_placement p ON p.binding_id=b.id LEFT JOIN node_server ns ON ns.id=p.node_server_id LEFT JOIN server s ON s.id=ns.server_id LEFT JOIN domain_dns_record r ON r.id=b.domain_dns_record_id WHERE b.account_id=? ORDER BY b.id`, accountID)
+	rows, err := db.QueryContext(ctx, `SELECT b.id,b.account_id,b.node_id,coalesce(p.node_server_id,0),n.name,coalesce(s.name,s.ip,''),coalesce(r.full_name,''),coalesce(b.remark,''),b.domain_dns_record_id,b.enabled,coalesce(b.external_uuid,'') FROM account_node_subscription_domain_binding b JOIN node n ON n.id=b.node_id LEFT JOIN account_node_subscription_placement p ON p.binding_id=b.id LEFT JOIN node_server ns ON ns.id=p.node_server_id LEFT JOIN server s ON s.id=ns.server_id LEFT JOIN domain_dns_record r ON r.id=b.domain_dns_record_id WHERE b.account_id=? ORDER BY b.id`, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +43,7 @@ func AccountBindings(ctx context.Context, db *sql.DB, accountID int64) ([]*Accou
 	for rows.Next() {
 		var b AccountBinding
 		var rid sql.NullInt64
-		if err := rows.Scan(&b.ID, &b.AccountID, &b.NodeID, &b.PlacementID, &b.NodeName, &b.ServerName, &b.RecordName, &b.Remark, &rid, &b.Enabled); err != nil {
+		if err := rows.Scan(&b.ID, &b.AccountID, &b.NodeID, &b.PlacementID, &b.NodeName, &b.ServerName, &b.RecordName, &b.Remark, &rid, &b.Enabled, &b.ExternalUUID); err != nil {
 			return nil, err
 		}
 		if rid.Valid {
@@ -161,13 +162,32 @@ func releaseBindingRecord(ctx context.Context, q dbtx, id *int64) error {
 	return err
 }
 
+// normalizeExternalUUID 外部服务器必须填写外部分配的凭据；非外部服务器由本系统下发账户 UUID，忽略该字段。
+func normalizeExternalUUID(v string, external bool) (string, error) {
+	v = strings.TrimSpace(v)
+	if !external {
+		return "", nil
+	}
+	if v == "" {
+		return "", invalid("外部服务器的节点必须填写外部 UUID")
+	}
+	if len(v) > 128 || strings.ContainsAny(v, " \t\r\n\"'\\") {
+		return "", invalid("外部 UUID 不能包含空白、引号或反斜杠，且不超过 128 字符")
+	}
+	return v, nil
+}
+
 func SaveAccountBinding(ctx context.Context, db *sql.DB, b *AccountBinding) error {
 	return inTx(ctx, db, func(tx *sql.Tx) (err error) {
 		var nodeID, serverID int64
 		var ip string
-		err = tx.QueryRowContext(ctx, `SELECT ns.node_id,ns.server_id,s.ip FROM node_server ns JOIN server s ON s.id=ns.server_id WHERE ns.id=? AND ns.deployed<>2`, b.PlacementID).Scan(&nodeID, &serverID, &ip)
+		var external bool
+		err = tx.QueryRowContext(ctx, `SELECT ns.node_id,ns.server_id,s.ip,s.external_server FROM node_server ns JOIN server s ON s.id=ns.server_id WHERE ns.id=? AND ns.deployed<>2`, b.PlacementID).Scan(&nodeID, &serverID, &ip, &external)
 		if err != nil {
 			return invalid("请选择有效的部署位")
+		}
+		if b.ExternalUUID, err = normalizeExternalUUID(b.ExternalUUID, external); err != nil {
+			return err
 		}
 		b.NodeID = nodeID
 		var allowed int
@@ -247,7 +267,7 @@ func SaveAccountBinding(ctx context.Context, db *sql.DB, b *AccountBinding) erro
 		}
 		now := FormatTime(nowFunc())
 		if b.ID == 0 {
-			res, err := tx.ExecContext(ctx, `INSERT INTO account_node_subscription_domain_binding(account_id,node_id,domain_dns_record_id,enabled,remark,create_time,update_time) VALUES(?,?,?,?,?,?,?)`, b.AccountID, nodeID, b.RecordID, b.Enabled, nz(b.Remark), now, now)
+			res, err := tx.ExecContext(ctx, `INSERT INTO account_node_subscription_domain_binding(account_id,node_id,domain_dns_record_id,enabled,remark,external_uuid,create_time,update_time) VALUES(?,?,?,?,?,?,?,?)`, b.AccountID, nodeID, b.RecordID, b.Enabled, nz(b.Remark), nz(b.ExternalUUID), now, now)
 			if err != nil {
 				return err
 			}
@@ -256,7 +276,7 @@ func SaveAccountBinding(ctx context.Context, db *sql.DB, b *AccountBinding) erro
 				return err
 			}
 		} else {
-			_, err = tx.ExecContext(ctx, `UPDATE account_node_subscription_domain_binding SET node_id=?,domain_dns_record_id=?,enabled=?,remark=?,update_time=? WHERE id=?`, nodeID, b.RecordID, b.Enabled, nz(b.Remark), now, b.ID)
+			_, err = tx.ExecContext(ctx, `UPDATE account_node_subscription_domain_binding SET node_id=?,domain_dns_record_id=?,enabled=?,remark=?,external_uuid=?,update_time=? WHERE id=?`, nodeID, b.RecordID, b.Enabled, nz(b.Remark), nz(b.ExternalUUID), now, b.ID)
 			if isUnique(err) {
 				return fmt.Errorf("%w：该节点已有订阅定制", ErrConflict)
 			}

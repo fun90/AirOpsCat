@@ -44,7 +44,7 @@ func (s *Server) bindingPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "account_bindings", 200, d)
 }
 func (s *Server) bindingSave(w http.ResponseWriter, r *http.Request) {
-	b := &store.AccountBinding{AccountID: idFrom(r), Enabled: r.PostFormValue("enabled") == "1", Remark: formValue(r, "remark")}
+	b := &store.AccountBinding{AccountID: idFrom(r), Enabled: r.PostFormValue("enabled") == "1", Remark: formValue(r, "remark"), ExternalUUID: formValue(r, "external_uuid")}
 	b.ID, _ = strconv.ParseInt(formValue(r, "binding_id"), 10, 64)
 	b.PlacementID, _ = strconv.ParseInt(formValue(r, "placement_id"), 10, 64)
 	if raw := formValue(r, "record_id"); raw != "" {

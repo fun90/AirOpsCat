@@ -34,6 +34,8 @@ func SubscriptionAccount(ctx context.Context, db *sql.DB, code string) (*Account
 type subscriptionEntry struct {
 	nodeID, placementID, serverID int64
 	name, host                    string
+	external                      bool
+	uuid                          string
 	priority                      sql.NullInt64
 	exposed                       sql.NullBool
 	data                          map[string]any
@@ -43,7 +45,7 @@ type subscriptionEntry struct {
 // 否则任一账户变更会让共享标签的所有账户订阅丢节点；待删除（deployed=2）不输出。
 // 名称、外部自定义域名及已同步域名按既有订阅契约实时读取。
 func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *int) ([]map[string]any, error) {
-	rows, err := db.QueryContext(ctx, `SELECT DISTINCT n.id,n.name,ns.id,ns.priority,ns.exposed,d.snapshot_json,coalesce(r.full_name,''),coalesce(r.status,''),s.ip,s.id,trim(coalesce(ns.access_host_custom,''))
+	rows, err := db.QueryContext(ctx, `SELECT DISTINCT n.id,n.name,ns.id,ns.priority,ns.exposed,d.snapshot_json,coalesce(r.full_name,''),coalesce(r.status,''),s.ip,s.id,trim(coalesce(ns.access_host_custom,'')),s.external_server
  FROM account_tag at JOIN node_tag nt ON nt.tag_id=at.tag_id JOIN node n ON n.id=nt.node_id
  JOIN node_server ns ON ns.node_id=n.id JOIN node_deployment d ON d.node_server_id=ns.id
  JOIN server s ON s.id=d.server_id LEFT JOIN domain_dns_record r ON r.id=ns.access_host_id
@@ -55,7 +57,7 @@ func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *in
 	for rows.Next() {
 		var e subscriptionEntry
 		var raw, domain, status, ip, custom string
-		if err := rows.Scan(&e.nodeID, &e.name, &e.placementID, &e.priority, &e.exposed, &raw, &domain, &status, &ip, &e.serverID, &custom); err != nil {
+		if err := rows.Scan(&e.nodeID, &e.name, &e.placementID, &e.priority, &e.exposed, &raw, &domain, &status, &ip, &e.serverID, &custom, &e.external); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -118,9 +120,13 @@ func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *in
 	}
 	selected := map[int64]map[int64]bool{}
 	hosts := map[int64]string{}
+	extUUID := map[int64]string{}
 	for _, b := range bindings {
 		if !b.Enabled {
 			continue
+		}
+		if b.ExternalUUID != "" {
+			extUUID[b.NodeID] = b.ExternalUUID
 		}
 		if b.PlacementID != 0 {
 			if selected[b.NodeID] == nil {
@@ -157,6 +163,15 @@ func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *in
 		p, custom := selected[e.nodeID]
 		if custom && !p[e.placementID] {
 			continue
+		}
+		// 外部服务器无法下发账户 UUID，只输出已填写外部 UUID 的节点
+		if e.external {
+			if extUUID[e.nodeID] == "" {
+				continue
+			}
+			e.uuid = extUUID[e.nodeID]
+		} else {
+			e.uuid = a.UUID
 		}
 		if h := hosts[e.nodeID]; h != "" {
 			if done[e.nodeID] {
@@ -197,6 +212,7 @@ func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *in
 				data["name"] = base + "-" + a.NodePrefix + new(big.Int).Add(num, big.NewInt(int64(i))).String()
 			}
 			data["serverHost"] = e.host
+			data["uuid"] = e.uuid
 			data["sni"] = subscriptionSNI(e.host, certHosts[e.serverID], e.data)
 			out = append(out, data)
 		}

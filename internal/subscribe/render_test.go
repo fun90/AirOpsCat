@@ -16,7 +16,7 @@ import (
 func fixture(scenario string) map[string]any {
 	node := func(protocol, name string) map[string]any {
 		return map[string]any{
-			"protocol": protocol, "name": name, "serverHost": "example.com", "sni": "tls.example.com", "port": 443, "coreType": "sing-box",
+			"protocol": protocol, "name": name, "serverHost": "example.com", "uuid": "account-uuid", "sni": "tls.example.com", "port": 443, "coreType": "sing-box",
 			"inbound": map[string]any{"tls": map[string]any{"server_name": "tls.example.com", "reality": map[string]any{"public_key": "public-key", "short_id": []any{"abcd"}}}, "obfs": map[string]any{"password": "obfs +/*~中"}},
 		}
 	}
@@ -144,7 +144,7 @@ func TestTemplateTrees(t *testing.T) {
 func TestShadowTLS(t *testing.T) {
 	data := fixture("multi")
 	nodes := data["nodes"].([]map[string]any)
-	st := map[string]any{"name": "日本 ShadowTLS", "protocol": "shadowtls", "coreType": "sing-box", "serverHost": "shadow.example.com", "port": 8443, "inbound": map[string]any{"version": 3, "handshake": map[string]any{"server": "www.apple.com"}, "users": []any{map[string]any{"password": "outer-secret"}}}}
+	st := map[string]any{"name": "日本 ShadowTLS", "protocol": "shadowtls", "coreType": "sing-box", "serverHost": "shadow.example.com", "uuid": "account-uuid", "port": 8443, "inbound": map[string]any{"version": 3, "handshake": map[string]any{"server": "www.apple.com"}, "users": []any{map[string]any{"password": "outer-secret"}}}}
 	data["nodes"] = append(nodes, st)
 	out, err := Render(Templates, "sing-box.json", data)
 	if err != nil {
@@ -217,7 +217,7 @@ func TestShadowTLS(t *testing.T) {
 }
 func TestAnyTLS(t *testing.T) {
 	data := fixture("multi")
-	at := map[string]any{"name": "日本 AnyTLS", "protocol": "anytls", "coreType": "sing-box", "serverHost": "any.example.com", "sni": "any.example.com", "port": 8443, "inbound": map[string]any{"tls": map[string]any{"server_name": "any.example.com"}}}
+	at := map[string]any{"name": "日本 AnyTLS", "protocol": "anytls", "coreType": "sing-box", "serverHost": "any.example.com", "uuid": "account-uuid", "sni": "any.example.com", "port": 8443, "inbound": map[string]any{"tls": map[string]any{"server_name": "any.example.com"}}}
 	data["nodes"] = append(data["nodes"].([]map[string]any), at)
 	out, err := Render(Templates, "sing-box.json", data)
 	if err != nil {

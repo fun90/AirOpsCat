@@ -88,7 +88,7 @@ proxies:
     type: vless
     server: {{text $node.serverHost}}
     port: {{text $node.port}}
-    uuid: {{text $.account.uuid}}
+    uuid: {{text $node.uuid}}
     network: tcp
     tls: true
     udp: true
@@ -108,7 +108,7 @@ proxies:
     type: hysteria2
     server: {{text $node.serverHost}}
     port: {{text $node.port}}
-    password: {{text $.account.uuid}}
+    password: {{text $node.uuid}}
     obfs: salamander
     obfs-password: {{text $node.inbound.obfs.password}}
     sni: {{text $node.sni}}
@@ -122,7 +122,7 @@ proxies:
     server: {{text $node.serverHost}}
     port: {{text $node.port}}
     cipher: chacha20-ietf-poly1305
-    password: {{text $.account.uuid}}
+    password: {{text $node.uuid}}
     udp: false
     plugin: shadow-tls
     plugin-opts:
@@ -133,7 +133,7 @@ proxies:
     type: anytls
     server: {{text $node.serverHost}}
     port: {{text $node.port}}
-    password: {{text $.account.uuid}}
+    password: {{text $node.uuid}}
     sni: {{text $node.sni}}
     skip-cert-verify: true
     client-fingerprint: chrome
