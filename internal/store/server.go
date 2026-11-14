@@ -210,8 +210,8 @@ func SaveServer(ctx context.Context, db *sql.DB, c *crypto.Cipher, s *Server, au
 	if err := tx.QueryRowContext(ctx, `SELECT ip FROM server WHERE id = ?`, s.ID).Scan(&oldIP); err != nil {
 		return 0, err
 	}
-	if s.External || s.ServerType == NodeLanding {
-		// 部署位不再自动同步：服务器改为落地或外部前，上面的代理节点部署位须先手动删除
+	if s.ServerType == NodeLanding {
+		// 部署位不再自动同步：服务器改为落地前，上面的代理节点部署位须先手动删除
 		rows, err := tx.QueryContext(ctx, `SELECT n.name FROM node_server ns JOIN node n ON n.id = ns.node_id
 			WHERE ns.server_id = ? AND ns.deployed <> 2 AND coalesce(n.type,0) <> ? ORDER BY n.id`, s.ID, NodeLanding)
 		if err != nil {
@@ -231,7 +231,7 @@ func SaveServer(ctx context.Context, db *sql.DB, c *crypto.Cipher, s *Server, au
 			return 0, err
 		}
 		if len(names) > 0 {
-			return 0, invalid("服务器上还有代理节点的部署位，不能改为落地或外部服务器，请先在节点中删除：%s", strings.Join(names, "、"))
+			return 0, invalid("服务器上还有代理节点的部署位，不能改为落地服务器，请先在节点中删除：%s", strings.Join(names, "、"))
 		}
 	}
 	if err := execOne(tx.ExecContext(ctx, `UPDATE server SET name=?, ip=?, ssh_port=?, auth_type=?, username=?, auth=coalesce(?, auth), region=?,
