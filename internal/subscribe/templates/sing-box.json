@@ -44,7 +44,7 @@
       "tag": "🚀 节点选择",
       "interrupt_exist_connections": true,
       "outbounds": [
-        {{if (gt (len $.nodes) 1)}}"🎈 自动选择",{{end}}
+        {{if (gt (len $.nodes) 1)}}"🎈 自动选择",{{end}}{{range $g := regionGroups $.nodes}}"{{text $g.Name}}",{{end}}
 {{range $i, $node := $.nodes}}        "{{text $node.name}}"{{if (lt (add $i 1) (len $.nodes))}},{{end}}
 {{end}}      ]
     },
@@ -58,6 +58,15 @@
       "outbounds": [
         {{trimSuffix $autoNodes ","}}
       ]
+    },
+{{end}}{{range $g := regionGroups $.nodes}}    {
+      "type": "urltest",
+      "tag": "{{text $g.Name}}",
+      "url": "https://www.gstatic.com/generate_204",
+      "interval": "2m",
+      "tolerance": 50,
+      "interrupt_exist_connections": true,
+      "outbounds": [{{range $j, $p := $g.Proxies}}{{if $j}}, {{end}}"{{text $p}}"{{end}}]
     },
 {{end}}    {
       "tag": "🪟 Microsoft",

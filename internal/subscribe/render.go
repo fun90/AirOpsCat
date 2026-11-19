@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"slices"
 	"strings"
 	"text/template"
 )
@@ -98,8 +99,8 @@ type regionGroup struct {
 var groupRegions = []string{"美国", "日本", "新加坡", "香港", "英国", "德国", "越南", "马来西亚"}
 
 // regionGroups 仅为含 2 个及以上可输出节点的地区生成组，保持节点原有顺序；
-// 组名避让真实节点名，避免 Clash 把组与节点混淆。
-func regionGroups(nodes []map[string]any) []regionGroup {
+// 组名避让真实节点名，避免 Clash 把组与节点混淆；skip 列出客户端不支持的协议，这些节点不进组。
+func regionGroups(nodes []map[string]any, skip ...string) []regionGroup {
 	taken := map[string]bool{}
 	for _, n := range nodes {
 		taken[text(n["name"])] = true
@@ -110,6 +111,9 @@ func regionGroups(nodes []map[string]any) []regionGroup {
 		for _, n := range nodes {
 			name := text(n["name"])
 			if !strings.Contains(name, region) {
+				continue
+			}
+			if slices.Contains(skip, text(n["protocol"])) {
 				continue
 			}
 			switch text(n["protocol"]) {

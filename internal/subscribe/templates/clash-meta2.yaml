@@ -131,6 +131,7 @@ proxy-groups:
     type: select
     proxies:
 {{if (gt (len $.nodes) 1)}}      - 自动
+{{end}}{{range $g := regionGroups $.nodes}}      - {{text $g.Name}}
 {{end}}{{range $i, $node := $.nodes}}{{if (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "anytls") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box")))}}      - {{text $node.name}}
 {{end}}{{end}}      - 直连
   - name: GitHub
@@ -181,7 +182,15 @@ proxy-groups:
     interval: 300
     proxies:
 {{range $i, $node := $.nodes}}{{if (and (or (eq $node.protocol "vless") (eq $node.protocol "vless-reality") (and (eq $node.protocol "hysteria2") (eq $node.coreType "sing-box")) (and (eq $node.protocol "anytls") (eq $node.coreType "sing-box")) (and (eq $node.protocol "shadowtls") (eq $node.coreType "sing-box"))) (or (contains $node.name "美国") (contains $node.name "新加坡") (contains $node.name "日本")))}}      - {{text $node.name}}
-{{end}}{{end}}{{end}}  - name: 直连
+{{end}}{{end}}{{end}}{{range $g := regionGroups $.nodes}}  - name: {{text $g.Name}}
+    icon: {{if (eq $g.Name "美国-自动")}}https://flagcdn.com/w80/us.png{{else if (eq $g.Name "日本-自动")}}https://flagcdn.com/w80/jp.png{{else if (eq $g.Name "新加坡-自动")}}https://flagcdn.com/w80/sg.png{{else if (eq $g.Name "香港-自动")}}https://flagcdn.com/w80/hk.png{{else if (eq $g.Name "英国-自动")}}https://flagcdn.com/w80/gb.png{{else if (eq $g.Name "德国-自动")}}https://flagcdn.com/w80/de.png{{else if (eq $g.Name "越南-自动")}}https://flagcdn.com/w80/vn.png{{else if (eq $g.Name "马来西亚-自动")}}https://flagcdn.com/w80/my.png{{else}}https://static.fun90.com/clash/Auto.png{{end}}
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    interval: 120
+    tolerance: 50
+    proxies:
+{{range $p := $g.Proxies}}      - {{text $p}}
+{{end}}{{end}}  - name: 直连
     icon: https://static.fun90.com/clash/Direct.png
     type: select
     proxies:

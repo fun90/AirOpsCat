@@ -258,7 +258,7 @@ func TestAnyTLS(t *testing.T) {
 		}
 	}
 	out, err = Render(Templates, "shadowrocket.conf", data)
-	if s := string(out); err != nil || !strings.Contains(s, "日本 AnyTLS = anytls, any.example.com, 8443, password=account-uuid, sni=any.example.com") || !strings.Contains(s, "代理 = select, 自动, 日本-1, 新加坡-2, 美国-3, 日本 AnyTLS, DIRECT") {
+	if s := string(out); err != nil || !strings.Contains(s, "日本 AnyTLS = anytls, any.example.com, 8443, password=account-uuid, sni=any.example.com") || !strings.Contains(s, "代理 = select, 自动, 日本-自动, 日本-1, 新加坡-2, 美国-3, 日本 AnyTLS, DIRECT") || !strings.Contains(s, "日本-自动 = url-test, 日本-1, 日本 AnyTLS, url=http://www.gstatic.com/generate_204, interval=120, tolerance=50") {
 		t.Errorf("shadowrocket.conf 缺少 AnyTLS 节点或分组: %v\n%s", err, out)
 	}
 }
@@ -413,5 +413,70 @@ func TestRegionGroups(t *testing.T) {
 	}
 	if strings.Contains(s, "新加坡-自动") {
 		t.Error("单节点地区不应成组")
+	}
+}
+
+// 所有客户端模板都输出地区自动组：成员混合 TCP 与 UDP，且不引用未定义的节点；单节点地区不成组。
+func TestRegionGroupsAllTemplates(t *testing.T) {
+	data := fixture("multi")
+	nodes := data["nodes"].([]map[string]any)
+	hy2 := map[string]any{"name": "日本H-1", "protocol": "hysteria2", "coreType": "sing-box", "serverHost": "example.com", "uuid": "account-uuid", "sni": "tls.example.com", "port": 8688, "inbound": map[string]any{"obfs": map[string]any{"password": "p"}}}
+	data["nodes"] = append(nodes, hy2)
+	yamls := []string{"clash-meta.yaml", "clash-meta2.yaml", "clash-mi.yaml", "clash-verge.yaml", "clash-verge-mrs.yaml", "stash.yaml"}
+	for _, path := range yamls {
+		out, err := Render(Templates, path, data)
+		if err != nil {
+			t.Fatal(path, err)
+		}
+		s := string(out)
+		for _, want := range []string{"  - name: 日本-自动\n    icon: https://flagcdn.com/w80/jp.png\n    type: url-test\n", "    interval: 120\n    tolerance: 50\n    proxies:\n      - 日本-1\n      - 日本H-1\n", "      - 自动\n      - 日本-自动\n"} {
+			if !strings.Contains(s, want) {
+				t.Errorf("%s 缺少 %q", path, want)
+			}
+		}
+		if strings.Contains(s, "新加坡-自动") || strings.Contains(s, "美国-自动") {
+			t.Errorf("%s 单节点地区不应成组", path)
+		}
+	}
+	out, err := Render(Templates, "sing-box.json", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config struct {
+		Outbounds []map[string]any `json:"outbounds"`
+	}
+	if err = json.Unmarshal(out, &config); err != nil {
+		t.Fatalf("sing-box JSON 无效: %v\n%s", err, out)
+	}
+	tags := map[string]map[string]any{}
+	for _, o := range config.Outbounds {
+		tags[o["tag"].(string)] = o
+	}
+	g := tags["日本-自动"]
+	if g == nil || g["type"] != "urltest" || fmt.Sprint(g["outbounds"]) != "[日本-1 日本H-1]" {
+		t.Fatalf("sing-box 缺少日本-自动: %v", g)
+	}
+	if sel := fmt.Sprint(tags["🚀 节点选择"]["outbounds"]); !strings.Contains(sel, "日本-自动") {
+		t.Fatalf("节点选择未包含地区组: %s", sel)
+	}
+	for _, o := range config.Outbounds {
+		for _, n := range asList(o["outbounds"]) {
+			if tags[n.(string)] == nil {
+				t.Fatalf("悬空引用 %s", n)
+			}
+		}
+	}
+	out, err = Render(Templates, "shadowrocket.conf", data)
+	if s := string(out); err != nil || !strings.Contains(s, "日本-自动 = url-test, 日本-1, 日本H-1, url=http://www.gstatic.com/generate_204, interval=120, tolerance=50") || !strings.Contains(s, "代理 = select, 自动, 日本-自动, ") {
+		t.Fatalf("shadowrocket 缺少地区组: %v\n%s", err, out)
+	}
+	out, err = Render(Templates, "loon.conf", data)
+	if s := string(out); err != nil || !strings.Contains(s, "日本节点 = NameRegex, FilterKey = (日本)\n") || !strings.Contains(s, "日本-自动 = url-test, 日本节点, interval = 120, tolerance = 50, img-url = https://flagcdn.com/w80/jp.png\n") || !strings.Contains(s, "全球手动策略 = select, 自动, 日本-自动, 全球节点") {
+		t.Fatalf("loon 缺少地区组: %v\n%s", err, out)
+	}
+	// 不支持 shadowtls 的客户端：该协议节点不进地区组。
+	st := map[string]any{"name": "日本 ShadowTLS", "protocol": "shadowtls", "coreType": "sing-box"}
+	if g := regionGroups(append(data["nodes"].([]map[string]any), st), "shadowtls"); len(g) != 1 || strings.Contains(strings.Join(g[0].Proxies, ","), "ShadowTLS") {
+		t.Fatalf("skip 未生效: %+v", g)
 	}
 }
