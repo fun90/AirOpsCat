@@ -194,7 +194,8 @@ type AutoFailover struct {
 	NodeID, SourceID, TargetID int64
 }
 
-// AutoFailoverPlacements 将全部探测机连续失败 ProbeFailoverRounds 轮的代理节点切到全部探测机本轮可达的部署位。
+// AutoFailoverPlacements 将全部探测机连续失败 ProbeFailoverRounds 轮的代理节点部署位单独标记切走，
+// 前提是同节点存在全部探测机本轮可达的其他部署位（TargetID 为其中优先级最高者）。
 // checkedAfter 限制探测结果的新鲜度，避免缺报或过期结果触发切换。切换状态保持，不自动回切。
 func AutoFailoverPlacements(ctx context.Context, db *sql.DB, probeIDs []int64, checkedAfter time.Time) ([]AutoFailover, error) {
 	probeIDs = normalizeTagIDs(probeIDs)
@@ -251,17 +252,18 @@ ORDER BY src.node_id, dst.priority IS NULL, dst.priority, dst.id`, args...)
 		if err := rows.Scan(&f.NodeID, &f.SourceID, &f.TargetID); err != nil {
 			return nil, err
 		}
-		if !seen[f.NodeID] {
-			seen[f.NodeID] = true
+		if !seen[f.SourceID] {
+			seen[f.SourceID] = true
 			candidates = append(candidates, f)
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	// 只标记故障部署位切走，同节点其余部署位及其域名保持不动；域名由 DNS 自动切换按优先级迁到可用部署位。
 	var switched []AutoFailover
 	for _, f := range candidates {
-		if err := SwitchNodePlacement(ctx, db, f.NodeID, f.TargetID); err != nil {
+		if err := MarkPlacementFailover(ctx, db, f.NodeID, f.SourceID); err != nil {
 			return switched, err
 		}
 		switched = append(switched, f)

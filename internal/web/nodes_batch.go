@@ -121,6 +121,25 @@ func (s *Server) nodeSwitch(w http.ResponseWriter, r *http.Request) {
 		s.failoverDNS(w, r, back, "已取消切走", true)
 		return
 	}
+	if raw := r.PostFormValue("away"); raw != "" {
+		pid, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || pid <= 0 {
+			http.Error(w, "部署位 ID 不正确", http.StatusBadRequest)
+			return
+		}
+		var target int64
+		if raw := r.PostFormValue("target_" + strconv.FormatInt(pid, 10)); raw != "" {
+			if target, err = strconv.ParseInt(raw, 10, 64); err != nil || target < 0 {
+				http.Error(w, "目标部署位 ID 不正确", http.StatusBadRequest)
+				return
+			}
+		}
+		if s.redirectError(w, r, back, store.SwitchAwayPlacement(r.Context(), s.DB, id, pid, target), store.ErrInvalid) {
+			return
+		}
+		s.failoverDNS(w, r, back, "已切走该部署位", true)
+		return
+	}
 	target, err := strconv.ParseInt(r.PostFormValue("placement"), 10, 64)
 	if err != nil || target < 0 {
 		http.Error(w, "部署位 ID 不正确", http.StatusBadRequest)

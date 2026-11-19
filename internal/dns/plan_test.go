@@ -112,3 +112,38 @@ func TestPlanLeavesUnavailableOrigin(t *testing.T) {
 		t.Fatal("没有可用目标时保持不动", p)
 	}
 }
+
+func TestPlanManualFailoverTarget(t *testing.T) {
+	p1, p2, p3 := int64(1), int64(2), int64(3)
+	all := []Candidate{
+		{ID: 1, NodeID: 1, ServerID: 1, IP: "1.1.1.1", Priority: &p1, Known: true, Failover: true, FailoverTarget: 3},
+		{ID: 2, NodeID: 1, ServerID: 2, IP: "2.2.2.2", Priority: &p2, Known: true},
+		{ID: 3, NodeID: 1, ServerID: 3, IP: "3.3.3.3", Priority: &p3, Known: true},
+	}
+	r := AutoRecord{ID: 1, Content: "1.1.1.1", NodeID: 1, ServerID: 1}
+	if p := PlanRecord(r, all, 0.85, time.Now()); p.Target != "3.3.3.3" {
+		t.Fatal("应切到指定部署位", p)
+	}
+	all[2].Failover = true
+	if p := PlanRecord(r, all, 0.85, time.Now()); p.Target != "3.3.3.3" {
+		t.Fatal("指定目标已被切走也应切过去", p)
+	}
+	all[2].Failover = false
+	// 目标不可用（超出便宜时段窗口）时退回自动规划，不强制切过去
+	all[2].CheapStart, all[2].CheapEnd = "00:00", "00:01"
+	if p := PlanRecord(r, all, 0.85, time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)); p.Target != "2.2.2.2" {
+		t.Fatal("指定目标不在可用时段应退回按优先级", p)
+	}
+	all[2].CheapStart, all[2].CheapEnd = "", ""
+	// 未指定目标时，已切走的部署位仍不能作为自动切换目标（超阈值、空闲时段等自动路径）
+	all[0].FailoverTarget = 0
+	all[1].Failover = true
+	if p := PlanRecord(r, all, 0.85, time.Now()); p.Target != "3.3.3.3" {
+		t.Fatal("未指定目标时应跳过已切走部署位", p)
+	}
+	all[1].Failover = false
+	all[0].FailoverTarget = 0
+	if p := PlanRecord(r, all, 0.85, time.Now()); p.Target != "2.2.2.2" {
+		t.Fatal("未指定时按优先级", p)
+	}
+}

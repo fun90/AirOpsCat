@@ -171,17 +171,17 @@ func TestIPOnlyPlacementsAndAutoSwitchedServers(t *testing.T) {
 
 func TestAutoFailoverPlacements(t *testing.T) {
 	db, ctx := testDB(t)
-	mustExec(t, db, `INSERT INTO server(id,ip)VALUES(1,'192.0.2.1'),(2,'192.0.2.2'),(8,'198.51.100.8'),(9,'198.51.100.9')`)
+	mustExec(t, db, `INSERT INTO server(id,ip)VALUES(1,'192.0.2.1'),(2,'192.0.2.2'),(3,'192.0.2.3'),(8,'198.51.100.8'),(9,'198.51.100.9')`)
 	mustExec(t, db, `INSERT INTO node(id,name,type,protocol,port)VALUES(1,'代理',0,'vless',443)`)
 	mustExec(t, db, `INSERT INTO domain(id,domain)VALUES(1,'example.com')`)
 	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES(1,1,'a','a.example.com','A','192.0.2.1','SYNCED')`)
-	mustExec(t, db, `INSERT INTO node_server(id,node_id,server_id,deployed,priority,access_host_id)VALUES(1,1,1,1,10,1),(2,1,2,1,20,1)`)
+	mustExec(t, db, `INSERT INTO node_server(id,node_id,server_id,deployed,priority,access_host_id)VALUES(1,1,1,1,10,1),(2,1,2,1,20,1),(3,1,3,1,30,1)`)
 	now := time.Now()
 	for round := 0; round < ProbeFailoverRounds; round++ {
-		if err := SavePlacementProbes(ctx, db, 8, []ProbeOutcome{{PlacementID: 1, Msg: "超时"}, {PlacementID: 2, OK: true, Ms: 20}}, now); err != nil {
+		if err := SavePlacementProbes(ctx, db, 8, []ProbeOutcome{{PlacementID: 1, Msg: "超时"}, {PlacementID: 2, OK: true, Ms: 20}, {PlacementID: 3, OK: true, Ms: 20}}, now); err != nil {
 			t.Fatal(err)
 		}
-		if err := SavePlacementProbes(ctx, db, 9, []ProbeOutcome{{PlacementID: 1, Msg: "超时"}, {PlacementID: 2, OK: true, Ms: 20}}, now); err != nil {
+		if err := SavePlacementProbes(ctx, db, 9, []ProbeOutcome{{PlacementID: 1, Msg: "超时"}, {PlacementID: 2, OK: true, Ms: 20}, {PlacementID: 3, OK: true, Ms: 20}}, now); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -193,8 +193,12 @@ func TestAutoFailoverPlacements(t *testing.T) {
 	if err := db.QueryRow(`SELECT failover FROM node_server WHERE id=1`).Scan(&source); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.QueryRow(`SELECT failover FROM node_server WHERE id=2`).Scan(&target); err != nil || !source || target {
-		t.Fatalf("切换标记不正确: source=%v target=%v err=%v", source, target, err)
+	var third bool
+	if err := db.QueryRow(`SELECT failover FROM node_server WHERE id=3`).Scan(&third); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT failover FROM node_server WHERE id=2`).Scan(&target); err != nil || !source || target || third {
+		t.Fatalf("只应单独切走故障部署位: source=%v target=%v third=%v err=%v", source, target, third, err)
 	}
 	if switched, err := AutoFailoverPlacements(ctx, db, []int64{8, 9}, now.Add(-time.Minute)); err != nil || len(switched) != 0 {
 		t.Fatalf("已切走的部署位不应重复切换: %+v %v", switched, err)

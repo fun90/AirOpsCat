@@ -159,7 +159,12 @@ func SetServerFailover(ctx context.Context, db *sql.DB, id int64, on bool) error
 	if !exists {
 		return sql.ErrNoRows
 	}
-	_, err := db.ExecContext(ctx, `UPDATE node_server SET failover = ? WHERE server_id = ?`, on, id)
+	// 切走只标记有域名的部署位；恢复则清除该服务器全部部署位的标记。
+	q := `UPDATE node_server SET failover = 0, failover_target = NULL WHERE server_id = ?`
+	if on {
+		q = `UPDATE node_server SET failover = 1, failover_target = NULL WHERE server_id = ? AND ` + placementHasDomainSQL("node_server")
+	}
+	_, err := db.ExecContext(ctx, q, id)
 	return err
 }
 

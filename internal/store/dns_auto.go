@@ -101,7 +101,7 @@ func shanghaiDay(at time.Time) string { return at.In(Shanghai).Format("2006-01-0
 // DNSCandidates 返回参与 DNS 切换的部署位。服务器禁用或到期的部署位也返回并标记 Unavailable：
 // 它仍可作为原服务器被识别并切走，但不作为切换目标。
 func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candidate, error) {
-	rows, err := db.QueryContext(ctx, `SELECT ns.id,ns.node_id,ns.server_id,s.ip,ns.priority,coalesce(ns.cheap_start,''),coalesce(ns.cheap_end,''),coalesce(s.bandwidth,0),coalesce(s.bandwidth_unit,'GiB'),v.rx_bytes,v.tx_bytes,coalesce(v.sample_time,''),ns.failover,
+	rows, err := db.QueryContext(ctx, `SELECT ns.id,ns.node_id,ns.server_id,s.ip,ns.priority,coalesce(ns.cheap_start,''),coalesce(ns.cheap_end,''),coalesce(s.bandwidth,0),coalesce(s.bandwidth_unit,'GiB'),v.rx_bytes,v.tx_bytes,coalesce(v.sample_time,''),ns.failover,coalesce(ns.failover_target,0),
  NOT (`+dnsServerUsableSQL+`)
  FROM node_server ns JOIN node n ON n.id=ns.node_id JOIN server s ON s.id=ns.server_id
  LEFT JOIN server_metrics v ON v.id=`+latestVnstatSQL+`
@@ -116,7 +116,7 @@ func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candida
 		var priority, rx, tx sql.NullInt64
 		var bw int64
 		var unit, sampled string
-		if err := rows.Scan(&c.ID, &c.NodeID, &c.ServerID, &c.IP, &priority, &c.CheapStart, &c.CheapEnd, &bw, &unit, &rx, &tx, &sampled, &c.Failover, &c.Unavailable); err != nil {
+		if err := rows.Scan(&c.ID, &c.NodeID, &c.ServerID, &c.IP, &priority, &c.CheapStart, &c.CheapEnd, &bw, &unit, &rx, &tx, &sampled, &c.Failover, &c.FailoverTarget, &c.Unavailable); err != nil {
 			return nil, err
 		}
 		if priority.Valid {

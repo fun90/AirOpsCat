@@ -105,6 +105,12 @@ func BatchServerOptions(ctx context.Context, db *sql.DB) ([]BatchServerOption, e
 	return out, rows.Err()
 }
 
+// placementHasDomainSQL 判断部署位（表别名 a）设置了域名：有访问域名记录，或被订阅定制绑定。
+// 没有域名的部署位不参与域名切走，切走状态只能出现在有域名的部署位上。
+func placementHasDomainSQL(a string) string {
+	return `(coalesce(` + a + `.access_host_id IN (SELECT id FROM domain_dns_record), 0) OR EXISTS (SELECT 1 FROM account_node_subscription_placement bp WHERE bp.node_server_id = ` + a + `.id))`
+}
+
 // BatchNodeSwitch 把所选节点当前指向的部署位标记为切走，域名按优先级切到其余部署位；
 // 没有指向或没有其他未切走部署位的节点跳过。
 func BatchNodeSwitch(ctx context.Context, db *sql.DB, nodeIDs []int64) (switched, skipped int, err error) {
@@ -142,7 +148,7 @@ func BatchNodeSwitch(ctx context.Context, db *sql.DB, nodeIDs []int64) (switched
 			skipped++
 			continue
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE node_server SET failover = 1 WHERE id IN `+in, ids...); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE node_server SET failover = 1, failover_target = NULL WHERE `+placementHasDomainSQL("node_server")+` AND id IN `+in, ids...); err != nil {
 			return 0, 0, err
 		}
 		switched++
@@ -160,7 +166,7 @@ func RestoreNodeFailover(ctx context.Context, db *sql.DB, nodeIDs []int64) (int6
 	for i, id := range nodeIDs {
 		args[i] = id
 	}
-	res, err := db.ExecContext(ctx, `UPDATE node_server SET failover = 0 WHERE failover = 1 AND node_id IN (?`+strings.Repeat(",?", len(nodeIDs)-1)+`)`, args...)
+	res, err := db.ExecContext(ctx, `UPDATE node_server SET failover = 0, failover_target = NULL WHERE failover = 1 AND node_id IN (?`+strings.Repeat(",?", len(nodeIDs)-1)+`)`, args...)
 	if err != nil {
 		return 0, err
 	}
@@ -169,12 +175,75 @@ func RestoreNodeFailover(ctx context.Context, db *sql.DB, nodeIDs []int64) (int6
 
 // RestorePlacementFailover 只取消节点某个部署位的切走，其余部署位保持不变。
 func RestorePlacementFailover(ctx context.Context, db *sql.DB, nodeID, placementID int64) error {
-	res, err := db.ExecContext(ctx, `UPDATE node_server SET failover = 0 WHERE id = ? AND node_id = ? AND failover = 1`, placementID, nodeID)
+	res, err := db.ExecContext(ctx, `UPDATE node_server SET failover = 0, failover_target = NULL WHERE id = ? AND node_id = ? AND failover = 1`, placementID, nodeID)
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return invalid("部署位不存在或未切走")
+	}
+	return nil
+}
+
+// SwitchAwayPlacement 手动把节点的某个部署位切走：只标记该部署位，其余部署位保持不变。
+// targetID 大于 0 时该部署位的域名只切到指定部署位（同节点可承接、探测正常即可，不要求它未被切走）；
+// 为 0 时按优先级自动选择，没有其他可承接的部署位则拒绝，避免切换计划为空。
+func SwitchAwayPlacement(ctx context.Context, db *sql.DB, nodeID, placementID, targetID int64) error {
+	return inTx(ctx, db, func(tx *sql.Tx) error {
+		if targetID == placementID && targetID != 0 {
+			return invalid("目标部署位不能是被切走的部署位")
+		}
+		var hasDomain bool
+		if err := tx.QueryRowContext(ctx, `SELECT `+placementHasDomainSQL("ns")+` FROM node_server ns WHERE ns.id = ? AND ns.node_id = ?`, placementID, nodeID).Scan(&hasDomain); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if !hasDomain {
+			return invalid("该部署位没有设置域名，无需切走")
+		}
+		var target any
+		if targetID > 0 {
+			// 指定目标：只要求其能承接且探测正常，不看它是否被标记切走。
+			if err := checkSwitchTarget(ctx, tx, nodeID, targetID); err != nil {
+				return err
+			}
+			var bad int
+			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM placement_probe WHERE placement_id = ? AND ok = 0`, targetID).Scan(&bad); err != nil {
+				return err
+			}
+			if bad > 0 {
+				return invalid("目标部署位探测不通，不能作为切换目标")
+			}
+			target = targetID
+		} else {
+			var rest int
+			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM node_server ns JOIN node n ON n.id = ns.node_id JOIN server s ON s.id = ns.server_id
+				WHERE ns.node_id = ? AND ns.id <> ? AND ns.failover = 0 AND `+dnsPlacementSQL+` AND `+dnsServerUsableSQL,
+				nodeID, placementID, shanghaiDay(nowFunc())).Scan(&rest); err != nil {
+				return err
+			}
+			if rest == 0 {
+				return invalid("没有其他可承接切换的部署位，不能切走")
+			}
+		}
+		res, err := tx.ExecContext(ctx, `UPDATE node_server SET failover = 1, failover_target = ? WHERE id = ? AND node_id = ? AND deployed <> 2`, target, placementID, nodeID)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return invalid("部署位不存在或待删除")
+		}
+		return nil
+	})
+}
+
+// MarkPlacementFailover 只把节点的某个部署位标记切走，其余部署位保持不变；域名由 DNS 自动切换迁到其他可用部署位。
+func MarkPlacementFailover(ctx context.Context, db *sql.DB, nodeID, placementID int64) error {
+	res, err := db.ExecContext(ctx, `UPDATE node_server SET failover = 1, failover_target = NULL WHERE id = ? AND node_id = ? AND deployed <> 2 AND `+placementHasDomainSQL("node_server"), placementID, nodeID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return invalid("部署位不存在、待删除或没有域名")
 	}
 	return nil
 }
@@ -186,7 +255,9 @@ func SwitchNodePlacement(ctx context.Context, db *sql.DB, nodeID, placementID in
 		if err := checkSwitchTarget(ctx, tx, nodeID, placementID); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `UPDATE node_server SET failover = (id <> ?) WHERE node_id = ? AND deployed <> 2`, placementID, nodeID)
+		// 只切走有域名的部署位，并记下目标，避免它们的域名被自动规划切到其他部署位；没有域名的部署位不标记。
+		_, err := tx.ExecContext(ctx, `UPDATE node_server SET failover = (id <> ? AND `+placementHasDomainSQL("node_server")+`),
+			failover_target = CASE WHEN id <> ? AND `+placementHasDomainSQL("node_server")+` THEN ? END WHERE node_id = ? AND deployed <> 2`, placementID, placementID, placementID, nodeID)
 		return err
 	})
 }

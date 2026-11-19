@@ -71,8 +71,11 @@
                         <span class="badge bg-red-lt" data-del-badge hidden></span>
                         <button type="button" class="btn btn-sm btn-link p-0" data-del-undo hidden>撤销删除</button>
                     </div>
-                        {{if .Failover}}<button class="btn btn-sm btn-link text-warning p-0 text-nowrap ms-auto" form="placement-switch" name="restore" value="{{.ID}}" data-confirm="取消 {{.ServerName}} 的切走并立即执行 DNS 切换，确定？">取消切走</button>
-                        {{else if and (gt (len $.Placements) 1) .Running (ne .Deployed 2) (not .Disabled) (not (and (index $.PlacementTargets .ID) (eq (len $.PlacementTargets) 1)))}}<button class="btn btn-sm btn-link text-warning p-0 text-nowrap ms-auto" form="placement-switch" name="placement" value="{{.ID}}" data-confirm="节点域名将切到 {{.ServerName}} 并立即执行 DNS 切换，确定？{{with index $.SwitchWarn .ID}}&#10;&#10;{{.}}{{end}}">切到此处</button>{{end}}
+                        <span class="ms-auto d-flex gap-2">
+                        {{if .Failover}}<button class="btn btn-sm btn-link text-warning p-0 text-nowrap" form="placement-switch" name="restore" value="{{.ID}}" data-confirm="取消 {{.ServerName}} 的切走并立即执行 DNS 切换，确定？">取消切走</button>
+                        {{else}}{{if and (gt (len $.Placements) 1) .Running (ne .Deployed 2) (not .Disabled) (not (and (index $.PlacementTargets .ID) (eq (len $.PlacementTargets) 1)))}}<button class="btn btn-sm btn-link text-warning p-0 text-nowrap" form="placement-switch" name="placement" value="{{.ID}}" data-confirm="节点域名将切到 {{.ServerName}} 并立即执行 DNS 切换，确定？{{with index $.SwitchWarn .ID}}&#10;&#10;{{.}}{{end}}">切到此处</button>{{end}}
+                        {{if and (gt (len $.Placements) 1) .Running (ne .Deployed 2) (index $.PlacementDomains .ID)}}<button type="button" class="btn btn-sm btn-link text-danger p-0 text-nowrap" data-bs-toggle="modal" data-bs-target="#placement-away-{{.ID}}">切走</button>{{end}}{{end}}
+                        </span>
                     </div>
                     {{if ne .Deployed 2}}
                     <template data-domains>{{range index $.PlacementDomains .ID}}<li>{{.}}</li>{{end}}</template>
@@ -170,6 +173,15 @@
 </form>
 {{if .ID}}
 <form id="placement-switch" method="post" action="/admin/nodes/{{.ID}}/switch"><input type="hidden" name="csrf" value="{{$.CSRF}}"></form>
+{{range $p := $.Placements}}{{if and (gt (len $.Placements) 1) .Running (ne .Deployed 2) (not .Failover) (index $.PlacementDomains .ID)}}
+<div class="modal modal-blur fade" id="placement-away-{{.ID}}" tabindex="-1" aria-labelledby="placement-away-title-{{.ID}}" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form class="modal-content" method="post" action="/admin/nodes/{{$.Form.ID}}/switch"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="away" value="{{.ID}}">
+<div class="modal-header"><h5 class="modal-title" id="placement-away-title-{{.ID}}">切走 {{.ServerName}}</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+<div class="modal-body"><p class="mb-3">只切走该部署位，其余部署位不变，并立即执行 DNS 切换。{{with index $.SwitchWarn .ID}}</p><p class="text-warning small">{{.}}{{end}}</p>
+<label class="form-label" for="away-target-{{.ID}}">指向它的域名切到</label>
+<select class="form-select" id="away-target-{{.ID}}" name="target_{{.ID}}">{{$picked := false}}{{range $.Placements}}{{if and (ne .ID $p.ID) .Running (ne .Deployed 2) (not .Disabled)}}{{$bad := false}}{{$n := 0}}{{range index $.ProbeStates .ID}}{{$n = 1}}{{if not .OK}}{{$bad = true}}{{end}}{{end}}{{if not $bad}}<option value="{{.ID}}"{{if not $picked}} selected{{$picked = true}}{{end}}>{{.ServerName}}（{{.ServerIP}}）{{if .Priority}} · 优先级 {{.Priority}}{{end}}{{if .Failover}} · 已切走{{end}}{{if eq $n 0}} · 未检测{{end}}</option>{{end}}{{end}}{{end}}</select>
+<div class="form-hint mt-1">列出探测正常（或未检测）的部署位，默认按优先级；只把该部署位的域名 DNS 指向目标服务器</div></div>
+<div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-danger">切走</button></div></form></div></div>
+{{end}}{{end}}
 {{end}}
 <div class="modal modal-blur fade" id="placement-delete" tabindex="-1" aria-labelledby="placement-delete-title" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">

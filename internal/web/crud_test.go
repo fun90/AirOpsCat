@@ -67,7 +67,9 @@ func TestServerAndTagFlows(t *testing.T) {
 
 	// 已部署的部署位阻止删除服务器
 	h2.Exec(`INSERT INTO node (id, type, protocol) VALUES (1, 0, 'vless')`)
-	h2.Exec(`INSERT INTO node_server (node_id, server_id, deployed) VALUES (1, 1, 1)`)
+	h2.Exec(`INSERT INTO domain(id,domain)VALUES(901,'example.com')`)
+	h2.Exec(`INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES(901,901,'a','a.example.com','A','1.1.1.1','SYNCED')`)
+	h2.Exec(`INSERT INTO node_server (node_id, server_id, deployed, access_host_id) VALUES (1, 1, 1, 901)`)
 	if r := post("/admin/servers/1/failover", url.Values{"on": {"1"}}); !strings.Contains(r.Header.Get("Location"), "msg=") || !strings.Contains(body("/admin/servers"), "已切走") {
 		t.Fatal("手动切走未生效", r.Header.Get("Location"))
 	}
@@ -546,7 +548,9 @@ func TestServerPlacementSwitch(t *testing.T) {
 	}
 	a.DB.Exec(`INSERT INTO server (id, name, ip) VALUES (1, 'hk-1', '1.1.1.1'), (2, 'hk-2', '2.2.2.2')`)
 	a.DB.Exec(`INSERT INTO node (id, name, type, protocol, port) VALUES (1, 'n1', 0, 'vless', 443)`)
-	a.DB.Exec(`INSERT INTO node_server (id, node_id, server_id, deployed, priority, failover) VALUES (11, 1, 1, 1, 0, 1), (12, 1, 2, 1, 5, 0)`)
+	a.DB.Exec(`INSERT INTO domain(id,domain)VALUES(901,'example.com')`)
+	a.DB.Exec(`INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES(901,901,'a','a.example.com','A','1.1.1.1','SYNCED')`)
+	a.DB.Exec(`INSERT INTO node_server (id, node_id, server_id, deployed, priority, failover, access_host_id) VALUES (11, 1, 1, 1, 0, 1, 901), (12, 1, 2, 1, 5, 0, 901)`)
 	if edit := do(h, "GET", "/admin/servers/2/edit", nil, c, nil).Body.String(); !strings.Contains(edit, "n1") || !strings.Contains(edit, "优先级 5") || !strings.Contains(edit, ">切到此处</button>") {
 		t.Fatal("服务器编辑页应列出部署位并可切到此处")
 	}

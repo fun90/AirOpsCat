@@ -164,6 +164,9 @@ func TestSwitchTargetMustBeRunning(t *testing.T) {
 		t.Fatalf("目标从未部署时应拒绝: %v", err)
 	}
 	mustExec(t, db, `UPDATE node_server SET deployed=1`)
+	mustExec(t, db, `INSERT INTO domain(id,domain)VALUES(1,'example.com')`)
+	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES(1,1,'a','a.example.com','A','1.1.1.1','SYNCED')`)
+	mustExec(t, db, `UPDATE node_server SET access_host_id=1`)
 	for _, bad := range []string{`UPDATE server SET disabled=1 WHERE id=?`, `UPDATE server SET expire_date='2000-01-01' WHERE id=?`, `UPDATE server SET external_server=1 WHERE id=?`} {
 		mustExec(t, db, bad, b)
 		if err := SwitchNodePlacement(ctx, db, id, target); !errors.Is(err, ErrInvalid) {
@@ -249,5 +252,132 @@ func TestDNSCandidatesKeepUnavailableOrigin(t *testing.T) {
 		if !c.Unavailable {
 			t.Fatalf("禁用或到期服务器的候选应标记不可用: %+v", c)
 		}
+	}
+}
+
+func TestSwitchAwayPlacementOnlyMarksOne(t *testing.T) {
+	db, ctx := testDB(t)
+	addServer(t, db, "a", "HK", NodeProxy, false, false)
+	b := addServer(t, db, "b", "HK", NodeProxy, false, false)
+	c := addServer(t, db, "c", "HK", NodeProxy, false, false)
+	setServerIP(t, db, b, "2.2.2.2")
+	setServerIP(t, db, c, "3.3.3.3")
+	id, err := SaveNode(ctx, db, newNode("n", "HK", NodeProxy, 443), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, db, `UPDATE node_server SET deployed=1`)
+	pm0 := placementsOf(t, db, id)
+	if err := SwitchAwayPlacement(ctx, db, id, pm0["a"].ID, 0); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("没有域名的部署位不能切走: %v", err)
+	}
+	mustExec(t, db, `INSERT INTO domain(id,domain)VALUES(1,'example.com')`)
+	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES(1,1,'a','a.example.com','A','1.1.1.1','SYNCED')`)
+	mustExec(t, db, `UPDATE node_server SET access_host_id=1`)
+	pm := placementsOf(t, db, id)
+	if err := SwitchAwayPlacement(ctx, db, id, pm["a"].ID, 0); err != nil {
+		t.Fatal(err)
+	}
+	pm = placementsOf(t, db, id)
+	if !pm["a"].Failover || pm["b"].Failover || pm["c"].Failover {
+		t.Fatal("只应切走所选部署位")
+	}
+	if err := SwitchAwayPlacement(ctx, db, id, pm["b"].ID, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := SwitchAwayPlacement(ctx, db, id, pm["c"].ID, 0); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("没有其他可承接部署位时应拒绝: %v", err)
+	}
+}
+
+func TestSwitchAwayPlacementTarget(t *testing.T) {
+	db, ctx := testDB(t)
+	addServer(t, db, "a", "HK", NodeProxy, false, false)
+	b := addServer(t, db, "b", "HK", NodeProxy, false, false)
+	c := addServer(t, db, "c", "HK", NodeProxy, false, false)
+	setServerIP(t, db, b, "2.2.2.2")
+	setServerIP(t, db, c, "3.3.3.3")
+	id, err := SaveNode(ctx, db, newNode("n", "HK", NodeProxy, 443), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, db, `UPDATE node_server SET deployed=1`)
+	mustExec(t, db, `INSERT INTO domain(id,domain)VALUES(1,'example.com')`)
+	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES(1,1,'a','a.example.com','A','1.1.1.1','SYNCED')`)
+	mustExec(t, db, `UPDATE node_server SET access_host_id=1`)
+	pm := placementsOf(t, db, id)
+	if err := SwitchAwayPlacement(ctx, db, id, pm["a"].ID, pm["a"].ID); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("目标为自身应拒绝: %v", err)
+	}
+	if err := SwitchAwayPlacement(ctx, db, id, pm["a"].ID, pm["c"].ID); err != nil {
+		t.Fatal(err)
+	}
+	var got int64
+	if err := db.QueryRow(`SELECT failover_target FROM node_server WHERE id=?`, pm["a"].ID).Scan(&got); err != nil || got != pm["c"].ID {
+		t.Fatalf("应记录指定目标: %d %v", got, err)
+	}
+	if err := RestorePlacementFailover(ctx, db, id, pm["a"].ID); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	db.QueryRow(`SELECT count(*) FROM node_server WHERE failover_target IS NOT NULL`).Scan(&n)
+	if n != 0 {
+		t.Fatal("取消切走应清除指定目标")
+	}
+	mustExec(t, db, `UPDATE server SET disabled=1 WHERE id=?`, c)
+	if err := SwitchAwayPlacement(ctx, db, id, pm["a"].ID, pm["c"].ID); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("目标不可用应拒绝: %v", err)
+	}
+	mustExec(t, db, `UPDATE server SET disabled=0 WHERE id=?`, c)
+	// 目标已被切走也可选；探测不通才拒绝
+	mustExec(t, db, `UPDATE node_server SET failover=1 WHERE id=?`, pm["c"].ID)
+	if err := SwitchAwayPlacement(ctx, db, id, pm["a"].ID, pm["c"].ID); err != nil {
+		t.Fatalf("已切走但探测正常的目标应可选: %v", err)
+	}
+	mustExec(t, db, `INSERT INTO server(id,ip)VALUES(90,'9.9.9.9')`)
+	mustExec(t, db, `INSERT INTO placement_probe(placement_id,probe_server_id,ok,ms,msg,fails,checked_time)VALUES(?,90,0,0,'超时',3,'2026-01-01 00:00:00')`, pm["c"].ID)
+	if err := SwitchAwayPlacement(ctx, db, id, pm["a"].ID, pm["c"].ID); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("探测不通的目标应拒绝: %v", err)
+	}
+}
+
+func TestNoDomainPlacementNeverFailover(t *testing.T) {
+	db, ctx := testDB(t)
+	addServer(t, db, "a", "HK", NodeProxy, false, false)
+	b := addServer(t, db, "b", "HK", NodeProxy, false, false)
+	c := addServer(t, db, "c", "HK", NodeProxy, false, false)
+	setServerIP(t, db, b, "2.2.2.2")
+	setServerIP(t, db, c, "3.3.3.3")
+	id, err := SaveNode(ctx, db, newNode("n", "HK", NodeProxy, 443), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, db, `UPDATE node_server SET deployed=1`)
+	mustExec(t, db, `INSERT INTO domain(id,domain)VALUES(1,'example.com')`)
+	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES(1,1,'a','a.example.com','A','1.1.1.1','SYNCED')`)
+	pm := placementsOf(t, db, id)
+	mustExec(t, db, `UPDATE node_server SET access_host_id=1 WHERE id IN (?,?)`, pm["a"].ID, pm["b"].ID)
+	// 切到 a：b 有域名被切走并记下目标，没有域名的 c 不标记
+	if err := SwitchNodePlacement(ctx, db, id, pm["a"].ID); err != nil {
+		t.Fatal(err)
+	}
+	pm = placementsOf(t, db, id)
+	if pm["a"].Failover || !pm["b"].Failover || pm["c"].Failover {
+		t.Fatalf("没有域名的部署位不应被切走: a=%v b=%v c=%v", pm["a"].Failover, pm["b"].Failover, pm["c"].Failover)
+	}
+	var target int64
+	db.QueryRow(`SELECT failover_target FROM node_server WHERE id=?`, pm["b"].ID).Scan(&target)
+	if target != pm["a"].ID {
+		t.Fatalf("应记下切换目标: %d", target)
+	}
+	// 服务器级切走同样跳过没有域名的部署位
+	if err := SetServerFailover(ctx, db, c, true); err != nil {
+		t.Fatal(err)
+	}
+	if placementsOf(t, db, id)["c"].Failover {
+		t.Fatal("服务器级切走不应标记没有域名的部署位")
+	}
+	if err := MarkPlacementFailover(ctx, db, id, pm["c"].ID); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("自动切走没有域名的部署位应拒绝: %v", err)
 	}
 }

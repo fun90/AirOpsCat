@@ -33,6 +33,8 @@ type Candidate struct {
 	Priority                 *int64
 	Usage                    float64
 	Known, Failover          bool
+	// FailoverTarget 是手动切走时指定的承接部署位 ID，0 表示按优先级自动选择。
+	FailoverTarget int64
 	// Unavailable 表示服务器已禁用或到期：只用于识别原服务器并切走，不作为切换目标。
 	Unavailable bool
 }
@@ -110,8 +112,19 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 		return !c.Failover && !c.Unavailable && c.Known && c.Usage < threshold && allowed(c)
 	}
 	var target *Candidate
+	if origin.Failover && origin.FailoverTarget != 0 {
+		// 手动指定了承接部署位：不受流量阈值和切走标记限制。
+		for i := range cs {
+			if c := &cs[i]; c.ID == origin.FailoverTarget && !c.Unavailable && allowed(c) {
+				target = c
+			}
+		}
+	}
 	for i := range cs {
 		c := &cs[i]
+		if target != nil {
+			break
+		}
 		if ok(c) && Window(c.CheapStart, c.CheapEnd, at) {
 			target = c
 			break
