@@ -9,10 +9,10 @@
 
 ## 局部导航验证
 
-修改导航、页面脚本生命周期或公共布局时，运行浏览器回归：
+修改导航、返回/取消逻辑（`back.js`）、页面脚本生命周期或公共布局时，运行浏览器回归：
 
 ```bash
-node --test scripts/nav-progress.test.mjs
+node --test scripts/nav-progress.test.mjs scripts/back.test.mjs
 ```
 
 需要 Node.js 22+ 和 Chrome，无需安装 npm 依赖。默认使用 macOS 的 Chrome 路径；其他环境通过 `CHROME_BIN` 指定 Chrome/Chromium 可执行文件。确认测试实际执行且全部通过；未找到浏览器时会标记跳过，不能作为验证通过。

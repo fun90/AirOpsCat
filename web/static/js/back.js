@@ -2,7 +2,7 @@
 window.AirOpsPage.register(function () {
   var m = location.pathname.match(/^\/admin\/[^/]+/);
   if (!m) { return; }
-  var base = m[0].slice(0, -1), key = 'back:' + base;
+  var base = m[0], key = 'back:' + base;
   if (location.pathname === base) {
     sessionStorage.setItem(key, base + location.search);
     return;
@@ -11,12 +11,16 @@ window.AirOpsPage.register(function () {
   try {
     var ref = new URL(document.referrer);
     if (ref.origin === location.origin && ref.pathname.indexOf('/admin/') === 0 && ref.href !== location.href) {
+      ref.searchParams.delete('msg'); ref.searchParams.delete('err');
       back = ref.pathname + ref.search + ref.hash;
     }
   } catch (_) {}
   if (!back) { back = sessionStorage.getItem(key) || ''; }
   if (!back) { return; }
-  document.querySelectorAll('a[data-back], .card-footer a.btn-link[href]').forEach(function (a) { a.href = back; });
+  var listPage = /^\/admin\/[^/?#]+(\?|#|$)/;
+  document.querySelectorAll('a[data-back], .card-footer a.btn-link[href]').forEach(function (a) {
+    if (a.hasAttribute('data-back') || listPage.test(a.getAttribute('href'))) { a.href = back; }
+  });
   document.querySelectorAll('form[method=post]').forEach(function (f) {
     var path = new URL(f.action, location.href).pathname;
     if (path !== base && path.indexOf(base + '/') !== 0) { return; }
