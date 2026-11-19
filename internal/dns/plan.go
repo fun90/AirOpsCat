@@ -37,6 +37,8 @@ type Candidate struct {
 	FailoverTarget int64
 	// Unavailable 表示服务器已禁用或到期：只用于识别原服务器并切走，不作为切换目标。
 	Unavailable bool
+	// ProbeDown 表示国内探测近期有探测机检测 TCP/UDP 不通：不作为切换目标，空闲时段与流量回切也不会切过去。
+	ProbeDown bool
 }
 type AutoRecord struct {
 	ID            int64
@@ -109,13 +111,13 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 	// leave：原服务器已手动切走或不可用（禁用、到期），必须切走且不回切。
 	leave := origin.Failover || origin.Unavailable
 	ok := func(c *Candidate) bool {
-		return !c.Failover && !c.Unavailable && c.Known && c.Usage < threshold && allowed(c)
+		return !c.Failover && !c.Unavailable && !c.ProbeDown && c.Known && c.Usage < threshold && allowed(c)
 	}
 	var target *Candidate
 	if origin.Failover && origin.FailoverTarget != 0 {
 		// 手动指定了承接部署位：不受流量阈值和切走标记限制。
 		for i := range cs {
-			if c := &cs[i]; c.ID == origin.FailoverTarget && !c.Unavailable && allowed(c) {
+			if c := &cs[i]; c.ID == origin.FailoverTarget && !c.Unavailable && !c.ProbeDown && allowed(c) {
 				target = c
 			}
 		}
@@ -148,7 +150,7 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 	if target == nil && leave {
 		// 原服务器已手动切走或不可用时，宁可切到超阈值或用量未知的候选，也不留在不可用的服务器上。
 		for i := range cs {
-			if !cs[i].Failover && !cs[i].Unavailable && allowed(&cs[i]) {
+			if !cs[i].Failover && !cs[i].Unavailable && !cs[i].ProbeDown && allowed(&cs[i]) {
 				target = &cs[i]
 				break
 			}
@@ -156,6 +158,14 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 	}
 	if target == nil && leave {
 		return Plan{}
+	}
+	if target == nil {
+		// 有候选只是探测不通而无法承接时，保持当前解析，不能误报“流量耗尽”。
+		for _, c := range cs {
+			if c.ProbeDown && !c.Failover && !c.Unavailable {
+				return Plan{}
+			}
+		}
 	}
 	if target == nil {
 		known := true

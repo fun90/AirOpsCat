@@ -226,3 +226,70 @@ func TestShownPointedPlacementsNeedsSwitch(t *testing.T) {
 		t.Fatal("切换后应标注承接方", m, err)
 	}
 }
+
+func TestDNSCandidatesProbeDown(t *testing.T) {
+	db, ctx := testDB(t)
+	mustExec(t, db, `INSERT INTO server(id,ip)VALUES(1,'192.0.2.1'),(2,'192.0.2.2'),(8,'198.51.100.8')`)
+	mustExec(t, db, `INSERT INTO node(id,name,type,protocol,port)VALUES(1,'代理',0,'vless',443)`)
+	mustExec(t, db, `INSERT INTO node_server(id,node_id,server_id,deployed,priority)VALUES(1,1,1,1,10),(2,1,2,1,20)`)
+	now := time.Now()
+	if err := SavePlacementProbes(ctx, db, 8, []ProbeOutcome{{PlacementID: 1, OK: true, Ms: 10}, {PlacementID: 2, Msg: "超时"}}, now); err != nil {
+		t.Fatal(err)
+	}
+	cs, err := DNSCandidates(ctx, db, now)
+	if err != nil || len(cs) != 2 {
+		t.Fatal(cs, err)
+	}
+	for _, c := range cs {
+		if c.ProbeDown != (c.ID == 2) {
+			t.Fatalf("部署位 %d ProbeDown=%v", c.ID, c.ProbeDown)
+		}
+	}
+	mustExec(t, db, `UPDATE placement_probe SET checked_time='2000-01-01 00:00:00'`)
+	cs, _ = DNSCandidates(ctx, db, now)
+	for _, c := range cs {
+		if c.ProbeDown {
+			t.Fatal("过期的探测结果不应标记不通")
+		}
+	}
+}
+
+func TestAutoFailoverSkipsPlacementWithoutDomain(t *testing.T) {
+	db, ctx := testDB(t)
+	mustExec(t, db, `INSERT INTO server(id,ip)VALUES(1,'192.0.2.1'),(2,'192.0.2.2'),(8,'198.51.100.8')`)
+	mustExec(t, db, `INSERT INTO node(id,name,type,protocol,port)VALUES(1,'代理',0,'vless',443)`)
+	mustExec(t, db, `INSERT INTO domain(id,domain)VALUES(1,'example.com')`)
+	// 域名当前解析到部署位 2 的服务器，但访问域名只挂在部署位 1 上；部署位 2 自身没有域名
+	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES(1,1,'a','a.example.com','A','192.0.2.2','SYNCED')`)
+	mustExec(t, db, `INSERT INTO node_server(id,node_id,server_id,deployed,priority,access_host_id,failover)VALUES(1,1,1,1,10,1,1),(2,1,2,1,20,NULL,0)`)
+	now := time.Now()
+	for round := 0; round < ProbeFailoverRounds; round++ {
+		if err := SavePlacementProbes(ctx, db, 8, []ProbeOutcome{{PlacementID: 2, Msg: "超时"}, {PlacementID: 1, OK: true, Ms: 20}}, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	switched, err := AutoFailoverPlacements(ctx, db, []int64{8}, now.Add(-time.Minute))
+	if err != nil || len(switched) != 0 {
+		t.Fatalf("没有域名的部署位不应被自动切走，也不应让整轮报错: %+v %v", switched, err)
+	}
+}
+
+func TestAmbiguousDomains(t *testing.T) {
+	db, ctx := testDB(t)
+	mustExec(t, db, `INSERT INTO server(id,ip)VALUES(1,'192.0.2.1'),(2,'192.0.2.2')`)
+	mustExec(t, db, `INSERT INTO node(id,name,type,protocol,port)VALUES(1,'a',0,'vless',443),(2,'b',0,'vless',444)`)
+	mustExec(t, db, `INSERT INTO domain(id,domain)VALUES(1,'example.com')`)
+	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES(1,1,'x','x.example.com','A','192.0.2.1','SYNCED'),(2,1,'y','y.example.com','A','192.0.2.1','SYNCED')`)
+	mustExec(t, db, `INSERT INTO node_server(id,node_id,server_id,deployed,priority,access_host_id)VALUES(1,1,1,1,1,1),(2,1,2,1,2,2),(3,2,1,1,1,1)`)
+	// x 同时被节点 1、2 引用；y 只属于节点 1
+	got, err := AmbiguousDomains(ctx, db, 1, 0)
+	if err != nil || len(got) != 1 || got[0] != "x.example.com" {
+		t.Fatalf("节点 1 应只有 x 冲突: %v %v", got, err)
+	}
+	if got, _ := AmbiguousDomains(ctx, db, 1, 2); len(got) != 0 {
+		t.Fatalf("部署位 2 的域名没有冲突: %v", got)
+	}
+	if got, _ := AmbiguousDomains(ctx, db, 1, 1); len(got) != 1 {
+		t.Fatalf("部署位 1 的域名冲突: %v", got)
+	}
+}

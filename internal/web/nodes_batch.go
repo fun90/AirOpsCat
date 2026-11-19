@@ -127,6 +127,9 @@ func (s *Server) nodeSwitch(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "部署位 ID 不正确", http.StatusBadRequest)
 			return
 		}
+		if s.domainConflict(w, r, back, id, pid) {
+			return
+		}
 		var target int64
 		if raw := r.PostFormValue("target_" + strconv.FormatInt(pid, 10)); raw != "" {
 			if target, err = strconv.ParseInt(raw, 10, 64); err != nil || target < 0 {
@@ -153,10 +156,28 @@ func (s *Server) nodeSwitch(w http.ResponseWriter, r *http.Request) {
 		s.failoverDNS(w, r, back, "已回切", n > 0)
 		return
 	}
+	if s.domainConflict(w, r, back, id, 0) {
+		return
+	}
 	if s.redirectError(w, r, back, store.SwitchNodePlacement(r.Context(), s.DB, id, target), store.ErrInvalid) {
 		return
 	}
 	s.failoverDNS(w, r, back, "已切到指定部署位", true)
+}
+
+// domainConflict 在切走前检查涉及的域名是否被多个节点或服务器同时引用：这类域名 DNS 规划无法确定归属，
+// 切走标记不会带来任何解析变化，因此直接提示原因并拒绝，已处理响应时返回 true。
+func (s *Server) domainConflict(w http.ResponseWriter, r *http.Request, back string, nodeID, placementID int64) bool {
+	names, err := store.AmbiguousDomains(r.Context(), s.DB, nodeID, placementID)
+	if err != nil {
+		s.fail(w, r, err)
+		return true
+	}
+	if len(names) == 0 {
+		return false
+	}
+	redirectMsg(w, r, back, "err", "域名 "+strings.Join(names, "、")+" 同时被多个节点或服务器引用，DNS 无法确定归属，不会切换；请先让它只属于一个节点")
+	return true
 }
 
 // failoverDNS 切走标记变化后立即执行一轮 DNS 切换，不等定时任务。

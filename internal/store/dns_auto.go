@@ -54,26 +54,16 @@ func AutoDNSRecords(ctx context.Context, db *sql.DB, domainID int64) ([]AutoDNSR
 		if err := db.QueryRowContext(ctx, `SELECT coalesce(failover_home_content,'') FROM domain_dns_record WHERE id=?`, id).Scan(&p.Home); err != nil {
 			return nil, err
 		}
-		refs, err := db.QueryContext(ctx, `SELECT node_id,server_id FROM node_server WHERE access_host_id=? AND deployed<>2
- UNION ALL SELECT ns.node_id,ns.server_id FROM account_node_subscription_domain_binding b JOIN node_server ns ON ns.id=(SELECT ns2.id FROM account_node_subscription_placement bp JOIN node_server ns2 ON ns2.id=bp.node_server_id WHERE bp.binding_id=b.id AND ns2.node_id=b.node_id AND ns2.deployed<>2 ORDER BY ns2.id LIMIT 1) WHERE b.domain_dns_record_id=? AND b.enabled=1`, id, id)
+		pairs, err := recordRefs(ctx, db, id)
 		if err != nil {
 			return nil, err
 		}
-		for refs.Next() {
-			var n, s int64
-			if err := refs.Scan(&n, &s); err != nil {
-				refs.Close()
-				return nil, err
-			}
+		for _, ref := range pairs {
+			n, s := ref[0], ref[1]
 			if p.NodeID != 0 && (p.NodeID != n || p.ServerID != s) {
 				p.Ambiguous = true
 			}
 			p.NodeID, p.ServerID = n, s
-		}
-		err = refs.Err()
-		refs.Close()
-		if err != nil {
-			return nil, err
 		}
 		a.PlanInput = p
 		var op DNSOperation
@@ -89,6 +79,69 @@ func AutoDNSRecords(ctx context.Context, db *sql.DB, domainID int64) ([]AutoDNSR
 	return out, nil
 }
 
+// recordRefs 返回引用某条 DNS 记录的（节点，归属服务器）：部署位的访问域名，以及启用的订阅定制绑定的首个部署位。
+func recordRefs(ctx context.Context, db *sql.DB, id int64) ([][2]int64, error) {
+	refs, err := db.QueryContext(ctx, `SELECT node_id,server_id FROM node_server WHERE access_host_id=? AND deployed<>2
+ UNION ALL SELECT ns.node_id,ns.server_id FROM account_node_subscription_domain_binding b JOIN node_server ns ON ns.id=(SELECT ns2.id FROM account_node_subscription_placement bp JOIN node_server ns2 ON ns2.id=bp.node_server_id WHERE bp.binding_id=b.id AND ns2.node_id=b.node_id AND ns2.deployed<>2 ORDER BY ns2.id LIMIT 1) WHERE b.domain_dns_record_id=? AND b.enabled=1`, id, id)
+	if err != nil {
+		return nil, err
+	}
+	defer refs.Close()
+	var out [][2]int64
+	for refs.Next() {
+		var r [2]int64
+		if err := refs.Scan(&r[0], &r[1]); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, refs.Err()
+}
+
+// AmbiguousDomains 返回节点相关的、被多个节点或归属服务器同时引用的域名（DNS 规划无法确定归属，不会切换）。
+// placementID 大于 0 时只看该部署位的访问域名与包含它的订阅定制；为 0 时看节点全部域名。
+func AmbiguousDomains(ctx context.Context, db *sql.DB, nodeID, placementID int64) ([]string, error) {
+	q := `SELECT DISTINCT r.id, coalesce(r.full_name, r.name) FROM domain_dns_record r WHERE r.id IN (SELECT access_host_id FROM node_server WHERE node_id=? AND deployed<>2 AND access_host_id IS NOT NULL AND (?=0 OR id=?))
+ OR r.id IN (SELECT b.domain_dns_record_id FROM account_node_subscription_domain_binding b WHERE b.node_id=? AND b.enabled=1 AND b.domain_dns_record_id IS NOT NULL
+   AND (?=0 OR EXISTS (SELECT 1 FROM account_node_subscription_placement bp WHERE bp.binding_id=b.id AND bp.node_server_id=?))) ORDER BY r.id`
+	rows, err := db.QueryContext(ctx, q, nodeID, placementID, placementID, nodeID, placementID, placementID)
+	if err != nil {
+		return nil, err
+	}
+	type rec struct {
+		id   int64
+		name string
+	}
+	var recs []rec
+	for rows.Next() {
+		var r rec
+		if err := rows.Scan(&r.id, &r.name); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		recs = append(recs, r)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, r := range recs {
+		refs, err := recordRefs(ctx, db, r.id)
+		if err != nil {
+			return nil, err
+		}
+		for _, ref := range refs {
+			if ref != refs[0] {
+				out = append(out, r.name)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
 // dnsPlacementSQL 是部署位参与 DNS 切换的条件（ns/n/s 为部署位、节点、服务器别名）：
 // 非待删除且在服务器上运行（已部署或有未禁用快照）的代理节点，服务器非外部。
 const dnsPlacementSQL = placementRunningSQL + ` AND n.type=0 AND n.disabled=0 AND s.external_server=0`
@@ -98,14 +151,15 @@ const dnsServerUsableSQL = `s.disabled=0 AND (s.expire_date IS NULL OR substr(s.
 
 func shanghaiDay(at time.Time) string { return at.In(Shanghai).Format("2006-01-02") }
 
-// DNSCandidates 返回参与 DNS 切换的部署位。服务器禁用或到期的部署位也返回并标记 Unavailable：
+// DNSCandidates 返回参与 DNS 切换的部署位；15 分钟内有探测机检测不通的标记 ProbeDown，不作为目标。服务器禁用或到期的部署位也返回并标记 Unavailable：
 // 它仍可作为原服务器被识别并切走，但不作为切换目标。
 func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candidate, error) {
 	rows, err := db.QueryContext(ctx, `SELECT ns.id,ns.node_id,ns.server_id,s.ip,ns.priority,coalesce(ns.cheap_start,''),coalesce(ns.cheap_end,''),coalesce(s.bandwidth,0),coalesce(s.bandwidth_unit,'GiB'),v.rx_bytes,v.tx_bytes,coalesce(v.sample_time,''),ns.failover,coalesce(ns.failover_target,0),
- NOT (`+dnsServerUsableSQL+`)
+ NOT (`+dnsServerUsableSQL+`),
+ EXISTS (SELECT 1 FROM placement_probe pp WHERE pp.placement_id=ns.id AND pp.ok=0 AND pp.checked_time>=?)
  FROM node_server ns JOIN node n ON n.id=ns.node_id JOIN server s ON s.id=ns.server_id
  LEFT JOIN server_metrics v ON v.id=`+latestVnstatSQL+`
- WHERE `+dnsPlacementSQL, append([]any{shanghaiDay(at)}, vnstatPeriodArgs(at)...)...)
+ WHERE `+dnsPlacementSQL, append([]any{shanghaiDay(at), FormatTime(at.Add(-15 * time.Minute))}, vnstatPeriodArgs(at)...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +170,7 @@ func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candida
 		var priority, rx, tx sql.NullInt64
 		var bw int64
 		var unit, sampled string
-		if err := rows.Scan(&c.ID, &c.NodeID, &c.ServerID, &c.IP, &priority, &c.CheapStart, &c.CheapEnd, &bw, &unit, &rx, &tx, &sampled, &c.Failover, &c.FailoverTarget, &c.Unavailable); err != nil {
+		if err := rows.Scan(&c.ID, &c.NodeID, &c.ServerID, &c.IP, &priority, &c.CheapStart, &c.CheapEnd, &bw, &unit, &rx, &tx, &sampled, &c.Failover, &c.FailoverTarget, &c.Unavailable, &c.ProbeDown); err != nil {
 			return nil, err
 		}
 		if priority.Valid {

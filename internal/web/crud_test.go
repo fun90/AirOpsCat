@@ -549,8 +549,8 @@ func TestServerPlacementSwitch(t *testing.T) {
 	a.DB.Exec(`INSERT INTO server (id, name, ip) VALUES (1, 'hk-1', '1.1.1.1'), (2, 'hk-2', '2.2.2.2')`)
 	a.DB.Exec(`INSERT INTO node (id, name, type, protocol, port) VALUES (1, 'n1', 0, 'vless', 443)`)
 	a.DB.Exec(`INSERT INTO domain(id,domain)VALUES(901,'example.com')`)
-	a.DB.Exec(`INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES(901,901,'a','a.example.com','A','1.1.1.1','SYNCED')`)
-	a.DB.Exec(`INSERT INTO node_server (id, node_id, server_id, deployed, priority, failover, access_host_id) VALUES (11, 1, 1, 1, 0, 1, 901), (12, 1, 2, 1, 5, 0, 901)`)
+	a.DB.Exec(`INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES(901,901,'a','a.example.com','A','1.1.1.1','SYNCED'),(902,901,'b','b.example.com','A','2.2.2.2','SYNCED')`)
+	a.DB.Exec(`INSERT INTO node_server (id, node_id, server_id, deployed, priority, failover, access_host_id) VALUES (11, 1, 1, 1, 0, 1, 901), (12, 1, 2, 1, 5, 0, 902)`)
 	if edit := do(h, "GET", "/admin/servers/2/edit", nil, c, nil).Body.String(); !strings.Contains(edit, "n1") || !strings.Contains(edit, "优先级 5") || !strings.Contains(edit, ">切到此处</button>") {
 		t.Fatal("服务器编辑页应列出部署位并可切到此处")
 	}
@@ -564,5 +564,29 @@ func TestServerPlacementSwitch(t *testing.T) {
 	post("/admin/servers/1/placement-switch", url.Values{"placement": {"11"}})
 	if fo(11) != 0 || fo(12) != 1 {
 		t.Fatalf("应切到服务器 1 的部署位: %d %d", fo(11), fo(12))
+	}
+}
+
+func TestNodeSwitchRejectsSharedDomain(t *testing.T) {
+	h, a := newTestServer(t)
+	c := login(t, h, "admin@example.com")
+	csrf := a.CSRFToken(c.Value)
+	a.DB.Exec(`INSERT INTO server (id, name, ip) VALUES (1, 'hk-1', '1.1.1.1'), (2, 'hk-2', '2.2.2.2')`)
+	a.DB.Exec(`INSERT INTO node (id, name, type, protocol, port) VALUES (1, 'n1', 0, 'vless', 443), (2, 'n2', 0, 'vless', 444)`)
+	a.DB.Exec(`INSERT INTO domain(id,domain)VALUES(901,'example.com')`)
+	a.DB.Exec(`INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status)VALUES(901,901,'a','a.example.com','A','1.1.1.1','SYNCED')`)
+	a.DB.Exec(`INSERT INTO node_server (id, node_id, server_id, deployed, priority, access_host_id) VALUES (11, 1, 1, 1, 0, 901), (12, 1, 2, 1, 5, 901), (21, 2, 1, 1, 0, 901)`)
+	for _, form := range []url.Values{{"placement": {"12"}}, {"away": {"11"}}} {
+		form.Set("csrf", csrf)
+		w := do(h, "POST", "/admin/nodes/1/switch", form, c, nil)
+		loc, _ := url.QueryUnescape(w.Header().Get("Location"))
+		if !strings.Contains(loc, "err=") || !strings.Contains(loc, "a.example.com") {
+			t.Fatalf("共用域名应拒绝并提示: %v %s", form, loc)
+		}
+	}
+	var n int
+	a.DB.QueryRow(`SELECT count(*) FROM node_server WHERE failover = 1`).Scan(&n)
+	if n != 0 {
+		t.Fatal("被拒绝时不应打切走标记")
 	}
 }

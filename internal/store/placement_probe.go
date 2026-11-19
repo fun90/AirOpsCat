@@ -227,7 +227,7 @@ JOIN node n ON n.id=src.node_id
 JOIN server s ON s.id=src.server_id
 JOIN node_server dst ON dst.node_id=src.node_id AND dst.id<>src.id
 JOIN server ds ON ds.id=dst.server_id
-WHERE src.failover=0 AND src.deployed<>2 AND (src.deployed=1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id=src.id AND coalesce(d.disabled,0)=0))
+WHERE src.failover=0 AND src.deployed<>2 AND `+placementHasDomainSQL("src")+` AND (src.deployed=1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id=src.id AND coalesce(d.disabled,0)=0))
 AND n.type=0 AND n.disabled=0 AND s.external_server=0 AND `+dnsServerUsableSQL+`
 AND EXISTS (SELECT 1 FROM domain_dns_record r WHERE r.content=s.ip AND (
 	EXISTS (SELECT 1 FROM node_server p WHERE p.node_id=src.node_id AND p.access_host_id=r.id AND p.deployed<>2 AND (coalesce(p.exposed,1)<>0 OR EXISTS (SELECT 1 FROM account_node_subscription_placement bp JOIN account_node_subscription_domain_binding b ON b.id=bp.binding_id WHERE bp.node_server_id=p.id AND b.enabled=1)))

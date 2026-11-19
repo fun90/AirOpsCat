@@ -160,6 +160,9 @@ func (s *Server) serverPlacementSwitch(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, p := range pls {
 		if p.ID == pid {
+			if s.domainConflict(w, r, back, p.NodeID, 0) {
+				return
+			}
 			if !s.redirectError(w, r, back, store.SwitchNodePlacement(r.Context(), s.DB, p.NodeID, pid), store.ErrInvalid) {
 				s.failoverDNS(w, r, back, p.NodeName+" 已切到本服务器", true)
 			}

@@ -147,3 +147,35 @@ func TestPlanManualFailoverTarget(t *testing.T) {
 		t.Fatal("未指定时按优先级", p)
 	}
 }
+
+func TestPlanSkipsProbeDownTarget(t *testing.T) {
+	p1, p2 := int64(1), int64(2)
+	// 原部署位 1 全天可用，部署位 2 在空闲（便宜）时段内：正常应切到 2
+	noon := time.Date(2026, 1, 1, 4, 0, 0, 0, time.UTC) // 上海 12:00
+	mk := func(down bool) []Candidate {
+		return []Candidate{
+			{ID: 1, NodeID: 1, ServerID: 1, IP: "1.1.1.1", Priority: &p1, Known: true},
+			{ID: 2, NodeID: 1, ServerID: 2, IP: "2.2.2.2", Priority: &p2, Known: true, CheapStart: "00:00", CheapEnd: "23:59", ProbeDown: down},
+		}
+	}
+	r := AutoRecord{ID: 1, Content: "1.1.1.1", NodeID: 1, ServerID: 1}
+	if p := PlanRecord(r, mk(false), 0.85, noon); p.Target != "2.2.2.2" {
+		t.Fatal("探测正常时应切到空闲时段部署位", p)
+	}
+	if p := PlanRecord(r, mk(true), 0.85, noon); p.Target == "2.2.2.2" {
+		t.Fatal("空闲时段部署位探测不通时不能切过去", p)
+	}
+	// 超阈值回切：当前在 2，原部署位 1 探测不通时不回切，也不误报流量耗尽
+	cur := AutoRecord{ID: 1, Content: "2.2.2.2", Home: "1.1.1.1", NodeID: 1, ServerID: 1}
+	all := mk(false)
+	all[0].ProbeDown = true
+	if p := PlanRecord(cur, all, 0.85, noon); p.Target == "1.1.1.1" || p.Exhausted {
+		t.Fatal("原部署位探测不通时不应回切", p)
+	}
+	// 手动切走后所有候选都探测不通：保持当前解析
+	away := mk(true)
+	away[0].Failover = true
+	if p := PlanRecord(r, away, 0.85, noon); p.Target != "" || p.Exhausted {
+		t.Fatal("候选都探测不通时应保持当前解析", p)
+	}
+}
