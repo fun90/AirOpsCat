@@ -11,6 +11,11 @@ import (
 	"github.com/fun90/airopscat/internal/dns"
 )
 
+type DNSRecordSubscription struct {
+	AccountID         int64
+	AccountNo, Remark string
+}
+
 type DNSRecord struct {
 	ID, DomainID                  int64
 	Name, FullName, Type, Content string
@@ -19,13 +24,15 @@ type DNSRecord struct {
 	Status, Remark                string
 	ServerID                      *int64
 	ServerName                    string
+	PlacementNames                string
+	Subscriptions                 []DNSRecordSubscription
 	ExternalID                    string
 	Refs                          int // 被节点/订阅定制引用的数量
 }
 
 const recSel = `SELECT r.id,r.domain_id,r.name,coalesce(r.full_name,''),upper(r.type),r.content,coalesce(r.ttl,1),coalesce(r.proxied,0),r.status,coalesce(r.remark,''),
-	r.server_id,coalesce(nullif(s.name,''),s.ip,''),coalesce(r.external_record_id,''),
- (SELECT count(*) FROM node_server WHERE access_host_id=r.id)+(SELECT count(*) FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=r.id)
+	r.server_id,coalesce(nullif(s.name,''),s.ip,''),
+	coalesce(r.external_record_id,''),(SELECT count(*) FROM node_server WHERE access_host_id=r.id)+(SELECT count(*) FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=r.id)
 	FROM domain_dns_record r LEFT JOIN server s ON s.id=r.server_id`
 
 func scanRecord(row interface{ Scan(...any) error }) (*DNSRecord, error) {
@@ -38,6 +45,51 @@ func scanRecord(row interface{ Scan(...any) error }) (*DNSRecord, error) {
 		r.ServerID = &sid.Int64
 	}
 	return &r, nil
+}
+
+func loadRecordPlacementNames(ctx context.Context, db dbtx, r *DNSRecord) error {
+	rows, err := db.QueryContext(ctx, `SELECT ns.id,ns.node_id,n.name FROM node_server ns JOIN node n ON n.id=ns.node_id WHERE ns.access_host_id=? AND ns.deployed<>2 ORDER BY ns.id`, r.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	placementsByNode := map[int64]map[int64]string{}
+	var names []string
+	for rows.Next() {
+		var placementID, nodeID int64
+		var nodeName string
+		if err := rows.Scan(&placementID, &nodeID, &nodeName); err != nil {
+			return err
+		}
+		if placementsByNode[nodeID] == nil {
+			placements, err := Placements(ctx, db, nodeID)
+			if err != nil {
+				return err
+			}
+			placementsByNode[nodeID] = PlacementSubscriptionNames(nodeName, placements)
+		}
+		if name := placementsByNode[nodeID][placementID]; name != "" {
+			names = append(names, name)
+		}
+	}
+	r.PlacementNames = strings.Join(names, "、")
+	return rows.Err()
+}
+
+func loadRecordSubscriptions(ctx context.Context, db dbtx, r *DNSRecord) error {
+	rows, err := db.QueryContext(ctx, `SELECT a.id,coalesce(a.account_no,''),coalesce(a.remark,'') FROM account_node_subscription_domain_binding b JOIN account a ON a.id=b.account_id WHERE b.domain_dns_record_id=? ORDER BY a.id`, r.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var s DNSRecordSubscription
+		if err := rows.Scan(&s.AccountID, &s.AccountNo, &s.Remark); err != nil {
+			return err
+		}
+		r.Subscriptions = append(r.Subscriptions, s)
+	}
+	return rows.Err()
 }
 
 func DNSRecordList(ctx context.Context, db *sql.DB, domainID int64, q string, page, size int) ([]DNSRecord, int, error) {
@@ -57,6 +109,12 @@ func DNSRecordList(ctx context.Context, db *sql.DB, domainID int64, q string, pa
 		if err != nil {
 			return nil, 0, err
 		}
+		if err := loadRecordPlacementNames(ctx, db, r); err != nil {
+			return nil, 0, err
+		}
+		if err := loadRecordSubscriptions(ctx, db, r); err != nil {
+			return nil, 0, err
+		}
 		out = append(out, *r)
 	}
 	return out, total, rows.Err()
@@ -67,7 +125,16 @@ func DNSRecordByID(ctx context.Context, db dbtx, id int64) (*DNSRecord, error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
-	return r, err
+	if err != nil || r == nil {
+		return r, err
+	}
+	if err := loadRecordPlacementNames(ctx, db, r); err != nil {
+		return nil, err
+	}
+	if err := loadRecordSubscriptions(ctx, db, r); err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 // SaveDNSRecord 只维护 A 记录：新增为待创建；已同步记录修改后为待更新；变更不会立即推送。
