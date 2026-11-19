@@ -3,11 +3,16 @@ package store
 import (
 	"context"
 	"database/sql"
+	"strconv"
+	"strings"
 	"time"
 )
 
 // ProbeFailRounds 是判定部署位不可达所需的连续失败轮数（每台探测机都要达到）。
 const ProbeFailRounds = 3
+
+// ProbeFailoverRounds 是自动切走不可达代理部署位所需的连续失败轮数。
+const ProbeFailoverRounds = 6
 
 // ProbeTarget 是定时检测的部署位：运行中（含仍按旧配置运行的待部署位）、节点与服务器均启用、非外部服务器、非落地节点。
 type ProbeTarget struct {
@@ -183,6 +188,86 @@ func NodeProbeStates(ctx context.Context, db *sql.DB, nodeID int64) (map[int64][
 
 // unreachableSQL 选出所有探测机都已连续失败 ProbeFailRounds 轮（参数）的部署位 id。
 const unreachableSQL = `SELECT placement_id FROM placement_probe GROUP BY placement_id HAVING min(fails)>=?`
+
+// AutoFailover 是一次自动切换的节点及其目标部署位。
+type AutoFailover struct {
+	NodeID, SourceID, TargetID int64
+}
+
+// AutoFailoverPlacements 将全部探测机连续失败 ProbeFailoverRounds 轮的代理节点切到全部探测机本轮可达的部署位。
+// checkedAfter 限制探测结果的新鲜度，避免缺报或过期结果触发切换。切换状态保持，不自动回切。
+func AutoFailoverPlacements(ctx context.Context, db *sql.DB, probeIDs []int64, checkedAfter time.Time) ([]AutoFailover, error) {
+	probeIDs = normalizeTagIDs(probeIDs)
+	if len(probeIDs) == 0 {
+		return nil, nil
+	}
+	marks := `?` + strings.Repeat(`,?`, len(probeIDs)-1)
+	args := make([]any, 0, len(probeIDs)*6+4)
+	appendIDs := func() {
+		for _, id := range probeIDs {
+			args = append(args, id)
+		}
+	}
+	args = append(args, shanghaiDay(nowFunc()))
+	appendIDs()
+	args = append(args, len(probeIDs))
+	appendIDs()
+	appendIDs()
+	fresh := FormatTime(checkedAfter)
+	args = append(args, fresh, shanghaiDay(nowFunc()))
+	appendIDs()
+	args = append(args, len(probeIDs))
+	appendIDs()
+	appendIDs()
+	args = append(args, fresh)
+	rows, err := db.QueryContext(ctx, `SELECT src.node_id,src.id,dst.id
+FROM node_server src
+JOIN node n ON n.id=src.node_id
+JOIN server s ON s.id=src.server_id
+JOIN node_server dst ON dst.node_id=src.node_id AND dst.id<>src.id
+JOIN server ds ON ds.id=dst.server_id
+WHERE src.failover=0 AND src.deployed<>2 AND (src.deployed=1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id=src.id AND coalesce(d.disabled,0)=0))
+AND n.type=0 AND n.disabled=0 AND s.external_server=0 AND `+dnsServerUsableSQL+`
+AND EXISTS (SELECT 1 FROM domain_dns_record r WHERE r.content=s.ip AND (
+	EXISTS (SELECT 1 FROM node_server p WHERE p.node_id=src.node_id AND p.access_host_id=r.id AND p.deployed<>2 AND (coalesce(p.exposed,1)<>0 OR EXISTS (SELECT 1 FROM account_node_subscription_placement bp JOIN account_node_subscription_domain_binding b ON b.id=bp.binding_id WHERE bp.node_server_id=p.id AND b.enabled=1)))
+	OR EXISTS (SELECT 1 FROM account_node_subscription_domain_binding b WHERE b.node_id=src.node_id AND b.enabled=1 AND b.domain_dns_record_id=r.id)))
+AND (SELECT count(*) FROM placement_probe pp WHERE pp.placement_id=src.id AND pp.probe_server_id IN (`+marks+`))=?
+AND (SELECT min(pp.fails) FROM placement_probe pp WHERE pp.placement_id=src.id AND pp.probe_server_id IN (`+marks+`))>=`+strconv.Itoa(ProbeFailoverRounds)+`
+AND (SELECT min(pp.checked_time) FROM placement_probe pp WHERE pp.placement_id=src.id AND pp.probe_server_id IN (`+marks+`))>=?
+AND dst.failover=0 AND dst.deployed<>2 AND (dst.deployed=1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id=dst.id AND coalesce(d.disabled,0)=0))
+AND ds.external_server=0 AND ds.disabled=0 AND (ds.expire_date IS NULL OR substr(ds.expire_date,1,10)>=?)
+AND (SELECT count(*) FROM placement_probe pp WHERE pp.placement_id=dst.id AND pp.probe_server_id IN (`+marks+`))=?
+AND (SELECT min(pp.ok) FROM placement_probe pp WHERE pp.placement_id=dst.id AND pp.probe_server_id IN (`+marks+`))=1
+AND (SELECT min(pp.checked_time) FROM placement_probe pp WHERE pp.placement_id=dst.id AND pp.probe_server_id IN (`+marks+`))>=?
+ORDER BY src.node_id, dst.priority IS NULL, dst.priority, dst.id`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var candidates []AutoFailover
+	seen := map[int64]bool{}
+	for rows.Next() {
+		var f AutoFailover
+		if err := rows.Scan(&f.NodeID, &f.SourceID, &f.TargetID); err != nil {
+			return nil, err
+		}
+		if !seen[f.NodeID] {
+			seen[f.NodeID] = true
+			candidates = append(candidates, f)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	var switched []AutoFailover
+	for _, f := range candidates {
+		if err := SwitchNodePlacement(ctx, db, f.NodeID, f.TargetID); err != nil {
+			return switched, err
+		}
+		switched = append(switched, f)
+	}
+	return switched, nil
+}
 
 // UnreachablePlacement 是判定为不可达的部署位，附服务器最近一次 sing-box 状态供定位原因。
 type UnreachablePlacement struct {

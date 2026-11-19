@@ -95,6 +95,18 @@ func (s *Server) probePlacements(ctx context.Context) error {
 		}()
 	}
 	wg.Wait()
+	switched, failoverErr := store.AutoFailoverPlacements(ctx, s.DB, ids, time.Now().Add(-2*probeInterval))
+	if failoverErr != nil {
+		errs = append(errs, fmt.Errorf("自动切换不可达部署位：%w", failoverErr))
+	}
+	if len(switched) > 0 {
+		for _, f := range switched {
+			store.Log(ctx, s.DB, "SERVER_FAILOVER", "WARN", &f.NodeID, "", fmt.Sprintf("国内探测机连续 %d 轮失败，已自动切到部署位 %d", store.ProbeFailoverRounds, f.TargetID), fmt.Sprintf("source_placement=%d target_placement=%d", f.SourceID, f.TargetID))
+		}
+		if err := s.autoDNS(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("自动切换 DNS：%w", err))
+		}
+	}
 	return errors.Join(append(errs, s.alertUnreachablePlacements(ctx, false), s.alertUnreachablePlacements(ctx, true))...)
 }
 
@@ -171,18 +183,12 @@ func (s *Server) alertUnreachablePlacements(ctx context.Context, landing bool) e
 		var lines []string
 		for ; j < len(list) && list[j].ServerID == list[i].ServerID; j++ {
 			u := list[j]
-			lines = append(lines, fmt.Sprintf("%s %s:%d %s", u.NodeName, probeNetwork(u.Protocol), u.Port, u.Msg))
+			lines = append(lines, fmt.Sprintf("%s %s:%d", u.NodeName, probeNetwork(u.Protocol), u.Port))
 		}
 		u := list[i]
 		keep[u.ServerID] = true
-		cause := "未采到 sing-box 状态"
-		if u.SingboxDown != nil && *u.SingboxDown {
-			cause = "sing-box 未运行，疑似服务故障"
-		} else if u.SingboxDown != nil {
-			cause = "sing-box 运行正常，疑似被墙或端口被封"
-		}
 		summary := fmt.Sprintf("%s %d 个部署位%s不可达", u.ServerName, j-i, scope)
-		body := fmt.Sprintf("%s\n所有%s连续 %d 轮失败：\n%s", cause, probers, store.ProbeFailRounds, strings.Join(lines, "\n"))
+		body := fmt.Sprintf("所有%s连续 %d 轮失败：\n%s", probers, store.ProbeFailRounds, strings.Join(lines, "\n"))
 		key := store.AlertKey{Type: alertType, ResourceType: "server", ResourceID: u.ServerID, ResourceKey: u.ServerName, Fingerprint: strconv.FormatInt(u.ServerID, 10)}
 		if err := s.raise(ctx, key, "critical", float64(j-i), 0, summary, time.Hour,
 			notify.Message{Title: "AirOpsCat " + scope + "部署位不可达 · " + u.ServerName, Body: body}); err != nil {

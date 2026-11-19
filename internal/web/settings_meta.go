@@ -55,7 +55,7 @@ var settingMeta = map[string][2]string{
 	"airopscat.domain.expiring.alert.min-interval-hours":               {"域名到期提醒间隔（小时）", ""},
 	"airopscat.account.expiring.alert.min-interval-hours":              {"账户到期提醒间隔（小时）", ""},
 	"airopscat.sing-box.clash-api.secret":                              {"Clash API 密钥", "留空保持不变"},
-	"airopscat.probe.server-ids":                                       {"国内探测服务器 ID", "逗号分隔；经这些服务器 SSH 每 5 分钟检测部署位 TCP/UDP 端口并告警，节点编辑页可手动检测；留空关闭检测"},
+	"airopscat.probe.server-ids":                                       {"国内探测服务器 ID", "逗号分隔；经这些服务器 SSH 每 5 分钟检测部署位 TCP/UDP 端口并告警；全部探测机连续失败 6 轮时自动切到全部探测机可达的部署位；节点编辑页可手动检测；留空关闭检测"},
 
 	"airopscat.config.templates.dir": {"模板目录", "订阅模板从其 subscription-go 子目录读取"},
 	"airopscat.install.scripts.dir":  {"运维脚本目录", ""},
