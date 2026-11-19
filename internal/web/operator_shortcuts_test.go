@@ -28,8 +28,12 @@ func TestOperatorShortcuts(t *testing.T) {
 	if !strings.Contains(body, `action="/admin/accounts/`+id+`/deploy"`) || !strings.Contains(body, `data-node-ids="8"`) || !strings.Contains(body, "data-tag-nodes") {
 		t.Fatal("详情页缺少部署按钮或标签节点数据")
 	}
-	if !strings.Contains(do(h, "GET", "/admin/accounts/new", nil, c, nil).Body.String(), `data-term-months="3"`) {
+	newPage := do(h, "GET", "/admin/accounts/new", nil, c, nil).Body.String()
+	if !strings.Contains(newPage, `data-term-months="3"`) {
 		t.Fatal("开户页缺少快捷时长")
+	}
+	if !strings.Contains(newPage, `name="node_multiple" id="node_multiple" value="1"`) {
+		t.Fatal("开户页节点倍数默认值应为 1")
 	}
 	// 账户没有标签：不连 SSH，直接回到详情页
 	w = do(h, "POST", "/admin/accounts/"+id+"/deploy", url.Values{"csrf": {csrf}, "from": {"edit"}}, c, nil)

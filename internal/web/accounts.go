@@ -263,7 +263,7 @@ func (s *Server) accountNew(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.accountFormPage(w, r, 200, &accountForm{UserSource: "existing", PeriodType: "MONTHLY", NodeMultiple: "2", NodePrefix: "8", MaxConnections: "100", MaxIPs: "2", Bandwidth: "500", DownloadMbps: "12", UploadMbps: "8", FromDate: now.Format(formDateLayout), ToDate: store.AddMonths(now, 1).Format(formDateLayout), TagIDs: map[int64]bool{}}, "")
+	s.accountFormPage(w, r, 200, &accountForm{UserSource: "existing", PeriodType: "MONTHLY", NodeMultiple: "1", NodePrefix: "8", MaxConnections: "100", MaxIPs: "2", Bandwidth: "500", DownloadMbps: "12", UploadMbps: "8", FromDate: now.Format(formDateLayout), ToDate: store.AddMonths(now, 1).Format(formDateLayout), TagIDs: map[int64]bool{}}, "")
 }
 func accountToForm(a *store.Account) *accountForm {
 	f := &accountForm{ID: a.ID, UserID: strconv.FormatInt(a.UserID, 10), UserSource: "existing", Remark: a.Remark, AccountNo: a.AccountNo, UUID: a.UUID, PeriodType: a.PeriodType, NodePrefix: a.NodePrefix, NodeMultiple: strconv.Itoa(a.NodeMultiple), MaxConnections: strconv.Itoa(a.MaxConnections), MaxIPs: strconv.Itoa(a.MaxIps), Bandwidth: strconv.Itoa(a.Bandwidth), Disabled: a.Disabled, TagIDs: map[int64]bool{}}
