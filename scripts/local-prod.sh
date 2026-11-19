@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # 用生产库只读快照在本机启动调试实例；关闭后台任务、通知、SSH 与 DNS 外发。
-# 用法：scripts/local-prod.sh [--no-pull]；需 AIROPSCAT_DEPLOY_HOST 与本机 secret 文件。
+# 用法：scripts/local-prod.sh [--no-pull]；需 AIROPSCAT_DEPLOY_HOST（或 ~/.airopscat-local/deploy-host）与本机 secret 文件。
 set -euo pipefail
-host="${AIROPSCAT_DEPLOY_HOST:-}"
 dir="${AIROPSCAT_LOCAL_DIR:-$HOME/.airopscat-local}"
+# 非交互 shell 读不到 ~/.zshrc，回退到本机文件 $dir/deploy-host（单行主机名，权限 600）
+host="${AIROPSCAT_DEPLOY_HOST:-}"
+[[ -n "$host" || ! -r "$dir/deploy-host" ]] || host=$(tr -d '\n' < "$dir/deploy-host")
 secret_file="${AIROPSCAT_LOCAL_SECRET_FILE:-$dir/secret}"
 # 默认监听所有网卡，便于局域网内手机验收；只想本机访问时设 AIROPSCAT_LISTEN=127.0.0.1:8080
 listen="${AIROPSCAT_LISTEN:-0.0.0.0:8080}"
@@ -16,7 +18,7 @@ mkdir -p "$dir" && chmod 700 "$dir"
 secret=$(tr -d '\n' < "$secret_file")
 
 if [[ "${1:-}" != --no-pull ]]; then
-	[[ -n "$host" && "$host" != -* ]] || { echo '请配置 AIROPSCAT_DEPLOY_HOST' >&2; exit 64; }
+	[[ -n "$host" && "$host" != -* ]] || { echo '请配置 AIROPSCAT_DEPLOY_HOST（或写入 $dir/deploy-host）；本次未启动，端口上的旧实例仍是旧版本' >&2; exit 64; }
 	# sqlite 在线备份：只读打开，不停服、不裸拷 WAL
 	ssh "${ssh_opts[@]}" "$host" "set -e; t=\$(mktemp -d); trap 'rm -rf \$t' EXIT; sqlite3 -readonly $remote_db \".backup \$t/a.db\"; gzip -c \$t/a.db" > "$dir/prod.db.gz.tmp"
 	rm -f "$dir"/prod.db{,-wal,-shm}
