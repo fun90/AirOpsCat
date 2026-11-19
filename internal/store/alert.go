@@ -33,6 +33,7 @@ type Alert struct {
 }
 
 // AlertTrigger 记录一次触发并判断是否需要通知：
+// interval < 0 表示同一次故障只通知一次、持续期间不重复；恢复后再次触发视为新故障，会重新通知。
 // 新告警 → 通知；ACTIVE（含已恢复后重新触发）按 alertDue 节流；ACKNOWLEDGED 持续静默。
 func AlertTrigger(ctx context.Context, db *sql.DB, k AlertKey, severity string, value, threshold float64, summary string, interval time.Duration, now time.Time) (id int64, notify bool, err error) {
 	tx, err := db.BeginTx(ctx, nil)
@@ -62,7 +63,7 @@ func AlertTrigger(ctx context.Context, db *sql.DB, k AlertKey, severity string, 
 		first.String = ts
 		_, err = tx.ExecContext(ctx, `UPDATE alert_state SET status='ACTIVE',first_triggered_time=?,last_triggered_time=?,recovered_time=NULL,acknowledged_time=NULL,acknowledged_by=NULL,trigger_count=1,current_value=?,threshold_value=?,severity=?,summary=?,update_time=? WHERE id=?`,
 			ts, ts, value, threshold, nz(severity), nz(summary), ts, id)
-		notify = alertDue(first.String, notified.String, interval, now)
+		notify = interval < 0 || alertDue(first.String, notified.String, interval, now)
 	} else {
 		_, err = tx.ExecContext(ctx, `UPDATE alert_state SET last_triggered_time=?,trigger_count=trigger_count+1,current_value=?,threshold_value=?,severity=?,summary=?,update_time=? WHERE id=?`,
 			ts, value, threshold, nz(severity), nz(summary), ts, id)
@@ -83,6 +84,9 @@ func alertDue(first, notified string, interval time.Duration, now time.Time) boo
 	n, err := ParseTime(notified)
 	if notified == "" || err != nil {
 		return true
+	}
+	if interval < 0 { // 不重复：同一次故障只通知一次，直到恢复
+		return false
 	}
 	wait := interval
 	if f, err := ParseTime(first); err == nil && n.Sub(f) > wait {

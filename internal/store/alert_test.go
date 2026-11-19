@@ -142,3 +142,23 @@ func TestAlertRecentlyTriggered(t *testing.T) {
 		t.Fatal("早于窗口不应返回")
 	}
 }
+
+func TestAlertTriggerNoRepeat(t *testing.T) {
+	db, ctx := testDB(t)
+	k := AlertKey{Type: "x", ResourceType: "server", ResourceID: 1, Fingerprint: "f"}
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, Shanghai)
+	id, notify, _ := AlertTrigger(ctx, db, k, "critical", 1, 0, "x", -1, t0)
+	if !notify {
+		t.Fatal("新告警应通知")
+	}
+	AlertMarkNotified(ctx, db, id, t0)
+	for _, d := range []time.Duration{time.Hour, 25 * time.Hour, 100 * time.Hour} {
+		if _, notify, _ = AlertTrigger(ctx, db, k, "critical", 1, 0, "x", -1, t0.Add(d)); notify {
+			t.Fatalf("持续 %v 不应重复通知", d)
+		}
+	}
+	AlertResolve(ctx, db, "x", "server", 1, t0.Add(101*time.Hour))
+	if _, notify, _ = AlertTrigger(ctx, db, k, "critical", 1, 0, "x", -1, t0.Add(102*time.Hour)); !notify {
+		t.Fatal("恢复后再次故障应重新通知")
+	}
+}

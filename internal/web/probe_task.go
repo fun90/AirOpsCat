@@ -101,7 +101,7 @@ func (s *Server) probePlacements(ctx context.Context) error {
 	}
 	if len(switched) > 0 {
 		for _, f := range switched {
-			store.Log(ctx, s.DB, "SERVER_FAILOVER", "WARN", &f.NodeID, "", fmt.Sprintf("国内探测机连续 %d 轮失败，已自动切到部署位 %d", store.ProbeFailoverRounds, f.TargetID), fmt.Sprintf("source_placement=%d target_placement=%d", f.SourceID, f.TargetID))
+			store.Log(ctx, s.DB, "SERVER_FAILOVER", "WARN", &f.NodeID, "", fmt.Sprintf("国内探测机连续 %d 轮失败，部署位 %d 已自动切走，域名将切到其他可用部署位（如 %d）", store.ProbeFailoverRounds, f.SourceID, f.TargetID), fmt.Sprintf("source_placement=%d target_placement=%d", f.SourceID, f.TargetID))
 		}
 		if err := s.autoDNS(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("自动切换 DNS：%w", err))
@@ -190,7 +190,8 @@ func (s *Server) alertUnreachablePlacements(ctx context.Context, landing bool) e
 		summary := fmt.Sprintf("%s %d 个部署位%s不可达", u.ServerName, j-i, scope)
 		body := fmt.Sprintf("所有%s连续 %d 轮失败：\n%s", probers, store.ProbeFailRounds, strings.Join(lines, "\n"))
 		key := store.AlertKey{Type: alertType, ResourceType: "server", ResourceID: u.ServerID, ResourceKey: u.ServerName, Fingerprint: strconv.FormatInt(u.ServerID, 10)}
-		if err := s.raise(ctx, key, "critical", float64(j-i), 0, summary, time.Hour,
+		// interval=-1：不可达期间只通知一次，不重复，恢复后再发恢复通知
+		if err := s.raise(ctx, key, "critical", float64(j-i), 0, summary, -1,
 			notify.Message{Title: "AirOpsCat " + scope + "部署位不可达 · " + u.ServerName, Body: body}); err != nil {
 			return err
 		}
