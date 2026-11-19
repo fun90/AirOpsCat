@@ -388,24 +388,34 @@ func redirectMsg(w http.ResponseWriter, r *http.Request, path, key, msg string) 
 	http.Redirect(w, r, path+sep+key+"="+url.QueryEscape(msg), http.StatusSeeOther)
 }
 
-// backTarget 返回同一列表页的原始地址（含分页与筛选），来源为表单 back 字段或 Referer；无效时返回空。
+// backTarget 返回保存后的跳转地址。表单 back 字段（进入编辑页前的同源管理端页面，与取消按钮一致）
+// 可指向任意 /admin/ 页面；Referer 仅在与 path 同页时采用（列表页内操作）。去掉 msg、err 与锚点，无效时返回空。
 func backTarget(r *http.Request, path string) string {
-	cands := []string{r.PostFormValue("back")}
-	if ref, err := url.Parse(r.Referer()); err == nil && ref.Host == r.Host {
-		cands = append(cands, ref.RequestURI())
-	}
-	for _, c := range cands {
+	clean := func(c string, any bool) string {
 		u, err := url.Parse(c)
-		if err != nil || u.Host != "" || u.Path != path {
-			continue
+		if err != nil || u.Host != "" || u.Scheme != "" {
+			return ""
+		}
+		if any {
+			if !strings.HasPrefix(u.Path, "/admin/") || strings.Contains(u.Path, "\\") {
+				return ""
+			}
+		} else if u.Path != path {
+			return ""
 		}
 		q := u.Query()
 		q.Del("msg")
 		q.Del("err")
 		if len(q) == 0 {
-			return path
+			return u.Path
 		}
-		return path + "?" + q.Encode()
+		return u.Path + "?" + q.Encode()
+	}
+	if c := clean(r.PostFormValue("back"), true); c != "" {
+		return c
+	}
+	if ref, err := url.Parse(r.Referer()); err == nil && ref.Host == r.Host {
+		return clean(ref.RequestURI(), false)
 	}
 	return ""
 }
