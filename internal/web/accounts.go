@@ -395,7 +395,6 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 		s.accountFormPage(w, r, 422, f, parseErr.Error())
 		return
 	}
-	deploy := r.PostFormValue("deploy") == "1"
 	sc := s.beginDeploy(r.Context())
 	var before []int64 // 保存前的服务器：换标签后旧标签节点也要下发移除
 	if f.ID == 0 {
@@ -403,10 +402,6 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 		var res *store.OnboardResult
 		if res, parseErr = store.Onboard(r.Context(), s.DB, onboard); parseErr == nil {
 			back := fmt.Sprintf("/admin/accounts/%d/edit", res.AccountID)
-			if deploy {
-				s.deployAccountPending(w, r, back, res.AccountID, nil, "开户成功，该账户没有可用节点，无需部署")
-				return
-			}
 			sc.account(res.AccountID)
 			redirectMsg(w, r, back, "msg", "开户成功：复制安装说明发给客户"+sc.finish(fmt.Sprintf("开户 #%d", res.AccountID), "，点「部署」下发到节点"))
 			return
@@ -420,10 +415,6 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.fail(w, r, parseErr)
-		return
-	}
-	if deploy {
-		s.deployAccountPending(w, r, "/admin/accounts", f.ID, before, "账户已保存，无需部署")
 		return
 	}
 	if sc.on {
@@ -467,14 +458,6 @@ func (s *Server) accountPendingServers(r *http.Request, accountID int64, before 
 	return ids, nil
 }
 
-func (s *Server) deployAccountPending(w http.ResponseWriter, r *http.Request, back string, accountID int64, before []int64, none string) {
-	ids, err := s.accountPendingServers(r, accountID, before)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	s.runDeploy(w, r, back, ids, none)
-}
 func (s *Server) accountActionResult(w http.ResponseWriter, r *http.Request, err error, msg string) {
 	if !s.redirectError(w, r, "/admin/accounts", err, store.ErrInvalid, store.ErrConflict) {
 		redirectMsg(w, r, "/admin/accounts", "msg", msg)

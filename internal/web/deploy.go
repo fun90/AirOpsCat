@@ -48,16 +48,12 @@ func deployReason(r *http.Request) string {
 	switch r.Pattern {
 	case "POST /admin/nodes/{id}/deploy":
 		return "部署节点 #" + id
-	case "POST /admin/nodes/{id}", "POST /admin/nodes":
-		return "保存并部署节点"
 	case "POST /admin/nodes/batch-deploy":
 		return "批量部署节点"
 	case "POST /admin/nodes/deploy-pending":
 		return "部署全部待部署"
 	case "POST /admin/accounts/{id}/deploy":
 		return "部署账户 #" + id
-	case "POST /admin/accounts/{id}", "POST /admin/accounts":
-		return "保存并部署账户"
 	case "POST /admin/accounts/batch-deploy":
 		return "批量部署账户"
 	case "POST /admin/servers/{id}/deploy":

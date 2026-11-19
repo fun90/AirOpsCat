@@ -524,23 +524,11 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(dnsErrs) > 0 {
 		msg += "，但新增域名 DNS 同步失败（" + strings.Join(dnsErrs, "；") + "），请到 DNS 页面推送"
-		if r.PostFormValue("deploy") == "1" {
-			msg += "；未执行部署"
-		}
 		redirectMsg(w, r, "/admin/nodes", "err", msg)
 		return
 	}
 	if len(ops.NewHosts) > 0 {
 		msg += "，新增域名 DNS 已同步"
-	}
-	if r.PostFormValue("deploy") == "1" {
-		ids, err := store.NodeDeployServers(r.Context(), s.DB, nodeID, false)
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
-		s.runDeploy(w, r, "/admin/nodes", ids, msg+"，没有待部署的部署位")
-		return
 	}
 	sc.node(nodeID)
 	redirectMsg(w, r, "/admin/nodes", "msg", msg+sc.finish("保存节点 #"+strconv.FormatInt(nodeID, 10), ""))
