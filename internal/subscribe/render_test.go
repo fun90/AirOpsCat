@@ -406,7 +406,7 @@ func TestRegionGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(out)
-	for _, want := range []string{"  - name: 日本-自动\n    icon: https://static.fun90.com/clash/Auto.png\n    type: url-test\n", "    interval: 120\n    tolerance: 50\n    proxies:\n      - 日本-1\n      - 日本-1 UDP\n", "      - 自动\n      - 日本-自动\n"} {
+	for _, want := range []string{"  - name: 日本-自动\n    icon: https://flagcdn.com/w80/jp.png\n    type: url-test\n", "    interval: 120\n    tolerance: 50\n    proxies:\n      - 日本-1\n      - 日本-1 UDP\n", "      - 自动\n      - 日本-自动\n"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("缺少 %q\n%s", want, s)
 		}
