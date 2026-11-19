@@ -31,11 +31,12 @@ func Render(files fs.FS, path string, data map[string]any) ([]byte, error) {
 			}
 			return value
 		},
-		"urlEncode":  urlEncode,
-		"contains":   strings.Contains,
-		"trimSuffix": strings.TrimSuffix,
-		"add":        func(a, b int) int { return a + b },
-		"shadowTag":  shadowTag,
+		"urlEncode":    urlEncode,
+		"contains":     strings.Contains,
+		"trimSuffix":   strings.TrimSuffix,
+		"add":          func(a, b int) int { return a + b },
+		"shadowTag":    shadowTag,
+		"regionGroups": regionGroups,
 	}).Parse(string(source))
 	if err != nil {
 		return nil, fmt.Errorf("解析订阅模板 %s: %w", path, err)
@@ -86,4 +87,50 @@ func shadowTag(i int, nodes []map[string]any) string {
 		}
 		tag += "_"
 	}
+}
+
+// regionGroup 是按地区聚合的自动选择组；成员混合 TCP（Reality 等）与 UDP（Hysteria2）节点。
+type regionGroup struct {
+	Name    string
+	Proxies []string
+}
+
+var groupRegions = []string{"美国", "日本", "新加坡", "香港", "英国", "德国", "越南", "马来西亚"}
+
+// regionGroups 仅为含 2 个及以上可输出节点的地区生成组，保持节点原有顺序；
+// 组名避让真实节点名，避免 Clash 把组与节点混淆。
+func regionGroups(nodes []map[string]any) []regionGroup {
+	taken := map[string]bool{}
+	for _, n := range nodes {
+		taken[text(n["name"])] = true
+	}
+	var groups []regionGroup
+	for _, region := range groupRegions {
+		g := regionGroup{Name: region + "-自动"}
+		for _, n := range nodes {
+			name := text(n["name"])
+			if !strings.Contains(name, region) {
+				continue
+			}
+			switch text(n["protocol"]) {
+			case "vless", "vless-reality":
+			case "hysteria2", "anytls", "shadowtls":
+				if text(n["coreType"]) != "sing-box" {
+					continue
+				}
+			default:
+				continue
+			}
+			g.Proxies = append(g.Proxies, name)
+		}
+		if len(g.Proxies) < 2 {
+			continue
+		}
+		for taken[g.Name] {
+			g.Name += "_"
+		}
+		taken[g.Name] = true
+		groups = append(groups, g)
+	}
+	return groups
 }

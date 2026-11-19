@@ -380,3 +380,38 @@ func TestVlessSNIDiffersFromServerHost(t *testing.T) {
 		}
 	}
 }
+
+func TestRegionGroups(t *testing.T) {
+	data := fixture("multi")
+	nodes := data["nodes"].([]map[string]any)
+	if len(regionGroups(nodes)) != 0 {
+		t.Fatal("每个地区仅 1 个节点时不应生成地区组")
+	}
+	hy2 := map[string]any{"name": "日本-1 UDP", "protocol": "hysteria2", "coreType": "sing-box", "serverHost": "example.com", "uuid": "account-uuid", "sni": "tls.example.com", "port": 8688, "inbound": map[string]any{"obfs": map[string]any{"password": "p"}}}
+	xrayHy2 := map[string]any{"name": "日本-X", "protocol": "hysteria2", "coreType": "xray"}
+	data["nodes"] = append(nodes, hy2, xrayHy2)
+	groups := regionGroups(data["nodes"].([]map[string]any))
+	if len(groups) != 1 || groups[0].Name != "日本-自动" || strings.Join(groups[0].Proxies, ",") != "日本-1,日本-1 UDP" {
+		t.Fatalf("地区组不符: %+v", groups)
+	}
+	// 组名与真实节点重名时追加下划线。
+	nodes[1]["name"] = "日本-自动"
+	data["nodes"].([]map[string]any)[1]["protocol"] = "vless"
+	if g := regionGroups(data["nodes"].([]map[string]any)); len(g) != 1 || g[0].Name != "日本-自动_" {
+		t.Fatalf("组名未避让: %+v", g)
+	}
+	nodes[1]["name"] = "新加坡-2"
+	out, err := Render(Templates, "clash-verge-mrs.yaml", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(out)
+	for _, want := range []string{"  - name: 日本-自动\n    icon: https://static.fun90.com/clash/Auto.png\n    type: url-test\n", "    interval: 120\n    tolerance: 50\n    proxies:\n      - 日本-1\n      - 日本-1 UDP\n", "      - 自动\n      - 日本-自动\n"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("缺少 %q\n%s", want, s)
+		}
+	}
+	if strings.Contains(s, "新加坡-自动") {
+		t.Error("单节点地区不应成组")
+	}
+}
