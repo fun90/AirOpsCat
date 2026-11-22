@@ -233,25 +233,38 @@ func TestDNSCandidatesProbeDown(t *testing.T) {
 	mustExec(t, db, `INSERT INTO node(id,name,type,protocol,port)VALUES(1,'代理',0,'vless',443)`)
 	mustExec(t, db, `INSERT INTO node_server(id,node_id,server_id,deployed,priority)VALUES(1,1,1,1,10),(2,1,2,1,20)`)
 	now := time.Now()
-	if err := SavePlacementProbes(ctx, db, 8, []ProbeOutcome{{PlacementID: 1, OK: true, Ms: 10}, {PlacementID: 2, Msg: "超时"}}, now); err != nil {
-		t.Fatal(err)
-	}
-	cs, err := DNSCandidates(ctx, db, now)
-	if err != nil || len(cs) != 2 {
-		t.Fatal(cs, err)
-	}
-	for _, c := range cs {
-		if c.ProbeDown != (c.ID == 2) {
-			t.Fatalf("部署位 %d ProbeDown=%v", c.ID, c.ProbeDown)
+	check := func(at time.Time, down, failed bool) {
+		t.Helper()
+		cs, err := DNSCandidates(ctx, db, at)
+		if err != nil || len(cs) != 2 {
+			t.Fatal(cs, err)
+		}
+		for _, c := range cs {
+			if c.ProbeDown != (c.ID == 2 && down) || c.ProbeFailed != (c.ID == 2 && failed) {
+				t.Fatalf("部署位 %d 探测状态不正确：%+v", c.ID, c)
+			}
 		}
 	}
-	mustExec(t, db, `UPDATE placement_probe SET checked_time='2000-01-01 00:00:00'`)
-	cs, _ = DNSCandidates(ctx, db, now)
-	for _, c := range cs {
-		if c.ProbeDown {
-			t.Fatal("过期的探测结果不应标记不通")
+	save := func(at time.Time, ok bool) {
+		t.Helper()
+		if err := SavePlacementProbes(ctx, db, 8, []ProbeOutcome{{PlacementID: 1, OK: true}, {PlacementID: 2, OK: ok}}, at); err != nil {
+			t.Fatal(err)
 		}
 	}
+	save(now, false)
+	check(now, true, false)
+	for round := 1; round < ProbeFailoverRounds; round++ {
+		now = now.Add(5 * time.Minute)
+		save(now, false)
+	}
+	check(now, true, true)
+	now = now.Add(20 * time.Minute)
+	check(now, true, false) // 断报不能触发切走，也不能重新接流量。
+	save(now, true)
+	check(now, true, false)
+	now = now.Add(5 * time.Minute)
+	save(now, true)
+	check(now, false, false)
 }
 
 func TestAutoFailoverSkipsPlacementWithoutDomain(t *testing.T) {

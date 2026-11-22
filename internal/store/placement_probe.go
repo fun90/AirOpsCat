@@ -101,7 +101,7 @@ type ProbeOutcome struct {
 	Msg         string
 }
 
-// SavePlacementProbes 写入一台探测机本轮的结果：成功清零连续失败数，失败加一。
+// SavePlacementProbes 更新连续失败数及 DNS 恢复状态。故障后的连续成功数最多记两轮。
 func SavePlacementProbes(ctx context.Context, db *sql.DB, probeID int64, results []ProbeOutcome, at time.Time) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -114,20 +114,15 @@ func SavePlacementProbes(ctx context.Context, db *sql.DB, probeID int64, results
 		if r.OK {
 			lastOK = ts
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO placement_probe(placement_id,probe_server_id,ok,ms,msg,fails,checked_time,last_ok_time) VALUES(?,?,?,?,?,?,?,?)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO placement_probe(placement_id,probe_server_id,ok,ms,msg,fails,checked_time,last_ok_time,dns_successes) VALUES(?,?,?,?,?,?,?, ?,CASE WHEN ? THEN 2 ELSE 0 END)
  ON CONFLICT(placement_id,probe_server_id) DO UPDATE SET ok=excluded.ok,ms=excluded.ms,msg=excluded.msg,checked_time=excluded.checked_time,
- fails=CASE WHEN excluded.ok THEN 0 ELSE placement_probe.fails+1 END,last_ok_time=coalesce(excluded.last_ok_time,placement_probe.last_ok_time)`,
-			r.PlacementID, probeID, r.OK, r.Ms, r.Msg, map[bool]int{true: 0, false: 1}[r.OK], ts, lastOK); err != nil {
+ fails=CASE WHEN excluded.ok THEN 0 ELSE placement_probe.fails+1 END,last_ok_time=coalesce(excluded.last_ok_time,placement_probe.last_ok_time),
+ dns_successes=CASE WHEN excluded.ok THEN min(2,placement_probe.dns_successes+1) ELSE 0 END`,
+			r.PlacementID, probeID, r.OK, r.Ms, r.Msg, map[bool]int{true: 0, false: 1}[r.OK], ts, lastOK, r.OK); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
-}
-
-// ClearPlacementProbes 删除一台探测机的全部结果：探测机不可用时其旧结果不再参与判定。
-func ClearPlacementProbes(ctx context.Context, db *sql.DB, probeID int64) error {
-	_, err := db.ExecContext(ctx, `DELETE FROM placement_probe WHERE probe_server_id=?`, probeID)
-	return err
 }
 
 // PrunePlacementProbes 删除不在有效（部署位, 探测机）组合内的结果：探测机被移出配置、部署位出范围或落地不再被该代理服务器引用。
@@ -186,8 +181,8 @@ func NodeProbeStates(ctx context.Context, db *sql.DB, nodeID int64) (map[int64][
 	return out, rows.Err()
 }
 
-// unreachableSQL 选出所有探测机都已连续失败 ProbeFailRounds 轮（参数）的部署位 id。
-const unreachableSQL = `SELECT placement_id FROM placement_probe GROUP BY placement_id HAVING min(fails)>=?`
+// unreachableSQL 要求全部探测机的失败记录均新鲜，断报本身不判定为不可达。
+const unreachableSQL = `SELECT placement_id FROM placement_probe GROUP BY placement_id HAVING min(fails)>=? AND min(checked_time)>=datetime('now','+8 hours','-15 minutes')`
 
 // AutoFailover 是一次自动切换的节点及其目标部署位。
 type AutoFailover struct {

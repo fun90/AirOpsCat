@@ -72,6 +72,7 @@ func (s *Server) probePlacements(ctx context.Context) error {
 	if err := store.PrunePlacementProbes(ctx, s.DB, valid); err != nil {
 		return err
 	}
+	roundStart := time.Now()
 	var mu sync.Mutex
 	var errs []error
 	var wg sync.WaitGroup
@@ -82,10 +83,6 @@ func (s *Server) probePlacements(ctx context.Context) error {
 			res, err := s.probeRound(ctx, pid, job.targets, job.requests)
 			if err == nil {
 				err = store.SavePlacementProbes(ctx, s.DB, pid, res, time.Now())
-			} else if !errors.Is(err, errProbeSetup) {
-				if cerr := store.ClearPlacementProbes(ctx, s.DB, pid); cerr != nil {
-					err = errors.Join(err, cerr)
-				}
 			}
 			if err != nil {
 				mu.Lock()
@@ -95,7 +92,7 @@ func (s *Server) probePlacements(ctx context.Context) error {
 		}()
 	}
 	wg.Wait()
-	switched, failoverErr := store.AutoFailoverPlacements(ctx, s.DB, ids, time.Now().Add(-2*probeInterval))
+	switched, failoverErr := store.AutoFailoverPlacements(ctx, s.DB, ids, roundStart)
 	if failoverErr != nil {
 		errs = append(errs, fmt.Errorf("自动切换不可达部署位：%w", failoverErr))
 	}

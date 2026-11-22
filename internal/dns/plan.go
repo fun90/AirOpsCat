@@ -37,8 +37,8 @@ type Candidate struct {
 	FailoverTarget int64
 	// Unavailable 表示服务器已禁用或到期：只用于识别原服务器并切走，不作为切换目标。
 	Unavailable bool
-	// ProbeDown 表示国内探测近期有探测机检测 TCP/UDP 不通：不作为切换目标，空闲时段与流量回切也不会切过去。
-	ProbeDown bool
+	// ProbeDown 禁止切入尚未确认恢复的部署位。ProbeFailed 表示当前部署位也因持续失败而需要切走。
+	ProbeDown, ProbeFailed bool
 }
 type AutoRecord struct {
 	ID            int64
@@ -81,12 +81,11 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 		}
 		return a.ID < b.ID
 	})
-	var origin *Candidate
-	current := false
+	var origin, current *Candidate
 	for i := range cs {
 		c := &cs[i]
 		if c.IP == r.Content {
-			current = true
+			current = c
 		}
 		if c.ServerID == r.ServerID {
 			origin = c
@@ -95,7 +94,7 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 	if origin == nil {
 		return blocked("原服务器没有可用的运行部署位")
 	}
-	if !current {
+	if current == nil {
 		return blocked("当前解析不属于可用候选服务器")
 	}
 	if home == "" && r.Content != origin.IP {
@@ -110,14 +109,20 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 	}
 	// leave：原服务器已手动切走或不可用（禁用、到期），必须切走且不回切。
 	leave := origin.Failover || origin.Unavailable
+	probeUsable := func(c *Candidate) bool {
+		if c == current {
+			return !c.ProbeFailed
+		}
+		return !c.ProbeDown
+	}
 	ok := func(c *Candidate) bool {
-		return !c.Failover && !c.Unavailable && !c.ProbeDown && c.Known && c.Usage < threshold && allowed(c)
+		return !c.Failover && !c.Unavailable && probeUsable(c) && c.Known && c.Usage < threshold && allowed(c)
 	}
 	var target *Candidate
 	if origin.Failover && origin.FailoverTarget != 0 {
 		// 手动指定了承接部署位：不受流量阈值和切走标记限制。
 		for i := range cs {
-			if c := &cs[i]; c.ID == origin.FailoverTarget && !c.Unavailable && !c.ProbeDown && allowed(c) {
+			if c := &cs[i]; c.ID == origin.FailoverTarget && !c.Unavailable && probeUsable(c) && allowed(c) {
 				target = c
 			}
 		}
@@ -132,8 +137,8 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 			break
 		}
 	}
-	if target == nil && !origin.Known && !leave {
-		// 原服务器无新鲜用量时无法判定超阈值，保持当前解析，避免误切后又回切。
+	if target == nil && !origin.Known && !leave && !current.ProbeFailed {
+		// 原服务器无新鲜用量且当前部署位无持续故障时，保持当前解析。
 		return Plan{}
 	}
 	if target == nil && ok(origin) {
@@ -147,10 +152,10 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 			}
 		}
 	}
-	if target == nil && leave {
-		// 原服务器已手动切走或不可用时，宁可切到超阈值或用量未知的候选，也不留在不可用的服务器上。
+	if target == nil && (leave || current.ProbeFailed) {
+		// 原服务器被切走或当前部署位持续失败时，必要时允许超阈值或用量未知的备选承接。
 		for i := range cs {
-			if !cs[i].Failover && !cs[i].Unavailable && !cs[i].ProbeDown && allowed(&cs[i]) {
+			if !cs[i].Failover && !cs[i].Unavailable && probeUsable(&cs[i]) && allowed(&cs[i]) {
 				target = &cs[i]
 				break
 			}
@@ -184,6 +189,8 @@ func PlanRecord(r AutoRecord, all []Candidate, threshold float64, at time.Time) 
 			reason = "UNAVAILABLE"
 		} else if Window(target.CheapStart, target.CheapEnd, at) {
 			reason = "CHEAP_WINDOW"
+		} else if current.ProbeFailed || (origin.ProbeDown && origin.Known && origin.Usage < threshold && allowed(origin)) {
+			reason = "PROBE"
 		}
 	} else {
 		home = ""

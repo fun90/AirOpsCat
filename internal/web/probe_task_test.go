@@ -159,7 +159,7 @@ func TestProbePlacementsTask(t *testing.T) {
 		t.Fatal("恢复满 30 分钟应消警")
 	}
 
-	// 探测机全部目标失败视为其自身异常：丢弃并清空其结果
+	// 探测机全部目标失败视为其自身异常：丢弃本轮并保留上一次有效结果。
 	f.up[9] = map[int]bool{}
 	for i := 1001; i <= 1010; i++ {
 		f.up[9][i] = false
@@ -173,13 +173,20 @@ func TestProbePlacementsTask(t *testing.T) {
 			f.up[8][i] = true
 		}
 	}
+	const probeCounts = `SELECT count(*),coalesce(sum(fails),0) FROM placement_probe WHERE probe_server_id=9`
+	var beforeCount, beforeFailed int
+	if err := a.DB.QueryRow(probeCounts).Scan(&beforeCount, &beforeFailed); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.probePlacements(ctx); err == nil || !strings.Contains(err.Error(), "疑似探测机自身网络异常") {
 		t.Fatal("应报告探测机异常", err)
 	}
-	var left int
-	a.DB.QueryRow(`SELECT count(*) FROM placement_probe WHERE probe_server_id=9`).Scan(&left)
-	if left != 0 {
-		t.Fatal("异常探测机的结果应清空", left)
+	var left, failed int
+	if err := a.DB.QueryRow(probeCounts).Scan(&left, &failed); err != nil {
+		t.Fatal(err)
+	}
+	if beforeCount == 0 || left != beforeCount || failed != beforeFailed {
+		t.Fatal("应保留旧结果且不累计异常轮次", left, failed)
 	}
 
 	// 移出配置后结果全部清理

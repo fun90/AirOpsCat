@@ -151,15 +151,16 @@ const dnsServerUsableSQL = `s.disabled=0 AND (s.expire_date IS NULL OR substr(s.
 
 func shanghaiDay(at time.Time) string { return at.In(Shanghai).Format("2006-01-02") }
 
-// DNSCandidates 返回参与 DNS 切换的部署位；15 分钟内有探测机检测不通的标记 ProbeDown，不作为目标。服务器禁用或到期的部署位也返回并标记 Unavailable：
-// 它仍可作为原服务器被识别并切走，但不作为切换目标。
+// DNSCandidates 返回参与切换的部署位。上次失败或恢复未确认时禁止切入，探测机断报不清除该限制。
+// 当前解析只有在全部已知探测机的连续失败记录均新鲜且达到自动切走轮数时，才因探测被排除。
 func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candidate, error) {
 	rows, err := db.QueryContext(ctx, `SELECT ns.id,ns.node_id,ns.server_id,s.ip,ns.priority,coalesce(ns.cheap_start,''),coalesce(ns.cheap_end,''),coalesce(s.bandwidth,0),coalesce(s.bandwidth_unit,'GiB'),v.rx_bytes,v.tx_bytes,coalesce(v.sample_time,''),ns.failover,coalesce(ns.failover_target,0),
  NOT (`+dnsServerUsableSQL+`),
- EXISTS (SELECT 1 FROM placement_probe pp WHERE pp.placement_id=ns.id AND pp.ok=0 AND pp.checked_time>=?)
+ EXISTS (SELECT 1 FROM placement_probe pp WHERE pp.placement_id=ns.id AND pp.dns_successes<2),
+ EXISTS (SELECT 1 FROM placement_probe pp WHERE pp.placement_id=ns.id GROUP BY pp.placement_id HAVING min(pp.fails)>=? AND min(pp.checked_time)>=?)
  FROM node_server ns JOIN node n ON n.id=ns.node_id JOIN server s ON s.id=ns.server_id
  LEFT JOIN server_metrics v ON v.id=`+latestVnstatSQL+`
- WHERE `+dnsPlacementSQL, append([]any{shanghaiDay(at), FormatTime(at.Add(-15 * time.Minute))}, vnstatPeriodArgs(at)...)...)
+ WHERE `+dnsPlacementSQL, append([]any{shanghaiDay(at), ProbeFailoverRounds, FormatTime(at.Add(-15 * time.Minute))}, vnstatPeriodArgs(at)...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +171,7 @@ func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candida
 		var priority, rx, tx sql.NullInt64
 		var bw int64
 		var unit, sampled string
-		if err := rows.Scan(&c.ID, &c.NodeID, &c.ServerID, &c.IP, &priority, &c.CheapStart, &c.CheapEnd, &bw, &unit, &rx, &tx, &sampled, &c.Failover, &c.FailoverTarget, &c.Unavailable, &c.ProbeDown); err != nil {
+		if err := rows.Scan(&c.ID, &c.NodeID, &c.ServerID, &c.IP, &priority, &c.CheapStart, &c.CheapEnd, &bw, &unit, &rx, &tx, &sampled, &c.Failover, &c.FailoverTarget, &c.Unavailable, &c.ProbeDown, &c.ProbeFailed); err != nil {
 			return nil, err
 		}
 		if priority.Valid {

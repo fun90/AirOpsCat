@@ -179,3 +179,41 @@ func TestPlanSkipsProbeDownTarget(t *testing.T) {
 		t.Fatal("候选都探测不通时应保持当前解析", p)
 	}
 }
+
+func TestPlanKeepsCurrentDuringIntermittentProbeFailure(t *testing.T) {
+	at := time.Now()
+	all := []Candidate{
+		{ID: 1, NodeID: 1, ServerID: 1, IP: "192.0.2.1", Known: true, Usage: .655},
+		{ID: 2, NodeID: 1, ServerID: 2, IP: "192.0.2.2", Known: true, Usage: .3},
+		{ID: 3, NodeID: 1, ServerID: 3, IP: "192.0.2.3", Known: true, Usage: .3},
+	}
+	r := AutoRecord{NodeID: 1, ServerID: 1, Content: all[0].IP}
+	all[0].ProbeDown = true
+	if p := PlanRecord(r, all, .95, at); p.Target != r.Content {
+		t.Fatal("流量正常且探测偶发失败应保留当前解析", p)
+	}
+	all[0].ProbeFailed = true
+	if p := PlanRecord(r, all, .95, at); p.Target != all[1].IP || p.Reason != "PROBE" {
+		t.Fatal("持续探测失败应切走并记录探测原因", p)
+	}
+
+	all[0].Failover, all[0].FailoverTarget = true, 3
+	r.Home, r.Content = all[0].IP, all[2].IP
+	all[2].ProbeDown = true
+	if p := PlanRecord(r, all, .95, at); p.Target != r.Content {
+		t.Fatal("手动指定的当前目标偶发失败应保留", p)
+	}
+	all[2].ProbeFailed = true
+	if p := PlanRecord(r, all, .95, at); p.Target != all[1].IP {
+		t.Fatal("指定目标持续失败时应切到备用部署位", p)
+	}
+	r.Content = all[1].IP
+	all[2].ProbeFailed = false
+	if p := PlanRecord(r, all, .95, at); p.Target != r.Content {
+		t.Fatal("指定目标恢复待确认时应保留备用部署位", p)
+	}
+	all[2].ProbeDown = false
+	if p := PlanRecord(r, all, .95, at); p.Target != all[2].IP {
+		t.Fatal("指定目标恢复确认后应重新接流量", p)
+	}
+}
