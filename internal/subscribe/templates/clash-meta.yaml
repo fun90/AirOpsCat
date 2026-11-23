@@ -73,12 +73,30 @@ dns:
     "rule-set:mydirect":
       - https://dns.alidns.com/dns-query
       - https://doh.pub/dns-query
+    "rule-set:Broker":
+      - https://cloudflare-dns.com/dns-query#代理
+      - https://dns.google/dns-query#代理
     "rule-set:China_Domain":
       - https://dns.alidns.com/dns-query
       - https://doh.pub/dns-query
   proxy-server-nameserver:
     - https://dns.alidns.com/dns-query
     - https://doh.pub/dns-query
+
+sniffer:
+  enable: true
+  parse-pure-ip: true
+  sniff:
+    HTTP:
+      ports: [80, 8080-8880]
+      override-destination: true
+    TLS:
+      ports: [443, 8443]
+    QUIC:
+      ports: [443, 8443]
+  skip-domain:
+    - "Mijia Cloud"
+    - "+.push.apple.com"
 
 profile:
   store-selected: true

@@ -513,6 +513,10 @@
         "server": "localDns"
       },
       {
+        "rule_set": "Broker",
+        "server": "proxyDns"
+      },
+      {
         "rule_set": "GeoSite-CN",
         "server": "localDns"
       },

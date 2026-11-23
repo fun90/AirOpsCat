@@ -52,6 +52,13 @@ dns:
     - tls://223.6.6.6:853
     - tls://120.53.53.53
     - tls://1.12.12.12
+  nameserver-policy:
+    "+.fun90.com":
+      - tls://223.5.5.5:853
+      - tls://223.6.6.6:853
+    "rule-set:Broker":
+      - https://1.1.1.1/dns-query#代理
+      - https://8.8.8.8/dns-query#代理
   fallback:
     - https://1.1.1.1/dns-query#代理
     - https://8.8.8.8/dns-query#代理
@@ -64,6 +71,21 @@ dns:
       - 0.0.0.0/32
   proxy-server-nameserver:
     - tls://223.5.5.5:853
+
+sniffer:
+  enable: true
+  parse-pure-ip: true
+  sniff:
+    HTTP:
+      ports: [80, 8080-8880]
+      override-destination: true
+    TLS:
+      ports: [443, 8443]
+    QUIC:
+      ports: [443, 8443]
+  skip-domain:
+    - "Mijia Cloud"
+    - "+.push.apple.com"
 
 profile:
   tracing: true

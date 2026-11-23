@@ -234,8 +234,8 @@ rule-providers:
   Broker:
     type: http
     behavior: classical
-    url: "https://raw.githubusercontent.com/Allen2023/broker-rules/main/rule/Stash/Broker/Broker.yaml"
-    path: ./ruleset/Broker.yaml
+    url: "{{text $.subscriptionUrl}}/rules/clash/hk-broker.yaml"
+    path: ./ruleset/hk-broker.yaml
     interval: 86400
   football:
     type: http
