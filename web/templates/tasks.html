@@ -1,3 +1,19 @@
 {{define "content"}}
-<div class="card"><div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>任务</th><th>上次开始</th><th>状态 / 结果</th><th></th></tr></thead><tbody>{{range $key,$t:=.Tasks}}<tr><td>{{$t.Name}}</td><td>{{$t.Last}}</td><td>{{if $t.Running}}运行中{{else}}{{$t.Result}}{{end}}</td><td><form method="post" action="/admin/tasks/{{$key}}/run"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-primary"{{if $t.Running}} disabled{{end}}>执行一次</button></form></td></tr>{{end}}</tbody></table></div></div>
+<div class="card"><div class="table-responsive"><table class="table table-vcenter card-table">
+<thead><tr><th>任务</th><th class="d-none d-md-table-cell">上次开始</th><th class="d-none d-md-table-cell">状态 / 结果</th><th class="w-1"></th></tr></thead>
+<tbody>{{range $key,$t:=.Tasks}}<tr>
+<td class="text-break">
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <span class="fw-medium">{{$t.Name}}</span>
+    {{if $t.Running}}<span class="badge bg-blue-lt d-md-none">运行中</span>{{end}}
+  </div>
+  <div class="d-md-none d-flex flex-wrap align-items-center column-gap-2 row-gap-1 small text-secondary mt-1">
+    {{if $t.Last}}<span class="text-nowrap">{{$t.Last}}</span>{{end}}
+    {{if not $t.Running}}{{if $t.Result}}<span class="text-break">{{$t.Result}}</span>{{end}}{{end}}
+  </div>
+</td>
+<td class="d-none d-md-table-cell text-nowrap">{{$t.Last}}</td>
+<td class="d-none d-md-table-cell text-break">{{if $t.Running}}<span class="badge bg-blue-lt">运行中</span>{{else}}{{$t.Result}}{{end}}</td>
+<td class="text-nowrap"><form method="post" action="/admin/tasks/{{$key}}/run"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-primary"{{if $t.Running}} disabled{{end}}>执行一次</button></form></td>
+</tr>{{end}}</tbody></table></div></div>
 {{end}}

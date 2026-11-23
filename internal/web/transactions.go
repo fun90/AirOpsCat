@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -114,7 +113,7 @@ func (s *Server) transactionList(w http.ResponseWriter, r *http.Request) {
 	}
 	d["List"], d["Q"], d["Type"], d["Business"], d["StartDate"], d["EndDate"] = list, f.Q, typeValue, f.BusinessTable, start, end
 	d["BusinessTables"], d["Page"], d["Pages"], d["ListURL"] = store.TransactionBusinessTables, page, (total+size-1)/size, transactionListURL(r)
-	d["BackQuery"] = url.QueryEscape(transactionListURL(r))
+	d["BackQuery"] = transactionListURL(r)
 	s.render(w, "transactions", http.StatusOK, d)
 }
 
@@ -137,6 +136,9 @@ func (s *Server) transactionFormPage(w http.ResponseWriter, r *http.Request, sta
 		title = "编辑流水"
 	}
 	back := r.FormValue("back")
+	if !strings.HasPrefix(back, "/admin") || strings.HasPrefix(back, "//") {
+		back = ""
+	}
 	d := s.pageData(r, title, "transactions")
 	d["Form"], d["FormErr"], d["BusinessOptions"], d["PaymentMethods"], d["Back"] = f, message, options, store.PaymentMethods, back
 	s.render(w, "transaction_form", status, d)

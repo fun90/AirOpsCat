@@ -4,18 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{.Title}} - AirOpsCat</title>
-    <script src="/static/js/theme.js?v=1"></script>
+    <script src="/static/js/theme.js?v=3"></script>
     <link rel="icon" href="/static/img/favicon.png">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#fafafa">
     <!-- iOS 添加到主屏幕后以独立全屏模式打开 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="AirOpsCat">
     <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/tabler/css/tabler.min.css?v=p27">
-    <link rel="stylesheet" href="/static/tabler/css/tabler-icons.min.css?v=p17">
     <link rel="stylesheet" href="/static/vendor/tom-select.bootstrap5.min.css">
-    <link rel="stylesheet" href="/static/css/app.css?v=np37">
+    <link rel="stylesheet" href="/static/css/coss.css?v=14">
+    <link rel="stylesheet" href="/static/css/app.css?v=coss8">
 </head>
 {{end}}
 
@@ -23,23 +24,26 @@
 <body>
 <div class="page">
     <header class="navbar navbar-expand-md d-print-none">
-        <div id="nav-progress" class="progress progress-sm fixed-top position-fixed rounded-0 d-none" role="status" aria-label="正在打开页面">
+        <div id="nav-progress" class="progress progress-sm fixed-top rounded-0 d-none" role="status" aria-label="正在打开页面">
             <div class="progress-bar progress-bar-indeterminate bg-primary"></div>
         </div>
         <div class="container-xl">
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="切换菜单">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <a href="/admin" class="navbar-brand navbar-brand-autodark pe-0 pe-md-3">
+            <a href="/admin" class="navbar-brand">
                 <img src="/static/img/logo-light.png" class="navbar-brand-image" alt="AirOpsCat">
             </a>
-            <div class="navbar-nav flex-row order-md-last">
+            <div class="navbar-nav flex-row ms-auto order-md-last align-items-center gap-1">
                 {{with .DeployActive}}<div class="nav-item">
                     <a class="nav-link text-nowrap" href="/admin/deploy-jobs" title="后台部署进行中" aria-label="后台部署进行中，{{.}} 个任务"><span class="spinner-border spinner-border-sm text-blue me-1" aria-hidden="true"></span><span class="badge bg-blue-lt">{{.}}</span></a>
                 </div>{{end}}
+                <div class="nav-item">
+                    <button type="button" class="btn btn-icon btn-ghost-secondary" data-theme-toggle aria-label="切换明暗主题" title="切换明暗主题"><svg class="coss-icon theme-icon-sun" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#sun"></use></svg><svg class="coss-icon theme-icon-moon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#moon"></use></svg></button>
+                </div>
                 <div class="nav-item dropdown">
                     <button type="button" class="nav-link dropdown-toggle d-flex align-items-center gap-2 py-0" data-bs-toggle="dropdown" aria-expanded="false" aria-label="账户菜单">
-                        <span class="avatar avatar-sm bg-primary-lt"><i class="ti ti-user" aria-hidden="true"></i></span>
+                        <span class="avatar avatar-sm bg-primary-lt"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#user"></use></svg></span>
                         <span class="d-none d-md-inline-block text-truncate" style="max-width:15rem">{{.User.Email}}</span>
                     </button>
                     <div class="dropdown-menu dropdown-menu-end">
@@ -47,7 +51,7 @@
                         <div class="dropdown-divider"></div>
                         <form method="post" action="/logout" class="m-0">
                             <input type="hidden" name="csrf" value="{{.CSRF}}">
-                            <button type="submit" class="dropdown-item text-danger"><i class="ti ti-logout me-2" aria-hidden="true"></i>退出登录</button>
+                            <button type="submit" class="dropdown-item text-danger"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#logout"></use></svg>退出登录</button>
                         </form>
                     </div>
                 </div>
@@ -55,45 +59,45 @@
             <div class="collapse navbar-collapse" id="navbar-menu">
                 <ul class="navbar-nav">
                     <li class="nav-item{{if eq .Nav "dashboard"}} active{{end}}">
-                        <a class="nav-link text-nowrap" href="/admin"><i class="ti ti-home me-1" aria-hidden="true"></i>概览</a>
+                        <a class="nav-link text-nowrap" href="/admin"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#home"></use></svg>概览</a>
                     </li>
                     <li class="nav-item dropdown{{if or (eq .Nav "servers") (eq .Nav "monitor") (eq .Nav "maintenance") (eq .Nav "nodes") (eq .Nav "reality-sni") (eq .Nav "routes") (eq .Nav "tags")}} active{{end}}">
-                        <a class="nav-link dropdown-toggle text-nowrap" href="#" data-bs-toggle="dropdown" data-bs-auto-close="true" role="button" aria-expanded="false"><i class="ti ti-server me-1" aria-hidden="true"></i>资源</a>
+                        <a class="nav-link dropdown-toggle text-nowrap" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#server"></use></svg>资源</a>
                         <div class="dropdown-menu">
-                            <a class="dropdown-item{{if eq .Nav "servers"}} active{{end}}" href="/admin/servers"><i class="ti ti-server me-2" aria-hidden="true"></i>服务器</a>
-                            <a class="dropdown-item{{if eq .Nav "maintenance"}} active{{end}}" href="/admin/maintenance"><i class="ti ti-terminal me-2" aria-hidden="true"></i>维护脚本</a>
-                            <a class="dropdown-item{{if eq .Nav "monitor"}} active{{end}}" href="/admin/monitor"><i class="ti ti-activity me-2" aria-hidden="true"></i>监控</a>
-                            <a class="dropdown-item{{if eq .Nav "nodes"}} active{{end}}" href="/admin/nodes"><i class="ti ti-route me-2" aria-hidden="true"></i>节点</a>
-                            <a class="dropdown-item{{if eq .Nav "routes"}} active{{end}}" href="/admin/routes"><i class="ti ti-route-2 me-2" aria-hidden="true"></i>路由规则</a>
-                            <a class="dropdown-item{{if eq .Nav "reality-sni"}} active{{end}}" href="/admin/reality-sni"><i class="ti ti-world me-2" aria-hidden="true"></i>Reality SNI</a>
-                            <a class="dropdown-item{{if eq .Nav "tags"}} active{{end}}" href="/admin/tags"><i class="ti ti-tags me-2" aria-hidden="true"></i>标签</a>
+                            <a class="dropdown-item{{if eq .Nav "servers"}} active{{end}}" href="/admin/servers"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#server"></use></svg>服务器</a>
+                            <a class="dropdown-item{{if eq .Nav "maintenance"}} active{{end}}" href="/admin/maintenance"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#terminal"></use></svg>维护脚本</a>
+                            <a class="dropdown-item{{if eq .Nav "monitor"}} active{{end}}" href="/admin/monitor"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#activity"></use></svg>监控</a>
+                            <a class="dropdown-item{{if eq .Nav "nodes"}} active{{end}}" href="/admin/nodes"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#route"></use></svg>节点</a>
+                            <a class="dropdown-item{{if eq .Nav "routes"}} active{{end}}" href="/admin/routes"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#route-2"></use></svg>路由规则</a>
+                            <a class="dropdown-item{{if eq .Nav "reality-sni"}} active{{end}}" href="/admin/reality-sni"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#world"></use></svg>Reality SNI</a>
+                            <a class="dropdown-item{{if eq .Nav "tags"}} active{{end}}" href="/admin/tags"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#tags"></use></svg>标签</a>
                         </div>
                     </li>
                     <li class="nav-item dropdown{{if or (eq .Nav "accounts") (eq .Nav "users") (eq .Nav "transactions") (eq .Nav "renewals")}} active{{end}}">
-                        <a class="nav-link dropdown-toggle text-nowrap" href="#" data-bs-toggle="dropdown" data-bs-auto-close="true" role="button" aria-expanded="false"><i class="ti ti-users me-1" aria-hidden="true"></i>业务</a>
+                        <a class="nav-link dropdown-toggle text-nowrap" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#users"></use></svg>业务</a>
                         <div class="dropdown-menu">
-                            <a class="dropdown-item{{if eq .Nav "accounts"}} active{{end}}" href="/admin/accounts"><i class="ti ti-user-circle me-2" aria-hidden="true"></i>账户</a>
-                            <a class="dropdown-item{{if eq .Nav "users"}} active{{end}}" href="/admin/users"><i class="ti ti-users me-2" aria-hidden="true"></i>用户</a>
-                            <a class="dropdown-item{{if eq .Nav "transactions"}} active{{end}}" href="/admin/transactions"><i class="ti ti-receipt-yuan me-2" aria-hidden="true"></i>收支记账</a>
-                            <a class="dropdown-item{{if eq .Nav "renewals"}} active{{end}}" href="/admin/renewals"><i class="ti ti-calendar-plus me-2" aria-hidden="true"></i>续费</a>
+                            <a class="dropdown-item{{if eq .Nav "accounts"}} active{{end}}" href="/admin/accounts"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#user-circle"></use></svg>账户</a>
+                            <a class="dropdown-item{{if eq .Nav "users"}} active{{end}}" href="/admin/users"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#users"></use></svg>用户</a>
+                            <a class="dropdown-item{{if eq .Nav "transactions"}} active{{end}}" href="/admin/transactions"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#receipt-yuan"></use></svg>收支记账</a>
+                            <a class="dropdown-item{{if eq .Nav "renewals"}} active{{end}}" href="/admin/renewals"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#calendar-plus"></use></svg>续费</a>
                         </div>
                     </li>
                     <li class="nav-item dropdown{{if or (eq .Nav "domains") (eq .Nav "dns")}} active{{end}}">
-                        <a class="nav-link dropdown-toggle text-nowrap" href="#" data-bs-toggle="dropdown" data-bs-auto-close="true" role="button" aria-expanded="false"><i class="ti ti-world me-1" aria-hidden="true"></i>域名</a>
+                        <a class="nav-link dropdown-toggle text-nowrap" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#world"></use></svg>域名</a>
                         <div class="dropdown-menu">
-                            <a class="dropdown-item{{if eq .Nav "domains"}} active{{end}}" href="/admin/domains"><i class="ti ti-world me-2" aria-hidden="true"></i>域名</a>
-                            <a class="dropdown-item{{if eq .Nav "dns"}} active{{end}}" href="/admin/dns-providers"><i class="ti ti-cloud me-2" aria-hidden="true"></i>DNS 服务商</a>
+                            <a class="dropdown-item{{if eq .Nav "domains"}} active{{end}}" href="/admin/domains"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#world"></use></svg>域名</a>
+                            <a class="dropdown-item{{if eq .Nav "dns"}} active{{end}}" href="/admin/dns-providers"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#cloud"></use></svg>DNS 服务商</a>
                         </div>
                     </li>
                     <li class="nav-item dropdown{{if or (eq .Nav "alerts") (eq .Nav "settings") (eq .Nav "tasks") (eq .Nav "deploy-jobs") (eq .Nav "backups") (eq .Nav "logs")}} active{{end}}">
-                        <a class="nav-link dropdown-toggle text-nowrap" href="#" data-bs-toggle="dropdown" data-bs-auto-close="true" role="button" aria-expanded="false"><i class="ti ti-settings me-1" aria-hidden="true"></i>系统</a>
+                        <a class="nav-link dropdown-toggle text-nowrap" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#settings"></use></svg>系统</a>
                         <div class="dropdown-menu">
-                            <a class="dropdown-item{{if eq .Nav "alerts"}} active{{end}}" href="/admin/alerts"><i class="ti ti-bell me-2" aria-hidden="true"></i>告警</a>
-                            <a class="dropdown-item{{if eq .Nav "settings"}} active{{end}}" href="/admin/settings"><i class="ti ti-settings me-2" aria-hidden="true"></i>系统配置</a>
-                            <a class="dropdown-item{{if eq .Nav "tasks"}} active{{end}}" href="/admin/tasks"><i class="ti ti-clock me-2" aria-hidden="true"></i>定时任务</a>
-                            <a class="dropdown-item{{if eq .Nav "deploy-jobs"}} active{{end}}" href="/admin/deploy-jobs"><i class="ti ti-rocket me-2" aria-hidden="true"></i>部署任务{{with .DeployActive}}<span class="badge bg-blue-lt ms-auto">{{.}}</span>{{end}}</a>
-                            <a class="dropdown-item{{if eq .Nav "backups"}} active{{end}}" href="/admin/backups"><i class="ti ti-database-export me-2" aria-hidden="true"></i>数据库备份</a>
-                            <a class="dropdown-item{{if eq .Nav "logs"}} active{{end}}" href="/admin/logs"><i class="ti ti-list-details me-2" aria-hidden="true"></i>系统日志</a>
+                            <a class="dropdown-item{{if eq .Nav "alerts"}} active{{end}}" href="/admin/alerts"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#bell"></use></svg>告警</a>
+                            <a class="dropdown-item{{if eq .Nav "settings"}} active{{end}}" href="/admin/settings"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#settings"></use></svg>系统配置</a>
+                            <a class="dropdown-item{{if eq .Nav "tasks"}} active{{end}}" href="/admin/tasks"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#clock"></use></svg>定时任务</a>
+                            <a class="dropdown-item{{if eq .Nav "deploy-jobs"}} active{{end}}" href="/admin/deploy-jobs"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#rocket"></use></svg>部署任务{{with .DeployActive}}<span class="badge bg-blue-lt ms-auto">{{.}}</span>{{end}}</a>
+                            <a class="dropdown-item{{if eq .Nav "backups"}} active{{end}}" href="/admin/backups"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#database-export"></use></svg>数据库备份</a>
+                            <a class="dropdown-item{{if eq .Nav "logs"}} active{{end}}" href="/admin/logs"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#list-details"></use></svg>系统日志</a>
                         </div>
                     </li>
                 </ul>
@@ -103,9 +107,9 @@
     <div class="page-wrapper">
         <div class="page-header d-print-none">
             <div class="container-xl">
-                <div class="d-flex align-items-center">
+                <div class="d-flex flex-wrap align-items-center gap-2">
                     <h2 class="page-title">{{.Title}}</h2>
-                    <div class="ms-auto">{{block "actions" .}}{{end}}</div>
+                    <div class="ms-auto d-flex flex-wrap align-items-center gap-2">{{block "actions" .}}{{end}}</div>
                 </div>
             </div>
         </div>
@@ -118,7 +122,7 @@
         </div>
     </div>
 </div>
-<script type="module" src="/static/tabler/js/tabler.esm.min.js"></script>
+<script type="module" src="/static/js/coss-ui.js"></script>
 <script src="/static/js/page.js?v=2" defer></script>
 <script src="/static/js/json-editor.js?v=wrap2" defer></script>
 <script src="/static/js/node-form.js?v=9" defer></script>
@@ -128,8 +132,8 @@
 <script src="/static/vendor/tom-select.complete.min.js" defer></script>
 <script type="module" src="/static/js/node-placements.js?v=9"></script>
 <script src="/static/js/searchable.js?v=2" defer></script>
-<script src="/static/js/back.js?v=5" defer></script>
-<script type="module" src="/static/js/nav-progress.js?v=6"></script>
+<script src="/static/js/back.js?v=6" defer></script>
+<script type="module" src="/static/js/nav-progress.js?v=7"></script>
 <script src="/static/js/copy.js?v=1" defer></script>
 <script src="/static/js/loading.js?v=1" defer></script>
 <script src="/static/js/account-form.js?v=8" defer></script>
@@ -143,7 +147,7 @@
 </html>
 {{end}}
 {{define "batchTagsModal"}}
-<div class="modal modal-blur fade" id="{{.ID}}" tabindex="-1" aria-labelledby="{{.TitleID}}" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="/admin/{{.Kind}}/batch-tags" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}">
+<div class="modal fade" id="{{.ID}}" tabindex="-1" aria-labelledby="{{.TitleID}}" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="/admin/{{.Kind}}/batch-tags" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}">
   <div class="modal-header"><h5 class="modal-title" id="{{.TitleID}}">调整标签 · <span data-batch-count>0</span> 个{{.Label}}</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
   <div class="modal-body">
     <div class="mb-3">
@@ -156,7 +160,7 @@
       <div class="form-hint">{{.Hint}}</div>
     </div>
     <div class="d-flex flex-wrap gap-2">{{range .Tags}}
-      <label class="tag-pill d-inline-flex align-items-center rounded-pill border px-2 py-1 small m-0 cursor-pointer"><input type="checkbox" class="visually-hidden" name="tag_ids" value="{{.ID}}"><span class="status-dot flex-shrink-0 me-1" style="background-color: {{if .Color}}{{.Color}}{{else}}#6c757d{{end}}"></span>{{.Name}}<i class="ti ti-check tag-check ms-1" aria-hidden="true"></i></label>{{else}}<span class="text-secondary">暂无标签</span>{{end}}
+      <label class="tag-pill d-inline-flex align-items-center rounded-pill border px-2 py-1 small m-0 cursor-pointer"><input type="checkbox" class="visually-hidden" name="tag_ids" value="{{.ID}}"><span class="status-dot flex-shrink-0 me-1" style="background-color: {{if .Color}}{{.Color}}{{else}}#6c757d{{end}}"></span>{{.Name}}<svg class="coss-icon tag-check ms-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#check"></use></svg></label>{{else}}<span class="text-secondary">暂无标签</span>{{end}}
     </div>
   </div>
   <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">应用</button></div>

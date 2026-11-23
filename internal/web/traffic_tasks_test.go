@@ -66,7 +66,7 @@ func TestCollectTrafficFailureStillChecksLimitsAndDNS(t *testing.T) {
 	if len(prepared) != 2 {
 		t.Fatal("限速检查被采集失败阻断", prepared)
 	}
-	if len(sent) != 2 || strings.Contains(sent[0]["body"].(string), "密钥") || !strings.Contains(sent[0]["body"].(string), "流量统计收集失败") {
+	if len(sent) != 2 || strings.Contains(sent[0]["body"].(string), "密钥") || !strings.Contains(sent[0]["body"].(string), "流量统计采集失败") {
 		t.Fatal(sent)
 	}
 	// 再次失败受节流，不重复通知。

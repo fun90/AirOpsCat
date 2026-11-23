@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process';
 const chromeBin = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const root = new URL('../', import.meta.url);
 const layout = readFileSync(new URL('web/templates/layout.html', root), 'utf8');
-const scripts = layout.slice(layout.indexOf('<script type="module" src="/static/tabler/'));
+const scripts = layout.slice(layout.indexOf('<script type="module" src="/static/js/coss-ui.js'));
 const cheapButtonTemplate = readFileSync(new URL('web/templates/node_form.html', root), 'utf8').match(/<button[^\n]*title="便宜时段">[^\n]*<\/button>/)[0];
 const cheapButtons = '<div class="placement-fields">' + [false, true].map(set => '<div class="dropdown" data-cheap>' + cheapButtonTemplate
   .replace(/\{\{if not \$cheap\}\} text-secondary\{\{end\}\}/, set ? '' : ' text-secondary')
@@ -20,7 +20,7 @@ const content = `<textarea data-json-editor>{"ok":true}</textarea><select data-s
 <form method="post" action="/admin/saved"><button type="submit">保存</button></form>`;
 function html(name, extra = '') {
   return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>${name}</title>
-<link rel="stylesheet" href="/static/tabler/css/tabler.min.css"><link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/coss.css"><link rel="stylesheet" href="/static/css/app.css">
 <body><div class="page"><header class="navbar">${progress}<div class="container-xl"><a href="/admin/a">A</a><a href="/admin/b">B</a><a href="/admin/slow">慢页面</a></div></header>
 <div class="page-wrapper"><h2 class="page-title">${name}</h2>${content}${extra}${'<p>内容</p>'.repeat(100)}</div></div>${scripts}`;
 }

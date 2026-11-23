@@ -62,7 +62,7 @@ func TestFailoverIPOnlyWarnAndAlert(t *testing.T) {
 	if err := s.alertIPOnly(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if n, summary := active(); n != 1 || !strings.Contains(summary, "s1 已自动切走，但 1 个部署位") {
+	if n, summary := active(); n != 1 || !strings.Contains(summary, "s1 已切走，1 个直连/外部域名部署位未覆盖") {
 		t.Fatal("自动切走后应告警直连 IP 部署位", n, summary)
 	}
 	// 手动切走不告警，已有告警恢复

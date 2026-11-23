@@ -8,9 +8,11 @@ window.AirOpsPage.register(function () {
     return;
   }
   var back = '';
+  var rawRef = typeof window.__airopscatReferrer === 'string' ? window.__airopscatReferrer : document.referrer;
   try {
-    var ref = new URL(document.referrer);
-    if (ref.origin === location.origin && ref.pathname.indexOf('/admin/') === 0 && ref.href !== location.href) {
+    var ref = new URL(rawRef);
+    var isAdmin = ref.pathname === '/admin' || ref.pathname.indexOf('/admin/') === 0;
+    if (ref.origin === location.origin && isAdmin && ref.href !== location.href) {
       ref.searchParams.delete('msg'); ref.searchParams.delete('err');
       back = ref.pathname + ref.search + ref.hash;
     }
@@ -24,6 +26,8 @@ window.AirOpsPage.register(function () {
   document.querySelectorAll('form[method=post]').forEach(function (f) {
     var path = new URL(f.action, location.href).pathname;
     if (path !== base && path.indexOf(base + '/') !== 0) { return; }
+    var existing = f.querySelector ? f.querySelector('input[name="back"]') : null;
+    if (existing) { if (!existing.value) { existing.value = back; } return; }
     var i = document.createElement('input');
     i.type = 'hidden'; i.name = 'back'; i.value = back; f.appendChild(i);
   });

@@ -1,4 +1,4 @@
-import { Popover } from '/static/tabler/js/tabler.esm.min.js';
+import { Popover } from '/static/js/coss-ui.js';
 
 let active = null;
 const close = () => {

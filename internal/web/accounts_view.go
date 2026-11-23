@@ -97,17 +97,17 @@ func sortHeader(q url.Values, col, cur string, asc bool) map[string]string {
 			next[k] = v
 		}
 	}
-	state, icon := "none", "ti-arrows-sort"
+	state, icon := "none", "arrows-sort"
 	switch {
 	case cur != col:
 		next.Set("sort", col)
 		next.Set("dir", "desc")
 	case !asc:
-		state, icon = "descending", "ti-arrow-down"
+		state, icon = "descending", "arrow-down"
 		next.Set("sort", col)
 		next.Set("dir", "asc")
 	default:
-		state, icon = "ascending", "ti-arrow-up"
+		state, icon = "ascending", "arrow-up"
 	}
 	return map[string]string{"URL": "?" + next.Encode(), "Aria": state, "Icon": icon}
 }

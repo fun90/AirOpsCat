@@ -62,3 +62,19 @@ test('跨域来源忽略；页内取消链接（非列表页）保持原样', ()
   });
   assert.equal(r.links[0].href, '/admin/accounts/7/bindings?from=edit');
 });
+
+test('局部导航来源优先于陈旧的 document.referrer，且支持概览页 /admin', () => {
+  const origin = 'http://localhost';
+  const a = [{ href: '/admin/nodes', getAttribute() { return '/admin/nodes'; }, hasAttribute: n => n === 'data-back' }];
+  const f = [{ action: origin + '/admin/nodes/5', appended: [], appendChild(i) { this.appended.push(i); } }];
+  const ctx = {
+    URL,
+    location: { pathname: '/admin/nodes/5/edit', search: '', href: origin + '/admin/nodes/5/edit', origin },
+    sessionStorage: { getItem: () => null, setItem: () => {} },
+    document: { referrer: origin + '/admin/stale', querySelectorAll: s => (s.startsWith('a') ? a : f), createElement: () => ({}) },
+    window: { __airopscatReferrer: origin + '/admin?days=3', AirOpsPage: { register: fn => fn() } },
+  };
+  vm.runInNewContext(source, ctx);
+  assert.equal(a[0].href, '/admin?days=3');
+  assert.equal(f[0].appended[0].value, '/admin?days=3');
+});

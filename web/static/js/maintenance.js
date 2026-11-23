@@ -1,4 +1,4 @@
-import { Modal } from '/static/tabler/js/tabler.esm.min.js';
+import { Modal } from '/static/js/coss-ui.js';
 
 // 初始化（01～10 全部执行）或执行了 @reboot-prompt 脚本且全部成功后弹窗确认重启，结果追加到执行结果区。
 function confirmReboot(targets, csrf, result) {

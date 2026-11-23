@@ -206,7 +206,7 @@ func (s *Server) evaluateServerAlerts(ctx context.Context) error {
 		}
 		used := (float64(st.VnstatRx) + float64(st.VnstatTx)) / store.UnitBytes(st.BandwidthUnit)
 		unit := store.BandwidthUnitOrDefault(st.BandwidthUnit)
-		summary := fmt.Sprintf("%s 累计流量达到 %.0f%% (%.2f %s / %d %s)", label, ratio*100, used, unit, st.BandwidthGB, unit)
+		summary := fmt.Sprintf("%s 流量 %.0f%%（%.1f/%d %s）", label, ratio*100, used, st.BandwidthGB, unit)
 		if err := s.raise(ctx, store.AlertKey{Type: alertMonitorLoad, ResourceType: "server", ResourceID: st.ID, ResourceKey: st.IP, Fingerprint: fp}, "warning",
 			ratio, trafficT, summary, interval, notify.Message{Title: "AirOpsCat 服务器流量告警", Body: summary}); err != nil {
 			return err
@@ -238,7 +238,7 @@ func (s *Server) evaluateTrafficSurge(ctx context.Context, st store.ServerStatus
 		}
 		return nil
 	}
-	summary := fmt.Sprintf("%s 最近 24 小时流量增长 %.1f GiB，超过阈值 %d GiB，疑似被刷流量（如 REALITY 回落）", label, used, limitGiB)
+	summary := fmt.Sprintf("%s 24h 流量 +%.1f GiB（阈值 %d GiB，疑似被刷）", label, used, limitGiB)
 	return s.raise(ctx, store.AlertKey{Type: alertMonitorLoad, ResourceType: "server", ResourceID: st.ID, ResourceKey: st.IP, Fingerprint: fp}, "warning",
 		used, float64(limitGiB), summary, interval, notify.Message{Title: "AirOpsCat 服务器流量异常告警", Body: summary})
 }
@@ -259,7 +259,7 @@ func (s *Server) evaluateServerHealth(ctx context.Context, st store.ServerStatus
 		return store.AlertKey{Type: alertMonitorLoad, ResourceType: "server", ResourceID: st.ID, ResourceKey: st.IP, Fingerprint: fp + ":" + id}
 	}
 	if now.Sub(sampled) > offlineAfter {
-		summary := fmt.Sprintf("%s 已 %d 分钟没有监控上报，主机或 agent 可能离线", label, int(now.Sub(sampled).Minutes()))
+		summary := fmt.Sprintf("%s 失联 %s（无监控上报）", label, formatOfflineDuration(now.Sub(sampled)))
 		return s.raise(ctx, key("offline"), "warning", now.Sub(sampled).Minutes(), offlineAfter.Minutes(), summary, interval,
 			notify.Message{Title: "AirOpsCat 服务器失联告警", Body: summary})
 	}
@@ -282,9 +282,25 @@ func (s *Server) evaluateServerHealth(ctx context.Context, st store.ServerStatus
 		_, err := store.AlertResolveFingerprint(ctx, s.DB, alertMonitorLoad, "server", st.ID, "singbox:"+id, now)
 		return err
 	}
-	summary := fmt.Sprintf("%s sing-box 已停止运行超过 %d 分钟", label, int(singboxWindow.Minutes()))
+	summary := fmt.Sprintf("%s sing-box 已停止超 %d 分钟", label, int(singboxWindow.Minutes()))
 	return s.raise(ctx, key("singbox"), "warning", 1, 1, summary, interval,
 		notify.Message{Title: "AirOpsCat sing-box 停止告警", Body: summary})
+}
+
+func formatOfflineDuration(d time.Duration) string {
+	mins := int(d.Minutes())
+	if mins < 60 {
+		return fmt.Sprintf("%d 分钟", mins)
+	}
+	hours := mins / 60
+	if hours < 24 {
+		return fmt.Sprintf("%d 小时", hours)
+	}
+	days := hours / 24
+	if rem := hours % 24; rem > 0 {
+		return fmt.Sprintf("%d 天 %d 小时", days, rem)
+	}
+	return fmt.Sprintf("%d 天", days)
 }
 
 // ---------- 页面 ----------

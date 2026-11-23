@@ -1,46 +1,67 @@
+{{define "actions"}}<a href="/admin/transactions/new" class="btn btn-outline-secondary"><svg class="coss-icon me-sm-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#receipt-yuan"></use></svg><span class="d-none d-sm-inline">记一笔</span></a><a href="/admin/nodes/new" class="btn btn-outline-secondary"><svg class="coss-icon me-sm-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#route"></use></svg><span class="d-none d-sm-inline">新增节点</span></a><a href="/admin/accounts/new" class="btn btn-primary"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#plus"></use></svg>开户</a>{{end}}
 {{define "content"}}
 <div class="row row-deck row-cards mb-3">
   <div class="col-12 col-md-4 col-xl">
-    <div class="card card-sm"><div class="card-body">
-      <div class="d-flex align-items-center gap-2 mb-1">{{if .Online.Servers}}<span class="status-dot status-dot-animated status-green"></span>{{else}}<span class="status-dot status-secondary"></span>{{end}}<a href="/admin/accounts?online=online" class="subheader text-reset">在线</a></div>
-      {{if .Online.Servers}}<div class="h1 mb-1">{{.Online.Accounts}} <span class="fs-3 fw-normal text-secondary">账户</span></div>
-      <div class="small text-secondary">{{.Online.Connections}} 连接 · {{.Online.Servers}} 台上报{{if .OnlineAt}} · {{.OnlineAt}}{{end}}</div>
-      {{else}}<div class="h1 mb-1 text-secondary">—</div><div class="small text-secondary">暂无新鲜上报</div>{{end}}
+    <div class="card card-sm"><div class="card-body d-flex flex-column">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        {{if .Online.Servers}}<span class="status-dot status-dot-animated status-green"></span>{{else}}<span class="status-dot status-secondary"></span>{{end}}
+        <a href="/admin/accounts?online=online" class="subheader text-reset text-decoration-none">实时在线</a>
+        {{if .Online.Servers}}<span class="badge bg-green-lt ms-auto">{{.Online.Servers}} 台上报</span>{{end}}
+      </div>
+      {{if .Online.Servers}}
+      <div class="h1 mb-1">{{.Online.Accounts}} <span class="fs-3 fw-normal text-secondary">账户</span></div>
+      <div class="small text-secondary mt-auto">{{.Online.Connections}} 连接{{if .OnlineAt}} · {{.OnlineAt}}{{end}}</div>
+      {{else}}
+      <div class="h1 mb-1 text-secondary">—</div>
+      <div class="small text-secondary mt-auto">暂无新鲜上报</div>
+      {{end}}
     </div></div>
   </div>
   <div class="col-6 col-md-4 col-xl">
-    <div class="card card-sm"><div class="card-body">
-      <div class="d-flex align-items-center mb-1"><a href="/admin/accounts" class="subheader text-reset">账户</a><i class="ti ti-user-circle text-secondary ms-auto" aria-hidden="true"></i></div>
-      <div class="h1 mb-1"><a href="/admin/accounts?status=active" class="text-reset">{{.Stats.AccountsActive}}</a> <span class="fs-3 fw-normal text-secondary">/ {{.Stats.AccountsTotal}}</span></div>
-      <div class="small text-secondary"><a href="/admin/accounts?status=disabled" class="text-secondary">禁用 {{.Stats.AccountsDisabled}}</a> · <a href="/admin/accounts?status=expired" class="{{if .Stats.AccountsExpired}}text-red{{else}}text-secondary{{end}}">过期 {{.Stats.AccountsExpired}}</a></div>
+    <div class="card card-sm"><div class="card-body d-flex flex-column">
+      <div class="d-flex align-items-center mb-2">
+        <a href="/admin/accounts" class="subheader text-reset text-decoration-none">活跃账户</a>
+        <svg class="coss-icon text-secondary ms-auto" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#user-circle"></use></svg>
+      </div>
+      <div class="h1 mb-1"><a href="/admin/accounts?status=active" class="text-reset text-decoration-none">{{.Stats.AccountsActive}}</a> <span class="fs-3 fw-normal text-secondary">/ {{.Stats.AccountsTotal}}</span></div>
+      <div class="small text-secondary mt-auto"><a href="/admin/accounts?status=disabled" class="text-secondary">禁用 {{.Stats.AccountsDisabled}}</a> · <a href="/admin/accounts?status=expired" class="{{if .Stats.AccountsExpired}}text-red fw-medium{{else}}text-secondary{{end}}">过期 {{.Stats.AccountsExpired}}</a></div>
     </div></div>
   </div>
   <div class="col-6 col-md-4 col-xl">
-    <div class="card card-sm"><div class="card-body">
-      <div class="d-flex align-items-center mb-1"><a href="/admin/nodes" class="subheader text-reset">节点</a><i class="ti ti-route text-secondary ms-auto" aria-hidden="true"></i></div>
+    <div class="card card-sm"><div class="card-body d-flex flex-column">
+      <div class="d-flex align-items-center mb-2">
+        <a href="/admin/nodes" class="subheader text-reset text-decoration-none">启用节点</a>
+        <svg class="coss-icon text-secondary ms-auto" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#route"></use></svg>
+      </div>
       <div class="h1 mb-1">{{.Stats.NodesEnabled}} <span class="fs-3 fw-normal text-secondary">启用</span></div>
-      <div class="small text-secondary">禁用 {{.Stats.NodesDisabled}} · <a href="/admin/nodes?status=0" class="{{if .Stats.PendingPlacements}}text-yellow{{else}}text-secondary{{end}}">待部署位 {{.Stats.PendingPlacements}}</a></div>
+      <div class="small text-secondary mt-auto">禁用 {{.Stats.NodesDisabled}} · <a href="/admin/nodes?status=0" class="{{if .Stats.PendingPlacements}}text-yellow fw-medium{{else}}text-secondary{{end}}">待部署 {{.Stats.PendingPlacements}}</a></div>
     </div></div>
   </div>
-  <div class="col-6 col-md-4 col-xl">
-    <div class="card card-sm"><div class="card-body">
-      <div class="d-flex align-items-center mb-1"><a href="/admin/servers" class="subheader text-reset">服务器</a><i class="ti ti-server text-secondary ms-auto" aria-hidden="true"></i></div>
+  <div class="col-6 col-md-6 col-xl">
+    <div class="card card-sm"><div class="card-body d-flex flex-column">
+      <div class="d-flex align-items-center mb-2">
+        <a href="/admin/servers" class="subheader text-reset text-decoration-none">在线服务器</a>
+        <svg class="coss-icon text-secondary ms-auto" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#server"></use></svg>
+      </div>
       <div class="h1 mb-1">{{.Stats.ServersEnabled}} <span class="fs-3 fw-normal text-secondary">启用</span></div>
-      <div class="small text-secondary"><a href="/admin/servers?filter=external" class="text-secondary">外部 {{.Stats.ServersExternal}}</a> · <a href="/admin/monitor" class="{{if .Stats.ServersAbnormal}}text-red{{else}}text-secondary{{end}}">异常 {{.Stats.ServersAbnormal}}</a></div>
+      <div class="small text-secondary mt-auto"><a href="/admin/servers?filter=external" class="text-secondary">外部 {{.Stats.ServersExternal}}</a> · <a href="/admin/monitor" class="{{if .Stats.ServersAbnormal}}text-red fw-medium{{else}}text-secondary{{end}}">异常 {{.Stats.ServersAbnormal}}</a></div>
     </div></div>
   </div>
-  <div class="col-6 col-md-8 col-xl">
-    <div class="card card-sm"><div class="card-body">
-      <div class="d-flex align-items-center mb-1"><a href="/admin/transactions" class="subheader text-reset">{{.Month}} 月收支</a><i class="ti ti-wallet text-secondary ms-auto" aria-hidden="true"></i></div>
+  <div class="col-6 col-md-6 col-xl">
+    <div class="card card-sm"><div class="card-body d-flex flex-column">
+      <div class="d-flex align-items-center mb-2">
+        <a href="/admin/transactions" class="subheader text-reset text-decoration-none">{{.Month}} 月结余</a>
+        <svg class="coss-icon text-secondary ms-auto" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#wallet"></use></svg>
+      </div>
       <div class="h1 mb-1{{if lt .Money.Balance 0}} text-red{{end}}">{{cents .Money.Balance}}</div>
-      <div class="small text-secondary text-truncate">收入 <span class="text-green">{{cents .Money.Income}}</span> · 支出 <span class="text-red">{{cents .Money.Expense}}</span></div>
+      <div class="small text-secondary text-truncate mt-auto">收 <span class="text-green">{{cents .Money.Income}}</span> · 支 <span class="text-red">{{cents .Money.Expense}}</span></div>
     </div></div>
   </div>
 </div>
 
 <div class="row row-cards mb-3">
   <div class="col-12 col-lg-7">
-    <div class="card">
+    <div class="card h-100">
       <div class="card-header">
         <h3 class="card-title">需要处理{{if .Todo}}<span class="badge bg-red-lt ms-2">{{.Todo}}</span>{{end}}</h3>
         <div class="card-actions btn-group" role="group" aria-label="账户到期范围">
@@ -50,37 +71,48 @@
         </div>
       </div>
       {{if .Todo}}<div class="list-group list-group-flush overflow-auto" style="max-height:36rem">
-        {{range .ActiveAlerts}}<div class="list-group-item"><div class="row g-3 align-items-center">
-          <div class="col-auto"><span class="avatar avatar-sm bg-red-lt"><i class="ti ti-bell" aria-hidden="true"></i></span></div>
-          <div class="col min-w-0 text-break"><div class="fw-medium">{{.TypeName}}</div><div class="small">{{if .Summary}}{{.Summary}}{{else}}暂无摘要{{end}}</div><div class="small text-secondary">{{if .Ago}}{{.Ago}} · {{end}}{{.Count}} 次</div></div>
-          <div class="col-auto"><a class="btn btn-sm" href="{{.Link}}">{{.LinkText}}</a></div>
+        {{range .ActiveAlerts}}<div class="list-group-item"><div class="d-flex align-items-center gap-3">
+          <span class="avatar avatar-sm bg-red-lt"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#bell"></use></svg></span>
+          <div class="flex-fill min-w-0 text-break">
+            <div class="d-flex align-items-center gap-2 flex-wrap"><span class="fw-medium">{{.TypeName}}</span><span class="badge bg-red-lt">告警</span><span class="small text-secondary text-nowrap">{{if .Ago}}{{.Ago}} · {{end}}{{.Count}} 次</span></div>
+            <div class="small text-secondary line-clamp-2 mt-1" title="{{.Summary}}">{{if .Summary}}{{.Summary}}{{else}}暂无摘要{{end}}</div>
+          </div>
+          <a class="btn btn-sm flex-shrink-0" href="{{.Link}}">{{.LinkText}}</a>
         </div></div>{{end}}
-        {{range .Accounts}}<div class="list-group-item"><div class="row g-3 align-items-center">
-          <div class="col-auto"><span class="avatar avatar-sm bg-yellow-lt"><i class="ti ti-user-circle" aria-hidden="true"></i></span></div>
-          <div class="col min-w-0 text-break"><a class="fw-medium text-reset" href="/admin/accounts/{{.ID}}/edit">{{.Name}}</a><div class="small text-secondary">账户到期 · <span class="{{if .Urgent}}text-red{{else}}text-yellow{{end}}">{{.Left}}</span> · {{.AccountNo}}</div></div>
-          <div class="col-auto"><a class="btn btn-sm btn-outline-primary" href="/admin/accounts/{{.ID}}/edit">续期</a></div>
+        {{if .Stats.PendingPlacements}}<div class="list-group-item"><div class="d-flex align-items-center gap-3">
+          <span class="avatar avatar-sm bg-purple-lt"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#rocket"></use></svg></span>
+          <div class="flex-fill min-w-0">
+            <div class="d-flex align-items-center gap-2 flex-wrap"><span class="fw-medium">{{.Stats.PendingPlacements}} 个部署位待部署</span><span class="badge bg-purple-lt">部署</span></div>
+          </div>
+          <a class="btn btn-sm flex-shrink-0" href="/admin/nodes?status=0">去部署</a>
         </div></div>{{end}}
-        {{range .Renewals}}<div class="list-group-item"><div class="row g-3 align-items-center">
-          <div class="col-auto"><span class="avatar avatar-sm bg-orange-lt"><i class="ti {{if eq .Table "server"}}ti-server{{else}}ti-world{{end}}" aria-hidden="true"></i></span></div>
-          <div class="col min-w-0 text-break">{{if eq .Table "server"}}<a class="fw-medium text-reset" href="/admin/servers/{{.ID}}/edit">{{.Name}}</a>{{else}}<span class="fw-medium">{{.Name}}</span>{{end}}<div class="small text-secondary">{{if eq .Table "server"}}服务器{{else}}域名{{end}}到期 · <span class="{{if .Urgent}}text-red{{else}}text-yellow{{end}}">{{.Left}}</span> · {{.Expire}}{{if eq .Table "server"}} · {{.Detail}}{{end}}</div></div>
-          <div class="col-auto"><a class="btn btn-sm btn-outline-primary" href="/admin/renewals">续费</a></div>
+        {{range .Accounts}}<div class="list-group-item"><div class="d-flex align-items-center gap-3">
+          <span class="avatar avatar-sm bg-yellow-lt"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#user-circle"></use></svg></span>
+          <div class="flex-fill min-w-0 text-break">
+            <div class="d-flex align-items-center gap-2 flex-wrap"><a class="fw-medium text-reset" href="/admin/accounts/{{.ID}}/edit">{{.Name}}</a><span class="badge {{if .Urgent}}bg-red-lt{{else}}bg-yellow-lt{{end}}">{{.Left}}</span></div>
+            <div class="small text-secondary mt-1">账户到期 · {{.AccountNo}}</div>
+          </div>
+          <a class="btn btn-sm btn-outline-primary flex-shrink-0" href="/admin/accounts/{{.ID}}/edit">续期</a>
         </div></div>{{end}}
-        {{if .Stats.PendingPlacements}}<div class="list-group-item"><div class="row g-3 align-items-center">
-          <div class="col-auto"><span class="avatar avatar-sm bg-purple-lt"><i class="ti ti-rocket" aria-hidden="true"></i></span></div>
-          <div class="col min-w-0"><div class="fw-medium">{{.Stats.PendingPlacements}} 个部署位待部署</div></div>
-          <div class="col-auto"><a class="btn btn-sm" href="/admin/nodes?status=0">查看</a></div>
+        {{range .Renewals}}<div class="list-group-item"><div class="d-flex align-items-center gap-3">
+          <span class="avatar avatar-sm bg-orange-lt"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#{{if eq .Table "server"}}server{{else}}world{{end}}"></use></svg></span>
+          <div class="flex-fill min-w-0 text-break">
+            <div class="d-flex align-items-center gap-2 flex-wrap">{{if eq .Table "server"}}<a class="fw-medium text-reset" href="/admin/servers/{{.ID}}/edit">{{.Name}}</a>{{else}}<span class="fw-medium">{{.Name}}</span>{{end}}<span class="badge {{if .Urgent}}bg-red-lt{{else}}bg-yellow-lt{{end}}">{{.Left}}</span></div>
+            <div class="small text-secondary mt-1">{{if eq .Table "server"}}服务器{{else}}域名{{end}}到期 · {{.Expire}}{{if eq .Table "server"}} · {{.Detail}}{{end}}</div>
+          </div>
+          <a class="btn btn-sm btn-outline-primary flex-shrink-0" href="/admin/renewals">续费</a>
         </div></div>{{end}}
-        {{if .Stats.AlertsAcknowledged}}<div class="list-group-item"><div class="row g-3 align-items-center">
-          <div class="col-auto"><span class="avatar avatar-sm bg-secondary-lt"><i class="ti ti-check" aria-hidden="true"></i></span></div>
-          <div class="col min-w-0"><div class="fw-medium">{{.Stats.AlertsAcknowledged}} 条已确认告警未恢复</div></div>
-          <div class="col-auto"><a class="btn btn-sm" href="/admin/alerts?status=ACKNOWLEDGED">查看</a></div>
+        {{if .Stats.AlertsAcknowledged}}<div class="list-group-item"><div class="d-flex align-items-center gap-3">
+          <span class="avatar avatar-sm bg-secondary-lt"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#check"></use></svg></span>
+          <div class="flex-fill min-w-0"><div class="fw-medium">{{.Stats.AlertsAcknowledged}} 条已确认告警未恢复</div></div>
+          <a class="btn btn-sm flex-shrink-0" href="/admin/alerts?status=ACKNOWLEDGED">查看</a>
         </div></div>{{end}}
       </div>
-      {{else}}<div class="empty py-5"><div class="empty-icon"><i class="ti ti-circle-check text-green" aria-hidden="true"></i></div><p class="empty-title">暂无待处理事项</p></div>{{end}}
+      {{else}}<div class="empty py-5"><div class="empty-icon"><svg class="coss-icon text-green" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#circle-check"></use></svg></div><p class="empty-title">暂无待处理事项</p></div>{{end}}
     </div>
   </div>
   <div class="col-12 col-lg-5">
-    <div class="card">
+    <div class="card h-100">
       <div class="card-header">
         <h3 class="card-title">服务器健康{{if .HealthBad}}<span class="badge bg-red-lt ms-2">异常 {{.HealthBad}}</span>{{end}}</h3>
         <div class="card-actions"><a href="/admin/monitor" class="btn btn-sm">监控</a></div>
@@ -90,16 +122,16 @@
           <div class="d-flex align-items-center gap-2">
             <span class="status-dot flex-shrink-0 {{if eq .Level 3}}status-dot-animated status-red{{else if eq .Level 2}}status-yellow{{else if eq .Level 1}}status-secondary{{else}}status-green{{end}}"></span>
             <span class="fw-medium text-truncate">{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}</span>
-            <span class="ms-auto small text-nowrap {{if eq .Level 3}}text-red{{else if eq .Level 2}}text-yellow{{else}}text-secondary{{end}}">{{if .Issue}}{{.Issue}}{{else}}{{.Online}}{{end}}</span>
+            <span class="ms-auto small text-nowrap {{if eq .Level 3}}text-red fw-medium{{else if eq .Level 2}}text-yellow fw-medium{{else}}text-secondary{{end}}">{{if .Issue}}{{.Issue}}{{else}}{{.Online}}{{end}}</span>
           </div>
           {{if .Sampled}}<div class="d-flex align-items-center gap-3 small text-secondary mt-1">
             <span class="text-nowrap">CPU {{.CPUText}}</span><span class="text-nowrap">内存 {{.MemText}}</span>
-            {{if and .BandwidthGB .HasVnstat}}<div class="progress progress-sm flex-fill" title="本期流量 {{.UsageText}}"><div class="progress-bar{{if ge .UsagePct 85}} bg-red{{end}}" style="width:{{.UsagePct}}%" role="progressbar" aria-label="本期流量用量" aria-valuenow="{{.UsagePct}}" aria-valuemin="0" aria-valuemax="100"></div></div><span class="text-nowrap{{if ge .UsagePct 85}} text-red{{end}}">流量 {{.UsagePctText}}</span>
+            {{if and .BandwidthGB .HasVnstat}}<div class="progress progress-sm flex-fill" title="本期流量 {{.UsageText}}"><div class="progress-bar{{if ge .UsagePct 85}} bg-red{{end}}" style="width:{{.UsagePct}}%" role="progressbar" aria-label="本期流量用量" aria-valuenow="{{.UsagePct}}" aria-valuemin="0" aria-valuemax="100"></div></div><span class="text-nowrap{{if ge .UsagePct 85}} text-red fw-medium{{end}}">{{.UsagePctText}}</span>
             {{else if .HasVnstat}}<span class="text-nowrap">流量 {{.UsageText}}</span>{{end}}
           </div>{{end}}
         </a>{{else}}<div class="card-body text-center text-secondary py-5">暂无服务器</div>{{end}}
       </div>
-      {{if gt .HealthTotal (len .Health)}}<div class="card-footer text-center"><a href="/admin/monitor">查看全部 {{.HealthTotal}} 台</a></div>{{end}}
+      {{if gt .HealthTotal (len .Health)}}<div class="card-footer text-center"><a class="small text-secondary" href="/admin/monitor">查看全部 {{.HealthTotal}} 台</a></div>{{end}}
     </div>
   </div>
 </div>
@@ -113,7 +145,7 @@
     {{range .RecentAlerts}}<div class="list-group-item"><div class="d-flex gap-3">
       <span class="status-dot mt-2 flex-shrink-0 {{if eq .Status "ACTIVE"}}status-dot-animated status-red{{else if eq .Status "ACKNOWLEDGED"}}status-yellow{{else}}status-green{{end}}"></span>
       <div class="flex-fill min-w-0 text-break">
-        <div class="d-flex flex-wrap align-items-center column-gap-2"><strong>{{.TypeName}}</strong>{{if eq .Status "ACTIVE"}}<span class="badge bg-red-lt">进行中</span>{{else if eq .Status "ACKNOWLEDGED"}}<span class="badge bg-yellow-lt">已确认</span>{{else}}<span class="badge bg-green-lt">已恢复</span>{{end}}<span class="ms-auto small text-secondary text-nowrap">{{.Ago}}</span></div>
+        <div class="d-flex flex-wrap align-items-center gap-2"><span class="fw-medium">{{.TypeName}}</span>{{if eq .Status "ACTIVE"}}<span class="badge bg-red-lt">进行中</span>{{else if eq .Status "ACKNOWLEDGED"}}<span class="badge bg-yellow-lt">已确认</span>{{else}}<span class="badge bg-green-lt">已恢复</span>{{end}}<span class="ms-auto small text-secondary text-nowrap">{{.Ago}}</span></div>
         <div class="small text-secondary mt-1">{{if .Summary}}{{.Summary}}{{else}}暂无摘要{{end}}</div>
       </div>
     </div></div>{{else}}<div class="card-body text-center text-secondary py-5">暂无告警</div>{{end}}

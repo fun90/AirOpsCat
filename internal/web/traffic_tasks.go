@@ -190,7 +190,7 @@ func (s *Server) trackCollectAlert(ctx context.Context, id int64, collectErr err
 	}
 	var ip string
 	_ = s.DB.QueryRowContext(ctx, `SELECT ip FROM server WHERE id=?`, id).Scan(&ip)
-	summary := fmt.Sprintf("服务器 %s (ID %d) 流量统计收集失败，账户流量与超额限速可能停止更新", ip, id)
+	summary := fmt.Sprintf("%s 流量统计采集失败", ip)
 	return s.raise(ctx, store.AlertKey{Type: alertMonitorLoad, ResourceType: "server", ResourceID: id, ResourceKey: ip, Fingerprint: fp},
-		"warning", 1, 1, summary, interval, notify.Message{Title: "AirOpsCat 流量统计失败", Body: summary})
+		"warning", 1, 1, summary, interval, notify.Message{Title: "AirOpsCat 流量统计失败", Body: fmt.Sprintf("服务器 %s (ID %d) 流量统计采集失败，账户流量与超额限速可能停止更新", ip, id)})
 }

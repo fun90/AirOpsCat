@@ -1,32 +1,32 @@
 /* JSON 编辑器（json-editor.js）：透明 textarea 叠在高亮层上，行号栏与滚动同步 */
-.je { border: 1px solid var(--tblr-border-color); border-radius: var(--tblr-border-radius); background: var(--tblr-bg-forms); overflow: hidden; }
-.je.je-invalid { border-color: var(--tblr-danger); }
-.je-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .375rem .5rem; border-bottom: 1px solid var(--tblr-border-color); background: var(--tblr-bg-surface-secondary); }
+.je { border: 1px solid var(--coss-border); border-radius: var(--coss-radius-md); background: var(--coss-forms-bg); overflow: hidden; }
+.je.je-invalid { border-color: var(--coss-destructive); }
+.je-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .375rem .5rem; border-bottom: 1px solid var(--coss-border); background: var(--coss-muted); }
 .je-status { margin-left: auto; font-size: .8125rem; }
-.je-status.ok { color: var(--tblr-success); }
-.je-status.bad { color: var(--tblr-danger); }
+.je-status.ok { color: var(--coss-success); }
+.je-status.bad { color: var(--coss-destructive); }
 .je-body { display: flex; height: 22rem; min-height: 8rem; resize: vertical; overflow: hidden; }
-.je-gutter, .je-hl, .je-ta { font-family: var(--tblr-font-monospace); font-size: 13px; line-height: 20px; tab-size: 2; margin: 0; box-sizing: border-box; }
-.je-gutter { flex: none; min-width: 3rem; padding: 8px .5rem 8px .5rem; text-align: right; color: var(--tblr-secondary); background: var(--tblr-bg-surface-secondary); border-right: 1px solid var(--tblr-border-color); overflow: hidden; user-select: none; white-space: pre; }
+.je-gutter, .je-hl, .je-ta { font-family: var(--coss-font-mono); font-size: 13px; line-height: 20px; tab-size: 2; margin: 0; box-sizing: border-box; }
+.je-gutter { flex: none; min-width: 3rem; padding: 8px .5rem 8px .5rem; text-align: right; color: var(--coss-muted-foreground); background: var(--coss-muted); border-right: 1px solid var(--coss-border); overflow: hidden; user-select: none; white-space: pre; }
 .je-code { position: relative; flex: 1; min-width: 0; }
 .je-hl, .je-ta { position: absolute; inset: 0; padding: 8px 12px; white-space: pre-wrap; overflow-wrap: anywhere; border: 0; }
-.je-hl { overflow: hidden; pointer-events: none; color: var(--tblr-body-color); background: transparent; border-radius: 0; padding-bottom: 8px; }
-.je-ta { background: transparent; color: transparent; caret-color: var(--tblr-body-color); resize: none; outline: none; overflow-y: auto; overflow-x: hidden; }
+.je-hl { overflow: hidden; pointer-events: none; color: var(--coss-foreground); background: transparent; border-radius: 0; padding-bottom: 8px; }
+.je-ta { background: transparent; color: transparent; caret-color: var(--coss-foreground); resize: none; outline: none; overflow-y: auto; overflow-x: hidden; }
 .je-ta::selection { background: rgba(32, 107, 196, .3); }
-.je-key { color: var(--tblr-blue); }
-.je-str { color: var(--tblr-green); }
-.je-num { color: var(--tblr-orange); }
-.je-bool { color: var(--tblr-purple); }
-.je-null { color: var(--tblr-red); }
+.je-key { color: var(--coss-info); }
+.je-str { color: var(--coss-success); }
+.je-num { color: var(--coss-warning); }
+.je-bool { color: var(--coss-purple); }
+.je-null { color: var(--coss-destructive); }
 
 @media (max-width: 767.98px) {
     .je-gutter { display: none; }
 }
 
 .tag-check { display: none; }
-.tag-pill:has(input:checked) { border-color: var(--tblr-primary) !important; background: var(--tblr-primary-lt); color: var(--tblr-primary); font-weight: 500; }
+.tag-pill:has(input:checked) { border-color: var(--coss-primary) !important; background: var(--coss-secondary); color: var(--coss-foreground); font-weight: 500; }
 .tag-pill:has(input:checked) .tag-check { display: inline; }
-.tag-pill:has(input:focus-visible) { outline: 2px solid var(--tblr-primary); outline-offset: 2px; }
+.tag-pill:has(input:focus-visible) { outline: 2px solid var(--coss-primary); outline-offset: 2px; }
 
 .je-line { display: block; min-height: 20px; }
 
@@ -34,18 +34,52 @@
 .tag-editor-fields [data-tag-color-input] { flex: 0 0 44px; width: 44px; min-width: 44px; }
 
 .ts-dropdown { z-index: 1060; }
-/* Tom Select 使用 Bootstrap 变量，映射到 Tabler 的当前主题。 */
-.ts-wrapper, .ts-dropdown {
-    --bs-body-bg: var(--tblr-bg-forms);
-    --bs-body-color: var(--tblr-body-color);
-    --bs-border-color: var(--tblr-border-color);
-    --bs-border-radius: var(--tblr-border-radius);
-    --bs-secondary-color: var(--tblr-secondary);
+/* Tom Select 适配 coss.com/ui 视觉体系 */
+.ts-wrapper.form-select, .ts-wrapper.form-control {
+    padding: 0 !important; border: 0 !important; background: transparent !important; background-image: none !important;
+    box-shadow: none !important; min-height: 0 !important; overflow: visible !important; white-space: normal !important;
 }
-.ts-control, .ts-wrapper.single.input-active .ts-control { background: var(--tblr-bg-forms); color: var(--tblr-body-color); }
-.ts-control input, .ts-dropdown { color: var(--tblr-body-color); }
-.ts-dropdown { background: var(--tblr-bg-surface); }
-.ts-dropdown .option.active { background: var(--tblr-bg-surface-secondary); color: var(--tblr-body-color); }
+.ts-wrapper.form-select .ts-control, .ts-wrapper.form-control .ts-control, .ts-control, .ts-wrapper.single.input-active .ts-control {
+    background-color: var(--coss-forms-bg) !important; color: var(--coss-foreground) !important;
+    border: 1px solid var(--coss-input) !important; border-radius: var(--coss-radius-md) !important;
+    padding: 0.4375rem 2rem 0.4375rem 0.75rem !important; min-height: 2.25rem !important; height: 100%;
+    box-shadow: var(--coss-shadow-xs) !important; display: flex !important; align-items: center;
+}
+.ts-wrapper.form-select.single .ts-control, .ts-wrapper.single .ts-control {
+    background-image: var(--coss-chevron) !important; background-repeat: no-repeat !important;
+    background-position: right 0.625rem center !important; background-size: 0.875rem !important;
+}
+.ts-wrapper.single .ts-control::after { display: none !important; }
+.input-group > .ts-wrapper:not(:first-child) .ts-control { border-top-left-radius: 0 !important; border-bottom-left-radius: 0 !important; }
+.input-group > .ts-wrapper:not(:last-child) .ts-control { border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; }
+.ts-wrapper.focus .ts-control, .focus .ts-control { border-color: var(--coss-ring) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--coss-ring) 22%, transparent) !important; }
+.input-group .ts-wrapper.focus .ts-control, .input-group .focus .ts-control { box-shadow: none !important; }
+.ts-wrapper.multi .ts-control { flex-wrap: wrap; gap: 0.375rem; padding: 0.375rem 0.625rem !important; }
+.ts-wrapper.multi .ts-control > .item {
+    background: var(--coss-secondary) !important; color: var(--coss-foreground) !important;
+    border: 1px solid var(--coss-border) !important; border-radius: var(--coss-radius-sm) !important;
+    padding: 0.125rem 0.5rem !important; margin: 0 !important; font-size: 0.8125rem;
+}
+.ts-wrapper.multi .ts-control > .item.active { background: var(--coss-primary) !important; color: var(--coss-primary-foreground) !important; border-color: var(--coss-primary) !important; }
+.ts-control > input { color: var(--coss-foreground) !important; min-width: 2rem !important; }
+.ts-dropdown {
+    background: var(--coss-popover) !important;
+    color: var(--coss-popover-foreground) !important;
+    border: 1px solid var(--coss-border) !important;
+    border-radius: var(--coss-radius-lg) !important;
+    box-shadow: var(--coss-shadow-lg) !important;
+    padding: 0.25rem !important;
+    margin-top: 0.25rem !important;
+}
+.ts-dropdown .option {
+    border-radius: calc(var(--coss-radius-md) - 1px);
+    padding: 0.375rem 0.625rem;
+}
+.ts-dropdown .option.active,
+.ts-dropdown .option:hover {
+    background: var(--coss-accent) !important;
+    color: var(--coss-accent-foreground) !important;
+}
 [data-bs-theme="dark"] img[src="/static/img/logo-light.png"] { filter: invert(1); }
 
 /* 固定布局表格的操作列：移动端放下拉按钮，PC 端放并排按钮 */
@@ -59,11 +93,7 @@
     .logs-table .log-message { width: 100%; min-width: 0; }
     /* 账户列占满剩余宽度，名称在单元格内截断而不撑宽表格 */
     .account-cell { width: 100%; max-width: 0; }
-    /* 到期列顶端对齐：日期行与名称行同高（1.75rem），剩余天数落在在线信息那一行 */
-    .table > :not(caption) > * > .account-expiry { padding-left: .25rem; padding-right: .25rem; }
-    .table > :not(caption) > * > td.account-expiry { vertical-align: top; line-height: 1.75rem; }
-    .account-expiry > .small { line-height: var(--tblr-body-line-height); }
-    .table > :not(caption) > * > .account-actions { padding-left: 0; }
+    .table > :not(caption) > * > .account-actions { padding-left: 0; vertical-align: top; }
     /* 流量按钮与在线文字同字号同行高，不额外撑高第二行 */
     .account-cell [data-account-usage] { min-height: 0; border: 0; font-size: inherit; line-height: inherit; vertical-align: baseline; }
 }
@@ -88,9 +118,9 @@
     .node-actions > div { height: 1.25rem; }
 }
 
-/* 折叠按钮的向下箭头在展开后转为向上；Tabler 没有按 aria-expanded 切换图标的工具类 */
-[aria-expanded] > .ti-chevron-down { transition: transform .2s; }
-[aria-expanded="true"] > .ti-chevron-down { transform: rotate(180deg); }
+/* 折叠按钮的向下箭头在展开后转为向上 */
+[aria-expanded] > .coss-icon:has(use[href$="#chevron-down"]) { transition: transform .2s; }
+[aria-expanded="true"] > .coss-icon:has(use[href$="#chevron-down"]) { transform: rotate(180deg); }
 
 /* 节点部署位：移动端两行（域名+优先级、订阅名+便宜时段+开关），除域名和订阅名外均定宽，订阅名各卡片自然同宽；PC 端合成一行。 */
 .placement-fields .input-group-text, .placement-fields .form-control, .placement-fields .btn { padding-left: .5rem; padding-right: .5rem; }
@@ -101,7 +131,9 @@
 .placement-prio { flex: 0 0 5.5rem; width: 5.5rem; }
 .placement-prio .form-control { width: 3rem; }
 /* 便宜时段按钮按“00:00–00:00”定宽，未设置时不变短 */
-.placement-fields [data-cheap] > .btn { width: 7.75rem; font-variant-numeric: tabular-nums; --tblr-btn-active-bg: var(--tblr-bg-surface-secondary); --tblr-btn-active-color: var(--tblr-body-color); --tblr-btn-active-border-color: var(--tblr-primary); }
+.placement-fields [data-cheap] > .btn { width: 7.75rem; font-variant-numeric: tabular-nums; }
+.placement-fields [data-cheap] > .btn:hover,
+.placement-fields [data-cheap] > .btn[aria-expanded="true"] { background-color: var(--coss-accent); color: var(--coss-foreground); border-color: var(--coss-ring); }
 .placement-meta:not(:has(> :not([hidden]))) { display: none !important; }
 /* 标签行：移动端换到名称下方，PC 端跟在 IP 后同一行 */
 .placement-head > strong { min-width: 0; }
@@ -117,10 +149,10 @@
 .placement-host .ts-control > .item { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .placement-host .ts-typing .ts-control > .item { display: none; }
 /* 订阅显示开关：隐藏复选框，眼睛图标随勾选切换 */
-.placement-expose { font-size: 1.25rem; line-height: 1; color: var(--tblr-secondary); }
-.placement-expose input:not(:checked) ~ .ti-eye, .placement-expose input:checked ~ .ti-eye-off { display: none; }
-.placement-expose:has(input:checked) { color: var(--tblr-primary); }
-.placement-expose:has(input:focus-visible) { outline: 2px solid var(--tblr-primary); outline-offset: 2px; border-radius: var(--tblr-border-radius); }
+.placement-expose { font-size: 1.25rem; line-height: 1; color: var(--coss-muted-foreground); }
+.placement-expose input:not(:checked) ~ svg:has(use[href$="#eye"]), .placement-expose input:checked ~ svg:has(use[href$="#eye-off"]) { display: none; }
+.placement-expose:has(input:checked) { color: var(--coss-primary); }
+.placement-expose:has(input:focus-visible) { outline: 2px solid var(--coss-primary); outline-offset: 2px; border-radius: var(--coss-radius-md); }
 
 /* 提交后页面开始跳转，移动端会停住 .btn 的颜色过渡，文字留在转圈下面；加载态直接隐藏文字 */
 .btn-loading { transition: none; }

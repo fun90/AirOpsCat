@@ -1,4 +1,4 @@
-import { Modal } from '/static/tabler/js/tabler.esm.min.js';
+import { Modal } from '/static/js/coss-ui.js';
 
 // 带 data-confirm="提示文字" 的表单提交前弹出确认模态框；data-confirm-danger 时确认按钮为红色。
 // 提交按钮上的 data-confirm 优先于表单（共用一个表单的多个按钮各自提示），确认后保留该按钮的 name/value。
@@ -6,7 +6,7 @@ import { Modal } from '/static/tabler/js/tabler.esm.min.js';
 let dialog, modal, pending;
 function build() {
     dialog = document.createElement('div');
-    dialog.className = 'modal modal-blur fade';
+    dialog.className = 'modal fade';
     dialog.tabIndex = -1;
     dialog.innerHTML = '<div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content"><div class="modal-body text-break" data-confirm-text></div><div class="modal-footer"><button type="button" class="btn me-auto" data-bs-dismiss="modal">取消</button><button type="button" class="btn" data-confirm-ok>确定</button></div></div></div>';
     document.body.appendChild(dialog);

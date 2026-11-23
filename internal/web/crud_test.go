@@ -159,7 +159,7 @@ func TestNodeFlows(t *testing.T) {
 	if !strings.Contains(list, "n1-1") || !strings.Contains(list, `（含待部署）`) || !strings.Contains(list, `<form method="post" action="/admin/nodes/1/deploy">`) {
 		t.Fatal("列表应显示待部署的 n1-1")
 	}
-	if !strings.Contains(list, `title="待部署"><i class="ti ti-clock me-1" aria-hidden="true"></i>hk-1`) {
+	if !strings.Contains(list, `title="待部署"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#clock"></use></svg>hk-1`) {
 		t.Fatal("部署列点开应列出部署位服务器")
 	}
 	if strings.Contains(do(h, "GET", "/admin/nodes?status=1", nil, c, nil).Body.String(), "n1-1") {

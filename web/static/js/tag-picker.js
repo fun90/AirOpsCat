@@ -47,7 +47,7 @@ window.AirOpsPage.register(function () {
                 if (!pill) {
                     pill = document.createElement('span');
                     pill.className = 'tag-pill d-inline-flex align-items-center rounded-pill border ps-2 pe-1 py-1 small';
-                    pill.innerHTML = '<label class="d-inline-flex align-items-center m-0 cursor-pointer"><input type="checkbox" class="visually-hidden" name="tags"><span class="status-dot flex-shrink-0 me-1"></span><span data-tag-label></span><i class="ti ti-check tag-check ms-1" aria-hidden="true"></i></label><button type="button" class="tag-edit border-0 bg-transparent text-secondary ms-1 px-1"><i class="ti ti-pencil" aria-hidden="true"></i></button>';
+                    pill.innerHTML = '<label class="d-inline-flex align-items-center m-0 cursor-pointer"><input type="checkbox" class="visually-hidden" name="tags"><span class="status-dot flex-shrink-0 me-1"></span><span data-tag-label></span><svg class="coss-icon tag-check ms-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#check"></use></svg></label><button type="button" class="tag-edit border-0 bg-transparent text-secondary ms-1 px-1"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#pencil"></use></svg></button>';
                     pill.querySelector('input').value = tag.id;
                     pill.querySelector('input').checked = true;
                     list.insertBefore(pill, root.querySelector('[data-tag-new]'));

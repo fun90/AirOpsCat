@@ -2,13 +2,13 @@ package web
 
 // 分组展示顺序与名称；未列出的分组排在最后，用分组键作名称。
 var settingGroups = []struct{ Key, Title, Icon string }{
-	{"open", "开放接口", "ti-plug-connected"},
-	{"bark", "Bark 通知", "ti-bell"},
-	{"account", "账户", "ti-users"},
-	{"monitor", "监控与告警", "ti-activity"},
-	{"template", "模板与部署", "ti-file-code"},
-	{"history", "历史清理", "ti-history"},
-	{"backup", "数据库备份", "ti-database-export"},
+	{"open", "开放接口", "plug-connected"},
+	{"bark", "Bark 通知", "bell"},
+	{"account", "账户", "users"},
+	{"monitor", "监控与告警", "activity"},
+	{"template", "模板与部署", "file-code"},
+	{"history", "历史清理", "history"},
+	{"backup", "数据库备份", "database-export"},
 }
 
 // settingMeta 给配置键提供中文名和说明；缺失时页面回退显示键本身。

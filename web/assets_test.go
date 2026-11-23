@@ -7,11 +7,11 @@ import (
 	"testing"
 )
 
-// Tabler CSS 按 scripts/purge-css.sh 扫描结果裁剪过，模板新用的类或图标不重跑裁剪会静默失效。
+// 校验模板与页面脚本中使用的 CSS 类均已在样式表中定义，避免拼写错误或遗漏规则。
 // shortcut: 只查模板和页面脚本里字面的 class="..."，Go 代码与 classList 动态加的类不覆盖。
 func TestTemplateClassesDefined(t *testing.T) {
 	var css []byte
-	for _, f := range []string{"static/tabler/css/tabler.min.css", "static/tabler/css/tabler-icons.min.css", "static/css/app.css", "static/vendor/tom-select.bootstrap5.min.css"} {
+	for _, f := range []string{"static/css/coss.css", "static/css/app.css", "static/vendor/tom-select.bootstrap5.min.css"} {
 		b, err := FS.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
@@ -38,7 +38,7 @@ func TestTemplateClassesDefined(t *testing.T) {
 		for _, m := range attr.FindAllSubmatch(action.ReplaceAll(b, []byte(" ")), -1) {
 			for _, c := range strings.Fields(string(m[1])) {
 				if !defined[c] && !strings.ContainsAny(c, "$'+") {
-					t.Errorf("%s：类 %s 不在裁剪后的 CSS 中，重跑 scripts/purge-css.sh", f, c)
+					t.Errorf("%s：类 %s 未在样式表中定义", f, c)
 				}
 			}
 		}

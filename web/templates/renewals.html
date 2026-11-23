@@ -1,14 +1,24 @@
 {{define "content"}}
 <div class="card"><div class="table-responsive"><table class="table table-vcenter card-table">
-<thead><tr><th>名称</th><th class="d-none d-md-table-cell">类型</th><th>到期日</th><th class="d-none d-md-table-cell">价格（元）</th><th>续费</th></tr></thead>
+<thead><tr><th>名称</th><th class="d-none d-md-table-cell">类型</th><th class="d-none d-md-table-cell">到期日</th><th class="d-none d-md-table-cell">价格（元）</th><th class="w-1">续费</th></tr></thead>
 <tbody>{{range .List}}<tr>
-<td class="text-break">{{.Name}}{{if .Supplier}}<div class="text-secondary small">{{if .SupplierURL}}<a href="{{.SupplierURL}}" target="_blank" rel="noopener noreferrer">{{.Supplier}}</a>{{else}}{{.Supplier}}{{end}}</div>{{end}}<div class="d-md-none text-secondary small">{{if eq .Table "server"}}服务器{{else}}域名{{end}}{{if .Price}} · {{cents .Price}} 元/{{if eq .PriceMonths 1}}月{{else}}年{{end}}{{end}}</div></td>
-<td class="d-none d-md-table-cell">{{if eq .Table "server"}}服务器{{else}}域名{{end}}</td>
-<td class="text-nowrap">{{if .ExpireDate}}<span class="{{if lt .ExpireDate $.Today}}text-danger{{else if lt .ExpireDate $.Soon}}text-warning{{end}}">{{.ExpireDate}}</span>{{else}}<span class="text-secondary">未设置</span>{{end}}</td>
+<td class="text-break">
+  <div class="d-flex align-items-center gap-2 min-w-0">
+    {{if eq .Table "server"}}<span class="badge bg-blue-lt d-md-none flex-shrink-0">服务器</span>{{else}}<span class="badge bg-purple-lt d-md-none flex-shrink-0">域名</span>{{end}}
+    <span class="fw-medium text-truncate">{{.Name}}</span>
+    {{if .Supplier}}<span class="text-secondary small text-truncate">{{if .SupplierURL}}<a href="{{.SupplierURL}}" target="_blank" rel="noopener noreferrer">{{.Supplier}}</a>{{else}}{{.Supplier}}{{end}}</span>{{end}}
+  </div>
+  <div class="d-md-none d-flex flex-wrap align-items-center column-gap-2 row-gap-1 small text-secondary mt-1">
+    {{if .ExpireDate}}<span class="text-nowrap{{if lt .ExpireDate $.Today}} text-danger fw-medium{{else if lt .ExpireDate $.Soon}} text-warning fw-medium{{end}}">到期 {{.ExpireDate}}</span>{{else}}<span class="text-nowrap">未设置到期日</span>{{end}}
+    {{if .Price}}<span class="text-nowrap">{{cents .Price}} 元/{{if eq .PriceMonths 1}}月{{else}}年{{end}}</span>{{end}}
+  </div>
+</td>
+<td class="d-none d-md-table-cell">{{if eq .Table "server"}}<span class="badge bg-blue-lt">服务器</span>{{else}}<span class="badge bg-purple-lt">域名</span>{{end}}</td>
+<td class="d-none d-md-table-cell text-nowrap">{{if .ExpireDate}}<span class="{{if lt .ExpireDate $.Today}}text-danger{{else if lt .ExpireDate $.Soon}}text-warning{{end}}">{{.ExpireDate}}</span>{{else}}<span class="text-secondary">未设置</span>{{end}}</td>
 <td class="d-none d-md-table-cell">{{if .Price}}{{cents .Price}} /{{if eq .PriceMonths 1}}月{{else}}年{{end}}{{else}}<span class="text-secondary">未设置</span>{{end}}</td>
-<td><button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#renew-modal" data-renew data-table="{{.Table}}" data-id="{{.ID}}" data-name="{{.Name}}" data-expire="{{.ExpireDate}}"{{if .Price}} data-price="{{.Price}}" data-price-months="{{.PriceMonths}}"{{end}}>续费</button></td>
+<td class="text-nowrap"><button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#renew-modal" data-renew data-table="{{.Table}}" data-id="{{.ID}}" data-name="{{.Name}}" data-expire="{{.ExpireDate}}"{{if .Price}} data-price="{{.Price}}" data-price-months="{{.PriceMonths}}"{{end}}>续费</button></td>
 </tr>{{else}}<tr><td colspan="5" class="text-center text-secondary py-4">暂无服务器或域名</td></tr>{{end}}</tbody></table></div></div>
-<div class="modal modal-blur fade" id="renew-modal" tabindex="-1" aria-labelledby="renew-title" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form method="post" action="/admin/renewals" class="modal-content">
+<div class="modal fade" id="renew-modal" tabindex="-1" aria-labelledby="renew-title" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form method="post" action="/admin/renewals" class="modal-content">
 <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="table"><input type="hidden" name="id">
 <div class="modal-header"><h5 class="modal-title" id="renew-title">续费</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
 <div class="modal-body"><div class="row g-3">

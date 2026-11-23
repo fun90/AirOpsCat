@@ -1,5 +1,5 @@
 // 节点部署位增删：只在表单中暂存，点“保存”后随节点一起提交。
-import { Dropdown, Modal } from '/static/tabler/js/tabler.esm.min.js';
+import { Dropdown, Modal } from '/static/js/coss-ui.js';
 
 window.AirOpsPage.register(() => {
 const pane = document.querySelector('#placements-pane');

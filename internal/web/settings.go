@@ -61,7 +61,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	for _, v := range list {
 		if !seen[v.Group] {
 			seen[v.Group] = true
-			groups = append(groups, settingGroupView{v.Group, v.Group, "ti-settings", len(byGroup[v.Group])})
+			groups = append(groups, settingGroupView{v.Group, v.Group, "settings", len(byGroup[v.Group])})
 		}
 	}
 	d := s.pageData(r, "系统配置", "settings")

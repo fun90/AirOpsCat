@@ -87,7 +87,7 @@ func (s *Server) alertIPOnly(ctx context.Context) error {
 		for i, p := range pls {
 			names[i] = p.NodeName
 		}
-		summary := fmt.Sprintf("%s 已自动切走，但 %d 个部署位在订阅中直连服务器 IP 或外部自定义域名，流量未切走：%s", pls[0].Server, len(pls), strings.Join(names, "、"))
+		summary := fmt.Sprintf("%s 已切走，%d 个直连/外部域名部署位未覆盖：%s", pls[0].Server, len(pls), strings.Join(names, "、"))
 		key := store.AlertKey{Type: "dns-ip-only", ResourceType: "server", ResourceID: sid, ResourceKey: pls[0].Server, Fingerprint: pls[0].Server}
 		if err := s.raise(ctx, key, "warning", float64(len(pls)), 1, summary, 24*time.Hour, notify.Message{Title: "AirOpsCat 自动切换未覆盖直连 IP", Body: summary}); err != nil {
 			return err

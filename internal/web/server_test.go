@@ -139,7 +139,7 @@ func TestHealthzAndStatic(t *testing.T) {
 	if w := do(h, "GET", "/healthz", nil, nil, nil); w.Code != http.StatusOK {
 		t.Fatal(w.Code)
 	}
-	if w := do(h, "GET", "/static/tabler/css/tabler.min.css", nil, nil, nil); w.Code != http.StatusOK {
+	if w := do(h, "GET", "/static/css/coss.css", nil, nil, nil); w.Code != http.StatusOK {
 		t.Fatal(w.Code)
 	}
 }

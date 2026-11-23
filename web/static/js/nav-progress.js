@@ -1,4 +1,4 @@
-import { Alert, Collapse, Dropdown, Modal, Popover, Tab, Tooltip } from '/static/tabler/js/tabler.esm.min.js';
+import { Alert, Collapse, Dropdown, Modal, Popover, Tab, Tooltip } from '/static/js/coss-ui.js';
 
 const progress = document.getElementById('nav-progress');
 const positions = new Map();
@@ -48,9 +48,14 @@ function scrollToPage(url, position) {
 async function navigate(url, restoreEntry, link) {
   stop();
   // data-loading 链接（如排序列头）把图标换成加载动画；成功时随旧页面一起替换。
-  const icon = link?.hasAttribute('data-loading') ? link.querySelector('i') : null;
-  const iconClass = icon?.className;
-  if (icon) icon.className = 'spinner-border spinner-border-sm';
+  const icon = link?.hasAttribute('data-loading') ? link.querySelector('.coss-icon, i') : null;
+  let spinner = null;
+  if (icon) {
+    spinner = document.createElement('span');
+    spinner.className = 'spinner-border spinner-border-sm';
+    spinner.setAttribute('aria-hidden', 'true');
+    icon.replaceWith(spinner);
+  }
   const request = new AbortController();
   pending = request;
   progress.classList.remove('d-none');
@@ -82,12 +87,16 @@ async function navigate(url, restoreEntry, link) {
     header.querySelector('.container-xl').replaceWith(nextHeader.querySelector('.container-xl'));
     page.replaceWith(nextPage);
     document.title = doc.title;
+    const prevHref = location.href;
     if (restoreEntry === undefined) {
       entry = ++sequence;
-      history.pushState({ airopscatPage: entry }, '', nextURL.href);
+      history.pushState({ airopscatPage: entry, airopscatRef: prevHref }, '', nextURL.href);
+      window.__airopscatReferrer = prevHref;
     } else {
       entry = restoreEntry;
+      const ref = typeof history.state?.airopscatRef === 'string' ? history.state.airopscatRef : '';
       history.replaceState({ ...history.state, airopscatPage: entry }, '', nextURL.href);
+      window.__airopscatReferrer = ref;
     }
     committed = true;
     route = nextURL.pathname + nextURL.search;
@@ -102,7 +111,7 @@ async function navigate(url, restoreEntry, link) {
     else location.assign(url.href);
   } finally {
     clearTimeout(timeout);
-    if (icon && !committed) icon.className = iconClass;
+    if (spinner && icon && !committed) spinner.replaceWith(icon);
     if (pending === request) {
       pending = null;
       progress.classList.add('d-none');

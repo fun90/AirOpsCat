@@ -2,10 +2,10 @@
 
 ## 设计原则
 
-- 不造轮子：先用 Tabler/Bootstrap 现成组件与工具类（`status-dot`、`text-break`、`text-wrap`、`cursor-pointer`、`badge`、`progress` 等），确认没有再写 `web/static/css/app.css` 或行内 `style`。新增自定义样式须能说明 Tabler 为何不能实现。Tabler CSS 已按源码裁剪，新用的类或图标须重跑 `scripts/purge-css.sh`，`web/assets_test.go` 会报出遗漏。
-- 行内 `style` 仅用于运行时动态值（如标签颜色）或 Tabler 没有对应工具类的一次性尺寸。
+- 统一使用 `coss.com/ui` 视觉与交互体系：样式定义在 `web/static/css/coss.css`（设计令牌、栅格/工具类与基础组件），业务专属微调写在 `web/static/css/app.css`；交互原语由 `web/static/js/coss-ui.js` 提供，图标统一使用 `web/static/icons/lucide.svg`（Lucide SVG sprite）。新增模板类须已在样式表中定义，`web/assets_test.go` 会校验遗漏。
+- 行内 `style` 仅用于运行时动态值（如标签颜色、进度条百分比）或一次性尺寸约束。
 - 不加多余的副标题、说明文字；靠布局表达。
-- PC 列表操作达到 5 个、移动端达到 2 个才使用下拉；移动端按 390px 检查消息换行与横向溢出，截图工具见 [本地验收](local-acceptance.md)。
+- PC 列表操作达到 5 个、移动端达到 2 个才使用下拉；移动端按 390px 检查换行与横向溢出，截图工具见 [本地验收](local-acceptance.md)。
 
 ## 局部导航验证
 

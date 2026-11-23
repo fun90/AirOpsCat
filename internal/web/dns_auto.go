@@ -110,7 +110,7 @@ func (s *Server) autoDNSDomain(ctx context.Context, id int64, switched *[]string
 		}
 		p := dns.PlanRecord(r.PlanInput, candidates, threshold, time.Now())
 		if p.BlockedReason != "" {
-			summary := r.FullName + " 自动 DNS 无法回切：" + p.BlockedReason + "，保持当前解析，请核查部署状态"
+			summary := r.FullName + " DNS 回切受阻：" + p.BlockedReason
 			if err := s.raise(ctx, store.AlertKey{Type: "dns-reset-blocked", ResourceType: "dns", ResourceID: r.ID, ResourceKey: r.FullName, Fingerprint: r.FullName}, "warning", 1, 1, summary, 24*time.Hour,
 				notify.Message{Title: "AirOpsCat DNS 回切受阻", Body: summary}); err != nil {
 				return err
@@ -122,7 +122,7 @@ func (s *Server) autoDNSDomain(ctx context.Context, id int64, switched *[]string
 		}
 		key := store.AlertKey{Type: "dns-candidates-exhausted", ResourceType: "dns", ResourceID: r.ID, ResourceKey: r.FullName, Fingerprint: r.FullName}
 		if p.Exhausted {
-			if err := s.raise(ctx, key, "warning", 1, 1, r.FullName+" 所有候选服务器流量均超过阈值", 24*time.Hour, notify.Message{Title: "AirOpsCat 服务器自动切换", Body: r.FullName + " 所有候选服务器流量均超过阈值，保持当前解析"}); err != nil {
+			if err := s.raise(ctx, key, "warning", 1, 1, r.FullName+" 候选服务器流量均超阈值", 24*time.Hour, notify.Message{Title: "AirOpsCat 服务器自动切换", Body: r.FullName + " 所有候选服务器流量均超阈值，保持当前解析"}); err != nil {
 				return err
 			}
 		} else {

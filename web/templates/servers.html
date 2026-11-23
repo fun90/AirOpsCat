@@ -1,34 +1,41 @@
-{{define "actions"}}<a href="/admin/servers/idle" class="btn btn-outline-secondary me-2"><i class="ti ti-server-off me-1" aria-hidden="true"></i>下线建议</a><a href="/admin/servers/new" class="btn btn-primary"><i class="ti ti-plus me-1" aria-hidden="true"></i>新增服务器</a>{{end}}
-{{define "placementCell"}}{{if .Placements}}<div class="dropdown d-inline-block"><button type="button" class="btn btn-link p-0 fw-normal small gap-1 text-nowrap justify-content-start{{if or .Unreachable .LandingUnreachable}} text-red{{end}}" style="min-height:0" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="查看 {{.Placements}} 个部署位状态" title="{{.Placements}} 个部署位"><i class="ti ti-server" aria-hidden="true"></i>{{.Placements}}{{if or .Unreachable .LandingUnreachable}}<i class="ti ti-alert-triangle" aria-hidden="true"></i>{{end}}{{if .Failover}}<i class="ti ti-current-location text-blue" aria-hidden="true"></i>{{end}}</button><div class="dropdown-menu p-2 small text-nowrap">{{if .Failover}}<div><i class="ti ti-current-location text-blue me-1" aria-hidden="true"></i>已切走 {{.Failover}}/{{.Placements}} 个部署位</div>{{end}}{{if .Unreachable}}<div class="text-red"><i class="ti ti-alert-triangle me-1" aria-hidden="true"></i>{{.Unreachable}} 个部署位不可达</div>{{end}}{{if .LandingUnreachable}}<div class="text-red"><i class="ti ti-alert-triangle me-1" aria-hidden="true"></i>{{.LandingUnreachable}} 个落地不可达</div>{{end}}{{if not (or .Failover .Unreachable .LandingUnreachable)}}<div class="text-secondary">全部正常</div>{{end}}</div></div>{{else}}<span class="text-secondary" title="未部署"><i class="ti ti-server-off" aria-hidden="true"></i></span>{{end}}{{end}}
+{{define "actions"}}<a href="/admin/servers/idle" class="btn btn-outline-secondary"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#server-off"></use></svg>下线建议</a><a href="/admin/servers/new" class="btn btn-primary"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#plus"></use></svg>新增服务器</a>{{end}}
+{{define "placementCell"}}{{if .Placements}}<div class="dropdown d-inline-block"><button type="button" class="btn btn-link p-0 fw-normal small gap-1 text-nowrap justify-content-start{{if or .Unreachable .LandingUnreachable}} text-red{{end}}" style="min-height:0" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="查看 {{.Placements}} 个部署位状态" title="{{.Placements}} 个部署位"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#server"></use></svg>{{.Placements}}{{if or .Unreachable .LandingUnreachable}}<svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#alert-triangle"></use></svg>{{end}}{{if .Failover}}<svg class="coss-icon text-blue" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#current-location"></use></svg>{{end}}</button><div class="dropdown-menu p-2 small text-nowrap">{{if .Failover}}<div><svg class="coss-icon text-blue me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#current-location"></use></svg>已切走 {{.Failover}}/{{.Placements}} 个部署位</div>{{end}}{{if .Unreachable}}<div class="text-red"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#alert-triangle"></use></svg>{{.Unreachable}} 个部署位不可达</div>{{end}}{{if .LandingUnreachable}}<div class="text-red"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#alert-triangle"></use></svg>{{.LandingUnreachable}} 个落地不可达</div>{{end}}{{if not (or .Failover .Unreachable .LandingUnreachable)}}<div class="text-secondary">全部正常</div>{{end}}</div></div>{{else}}<span class="text-secondary" title="未部署"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#server-off"></use></svg></span>{{end}}{{end}}
 {{define "usage"}}{{if .UsageText}}<div class="text-nowrap">{{.UsageText}}</div>{{if .UsagePct}}<div class="progress progress-sm mt-1" style="width:6rem"><div class="progress-bar{{if .UsageHigh}} bg-red{{end}}" style="width:{{.UsagePct}}%" role="progressbar" aria-label="本期流量用量" aria-valuenow="{{.UsagePct}}" aria-valuemin="0" aria-valuemax="100"></div></div>{{end}}{{else}}<span class="text-secondary">—</span>{{end}}{{end}}
 {{define "content"}}
 <div class="card">
     <div class="card-header">
-        <form method="get" class="d-flex flex-wrap gap-2 w-100" style="max-width: 640px">
+        <form method="get" class="d-flex align-items-center gap-2 w-100" style="max-width: 640px" onchange="this.requestSubmit()">
             <input type="hidden" name="sort" value="{{.Sort}}">
             <input type="hidden" name="dir" value="{{.Dir}}">
-            <select name="filter" class="form-select w-auto" aria-label="筛选">
+            <select name="filter" class="form-select w-auto flex-shrink-0" aria-label="筛选">
                 <option value=""{{if not .Filter}} selected{{end}}>全部</option>
-                <option value="expiring"{{if eq .Filter "expiring"}} selected{{end}}>7 天内到期</option>
-                <option value="abnormal"{{if eq .Filter "abnormal"}} selected{{end}}>异常（切走 / 不可达）</option>
+                <option value="expiring"{{if eq .Filter "expiring"}} selected{{end}}>将到期</option>
+                <option value="abnormal"{{if eq .Filter "abnormal"}} selected{{end}}>异常</option>
                 <option value="external"{{if eq .Filter "external"}} selected{{end}}>外部</option>
             </select>
-            <input type="search" name="q" value="{{.Q}}" class="form-control w-auto flex-grow-1" placeholder="名称 / IP / 供应商 / 备注" aria-label="搜索">
-            <button class="btn btn-outline-secondary" type="submit">筛选</button>
+            <input type="search" name="q" value="{{.Q}}" class="form-control flex-fill min-w-0" placeholder="名称 / IP / 供应商 / 备注" aria-label="搜索">
         </form>
     </div>
     <div class="table-responsive">
         <table class="table table-vcenter card-table">
-            <thead><tr><th>名称</th><th class="d-none d-md-table-cell">IP</th><th class="d-none d-md-table-cell">类型</th><th class="d-none d-md-table-cell"><a class="text-reset text-decoration-none" href="{{.SortExpire.URL}}" data-loading title="按到期日排序">到期日 <i class="ti {{.SortExpire.Icon}}" aria-hidden="true"></i></a></th><th class="d-none d-md-table-cell">本期流量</th><th class="d-none d-md-table-cell"><a class="text-reset text-decoration-none" href="{{.SortPlacements.URL}}" data-loading title="按部署位数排序">部署位 <i class="ti {{.SortPlacements.Icon}}" aria-hidden="true"></i></a></th><th class="w-1"></th></tr></thead>
+            <thead><tr><th>名称</th><th class="d-none d-md-table-cell">IP</th><th class="d-none d-md-table-cell">类型</th><th class="d-none d-md-table-cell"><a class="text-reset text-decoration-none" href="{{.SortExpire.URL}}" data-loading title="按到期日排序">到期日 <svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#{{.SortExpire.Icon}}"></use></svg></a></th><th class="d-none d-md-table-cell">本期流量</th><th class="d-none d-md-table-cell"><a class="text-reset text-decoration-none" href="{{.SortPlacements.URL}}" data-loading title="按部署位数排序">部署位 <svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#{{.SortPlacements.Icon}}"></use></svg></a></th><th class="w-1"></th></tr></thead>
             <tbody>
             {{range .List}}
             <tr>
-                <td class="text-break"><div class="d-flex flex-wrap align-items-center column-gap-2"><span class="status-dot {{.StatusDot}} flex-shrink-0" role="img" aria-label="{{.StatusLabel}}" title="{{.StatusLabel}}{{if .StatusTitle}}：{{.StatusTitle}}{{end}}"></span><a href="/admin/servers/{{.ID}}/edit" class="fw-medium">{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}</a>{{if .External}}<span class="badge bg-azure-lt flex-shrink-0">外部</span>{{end}}{{if .Supplier}}{{if .SupplierURL}}<a href="{{.SupplierURL}}" target="_blank" rel="noopener noreferrer" class="small">{{.Supplier}}</a>{{else}}<span class="text-secondary small">{{.Supplier}}</span>{{end}}{{end}}<span class="text-secondary small d-md-none">{{.IP}}</span></div>
-                    <div class="d-md-none small text-secondary row g-0 align-items-center pt-1">
-                        <div class="col-3">{{template "placementCell" .}}</div>
-                        <div class="col-4 text-nowrap {{.ExpireClass}}">{{if .ExpireDate}}{{.ExpireShort}}{{if .ExpireNote}} {{.ExpireNote}}{{end}}{{end}}</div>
-                        <div class="col text-nowrap">{{.UsageText}}</div>
-                    </div></td>
+                <td class="text-break">
+                    <div class="d-flex align-items-center gap-2 min-w-0">
+                        <span class="status-dot {{.StatusDot}} flex-shrink-0" role="img" aria-label="{{.StatusLabel}}" title="{{.StatusLabel}}{{if .StatusTitle}}：{{.StatusTitle}}{{end}}"></span>
+                        <a href="/admin/servers/{{.ID}}/edit" class="fw-medium text-truncate">{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}</a>
+                        {{if .External}}<span class="badge bg-azure-lt flex-shrink-0">外部</span>{{end}}
+                        {{if .Supplier}}{{if .SupplierURL}}<a href="{{.SupplierURL}}" target="_blank" rel="noopener noreferrer" class="small text-secondary text-truncate">{{.Supplier}}</a>{{else}}<span class="text-secondary small text-truncate">{{.Supplier}}</span>{{end}}{{end}}
+                    </div>
+                    <div class="d-md-none d-flex flex-wrap align-items-center column-gap-2 row-gap-1 small text-secondary mt-1">
+                        <span class="font-monospace text-nowrap">{{.IP}}</span>
+                        <span>{{template "placementCell" .}}</span>
+                        {{if .ExpireDate}}<span class="text-nowrap {{.ExpireClass}}">{{.ExpireShort}}{{if .ExpireNote}} {{.ExpireNote}}{{end}}</span>{{end}}
+                        {{if .UsageText}}<span class="text-nowrap">{{.UsageText}}</span>{{end}}
+                    </div>
+                </td>
                 <td class="d-none d-md-table-cell">{{.IP}}</td>
                 <td class="d-none d-md-table-cell">{{if eq .ServerType 1}}<span class="badge bg-purple-lt">落地</span>{{else}}<span class="badge bg-blue-lt">代理</span>{{end}}</td>
                 <td class="d-none d-md-table-cell text-nowrap">{{if .ExpireDate}}<span class="{{.ExpireClass}}">{{.ExpireDate}}</span>{{if .ExpireNote}}<div class="small {{if .ExpireClass}}{{.ExpireClass}}{{else}}text-secondary{{end}}">{{.ExpireNote}}</div>{{end}}{{end}}</td>
@@ -36,7 +43,7 @@
                 <td class="d-none d-md-table-cell">{{template "placementCell" .}}</td>
                 <td class="text-nowrap">
                   <div class="dropdown">
-                    <button class="btn btn-sm btn-ghost-secondary" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="更多操作" title="更多操作"><i class="ti ti-dots-vertical d-md-none" aria-hidden="true"></i><span class="d-none d-md-inline">更多<i class="ti ti-chevron-down ms-1" aria-hidden="true"></i></span></button>
+                    <button class="btn btn-sm btn-ghost-secondary" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="更多操作" title="更多操作"><svg class="coss-icon d-md-none" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#dots-vertical"></use></svg><span class="d-none d-md-inline">更多<svg class="coss-icon ms-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#chevron-down"></use></svg></span></button>
                     <div class="dropdown-menu dropdown-menu-end">
                         <a class="dropdown-item" href="/admin/servers/{{.ID}}/edit">编辑</a>
                         {{if not .External}}<button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#calibrate-modal" data-calibrate data-id="{{.ID}}" data-name="{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}" data-unit="{{if eq .BandwidthUnit "GB"}}GB{{else}}GiB{{end}}">校准流量</button>{{end}}
@@ -60,7 +67,7 @@
     </div>
     {{if gt .Pages 1}}<div class="card-footer d-flex">{{template "pager" .}}</div>{{end}}
 </div>
-<div class="modal modal-blur fade" id="calibrate-modal" tabindex="-1" aria-labelledby="calibrate-title" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form method="post" class="modal-content">
+<div class="modal fade" id="calibrate-modal" tabindex="-1" aria-labelledby="calibrate-title" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form method="post" class="modal-content">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="modal-header"><h5 class="modal-title" id="calibrate-title">校准本期流量</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
 <div class="modal-body"><div class="fw-bold text-break mb-3" data-calibrate-name></div>

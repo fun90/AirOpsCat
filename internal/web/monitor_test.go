@@ -126,7 +126,7 @@ func TestMonitorCollectAndAlerts(t *testing.T) {
 	mu.Lock()
 	n := len(sent)
 	mu.Unlock()
-	if n != 1 || !strings.Contains(sent[0]["body"].(string), "累计流量达到 100% (900.00 GiB / 900 GiB)") {
+	if n != 1 || !strings.Contains(sent[0]["body"].(string), "流量 100%（900.0/900 GiB）") {
 		t.Fatalf("应发出一条流量告警: %v", sent)
 	}
 

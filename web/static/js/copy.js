@@ -4,9 +4,13 @@ document.addEventListener('click', function (e) {
   if (!b) { return; }
   var text = b.dataset.copy + (b.dataset.copyNote ? '\n' + b.dataset.copyNote : '');
   function done() {
-    var i = b.querySelector('i'); if (!i) { return; }
-    var old = i.className; i.className = 'ti ti-check text-success';
-    setTimeout(function () { i.className = old; }, 1200);
+    var icon = b.querySelector('svg.coss-icon');
+    var use = icon && icon.querySelector('use');
+    if (!use) { return; }
+    var oldHref = use.getAttribute('href');
+    use.setAttribute('href', '/static/icons/lucide.svg?v=3#check');
+    icon.classList.add('text-success');
+    setTimeout(function () { use.setAttribute('href', oldHref); icon.classList.remove('text-success'); }, 1200);
   }
   if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done); return; }
   var t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';

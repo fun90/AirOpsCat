@@ -12,7 +12,7 @@
 <div class="col-lg-8 order-lg-1"><div class="card"><div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>节点</th><th class="d-none d-md-table-cell">展示部署位</th><th class="d-none d-md-table-cell">连接域名</th><th class="d-none d-md-table-cell">备注</th><th class="w-1"></th></tr></thead><tbody>
 {{range .List}}<tr{{if and $.Edit (eq .ID $.Edit.ID)}} class="table-active"{{end}}><td><div class="d-flex flex-wrap align-items-center gap-1"><a href="{{$.EditBase}}{{.ID}}">{{.NodeName}}</a>{{if not .Enabled}}<span class="badge bg-secondary-lt">已停用</span>{{end}}</div><div class="small text-secondary d-md-none text-break">{{.ServerName}} · {{if .RecordName}}{{.RecordName}}{{else}}默认地址{{end}}</div></td>
 <td class="d-none d-md-table-cell">{{.ServerName}}</td><td class="d-none d-md-table-cell text-break">{{if .RecordName}}{{.RecordName}}{{else}}<span class="text-secondary">默认地址</span>{{end}}</td><td class="d-none d-md-table-cell text-secondary">{{.Remark}}</td>
-<td><form method="post" action="/admin/accounts/{{$.Account.ID}}/bindings/{{.ID}}/delete" onsubmit="return confirm('确定删除该订阅定制？')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="from" value="{{$.From}}"><button class="btn btn-sm btn-ghost-danger">删除</button></form></td></tr>
+<td><form method="post" action="/admin/accounts/{{$.Account.ID}}/bindings/{{.ID}}/delete" data-confirm="确定删除该订阅定制？" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="from" value="{{$.From}}"><button class="btn btn-sm btn-ghost-danger">删除</button></form></td></tr>
 {{else}}<tr><td colspan="5" class="text-center text-secondary py-4">尚无订阅定制</td></tr>{{end}}
 </tbody></table></div></div></div>
 </div>
