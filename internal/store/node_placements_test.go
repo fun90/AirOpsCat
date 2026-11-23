@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -100,6 +101,50 @@ func TestBatchNodePlacements(t *testing.T) {
 	}
 	if len(placementsOf(t, db, b)) != 2 || len(placementsOf(t, db, a)) != 2 {
 		t.Fatal("失败时应整体回滚")
+	}
+}
+
+func TestBatchRemovePlacementsTransfersBindings(t *testing.T) {
+	db, ctx := testDB(t)
+	mustExec(t, db, `INSERT INTO server(id,ip,name) VALUES
+		(1,'192.0.2.1','源'),(2,'192.0.2.2','同批移除'),(3,'192.0.2.3','尚未部署'),
+		(4,'2001:db8::4','IPv6'),(5,'192.0.2.5','承接'),(6,'192.0.2.6','低优先级')`)
+	mustExec(t, db, `INSERT INTO node(id,name,type,protocol,port) VALUES (1,'代理',0,'vless',443)`)
+	mustExec(t, db, `INSERT INTO domain(id,domain) VALUES (1,'example.com')`)
+	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status,server_id) VALUES
+		(1,1,'a','a.example.com','A','192.0.2.1','SYNCED',1)`)
+	mustExec(t, db, `INSERT INTO node_server(id,node_id,server_id,deployed,priority,access_host_id) VALUES
+		(1,1,1,1,10,1),(2,1,2,1,20,NULL),(3,1,3,0,30,NULL),
+		(4,1,4,1,40,NULL),(5,1,5,1,50,NULL),(6,1,6,1,60,NULL)`)
+	mustExec(t, db, `INSERT INTO account(id,account_no,uuid,auth_code,period_type) VALUES (1,'x','u','c','MONTHLY')`)
+	mustExec(t, db, `INSERT INTO account_node_subscription_domain_binding(id,account_id,node_id,domain_dns_record_id) VALUES (1,1,1,1)`)
+	mustExec(t, db, `INSERT INTO account_node_subscription_placement(binding_id,node_server_id) VALUES (1,1),(1,2),(1,5)`)
+
+	nodes := []int64{1}
+	removedServers := []int64{1, 2}
+	if _, err := BatchNodePlacements(ctx, db, nodes, []int64{2, 1, 5, 6}, false, nil, false); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "没有可用的转移目标") {
+		t.Fatalf("应在没有可用目标时拒绝移除：%v", err)
+	}
+	var active int
+	if err := db.QueryRow(`SELECT count(*) FROM node_server WHERE id IN (1,2,5,6) AND deployed = 1`).Scan(&active); err != nil || active != 4 {
+		t.Fatalf("失败后部署位应保留：%d %v", active, err)
+	}
+	updated, err := BatchNodePlacements(ctx, db, nodes, removedServers, false, nil, false)
+	if err != nil || updated != 1 {
+		t.Fatalf("批量移除失败：%d %v", updated, err)
+	}
+	pls := placementsOf(t, db, 1)
+	if pls["源"].Deployed != PendingDelete || pls["同批移除"].Deployed != PendingDelete || pls["源"].AccessHostID != nil || pls["承接"].AccessHostID == nil || *pls["承接"].AccessHostID != 1 {
+		t.Fatalf("应移除两个源部署位并转移访问域名：%+v", pls)
+	}
+	var serverID int64
+	var content, status string
+	if err := db.QueryRow(`SELECT server_id, content, status FROM domain_dns_record WHERE id = 1`).Scan(&serverID, &content, &status); err != nil || serverID != 5 || content != "192.0.2.5" || status != DNSPendingUpdate {
+		t.Fatalf("域名应指向承接服务器并待同步：%d %s %s %v", serverID, content, status, err)
+	}
+	var bound string
+	if err := db.QueryRow(`SELECT group_concat(node_server_id) FROM account_node_subscription_placement WHERE binding_id = 1`).Scan(&bound); err != nil || bound != "5" {
+		t.Fatalf("订阅定制应合并到承接部署位：%q %v", bound, err)
 	}
 }
 

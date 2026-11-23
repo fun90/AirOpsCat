@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 )
 
@@ -201,6 +202,11 @@ func addPlacement(ctx context.Context, tx dbtx, n *Node, serverID int64) error {
 // deletePlacement 删除部署位，并把它的访问域名和订阅定制转移到同节点另一个部署过的部署位。
 // 节点只剩这一个部署位、域名被其他节点共用、DNS 自动操作未完成时拒绝。
 func deletePlacement(ctx context.Context, tx dbtx, n *Node, placementID, targetID int64) error {
+	return deletePlacementWithTransfer(ctx, tx, n, placementID, targetID, nil)
+}
+
+// 批量移除时传入本批排除的服务器，由优先级决定绑定的转移目标。
+func deletePlacementWithTransfer(ctx context.Context, tx dbtx, n *Node, placementID, targetID int64, excludedServerIDs []int64) error {
 	pls, err := Placements(ctx, tx, n.ID)
 	if err != nil {
 		return err
@@ -252,6 +258,21 @@ func deletePlacement(ctx context.Context, tx dbtx, n *Node, placementID, targetI
 		return err
 	}
 	if len(records) > 0 || bindings > 0 {
+		if len(excludedServerIDs) > 0 {
+			for _, x := range pls { // 已按优先级排序
+				if x == p || x.Deployed == PendingDelete || !x.Running || x.Disabled || slices.Contains(excludedServerIDs, x.ServerID) {
+					continue
+				}
+				if len(records) > 0 && net.ParseIP(x.ServerIP).To4() == nil {
+					continue
+				}
+				target = x
+				break
+			}
+			if target == nil {
+				return invalid("服务器 %s 上的部署位绑定了域名或订阅定制，本批保留的部署位中没有可用的转移目标", p.ServerName)
+			}
+		}
 		if target == nil {
 			return invalid("该部署位绑定了域名或订阅定制，请选择要转移到的部署位")
 		}
@@ -276,7 +297,12 @@ func deletePlacement(ctx context.Context, tx dbtx, n *Node, placementID, targetI
 		}
 	}
 	if bindings > 0 {
-		if _, err := tx.ExecContext(ctx, `UPDATE account_node_subscription_placement SET node_server_id = ? WHERE node_server_id = ?`, target.ID, p.ID); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO account_node_subscription_placement (binding_id, node_server_id)
+			SELECT binding_id, ? FROM account_node_subscription_placement WHERE node_server_id = ?
+			ON CONFLICT (binding_id, node_server_id) DO NOTHING`, target.ID, p.ID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM account_node_subscription_placement WHERE node_server_id = ?`, p.ID); err != nil {
 			return err
 		}
 	}

@@ -74,6 +74,9 @@ func (s *Server) nodeBatchPlacements(w http.ResponseWriter, r *http.Request) {
 	}
 	message := fmt.Sprintf("部署位已调整 %d 个节点", updated)
 	if updated > 0 {
+		if !add {
+			message += "，如有域名转移，需推送 DNS 后生效"
+		}
 		sc.nodes(nodes)
 		sc.add(servers, nil)
 		message += sc.finish("批量调整部署位", "；请部署待部署项")
