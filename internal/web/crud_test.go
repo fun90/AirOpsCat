@@ -590,3 +590,34 @@ func TestNodeSwitchRejectsSharedDomain(t *testing.T) {
 		t.Fatal("被拒绝时不应打切走标记")
 	}
 }
+
+func TestTransactionEditBackLinkNotDoubleEncoded(t *testing.T) {
+	h, a := newTestServer(t)
+	c := login(t, h, "admin@example.com")
+	if _, err := a.DB.Exec(`INSERT INTO transactions (id, transaction_date, amount, type, description) VALUES (42, datetime('now'), 5000, 1, '测试支出')`); err != nil {
+		t.Fatal(err)
+	}
+	list := do(h, "GET", "/admin/transactions?type=1&start_date=&end_date=", nil, c, nil)
+	if list.Code != 200 {
+		t.Fatalf("list: %d", list.Code)
+	}
+	body := list.Body.String()
+	if strings.Contains(body, "%25") {
+		t.Fatalf("收支列表编辑链接存在双重 URL 编码")
+	}
+	expectedBack := "/admin/transactions?end_date=&start_date=&type=1"
+	editURL := "/admin/transactions/42/edit?back=" + url.QueryEscape(expectedBack)
+	edit := do(h, "GET", editURL, nil, c, nil)
+	if edit.Code != 200 {
+		t.Fatalf("edit: %d", edit.Code)
+	}
+	editBody := edit.Body.String()
+	if strings.Contains(editBody, "%25") || !strings.Contains(editBody, `href="/admin/transactions?end_date=&amp;start_date=&amp;type=1" class="btn btn-link">取消</a>`) {
+		t.Fatalf("收支编辑页取消链接异常：%s", editBody)
+	}
+	// 非法外部 back 参数应回退到列表页
+	bad := do(h, "GET", "/admin/transactions/42/edit?back=https://evil.example/", nil, c, nil)
+	if bad.Code != 200 || !strings.Contains(bad.Body.String(), `href="/admin/transactions" class="btn btn-link">取消</a>`) {
+		t.Fatalf("非法 back 未回退到 /admin/transactions")
+	}
+}

@@ -70,6 +70,17 @@ restore_files() {
         [[ ! -f "$path" ]] || chown airopscat:airopscat "$path" || return 1
     done
 }
+prune_backups() {
+    local backup_root=${1:-"$root/var/backups/airopscat"} keep=${2:-3} count=0 dir
+    [[ -d "$backup_root" ]] || return 0
+    while IFS= read -r dir; do
+        [[ -d "$dir" ]] || continue
+        count=$((count + 1))
+        if (( count > keep )); then
+            rm -rf -- "$dir"
+        fi
+    done < <(ls -1dt "$backup_root"/v*/ 2>/dev/null || true)
+}
 cleanup() {
     local rc=$? restored=1
     trap - EXIT INT TERM
@@ -198,7 +209,17 @@ self_test() (
     if (verify_asset asset) 2>/dev/null; then exit 1; fi
     printf '\nAIROPSCAT_LISTEN=0.0.0.0:8080\n' >> "$config/airopscat.env"
     if (validate_config "$config/airopscat.env") 2>/dev/null; then exit 1; fi
-    printf '%s\n' '安装器自检查通过：首次配置、密码保留、0600、失败回滚、WAL/SHM 缺失恢复、checksum 拒绝'
+    mkdir -p "$root/var/backups/airopscat"
+    for i in 1 2 3 4 5; do
+        mkdir "$root/var/backups/airopscat/v4.0.${i}.abcd"
+        touch -t "20261120000${i}" "$root/var/backups/airopscat/v4.0.${i}.abcd"
+    done
+    printf manual > "$root/var/backups/airopscat/pre-manual.db"
+    prune_backups "$root/var/backups/airopscat" 3
+    [[ ! -e "$root/var/backups/airopscat/v4.0.1.abcd" && ! -e "$root/var/backups/airopscat/v4.0.2.abcd" ]]
+    [[ -d "$root/var/backups/airopscat/v4.0.3.abcd" && -d "$root/var/backups/airopscat/v4.0.4.abcd" && -d "$root/var/backups/airopscat/v4.0.5.abcd" ]]
+    [[ -f "$root/var/backups/airopscat/pre-manual.db" ]]
+    printf '%s\n' '安装器自检查通过：首次配置、密码保留、0600、失败回滚、WAL/SHM 缺失恢复、checksum 拒绝、备份轮转'
 )
 
 if [[ ${1:-} == --self-test && $# == 1 ]]; then
@@ -301,5 +322,6 @@ done
 (( ready )) || fail '新版本未通过健康检查'
 systemctl enable airopscat.service >/dev/null
 transaction=0
+prune_backups /var/backups/airopscat 3
 printf '已安装 %s，监听 127.0.0.1:8080；首次凭据：%s（仅 root 可读）；升级前备份：%s\n' \
     "$version" "$config/initial-admin.env" "$backup"

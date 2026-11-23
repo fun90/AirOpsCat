@@ -10,8 +10,8 @@
 ## 步骤
 
 1. **先过验证**：`go vet ./...`、`go test ./...` 通过后再启动。完成：两项通过；失败就修复，不拿坏版本给用户验收。
-2. **启动**：在后台运行 `scripts/local-prod.sh 2>&1 | tee ~/.airopscat-local/run.log`。主机取自环境变量 `AIROPSCAT_DEPLOY_HOST`，缺失时读 `~/.airopscat-local/deploy-host`（单行，权限 600）；agent 的非交互 shell 读不到 `~/.zshrc`，所以靠这个文件。脚本会替换上一轮的本地实例；Go 代码与模板没有热加载，每次改动后都要重启。完成：`run.log` 出现「启动 http://」与「AirOpsCat 已启动」，且 `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/healthz` 返回 `200`。启动失败时旧实例仍占着端口，`healthz` 会照常返回 200，不能单凭它判定新版已启动。查进程用 `lsof -tiTCP:8080 -sTCP:LISTEN` 与 `ps -o pid,lstart,command -p <pid>`，不要 `ps aux | grep`（会带出终端中转脚本的整段输出）。
-3. **自查**：启动脚本已把管理员会话令牌写到 `~/.airopscat-local/token`。用 `curl -b "airopscat_session=$(cat ~/.airopscat-local/token)"` 请求改动页面；页面改动再用 `node scripts/screenshot.mjs <路径> [宽度]` 截图查看，移动端用默认 390，退出码 1 表示横向溢出。完成：能指出改动出现在哪个具体 URL 的哪个位置。
+2. **启动**：运行 `scripts/local-prod.sh --daemon`（本轮已有快照仅重启时加 `--no-pull`，即 `scripts/local-prod.sh --no-pull --daemon`）。主机取自环境变量 `AIROPSCAT_DEPLOY_HOST`，缺失时读 `~/.airopscat-local/deploy-host`（单行，权限 600）。脚本会自动替换上一轮本地实例，并在新进程监听且 `/healthz` 返回 200 后才退出 0；Go 代码与模板没有热加载，每次改动后都要重启。完成：命令退出 0 并输出「已就绪 http://127.0.0.1:8080」及局域网地址。
+3. **自查**：启动脚本已把管理员会话令牌写到 `~/.airopscat-local/token`。用 `curl -b "airopscat_session=$(cat ~/.airopscat-local/token)"` 请求改动页面；页面改动用 `node scripts/screenshot.mjs <路径> [宽度]` 截图查看，或用 `node scripts/screenshot.mjs --mobile-all`（及 `--check <路径...>`）批量检查 390px 横向溢出，退出码 1 表示溢出。完成：能指出改动出现在哪个具体 URL 的哪个位置。
 4. **交给用户**：回复里写明验收 URL（如 `http://127.0.0.1:8080/admin/nodes/<id>/edit`；脚本默认监听 `0.0.0.0`，同时给出日志里的局域网地址供手机访问），以及该看哪个位置、生产数据里哪条记录能体现效果。说明实例仍在运行、外发已禁用。每个 URL 单独成行（如列表项 `- 本机：<URL>`），行内 URL 后面不接任何文字或中文标点，否则终端会把后续中文识别进链接。
 
 ## 约束

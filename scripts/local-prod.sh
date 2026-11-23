@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 # 用生产库只读快照在本机启动调试实例；关闭后台任务、通知、SSH 与 DNS 外发。
-# 用法：scripts/local-prod.sh [--no-pull]；需 AIROPSCAT_DEPLOY_HOST（或 ~/.airopscat-local/deploy-host）与本机 secret 文件。
+# 用法：scripts/local-prod.sh [--no-pull] [--daemon]；需 AIROPSCAT_DEPLOY_HOST（或 ~/.airopscat-local/deploy-host）与本机 secret 文件。
 set -euo pipefail
+no_pull=0
+daemon=0
+for arg in "$@"; do
+	case "$arg" in
+		--no-pull) no_pull=1 ;;
+		--daemon) daemon=1 ;;
+		*) echo "未知参数：$arg（支持 --no-pull、--daemon）" >&2; exit 64 ;;
+	esac
+done
 dir="${AIROPSCAT_LOCAL_DIR:-$HOME/.airopscat-local}"
 # 非交互 shell 读不到 ~/.zshrc，回退到本机文件 $dir/deploy-host（单行主机名，权限 600）
 host="${AIROPSCAT_DEPLOY_HOST:-}"
@@ -17,7 +26,7 @@ mkdir -p "$dir" && chmod 700 "$dir"
 [[ -r "$secret_file" ]] || { echo "缺少 secret 文件：$secret_file（与生产 AIROPSCAT_SECRET_KEY 相同，权限 600）" >&2; exit 64; }
 secret=$(tr -d '\n' < "$secret_file")
 
-if [[ "${1:-}" != --no-pull ]]; then
+if (( ! no_pull )); then
 	[[ -n "$host" && "$host" != -* ]] || { echo '请配置 AIROPSCAT_DEPLOY_HOST（或写入 $dir/deploy-host）；本次未启动，端口上的旧实例仍是旧版本' >&2; exit 64; }
 	# sqlite 在线备份：只读打开，不停服、不裸拷 WAL
 	ssh "${ssh_opts[@]}" "$host" "set -e; t=\$(mktemp -d); trap 'rm -rf \$t' EXIT; sqlite3 -readonly $remote_db \".backup \$t/a.db\"; gzip -c \$t/a.db" > "$dir/prod.db.gz.tmp"
@@ -49,8 +58,39 @@ scripts_dir="${AIROPSCAT_SCRIPTS_DIR:-$PWD/../profile/airopscat/shell}"
 rm -f "$dir/token"
 AIROPSCAT_SECRET_KEY="$secret" AIROPSCAT_DB="$dir/prod.db" go run ./scripts/localtoken "$dir/token"
 lan_ip=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)
-[[ ${listen%:*} == 0.0.0.0 && -n "$lan_ip" ]] && echo "局域网访问 http://$lan_ip:$port"
-echo "启动 http://$listen （数据库 $dir/prod.db，外发已禁用，会话令牌 $dir/token）"
+if (( ! daemon )); then
+	[[ ${listen%:*} == 0.0.0.0 && -n "$lan_ip" ]] && echo "局域网访问 http://$lan_ip:$port"
+	echo "启动 http://$listen （数据库 $dir/prod.db，外发已禁用，会话令牌 $dir/token）"
+	AIROPSCAT_SECRET_KEY="$secret" AIROPSCAT_DB="$dir/prod.db" AIROPSCAT_LISTEN="$listen" \
+		AIROPSCAT_BACKUP_DIR="$dir/backup" AIROPSCAT_SCRIPTS_DIR="$scripts_dir" AIROPSCAT_TASKS_DISABLED=1 AIROPSCAT_OUTBOUND_DISABLED=1 \
+		exec go run ./cmd/airopscat
+fi
+
+log_file="$dir/run.log"
+: > "$log_file"
 AIROPSCAT_SECRET_KEY="$secret" AIROPSCAT_DB="$dir/prod.db" AIROPSCAT_LISTEN="$listen" \
 	AIROPSCAT_BACKUP_DIR="$dir/backup" AIROPSCAT_SCRIPTS_DIR="$scripts_dir" AIROPSCAT_TASKS_DISABLED=1 AIROPSCAT_OUTBOUND_DISABLED=1 \
-	exec go run ./cmd/airopscat
+	nohup go run ./cmd/airopscat >"$log_file" 2>&1 </dev/null &
+runner_pid=$!
+ready=0
+for ((i=0; i<150; i++)); do
+	if ! kill -0 "$runner_pid" 2>/dev/null; then
+		echo "本地实例提前退出，日志尾部：" >&2
+		tail -n 30 "$log_file" >&2 || true
+		exit 1
+	fi
+	if lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && [[ $(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/healthz" || true) == 200 ]]; then
+		ready=1
+		break
+	fi
+	sleep 0.2
+done
+if (( ! ready )); then
+	echo "等待本地实例就绪超时，日志尾部：" >&2
+	tail -n 30 "$log_file" >&2 || true
+	kill "$runner_pid" 2>/dev/null || true
+	exit 1
+fi
+listen_pid=$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -n 1)
+[[ ${listen%:*} == 0.0.0.0 && -n "$lan_ip" ]] && echo "局域网访问 http://$lan_ip:$port"
+echo "已就绪 http://127.0.0.1:$port （PID ${listen_pid}，外发已禁用，日志 ${log_file}）"
