@@ -112,8 +112,11 @@ export class Modal {
   }
   static getInstance(el) { return store(el, Modal); }
   static getOrCreateInstance(el) { return store(el, Modal, () => new Modal(el)); }
-  show() {
+  show(relatedTarget) {
     if (this.el.classList.contains('show')) return;
+    const showEvent = new CustomEvent('show.bs.modal', { bubbles: true, cancelable: true });
+    showEvent.relatedTarget = relatedTarget;
+    if (!this.el.dispatchEvent(showEvent)) return;
     openModals = openModals.filter(m => m !== this);
     openModals.push(this);
     this.el.style.display = 'block';
@@ -123,7 +126,9 @@ export class Modal {
     this.el.classList.add('show');
     syncBackdrop();
     this.el.focus({ preventScroll: true });
-    this.el.dispatchEvent(new CustomEvent('shown.bs.modal', { bubbles: true }));
+    const shownEvent = new CustomEvent('shown.bs.modal', { bubbles: true });
+    shownEvent.relatedTarget = relatedTarget;
+    this.el.dispatchEvent(shownEvent);
   }
   hide() {
     if (!this.el.classList.contains('show') && this.el.style.display !== 'block') return;
@@ -241,6 +246,14 @@ export class Tooltip {
   dispose() { unstore(this.el, Tooltip); }
 }
 
+function closeDropdowns() {
+  document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+    const t = m.parentElement?.querySelector('[data-bs-toggle="dropdown"]');
+    if (t) Dropdown.getInstance(t)?.hide();
+    else m.classList.remove('show');
+  });
+}
+
 // 全局事件委托：下拉菜单、弹窗、页签、折叠、提示关闭
 document.addEventListener('click', event => {
   const dismissModal = event.target.closest('[data-bs-dismiss="modal"]');
@@ -264,8 +277,9 @@ document.addEventListener('click', event => {
   const modalTrigger = event.target.closest('[data-bs-toggle="modal"]');
   if (modalTrigger) {
     event.preventDefault();
+    closeDropdowns();
     const target = targetOf(modalTrigger);
-    if (target) Modal.getOrCreateInstance(target).show();
+    if (target) Modal.getOrCreateInstance(target).show(modalTrigger);
     return;
   }
   const tabTrigger = event.target.closest('[data-bs-toggle="tab"]');
@@ -289,11 +303,7 @@ document.addEventListener('click', event => {
   // 点击外部或菜单项时收起已打开的下拉菜单
   const inMenu = event.target.closest('.dropdown-menu');
   if (!inMenu || event.target.closest('.dropdown-item')) {
-    document.querySelectorAll('.dropdown-menu.show').forEach(m => {
-      const t = m.parentElement?.querySelector('[data-bs-toggle="dropdown"]');
-      if (t) Dropdown.getInstance(t)?.hide();
-      else m.classList.remove('show');
-    });
+    closeDropdowns();
   }
 });
 
@@ -303,9 +313,5 @@ document.addEventListener('keydown', event => {
     openModals[openModals.length - 1].hide();
     return;
   }
-  document.querySelectorAll('.dropdown-menu.show').forEach(m => {
-    const t = m.parentElement?.querySelector('[data-bs-toggle="dropdown"]');
-    if (t) Dropdown.getInstance(t)?.hide();
-    else m.classList.remove('show');
-  });
+  closeDropdowns();
 });

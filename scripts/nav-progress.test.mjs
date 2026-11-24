@@ -39,8 +39,21 @@ function batchContent(kind) {
 <form method="post" action="/admin/saved" data-batch-form data-confirm="确定批量部署？"><button type="submit">部署</button></form>`;
 }
 
+function accountRenewContent() {
+  return `<div class="dropdown"><button type="button" data-bs-toggle="dropdown" aria-expanded="false">更多</button><div class="dropdown-menu">
+<button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#accountRenewModal" data-renew-id="42" data-renew-name="测试账户" data-renew-to="2030-01-15T12:00" data-renew-cents="2500" data-renew-method="WeChat" data-renew-months-last="1">续期</button>
+</div></div>
+<div class="modal fade" id="accountRenewModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><form class="modal-content" method="post">
+<input type="hidden" name="from" value="list"><span data-renew-name></span><div data-renew-current></div>
+<input type="datetime-local" name="to_date" required>
+<button type="button" data-list-renew-months="1">+1 月</button><button type="button" data-list-renew-months="3">+3 月</button>
+<input name="amount"><select name="payment_method"><option value="">请选择</option><option value="WeChat">微信</option></select>
+<button type="submit">保存续期</button></form></div></div>`;
+}
+
 test('Tabler 局部导航浏览器回归', { skip: !existsSync(chromeBin), timeout: 60000 }, async t => {
   let posts = 0;
+  const postPaths = [];
   const postBodies = [];
   const errors = [];
   const server = createServer((req, res) => {
@@ -56,13 +69,13 @@ test('Tabler 局部导航浏览器回归', { skip: !existsSync(chromeBin), timeo
     if (req.method === 'POST') {
       let body = '';
       req.on('data', chunk => { body += chunk; });
-      req.on('end', () => { posts++; postBodies.push(body); res.end(html('saved')); });
+      req.on('end', () => { posts++; postPaths.push(url.pathname); postBodies.push(body); res.end(html('saved')); });
       return;
     }
     if (name === 'failed' && req.headers['sec-fetch-dest'] !== 'document') { res.writeHead(503).end('失败'); return; }
     if (name === 'expired') { res.writeHead(302, { Location: '/login' }).end(); return; }
     if (name === 'login') { res.end('<title>登录</title><p>登录</p>'); return; }
-    let body = html(name, name === 'node-batch' ? batchContent('node') : name === 'account-batch' ? batchContent('account') : name === 'cheap-button' ? cheapButtons : name === 'reality' ? realityContent() : '');
+    let body = html(name, name === 'node-batch' ? batchContent('node') : name === 'account-batch' ? batchContent('account') : name === 'account-renew' ? accountRenewContent() : name === 'cheap-button' ? cheapButtons : name === 'reality' ? realityContent() : '');
     if (name === 'changed') body = body.replace('/static/css/app.css', '/static/css/app.css?v=changed');
     if (name === 'slow') setTimeout(() => res.end(body), 900);
     else res.end(body);
@@ -291,6 +304,39 @@ test('Tabler 局部导航浏览器回归', { skip: !existsSync(chromeBin), timeo
         }
         await click('/admin/a'); await ready('a');
       }
+    });
+    await t.test('账户列表续期弹窗从下拉打开后填充并提交到续期地址', async () => {
+      await open('/admin/account-renew');
+      await evaluate(`document.querySelector('[data-bs-toggle="dropdown"]').click()`);
+      assert.equal(await evaluate(`document.querySelector('.dropdown-menu').classList.contains('show')`), true);
+      await evaluate(`document.querySelector('[data-renew-id="42"]').click()`);
+      const state = await evaluate(`{
+        const m=document.querySelector('#accountRenewModal'),f=m.querySelector('form');
+        ({
+          modalShown:m.classList.contains('show'),
+          dropdownOpen:document.querySelector('.dropdown-menu').classList.contains('show'),
+          action:new URL(f.action).pathname,
+          name:m.querySelector('[data-renew-name]').textContent,
+          current:m.querySelector('[data-renew-current]').textContent,
+          toDate:f.querySelector('[name=to_date]').value,
+          amount:f.querySelector('[name=amount]').value,
+          method:f.querySelector('[name=payment_method]').value,
+        });
+      }`);
+      assert.deepEqual(state, {
+        modalShown: true,
+        dropdownOpen: false,
+        action: '/admin/accounts/42/renew',
+        name: '测试账户',
+        current: '原到期 2030-01-15 12:00',
+        toDate: '2030-02-15T12:00',
+        amount: '25.00',
+        method: 'WeChat',
+      });
+      await evaluate(`document.querySelector('#accountRenewModal form').requestSubmit()`);
+      await ready('saved');
+      assert.equal(postPaths.at(-1), '/admin/accounts/42/renew');
+      assert.equal(new URLSearchParams(postBodies.at(-1)).get('to_date'), '2030-02-15T12:00');
     });
     await t.test('登录失效跳转到登录页', async () => {
       await open('/admin/a'); await click('/admin/expired');
