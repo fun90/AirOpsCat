@@ -137,6 +137,36 @@ func TestMaintenanceFlow(t *testing.T) {
 	if w := do(h, "POST", "/admin/maintenance/run", v, c, headers); w.Code != 200 {
 		t.Fatal("普通步骤不应要求邮箱", w.Code)
 	}
+	if err := os.WriteFile(filepath.Join(s.ScriptDir, "05-certificates-install.sh"), []byte("# @title: 证书\necho ok\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	certScript, err := maintenance.Read(s.ScriptDir, "05-certificates-install.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v.Set("script", certScript.Name)
+	v.Set("hash", certScript.Hash)
+	beforeCert := dials
+	if w := do(h, "POST", "/admin/maintenance/run", v, c, headers); w.Code != 422 || !strings.Contains(w.Body.String(), "A 记录") {
+		t.Fatal("无已同步非通配 A 记录时应提前拒绝", w.Code, w.Body.String())
+	}
+	if dials != beforeCert {
+		t.Fatal("证书前置校验失败不得连接服务器")
+	}
+	if _, err := a.DB.Exec(`INSERT INTO domain(id,domain)VALUES(1,'example.test')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.DB.Exec(`INSERT INTO domain_dns_record(domain_id,server_id,name,full_name,type,content,status)VALUES(1,NULL,'idle','idle.example.test','A','192.0.2.1','SYNCED')`); err != nil {
+		t.Fatal(err)
+	}
+	if w := do(h, "POST", "/admin/maintenance/run", v, c, headers); w.Code != 200 {
+		t.Fatal("按 content 匹配到的已同步 A 记录应允许申请证书", w.Code, w.Body.String())
+	}
+	if !strings.Contains(string(remote.env), "server_host='idle.example.test'") || !strings.Contains(string(remote.env), "server_hosts=('idle.example.test' )") {
+		t.Fatal("按 content 匹配到的域名未传入环境文件", string(remote.env))
+	}
+	v.Set("script", script.Name)
+	v.Set("hash", script.Hash)
 	remote.fail = true
 	if w := do(h, "POST", "/admin/maintenance/run", v, c, headers); w.Code != 502 {
 		t.Fatal("失败不得返回200或重定向", w.Code)
