@@ -27,11 +27,11 @@
                     <tbody>
                     {{range .List}}
                     <tr>
-                        <td><a href="?edit={{.ID}}{{if $.Q}}&q={{$.Q}}{{end}}{{if gt $.Page 1}}&page={{$.Page}}{{end}}" class="badge text-decoration-none" style="background-color: {{.Color}}; color: #fff" title="修改标签">{{.Name}}</a></td>
+                        <td><a href="?edit={{.ID}}{{if $.Q}}&q={{$.Q}}{{end}}{{if gt $.Page 1}}&page={{$.Page}}{{end}}" class="badge text-reset text-decoration-none" style="background-color: color-mix(in srgb, {{if .Color}}{{.Color}}{{else}}#6c757d{{end}} 22%, transparent)" title="修改标签"><span class="status-dot flex-shrink-0" style="background-color: {{if .Color}}{{.Color}}{{else}}#6c757d{{end}}"></span>{{.Name}}</a></td>
                         <td class="d-none d-md-table-cell">{{.Description}}</td><td>{{.Accounts}}</td><td>{{.Nodes}}</td>
                         <td class="text-nowrap">
                             <div class="d-none d-md-flex gap-1">
-                            <form method="post" action="/admin/tags/{{.ID}}/delete" data-confirm="确定删除该标签？" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}">{{template "editReturnField" $}}<button class="btn btn-sm btn-danger" type="submit">删除</button></form>
+                            <form method="post" action="/admin/tags/{{.ID}}/delete" data-confirm="确定删除该标签？" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}">{{template "editReturnField" $}}<button class="btn btn-sm btn-outline-danger" type="submit">删除</button></form>
                             </div>
                             <div class="dropdown d-md-none"><button type="button" class="btn btn-sm btn-ghost-secondary" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="更多操作" title="更多操作"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#dots-vertical"></use></svg></button><div class="dropdown-menu dropdown-menu-end">
                             <form method="post" action="/admin/tags/{{.ID}}/delete" data-confirm="确定删除该标签？" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}">{{template "editReturnField" $}}<button class="dropdown-item text-danger" type="submit">删除</button></form></div></div>

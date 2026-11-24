@@ -118,7 +118,7 @@
         <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#batchPortsModal">重新分配端口</button>
         <form method="post" action="/admin/nodes/batch-toggle" data-batch-form><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="disabled" value="0"><button class="dropdown-item" type="submit">启用</button></form>
         <form method="post" action="/admin/nodes/batch-toggle" data-batch-form data-confirm="确定禁用以下节点？禁用后需重新部署生效。"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="disabled" value="1"><button class="dropdown-item" type="submit">禁用</button></form>
-        <form method="post" action="/admin/nodes/batch-delete" data-batch-form data-confirm="确定删除以下节点？已部署的部署位会在下次部署时从服务器移除。"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="dropdown-item text-danger" type="submit">删除</button></form>
+        <form method="post" action="/admin/nodes/batch-delete" data-batch-form data-confirm="确定删除以下节点？已部署的部署位会在下次部署时从服务器移除。" data-confirm-danger><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="dropdown-item text-danger" type="submit">删除</button></form>
       </div>
     </div>
     <button type="button" class="btn btn-link px-2 text-nowrap" data-batch-clear>取消</button>

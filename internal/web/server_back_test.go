@@ -105,3 +105,67 @@ func TestTagEditReturnsToFilteredList(t *testing.T) {
 		}
 	}
 }
+
+func TestServerEditQuickActionsAndMaintenanceBack(t *testing.T) {
+	h, a := newTestServer(t)
+	cookie := login(t, h, "admin@example.com")
+	if _, err := a.DB.Exec(`INSERT INTO server(id,ip,name) VALUES(1,'192.0.2.10','hk-1')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.DB.Exec(`INSERT INTO node(id,name,type) VALUES(1,'n-1',0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.DB.Exec(`INSERT INTO node_server(node_id,server_id,deployed,failover) VALUES(1,1,1,0)`); err != nil {
+		t.Fatal(err)
+	}
+	const listURL = "/admin/servers?q=hk"
+	list := do(h, "GET", listURL, nil, cookie, nil)
+	wantInit := navURL("/admin/maintenance?server_id=1", listURL)
+	if list.Code != http.StatusOK || !strings.Contains(list.Body.String(), `href="`+html.EscapeString(wantInit)+`"`) {
+		t.Fatalf("服务器列表初始化链接应携带返回地址，状态 %d", list.Code)
+	}
+
+	// 新增页不显示单机快捷操作栏
+	newPage := do(h, "GET", "/admin/servers/new", nil, cookie, nil)
+	if newPage.Code != http.StatusOK || strings.Contains(newPage.Body.String(), "/ping") {
+		t.Fatalf("新增服务器页不应显示快捷操作，状态 %d", newPage.Code)
+	}
+
+	editURL := navURL("/admin/servers/1/edit", listURL)
+	edit := do(h, "GET", editURL, nil, cookie, nil)
+	if edit.Code != http.StatusOK {
+		t.Fatalf("编辑页状态 %d", edit.Code)
+	}
+	body := edit.Body.String()
+	for _, want := range []string{
+		`action="/admin/servers/1/ping"`,
+		`href="/admin/servers/1/config"`,
+		`href="` + html.EscapeString(navURL("/admin/maintenance?server_id=1", editURL)) + `"`,
+		`href="` + html.EscapeString(navURL("/admin/monitor/1", editURL)) + `"`,
+		`data-bs-target="#calibrate-modal"`,
+		`action="/admin/servers/1/failover"`,
+		`action="/admin/servers/1/reboot"`,
+		`action="/admin/servers/1/clear-host-key"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("服务器编辑页缺少常用操作 %s", want)
+		}
+	}
+
+	csrf := a.CSRFToken(cookie.Value)
+	ref := map[string]string{"Referer": "http://example.com" + editURL}
+	for _, tc := range []struct {
+		path string
+		form url.Values
+	}{
+		{"/admin/servers/1/clear-host-key", url.Values{"csrf": {csrf}, "from": {"edit"}}},
+		{"/admin/servers/1/failover", url.Values{"csrf": {csrf}, "from": {"edit"}, "on": {"1"}}},
+		{"/admin/servers/1/calibrate-traffic", url.Values{"csrf": {csrf}, "from": {"edit"}, "used": {"-1"}}},
+	} {
+		w := do(h, "POST", tc.path, tc.form, cookie, ref)
+		target := adminPageURL(w.Header().Get("Location"))
+		if w.Code != http.StatusSeeOther || target == nil || target.Path != "/admin/servers/1/edit" || target.Query().Get("back") != listURL {
+			t.Errorf("%s 带 from=edit 跳转 %d %q，期望停留在编辑页并保留 back", tc.path, w.Code, w.Header().Get("Location"))
+		}
+	}
+}

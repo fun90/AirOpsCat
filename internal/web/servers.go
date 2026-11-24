@@ -172,9 +172,17 @@ func (s *Server) serverPlacementSwitch(w http.ResponseWriter, r *http.Request) {
 	redirectMsg(w, r, back, "err", "部署位不属于该服务器")
 }
 
+func serverActionReturn(r *http.Request, id int64) string {
+	if r.PostFormValue("from") == "edit" {
+		return fmt.Sprintf("/admin/servers/%d/edit", id)
+	}
+	return "/admin/servers"
+}
+
 // serverFailover 标记后立即执行一轮 DNS 切换，不等定时任务；切走与回切都复用自动切换的对账流程。
 func (s *Server) serverFailover(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
+	back := serverActionReturn(r, id)
 	on := r.PostFormValue("on") == "1"
 	if s.requestError(w, r, store.SetServerFailover(r.Context(), s.DB, id, on)) {
 		return
@@ -185,10 +193,10 @@ func (s *Server) serverFailover(w http.ResponseWriter, r *http.Request) {
 	}
 	// 推送中途断开会留下待对账操作，因此不随浏览器请求取消。
 	if err := s.autoDNS(context.WithoutCancel(r.Context())); err != nil {
-		redirectMsg(w, r, "/admin/servers", "err", "已标记"+action+"，但 DNS 切换未全部完成（定时任务会继续重试）："+err.Error())
+		redirectMsg(w, r, back, "err", "已标记"+action+"，但 DNS 切换未全部完成（定时任务会继续重试）："+err.Error())
 		return
 	}
-	redirectMsg(w, r, "/admin/servers", "msg", "已"+action+"并执行 DNS 切换，结果见系统日志")
+	redirectMsg(w, r, back, "msg", "已"+action+"并执行 DNS 切换，结果见系统日志")
 }
 
 // serverRow 是列表行：到期与流量的展示文字在这里算好。
@@ -425,7 +433,7 @@ func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status i
 			return
 		}
 		views := make([]serverPlacementView, len(pls))
-		active := 0
+		active, failoverCount := 0, 0
 		for i, p := range pls {
 			v := serverPlacementView{ServerPlacement: p}
 			for _, pp := range pointed[p.NodeID] {
@@ -444,8 +452,12 @@ func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status i
 			if p.Deployed != 2 {
 				active++
 			}
+			if p.Failover {
+				failoverCount++
+			}
 		}
 		d["Placements"] = views
+		d["PlacementCount"], d["FailoverCount"], d["FailoverWarn"] = len(pls), failoverCount, direct.serverWarn(f.ID)
 		targets, err := store.MigrationTargets(r.Context(), s.DB, f.ID)
 		var opts []store.BatchServerOption
 		if err == nil && active > 0 {

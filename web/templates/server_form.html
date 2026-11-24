@@ -1,147 +1,293 @@
 {{define "actions"}}<a href="{{.EditReturn}}" class="btn btn-outline-secondary">返回</a>{{end}}
 {{define "content"}}
 {{with .Form}}
-<form method="post" action="{{if .ID}}/admin/servers/{{.ID}}{{else}}/admin/servers{{end}}" class="card" autocomplete="off">
-    <input type="hidden" name="csrf" value="{{$.CSRF}}">
-    {{template "editReturnField" $}}
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-md-6"><label class="form-label" for="name">名称</label>
-                <input class="form-control" id="name" name="name" value="{{.Name}}"></div>
-            <div class="col-md-6"><label class="form-label required" for="ip">IP</label>
-                <input class="form-control{{if $.Errors.ip}} is-invalid{{end}}" id="ip" name="ip" value="{{.IP}}" required>
-                <div class="invalid-feedback">{{$.Errors.ip}}</div></div>
-
-            <div class="col-md-3"><label class="form-label" for="ssh_port">SSH 端口</label>
-                <input type="number" class="form-control{{if $.Errors.ssh_port}} is-invalid{{end}}" id="ssh_port" name="ssh_port" value="{{.SSHPort}}">
-                <div class="invalid-feedback">{{$.Errors.ssh_port}}</div></div>
-            <div class="col-md-3"><label class="form-label" for="username">SSH 用户</label>
-                <input class="form-control" id="username" name="username" value="{{.Username}}"></div>
-            <div class="col-md-3"><label class="form-label" for="auth_type">认证方式</label>
-                <select class="form-select" id="auth_type" name="auth_type">
-                    <option value="PASSWORD"{{if eq .AuthType "PASSWORD"}} selected{{end}}>密码</option>
-                    <option value="KEY"{{if eq .AuthType "KEY"}} selected{{end}}>私钥</option>
-                </select></div>
-            <div class="col-md-3"><label class="form-label" for="server_type">类型</label>
-                <select class="form-select{{if $.Errors.server_type}} is-invalid{{end}}" id="server_type" name="server_type">
-                    <option value="0"{{if eq .ServerType "0"}} selected{{end}}>代理服务器</option>
-                    <option value="1"{{if eq .ServerType "1"}} selected{{end}}>落地服务器</option>
-                </select>
-                <div class="invalid-feedback">{{$.Errors.server_type}}</div></div>
-            <div class="col-12"><label class="form-label" for="auth">SSH 密码 / 私钥</label>
-                <textarea class="form-control" id="auth" name="auth" rows="3" placeholder="{{if .HasAuth}}已保存，留空表示不修改{{else}}未保存{{end}}" autocomplete="off"></textarea></div>
-
-            <div class="col-md-3"><label class="form-label" for="region">地区</label>
-                <input class="form-control" id="region" name="region" value="{{.Region}}" list="regions">
-                <datalist id="regions">{{range $.Regions}}<option value="{{.}}">{{end}}</datalist></div>
-            <div class="col-md-3"><label class="form-label" for="supplier">供应商</label>
-                <input class="form-control" id="supplier" name="supplier" value="{{.Supplier}}"></div>
-            <div class="col-md-6"><label class="form-label" for="supplier_url">供应商网址（可选）</label>
-                <div class="input-group has-validation"><input type="url" class="form-control{{if $.Errors.supplier_url}} is-invalid{{end}}" id="supplier_url" name="supplier_url" value="{{.SupplierURL}}" placeholder="https://example.com" maxlength="2048">
-                    {{if .SupplierURL}}{{if not $.Errors.supplier_url}}<a class="btn btn-outline-secondary" href="{{.SupplierURL}}" target="_blank" rel="noopener noreferrer">打开</a>{{end}}{{end}}
-                    <div class="invalid-feedback">{{$.Errors.supplier_url}}</div></div></div>
-            <div class="col-md-3"><label class="form-label" for="expire_date">到期日</label>
-                <input type="date" class="form-control{{if $.Errors.expire_date}} is-invalid{{end}}" id="expire_date" name="expire_date" value="{{.ExpireDate}}">
-                <div class="invalid-feedback">{{$.Errors.expire_date}}</div></div>
-            <div class="col-md-3"><label class="form-label" for="price">价格（元）</label>
-                <div class="input-group has-validation">
-                    <input class="form-control{{if $.Errors.price}} is-invalid{{end}}" id="price" name="price" value="{{.Price}}" inputmode="decimal">
-                    <select class="form-select flex-grow-0 w-auto{{if $.Errors.price_months}} is-invalid{{end}}" name="price_months" aria-label="计价周期">
-                        <option value="1"{{if eq .PriceMonths "1"}} selected{{end}}>/月</option>
-                        <option value="12"{{if eq .PriceMonths "12"}} selected{{end}}>/年</option>
-                    </select>
-                    <div class="invalid-feedback">{{$.Errors.price}}{{$.Errors.price_months}}</div></div></div>
-
-            <div class="col-md-3"><label class="form-label" for="bandwidth">月流量</label>
-                <div class="input-group has-validation"><input class="form-control{{if $.Errors.bandwidth}} is-invalid{{end}}" id="bandwidth" name="bandwidth" value="{{.Bandwidth}}" inputmode="numeric" aria-describedby="bandwidth_unit_hint">
-                    <select class="form-select flex-grow-0 w-auto{{if $.Errors.bandwidth_unit}} is-invalid{{end}}" name="bandwidth_unit" aria-label="流量单位">
-                        <option value="GB"{{if eq .BandwidthUnit "GB"}} selected{{end}}>GB</option>
-                        <option value="GiB"{{if eq .BandwidthUnit "GiB"}} selected{{end}}>GiB</option>
-                    </select>
-                    <div class="invalid-feedback">{{$.Errors.bandwidth}}{{$.Errors.bandwidth_unit}}</div></div>
-                <div class="form-hint" id="bandwidth_unit_hint">GB=10⁹ 字节，GiB=2³⁰ 字节，与服务商面板一致</div></div>
-            <div class="col-md-3"><label class="form-label" for="bandwidth_day">流量重置日（每月）</label>
-                <div class="input-group has-validation"><input type="number" min="1" max="31" class="form-control{{if $.Errors.bandwidth_day}} is-invalid{{end}}" id="bandwidth_day" name="bandwidth_day" value="{{.BandwidthDay}}" inputmode="numeric" aria-describedby="bandwidth_day_hint"><span class="input-group-text">日</span>
-                <div class="invalid-feedback">{{$.Errors.bandwidth_day}}</div></div>
-                <div class="form-hint" id="bandwidth_day_hint">当月无该日时取最后一天；留空按 1 日</div></div>
-            <div class="col-md-3"><label class="form-label" for="multiple">流量倍率</label>
-                <input class="form-control{{if $.Errors.multiple}} is-invalid{{end}}" id="multiple" name="multiple" value="{{.Multiple}}" inputmode="decimal">
-                <div class="invalid-feedback">{{$.Errors.multiple}}</div></div>
-            <div class="col-md-3"><label class="form-label" for="cpu_cores">CPU 核数</label>
-                <input class="form-control{{if $.Errors.cpu_cores}} is-invalid{{end}}" id="cpu_cores" name="cpu_cores" value="{{.CPUCores}}" inputmode="numeric">
-                <div class="invalid-feedback">{{$.Errors.cpu_cores}}</div></div>
-
-            <div class="col-12"><label class="form-label" for="remark">备注</label>
-                <input class="form-control" id="remark" name="remark" value="{{.Remark}}"></div>
-            <div class="col-12">
-                <label class="form-check form-check-inline"><input type="checkbox" class="form-check-input" name="disabled" value="1"{{if .Disabled}} checked{{end}}><span class="form-check-label">禁用（不参与部署）</span></label>
-                <label class="form-check form-check-inline"><input type="checkbox" class="form-check-input" name="external_server" value="1"{{if .External}} checked{{end}}><span class="form-check-label">外部服务器（不部署节点）</span></label>
-            </div>
-        </div>
-    </div>
-    <div class="card-footer text-end">
-        <a href="{{$.EditReturn}}" class="btn btn-link">取消</a>
-        <button type="submit" class="btn">保存</button>
-        <button type="submit" class="btn btn-primary" name="test" value="1">保存并测试</button>
-    </div>
-</form>
 {{if .ID}}
-<div class="card mt-3">
-    <div class="card-header"><h3 class="card-title">部署位</h3>{{if $.Placements}}<form class="ms-auto" method="post" action="/admin/servers/{{$.Form.ID}}/deploy" data-confirm="将按当前配置整机重新部署并重启 sing-box，确定？"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-primary"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#rocket"></use></svg>部署本服务器</button></form>{{end}}</div>
-    <div class="list-group list-group-flush">
-        {{range $.Placements}}
-        <div class="list-group-item d-flex flex-wrap align-items-center gap-2">
-            <div class="me-auto">
-                <a href="{{navURL (printf "/admin/nodes/%d/edit" .NodeID) $.PageURL}}" class="text-break"><strong>{{.NodeName}}</strong></a>
-                <div class="text-secondary small text-break">优先级 {{.Priority}} · {{or .AccessHost "使用服务器 IP"}}</div>
+<div class="card mb-3">
+    <div class="card-body srv-hero-head">
+        <div class="srv-hero-meta">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <h3 class="srv-hero-title text-break">{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}</h3>
+                {{if eq .ServerType "1"}}<span class="badge bg-purple-lt">落地</span>{{else}}<span class="badge bg-blue-lt">代理</span>{{end}}
+                {{if .Region}}<span class="badge bg-secondary-lt">{{.Region}}</span>{{end}}
+                {{if .Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{end}}
+                {{if .External}}<span class="badge bg-azure-lt">外部</span>{{end}}
+                {{if $.FailoverCount}}<span class="badge bg-orange-lt">已切走 {{$.FailoverCount}}/{{$.PlacementCount}}</span>{{end}}
             </div>
-            {{if eq .Deployed 0}}<span class="badge bg-yellow-lt">待部署</span>{{else if eq .Deployed 1}}<span class="badge bg-green-lt">已部署</span>{{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
-            {{if .Failover}}<span class="badge bg-orange-lt">已切走</span>{{end}}
-            {{with .Here}}<div class="dropdown"><button type="button" class="badge bg-blue-lt border-0 cursor-pointer" data-bs-toggle="dropdown" aria-expanded="false">当前指向 {{len .}} 个域名</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-1" style="max-width:16rem">{{range .}}<span class="badge bg-blue-lt text-wrap text-break">{{.}}</span>{{end}}</div></div></div>{{end}}
-            {{range .Elsewhere}}<span class="badge bg-secondary-lt text-wrap text-break">指向 {{.}}</span>{{end}}
-            {{if .CanSwitch}}<form method="post" action="/admin/servers/{{$.Form.ID}}/placement-switch" data-confirm="{{.NodeName}} 的域名将切到本服务器并立即执行 DNS 切换，确定？{{with .Warn}}&#10;&#10;{{.}}{{end}}"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-warning py-0 text-nowrap" name="placement" value="{{.ID}}">切到此处</button></form>{{end}}
-        </div>
-        {{else}}<div class="list-group-item text-secondary">暂无部署位</div>{{end}}
-    </div>
-</div>
-<div class="card mt-3">
-    <div class="card-header"><h3 class="card-title">迁移与报废</h3></div>
-    <div class="list-group list-group-flush">
-        {{range $.MigrationTargets}}
-        <div class="list-group-item d-flex flex-wrap align-items-center gap-2">
-            <div class="me-auto text-break"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#route"></use></svg>迁移到 <a href="{{navURL (printf "/admin/servers/%d/edit" .ID) $.PageURL}}"><strong>{{.Name}}</strong></a> <span class="text-secondary small">{{.IP}}</span></div>
-            {{if .Pending}}<span class="badge bg-yellow-lt">{{.Pending}} 个待部署</span>
-            <form method="post" action="/admin/servers/{{.ID}}/deploy" data-confirm="请部署目标服务器：将按当前配置整机重新部署 {{.Name}} 并重启 sing-box，确定？"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-primary text-nowrap"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#rocket"></use></svg>部署目标服务器</button></form>
-            {{else}}<span class="badge bg-green-lt">已部署</span>{{end}}
-            <form method="post" action="/admin/servers/{{$.Form.ID}}/migrate-finish" data-confirm="本服务器部署位的访问域名、DNS 记录与订阅定制将转移到 {{.Name}}，本服务器部署位标记待删除，确定完成迁移？"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-primary text-nowrap" name="target" value="{{.ID}}"{{if .Pending}} disabled{{end}}>完成迁移</button></form>
-            <form method="post" action="/admin/servers/{{$.Form.ID}}/migrate-cancel" data-confirm="将移除本次迁移新增的目标部署位；已部署过的目标部署位将标记待删除并等待部署，确定取消迁移？" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-danger text-nowrap" name="target" value="{{.ID}}">取消迁移</button></form>
-        </div>
-        {{end}}
-        {{with $.MigrateOptions}}
-        <form class="list-group-item" method="post" action="/admin/servers/{{$.Form.ID}}/migrate" data-confirm="将在目标服务器上为本服务器的全部节点添加部署位（继承优先级与订阅显示），之后需部署目标服务器，确定？">
-            <input type="hidden" name="csrf" value="{{$.CSRF}}">
-            <div class="input-group input-group-sm">
-                <span class="input-group-text">迁移节点到</span>
-                <select class="form-select" name="target" aria-label="目标服务器" required><option value="">选择目标服务器</option>{{range .}}<option value="{{.ID}}">{{.Name}}（{{.IP}}）</option>{{end}}</select>
-                <button class="btn">添加部署位</button>
+            {{if .IP}}
+            <div class="d-flex flex-wrap align-items-center gap-1 mt-1 small text-secondary">
+                <span class="font-monospace text-break">{{.IP}}</span>
+                <button type="button" class="btn btn-sm btn-ghost-secondary p-0" data-copy="{{.IP}}" title="复制 IP" aria-label="复制 IP"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#copy"></use></svg></button>
+                {{if .Supplier}}<span class="ms-1">·</span>{{if and .SupplierURL (not $.Errors.supplier_url)}}<a href="{{.SupplierURL}}" target="_blank" rel="noopener noreferrer" class="text-secondary text-break">{{.Supplier}}</a>{{else}}<span class="text-break">{{.Supplier}}</span>{{end}}{{end}}
             </div>
-        </form>
-        {{end}}
-        <form class="list-group-item d-flex flex-wrap align-items-center gap-2" method="post" action="/admin/servers/{{$.Form.ID}}/retire" data-confirm="报废将直接删除本服务器的全部部署位：不会连接服务器，远端 sing-box 配置不会清理；绑定的域名转移到同节点其他部署位。确定报废？" data-confirm-danger>
-            <input type="hidden" name="csrf" value="{{$.CSRF}}">
-            <label class="form-check mb-0 me-auto"><input type="checkbox" class="form-check-input" name="delete_server" value="1"><span class="form-check-label">同时删除服务器</span></label>
-            <button class="btn btn-sm btn-outline-danger text-nowrap"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#trash"></use></svg>报废并强制移除</button>
-        </form>
+            {{end}}
+        </div>
+        <div class="srv-hero-actions">
+            <form method="post" action="/admin/servers/{{.ID}}/ping"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="from" value="edit"><button class="btn btn-sm text-nowrap"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#plug-connected"></use></svg>测试连接</button></form>
+            <a class="btn btn-sm text-nowrap d-none d-md-inline-flex" href="/admin/servers/{{.ID}}/config" target="_blank" rel="noopener"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#file-code"></use></svg>配置预览</a>
+            {{if not .External}}<a class="btn btn-sm text-nowrap d-none d-md-inline-flex" href="{{navURL (printf "/admin/maintenance?server_id=%d" .ID) $.PageURL}}"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#terminal"></use></svg>维护脚本</a>{{end}}
+            {{if and (not .External) (not .Disabled)}}<a class="btn btn-sm text-nowrap d-none d-md-inline-flex" href="{{navURL (printf "/admin/monitor/%d" .ID) $.PageURL}}"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#activity"></use></svg>监控</a>{{end}}
+            <div class="dropdown">
+                <button type="button" class="btn btn-sm dropdown-toggle text-nowrap" data-bs-toggle="dropdown" aria-expanded="false">更多</button>
+                <div class="dropdown-menu dropdown-menu-end">
+                    <a class="dropdown-item d-md-none" href="/admin/servers/{{.ID}}/config" target="_blank" rel="noopener"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#file-code"></use></svg>配置预览</a>
+                    {{if not .External}}<a class="dropdown-item d-md-none" href="{{navURL (printf "/admin/maintenance?server_id=%d" .ID) $.PageURL}}"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#terminal"></use></svg>维护脚本</a>{{end}}
+                    {{if and (not .External) (not .Disabled)}}<a class="dropdown-item d-md-none" href="{{navURL (printf "/admin/monitor/%d" .ID) $.PageURL}}"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#activity"></use></svg>监控</a>{{end}}
+                    <div class="dropdown-divider d-md-none"></div>
+                    {{if not .External}}<button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#calibrate-modal" data-calibrate data-id="{{.ID}}" data-name="{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}" data-unit="{{if eq .BandwidthUnit "GB"}}GB{{else}}GiB{{end}}">校准流量</button>{{end}}
+                    {{if $.FailoverCount}}<form method="post" action="/admin/servers/{{.ID}}/failover" data-confirm="恢复后相关域名将切回该服务器，确定？"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="from" value="edit"><input type="hidden" name="on" value="0"><button class="dropdown-item">恢复流量</button></form>{{end}}
+                    {{if lt $.FailoverCount $.PlacementCount}}<form method="post" action="/admin/servers/{{.ID}}/failover" data-confirm="将把该服务器全部部署位的域名切到同节点其他部署位，确定？{{with $.FailoverWarn}}&#10;&#10;{{.}}{{end}}"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="from" value="edit"><input type="hidden" name="on" value="1"><button class="dropdown-item text-warning">切走流量</button></form>{{end}}
+                    {{if not .External}}<form method="post" action="/admin/servers/{{.ID}}/reboot" data-confirm="将重启服务器「{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}」，重启期间该服务器上的节点将中断，确定？" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="from" value="edit"><button class="dropdown-item text-warning">重启</button></form>{{end}}
+                    {{if or (not .External) $.FailoverCount (lt $.FailoverCount $.PlacementCount)}}<div class="dropdown-divider"></div>{{end}}
+                    <form method="post" action="/admin/servers/{{.ID}}/clear-host-key" data-confirm="服务器重装后才需要清除主机密钥，确定？" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="from" value="edit"><button class="dropdown-item text-danger">清除主机密钥</button></form>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
-{{if $.BlockedPorts}}
-<div class="card mt-3">
-    <div class="card-header"><h3 class="card-title">封禁端口</h3></div>
-    <div class="list-group list-group-flush">{{range $.BlockedPorts}}
-        <div class="list-group-item d-flex align-items-center gap-2"><span class="me-auto font-monospace">{{.}}</span><form method="post" action="/admin/servers/{{$.Form.ID}}/unblock-port" data-confirm="解除端口 {{.}} 的防刷封禁？下次部署会清除远端防火墙规则。" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-danger" name="port" value="{{.}}">解除封禁</button></form></div>
-    {{end}}</div>
 </div>
 {{end}}
+<div class="srv-layout{{if .ID}} srv-layout-edit{{end}}">
+    <div class="srv-main">
+        <form method="post" action="{{if .ID}}/admin/servers/{{.ID}}{{else}}/admin/servers{{end}}" class="card" autocomplete="off">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            {{template "editReturnField" $}}
+            <div class="card-body">
+                <section class="srv-section">
+                    <div class="subheader srv-section-title">基本信息</div>
+                    <div class="srv-grid">
+                        <div class="srv-span-md-half">
+                            <label class="form-label" for="name">名称</label>
+                            <input class="form-control" id="name" name="name" value="{{.Name}}">
+                        </div>
+                        <div class="srv-span-md-half">
+                            <label class="form-label required" for="ip">IP</label>
+                            <input class="form-control font-monospace{{if $.Errors.ip}} is-invalid{{end}}" id="ip" name="ip" value="{{.IP}}" required>
+                            <div class="invalid-feedback">{{$.Errors.ip}}</div>
+                        </div>
+                        <div class="srv-span-1">
+                            <label class="form-label" for="server_type">类型</label>
+                            <select class="form-select{{if $.Errors.server_type}} is-invalid{{end}}" id="server_type" name="server_type">
+                                <option value="0"{{if eq .ServerType "0"}} selected{{end}}>代理服务器</option>
+                                <option value="1"{{if eq .ServerType "1"}} selected{{end}}>落地服务器</option>
+                            </select>
+                            <div class="invalid-feedback">{{$.Errors.server_type}}</div>
+                        </div>
+                        <div class="srv-span-1">
+                            <label class="form-label" for="region">地区</label>
+                            <input class="form-control" id="region" name="region" value="{{.Region}}" list="regions">
+                            <datalist id="regions">{{range $.Regions}}<option value="{{.}}">{{end}}</datalist>
+                        </div>
+                        <div class="srv-span-2">
+                            <label class="form-label" for="remark">备注</label>
+                            <input class="form-control" id="remark" name="remark" value="{{.Remark}}">
+                        </div>
+                        <div class="srv-span-2 srv-switches">
+                            <label class="form-check form-switch srv-switch-item"><input type="checkbox" class="form-check-input" name="disabled" value="1"{{if .Disabled}} checked{{end}}><span class="form-check-label">禁用（不参与部署）</span></label>
+                            <label class="form-check form-switch srv-switch-item"><input type="checkbox" class="form-check-input" name="external_server" value="1"{{if .External}} checked{{end}}><span class="form-check-label">外部服务器（不部署节点）</span></label>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="srv-section">
+                    <div class="subheader srv-section-title">SSH 连接</div>
+                    <div class="srv-grid">
+                        <div class="srv-span-qtr">
+                            <label class="form-label" for="ssh_port">SSH 端口</label>
+                            <input type="number" class="form-control{{if $.Errors.ssh_port}} is-invalid{{end}}" id="ssh_port" name="ssh_port" value="{{.SSHPort}}">
+                            <div class="invalid-feedback">{{$.Errors.ssh_port}}</div>
+                        </div>
+                        <div class="srv-span-qtr">
+                            <label class="form-label" for="username">SSH 用户</label>
+                            <input class="form-control" id="username" name="username" value="{{.Username}}">
+                        </div>
+                        <div class="srv-span-md-half">
+                            <label class="form-label" for="auth_type">认证方式</label>
+                            <select class="form-select" id="auth_type" name="auth_type">
+                                <option value="PASSWORD"{{if eq .AuthType "PASSWORD"}} selected{{end}}>密码</option>
+                                <option value="KEY"{{if eq .AuthType "KEY"}} selected{{end}}>私钥</option>
+                            </select>
+                        </div>
+                        <div class="srv-span-2">
+                            <label class="form-label" for="auth">SSH 密码 / 私钥</label>
+                            <textarea class="form-control font-monospace" id="auth" name="auth" rows="3" placeholder="{{if .HasAuth}}已保存，留空表示不修改{{else}}未保存{{end}}" autocomplete="off"></textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="srv-section">
+                    <div class="subheader srv-section-title">供应商与计费</div>
+                    <div class="srv-grid">
+                        <div class="srv-span-md-third">
+                            <label class="form-label" for="supplier">供应商</label>
+                            <input class="form-control" id="supplier" name="supplier" value="{{.Supplier}}">
+                        </div>
+                        <div class="srv-span-two-thirds">
+                            <label class="form-label" for="supplier_url">供应商网址（可选）</label>
+                            <div class="input-group has-validation">
+                                <input type="url" class="form-control{{if $.Errors.supplier_url}} is-invalid{{end}}" id="supplier_url" name="supplier_url" value="{{.SupplierURL}}" placeholder="https://example.com" maxlength="2048">
+                                {{if .SupplierURL}}{{if not $.Errors.supplier_url}}<a class="btn btn-outline-secondary" href="{{.SupplierURL}}" target="_blank" rel="noopener noreferrer">打开</a>{{end}}{{end}}
+                                <div class="invalid-feedback">{{$.Errors.supplier_url}}</div>
+                            </div>
+                        </div>
+                        <div class="srv-span-md-half">
+                            <label class="form-label" for="expire_date">到期日</label>
+                            <input type="date" class="form-control{{if $.Errors.expire_date}} is-invalid{{end}}" id="expire_date" name="expire_date" value="{{.ExpireDate}}">
+                            <div class="invalid-feedback">{{$.Errors.expire_date}}</div>
+                        </div>
+                        <div class="srv-span-md-half">
+                            <label class="form-label" for="price">价格（元）</label>
+                            <div class="input-group has-validation">
+                                <input class="form-control{{if $.Errors.price}} is-invalid{{end}}" id="price" name="price" value="{{.Price}}" inputmode="decimal">
+                                <select class="form-select flex-grow-0 w-auto{{if $.Errors.price_months}} is-invalid{{end}}" name="price_months" aria-label="计价周期">
+                                    <option value="1"{{if eq .PriceMonths "1"}} selected{{end}}>/月</option>
+                                    <option value="12"{{if eq .PriceMonths "12"}} selected{{end}}>/年</option>
+                                </select>
+                                <div class="invalid-feedback">{{$.Errors.price}}{{$.Errors.price_months}}</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="srv-section">
+                    <div class="subheader srv-section-title">流量与规格</div>
+                    <div class="srv-grid">
+                        <div class="srv-span-md-half">
+                            <label class="form-label" for="bandwidth">月流量</label>
+                            <div class="input-group has-validation">
+                                <input class="form-control{{if $.Errors.bandwidth}} is-invalid{{end}}" id="bandwidth" name="bandwidth" value="{{.Bandwidth}}" inputmode="numeric" aria-describedby="bandwidth_unit_hint">
+                                <select class="form-select flex-grow-0 w-auto{{if $.Errors.bandwidth_unit}} is-invalid{{end}}" name="bandwidth_unit" aria-label="流量单位">
+                                    <option value="GB"{{if eq .BandwidthUnit "GB"}} selected{{end}}>GB</option>
+                                    <option value="GiB"{{if eq .BandwidthUnit "GiB"}} selected{{end}}>GiB</option>
+                                </select>
+                                <div class="invalid-feedback">{{$.Errors.bandwidth}}{{$.Errors.bandwidth_unit}}</div>
+                            </div>
+                            <div class="form-hint" id="bandwidth_unit_hint">GB=10⁹ 字节，GiB=2³⁰ 字节，与服务商面板一致</div>
+                        </div>
+                        <div class="srv-span-md-half">
+                            <label class="form-label" for="bandwidth_day">流量重置日（每月）</label>
+                            <div class="input-group has-validation">
+                                <input type="number" min="1" max="31" class="form-control{{if $.Errors.bandwidth_day}} is-invalid{{end}}" id="bandwidth_day" name="bandwidth_day" value="{{.BandwidthDay}}" inputmode="numeric" aria-describedby="bandwidth_day_hint">
+                                <span class="input-group-text">日</span>
+                                <div class="invalid-feedback">{{$.Errors.bandwidth_day}}</div>
+                            </div>
+                            <div class="form-hint" id="bandwidth_day_hint">当月无该日时取最后一天；留空按 1 日</div>
+                        </div>
+                        <div class="srv-span-1">
+                            <label class="form-label" for="multiple">流量倍率</label>
+                            <input class="form-control{{if $.Errors.multiple}} is-invalid{{end}}" id="multiple" name="multiple" value="{{.Multiple}}" inputmode="decimal">
+                            <div class="invalid-feedback">{{$.Errors.multiple}}</div>
+                        </div>
+                        <div class="srv-span-1">
+                            <label class="form-label" for="cpu_cores">CPU 核数</label>
+                            <input class="form-control{{if $.Errors.cpu_cores}} is-invalid{{end}}" id="cpu_cores" name="cpu_cores" value="{{.CPUCores}}" inputmode="numeric">
+                            <div class="invalid-feedback">{{$.Errors.cpu_cores}}</div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            <div class="card-footer srv-form-footer">
+                <a href="{{$.EditReturn}}" class="btn btn-link srv-btn-cancel">取消</a>
+                <button type="submit" class="btn">保存</button>
+                <button type="submit" class="btn btn-primary" name="test" value="1">保存并测试</button>
+            </div>
+        </form>
+    </div>
+
+    {{if .ID}}
+    <aside class="srv-side">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">部署位{{if $.Placements}}<span class="badge bg-secondary-lt ms-2">{{len $.Placements}}</span>{{end}}</h3>
+                {{if $.Placements}}<form class="ms-auto" method="post" action="/admin/servers/{{$.Form.ID}}/deploy" data-confirm="将按当前配置整机重新部署并重启 sing-box，确定？"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-primary text-nowrap"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#rocket"></use></svg>部署本服务器</button></form>{{end}}
+            </div>
+            <div class="list-group list-group-flush">
+                {{range $.Placements}}
+                <div class="list-group-item srv-item srv-item-placement">
+                    <div class="srv-item-info">
+                        <div class="srv-item-head">
+                            <a href="{{navURL (printf "/admin/nodes/%d/edit" .NodeID) $.PageURL}}" class="fw-medium text-break">{{.NodeName}}</a>
+                            {{if eq .Deployed 0}}<span class="badge bg-yellow-lt">待部署</span>{{else if eq .Deployed 1}}<span class="badge bg-green-lt">已部署</span>{{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
+                            {{if .Failover}}<span class="badge bg-orange-lt">已切走</span>{{end}}
+                        </div>
+                        <div class="srv-item-meta mt-1">
+                            <span class="text-secondary small text-break">优先级 {{.Priority}} · {{or .AccessHost "使用服务器 IP"}}</span>
+                            {{with .Here}}<div class="dropdown"><button type="button" class="badge bg-blue-lt border-0 cursor-pointer" data-bs-toggle="dropdown" aria-expanded="false">当前指向 {{len .}} 个域名</button><div class="dropdown-menu p-2"><div class="d-flex flex-wrap gap-1 menu-narrow">{{range .}}<span class="badge bg-blue-lt text-wrap text-break">{{.}}</span>{{end}}</div></div></div>{{end}}
+                            {{range .Elsewhere}}<span class="badge bg-secondary-lt text-wrap text-break">指向 {{.}}</span>{{end}}
+                        </div>
+                    </div>
+                    {{if .CanSwitch}}
+                    <div class="srv-item-actions">
+                        <form method="post" action="/admin/servers/{{$.Form.ID}}/placement-switch" data-confirm="{{.NodeName}} 的域名将切到本服务器并立即执行 DNS 切换，确定？{{with .Warn}}&#10;&#10;{{.}}{{end}}"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-warning text-nowrap" name="placement" value="{{.ID}}">切到此处</button></form>
+                    </div>
+                    {{end}}
+                </div>
+                {{else}}
+                <div class="list-group-item text-secondary">暂无部署位</div>
+                {{end}}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">迁移与报废</h3></div>
+            <div class="list-group list-group-flush">
+                {{range $.MigrationTargets}}
+                <div class="list-group-item srv-item srv-item-row">
+                    <div class="srv-item-info">
+                        <div class="srv-item-head">
+                            <span class="text-break"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#route"></use></svg>迁移到 <a href="{{navURL (printf "/admin/servers/%d/edit" .ID) $.PageURL}}"><strong>{{.Name}}</strong></a></span>
+                            {{if .Pending}}<span class="badge bg-yellow-lt">{{.Pending}} 个待部署</span>{{else}}<span class="badge bg-green-lt">已部署</span>{{end}}
+                        </div>
+                        <div class="text-secondary small font-monospace mt-1 text-break">{{.IP}}</div>
+                    </div>
+                    <div class="srv-item-actions">
+                        {{if .Pending}}<form method="post" action="/admin/servers/{{.ID}}/deploy" data-confirm="请部署目标服务器：将按当前配置整机重新部署 {{.Name}} 并重启 sing-box，确定？"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-primary text-nowrap"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#rocket"></use></svg>部署目标服务器</button></form>{{end}}
+                        <form method="post" action="/admin/servers/{{$.Form.ID}}/migrate-finish" data-confirm="本服务器部署位的访问域名、DNS 记录与订阅定制将转移到 {{.Name}}，本服务器部署位标记待删除，确定完成迁移？"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-primary text-nowrap" name="target" value="{{.ID}}"{{if .Pending}} disabled{{end}}>完成迁移</button></form>
+                        <form method="post" action="/admin/servers/{{$.Form.ID}}/migrate-cancel" data-confirm="将移除本次迁移新增的目标部署位；已部署过的目标部署位将标记待删除并等待部署，确定取消迁移？" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-danger text-nowrap" name="target" value="{{.ID}}">取消迁移</button></form>
+                    </div>
+                </div>
+                {{end}}
+                {{with $.MigrateOptions}}
+                <form class="list-group-item srv-migrate-form" method="post" action="/admin/servers/{{$.Form.ID}}/migrate" data-confirm="将在目标服务器上为本服务器的全部节点添加部署位（继承优先级与订阅显示），之后需部署目标服务器，确定？">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <label class="form-label mb-0" for="migrate-target">迁移节点到</label>
+                    <div class="srv-migrate-controls">
+                        <select class="form-select" id="migrate-target" name="target" required><option value="">选择目标服务器</option>{{range .}}<option value="{{.ID}}">{{.Name}}（{{.IP}}）</option>{{end}}</select>
+                        <button class="btn text-nowrap">添加部署位</button>
+                    </div>
+                </form>
+                {{end}}
+                <form class="list-group-item srv-danger-zone srv-retire-row" method="post" action="/admin/servers/{{$.Form.ID}}/retire" data-confirm="报废将直接删除本服务器的全部部署位：不会连接服务器，远端 sing-box 配置不会清理；绑定的域名转移到同节点其他部署位。确定报废？" data-confirm-danger>
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <label class="form-check mb-0"><input type="checkbox" class="form-check-input" name="delete_server" value="1"><span class="form-check-label">同时删除服务器</span></label>
+                    <button class="btn btn-sm btn-outline-danger text-nowrap"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#trash"></use></svg>报废并强制移除</button>
+                </form>
+            </div>
+        </div>
+
+        {{if $.BlockedPorts}}
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">封禁端口<span class="badge bg-red-lt ms-2">{{len $.BlockedPorts}}</span></h3></div>
+            <div class="list-group list-group-flush">
+                {{range $.BlockedPorts}}
+                <div class="list-group-item d-flex align-items-center gap-2"><span class="me-auto font-monospace">{{.}}</span><form method="post" action="/admin/servers/{{$.Form.ID}}/unblock-port" data-confirm="解除端口 {{.}} 的防刷封禁？下次部署会清除远端防火墙规则。" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-danger text-nowrap" name="port" value="{{.}}">解除封禁</button></form></div>
+                {{end}}
+            </div>
+        </div>
+        {{end}}
+    </aside>
+    {{end}}
+</div>
+
+{{if and .ID (not .External)}}
+<div class="modal fade" id="calibrate-modal" tabindex="-1" aria-labelledby="calibrate-title" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form method="post" class="modal-content">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<input type="hidden" name="from" value="edit">
+<div class="modal-header"><h5 class="modal-title" id="calibrate-title">校准本期流量</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+<div class="modal-body"><div class="fw-bold text-break mb-3" data-calibrate-name></div>
+<label class="form-label required" for="calibrate-used">服务商面板显示的本期已用流量</label>
+<div class="input-group"><input type="number" class="form-control" id="calibrate-used" name="used" min="0" step="0.01" inputmode="decimal" required><span class="input-group-text" data-calibrate-unit></span></div>
+<div class="form-hint mt-2">仅对当前流量周期生效，下个周期自动恢复；重复校准以 vnstat 原始值为基准。</div></div>
+<div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button><button class="btn btn-primary">确认校准</button></div>
+</form></div></div>
 {{end}}
 {{end}}
 {{end}}

@@ -65,8 +65,14 @@ func TestMaintenanceFlow(t *testing.T) {
 	csrf := a.CSRFToken(c.Value)
 	v := url.Values{"csrf": {csrf}, "server_id": {"1"}, "script": {script.Name}, "hash": {script.Hash}, "confirm": {"run"}}
 	if w := do(h, "GET", "/admin/maintenance", nil, c, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "预览脚本") ||
+		!strings.Contains(w.Body.String(), `href="/admin/servers" class="btn btn-outline-secondary">返回</a>`) ||
 		!strings.Contains(w.Body.String(), `value="99-smoke.sh" data-hash="`) || strings.Count(w.Body.String(), "data-reboot-prompt") != 1 {
-		t.Fatal("维护页应只为声明 @reboot-prompt 的脚本标记重启确认", w.Code)
+		t.Fatal("维护页应包含返回按钮且只为声明 @reboot-prompt 的脚本标记重启确认", w.Code)
+	}
+	editBack := navURL("/admin/servers/1/edit", "/admin/servers")
+	if w := do(h, "GET", navURL("/admin/maintenance?server_id=1", editBack), nil, c, nil); w.Code != 200 ||
+		!strings.Contains(w.Body.String(), `href="`+editBack+`" class="btn btn-outline-secondary">返回</a>`) {
+		t.Fatal("维护页应保留传入的返回地址", w.Code)
 	}
 	noCSRF := url.Values{"server_id": {"1"}}
 	if w := do(h, "POST", "/admin/maintenance/run", noCSRF, c, nil); w.Code != 403 {

@@ -31,16 +31,20 @@ function placeFloating(floating, anchor, { alignEnd = false, gap = 6 } = {}) {
   const vh = window.visualViewport?.height || window.innerHeight;
 
   let top = rect.bottom + gap;
+  let originY = 'top';
   if (top + fh > vh - 8 && rect.top - gap - fh >= 8) {
     top = rect.top - gap - fh;
+    originY = 'bottom';
   }
   if (top < 8) top = 8;
   let left = alignEnd ? rect.right - fw : rect.left;
   if (left + fw > vw - 8) left = vw - fw - 8;
   if (left < 8) left = 8;
+  const originX = alignEnd ? 'right' : 'left';
 
   floating.style.top = `${Math.round(top)}px`;
   floating.style.left = `${Math.round(left)}px`;
+  floating.style.transformOrigin = `${originY} ${originX}`;
   floating.style.visibility = '';
 }
 
@@ -80,6 +84,7 @@ export class Dropdown {
     this.menu.style.bottom = '';
     this.menu.style.zIndex = '';
     this.menu.style.margin = '';
+    this.menu.style.transformOrigin = '';
     this.trigger.setAttribute('aria-expanded', 'false');
   }
   toggle() { this.isOpen() ? this.hide() : this.show(); }
@@ -117,12 +122,13 @@ export class Modal {
     const showEvent = new CustomEvent('show.bs.modal', { bubbles: true, cancelable: true });
     showEvent.relatedTarget = relatedTarget;
     if (!this.el.dispatchEvent(showEvent)) return;
+    this._prevFocus = relatedTarget || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     openModals = openModals.filter(m => m !== this);
     openModals.push(this);
     this.el.style.display = 'block';
     this.el.removeAttribute('aria-hidden');
     this.el.setAttribute('aria-modal', 'true');
-    this.el.setAttribute('role', 'dialog');
+    if (!this.el.hasAttribute('role')) this.el.setAttribute('role', 'dialog');
     this.el.classList.add('show');
     syncBackdrop();
     this.el.focus({ preventScroll: true });
@@ -139,6 +145,8 @@ export class Modal {
     openModals = openModals.filter(m => m !== this);
     syncBackdrop();
     this.el.dispatchEvent(new CustomEvent('hidden.bs.modal', { bubbles: true }));
+    if (this._prevFocus?.isConnected) this._prevFocus.focus({ preventScroll: true });
+    this._prevFocus = null;
   }
   dispose() { this.hide(); unstore(this.el, Modal); }
 }

@@ -64,7 +64,7 @@ func TestOperatorShortcuts(t *testing.T) {
 	a.DB.Exec(`UPDATE node_server SET deployed=1`)
 	a.DB.Exec(`DELETE FROM account_tag WHERE account_id=?`, id)
 
-	if !strings.Contains(do(h, "GET", "/admin/servers", nil, c, nil).Body.String(), `href="/admin/maintenance?server_id=7"`) {
+	if !strings.Contains(do(h, "GET", "/admin/servers", nil, c, nil).Body.String(), `href="`+strings.ReplaceAll(navURL("/admin/maintenance?server_id=7", "/admin/servers"), "&", "&amp;")+`"`) {
 		t.Fatal("服务器列表缺少初始化入口")
 	}
 	body = do(h, "GET", "/admin/maintenance?server_id=7", nil, c, nil).Body.String()

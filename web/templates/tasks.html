@@ -14,6 +14,6 @@
 </td>
 <td class="d-none d-md-table-cell text-nowrap">{{$t.Last}}</td>
 <td class="d-none d-md-table-cell text-break">{{if $t.Running}}<span class="badge bg-blue-lt">运行中</span>{{else}}{{$t.Result}}{{end}}</td>
-<td class="text-nowrap"><form method="post" action="/admin/tasks/{{$key}}/run"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-primary"{{if $t.Running}} disabled{{end}}>执行一次</button></form></td>
+<td class="text-nowrap"><form method="post" action="/admin/tasks/{{$key}}/run"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-outline-primary"{{if $t.Running}} disabled{{end}}>执行一次</button></form></td>
 </tr>{{end}}</tbody></table></div></div>
 {{end}}

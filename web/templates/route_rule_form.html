@@ -17,7 +17,7 @@
 <div class="col-12"><label for="remark" class="form-label">备注</label><input id="remark" name="remark" class="form-control" value="{{.Remark}}" maxlength="255"></div>
 <div class="col-12"><label class="form-check"><input type="checkbox" name="enabled" value="1" class="form-check-input"{{if .Enabled}} checked{{end}}><span class="form-check-label">启用</span></label></div>
 </div></div>
-<div class="card-footer"><button type="submit" class="btn btn-primary">保存</button><a href="{{$.EditReturn}}" class="btn btn-link">取消</a></div>
+<div class="card-footer text-end"><a href="{{$.EditReturn}}" class="btn btn-link">取消</a><button type="submit" class="btn btn-primary">保存</button></div>
 </form>
 {{end}}
 {{end}}

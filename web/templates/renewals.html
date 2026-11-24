@@ -16,7 +16,7 @@
 <td class="d-none d-md-table-cell">{{if eq .Table "server"}}<span class="badge bg-blue-lt">服务器</span>{{else}}<span class="badge bg-purple-lt">域名</span>{{end}}</td>
 <td class="d-none d-md-table-cell text-nowrap">{{if .ExpireDate}}<span class="{{if lt .ExpireDate $.Today}}text-danger{{else if lt .ExpireDate $.Soon}}text-warning{{end}}">{{.ExpireDate}}</span>{{else}}<span class="text-secondary">未设置</span>{{end}}</td>
 <td class="d-none d-md-table-cell">{{if .Price}}{{cents .Price}} /{{if eq .PriceMonths 1}}月{{else}}年{{end}}{{else}}<span class="text-secondary">未设置</span>{{end}}</td>
-<td class="text-nowrap"><button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#renew-modal" data-renew data-table="{{.Table}}" data-id="{{.ID}}" data-name="{{.Name}}" data-expire="{{.ExpireDate}}"{{if .Price}} data-price="{{.Price}}" data-price-months="{{.PriceMonths}}"{{end}}>续费</button></td>
+<td class="text-nowrap"><button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#renew-modal" data-renew data-table="{{.Table}}" data-id="{{.ID}}" data-name="{{.Name}}" data-expire="{{.ExpireDate}}"{{if .Price}} data-price="{{.Price}}" data-price-months="{{.PriceMonths}}"{{end}}>续费</button></td>
 </tr>{{else}}<tr><td colspan="5" class="text-center text-secondary py-4">暂无服务器或域名</td></tr>{{end}}</tbody></table></div></div>
 <div class="modal fade" id="renew-modal" tabindex="-1" aria-labelledby="renew-title" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form method="post" action="/admin/renewals" class="modal-content">
 <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="table"><input type="hidden" name="id">

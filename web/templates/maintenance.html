@@ -1,3 +1,4 @@
+{{define "actions"}}<a href="{{.EditReturn}}" class="btn btn-outline-secondary">返回</a>{{end}}
 {{define "content"}}
 <form class="card" data-maintenance-batch{{if .Preselect}} data-maintenance-init{{end}}>
 <input type="hidden" name="csrf" value="{{.CSRF}}">

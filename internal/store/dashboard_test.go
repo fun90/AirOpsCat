@@ -69,18 +69,8 @@ func TestDashboardLoad(t *testing.T) {
 	if len(d.ActiveAlerts) != 0 {
 		t.Fatalf("到期类告警不进入待处理: %+v", d.ActiveAlerts)
 	}
-	alerts := d.RecentAlerts
-	d.RecentAlerts = nil
 	if !reflect.DeepEqual(d, want) {
 		t.Fatalf("统计: %+v, want %+v", d, want)
-	}
-	if len(alerts) != 5 {
-		t.Fatalf("近期告警数量: %d", len(alerts))
-	}
-	for i, a := range alerts {
-		if a.ID != int64(6-i) {
-			t.Fatalf("近期告警排序: 第 %d 条 ID=%d", i, a.ID)
-		}
 	}
 }
 

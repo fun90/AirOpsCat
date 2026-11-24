@@ -2,17 +2,19 @@ package web
 
 import (
 	"cmp"
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/fun90/airopscat/internal/geo"
+	"github.com/fun90/airopscat/internal/guard"
 	"github.com/fun90/airopscat/internal/store"
 )
-
-// dashboardHealthLimit 是概览「服务器健康」最多展示的台数，其余到监控页查看。
-const dashboardHealthLimit = 8
 
 // dashAlert 是概览中的一条告警，带处理入口与相对时间。
 type dashAlert struct {
@@ -36,11 +38,91 @@ type dashRenewal struct {
 	dashExpiry
 }
 
-// dashHealth 是概览的服务器健康行；Level 3 故障、2 警告、1 无数据、0 正常。
-type dashHealth struct {
-	statusView
-	Level int
-	Issue string
+// dashFlowCountry 表示全球地图或下钻左列中的一个国家节点。
+type dashFlowCountry struct {
+	Code           string  `json:"code"`
+	Name           string  `json:"name"`
+	Lon            float64 `json:"lon"`
+	Lat            float64 `json:"lat"`
+	Accounts       int     `json:"accounts"`
+	Connections    int64   `json:"connections"`
+	PlacementCount int     `json:"placementCount,omitempty"`
+	ServerCount    int     `json:"serverCount,omitempty"`
+}
+
+// dashCountryFlow 表示全球地图上「账户国家 → 服务器国家」的一条聚合连线。
+type dashCountryFlow struct {
+	From        string `json:"from"`
+	To          string `json:"to"`
+	Accounts    int    `json:"accounts"`
+	Connections int64  `json:"connections"`
+	Weight      int    `json:"weight"`
+}
+
+// dashFlowPlacement 表示下钻中列的一个在线部署位（节点 × 服务器）。
+type dashFlowPlacement struct {
+	Key             string `json:"key"`
+	NodeID          int64  `json:"nodeId"`
+	ServerIP        string `json:"serverIp"`
+	SubName         string `json:"subName"`
+	Domain          string `json:"domain"`
+	DomainTitle     string `json:"domainTitle"`
+	Port            int    `json:"port"`
+	Accounts        int    `json:"accounts"`
+	Connections     int64  `json:"connections"`
+	ConnKnown       bool   `json:"connKnown"`
+	EditURL         string `json:"editUrl"`
+	ClientCountries []string `json:"clientCountries"`
+}
+
+// dashFlowServer 表示下钻右列的一台在线服务器。
+type dashFlowServer struct {
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	IP          string `json:"ip"`
+	Country     string `json:"country"`
+	Accounts    int    `json:"accounts"`
+	Connections int64  `json:"connections"`
+	EditURL     string `json:"editUrl"`
+}
+
+// dashClientPlacementLink 表示下钻视图左→中连线（账户国家 → 部署位）。
+type dashClientPlacementLink struct {
+	Country     string `json:"country"`
+	Placement   string `json:"placement"`
+	Accounts    int    `json:"accounts"`
+	Connections int64  `json:"connections"`
+	Weight      int    `json:"weight"`
+}
+
+// dashPlacementServerLink 表示下钻视图中→右连线（部署位 → 服务器）。
+type dashPlacementServerLink struct {
+	Placement   string `json:"placement"`
+	ServerIP    string `json:"serverIp"`
+	Accounts    int    `json:"accounts"`
+	Connections int64  `json:"connections"`
+	Weight      int    `json:"weight"`
+}
+
+// dashCountryDetail 是点击某服务器国家后的下钻视图数据。
+type dashCountryDetail struct {
+	Country         dashFlowCountry           `json:"country"`
+	ClientCountries []dashFlowCountry         `json:"clientCountries"`
+	Placements      []dashFlowPlacement       `json:"placements"`
+	Servers         []dashFlowServer          `json:"servers"`
+	ClientLinks     []dashClientPlacementLink `json:"clientLinks"`
+	ServerLinks     []dashPlacementServerLink `json:"serverLinks"`
+}
+
+// dashTopology 是概览「运行情况」全球地图与国家下钻拓扑图的渲染模型。
+type dashTopology struct {
+	ClientCountries []dashFlowCountry            `json:"clientCountries"`
+	ServerCountries []dashFlowCountry            `json:"serverCountries"`
+	CountryFlows    []dashCountryFlow            `json:"countryFlows"`
+	Details         map[string]dashCountryDetail `json:"details"`
+	PlacementCount  int                          `json:"placementCount"`
+	ServerCount     int                          `json:"serverCount"`
+	DataJSON        string                       `json:"-"`
 }
 
 func newDashAlert(a store.Alert, now time.Time) dashAlert {
@@ -95,29 +177,452 @@ func renewalLeft(expire string, now time.Time) dashExpiry {
 	return dashExpiry{fmt.Sprintf("%d 天后", days), false}
 }
 
-// healthOf 判定服务器健康等级；alert 为该服务器进行中的告警类型名。
-// 指标阈值与监控页的视觉提示一致，告警仍以告警规则为准。
-func healthOf(v statusView, alert string) dashHealth {
-	h := dashHealth{statusView: v}
-	switch {
-	case v.SingboxDown != nil && *v.SingboxDown:
-		h.Level, h.Issue = 3, "sing-box 已停止"
-	case v.Stale:
-		h.Level, h.Issue = 3, "上报中断"
-	case alert != "":
-		h.Level, h.Issue = 2, alert
-	case v.UsagePct >= 85:
-		h.Level, h.Issue = 2, "流量 "+v.UsagePctText
-	case v.CPU != nil && *v.CPU >= 0.9:
-		h.Level, h.Issue = 2, "CPU "+v.CPUText
-	case v.Memory != nil && *v.Memory >= 0.95:
-		h.Level, h.Issue = 2, "内存 "+v.MemText
-	case v.Disk != nil && *v.Disk >= 0.9:
-		h.Level, h.Issue = 2, "磁盘 "+v.DiskText
-	case v.Sampled == "":
-		h.Level, h.Issue = 1, "暂无监控数据"
+func appendUniqueDash(list []string, v string) []string {
+	if v == "" || slices.Contains(list, v) {
+		return list
 	}
-	return h
+	return append(list, v)
+}
+
+func formatDomainSummary(hosts []string) (display, title string) {
+	if len(hosts) == 0 {
+		return "", ""
+	}
+	if len(hosts) == 1 {
+		return hosts[0], hosts[0]
+	}
+	return fmt.Sprintf("%s +%d", hosts[0], len(hosts)-1), strings.Join(hosts, "、")
+}
+
+func topologyWeight(accounts, maxAccounts int) int {
+	if maxAccounts <= 1 || accounts <= 1 {
+		return 1
+	}
+	r := float64(accounts) / float64(maxAccounts)
+	switch {
+	case r >= 0.75:
+		return 4
+	case r >= 0.45:
+		return 3
+	case r >= 0.2:
+		return 2
+	default:
+		return 1
+	}
+}
+
+// buildDashTopology 从实时在线快照提取两级运行情况图数据：
+// 层级一为全球地图（账户国家 → 服务器国家）；层级二为服务器国家下钻（账户国家 → 部署位 → 服务器）。
+func (s *Server) buildDashTopology(ctx context.Context, snap guard.Snapshot, pageURL string) (dashTopology, error) {
+	type placementKey struct {
+		nodeID   int64
+		serverIP string
+	}
+	type tagEvent struct {
+		account   string
+		nodeID    int64
+		serverIP  string
+		conns     int64
+		connKnown bool
+		srcCodes  []string
+	}
+
+	var events []tagEvent
+	nodeIDSet := map[int64]bool{}
+	serverIPSet := map[string]bool{}
+	for accKey, acc := range snap.Accounts {
+		for _, t := range acc.Tags {
+			if !strings.HasPrefix(t.Tag, "node_") || t.ServerIP == "" {
+				continue
+			}
+			nodeID, err := strconv.ParseInt(strings.TrimPrefix(t.Tag, "node_"), 10, 64)
+			if err != nil || nodeID <= 0 {
+				continue
+			}
+			var srcCodes []string
+			for _, cip := range t.IPs {
+				srcCodes = appendUniqueDash(srcCodes, geo.LookupIP(cip).Code)
+			}
+			if len(srcCodes) == 0 {
+				srcCodes = []string{geo.UnknownCountry.Code}
+			}
+			events = append(events, tagEvent{
+				account:   accKey,
+				nodeID:    nodeID,
+				serverIP:  t.ServerIP,
+				conns:     t.Connections,
+				connKnown: t.ConnKnown,
+				srcCodes:  srcCodes,
+			})
+			nodeIDSet[nodeID] = true
+			serverIPSet[t.ServerIP] = true
+		}
+	}
+	if len(events) == 0 {
+		return dashTopology{}, nil
+	}
+
+	nodeIDs := make([]int64, 0, len(nodeIDSet))
+	for id := range nodeIDSet {
+		nodeIDs = append(nodeIDs, id)
+	}
+	serverIPs := make([]string, 0, len(serverIPSet))
+	for ip := range serverIPSet {
+		serverIPs = append(serverIPs, ip)
+	}
+
+	meta, err := store.OnlineTopologyMeta(ctx, s.DB, nodeIDs, serverIPs)
+	if err != nil {
+		return dashTopology{}, err
+	}
+
+	// 解析每台服务器所属国家
+	serverCountry := make(map[string]geo.Country, len(serverIPs))
+	serverByIP := make(map[string]dashFlowServer, len(serverIPs))
+	for _, ip := range serverIPs {
+		sm := meta.Servers[ip]
+		sv := snap.Servers[ip]
+		name := sm.Name
+		if name == "" {
+			name = ip
+		}
+		c := geo.ServerCountry(sm.Region, name, ip)
+		serverCountry[ip] = c
+		editURL := ""
+		if sm.ID > 0 {
+			editURL = navURL(fmt.Sprintf("/admin/servers/%d/edit", sm.ID), pageURL)
+		}
+		serverByIP[ip] = dashFlowServer{
+			ID:          sm.ID,
+			Name:        name,
+			IP:          ip,
+			Country:     c.Code,
+			Accounts:    sv.Accounts,
+			Connections: sv.Connections,
+			EditURL:     editURL,
+		}
+	}
+
+	type accAgg struct {
+		accounts  map[string]bool
+		conns     int64
+		connKnown bool
+	}
+	addAgg := func(m map[string]*accAgg, key, acc string, conns int64, connKnown bool) {
+		a := m[key]
+		if a == nil {
+			a = &accAgg{accounts: map[string]bool{}, connKnown: true}
+			m[key] = a
+		}
+		a.accounts[acc] = true
+		a.conns += conns
+		a.connKnown = a.connKnown && connKnown
+	}
+
+	// 全局聚合：账户国家、服务器国家、国家间连线
+	globalClients := map[string]*accAgg{}
+	globalServers := map[string]*accAgg{}
+	countryFlowKey := func(from, to string) string { return from + "->" + to }
+	globalFlows := map[string]*accAgg{}
+
+	// 按部署位聚合
+	placementAgg := map[placementKey]*accAgg{}
+	placementClients := map[placementKey]map[string]*accAgg{}
+
+	// 按服务器国家分组：账户国家汇总、涉及的部署位和服务器集合
+	detailClients := map[string]map[string]*accAgg{}
+	detailPlacements := map[string]map[placementKey]bool{}
+	detailServers := map[string]map[string]bool{}
+
+	for _, ev := range events {
+		dstCode := serverCountry[ev.serverIP].Code
+		pk := placementKey{nodeID: ev.nodeID, serverIP: ev.serverIP}
+
+		pa := placementAgg[pk]
+		if pa == nil {
+			pa = &accAgg{accounts: map[string]bool{}, connKnown: true}
+			placementAgg[pk] = pa
+		}
+		pa.accounts[ev.account] = true
+		pa.conns += ev.conns
+		pa.connKnown = pa.connKnown && ev.connKnown
+
+		addAgg(globalServers, dstCode, ev.account, ev.conns, ev.connKnown)
+		if detailPlacements[dstCode] == nil {
+			detailPlacements[dstCode] = map[placementKey]bool{}
+			detailServers[dstCode] = map[string]bool{}
+			detailClients[dstCode] = map[string]*accAgg{}
+		}
+		detailPlacements[dstCode][pk] = true
+		detailServers[dstCode][ev.serverIP] = true
+
+		if placementClients[pk] == nil {
+			placementClients[pk] = map[string]*accAgg{}
+		}
+		for _, srcCode := range ev.srcCodes {
+			addAgg(globalClients, srcCode, ev.account, ev.conns, ev.connKnown)
+			addAgg(globalFlows, countryFlowKey(srcCode, dstCode), ev.account, ev.conns, ev.connKnown)
+			addAgg(detailClients[dstCode], srcCode, ev.account, ev.conns, ev.connKnown)
+			addAgg(placementClients[pk], srcCode, ev.account, ev.conns, ev.connKnown)
+		}
+	}
+
+	// 组装全球源国家（账户国家）
+	clientCountries := make([]dashFlowCountry, 0, len(globalClients))
+	for code, a := range globalClients {
+		c := geo.CountryByCode(code)
+		clientCountries = append(clientCountries, dashFlowCountry{
+			Code:        c.Code,
+			Name:        c.Name,
+			Lon:         c.Lon,
+			Lat:         c.Lat,
+			Accounts:    len(a.accounts),
+			Connections: a.conns,
+		})
+	}
+	slices.SortStableFunc(clientCountries, func(a, b dashFlowCountry) int {
+		if c := cmp.Compare(b.Accounts, a.Accounts); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(b.Connections, a.Connections); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Code, b.Code)
+	})
+
+	// 组装全球目标国家（服务器国家）
+	serverCountries := make([]dashFlowCountry, 0, len(globalServers))
+	serverCountryByCode := make(map[string]dashFlowCountry, len(globalServers))
+	for code, a := range globalServers {
+		c := geo.CountryByCode(code)
+		item := dashFlowCountry{
+			Code:           c.Code,
+			Name:           c.Name,
+			Lon:            c.Lon,
+			Lat:            c.Lat,
+			Accounts:       len(a.accounts),
+			Connections:    a.conns,
+			PlacementCount: len(detailPlacements[code]),
+			ServerCount:    len(detailServers[code]),
+		}
+		serverCountries = append(serverCountries, item)
+		serverCountryByCode[code] = item
+	}
+	slices.SortStableFunc(serverCountries, func(a, b dashFlowCountry) int {
+		if c := cmp.Compare(b.Accounts, a.Accounts); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(b.Connections, a.Connections); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Code, b.Code)
+	})
+
+	// 组装全球国家连线
+	maxFlowAcc := 0
+	for _, a := range globalFlows {
+		if n := len(a.accounts); n > maxFlowAcc {
+			maxFlowAcc = n
+		}
+	}
+	countryFlows := make([]dashCountryFlow, 0, len(globalFlows))
+	for key, a := range globalFlows {
+		from, to, _ := strings.Cut(key, "->")
+		countryFlows = append(countryFlows, dashCountryFlow{
+			From:        from,
+			To:          to,
+			Accounts:    len(a.accounts),
+			Connections: a.conns,
+			Weight:      topologyWeight(len(a.accounts), maxFlowAcc),
+		})
+	}
+	slices.SortStableFunc(countryFlows, func(a, b dashCountryFlow) int {
+		if c := cmp.Compare(b.Accounts, a.Accounts); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(b.Connections, a.Connections); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(a.From, b.From); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.To, b.To)
+	})
+
+	// 组装每个服务器国家的下钻详情（账户国家 → 部署位 → 服务器）
+	details := make(map[string]dashCountryDetail, len(serverCountries))
+	for _, sc := range serverCountries {
+		dstCode := sc.Code
+
+		// 1) 右列：该国家的服务器
+		srvs := make([]dashFlowServer, 0, len(detailServers[dstCode]))
+		for ip := range detailServers[dstCode] {
+			srvs = append(srvs, serverByIP[ip])
+		}
+		slices.SortStableFunc(srvs, func(a, b dashFlowServer) int {
+			if c := cmp.Compare(b.Accounts, a.Accounts); c != 0 {
+				return c
+			}
+			if c := cmp.Compare(b.Connections, a.Connections); c != 0 {
+				return c
+			}
+			if c := cmp.Compare(a.Name, b.Name); c != 0 {
+				return c
+			}
+			return cmp.Compare(a.IP, b.IP)
+		})
+		srvRank := make(map[string]int, len(srvs))
+		for i, sv := range srvs {
+			srvRank[sv.IP] = i
+		}
+
+		// 2) 左列：访问该服务器国家的账户国家
+		cls := make([]dashFlowCountry, 0, len(detailClients[dstCode]))
+		for srcCode, a := range detailClients[dstCode] {
+			c := geo.CountryByCode(srcCode)
+			cls = append(cls, dashFlowCountry{
+				Code:        c.Code,
+				Name:        c.Name,
+				Lon:         c.Lon,
+				Lat:         c.Lat,
+				Accounts:    len(a.accounts),
+				Connections: a.conns,
+			})
+		}
+		slices.SortStableFunc(cls, func(a, b dashFlowCountry) int {
+			if c := cmp.Compare(b.Accounts, a.Accounts); c != 0 {
+				return c
+			}
+			if c := cmp.Compare(b.Connections, a.Connections); c != 0 {
+				return c
+			}
+			return cmp.Compare(a.Code, b.Code)
+		})
+		clientRank := make(map[string]int, len(cls))
+		for i, cl := range cls {
+			clientRank[cl.Code] = i
+		}
+
+		// 3) 中列：该国家的在线部署位
+		pls := make([]dashFlowPlacement, 0, len(detailPlacements[dstCode]))
+		maxPLAcc := 0
+		maxCLAcc := 0
+		for pk := range detailPlacements[dstCode] {
+			pa := placementAgg[pk]
+			if len(pa.accounts) > maxPLAcc {
+				maxPLAcc = len(pa.accounts)
+			}
+			for _, ca := range placementClients[pk] {
+				if len(ca.accounts) > maxCLAcc {
+					maxCLAcc = len(ca.accounts)
+				}
+			}
+			nm := meta.Nodes[pk.nodeID]
+			subName := nm.SubNamesByServer[pk.serverIP]
+			if subName == "" && len(nm.FallbackSubNames) > 0 {
+				subName = nm.FallbackSubNames[0]
+			}
+			if subName == "" {
+				if nm.Name != "" {
+					subName = store.NodeNameWithNumber(nm.Name)
+				} else {
+					subName = fmt.Sprintf("节点 #%d", pk.nodeID)
+				}
+			}
+			var hosts []string
+			for _, h := range nm.PointedHostsByServer[pk.serverIP] {
+				hosts = appendUniqueDash(hosts, h)
+			}
+			if h := nm.HostsByServer[pk.serverIP]; h != "" {
+				hosts = appendUniqueDash(hosts, h)
+			}
+			if len(hosts) == 0 {
+				hosts = nm.FallbackHosts
+			}
+			domain, domainTitle := formatDomainSummary(hosts)
+
+			cCodes := make([]string, 0, len(placementClients[pk]))
+			for code := range placementClients[pk] {
+				cCodes = append(cCodes, code)
+			}
+			slices.SortStableFunc(cCodes, func(a, b string) int {
+				return cmp.Compare(clientRank[a], clientRank[b])
+			})
+
+			pls = append(pls, dashFlowPlacement{
+				Key:             fmt.Sprintf("%d@%s", pk.nodeID, pk.serverIP),
+				NodeID:          pk.nodeID,
+				ServerIP:        pk.serverIP,
+				SubName:         subName,
+				Domain:          domain,
+				DomainTitle:     domainTitle,
+				Port:            nm.Port,
+				Accounts:        len(pa.accounts),
+				Connections:     pa.conns,
+				ConnKnown:       pa.connKnown,
+				EditURL:         navURL(fmt.Sprintf("/admin/nodes/%d/edit", pk.nodeID), pageURL),
+				ClientCountries: cCodes,
+			})
+		}
+		// 按目标服务器顺序 + 在线账号数降序排列，减少中→右连线交叉
+		slices.SortStableFunc(pls, func(a, b dashFlowPlacement) int {
+			if c := cmp.Compare(srvRank[a.ServerIP], srvRank[b.ServerIP]); c != 0 {
+				return c
+			}
+			if c := cmp.Compare(b.Accounts, a.Accounts); c != 0 {
+				return c
+			}
+			if c := cmp.Compare(b.Connections, a.Connections); c != 0 {
+				return c
+			}
+			return cmp.Compare(a.NodeID, b.NodeID)
+		})
+
+		// 4) 两段连线：账户国家 → 部署位、部署位 → 服务器
+		var clientLinks []dashClientPlacementLink
+		var serverLinks []dashPlacementServerLink
+		for _, pl := range pls {
+			pk := placementKey{nodeID: pl.NodeID, serverIP: pl.ServerIP}
+			for _, srcCode := range pl.ClientCountries {
+				ca := placementClients[pk][srcCode]
+				clientLinks = append(clientLinks, dashClientPlacementLink{
+					Country:     srcCode,
+					Placement:   pl.Key,
+					Accounts:    len(ca.accounts),
+					Connections: ca.conns,
+					Weight:      topologyWeight(len(ca.accounts), maxCLAcc),
+				})
+			}
+			serverLinks = append(serverLinks, dashPlacementServerLink{
+				Placement:   pl.Key,
+				ServerIP:    pl.ServerIP,
+				Accounts:    pl.Accounts,
+				Connections: pl.Connections,
+				Weight:      topologyWeight(pl.Accounts, maxPLAcc),
+			})
+		}
+
+		details[dstCode] = dashCountryDetail{
+			Country:         sc,
+			ClientCountries: cls,
+			Placements:      pls,
+			Servers:         srvs,
+			ClientLinks:     clientLinks,
+			ServerLinks:     serverLinks,
+		}
+	}
+
+	topo := dashTopology{
+		ClientCountries: clientCountries,
+		ServerCountries: serverCountries,
+		CountryFlows:    countryFlows,
+		Details:         details,
+		PlacementCount:  len(placementAgg),
+		ServerCount:     len(serverIPs),
+	}
+	raw, _ := json.Marshal(topo)
+	topo.DataJSON = string(raw)
+	return topo, nil
 }
 
 func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
@@ -137,11 +642,6 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	statuses, _, err := store.ServerStatuses(ctx, s.DB, "", 1, 100000, now)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
 	local := now.In(store.Shanghai)
 	monthStart := time.Date(local.Year(), local.Month(), 1, 0, 0, 0, 0, store.Shanghai)
 	monthEnd := monthStart.AddDate(0, 1, 0).Add(-time.Second)
@@ -154,10 +654,6 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	active := make([]dashAlert, len(stats.ActiveAlerts))
 	for i, a := range stats.ActiveAlerts {
 		active[i] = newDashAlert(a, now)
-	}
-	recent := make([]dashAlert, len(stats.RecentAlerts))
-	for i, a := range stats.RecentAlerts {
-		recent[i] = newDashAlert(a, now)
 	}
 	accounts := make([]dashAccount, len(stats.ExpiringAccounts))
 	for i, a := range stats.ExpiringAccounts {
@@ -175,33 +671,6 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		todo++
 	}
 
-	serverAlert := map[int64]string{}
-	for _, a := range active {
-		if a.ResourceType == "server" && serverAlert[a.ResourceID] == "" {
-			serverAlert[a.ResourceID] = a.TypeName
-		}
-	}
-	health := make([]dashHealth, len(statuses))
-	var healthBad int
-	for i, st := range statuses {
-		v := newStatusView(st, now)
-		if _, ok := snap.Servers[st.IP]; ok {
-			v.Online = serverOnlineText(snap, st.IP)
-		}
-		health[i] = healthOf(v, serverAlert[st.ID])
-		if health[i].Level >= 2 {
-			healthBad++
-		}
-	}
-	slices.SortStableFunc(health, func(a, b dashHealth) int {
-		if c := cmp.Compare(b.Level, a.Level); c != 0 {
-			return c
-		}
-		return cmp.Compare(b.UsagePct, a.UsagePct)
-	})
-	healthTotal := len(health)
-	health = health[:min(len(health), dashboardHealthLimit)]
-
 	var latest time.Time
 	for _, sv := range snap.Servers {
 		if sv.At.After(latest) {
@@ -209,9 +678,15 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	d := s.pageData(r, "概览", "dashboard")
+	pageURL, _ := d["PageURL"].(string)
+	topo, err := s.buildDashTopology(ctx, snap, pageURL)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	d["Stats"], d["Days"], d["Online"] = stats, days, s.onlineSummaryFor(snap)
-	d["ActiveAlerts"], d["RecentAlerts"], d["Accounts"], d["Renewals"], d["Todo"] = active, recent, accounts, renewals, todo
-	d["Health"], d["HealthTotal"], d["HealthBad"] = health, healthTotal, healthBad
+	d["ActiveAlerts"], d["Accounts"], d["Renewals"], d["Todo"] = active, accounts, renewals, todo
+	d["Topology"] = topo
 	d["Money"], d["Month"] = money, int(local.Month())
 	if !latest.IsZero() {
 		d["OnlineAt"] = latest.In(store.Shanghai).Format("15:04")

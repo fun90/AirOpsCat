@@ -10,5 +10,5 @@
 <div class="col-6 col-md-4"><label for="expire_date" class="form-label">到期日</label><input id="expire_date" name="expire_date" type="date" class="form-control" value="{{.ExpireDate}}"></div>
 <div class="col-6 col-md-4"><label for="price" class="form-label">价格（元）</label><input id="price" name="price" inputmode="decimal" class="form-control" value="{{.PriceText}}"></div>
 <div class="col-12"><label for="remark" class="form-label">备注</label><input id="remark" name="remark" maxlength="255" class="form-control" value="{{.Remark}}"></div>
-</div></div><div class="card-footer"><button type="submit" class="btn btn-primary">保存</button><a href="{{$.EditReturn}}" class="btn btn-link">取消</a></div></form>
+</div></div><div class="card-footer text-end"><a href="{{$.EditReturn}}" class="btn btn-link">取消</a><button type="submit" class="btn btn-primary">保存</button></div></form>
 {{end}}{{end}}

@@ -129,12 +129,14 @@ func (s *Server) serverConfigPreview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serverPing(w http.ResponseWriter, r *http.Request) {
+	id := idFrom(r)
+	back := serverActionReturn(r, id)
 	ctx := r.Context()
-	if err := s.Deployer.Ping(ctx, idFrom(r)); err != nil {
-		redirectMsg(w, r, "/admin/servers", "err", "SSH 连接失败："+err.Error())
+	if err := s.Deployer.Ping(ctx, id); err != nil {
+		redirectMsg(w, r, back, "err", "SSH 连接失败："+err.Error())
 		return
 	}
-	redirectMsg(w, r, "/admin/servers", "msg", "SSH 连接正常")
+	redirectMsg(w, r, back, "msg", "SSH 连接正常")
 }
 
 // serverReboot 重启服务器主机。重启会清零 sing-box 计数，持锁先采集一次流量。
@@ -160,7 +162,7 @@ func (s *Server) serverReboot(w http.ResponseWriter, r *http.Request) {
 		if status != http.StatusOK {
 			key = "err"
 		}
-		redirectMsg(w, r, "/admin/servers", key, msg)
+		redirectMsg(w, r, serverActionReturn(r, id), key, msg)
 	}
 	if t.External {
 		reply(http.StatusUnprocessableEntity, "外部服务器不支持重启")
@@ -181,9 +183,10 @@ func (s *Server) serverReboot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serverClearHostKey(w http.ResponseWriter, r *http.Request) {
-	if err := store.ClearHostKey(r.Context(), s.DB, idFrom(r)); err != nil {
+	id := idFrom(r)
+	if err := store.ClearHostKey(r.Context(), s.DB, id); err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	redirectMsg(w, r, "/admin/servers", "msg", "已清除主机密钥，下次连接将重新信任")
+	redirectMsg(w, r, serverActionReturn(r, id), "msg", "已清除主机密钥，下次连接将重新信任")
 }

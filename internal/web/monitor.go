@@ -368,9 +368,10 @@ func (s *Server) serverCalibrateTraffic(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	back := serverActionReturn(r, id)
 	used, err := strconv.ParseFloat(strings.TrimSpace(r.PostFormValue("used")), 64)
 	if err != nil || math.IsNaN(used) || used < 0 || used > 1e9 {
-		redirectMsg(w, r, "/admin/servers", "err", "请填写有效的已用流量")
+		redirectMsg(w, r, back, "err", "请填写有效的已用流量")
 		return
 	}
 	var unit string
@@ -381,13 +382,13 @@ func (s *Server) serverCalibrateTraffic(w http.ResponseWriter, r *http.Request) 
 	unit = store.BandwidthUnitOrDefault(unit)
 	if err := store.CalibrateServerTraffic(r.Context(), s.DB, id, int64(used*store.UnitBytes(unit)), time.Now()); err != nil {
 		if errors.Is(err, store.ErrInvalid) {
-			redirectMsg(w, r, "/admin/servers", "err", err.Error())
+			redirectMsg(w, r, back, "err", err.Error())
 			return
 		}
 		s.fail(w, r, err)
 		return
 	}
-	redirectMsg(w, r, "/admin/servers", "msg", fmt.Sprintf("本周期流量已校准为 %s %s", strconv.FormatFloat(used, 'f', -1, 64), unit))
+	redirectMsg(w, r, back, "msg", fmt.Sprintf("本周期流量已校准为 %s %s", strconv.FormatFloat(used, 'f', -1, 64), unit))
 }
 
 func (s *Server) monitorList(w http.ResponseWriter, r *http.Request) {

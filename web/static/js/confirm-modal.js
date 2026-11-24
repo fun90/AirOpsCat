@@ -7,6 +7,7 @@ let dialog, modal, pending;
 function build() {
     dialog = document.createElement('div');
     dialog.className = 'modal fade';
+    dialog.setAttribute('role', 'alertdialog');
     dialog.tabIndex = -1;
     dialog.innerHTML = '<div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content"><div class="modal-body text-break" data-confirm-text></div><div class="modal-footer"><button type="button" class="btn me-auto" data-bs-dismiss="modal">取消</button><button type="button" class="btn" data-confirm-ok>确定</button></div></div></div>';
     document.body.appendChild(dialog);
