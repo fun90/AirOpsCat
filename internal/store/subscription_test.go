@@ -69,6 +69,18 @@ func TestSubscriptionBindingKeepsAllPlacements(t *testing.T) {
 	if err != nil || len(nodes) != 2 {
 		t.Fatal(len(nodes), err)
 	}
+	// 已发布的定制域名待更新时，隐藏部署位仍通过域名下发。
+	mustExec(t, db, `UPDATE node_server SET exposed=0 WHERE node_id=?`, nid)
+	mustExec(t, db, `INSERT INTO domain(id,domain) VALUES(1,'example.test')`)
+	mustExec(t, db, `INSERT INTO domain_dns_record(id,domain_id,name,full_name,type,content,status,external_record_id) VALUES(1,1,'custom','custom.example.test','A','192.0.2.1','PENDING_UPDATE','ext1')`)
+	mustExec(t, db, `UPDATE account_node_subscription_domain_binding SET domain_dns_record_id=1 WHERE id=1`)
+	nodes, err = SubscriptionNodes(ctx, db, a, nil)
+	if err != nil || len(nodes) != 1 || nodes[0]["serverHost"] != "custom.example.test" {
+		t.Fatalf("已发布域名待更新时应继续按域名下发: %v %v", nodes, err)
+	}
+	if direct, err := IPOnlyPlacements(ctx, db); err != nil || len(direct) != 0 {
+		t.Fatalf("使用已发布定制域名的隐藏部署位不应报直连: %v %v", direct, err)
+	}
 }
 
 func TestSubscriptionSnapshotBoundaryFilters(t *testing.T) {

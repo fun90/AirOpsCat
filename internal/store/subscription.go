@@ -31,6 +31,9 @@ func SubscriptionAccount(ctx context.Context, db *sql.DB, code string) (*Account
 	return a, nil, nil
 }
 
+// 已发布的定制域名在待更新期间继续用于订阅，切换只需更新其 DNS 解析。
+const subscriptionBindingHost = `(coalesce(r.status,'') = 'SYNCED' OR (r.status = 'PENDING_UPDATE' AND coalesce(r.external_record_id,'') <> '')) AND trim(coalesce(r.full_name,'')) <> ''`
+
 type subscriptionEntry struct {
 	nodeID, placementID, serverID int64
 	name, host                    string
@@ -136,7 +139,7 @@ func SubscriptionNodes(ctx context.Context, db *sql.DB, a *Account, multiple *in
 		}
 		if b.RecordID != nil {
 			var name string
-			if err := db.QueryRowContext(ctx, `SELECT coalesce(full_name,'') FROM domain_dns_record WHERE id=? AND status='SYNCED'`, *b.RecordID).Scan(&name); err != nil && err != sql.ErrNoRows {
+			if err := db.QueryRowContext(ctx, `SELECT r.full_name FROM domain_dns_record r WHERE r.id=? AND `+subscriptionBindingHost, *b.RecordID).Scan(&name); err != nil && err != sql.ErrNoRows {
 				return nil, err
 			}
 			if strings.TrimSpace(name) != "" {

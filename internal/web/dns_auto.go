@@ -92,7 +92,13 @@ func (s *Server) autoDNSDomain(ctx context.Context, id int64, switched *[]string
 					continue
 				}
 				found = true
-				if v.Content == r.Operation.Target {
+				matches := v.Content == r.Operation.Target
+				if r.Status == store.DNSPendingUpdate {
+					matches = matches && strings.EqualFold(v.Name, r.FullName) && v.Type == r.Type &&
+						v.TTL != nil && *v.TTL == r.TTL && v.Proxied != nil && *v.Proxied == r.Proxied &&
+						(r.Remark == "" || v.Comment == r.Remark)
+				}
+				if matches {
 					if err := store.FinishDNSOperation(ctx, s.DB, r.Operation, true); err != nil {
 						return err
 					}
@@ -136,7 +142,8 @@ func (s *Server) autoDNSDomain(ctx context.Context, id int64, switched *[]string
 		if p.Target == r.Content && p.Home == r.PlanInput.Home {
 			continue
 		}
-		if p.Target != r.Content {
+		push := p.Target != r.Content || r.Status == store.DNSPendingUpdate
+		if push {
 			if err := client(); err != nil {
 				return err
 			}
@@ -145,9 +152,13 @@ func (s *Server) autoDNSDomain(ctx context.Context, id int64, switched *[]string
 		if err != nil {
 			return err
 		}
-		if p.Target != r.Content {
+		if push {
+			change := dns.Change{ID: r.ExternalID, Type: "A", Name: r.FullName, Content: p.Target, TTL: r.TTL, Proxied: r.Proxied}
+			if r.Status == store.DNSPendingUpdate {
+				change.Comment = r.Remark
+			}
 			callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			_, err = c.Push(callCtx, dm.ZoneID, dns.Batch{Patches: []dns.Change{{ID: r.ExternalID, Type: "A", Name: r.FullName, Content: p.Target, TTL: r.TTL, Proxied: r.Proxied}}})
+			_, err = c.Push(callCtx, dm.ZoneID, dns.Batch{Patches: []dns.Change{change}})
 			cancel()
 			if err != nil {
 				store.Log(ctx, s.DB, "SERVER_FAILOVER", "ERROR", &r.ID, r.FullName, "自动 DNS 请求结果待对账", "")

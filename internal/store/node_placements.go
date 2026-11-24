@@ -332,7 +332,7 @@ type IPOnlyPlacement struct {
 
 // IPOnlyPlacements 返回订阅会输出、但没有已同步访问域名的部署位（外部自定义域名同样不受本系统切换），只统计节点还有其他部署位（可切走）的情况。
 // 口径与 SubscriptionNodes 一致：显示到订阅或被账户订阅定制选中，且已有部署快照。
-// 被账户订阅定制选中的部署位，若该绑定带已同步的订阅域名，则该账户按域名连接，不算直连 IP。
+// 账号订阅定制使用已发布的域名时，该绑定不算直连 IP。
 func IPOnlyPlacements(ctx context.Context, db *sql.DB) ([]IPOnlyPlacement, error) {
 	rows, err := db.QueryContext(ctx, `SELECT ns.id, ns.node_id, ns.server_id, coalesce(n.name,''), coalesce(nullif(s.name,''), s.ip)
 		FROM node_server ns JOIN node n ON n.id = ns.node_id JOIN server s ON s.id = ns.server_id
@@ -340,8 +340,9 @@ func IPOnlyPlacements(ctx context.Context, db *sql.DB) ([]IPOnlyPlacement, error
 		WHERE ns.deployed <> 2 AND n.type = 0 AND n.disabled = 0
 		AND NOT (coalesce(r.status,'') = 'SYNCED' AND trim(coalesce(r.full_name,'')) <> '')
 		AND (coalesce(ns.exposed, 1) <> 0 OR EXISTS (SELECT 1 FROM account_node_subscription_placement bp
-			JOIN account_node_subscription_domain_binding b ON b.id = bp.binding_id LEFT JOIN domain_dns_record br ON br.id = b.domain_dns_record_id
-			WHERE bp.node_server_id = ns.id AND b.enabled = 1 AND NOT (coalesce(br.status,'') = 'SYNCED' AND trim(coalesce(br.full_name,'')) <> '')))
+			JOIN account_node_subscription_domain_binding b ON b.id = bp.binding_id
+			WHERE bp.node_server_id = ns.id AND b.enabled = 1 AND NOT EXISTS (
+				SELECT 1 FROM domain_dns_record r WHERE r.id = b.domain_dns_record_id AND `+subscriptionBindingHost+`)))
 		AND EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id AND coalesce(d.snapshot_json,'') <> '')
 		AND EXISTS (SELECT 1 FROM node_server o WHERE o.node_id = ns.node_id AND o.id <> ns.id AND o.deployed <> 2)
 		ORDER BY n.name, ns.priority, ns.id`)

@@ -22,7 +22,11 @@ type DNSOperation struct {
 }
 
 func AutoDNSRecords(ctx context.Context, db *sql.DB, domainID int64) ([]AutoDNSRecord, error) {
-	rows, err := db.QueryContext(ctx, `SELECT id FROM domain_dns_record WHERE domain_id=? AND upper(type)='A' AND status='SYNCED' AND coalesce(external_record_id,'')<>'' ORDER BY id`, domainID)
+	rows, err := db.QueryContext(ctx, `SELECT r.id FROM domain_dns_record r
+		WHERE r.domain_id=? AND upper(r.type)='A' AND coalesce(r.external_record_id,'')<>''
+		AND (r.status='SYNCED' OR (r.status='PENDING_UPDATE' AND (EXISTS (
+			SELECT 1 FROM account_node_subscription_domain_binding b WHERE b.domain_dns_record_id=r.id AND b.enabled=1
+		) OR EXISTS (SELECT 1 FROM dns_auto_operation o WHERE o.record_id=r.id)))) ORDER BY r.id`, domainID)
 	if err != nil {
 		return nil, err
 	}
@@ -225,11 +229,13 @@ func BeginDNSOperation(ctx context.Context, db *sql.DB, r AutoDNSRecord, p dns.P
 		return nil, err
 	}
 	defer tx.Rollback()
-	var content, status, stamp string
-	if err := tx.QueryRowContext(ctx, `SELECT content,status,coalesce(update_time,'') FROM domain_dns_record WHERE id=?`, r.ID).Scan(&content, &status, &stamp); err != nil {
+	current, err := scanRecord(tx.QueryRowContext(ctx, recSel+` WHERE r.id=?`, r.ID))
+	if err != nil {
 		return nil, err
 	}
-	if content != r.Content || status != DNSSynced {
+	if current.Content != r.Content || current.Status != r.Status || current.ExternalID != r.ExternalID ||
+		current.FullName != r.FullName || current.Type != r.Type || current.TTL != r.TTL ||
+		current.Proxied != r.Proxied || current.Remark != r.Remark || current.TTLPending != r.TTLPending {
 		return nil, fmt.Errorf("记录已变化，等待下一轮")
 	}
 	op := &DNSOperation{r.ID, r.Content, p.Target, p.Home, p.Reason}
@@ -246,8 +252,14 @@ func FinishDNSOperation(ctx context.Context, db *sql.DB, op *DNSOperation, appli
 			return err
 		}
 		if applied {
-			if _, err := tx.ExecContext(ctx, `UPDATE domain_dns_record SET content=?,failover_home_content=?,last_sync_time=?,update_time=? WHERE id=? AND content=? AND status='SYNCED'`, op.Target, nz(op.Home), FormatTime(time.Now()), FormatTime(time.Now()), op.RecordID, op.Old); err != nil {
+			res, err := tx.ExecContext(ctx, `UPDATE domain_dns_record SET content=?,failover_home_content=?,last_sync_time=?,update_time=?,
+				ttl_pending=CASE WHEN status='PENDING_UPDATE' THEN 0 ELSE ttl_pending END,status='SYNCED'
+				WHERE id=? AND content=? AND status IN ('SYNCED','PENDING_UPDATE')`, op.Target, nz(op.Home), FormatTime(time.Now()), FormatTime(time.Now()), op.RecordID, op.Old)
+			if err != nil {
 				return err
+			}
+			if n, err := res.RowsAffected(); err != nil || n != 1 {
+				return fmt.Errorf("DNS 操作写回失败（记录 %d，更新 %d 行）：%v", op.RecordID, n, err)
 			}
 		}
 		return nil
