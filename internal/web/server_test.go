@@ -139,8 +139,22 @@ func TestHealthzAndStatic(t *testing.T) {
 	if w := do(h, "GET", "/healthz", nil, nil, nil); w.Code != http.StatusOK {
 		t.Fatal(w.Code)
 	}
-	if w := do(h, "GET", "/static/css/coss.css", nil, nil, nil); w.Code != http.StatusOK {
+	w := do(h, "GET", "/static/css/coss.css", nil, nil, nil)
+	if w.Code != http.StatusOK {
 		t.Fatal(w.Code)
+	}
+	etag := w.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("静态资源应返回 ETag")
+	}
+	for _, inm := range []string{etag, "W/" + etag, `"other", W/` + etag} {
+		w304 := do(h, "GET", "/static/css/coss.css", nil, nil, map[string]string{"If-None-Match": inm})
+		if w304.Code != http.StatusNotModified || w304.Body.Len() != 0 {
+			t.Fatalf("If-None-Match=%s: code=%d body=%d，预期 304 空响应", inm, w304.Code, w304.Body.Len())
+		}
+	}
+	if w200 := do(h, "GET", "/static/css/coss.css", nil, nil, map[string]string{"If-None-Match": `"mismatch"`}); w200.Code != http.StatusOK || w200.Body.Len() == 0 {
+		t.Fatalf("不匹配的 ETag 应返回 200: code=%d", w200.Code)
 	}
 }
 

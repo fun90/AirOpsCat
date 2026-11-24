@@ -3,7 +3,9 @@ package web
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +18,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -112,7 +115,7 @@ func New(db *sql.DB, a *auth.Service, field *crypto.Cipher) (*Server, error) {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	static, _ := fs.Sub(assets.FS, "static")
-	mux.Handle("GET /static/", http.StripPrefix("/static/", cacheStatic(http.FileServerFS(static))))
+	mux.Handle("GET /static/", http.StripPrefix("/static/", cacheStatic(static, http.FileServerFS(static))))
 	mux.HandleFunc("GET /healthz", s.healthz)
 	s.subscriptionRoutes(mux)
 	mux.HandleFunc("POST /api/open/guard-sync", s.guardSync)
@@ -296,11 +299,45 @@ func securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-func cacheStatic(next http.Handler) http.Handler {
+func cacheStatic(staticFS fs.FS, next http.Handler) http.Handler {
+	etags := map[string]string{}
+	_ = fs.WalkDir(staticFS, ".", func(name string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if b, err := fs.ReadFile(staticFS, name); err == nil {
+			sum := sha256.Sum256(b)
+			etags[name] = `"` + hex.EncodeToString(sum[:8]) + `"`
+		}
+		return nil
+	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "public, max-age=86400")
+		name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
+		if etag := etags[name]; etag != "" {
+			w.Header().Set("ETag", etag)
+			if (r.Method == http.MethodGet || r.Method == http.MethodHead) && matchETag(r.Header.Get("If-None-Match"), etag) {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// matchETag 按 RFC 9110 弱比较规则匹配 If-None-Match（兼容反向代理 gzip 后转为弱 ETag W/"..."）。
+func matchETag(header, etag string) bool {
+	if header == "" {
+		return false
+	}
+	want := strings.TrimPrefix(etag, "W/")
+	for part := range strings.SplitSeq(header, ",") {
+		tag := strings.TrimSpace(part)
+		if tag == "*" || strings.TrimPrefix(tag, "W/") == want {
+			return true
+		}
+	}
+	return false
 }
 
 func recoverer(next http.Handler) http.Handler {
