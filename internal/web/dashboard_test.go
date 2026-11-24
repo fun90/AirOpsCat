@@ -65,3 +65,20 @@ func TestDashboardLeftText(t *testing.T) {
 		}
 	}
 }
+
+func TestPageVersionDisplay(t *testing.T) {
+	_, a := newTestServer(t)
+	s, err := New(a.DB, a, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Version = "v4.0.82"
+	h := s.Handler()
+	if body := do(h, "GET", "/login", nil, nil, nil).Body.String(); !strings.Contains(body, "v4.0.82") {
+		t.Fatal("登录页应显示版本号")
+	}
+	c := login(t, h, "admin@example.com")
+	if body := do(h, "GET", "/admin", nil, c, nil).Body.String(); !strings.Contains(body, ">v4.0.82</footer>") {
+		t.Fatal("管理页底部应显示版本号")
+	}
+}

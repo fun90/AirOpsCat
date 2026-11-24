@@ -68,6 +68,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	srv.Version = version
 	hs := &http.Server{
 		Addr:              env("AIROPSCAT_LISTEN", "127.0.0.1:8080"),
 		Handler:           srv.Handler(),

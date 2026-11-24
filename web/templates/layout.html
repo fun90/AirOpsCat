@@ -120,6 +120,7 @@
                 {{template "content" .}}
             </div>
         </div>
+        {{with .Version}}<footer class="py-3 text-center text-secondary small font-monospace d-print-none">{{.}}</footer>{{end}}
     </div>
 </div>
 <script type="module" src="/static/js/coss-ui.js"></script>

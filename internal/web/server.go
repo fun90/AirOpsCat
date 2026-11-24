@@ -42,6 +42,7 @@ type Server struct {
 	limitApplied        map[int64]string // 服务器最近一次成功应用的限速指纹
 	MonitorServers      string           // 显式启用 SSH 监控采集的服务器（ID 列表或 all），空表示关闭
 	NotifyDisabled      bool             // 开发/演示库带真实 Bark 配置时关闭外发通知
+	Version             string           // 运行版本（由 main.version 注入），展示在页面底部
 	DB                  *sql.DB
 	Auth                *auth.Service
 	Field               *crypto.Cipher // 敏感字段加密
@@ -174,13 +175,14 @@ func (s *Server) render(w http.ResponseWriter, page string, status int, data map
 func (s *Server) pageData(r *http.Request, title, nav string) map[string]any {
 	q := r.URL.Query()
 	return map[string]any{
-		"Query": q.Encode(),
-		"Msg":   q.Get("msg"),
-		"Err":   q.Get("err"),
-		"Title": title,
-		"Nav":   nav,
-		"User":  r.Context().Value(userKey).(*store.User),
-		"CSRF":  s.Auth.CSRFToken(r.Context().Value(tokenKey).(string)),
+		"Query":   q.Encode(),
+		"Msg":     q.Get("msg"),
+		"Err":     q.Get("err"),
+		"Title":   title,
+		"Nav":     nav,
+		"User":    r.Context().Value(userKey).(*store.User),
+		"CSRF":    s.Auth.CSRFToken(r.Context().Value(tokenKey).(string)),
+		"Version": s.Version,
 		// 导航栏据此提示后台部署进行中
 		"DeployActive": s.deployQ.activeJobs(),
 	}
@@ -193,7 +195,7 @@ func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.render(w, "login", http.StatusOK, map[string]any{"Title": "登录"})
+	s.render(w, "login", http.StatusOK, map[string]any{"Title": "登录", "Version": s.Version})
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
@@ -210,7 +212,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 			slog.Error("登录失败", "err", err)
 			msg = "系统错误，请稍后再试"
 		}
-		s.render(w, "login", http.StatusUnauthorized, map[string]any{"Title": "登录", "Error": msg, "Email": email})
+		s.render(w, "login", http.StatusUnauthorized, map[string]any{"Title": "登录", "Error": msg, "Email": email, "Version": s.Version})
 		return
 	}
 	maxAge := auth.SessionMaxAge
