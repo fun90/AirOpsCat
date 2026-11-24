@@ -1,8 +1,9 @@
-{{define "actions"}}<a href="/admin/servers" class="btn btn-outline-secondary" data-back>返回</a>{{end}}
+{{define "actions"}}<a href="{{.EditReturn}}" class="btn btn-outline-secondary">返回</a>{{end}}
 {{define "content"}}
 {{with .Form}}
 <form method="post" action="{{if .ID}}/admin/servers/{{.ID}}{{else}}/admin/servers{{end}}" class="card" autocomplete="off">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    {{template "editReturnField" $}}
     <div class="card-body">
         <div class="row g-3">
             <div class="col-md-6"><label class="form-label" for="name">名称</label>
@@ -79,7 +80,7 @@
         </div>
     </div>
     <div class="card-footer text-end">
-        <a href="/admin/servers" class="btn btn-link">取消</a>
+        <a href="{{$.EditReturn}}" class="btn btn-link">取消</a>
         <button type="submit" class="btn">保存</button>
         <button type="submit" class="btn btn-primary" name="test" value="1">保存并测试</button>
     </div>
@@ -91,7 +92,7 @@
         {{range $.Placements}}
         <div class="list-group-item d-flex flex-wrap align-items-center gap-2">
             <div class="me-auto">
-                <a href="/admin/nodes/{{.NodeID}}/edit" class="text-break"><strong>{{.NodeName}}</strong></a>
+                <a href="{{navURL (printf "/admin/nodes/%d/edit" .NodeID) $.PageURL}}" class="text-break"><strong>{{.NodeName}}</strong></a>
                 <div class="text-secondary small text-break">优先级 {{.Priority}} · {{or .AccessHost "使用服务器 IP"}}</div>
             </div>
             {{if eq .Deployed 0}}<span class="badge bg-yellow-lt">待部署</span>{{else if eq .Deployed 1}}<span class="badge bg-green-lt">已部署</span>{{else}}<span class="badge bg-red-lt">待删除</span>{{end}}
@@ -108,7 +109,7 @@
     <div class="list-group list-group-flush">
         {{range $.MigrationTargets}}
         <div class="list-group-item d-flex flex-wrap align-items-center gap-2">
-            <div class="me-auto text-break"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#route"></use></svg>迁移到 <a href="/admin/servers/{{.ID}}/edit"><strong>{{.Name}}</strong></a> <span class="text-secondary small">{{.IP}}</span></div>
+            <div class="me-auto text-break"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#route"></use></svg>迁移到 <a href="{{navURL (printf "/admin/servers/%d/edit" .ID) $.PageURL}}"><strong>{{.Name}}</strong></a> <span class="text-secondary small">{{.IP}}</span></div>
             {{if .Pending}}<span class="badge bg-yellow-lt">{{.Pending}} 个待部署</span>
             <form method="post" action="/admin/servers/{{.ID}}/deploy" data-confirm="请部署目标服务器：将按当前配置整机重新部署 {{.Name}} 并重启 sing-box，确定？"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-sm btn-primary text-nowrap"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#rocket"></use></svg>部署目标服务器</button></form>
             {{else}}<span class="badge bg-green-lt">已部署</span>{{end}}

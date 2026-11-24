@@ -42,4 +42,4 @@ jobs:
         run: |
           CHROME_BIN=$(command -v google-chrome || command -v chromium-browser || command -v chromium || true)
           test -n "$CHROME_BIN" || { echo '缺少 Chrome/Chromium，拒绝跳过浏览器回归'; exit 1; }
-          CHROME_BIN="$CHROME_BIN" node --test scripts/nav-progress.test.mjs scripts/back.test.mjs
+          CHROME_BIN="$CHROME_BIN" node --test scripts/nav-progress.test.mjs

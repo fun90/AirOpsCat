@@ -71,13 +71,13 @@ func TestDNSRecordLifecycle(t *testing.T) {
 	if _, err := SaveDNSRecord(ctx, db, &DNSRecord{DomainID: did, Name: "HK.example.com.", Content: "192.0.2.1", TTL: 300}); !errors.Is(err, ErrConflict) {
 		t.Fatal("误填完整域名应还原为前缀并与同名 A 记录冲突")
 	}
-	for _, bad := range []*DNSRecord{{DomainID: did, Name: "a", Content: "::1", TTL: 300}, {DomainID: did, Name: "a", Content: "1.1.1.1", TTL: 30}, {DomainID: did, Name: "A_B", Content: "1.1.1.1", TTL: 300}} {
+	for _, bad := range []*DNSRecord{{DomainID: did, Name: "a", Content: "::1"}, {DomainID: did, Name: "A_B", Content: "1.1.1.1"}} {
 		if _, err := SaveDNSRecord(ctx, db, bad); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("应拒绝 %+v: %v", bad, err)
 		}
 	}
 	p, _ := LoadDNSPush(ctx, db, did)
-	if len(p.PostIDs) != 1 || p.Batch.Posts[0].Name != "hk.example.com" {
+	if len(p.PostIDs) != 1 || p.Batch.Posts[0].Name != "hk.example.com" || p.Batch.Posts[0].TTL != DefaultDNSTTL {
 		t.Fatalf("%+v", p)
 	}
 	if err := ApplyDNSPush(ctx, db, did, p, []string{"ext1"}); err != nil {
@@ -88,9 +88,10 @@ func TestDNSRecordLifecycle(t *testing.T) {
 		t.Fatalf("%+v", r)
 	}
 	// 修改已同步记录 → 待更新
-	r.Content = "192.0.2.1"
-	r.TTL = 600
-	SaveDNSRecord(ctx, db, r)
+	r.Remark = "修改备注"
+	if _, err := SaveDNSRecord(ctx, db, r); err != nil {
+		t.Fatal(err)
+	}
 	if r, _ = DNSRecordByID(ctx, db, id); r.Status != DNSPendingUpdate {
 		t.Fatal(r.Status)
 	}
@@ -98,7 +99,7 @@ func TestDNSRecordLifecycle(t *testing.T) {
 	if _, _, _, err := ApplyDNSPull(ctx, db, did, []dns.Record{{ID: "ext1", Name: "hk.example.com", Type: "A", Content: "9.9.9.9"}}); err != nil {
 		t.Fatal(err)
 	}
-	if r, _ = DNSRecordByID(ctx, db, id); r.Content != "192.0.2.1" || r.TTL != 600 {
+	if r, _ = DNSRecordByID(ctx, db, id); r.Content != "192.0.2.1" || r.TTL != DefaultDNSTTL || r.Remark != "修改备注" {
 		t.Fatalf("待推送修改被覆盖: %+v", r)
 	}
 	// 推送回写
@@ -152,8 +153,12 @@ func TestDNSPullAddsAndLinksPendingCreate(t *testing.T) {
 		t.Fatalf("同名待创建记录应关联远端并保留本地内容: %+v", r)
 	}
 	list, total, _ := DNSRecordList(ctx, db, did, "www", 1, 20)
-	if total != 1 || list[0].Type != "CNAME" || list[0].Name != "www" {
+	if total != 1 || list[0].Type != "CNAME" || list[0].Name != "www" || list[0].TTL != 1 || list[0].Status != DNSSynced || !list[0].TTLPending {
 		t.Fatalf("%+v", list)
+	}
+	p, err := LoadDNSPush(ctx, db, did)
+	if err != nil || len(p.Batch.Patches) != 2 || !p.Batch.Patches[1].TTLOnly || p.Batch.Patches[1].TTL != 1 {
+		t.Fatalf("CNAME 应只推送自动 TTL: %+v, %v", p, err)
 	}
 }
 

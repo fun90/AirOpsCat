@@ -44,6 +44,7 @@ type Change struct {
 	Name    string
 	Content string
 	TTL     int
+	TTLOnly bool
 	Proxied bool
 	Comment string
 }
@@ -173,8 +174,11 @@ func (c *Client) Push(ctx context.Context, zoneID string, b Batch) ([]string, er
 	if len(b.Patches) > 0 {
 		var l []map[string]any
 		for _, d := range b.Patches {
-			p := payload(d)
-			p["id"] = d.ID
+			p := map[string]any{"id": d.ID, "ttl": d.TTL}
+			if !d.TTLOnly {
+				p = payload(d)
+				p["id"] = d.ID
+			}
 			l = append(l, p)
 		}
 		body["patches"] = l

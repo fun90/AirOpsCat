@@ -202,8 +202,8 @@ func TestBindingNewDomain(t *testing.T) {
 	if err := db.QueryRow(`SELECT full_name,status,ttl FROM domain_dns_record WHERE id=?`, *b.RecordID).Scan(&full, &status, &ttl); err != nil {
 		t.Fatal(err)
 	}
-	if full != "hk01.example.com" || status != "PENDING_CREATE" || ttl != 1 {
-		t.Fatalf("%s %s", full, status)
+	if full != "hk01.example.com" || status != "PENDING_CREATE" || ttl != DefaultDNSTTL {
+		t.Fatalf("%s %s ttl=%d", full, status, ttl)
 	}
 	other := onboard(t, db, "nd2@example.com", func(in *OnboardInput) { in.Account.TagIDs = []int64{tag} })
 	if err := SaveAccountBinding(ctx, db, &AccountBinding{AccountID: other.AccountID, PlacementID: pid, NewDomainID: 1, NewName: "hk01.example.com", Enabled: true}); !errors.Is(err, ErrConflict) {

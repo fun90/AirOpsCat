@@ -1,8 +1,9 @@
-{{define "actions"}}<a href="/admin/users" class="btn btn-outline-secondary" data-back>返回</a>{{end}}
+{{define "actions"}}<a href="{{.EditReturn}}" class="btn btn-outline-secondary">返回</a>{{end}}
 {{define "content"}}
 {{with .Form}}
 <form method="post" action="{{if .ID}}/admin/users/{{.ID}}{{else}}/admin/users{{end}}" class="card" style="max-width: 720px" autocomplete="off">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    {{template "editReturnField" $}}
     <div class="card-body">
         {{if $.FormErr}}<div class="alert alert-danger" role="alert">{{$.FormErr}}</div>{{end}}
         <div class="row g-3">
@@ -26,7 +27,7 @@
         </div>
     </div>
     <div class="card-footer text-end">
-        <a href="/admin/users" class="btn btn-link">取消</a>
+        <a href="{{$.EditReturn}}" class="btn btn-link">取消</a>
         <button type="submit" class="btn btn-primary">保存</button>
     </div>
 </form>

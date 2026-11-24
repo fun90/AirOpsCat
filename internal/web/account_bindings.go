@@ -3,11 +3,13 @@ package web
 import (
 	"context"
 	"errors"
-	"github.com/fun90/airopscat/internal/store"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
-	"strings"
 	"time"
+
+	"github.com/fun90/airopscat/internal/store"
 )
 
 func (s *Server) bindingPage(w http.ResponseWriter, r *http.Request) {
@@ -27,11 +29,19 @@ func (s *Server) bindingPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d := s.pageData(r, "订阅定制 · "+a.Remark, "accounts")
-	d["From"] = bindingFrom(r)
-	d["Self"] = "/admin/accounts/" + strconv.FormatInt(id, 10) + "/bindings" + bindingFromQuery(r)
+	self, query := bindingNavigation(r, id)
+	d["From"], d["BindingBack"] = query.Get("from"), query.Get("back")
+	d["EditReturn"] = "/admin/accounts"
+	if query.Get("from") == "edit" {
+		d["EditReturn"] = fmt.Sprintf("/admin/accounts/%d/edit", id)
+	}
+	if back := query.Get("back"); back != "" {
+		d["EditReturn"] = back
+	}
+	d["Self"] = self.String()
 	d["EditBase"] = "?edit="
-	if d["From"] == "edit" {
-		d["EditBase"] = "?from=edit&edit="
+	if self.RawQuery != "" {
+		d["EditBase"] = "?" + self.RawQuery + "&edit="
 	}
 	if editID, _ := strconv.ParseInt(r.URL.Query().Get("edit"), 10, 64); editID > 0 {
 		for _, b := range list {
@@ -77,14 +87,12 @@ func (s *Server) bindingSave(w http.ResponseWriter, r *http.Request) {
 		editID = b.ID
 	}
 	// 保存后（无论入口）停留在该定制的编辑表单；新增失败则回到新增。
-	path := "/admin/accounts/" + strconv.FormatInt(b.AccountID, 10) + "/bindings" + bindingFromQuery(r)
+	page, query := bindingNavigation(r, b.AccountID)
 	if editID != 0 {
-		sep := "?"
-		if strings.Contains(path, "?") {
-			sep = "&"
-		}
-		path += sep + "edit=" + strconv.FormatInt(editID, 10)
+		query.Set("edit", strconv.FormatInt(editID, 10))
+		page.RawQuery = query.Encode()
 	}
+	path := page.String()
 	if err != nil {
 		if errors.Is(err, store.ErrInvalid) || errors.Is(err, store.ErrConflict) {
 			redirectMsg(w, r, path, "err", err.Error())
@@ -129,20 +137,19 @@ func (s *Server) bindingDelete(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	redirectMsg(w, r, "/admin/accounts/"+r.PathValue("id")+"/bindings"+bindingFromQuery(r), "msg", "订阅定制已删除")
+	page, _ := bindingNavigation(r, idFrom(r))
+	redirectNotice(w, r, page.String(), "msg", "订阅定制已删除")
 }
 
-// bindingFrom 标记入口：edit 表示从账户编辑页进入，取消回编辑页；否则回列表。
-func bindingFrom(r *http.Request) string {
+func bindingNavigation(r *http.Request, id int64) (*url.URL, url.Values) {
+	page := &url.URL{Path: fmt.Sprintf("/admin/accounts/%d/bindings", id)}
+	query := make(url.Values)
 	if r.FormValue("from") == "edit" {
-		return "edit"
+		query.Set("from", "edit")
 	}
-	return ""
-}
-
-func bindingFromQuery(r *http.Request) string {
-	if bindingFrom(r) == "edit" {
-		return "?from=edit"
+	if back := explicitReturnURL(r, page.Path); back != "" {
+		query.Set("back", back)
 	}
-	return ""
+	page.RawQuery = query.Encode()
+	return page, query
 }

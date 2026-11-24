@@ -92,6 +92,7 @@ func (s *Server) routeRuleFormPage(w http.ResponseWriter, r *http.Request, statu
 	d["Form"], d["FormErr"], d["Servers"], d["Landing"] = f, msg, servers, landing
 	d["AutoDeploy"] = s.autoDeployOn(r.Context())
 	d["RuleTypes"] = []string{"domain", "ip", "source_ip", "port", "network", "inbound", "custom"}
+	editPageNavigation(d, r, "/admin/routes")
 	s.render(w, "route_rule_form", status, d)
 }
 
@@ -146,7 +147,7 @@ func (s *Server) routeRuleSave(w http.ResponseWriter, r *http.Request) {
 		s.routeRuleFormPage(w, r, 422, f, msg)
 		return
 	}
-	redirectMsg(w, r, "/admin/routes", "msg", "路由规则已保存"+s.routeRuleDeploy(r, "保存路由规则 #"+strconv.FormatInt(rule.ID, 10), before, s.routeRuleServers(r, rule.ID)))
+	redirectEdit(w, r, "/admin/routes", "msg", "路由规则已保存"+s.routeRuleDeploy(r, "保存路由规则 #"+strconv.FormatInt(rule.ID, 10), before, s.routeRuleServers(r, rule.ID)))
 }
 
 func (s *Server) routeRuleToggle(w http.ResponseWriter, r *http.Request) {

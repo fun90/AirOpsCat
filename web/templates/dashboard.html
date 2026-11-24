@@ -1,4 +1,4 @@
-{{define "actions"}}<a href="/admin/transactions/new" class="btn btn-outline-secondary"><svg class="coss-icon me-sm-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#receipt-yuan"></use></svg><span class="d-none d-sm-inline">记一笔</span></a><a href="/admin/nodes/new" class="btn btn-outline-secondary"><svg class="coss-icon me-sm-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#route"></use></svg><span class="d-none d-sm-inline">新增节点</span></a><a href="/admin/accounts/new" class="btn btn-primary"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#plus"></use></svg>开户</a>{{end}}
+{{define "actions"}}<a href="{{navURL "/admin/transactions/new" .PageURL}}" class="btn btn-outline-secondary"><svg class="coss-icon me-sm-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#receipt-yuan"></use></svg><span class="d-none d-sm-inline">记一笔</span></a><a href="{{navURL "/admin/nodes/new" .PageURL}}" class="btn btn-outline-secondary"><svg class="coss-icon me-sm-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#route"></use></svg><span class="d-none d-sm-inline">新增节点</span></a><a href="{{navURL "/admin/accounts/new" .PageURL}}" class="btn btn-primary"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#plus"></use></svg>开户</a>{{end}}
 {{define "content"}}
 <div class="row row-deck row-cards mb-3">
   <div class="col-12 col-md-4 col-xl">
@@ -77,7 +77,7 @@
             <div class="d-flex align-items-center gap-2 flex-wrap"><span class="fw-medium">{{.TypeName}}</span><span class="badge bg-red-lt">告警</span><span class="small text-secondary text-nowrap">{{if .Ago}}{{.Ago}} · {{end}}{{.Count}} 次</span></div>
             <div class="small text-secondary line-clamp-2 mt-1" title="{{.Summary}}">{{if .Summary}}{{.Summary}}{{else}}暂无摘要{{end}}</div>
           </div>
-          <a class="btn btn-sm flex-shrink-0" href="{{.Link}}">{{.LinkText}}</a>
+          <a class="btn btn-sm flex-shrink-0" href="{{if hasPrefix .Link "/admin/alerts?"}}{{.Link}}{{else}}{{navURL .Link $.PageURL}}{{end}}">{{.LinkText}}</a>
         </div></div>{{end}}
         {{if .Stats.PendingPlacements}}<div class="list-group-item"><div class="d-flex align-items-center gap-3">
           <span class="avatar avatar-sm bg-purple-lt"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#rocket"></use></svg></span>
@@ -89,15 +89,15 @@
         {{range .Accounts}}<div class="list-group-item"><div class="d-flex align-items-center gap-3">
           <span class="avatar avatar-sm bg-yellow-lt"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#user-circle"></use></svg></span>
           <div class="flex-fill min-w-0 text-break">
-            <div class="d-flex align-items-center gap-2 flex-wrap"><a class="fw-medium text-reset" href="/admin/accounts/{{.ID}}/edit">{{.Name}}</a><span class="badge {{if .Urgent}}bg-red-lt{{else}}bg-yellow-lt{{end}}">{{.Left}}</span></div>
+            <div class="d-flex align-items-center gap-2 flex-wrap"><a class="fw-medium text-reset" href="{{navURL (printf "/admin/accounts/%d/edit" .ID) $.PageURL}}">{{.Name}}</a><span class="badge {{if .Urgent}}bg-red-lt{{else}}bg-yellow-lt{{end}}">{{.Left}}</span></div>
             <div class="small text-secondary mt-1">账户到期 · {{.AccountNo}}</div>
           </div>
-          <a class="btn btn-sm btn-outline-primary flex-shrink-0" href="/admin/accounts/{{.ID}}/edit">续期</a>
+          <a class="btn btn-sm btn-outline-primary flex-shrink-0" href="{{navURL (printf "/admin/accounts/%d/edit" .ID) $.PageURL}}">续期</a>
         </div></div>{{end}}
         {{range .Renewals}}<div class="list-group-item"><div class="d-flex align-items-center gap-3">
           <span class="avatar avatar-sm bg-orange-lt"><svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#{{if eq .Table "server"}}server{{else}}world{{end}}"></use></svg></span>
           <div class="flex-fill min-w-0 text-break">
-            <div class="d-flex align-items-center gap-2 flex-wrap">{{if eq .Table "server"}}<a class="fw-medium text-reset" href="/admin/servers/{{.ID}}/edit">{{.Name}}</a>{{else}}<span class="fw-medium">{{.Name}}</span>{{end}}<span class="badge {{if .Urgent}}bg-red-lt{{else}}bg-yellow-lt{{end}}">{{.Left}}</span></div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">{{if eq .Table "server"}}<a class="fw-medium text-reset" href="{{navURL (printf "/admin/servers/%d/edit" .ID) $.PageURL}}">{{.Name}}</a>{{else}}<span class="fw-medium">{{.Name}}</span>{{end}}<span class="badge {{if .Urgent}}bg-red-lt{{else}}bg-yellow-lt{{end}}">{{.Left}}</span></div>
             <div class="small text-secondary mt-1">{{if eq .Table "server"}}服务器{{else}}域名{{end}}到期 · {{.Expire}}{{if eq .Table "server"}} · {{.Detail}}{{end}}</div>
           </div>
           <a class="btn btn-sm btn-outline-primary flex-shrink-0" href="/admin/renewals">续费</a>
@@ -118,7 +118,7 @@
         <div class="card-actions"><a href="/admin/monitor" class="btn btn-sm">监控</a></div>
       </div>
       <div class="list-group list-group-flush">
-        {{range .Health}}<a href="/admin/monitor/{{.ID}}" class="list-group-item list-group-item-action py-2">
+        {{range .Health}}<a href="{{navURL (printf "/admin/monitor/%d" .ID) $.PageURL}}" class="list-group-item list-group-item-action py-2">
           <div class="d-flex align-items-center gap-2">
             <span class="status-dot flex-shrink-0 {{if eq .Level 3}}status-dot-animated status-red{{else if eq .Level 2}}status-yellow{{else if eq .Level 1}}status-secondary{{else}}status-green{{end}}"></span>
             <span class="fw-medium text-truncate">{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}</span>

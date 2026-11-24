@@ -177,6 +177,10 @@ func (s *Server) render(w http.ResponseWriter, page string, status int, data map
 // pageData 组装管理页面公共数据。
 func (s *Server) pageData(r *http.Request, title, nav string) map[string]any {
 	q := r.URL.Query()
+	pageURL := ""
+	if page := adminPageURL(r.URL.RequestURI()); page != nil {
+		pageURL = page.String()
+	}
 	return map[string]any{
 		"Query":   q.Encode(),
 		"Msg":     q.Get("msg"),
@@ -186,6 +190,7 @@ func (s *Server) pageData(r *http.Request, title, nav string) map[string]any {
 		"User":    r.Context().Value(userKey).(*store.User),
 		"CSRF":    s.Auth.CSRFToken(r.Context().Value(tokenKey).(string)),
 		"Version": s.Version,
+		"PageURL": pageURL,
 		// 导航栏据此提示后台部署进行中
 		"DeployActive": s.deployQ.activeJobs(),
 	}
@@ -368,6 +373,7 @@ func pageURL(query string, page int) string {
 
 var funcs = template.FuncMap{
 	"pageURL":   pageURL,
+	"navURL":    navURL,
 	"hasPrefix": strings.HasPrefix,
 	"gb":        func(b int64) string { return fmt.Sprintf("%.2f GB", float64(b)/(1<<30)) },
 	"dbtime": func(v any) string {
@@ -410,53 +416,6 @@ var funcs = template.FuncMap{
 		}
 		return r
 	},
-}
-
-// redirectMsg 带提示信息跳转；提示经查询参数传递并由模板转义输出。
-func redirectMsg(w http.ResponseWriter, r *http.Request, path, key, msg string) {
-	sep := "?"
-	if strings.Contains(path, "?") {
-		sep = "&"
-	}
-	if back := backTarget(r, path); back != "" {
-		path = back
-		if strings.Contains(back, "?") {
-			sep = "&"
-		}
-	}
-	http.Redirect(w, r, path+sep+key+"="+url.QueryEscape(msg), http.StatusSeeOther)
-}
-
-// backTarget 返回保存后的跳转地址。表单 back 字段（进入编辑页前的同源管理端页面，与取消按钮一致）
-// 可指向任意 /admin/ 页面；Referer 仅在与 path 同页时采用（列表页内操作）。去掉 msg、err 与锚点，无效时返回空。
-func backTarget(r *http.Request, path string) string {
-	clean := func(c string, any bool) string {
-		u, err := url.Parse(c)
-		if err != nil || u.Host != "" || u.Scheme != "" {
-			return ""
-		}
-		if any {
-			if !strings.HasPrefix(u.Path, "/admin/") || strings.Contains(u.Path, "\\") {
-				return ""
-			}
-		} else if u.Path != path {
-			return ""
-		}
-		q := u.Query()
-		q.Del("msg")
-		q.Del("err")
-		if len(q) == 0 {
-			return u.Path
-		}
-		return u.Path + "?" + q.Encode()
-	}
-	if c := clean(r.PostFormValue("back"), true); c != "" {
-		return c
-	}
-	if ref, err := url.Parse(r.Referer()); err == nil && ref.Host == r.Host {
-		return clean(ref.RequestURI(), false)
-	}
-	return ""
 }
 
 // idFrom 读取路径 ID，沿用调用方忽略解析错误的行为；需返回 404 的入口使用 pathID。

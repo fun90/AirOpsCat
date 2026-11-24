@@ -31,6 +31,7 @@ func (s *Server) userRoutes(m *http.ServeMux) {
 func (s *Server) userForm(w http.ResponseWriter, r *http.Request, title string, status int, f *UserForm, msg string) {
 	d := s.pageData(r, title, "users")
 	d["Form"], d["Roles"], d["FormErr"] = f, store.UserRoles, msg
+	editPageNavigation(d, r, "/admin/users")
 	s.render(w, "user_form", status, d)
 }
 
@@ -71,7 +72,7 @@ func (s *Server) userSave(w http.ResponseWriter, r *http.Request) {
 	// 密码不 trim：空白也是合法密码字符；为空表示保留旧密码
 	err := store.SaveManagedUser(r.Context(), s.DB, u, r.PostFormValue("password"))
 	if err == nil {
-		redirectMsg(w, r, "/admin/users", "msg", "用户已保存")
+		redirectEdit(w, r, "/admin/users", "msg", "用户已保存")
 		return
 	}
 	if !errors.Is(err, store.ErrInvalid) && !errors.Is(err, store.ErrConflict) {

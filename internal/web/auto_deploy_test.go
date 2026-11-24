@@ -199,8 +199,9 @@ func TestAccountBatchHandlersAndRenewModal(t *testing.T) {
 	// 列表弹窗续期：停留在带筛选参数的列表
 	to := time.Now().AddDate(0, 2, 0).In(store.Shanghai).Format(formDateLayout)
 	w := do(h, "POST", "/admin/accounts/1/renew", url.Values{"csrf": {csrf}, "to_date": {to}, "from": {"list"}, "back": {"/admin/accounts?tag=1"}, "amount": {"30"}, "payment_method": {"WeChat"}}, c, nil)
-	if loc := location(w); !strings.HasPrefix(loc, "/admin/accounts?tag=1&msg=续期已保存") {
-		t.Fatal(loc)
+	loc, err := url.Parse(w.Header().Get("Location"))
+	if err != nil || loc.Path != "/admin/accounts" || loc.Query().Get("tag") != "1" || !strings.HasPrefix(loc.Query().Get("msg"), "续期已保存") {
+		t.Fatal(w.Header().Get("Location"))
 	}
 	// 请求中的返回地址只能指向账户列表，防止表单提交诱导外部跳转。
 	w = do(h, "POST", "/admin/accounts/1/renew", url.Values{"csrf": {csrf}, "to_date": {time.Now().AddDate(0, 3, 0).In(store.Shanghai).Format(formDateLayout)}, "from": {"list"}, "back": {"//example.invalid/other"}}, c, nil)

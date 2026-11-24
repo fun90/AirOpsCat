@@ -53,7 +53,7 @@ func (s *Server) realitySNIRoutes(m *http.ServeMux) {
 		if s.requestError(w, r, store.DeleteRealitySNI(r.Context(), s.DB, id)) {
 			return
 		}
-		redirectMsg(w, r, "/admin/reality-sni", "msg", "候选已删除，已有节点配置保持不变")
+		redirectNotice(w, r, "/admin/reality-sni", "msg", "候选已删除，已有节点配置保持不变")
 	})
 }
 
@@ -117,5 +117,5 @@ func (s *Server) realitySNISave(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, fmt.Errorf("保存 Reality SNI: %w", err))
 		return
 	}
-	redirectMsg(w, r, "/admin/reality-sni", "msg", "候选已保存，已有节点配置保持不变")
+	redirectNotice(w, r, "/admin/reality-sni", "msg", "候选已保存，已有节点配置保持不变")
 }

@@ -244,6 +244,7 @@ func (s *Server) accountFormPage(w http.ResponseWriter, r *http.Request, status 
 			}
 		}
 	}
+	editPageNavigation(d, r, "/admin/accounts")
 	s.render(w, "account_form", status, d)
 }
 func (s *Server) accountNew(w http.ResponseWriter, r *http.Request) {
@@ -402,6 +403,9 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 		var res *store.OnboardResult
 		if res, parseErr = store.Onboard(r.Context(), s.DB, onboard); parseErr == nil {
 			back := fmt.Sprintf("/admin/accounts/%d/edit", res.AccountID)
+			if source := editReturnURL(r, "/admin/accounts"); source != "/admin/accounts" {
+				back = navURL(back, source)
+			}
 			sc.account(res.AccountID)
 			redirectMsg(w, r, back, "msg", "开户成功：复制安装说明发给客户"+sc.finish(fmt.Sprintf("开户 #%d", res.AccountID), "，点「部署」下发到节点"))
 			return
@@ -420,7 +424,7 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 	if sc.on {
 		sc.add(before, nil)
 		sc.account(f.ID)
-		redirectMsg(w, r, "/admin/accounts", "msg", "账户已保存"+cmp.Or(sc.finish(fmt.Sprintf("保存账户 #%d", f.ID), ""), "，无需部署"))
+		redirectEdit(w, r, "/admin/accounts", "msg", "账户已保存"+cmp.Or(sc.finish(fmt.Sprintf("保存账户 #%d", f.ID), ""), "，无需部署"))
 		return
 	}
 	ids, err := s.accountPendingServers(r, f.ID, before)
@@ -429,10 +433,10 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(ids) == 0 {
-		redirectMsg(w, r, "/admin/accounts", "msg", "账户已保存，无需部署")
+		redirectEdit(w, r, "/admin/accounts", "msg", "账户已保存，无需部署")
 		return
 	}
-	redirectMsg(w, r, "/admin/accounts", "err", fmt.Sprintf("账户已保存，%d 台服务器待部署，尚未生效，请点「部署」下发", len(ids)))
+	redirectEdit(w, r, "/admin/accounts", "err", fmt.Sprintf("账户已保存，%d 台服务器待部署，尚未生效，请点「部署」下发", len(ids)))
 }
 
 // accountPendingServers 返回账户保存前后涉及、且有待部署/待删除部署位的服务器。

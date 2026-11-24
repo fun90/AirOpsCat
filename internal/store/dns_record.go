@@ -11,6 +11,15 @@ import (
 	"github.com/fun90/airopscat/internal/dns"
 )
 
+const DefaultDNSTTL = 120
+
+func dnsRecordTTL(recordType string, proxied bool) int {
+	if strings.EqualFold(recordType, "A") && !proxied {
+		return DefaultDNSTTL
+	}
+	return 1
+}
+
 type DNSRecordSubscription struct {
 	AccountID         int64
 	AccountNo, Remark string
@@ -20,6 +29,7 @@ type DNSRecord struct {
 	ID, DomainID                  int64
 	Name, FullName, Type, Content string
 	TTL                           int
+	TTLPending                    bool
 	Proxied                       bool
 	Status, Remark                string
 	ServerID                      *int64
@@ -32,13 +42,13 @@ type DNSRecord struct {
 
 const recSel = `SELECT r.id,r.domain_id,r.name,coalesce(r.full_name,''),upper(r.type),r.content,coalesce(r.ttl,1),coalesce(r.proxied,0),r.status,coalesce(r.remark,''),
 	r.server_id,coalesce(nullif(s.name,''),s.ip,''),
-	coalesce(r.external_record_id,''),(SELECT count(*) FROM node_server WHERE access_host_id=r.id)+(SELECT count(*) FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=r.id)
+	coalesce(r.external_record_id,''),r.ttl_pending,(SELECT count(*) FROM node_server WHERE access_host_id=r.id)+(SELECT count(*) FROM account_node_subscription_domain_binding WHERE domain_dns_record_id=r.id)
 	FROM domain_dns_record r LEFT JOIN server s ON s.id=r.server_id`
 
 func scanRecord(row interface{ Scan(...any) error }) (*DNSRecord, error) {
 	var r DNSRecord
 	var sid sql.NullInt64
-	if err := row.Scan(&r.ID, &r.DomainID, &r.Name, &r.FullName, &r.Type, &r.Content, &r.TTL, &r.Proxied, &r.Status, &r.Remark, &sid, &r.ServerName, &r.ExternalID, &r.Refs); err != nil {
+	if err := row.Scan(&r.ID, &r.DomainID, &r.Name, &r.FullName, &r.Type, &r.Content, &r.TTL, &r.Proxied, &r.Status, &r.Remark, &sid, &r.ServerName, &r.ExternalID, &r.TTLPending, &r.Refs); err != nil {
 		return nil, err
 	}
 	if sid.Valid {
@@ -154,20 +164,44 @@ func SaveDNSRecord(ctx context.Context, db *sql.DB, r *DNSRecord) (int64, error)
 	r.Name = relName(r.Name, d.Domain)
 	r.Content = strings.TrimSpace(r.Content)
 	r.Remark = strings.TrimSpace(r.Remark)
+	r.TTL = dnsRecordTTL("A", r.Proxied)
 	var full string
 	switch {
 	case r.Name == "@" || r.Name == "":
 		r.Name, full = "@", d.Domain
-	case subdomainRe.MatchString(r.Name) && len(r.Name) <= 120:
+	case r.Name == "*" || (len(r.Name) <= 120 && subdomainRe.MatchString(strings.TrimPrefix(r.Name, "*."))):
 		full = r.Name + "." + d.Domain
 	default:
-		return 0, invalid("记录名只能包含小写字母、数字、连字符和点，根域名用 @")
+		return 0, invalid("记录名格式不正确：根域名用 @，通配符用 * 或 *.子域，普通子域由字母、数字、连字符和点组成")
+	}
+	var cur *DNSRecord
+	if r.ID != 0 {
+		cur, err = DNSRecordByID(ctx, tx, r.ID)
+		if err != nil {
+			return 0, err
+		}
+		if cur == nil || cur.DomainID != r.DomainID {
+			return 0, sql.ErrNoRows
+		}
+		if cur.Type != "A" {
+			return 0, invalid("仅支持编辑 A 记录")
+		}
+		if cur.Status == DNSPendingDelete {
+			return 0, invalid("记录已标记待删除，请先推送或在拉取后重试")
+		}
+		sameServer := cur.ServerID == r.ServerID || (cur.ServerID != nil && r.ServerID != nil && *cur.ServerID == *r.ServerID)
+		if sameServer && cur.FullName == full && cur.Content == r.Content && cur.Proxied == r.Proxied && strings.TrimSpace(cur.Remark) == r.Remark {
+			if cur.TTL == r.TTL {
+				return r.ID, nil
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE domain_dns_record SET ttl=?,ttl_pending=? WHERE id=?`, r.TTL, cur.ExternalID != "", r.ID); err != nil {
+				return 0, err
+			}
+			return r.ID, tx.Commit()
+		}
 	}
 	if ip := net.ParseIP(r.Content); ip == nil || ip.To4() == nil {
 		return 0, invalid("内容必须是 IPv4 地址")
-	}
-	if r.TTL != 1 && (r.TTL < 60 || r.TTL > 86400) {
-		return 0, invalid("TTL 取 1（自动）或 60–86400")
 	}
 	if r.ServerID != nil {
 		var ip string
@@ -198,19 +232,6 @@ func SaveDNSRecord(ctx context.Context, db *sql.DB, r *DNSRecord) (int64, error)
 		}
 		id, _ := res.LastInsertId()
 		return id, tx.Commit()
-	}
-	cur, err := DNSRecordByID(ctx, tx, r.ID)
-	if err != nil {
-		return 0, err
-	}
-	if cur == nil || cur.DomainID != r.DomainID {
-		return 0, sql.ErrNoRows
-	}
-	if cur.Type != "A" {
-		return 0, invalid("仅支持编辑 A 记录")
-	}
-	if cur.Status == DNSPendingDelete {
-		return 0, invalid("记录已标记待删除，请先推送或在拉取后重试")
 	}
 	status := cur.Status
 	if status == DNSSynced || status == DNSSyncFailed {
@@ -282,6 +303,8 @@ func ApplyDNSPull(ctx context.Context, db *sql.DB, domainID int64, recs []dns.Re
 		if v.Priority != nil {
 			prio = *v.Priority
 		}
+		desired := dnsRecordTTL(v.Type, proxied)
+		ttlPending := desired != ttl
 		name := strings.ToLower(v.Name)
 		label := "@"
 		if name != d.Domain {
@@ -306,8 +329,8 @@ func ApplyDNSPull(ctx context.Context, db *sql.DB, domainID int64, recs []dns.Re
 				err = e
 				return
 			}
-			if _, err = tx.ExecContext(ctx, `INSERT INTO domain_dns_record(domain_id,dns_provider_config_id,external_record_id,name,full_name,type,content,ttl,proxied,priority,status,remark,raw_data,last_sync_time,create_time,update_time)
-				VALUES(?,?,?,?,?,?,?,?,?,?,'SYNCED',?,?,?,?,?)`, domainID, prov, v.ID, label, name, strings.ToUpper(v.Type), v.Content, ttl, proxied, prio, nz(v.Comment), nz(v.Raw), now, now, now); err != nil {
+			if _, err = tx.ExecContext(ctx, `INSERT INTO domain_dns_record(domain_id,dns_provider_config_id,external_record_id,name,full_name,type,content,ttl,proxied,priority,status,remark,raw_data,last_sync_time,create_time,update_time,ttl_pending)
+				VALUES(?,?,?,?,?,?,?,?,?,?,'SYNCED',?,?,?,?,?,?)`, domainID, prov, v.ID, label, name, strings.ToUpper(v.Type), v.Content, desired, proxied, prio, nz(v.Comment), nz(v.Raw), now, now, now, ttlPending); err != nil {
 				return
 			}
 			added++
@@ -320,8 +343,8 @@ func ApplyDNSPull(ctx context.Context, db *sql.DB, domainID int64, recs []dns.Re
 		if strings.HasPrefix(status, "PENDING") {
 			continue
 		}
-		if _, err = tx.ExecContext(ctx, `UPDATE domain_dns_record SET name=?,full_name=?,type=?,content=?,ttl=?,proxied=?,priority=?,status='SYNCED',raw_data=?,last_sync_time=?,update_time=? WHERE id=?`,
-			label, name, strings.ToUpper(v.Type), v.Content, ttl, proxied, prio, nz(v.Raw), now, now, id); err != nil {
+		if _, err = tx.ExecContext(ctx, `UPDATE domain_dns_record SET name=?,full_name=?,type=?,content=?,ttl=?,proxied=?,priority=?,status='SYNCED',raw_data=?,last_sync_time=?,update_time=?,ttl_pending=? WHERE id=?`,
+			label, name, strings.ToUpper(v.Type), v.Content, desired, proxied, prio, nz(v.Raw), now, now, ttlPending, id); err != nil {
 			return
 		}
 		updated++
@@ -381,7 +404,7 @@ func LoadDNSRecordPush(ctx context.Context, db dbtx, recordID int64) (*DNSPush, 
 }
 
 func loadDNSPush(ctx context.Context, db dbtx, where string, id int64) (*DNSPush, error) {
-	rows, err := db.QueryContext(ctx, recSel+` WHERE `+where+` AND r.status IN ('PENDING_CREATE','PENDING_UPDATE','PENDING_DELETE') ORDER BY r.id`, id)
+	rows, err := db.QueryContext(ctx, recSel+` WHERE `+where+` AND (r.ttl_pending=1 OR r.status IN ('PENDING_CREATE','PENDING_UPDATE','PENDING_DELETE')) ORDER BY r.id`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +421,8 @@ func loadDNSPush(ctx context.Context, db dbtx, where string, id int64) (*DNSPush
 			p.Batch.Deletes, p.DeleteIDs = append(p.Batch.Deletes, ch), append(p.DeleteIDs, r.ID)
 		case r.Status == DNSPendingDelete:
 			p.DeleteIDs = append(p.DeleteIDs, r.ID) // 无远端记录，仅回写本地删除
-		case r.Status == DNSPendingUpdate && r.ExternalID != "":
+		case r.ExternalID != "" && (r.Status == DNSPendingUpdate || (r.TTLPending && r.Status != DNSPending)):
+			ch.TTLOnly = r.Status != DNSPendingUpdate || r.Type != "A"
 			p.Batch.Patches, p.PatchIDs = append(p.Batch.Patches, ch), append(p.PatchIDs, r.ID)
 		default:
 			p.Batch.Posts, p.PostIDs = append(p.Batch.Posts, ch), append(p.PostIDs, r.ID)
@@ -418,7 +442,7 @@ func ApplyDNSPush(ctx context.Context, db *sql.DB, domainID int64, p *DNSPush, n
 			}
 		}
 		for _, id := range p.PatchIDs {
-			if _, err := tx.ExecContext(ctx, `UPDATE domain_dns_record SET status='SYNCED',last_sync_time=? WHERE id=? AND status='PENDING_UPDATE'`, now, id); err != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE domain_dns_record SET status=CASE WHEN status='PENDING_UPDATE' THEN 'SYNCED' ELSE status END,ttl_pending=0,last_sync_time=? WHERE id=? AND (status='PENDING_UPDATE' OR ttl_pending=1)`, now, id); err != nil {
 				return err
 			}
 		}

@@ -30,7 +30,7 @@ type DNSDomain struct {
 const domainSel = `SELECT d.id,coalesce(d.domain,''),coalesce(json_extract(d.dns_binding_extension_json,'$.zoneId'),''),coalesce(d.expire_date,''),coalesce(d.supplier,''),coalesce(d.remark,''),d.price,
 	d.dns_provider_config_id,coalesce(p.display_name,''),coalesce(d.dns_sync_status,''),coalesce(d.dns_last_sync_time,''),
 	(SELECT count(*) FROM domain_dns_record r WHERE r.domain_id=d.id),
-	(SELECT count(*) FROM domain_dns_record r WHERE r.domain_id=d.id AND r.status LIKE 'PENDING%') FROM domain d LEFT JOIN dns_provider_config p ON p.id=d.dns_provider_config_id`
+	(SELECT count(*) FROM domain_dns_record r WHERE r.domain_id=d.id AND (r.status LIKE 'PENDING%' OR r.ttl_pending=1)) FROM domain d LEFT JOIN dns_provider_config p ON p.id=d.dns_provider_config_id`
 
 func scanDomain(row interface{ Scan(...any) error }) (*DNSDomain, error) {
 	var d DNSDomain

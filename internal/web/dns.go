@@ -129,6 +129,7 @@ func (s *Server) domainForm(w http.ResponseWriter, r *http.Request, status int, 
 	}
 	d := s.pageData(r, title, "domains")
 	d["Form"], d["FormErr"], d["Providers"] = f, msg, provs
+	editPageNavigation(d, r, "/admin/domains")
 	s.render(w, "domain_form", status, d)
 }
 
@@ -158,7 +159,7 @@ func (s *Server) domainSave(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	redirectMsg(w, r, "/admin/domains", "msg", "域名已保存")
+	redirectEdit(w, r, "/admin/domains", "msg", "域名已保存")
 }
 
 func (s *Server) domainDelete(w http.ResponseWriter, r *http.Request) {
@@ -296,6 +297,7 @@ func (s *Server) recordList(w http.ResponseWriter, r *http.Request) {
 	}
 	d := s.pageData(r, dm.Domain+" 的 DNS 记录", "domains")
 	d["Domain"], d["List"], d["Q"], d["Page"], d["Pages"], d["ListURL"] = dm, list, q, page, (total+size-1)/size, r.URL.RequestURI()
+	editPageNavigation(d, r, "/admin/domains")
 	s.render(w, "dns_records", 200, d)
 }
 
@@ -320,6 +322,7 @@ func (s *Server) recordForm(w http.ResponseWriter, r *http.Request, status int, 
 	}
 	d := s.pageData(r, title, "domains")
 	d["Domain"], d["Form"], d["FormErr"], d["Servers"] = dm, f, msg, servers
+	editPageNavigation(d, r, s.recordsBack(dm.ID))
 	s.render(w, "dns_record_form", status, d)
 }
 
@@ -329,7 +332,7 @@ func (s *Server) recordNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if dm := s.domainOr404(w, r, id); dm != nil {
-		s.recordForm(w, r, 200, dm, &store.DNSRecord{DomainID: id, TTL: 300}, "")
+		s.recordForm(w, r, 200, dm, &store.DNSRecord{DomainID: id, TTL: store.DefaultDNSTTL}, "")
 	}
 }
 
@@ -375,7 +378,6 @@ func (s *Server) recordSave(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	rec.TTL, _ = strconv.Atoi(formValue(r, "ttl"))
 	if v, err := strconv.ParseInt(formValue(r, "server_id"), 10, 64); err == nil && v > 0 {
 		rec.ServerID = &v
 	}
@@ -385,7 +387,7 @@ func (s *Server) recordSave(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	redirectMsg(w, r, s.recordsBack(id), "msg", "记录已保存（尚未推送到服务商）")
+	redirectEdit(w, r, s.recordsBack(id), "msg", "记录已保存")
 }
 
 func (s *Server) recordDelete(w http.ResponseWriter, r *http.Request) {

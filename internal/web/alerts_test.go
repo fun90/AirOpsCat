@@ -215,7 +215,7 @@ func TestSurgeAlertRotatePortsEntry(t *testing.T) {
 	if strings.Count(page, "/admin/alerts/"+itoa(surge)+"/rotate-ports") != 2 || strings.Contains(page, "/admin/alerts/"+itoa(cpu)+"/rotate-ports") || strings.Contains(page, "/failover") {
 		t.Fatal("只有流量防刷告警提供换端口封禁（PC 与移动端各一）")
 	}
-	if !strings.Contains(page, `href="/admin/monitor/1"`) || !strings.Contains(page, `href="/admin/servers/1/edit"`) {
+	if !strings.Contains(page, `href="/admin/monitor/1?back=`) || !strings.Contains(page, `href="/admin/servers/1/edit?back=`) {
 		t.Fatal("服务器类告警应提供监控与服务器跳转")
 	}
 	post := func(id int64) string {

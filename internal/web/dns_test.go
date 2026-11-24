@@ -98,7 +98,7 @@ func TestDNSHTTPFlow(t *testing.T) {
 		t.Fatalf("非法 IP 应 422: %d", w.Code)
 	}
 	list := do(h, "GET", "/admin/domains/1/records", nil, c, nil).Body.String()
-	if !strings.Contains(list, "hk.example.com") || !strings.Contains(list, "待创建") || !strings.Contains(list, `name="confirm" value="push"`) || !strings.Contains(list, "部署位") || !strings.Contains(list, "香港入口-1") || !strings.Contains(list, "账户订阅") || strings.Contains(list, "账户订阅定制") || !strings.Contains(list, "测试账户备注") || !strings.Contains(list, `href="/admin/accounts/99/edit"`) || !strings.Contains(list, `hk.example.com<span class="d-md-none text-secondary small"> · A · 192.0.2.99`) {
+	if !strings.Contains(list, "hk.example.com") || !strings.Contains(list, "待创建") || !strings.Contains(list, `name="confirm" value="push"`) || !strings.Contains(list, "部署位") || !strings.Contains(list, "香港入口-1") || !strings.Contains(list, "账户订阅") || strings.Contains(list, "账户订阅定制") || !strings.Contains(list, "测试账户备注") || !strings.Contains(list, `href="/admin/accounts/99/edit?back=%2Fadmin%2Fdomains%2F1%2Frecords"`) || !strings.Contains(list, `hk.example.com<span class="d-md-none text-secondary small"> · A · 192.0.2.99`) {
 		t.Fatalf("记录页缺少账户订阅或移动端首行内容: %s", list)
 	}
 	if _, err := a.DB.Exec(`UPDATE domain_dns_record SET status='SYNCED' WHERE id=1`); err != nil {
@@ -122,10 +122,13 @@ func TestDNSHTTPFlow(t *testing.T) {
 		if !strings.Contains(w.Body.String(), `data-dns-server-ip`) || !strings.Contains(w.Body.String(), `value="99" data-ip="192.0.2.99"`) {
 			t.Fatal("DNS 表单应提供服务器 IP 以便切换时自动填写", path)
 		}
+		if path == "/admin/domains/1/records/new" && !strings.Contains(w.Body.String(), `<div>120 秒</div>`) {
+			t.Fatal("新增 DNS 记录表单默认 TTL 应为 120", path)
+		}
 		if path == "/admin/domains/1/records/1/edit" && !strings.Contains(w.Body.String(), "关联部署位：香港入口-1") {
 			t.Fatal("DNS 编辑页应显示对应订阅名称", path)
 		}
-		if path == "/admin/domains/1/records/1/edit" && (!strings.Contains(w.Body.String(), "关联账户订阅：") || strings.Contains(w.Body.String(), "关联账户订阅定制") || !strings.Contains(w.Body.String(), "测试账户备注") || !strings.Contains(w.Body.String(), `href="/admin/accounts/99/edit"`)) {
+		if path == "/admin/domains/1/records/1/edit" && (!strings.Contains(w.Body.String(), "关联账户订阅：") || strings.Contains(w.Body.String(), "关联账户订阅定制") || !strings.Contains(w.Body.String(), "测试账户备注") || !strings.Contains(w.Body.String(), `href="/admin/accounts/99/edit?back=%2Fadmin%2Fdomains%2F1%2Frecords%2F1%2Fedit"`)) {
 			t.Fatal("DNS 编辑页应显示可点击的关联账户订阅", path)
 		}
 	}
@@ -152,6 +155,33 @@ func TestDNSHTTPFlow(t *testing.T) {
 	if ext != "new1" {
 		t.Fatalf("外部 ID %q", ext)
 	}
+	if _, err := a.DB.Exec(`UPDATE domain_dns_record SET content='192.0.2.100', failover_home_content='192.0.2.99', update_time='2026-01-01 00:00:00' WHERE id=1`); err != nil {
+		t.Fatal(err)
+	}
+	editPath := "/admin/domains/1/records/1"
+	values := url.Values{"name": {"hk"}, "content": {"192.0.2.100"}, "ttl": {"300"}, "server_id": {"99"}}
+	if w := post(editPath, values); w.Code != 303 {
+		t.Fatalf("直接保存应成功，状态码 %d", w.Code)
+	}
+	var status, home, stamp string
+	if err := a.DB.QueryRow(`SELECT status, coalesce(failover_home_content,''), update_time FROM domain_dns_record WHERE id=1`).Scan(&status, &home, &stamp); err != nil {
+		t.Fatal(err)
+	}
+	if status != "SYNCED" || home != "192.0.2.99" || stamp != "2026-01-01 00:00:00" {
+		t.Fatalf("直接保存改变了记录：status=%s home=%s update_time=%s", status, home, stamp)
+	}
+	values.Set("content", "192.0.2.99")
+	values.Set("ttl", "120")
+	if w := post(editPath, values); w.Code != 303 {
+		t.Fatalf("修改后保存应成功，状态码 %d", w.Code)
+	}
+	var ttl int
+	if err := a.DB.QueryRow(`SELECT status, ttl FROM domain_dns_record WHERE id=1`).Scan(&status, &ttl); err != nil {
+		t.Fatal(err)
+	}
+	if status != "PENDING_UPDATE" || ttl != 120 {
+		t.Fatalf("修改后应待更新：status=%s ttl=%d", status, ttl)
+	}
 	if w := post("/admin/domains/1/pull", url.Values{}); w.Code != 303 || strings.Contains(w.Header().Get("Location"), "err=") {
 		t.Fatalf("拉取 %d %s", w.Code, w.Header().Get("Location"))
 	}
@@ -172,5 +202,44 @@ func TestDNSHTTPFlow(t *testing.T) {
 	}
 	if w := post("/admin/domains/1/records/999/delete", url.Values{}); w.Code != 404 {
 		t.Fatalf("不存在的记录 %d", w.Code)
+	}
+}
+
+func TestDNSRecordWildcardAndApex(t *testing.T) {
+	h, a := newTestServer(t)
+	c := login(t, h, "admin@example.com")
+	if _, err := a.DB.Exec(`INSERT INTO domain(id,domain) VALUES(1,'example.test')`); err != nil {
+		t.Fatal(err)
+	}
+	const records = "/admin/domains/1/records"
+	for _, tc := range []struct{ name, full string }{
+		{"@", "example.test"},
+		{"*", "*.example.test"},
+		{"*.sub", "*.sub.example.test"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			form := url.Values{"csrf": {a.CSRFToken(c.Value)}, "name": {tc.name}, "content": {"192.0.2.1"}, "ttl": {"300"}}
+			if w := do(h, "POST", records, form, c, nil); w.Code != http.StatusSeeOther {
+				t.Fatalf("新增状态 %d", w.Code)
+			}
+			var id int64
+			if err := a.DB.QueryRow(`SELECT id FROM domain_dns_record WHERE name=? AND full_name=?`, tc.name, tc.full).Scan(&id); err != nil {
+				t.Fatal(err)
+			}
+			form.Set("content", "192.0.2.2")
+			if w := do(h, "POST", fmt.Sprintf("%s/%d", records, id), form, c, nil); w.Code != http.StatusSeeOther {
+				t.Fatalf("编辑状态 %d", w.Code)
+			}
+			var content string
+			if err := a.DB.QueryRow(`SELECT content FROM domain_dns_record WHERE id=? AND full_name=?`, id, tc.full).Scan(&content); err != nil || content != "192.0.2.2" {
+				t.Fatalf("编辑未保存，地址 %q，错误 %v", content, err)
+			}
+		})
+	}
+	for _, name := range []string{"sub.*", "a*", "*.a.*", "@.sub"} {
+		form := url.Values{"csrf": {a.CSRFToken(c.Value)}, "name": {name}, "content": {"192.0.2.1"}, "ttl": {"300"}}
+		if w := do(h, "POST", records, form, c, nil); w.Code != http.StatusUnprocessableEntity {
+			t.Errorf("非法记录名 %q 返回 %d", name, w.Code)
+		}
 	}
 }

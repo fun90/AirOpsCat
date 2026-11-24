@@ -87,16 +87,12 @@ async function navigate(url, restoreEntry, link) {
     header.querySelector('.container-xl').replaceWith(nextHeader.querySelector('.container-xl'));
     page.replaceWith(nextPage);
     document.title = doc.title;
-    const prevHref = location.href;
     if (restoreEntry === undefined) {
       entry = ++sequence;
-      history.pushState({ airopscatPage: entry, airopscatRef: prevHref }, '', nextURL.href);
-      window.__airopscatReferrer = prevHref;
+      history.pushState({ airopscatPage: entry }, '', nextURL.href);
     } else {
       entry = restoreEntry;
-      const ref = typeof history.state?.airopscatRef === 'string' ? history.state.airopscatRef : '';
       history.replaceState({ ...history.state, airopscatPage: entry }, '', nextURL.href);
-      window.__airopscatReferrer = ref;
     }
     committed = true;
     route = nextURL.pathname + nextURL.search;

@@ -40,6 +40,7 @@ func (s *Server) dnsProviderForm(w http.ResponseWriter, r *http.Request, status 
 	}
 	d := s.pageData(r, title, "dns")
 	d["Form"], d["FormErr"] = p, msg
+	editPageNavigation(d, r, "/admin/dns-providers")
 	s.render(w, "dns_provider_form", status, d)
 }
 
@@ -74,7 +75,7 @@ func (s *Server) dnsProviderSave(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	redirectMsg(w, r, "/admin/dns-providers", "msg", "DNS 服务商已保存")
+	redirectEdit(w, r, "/admin/dns-providers", "msg", "DNS 服务商已保存")
 }
 
 func (s *Server) dnsProviderTest(w http.ResponseWriter, r *http.Request) {

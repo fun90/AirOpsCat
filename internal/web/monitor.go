@@ -485,5 +485,6 @@ func (s *Server) monitorDetail(w http.ResponseWriter, r *http.Request) {
 	sv.Online = serverOnlineText(snap, st.IP)
 	d := s.pageData(r, st.Name+" 监控", "monitor")
 	d["Server"], d["Charts"] = sv, charts
+	editPageNavigation(d, r, "/admin/monitor")
 	s.render(w, "monitor_detail", http.StatusOK, d)
 }

@@ -391,6 +391,7 @@ func (s *Server) nodeFormPage(w http.ResponseWriter, r *http.Request, status int
 		}
 		d["ProbeStates"], d["ProbeFailRounds"] = states, store.ProbeFailRounds
 	}
+	editPageNavigation(d, r, "/admin/nodes")
 	s.render(w, "node_form", status, d)
 }
 
@@ -524,14 +525,14 @@ func (s *Server) nodeSave(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(dnsErrs) > 0 {
 		msg += "，但新增域名 DNS 同步失败（" + strings.Join(dnsErrs, "；") + "），请到 DNS 页面推送"
-		redirectMsg(w, r, "/admin/nodes", "err", msg)
+		redirectEdit(w, r, "/admin/nodes", "err", msg)
 		return
 	}
 	if len(ops.NewHosts) > 0 {
 		msg += "，新增域名 DNS 已同步"
 	}
 	sc.node(nodeID)
-	redirectMsg(w, r, "/admin/nodes", "msg", msg+sc.finish("保存节点 #"+strconv.FormatInt(nodeID, 10), ""))
+	redirectEdit(w, r, "/admin/nodes", "msg", msg+sc.finish("保存节点 #"+strconv.FormatInt(nodeID, 10), ""))
 }
 
 func (s *Server) nodeToggle(w http.ResponseWriter, r *http.Request) {

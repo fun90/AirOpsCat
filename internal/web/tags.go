@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -41,6 +42,7 @@ func (s *Server) tagList(w http.ResponseWriter, r *http.Request) {
 	d := s.pageData(r, "标签", "tags")
 	d["List"], d["Q"], d["Tag"] = list, q, tag
 	d["Page"], d["Pages"] = page, (total+size-1)/size
+	d["EditReturn"] = tagListLocation(r).String()
 	s.render(w, "tags", http.StatusOK, d)
 }
 
@@ -65,23 +67,46 @@ func (s *Server) tagSave(w http.ResponseWriter, r *http.Request) {
 			msg = err.Error()
 		}
 	}
+	target := tagListLocation(r)
 	if msg != "" {
-		redirect := "/admin/tags"
 		if id != 0 {
-			redirect = "/admin/tags?edit=" + strconv.FormatInt(id, 10)
+			q := target.Query()
+			q.Set("edit", strconv.FormatInt(id, 10))
+			target.RawQuery = q.Encode()
 		}
-		redirectMsg(w, r, redirect, "err", msg)
+		redirectNotice(w, r, target.String(), "err", msg)
 		return
 	}
-	redirectMsg(w, r, "/admin/tags", "msg", "标签已保存")
+	redirectNotice(w, r, target.String(), "msg", "标签已保存")
 }
 
 func (s *Server) tagDelete(w http.ResponseWriter, r *http.Request) {
 	id := idFrom(r)
-	if s.redirectError(w, r, "/admin/tags", store.DeleteTag(r.Context(), s.DB, id), store.ErrConflict) {
+	target := tagListLocation(r).String()
+	if err := store.DeleteTag(r.Context(), s.DB, id); err != nil {
+		if errors.Is(err, store.ErrConflict) {
+			redirectNotice(w, r, target, "err", err.Error())
+		} else {
+			s.fail(w, r, err)
+		}
 		return
 	}
-	redirectMsg(w, r, "/admin/tags", "msg", "标签已删除")
+	redirectNotice(w, r, target, "msg", "标签已删除")
+}
+
+func tagListLocation(r *http.Request) *url.URL {
+	const list = "/admin/tags"
+	raw := r.URL.RequestURI()
+	if r.Method == http.MethodPost {
+		raw = r.PostFormValue("back")
+	}
+	if target := adminPageURL(raw); target != nil && target.Path == list {
+		q := target.Query()
+		q.Del("edit")
+		target.RawQuery = q.Encode()
+		return target
+	}
+	return &url.URL{Path: list}
 }
 
 var colorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)

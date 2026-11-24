@@ -330,6 +330,7 @@ func (s *Server) serverIdle(w http.ResponseWriter, r *http.Request) {
 	}
 	d := s.pageData(r, "下线建议", "servers")
 	d["List"], d["Today"], d["Soon"] = list, now.Format("2006-01-02"), now.AddDate(0, 0, 15).Format("2006-01-02")
+	editPageNavigation(d, r, "/admin/servers")
 	s.render(w, "server_idle", http.StatusOK, d)
 }
 
@@ -370,13 +371,13 @@ func (s *Server) serverSave(w http.ResponseWriter, r *http.Request) {
 		}
 		if err == nil && r.PostFormValue("test") == "1" {
 			if err := s.Deployer.Ping(r.Context(), saved); err != nil {
-				redirectMsg(w, r, "/admin/servers", "err", msg+"，但 SSH 连接失败："+err.Error())
+				redirectEdit(w, r, "/admin/servers", "err", msg+"，但 SSH 连接失败："+err.Error())
 				return
 			}
 			msg += "，SSH 连接正常"
 		}
 		if err == nil {
-			redirectMsg(w, r, "/admin/servers", "msg", msg)
+			redirectEdit(w, r, "/admin/servers", "msg", msg)
 			return
 		}
 		if !errors.Is(err, store.ErrInvalid) {
@@ -465,6 +466,7 @@ func (s *Server) serverFormPage(w http.ResponseWriter, r *http.Request, status i
 		}
 		d["BlockedPorts"] = blocked
 	}
+	editPageNavigation(d, r, "/admin/servers")
 	s.render(w, "server_form", status, d)
 }
 

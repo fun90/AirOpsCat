@@ -113,7 +113,6 @@ func (s *Server) transactionList(w http.ResponseWriter, r *http.Request) {
 	}
 	d["List"], d["Q"], d["Type"], d["Business"], d["StartDate"], d["EndDate"] = list, f.Q, typeValue, f.BusinessTable, start, end
 	d["BusinessTables"], d["Page"], d["Pages"], d["ListURL"] = store.TransactionBusinessTables, page, (total+size-1)/size, transactionListURL(r)
-	d["BackQuery"] = transactionListURL(r)
 	s.render(w, "transactions", http.StatusOK, d)
 }
 
@@ -135,12 +134,9 @@ func (s *Server) transactionFormPage(w http.ResponseWriter, r *http.Request, sta
 	if f.ID != 0 {
 		title = "编辑流水"
 	}
-	back := r.FormValue("back")
-	if !strings.HasPrefix(back, "/admin") || strings.HasPrefix(back, "//") {
-		back = ""
-	}
 	d := s.pageData(r, title, "transactions")
-	d["Form"], d["FormErr"], d["BusinessOptions"], d["PaymentMethods"], d["Back"] = f, message, options, store.PaymentMethods, back
+	d["Form"], d["FormErr"], d["BusinessOptions"], d["PaymentMethods"] = f, message, options, store.PaymentMethods
+	editPageNavigation(d, r, "/admin/transactions")
 	s.render(w, "transaction_form", status, d)
 }
 
@@ -206,7 +202,7 @@ func (s *Server) transactionSave(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	redirectMsg(w, r, "/admin/transactions", "msg", "流水已保存")
+	redirectEdit(w, r, "/admin/transactions", "msg", "流水已保存")
 }
 
 func (s *Server) transactionDelete(w http.ResponseWriter, r *http.Request) {

@@ -1,11 +1,11 @@
-{{define "actions"}}<a href="/admin/servers" class="btn btn-outline-secondary" data-back>返回</a>{{end}}
+{{define "actions"}}<a href="{{.EditReturn}}" class="btn btn-outline-secondary">返回</a>{{end}}
 {{define "content"}}
 <div class="card"><div class="table-responsive"><table class="table table-vcenter card-table">
 <thead><tr><th>服务器</th><th class="d-none d-md-table-cell">活跃账户</th><th class="d-none d-md-table-cell">本期流量</th><th class="d-none d-md-table-cell">月成本（元）</th><th class="d-none d-md-table-cell">到期日</th><th class="d-none d-md-table-cell">建议</th></tr></thead>
 <tbody>{{range .List}}<tr>
 <td class="text-break">
   <div class="d-flex align-items-center gap-2 min-w-0">
-    <a href="/admin/servers/{{.ID}}/edit" class="fw-medium text-truncate">{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}</a>
+    <a href="{{navURL (printf "/admin/servers/%d/edit" .ID) $.PageURL}}" class="fw-medium text-truncate">{{if .Name}}{{.Name}}{{else}}{{.IP}}{{end}}</a>
     <span class="text-secondary small text-truncate d-none d-md-inline">{{.Region}}{{if .Supplier}} · {{if .SupplierURL}}<a href="{{.SupplierURL}}" target="_blank" rel="noopener noreferrer">{{.Supplier}}</a>{{else}}{{.Supplier}}{{end}}{{end}}</span>
     <span class="d-md-none ms-auto d-inline-flex align-items-center gap-1 flex-shrink-0">{{if .Candidate}}<span class="badge bg-orange-lt">可下线</span>{{end}}{{range .Blockers}}<span class="badge bg-red-lt">{{.}}</span>{{end}}</span>
   </div>
