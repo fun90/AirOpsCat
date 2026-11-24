@@ -156,13 +156,22 @@ func TestMaintenanceFlow(t *testing.T) {
 	if _, err := a.DB.Exec(`INSERT INTO domain(id,domain)VALUES(1,'example.test')`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := a.DB.Exec(`INSERT INTO domain_dns_record(domain_id,server_id,name,full_name,type,content,status)VALUES(1,1,'moved','moved.example.test','A','198.51.100.9','SYNCED')`); err != nil {
+		t.Fatal(err)
+	}
+	if w := do(h, "POST", "/admin/maintenance/run", v, c, headers); w.Code != 422 || !strings.Contains(w.Body.String(), "未指向本机 IP") {
+		t.Fatal("A 记录均指向其他 IP 时应提前拒绝", w.Code, w.Body.String())
+	}
+	if dials != beforeCert {
+		t.Fatal("A 记录未指向本机时不得连接服务器")
+	}
 	if _, err := a.DB.Exec(`INSERT INTO domain_dns_record(domain_id,server_id,name,full_name,type,content,status)VALUES(1,NULL,'idle','idle.example.test','A','192.0.2.1','SYNCED')`); err != nil {
 		t.Fatal(err)
 	}
 	if w := do(h, "POST", "/admin/maintenance/run", v, c, headers); w.Code != 200 {
 		t.Fatal("按 content 匹配到的已同步 A 记录应允许申请证书", w.Code, w.Body.String())
 	}
-	if !strings.Contains(string(remote.env), "server_host='idle.example.test'") || !strings.Contains(string(remote.env), "server_hosts=('idle.example.test' )") {
+	if !strings.Contains(string(remote.env), "server_hosts=('moved.example.test' 'idle.example.test' )") {
 		t.Fatal("按 content 匹配到的域名未传入环境文件", string(remote.env))
 	}
 	v.Set("script", script.Name)

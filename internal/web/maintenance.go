@@ -114,16 +114,17 @@ func (s *Server) maintenanceRun(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	rows, err := s.DB.QueryContext(r.Context(), `SELECT coalesce(full_name,name) FROM domain_dns_record WHERE (server_id=? OR content=?) AND upper(type)='A' AND status='SYNCED' ORDER BY CASE WHEN server_id=? THEN 0 ELSE 1 END, id`, id, t.IP, id)
+	rows, err := s.DB.QueryContext(r.Context(), `SELECT coalesce(full_name,name), coalesce(content,'') FROM domain_dns_record WHERE (server_id=? OR content=?) AND upper(type)='A' AND status='SYNCED' ORDER BY CASE WHEN server_id=? THEN 0 ELSE 1 END, id`, id, t.IP, id)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
 	var hosts []string
+	hasPointingHost := false
 	seenHosts := map[string]struct{}{}
 	for rows.Next() {
-		var h string
-		if err := rows.Scan(&h); err != nil {
+		var h, content string
+		if err := rows.Scan(&h, &content); err != nil {
 			rows.Close()
 			s.fail(w, r, err)
 			return
@@ -131,6 +132,9 @@ func (s *Server) maintenanceRun(w http.ResponseWriter, r *http.Request) {
 		h = strings.TrimSuffix(strings.TrimSpace(h), ".")
 		if h == "" || strings.Contains(h, "*") || net.ParseIP(h) != nil {
 			continue
+		}
+		if strings.TrimSpace(content) == t.IP {
+			hasPointingHost = true
 		}
 		key := strings.ToLower(h)
 		if _, dup := seenHosts[key]; dup {
@@ -145,9 +149,15 @@ func (s *Server) maintenanceRun(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	if script.Name == "05-certificates-install.sh" && len(hosts) == 0 {
-		http.Error(w, "该服务器暂无已同步的非通配 A 记录，无法申请证书", 422)
-		return
+	if script.Name == "05-certificates-install.sh" {
+		if len(hosts) == 0 {
+			http.Error(w, "该服务器暂无已同步的非通配 A 记录，无法申请证书", 422)
+			return
+		}
+		if !hasPointingHost {
+			http.Error(w, "该服务器的已同步 A 记录当前均未指向本机 IP（可能已故障转移），请先恢复 DNS 解析后再申请证书", 422)
+			return
+		}
 	}
 	host := t.IP
 	if len(hosts) > 0 {
