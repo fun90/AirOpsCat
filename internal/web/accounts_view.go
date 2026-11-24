@@ -35,14 +35,17 @@ func accountRowView(a *store.AccountRow, now time.Time) accountView {
 	var v accountView
 	soon := now.AddDate(0, 0, 7)
 	if t := a.ToDate; t != nil {
+		expired := store.IsAccountExpired(t, now)
 		left := t.Sub(now)
 		// 剩余天数向上取整（不足一天也算 1 天），过期天数向下取整。
 		days := int((left + 24*time.Hour - 1) / (24 * time.Hour))
 		switch {
-		case t.Before(now) && left > -24*time.Hour:
+		case expired && left > -24*time.Hour:
 			v.Left, v.LeftClass = "刚过期", "text-red"
-		case t.Before(now):
+		case expired:
 			v.Left, v.LeftClass = fmt.Sprintf("已过期 %d 天", int(-left/(24*time.Hour))), "text-red"
+		case days <= 0:
+			v.Left, v.LeftClass = "今日到期", "text-orange"
 		case t.After(soon):
 			v.Left, v.LeftClass = fmt.Sprintf("剩 %d 天", days), "text-secondary"
 		default:
@@ -53,9 +56,9 @@ func accountRowView(a *store.AccountRow, now time.Time) accountView {
 		v.Disabled, v.LeftClass = true, "text-secondary"
 	}
 	switch t := a.ToDate; {
-	case t != nil && t.Before(now):
+	case t != nil && store.IsAccountExpired(t, now):
 		v.Badge, v.BadgeClass = "已过期", "bg-red-lt"
-	case t != nil && t.After(now) && !t.After(soon):
+	case t != nil && !store.IsAccountExpired(t, now) && !t.After(soon):
 		v.Badge, v.BadgeClass = "即将到期", "bg-orange-lt"
 	}
 	used := float64(a.UsedBytes) / (1 << 30)

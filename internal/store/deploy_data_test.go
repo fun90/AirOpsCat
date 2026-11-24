@@ -66,7 +66,7 @@ func TestLoadServerConfigInputClients(t *testing.T) {
 	future := mk("e@x.com", hk)
 	other := mk("f@x.com", jp)
 	mustExec(t, db, `UPDATE account SET disabled = 1 WHERE id = ?`, disabled)
-	mustExec(t, db, `UPDATE account SET to_date = ? WHERE id = ?`, FormatTime(time.Now().Add(-time.Hour)), expired)
+	mustExec(t, db, `UPDATE account SET to_date = ? WHERE id = ?`, FormatTime(time.Now().AddDate(0, 0, -1)), expired)
 	mustExec(t, db, `UPDATE account SET to_date = ? WHERE id = ?`, FormatTime(time.Now().Add(24*time.Hour)), future)
 	_ = other
 

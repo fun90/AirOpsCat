@@ -57,3 +57,40 @@ func AddMonths(t time.Time, n int) time.Time {
 	last := time.Date(first.Year(), first.Month()+1, 0, 0, 0, 0, 0, Shanghai).Day()
 	return first.AddDate(0, 0, min(t.Day(), last)-1)
 }
+
+// AccountExpireCutoff 返回在时刻 at 判定账户是否已到期的基准时间（用于 to_date <= cutoff 比较）：
+// 上海时间当天 12:00 前允许当天 00:00~12:00 到期的账户继续使用，基准为前一天 23:59:59；12:00 及之后以实际时刻 at 为准。
+func AccountExpireCutoff(at time.Time) time.Time {
+	local := at.In(Shanghai)
+	noon := time.Date(local.Year(), local.Month(), local.Day(), 12, 0, 0, 0, Shanghai)
+	if local.Before(noon) {
+		return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, Shanghai).Add(-time.Second)
+	}
+	return at
+}
+
+// IsAccountExpired 判断账户在时刻 at 是否已到期。
+// 上海时间当天 12:00 前允许当天 00:00~12:00 到期的账户继续使用，仅早于当天 00:00 的视为已到期；12:00 及之后以实际时刻 at 为准。
+func IsAccountExpired(toDate *time.Time, at time.Time) bool {
+	if toDate == nil {
+		return false
+	}
+	local := at.In(Shanghai)
+	noon := time.Date(local.Year(), local.Month(), local.Day(), 12, 0, 0, 0, Shanghai)
+	if local.Before(noon) {
+		today := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, Shanghai)
+		return toDate.Before(today)
+	}
+	return !toDate.After(at)
+}
+
+// ServerUsableMinDay 返回在时刻 at 仍可用的服务器最小到期日期（YYYY-MM-DD）。
+// 上海时间当天 12:00 前含当天到期服务器（允许 0~12 点过期的继续用）；12:00 及之后当天到期服务器不再可用。
+func ServerUsableMinDay(at time.Time) string {
+	local := at.In(Shanghai)
+	noon := time.Date(local.Year(), local.Month(), local.Day(), 12, 0, 0, 0, Shanghai)
+	if local.Before(noon) {
+		return local.Format("2006-01-02")
+	}
+	return local.AddDate(0, 0, 1).Format("2006-01-02")
+}

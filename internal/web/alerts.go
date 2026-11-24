@@ -162,7 +162,7 @@ func (s *Server) alertConnections(ctx context.Context, stats map[string]guard.St
 		}
 		var id int64
 		var remark string
-		if err := s.DB.QueryRowContext(ctx, `SELECT id,coalesce(remark,'') FROM account WHERE account_no=? AND disabled=0 AND (to_date IS NULL OR to_date>?)`, no, store.FormatTime(time.Now())).Scan(&id, &remark); err != nil {
+		if err := s.DB.QueryRowContext(ctx, `SELECT id,coalesce(remark,'') FROM account WHERE account_no=? AND disabled=0 AND (to_date IS NULL OR to_date>?)`, no, store.FormatTime(store.AccountExpireCutoff(time.Now()))).Scan(&id, &remark); err != nil {
 			continue
 		}
 		keep[id] = true
@@ -209,7 +209,7 @@ func (s *Server) alertConnections(ctx context.Context, stats map[string]guard.St
 	return nil
 }
 
-// scanAlerts 每 5 分钟扫描账户流量超额与资源到期；条件消失即恢复且不发通知。
+// scanAlerts 每 5 分钟扫描账户流量超额，并对已续期的到期告警做自动恢复；到期提醒本身统一在每日 12 点发送。
 func (s *Server) scanAlerts(ctx context.Context) error {
 	now := time.Now()
 	quotaInterval := time.Duration(s.configInt(ctx, "airopscat.account.connection-limit.alert.min-interval-minutes", 60)) * time.Minute
@@ -235,6 +235,25 @@ func (s *Server) scanAlerts(ctx context.Context) error {
 		return err
 	}
 
+	items, err := store.ExpiringResources(ctx, s.DB, now)
+	if err != nil {
+		return err
+	}
+	kept := map[string]map[int64]bool{"server": {}, "domain": {}, "account": {}}
+	for _, it := range items {
+		kept[it.Kind][it.ID] = true
+	}
+	for kind, ids := range kept {
+		if _, err := store.AlertResolveMissing(ctx, s.DB, kind+alertExpiring, kind, ids, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// scanExpiringAlerts 每日 12 点扫描当天到期的服务器、域名和账户并发送提醒；条件消失即恢复且不发通知。
+func (s *Server) scanExpiringAlerts(ctx context.Context) error {
+	now := time.Now()
 	items, err := store.ExpiringResources(ctx, s.DB, now)
 	if err != nil {
 		return err

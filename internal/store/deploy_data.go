@@ -85,7 +85,7 @@ func loadServerConfigInput(ctx context.Context, db dbtx, serverID int64, opts Lo
 	if err != nil {
 		return nil, err
 	}
-	now := FormatTime(at)
+	now := FormatTime(AccountExpireCutoff(at))
 	for _, n := range nodes {
 		node := singbox.NodeInput{ID: n.id, Protocol: n.protocol, Port: n.port, Inbound: n.inbound, Disabled: n.disabled}
 		if n.outID.Valid {

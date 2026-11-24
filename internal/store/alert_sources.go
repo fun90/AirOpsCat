@@ -18,9 +18,10 @@ type QuotaAlert struct {
 // OverQuotaAccounts 与限速判定口径一致：已用（上+下）/GiB 不小于配额，配额 0 为不限。
 func OverQuotaAccounts(ctx context.Context, db *sql.DB, at time.Time) ([]QuotaAlert, error) {
 	stamp := FormatTime(at)
+	cutoff := FormatTime(AccountExpireCutoff(at))
 	rows, err := db.QueryContext(ctx, `SELECT a.id,a.account_no,coalesce(a.remark,''),s.period_start,s.upload_bytes+s.download_bytes,coalesce(s.bandwidth_quota,a.bandwidth,0)
  FROM account a JOIN account_traffic_stats s ON s.id=(SELECT t.id FROM account_traffic_stats t WHERE t.account_id=a.id AND t.period_start<=? AND t.period_end>? ORDER BY t.period_start DESC,t.id DESC LIMIT 1)
- WHERE a.disabled=0 AND (a.to_date IS NULL OR a.to_date>?)`, stamp, stamp, stamp)
+ WHERE a.disabled=0 AND (a.to_date IS NULL OR a.to_date>?)`, stamp, stamp, cutoff)
 	if err != nil {
 		return nil, err
 	}

@@ -125,7 +125,7 @@ func TestAutoDeployEnqueuesOnlyAffectedServers(t *testing.T) {
 	}
 	settle(t, s)
 	// 到期任务：只部署到期账户相关、需要部署的服务器
-	s.DB.Exec(`UPDATE account SET to_date=? WHERE id=1`, store.FormatTime(time.Now().Add(-time.Minute)))
+	s.DB.Exec(`UPDATE account SET to_date=? WHERE id=1`, store.FormatTime(time.Now().AddDate(0, 0, -1)))
 	if err := s.expireAccounts(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestAutoDeployScopeIgnoresUnrelatedNewPendingServer(t *testing.T) {
 func TestAutoDeployOffKeepsManualHints(t *testing.T) {
 	s, h, c, csrf := autoDeployFixture(t, false)
 	// 到期移除不受开关影响
-	s.DB.Exec(`UPDATE account SET to_date=? WHERE id=1`, store.FormatTime(time.Now().Add(-time.Minute)))
+	s.DB.Exec(`UPDATE account SET to_date=? WHERE id=1`, store.FormatTime(time.Now().AddDate(0, 0, -1)))
 	if err := s.expireAccounts(context.Background()); err != nil {
 		t.Fatal(err)
 	}

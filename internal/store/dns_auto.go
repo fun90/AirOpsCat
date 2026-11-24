@@ -146,10 +146,8 @@ func AmbiguousDomains(ctx context.Context, db *sql.DB, nodeID, placementID int64
 // 非待删除且在服务器上运行（已部署或有未禁用快照）的代理节点，服务器非外部。
 const dnsPlacementSQL = placementRunningSQL + ` AND n.type=0 AND n.disabled=0 AND s.external_server=0`
 
-// dnsServerUsableSQL 是服务器可承接切换的条件：未禁用且未到期，参数为上海当天日期。
+// dnsServerUsableSQL 是服务器可承接切换的条件：未禁用且未到期，参数为 ServerUsableMinDay(at)。
 const dnsServerUsableSQL = `s.disabled=0 AND (s.expire_date IS NULL OR substr(s.expire_date,1,10)>=?)`
-
-func shanghaiDay(at time.Time) string { return at.In(Shanghai).Format("2006-01-02") }
 
 // DNSCandidates 返回参与切换的部署位。上次失败或恢复未确认时禁止切入，探测机断报不清除该限制。
 // 当前解析只有在全部已知探测机的连续失败记录均新鲜且达到自动切走轮数时，才因探测被排除。
@@ -160,7 +158,7 @@ func DNSCandidates(ctx context.Context, db *sql.DB, at time.Time) ([]dns.Candida
  EXISTS (SELECT 1 FROM placement_probe pp WHERE pp.placement_id=ns.id GROUP BY pp.placement_id HAVING min(pp.fails)>=? AND min(pp.checked_time)>=?)
  FROM node_server ns JOIN node n ON n.id=ns.node_id JOIN server s ON s.id=ns.server_id
  LEFT JOIN server_metrics v ON v.id=`+latestVnstatSQL+`
- WHERE `+dnsPlacementSQL, append([]any{shanghaiDay(at), ProbeFailoverRounds, FormatTime(at.Add(-15 * time.Minute))}, vnstatPeriodArgs(at)...)...)
+ WHERE `+dnsPlacementSQL, append([]any{ServerUsableMinDay(at), ProbeFailoverRounds, FormatTime(at.Add(-15 * time.Minute))}, vnstatPeriodArgs(at)...)...)
 	if err != nil {
 		return nil, err
 	}

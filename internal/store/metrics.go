@@ -27,7 +27,7 @@ func MonitorServers(ctx context.Context, db *sql.DB, selection string, at time.T
 			allowed[id] = true
 		}
 	}
-	rows, err := db.QueryContext(ctx, `SELECT id FROM server WHERE disabled=0 AND external_server=0 AND (expire_date IS NULL OR expire_date='' OR substr(expire_date,1,10)>=?) ORDER BY id`, at.In(Shanghai).Format("2006-01-02"))
+	rows, err := db.QueryContext(ctx, `SELECT id FROM server WHERE disabled=0 AND external_server=0 AND (expire_date IS NULL OR expire_date='' OR substr(expire_date,1,10)>=?) ORDER BY id`, ServerUsableMinDay(at))
 	if err != nil {
 		return nil, err
 	}

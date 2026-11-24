@@ -41,15 +41,20 @@ func TestAlertsEndToEnd(t *testing.T) {
 	soon := time.Now().In(store.Shanghai).Format("2006-01-02")
 	a.DB.Exec(`INSERT INTO server(id,ip,name,expire_date) VALUES(1,'1.1.1.1','HK',?)`, soon)
 
-	if err := s.scanAlerts(ctx); err != nil {
+	if err := s.scanExpiringAlerts(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if count() != 1 || sent[0]["group"] != "G" || !strings.Contains(sent[0]["title"].(string), "到期提醒") || sent[0]["device_key"] != "devkey" {
 		t.Fatalf("应发送一次到期通知: %v", sent)
 	}
-	s.scanAlerts(ctx)
+	s.scanExpiringAlerts(ctx)
 	if count() != 1 {
 		t.Fatal("节流内不应重复发送")
+	}
+	// 非 12 点周期的 scanAlerts 不会触发到期通知
+	s.scanAlerts(ctx)
+	if count() != 1 {
+		t.Fatal("scanAlerts 不应发送到期通知")
 	}
 
 	// 连接数超限：普通超限只记录；≥2 倍即时推送，条件消失后恢复且默认不通知

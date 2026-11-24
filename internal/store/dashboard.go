@@ -43,11 +43,12 @@ func DashboardLoad(ctx context.Context, db *sql.DB, now time.Time, days int) (*D
 	}
 	d := new(Dashboard)
 	local := now.In(Shanghai)
+	expireCutoff := FormatTime(AccountExpireCutoff(now))
 	err := db.QueryRowContext(ctx, `SELECT
 		(SELECT count(*) FROM account),
-		(SELECT count(*) FROM account WHERE disabled=0 AND (to_date IS NULL OR to_date>@now)),
+		(SELECT count(*) FROM account WHERE disabled=0 AND (to_date IS NULL OR to_date>@expireCutoff)),
 		(SELECT count(*) FROM account WHERE disabled=1),
-		(SELECT count(*) FROM account WHERE to_date<=@now),
+		(SELECT count(*) FROM account WHERE to_date<=@expireCutoff),
 		(SELECT count(*) FROM node WHERE disabled=0),
 		(SELECT count(*) FROM node WHERE disabled=1),
 		(SELECT count(*) FROM node_server ns JOIN node n ON n.id=ns.node_id JOIN server s ON s.id=ns.server_id AND s.disabled=0 WHERE ns.deployed=0 AND `+placementNeedsDeploySQL+`),
@@ -58,7 +59,7 @@ func DashboardLoad(ctx context.Context, db *sql.DB, now time.Time, days int) (*D
 		(SELECT count(*) FROM alert_state WHERE status='ACTIVE'),
 		(SELECT count(*) FROM alert_state WHERE status='ACKNOWLEDGED'),
 		(SELECT count(DISTINCT resource_id) FROM alert_state WHERE resource_type='server' AND alert_type<>'server-expiring' AND status='ACTIVE')`,
-		sql.Named("now", FormatTime(now)), sql.Named("today", local.Format("2006-01-02")),
+		sql.Named("expireCutoff", expireCutoff), sql.Named("today", local.Format("2006-01-02")),
 		sql.Named("soon", local.AddDate(0, 0, 7).Format("2006-01-02"))).Scan(
 		&d.AccountsTotal, &d.AccountsActive, &d.AccountsDisabled, &d.AccountsExpired,
 		&d.NodesEnabled, &d.NodesDisabled, &d.PendingPlacements,
@@ -76,7 +77,7 @@ func DashboardLoad(ctx context.Context, db *sql.DB, now time.Time, days int) (*D
 		return nil, fmt.Errorf("读取近期告警: %w", err)
 	}
 	rows, err = db.QueryContext(ctx, `SELECT id,coalesce(nullif(remark,''),account_no),account_no,to_date,disabled FROM account
-		WHERE disabled=0 AND to_date>? AND to_date<? ORDER BY to_date,id`, FormatTime(now), FormatTime(now.AddDate(0, 0, days)))
+		WHERE disabled=0 AND to_date>? AND to_date<? ORDER BY to_date,id`, expireCutoff, FormatTime(now.AddDate(0, 0, days)))
 	if err != nil {
 		return nil, fmt.Errorf("读取到期账户: %w", err)
 	}

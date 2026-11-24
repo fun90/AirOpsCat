@@ -120,3 +120,48 @@ func TestTaskLoopDefersAfterManualRun(t *testing.T) {
 		t.Fatalf("顺延后应执行一次，runs=%d", n)
 	}
 }
+
+func TestFirstDelayDaily(t *testing.T) {
+	sh := func(y, m, d, h, min int) time.Time {
+		return time.Date(y, time.Month(m), d, h, min, 0, 0, store.Shanghai)
+	}
+	for _, c := range []struct {
+		name string
+		last time.Time
+		now  time.Time
+		want time.Duration
+	}{
+		{"12点前启动等至今日12点", time.Time{}, sh(2026, 11, 24, 8, 0), 4 * time.Hour},
+		{"12点前重启且昨日已跑仍等至今日12点", sh(2026, 11, 23, 12, 0), sh(2026, 11, 24, 8, 0), 4 * time.Hour},
+		{"12点后启动且今日未跑等待最短启动延迟", sh(2026, 11, 23, 12, 0), sh(2026, 11, 24, 13, 0), taskStartDelay},
+		{"12点后启动且从未跑过等待最短启动延迟", time.Time{}, sh(2026, 11, 24, 13, 0), taskStartDelay},
+		{"12点后重启且今日已跑等至明日12点", sh(2026, 11, 24, 12, 0), sh(2026, 11, 24, 13, 0), 23 * time.Hour},
+	} {
+		if got := firstDelayDaily(12, c.last, c.now); got != c.want {
+			t.Errorf("%s: got %v want %v", c.name, got, c.want)
+		}
+	}
+
+	task := &taskState{Name: "每日12点", Daily: true, DailyHour: 12}
+	// 10点手动执行过，12点仍应执行
+	task.Started = sh(2026, 11, 24, 10, 0)
+	if got := task.untilDue(sh(2026, 11, 24, 11, 59)); got != time.Minute {
+		t.Fatalf("11:59 应剩 1 分钟: %v", got)
+	}
+	if got := task.untilDue(sh(2026, 11, 24, 12, 0)); got != 0 {
+		t.Fatalf("12:00 应立即到期: %v", got)
+	}
+	// 12点执行后应等到次日 12 点
+	task.Started = sh(2026, 11, 24, 12, 0)
+	if got := task.untilDue(sh(2026, 11, 24, 12, 1)); got != 23*time.Hour+59*time.Minute {
+		t.Fatalf("12:01 应等到次日 12 点: %v", got)
+	}
+
+	s := newScheduleServer(t)
+	for _, key := range []string{"account-expire", "expiring-alert"} {
+		tk, ok := s.Tasks[key]
+		if !ok || !tk.Daily || tk.DailyHour != 12 {
+			t.Fatalf("任务 %s 应配置为每日 12 点执行: %+v", key, tk)
+		}
+	}
+}

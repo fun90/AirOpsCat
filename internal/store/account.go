@@ -212,7 +212,8 @@ func (f AccountFilter) where(now time.Time) (string, []any) {
 	if within <= 0 {
 		within = 10 * time.Minute
 	}
-	args := []any{sql.Named("now", FormatTime(now)), sql.Named("soon", FormatTime(now.AddDate(0, 0, 7))),
+	args := []any{sql.Named("now", FormatTime(now)), sql.Named("expireCutoff", FormatTime(AccountExpireCutoff(now))),
+		sql.Named("soon", FormatTime(now.AddDate(0, 0, 7))),
 		sql.Named("cutoff", FormatTime(now.Add(-within)))}
 	var conds []string
 	if s := strings.TrimSpace(f.Search); s != "" {
@@ -234,13 +235,13 @@ func (f AccountFilter) where(now time.Time) (string, []any) {
 	}
 	switch strings.ToLower(f.Status) {
 	case "active":
-		conds = append(conds, `a.disabled = 0 AND (a.to_date IS NULL OR a.to_date > @now)`)
+		conds = append(conds, `a.disabled = 0 AND (a.to_date IS NULL OR a.to_date > @expireCutoff)`)
 	case "disabled": // 手动禁用，与是否到期无关
 		conds = append(conds, `a.disabled = 1`)
 	case "expired": // 已到期，与是否禁用无关
-		conds = append(conds, `a.to_date IS NOT NULL AND a.to_date <= @now`)
+		conds = append(conds, `a.to_date IS NOT NULL AND a.to_date <= @expireCutoff`)
 	case "expiring":
-		conds = append(conds, `a.disabled = 0 AND a.to_date > @now AND a.to_date <= @soon`)
+		conds = append(conds, `a.disabled = 0 AND a.to_date > @expireCutoff AND a.to_date <= @soon`)
 	}
 	switch strings.ToLower(f.Online) {
 	case "online":

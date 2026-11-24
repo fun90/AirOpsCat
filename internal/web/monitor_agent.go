@@ -30,7 +30,7 @@ func (s *Server) monitorReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var expected string
-	err := s.DB.QueryRowContext(r.Context(), `SELECT a.token_hash FROM monitor_agent a JOIN server s ON s.id=a.server_id WHERE s.id=? AND s.disabled=0 AND s.external_server=0 AND (s.expire_date IS NULL OR s.expire_date='' OR substr(s.expire_date,1,10)>=?)`, report.ServerID, time.Now().In(store.Shanghai).Format("2006-01-02")).Scan(&expected)
+	err := s.DB.QueryRowContext(r.Context(), `SELECT a.token_hash FROM monitor_agent a JOIN server s ON s.id=a.server_id WHERE s.id=? AND s.disabled=0 AND s.external_server=0 AND (s.expire_date IS NULL OR s.expire_date='' OR substr(s.expire_date,1,10)>=?)`, report.ServerID, store.ServerUsableMinDay(time.Now())).Scan(&expected)
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	hash := sha256.Sum256([]byte(token))
 	if err != nil || !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") || token == "" || subtle.ConstantTimeCompare([]byte(expected), []byte(hex.EncodeToString(hash[:]))) != 1 {

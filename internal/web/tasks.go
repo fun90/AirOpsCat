@@ -16,6 +16,8 @@ import (
 type taskState struct {
 	Name              string
 	Interval          time.Duration
+	Daily             bool
+	DailyHour         int
 	Run               func(context.Context) error
 	mu                sync.Mutex
 	Running           bool
@@ -46,10 +48,35 @@ func firstDelay(interval time.Duration, last, now time.Time) time.Duration {
 	return max(floor, min(last.Add(interval).Sub(now), interval))
 }
 
-// untilDue 返回距离下次应执行的时长；手动执行会把下次定时执行顺延一个周期。
+// firstDelayDaily 返回每日定点任务在启动后首次执行前的等待：
+// 当天目标时刻尚未到达则等到该时刻；已过目标时刻且今日尚未执行过，则等待 taskStartDelay 后补跑；今日已执行过则等到次日目标时刻。
+func firstDelayDaily(hour int, last, now time.Time) time.Duration {
+	local := now.In(store.Shanghai)
+	target := time.Date(local.Year(), local.Month(), local.Day(), hour, 0, 0, 0, store.Shanghai)
+	if !local.Before(target) {
+		if last.IsZero() || last.Before(target) {
+			return taskStartDelay
+		}
+		return target.AddDate(0, 0, 1).Sub(local)
+	}
+	return target.Sub(local)
+}
+
+// untilDue 返回距离下次应执行的时长；周期任务手动执行会把下次定时执行顺延一个周期，每日定点任务仍按每天整点执行。
 func (t *taskState) untilDue(now time.Time) time.Duration {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if t.Daily {
+		local := now.In(store.Shanghai)
+		target := time.Date(local.Year(), local.Month(), local.Day(), t.DailyHour, 0, 0, 0, store.Shanghai)
+		if local.Before(target) {
+			return target.Sub(local)
+		}
+		if t.Started.IsZero() || t.Started.Before(target) {
+			return 0
+		}
+		return target.AddDate(0, 0, 1).Sub(local)
+	}
 	if t.Started.IsZero() {
 		return 0
 	}
@@ -138,10 +165,11 @@ func (s *Server) initTasks() {
 		"server-monitor":    {Name: "服务器指标采集（CPU/内存/磁盘/网速）", Interval: monitorInterval, Run: s.collectMonitor},
 		"server-vnstat":     {Name: "服务器月流量采集（vnstat）", Interval: vnstatInterval, Run: s.collectVnstat},
 		"placement-probe":   {Name: "部署位国内连通检测（TCP/UDP）", Interval: probeInterval, Run: s.probePlacements},
-		"alert-scan":        {Name: "告警扫描（流量超额与到期）", Interval: 5 * time.Minute, Run: s.scanAlerts},
+		"alert-scan":        {Name: "告警扫描（流量超额）", Interval: 5 * time.Minute, Run: s.scanAlerts},
+		"expiring-alert":    {Name: "到期提醒", Daily: true, DailyHour: 12, Run: s.scanExpiringAlerts},
 		"ip-overlap-digest": {Name: "超限每日摘要", Interval: 24 * time.Hour, Run: s.ipOverlapDigest},
 		"guard-evict":       {Name: "风控过期状态回收", Interval: 30 * time.Second, Run: s.Guard.Evict},
-		"account-expire":    {Name: "到期账户停用并部署", Interval: time.Hour, Run: s.expireAccounts},
+		"account-expire":    {Name: "到期账户停用并部署", Daily: true, DailyHour: 12, Run: s.expireAccounts},
 		"deploy-retry":      {Name: "部署失败重试与待部署补偿", Interval: deployRetryEvery, Run: s.retryDeploys},
 		"db-backup": {Name: "数据库每日备份", Interval: 24 * time.Hour, Run: func(ctx context.Context) error {
 			if _, err := s.Backup.Create(ctx); err != nil {
@@ -213,7 +241,7 @@ func (s *Server) StartTasks(ctx context.Context) {
 	now := time.Now()
 	for key, t := range s.Tasks {
 		var prev time.Time
-		if t.Interval >= persistTaskMin {
+		if t.Daily || t.Interval >= persistTaskMin {
 			// 时钟回拨导致记录在未来时视为无记录，避免任务被推迟超过一个周期。
 			if at := last[key]; !at.After(now) {
 				prev = at
@@ -225,7 +253,11 @@ func (s *Server) StartTasks(ctx context.Context) {
 			}
 			t.mu.Unlock()
 		}
-		go t.loop(ctx, firstDelay(t.Interval, prev, now))
+		wait := firstDelay(t.Interval, prev, now)
+		if t.Daily {
+			wait = firstDelayDaily(t.DailyHour, prev, now)
+		}
+		go t.loop(ctx, wait)
 	}
 }
 
@@ -238,8 +270,12 @@ func (t *taskState) loop(ctx context.Context, wait time.Duration) {
 			return
 		case <-timer.C:
 		}
-		// 等待期间被手动执行过，则按那次开始时间顺延。
-		if rest := t.untilDue(time.Now()); rest > 100*time.Millisecond {
+		// 等待期间被手动执行过，或每日定点任务因定时器抖动提前唤醒，则继续等待。
+		minRest := 100 * time.Millisecond
+		if t.Daily {
+			minRest = 0
+		}
+		if rest := t.untilDue(time.Now()); rest > minRest {
 			wait = rest
 			continue
 		}

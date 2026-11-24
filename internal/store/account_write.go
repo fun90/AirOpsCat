@@ -317,7 +317,7 @@ func renewAccountTx(ctx context.Context, tx *sql.Tx, old *Account, newToDate tim
 		FormatTime(newToDate), FormatTime(now), old.ID); err != nil {
 		return err
 	}
-	if !old.Disabled && !old.ToDate.After(now) {
+	if !old.Disabled && IsAccountExpired(old.ToDate, now) {
 		if err := markAccountPending(ctx, tx, old.ID); err != nil {
 			return err
 		}
@@ -401,9 +401,11 @@ func SetAccountDisabled(ctx context.Context, db *sql.DB, id int64, disabled bool
 
 // setAccountDisabledTx 返回状态是否实际变化；账户不存在返回 sql.ErrNoRows。
 func setAccountDisabledTx(ctx context.Context, tx *sql.Tx, id int64, disabled bool) (bool, error) {
-	now := FormatTime(nowFunc())
+	nowTime := nowFunc()
+	now := FormatTime(nowTime)
+	cutoff := FormatTime(AccountExpireCutoff(nowTime))
 	var old, valid bool
-	if err := tx.QueryRowContext(ctx, `SELECT disabled, to_date IS NULL OR to_date > ? FROM account WHERE id = ?`, now, id).Scan(&old, &valid); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT disabled, to_date IS NULL OR to_date > ? FROM account WHERE id = ?`, cutoff, id).Scan(&old, &valid); err != nil {
 		return false, err
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE account SET disabled = ?, update_time = ? WHERE id = ?`, disabled, now, id); err != nil {

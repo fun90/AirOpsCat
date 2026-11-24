@@ -141,7 +141,7 @@ func BatchNodeSwitch(ctx context.Context, db *sql.DB, nodeIDs []int64) (switched
 		var rest int
 		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM node_server ns JOIN node n ON n.id = ns.node_id JOIN server s ON s.id = ns.server_id
 			WHERE ns.node_id = ? AND ns.failover = 0 AND `+dnsPlacementSQL+` AND `+dnsServerUsableSQL+` AND ns.id NOT IN `+in,
-			append([]any{id, shanghaiDay(nowFunc())}, ids...)...).Scan(&rest); err != nil {
+			append([]any{id, ServerUsableMinDay(nowFunc())}, ids...)...).Scan(&rest); err != nil {
 			return 0, 0, err
 		}
 		if rest == 0 {
@@ -218,7 +218,7 @@ func SwitchAwayPlacement(ctx context.Context, db *sql.DB, nodeID, placementID, t
 			var rest int
 			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM node_server ns JOIN node n ON n.id = ns.node_id JOIN server s ON s.id = ns.server_id
 				WHERE ns.node_id = ? AND ns.id <> ? AND ns.failover = 0 AND `+dnsPlacementSQL+` AND `+dnsServerUsableSQL,
-				nodeID, placementID, shanghaiDay(nowFunc())).Scan(&rest); err != nil {
+				nodeID, placementID, ServerUsableMinDay(nowFunc())).Scan(&rest); err != nil {
 				return err
 			}
 			if rest == 0 {
@@ -270,7 +270,7 @@ func checkSwitchTarget(ctx context.Context, q dbtx, nodeID, placementID int64) e
 	err := q.QueryRowContext(ctx, `SELECT ns.deployed, ns.deployed = 1 OR EXISTS (SELECT 1 FROM node_deployment d WHERE d.node_server_id = ns.id AND coalesce(d.disabled,0) = 0),
 		coalesce(n.type,0), n.disabled, s.external_server, `+dnsServerUsableSQL+`, coalesce(nullif(s.name,''), s.ip)
 		FROM node_server ns JOIN node n ON n.id = ns.node_id JOIN server s ON s.id = ns.server_id WHERE ns.id = ? AND ns.node_id = ?`,
-		shanghaiDay(nowFunc()), placementID, nodeID).Scan(&deployed, &running, &typ, &nodeDisabled, &external, &usable, &server)
+		ServerUsableMinDay(nowFunc()), placementID, nodeID).Scan(&deployed, &running, &typ, &nodeDisabled, &external, &usable, &server)
 	switch {
 	case errors.Is(err, sql.ErrNoRows) || err == nil && deployed == PendingDelete:
 		return invalid("部署位不存在或待删除")

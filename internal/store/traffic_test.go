@@ -176,7 +176,7 @@ func TestTrafficCounterPersistsAndDirectionIsIndependent(t *testing.T) {
 	}
 	id := trafficAccount(t, db, "A1", "2026-01-01 00:00:00", PeriodMonthly)
 	sid := addServer(t, db, "s", "HK", 0, false, false)
-	at := trafficTime(t, "2026-01-02 00:00:00")
+	at := trafficTime(t, "2026-01-02 12:00:00")
 	if err = CollectAccountTraffic(ctx, db, sid, at, []TrafficReading{{"A1", "uplink", 100}}); err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ func TestTrafficExpirationAtomic(t *testing.T) {
 	trafficExec(t, db, `INSERT INTO account_tag VALUES(?,1)`, a)
 	trafficExec(t, db, `INSERT INTO node_tag VALUES(1,1)`)
 	trafficExec(t, db, `INSERT INTO node_server(node_id,server_id,deployed) VALUES(1,?,1)`, sid)
-	at := trafficTime(t, "2026-02-01 00:00:00")
+	at := trafficTime(t, "2026-02-01 12:00:00")
 	trafficExec(t, db, `CREATE TRIGGER fail_expire BEFORE UPDATE OF expire_handled_to ON account BEGIN SELECT RAISE(ABORT,'test'); END`)
 	if _, err := ExpireAccounts(ctx, db, at); err == nil {
 		t.Fatal("应失败")
@@ -289,7 +289,7 @@ func TestTrafficBatchLimitsReuseTransaction(t *testing.T) {
 	inactive := trafficAccount(t, db, "A2", "2026-01-01 00:00:00", PeriodMonthly)
 	trafficExec(t, db, `UPDATE account SET disabled=1 WHERE id=?`, inactive)
 	trafficExec(t, db, `UPDATE account SET download_mbps=30,upload_mbps=40 WHERE id=?`, id)
-	at := trafficTime(t, "2026-01-02 00:00:00")
+	at := trafficTime(t, "2026-01-02 12:00:00")
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatal(err)

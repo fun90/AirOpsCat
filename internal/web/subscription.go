@@ -66,7 +66,7 @@ func (s *Server) subscriptionData(r *http.Request) (map[string]any, *store.Accou
 	if a == nil {
 		return nil, nil, fmt.Errorf("无效的认证码，账户不存在")
 	}
-	if a.Disabled || (a.ToDate != nil && time.Now().After(*a.ToDate)) {
+	if a.Disabled || store.IsAccountExpired(a.ToDate, time.Now()) {
 		return nil, nil, fmt.Errorf("账户已被禁用，请联系管理员")
 	}
 	nodes, err := store.SubscriptionNodes(r.Context(), s.DB, a, multiple)
@@ -231,7 +231,7 @@ func (s *Server) docsInfo(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	if a == nil || a.Disabled || (a.ToDate != nil && time.Now().After(*a.ToDate)) {
+	if a == nil || a.Disabled || store.IsAccountExpired(a.ToDate, time.Now()) {
 		w.WriteHeader(400)
 		json.NewEncoder(w).Encode(map[string]any{"error": "无效的认证码，账户不存在"})
 		return

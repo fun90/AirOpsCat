@@ -155,11 +155,12 @@ func EffectiveLimitOverrides(ctx context.Context, q dbtx, at time.Time) (map[str
 	}
 	enabled := strings.EqualFold(config["airopscat.ratelimit.enabled"], "true")
 	stamp := FormatTime(at)
+	cutoff := FormatTime(AccountExpireCutoff(at))
 	rows, err = q.QueryContext(ctx, `SELECT a.account_no,coalesce(a.download_mbps,0),coalesce(a.upload_mbps,0),
  coalesce(s.upload_bytes,0),coalesce(s.download_bytes,0),coalesce(s.bandwidth_quota,a.bandwidth,0)
  FROM account a LEFT JOIN account_traffic_stats s ON s.id=(SELECT t.id FROM account_traffic_stats t
  WHERE t.account_id=a.id AND t.period_start<=? AND t.period_end>? ORDER BY t.period_start DESC,t.id DESC LIMIT 1)
- WHERE a.disabled=0 AND (a.to_date IS NULL OR a.to_date>?)`, stamp, stamp, stamp)
+ WHERE a.disabled=0 AND (a.to_date IS NULL OR a.to_date>?)`, stamp, stamp, cutoff)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +285,7 @@ func CollectAccountTraffic(ctx context.Context, db *sql.DB, serverID int64, at t
 	})
 }
 
-// ExpireAccounts 供每小时任务调用，识别新进入到期（to_date<=at 且该 to_date 尚未处理）的账户：
+// ExpireAccounts 供每日 12 点任务调用，识别新进入到期（to_date<=AccountExpireCutoff(at) 且该 to_date 尚未处理）的账户：
 // 记录已处理的 to_date，未禁用账户的相关节点置待部署并返回其 ID。不修改 disabled，它只表示手动封禁；
 // 手动禁用的账户已不在节点配置中，无需部署。记录与待部署标记属于同一事务。
 func ExpireAccounts(ctx context.Context, db *sql.DB, at time.Time) ([]int64, error) {
@@ -294,7 +295,7 @@ func ExpireAccounts(ctx context.Context, db *sql.DB, at time.Time) ([]int64, err
 	}
 	defer tx.Rollback()
 	rows, err := tx.QueryContext(ctx, `SELECT id, disabled FROM account
-		WHERE to_date IS NOT NULL AND to_date<=? AND expire_handled_to IS NOT to_date ORDER BY id`, FormatTime(at))
+		WHERE to_date IS NOT NULL AND to_date<=? AND expire_handled_to IS NOT to_date ORDER BY id`, FormatTime(AccountExpireCutoff(at)))
 	if err != nil {
 		return nil, err
 	}

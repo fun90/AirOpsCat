@@ -17,7 +17,7 @@ func expiryFixture(t *testing.T) (http.Handler, *auth.Service, *http.Cookie) {
 	t.Helper()
 	h, a := newTestServer(t)
 	c := login(t, h, "admin@example.com")
-	past := store.FormatTime(time.Now().Add(-time.Hour))
+	past := store.FormatTime(time.Now().AddDate(0, 0, -1))
 	future := store.FormatTime(time.Now().AddDate(0, 1, 0))
 	if _, err := a.DB.Exec(`INSERT INTO account(id,uuid,account_no,auth_code,period_type,node_multiple,from_date,to_date,disabled,user_id,remark) VALUES
 		(1,'00000000-0000-4000-8000-000000000001','E1','expired-code-0001','MONTHLY',1,'2020-01-01 00:00:00',?,1,1,'到期禁用'),

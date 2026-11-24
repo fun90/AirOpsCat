@@ -92,7 +92,7 @@ func (s *Server) maintenanceRun(w http.ResponseWriter, r *http.Request) {
 	}
 	var expire string
 	s.DB.QueryRowContext(r.Context(), "SELECT coalesce(expire_date,'') FROM server WHERE id=?", id).Scan(&expire)
-	if expire != "" && expire[:min(10, len(expire))] < time.Now().In(store.Shanghai).Format("2006-01-02") {
+	if expire != "" && expire[:min(10, len(expire))] < store.ServerUsableMinDay(time.Now()) {
 		http.Error(w, "服务器已过期", 422)
 		return
 	}

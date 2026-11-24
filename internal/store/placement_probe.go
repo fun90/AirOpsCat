@@ -204,13 +204,13 @@ func AutoFailoverPlacements(ctx context.Context, db *sql.DB, probeIDs []int64, c
 			args = append(args, id)
 		}
 	}
-	args = append(args, shanghaiDay(nowFunc()))
+	args = append(args, ServerUsableMinDay(nowFunc()))
 	appendIDs()
 	args = append(args, len(probeIDs))
 	appendIDs()
 	appendIDs()
 	fresh := FormatTime(checkedAfter)
-	args = append(args, fresh, shanghaiDay(nowFunc()))
+	args = append(args, fresh, ServerUsableMinDay(nowFunc()))
 	appendIDs()
 	args = append(args, len(probeIDs))
 	appendIDs()

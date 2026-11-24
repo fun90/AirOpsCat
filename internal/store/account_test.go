@@ -361,7 +361,7 @@ func TestAccountListFilters(t *testing.T) {
 	active := mk("alice@example.com", "活跃", func(a *Account) { a.FromDate, a.ToDate = ptr(now.Add(-time.Hour)), ptr(now.AddDate(0, 1, 0)) })
 	forever := mk("bob@example.com", "永久", nil)
 	expiring := mk("carol@example.com", "快到期", func(a *Account) { a.FromDate, a.ToDate = ptr(now.Add(-time.Hour)), ptr(now.AddDate(0, 0, 3)) })
-	expired := mk("dave@example.com", "已过期", func(a *Account) { a.FromDate, a.ToDate = ptr(now.AddDate(0, -2, 0)), ptr(now.Add(-time.Hour)) })
+	expired := mk("dave@example.com", "已过期", func(a *Account) { a.FromDate, a.ToDate = ptr(now.AddDate(0, -2, 0)), ptr(now.AddDate(0, 0, -1)) })
 	disabled := mk("erin@example.com", "禁用", func(a *Account) { a.Disabled = true })
 
 	ids := func(f AccountFilter) map[int64]bool {

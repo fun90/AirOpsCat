@@ -13,7 +13,7 @@ func TestExpireAccountsLeavesDisabledAlone(t *testing.T) {
 	tag := mustTag(t, db, "exp")
 	nid := deployedNode(t, db, "exp", tag)
 	now := time.Now()
-	past := now.Add(-time.Hour)
+	past := now.AddDate(0, 0, -1)
 	expired := onboard(t, db, "expired@example.test", func(in *OnboardInput) {
 		in.Account.TagIDs = []int64{tag}
 		in.Account.FromDate, in.Account.ToDate = ptr(past.AddDate(0, -1, 0)), &past
@@ -51,7 +51,7 @@ func TestExpireAccountsLeavesDisabledAlone(t *testing.T) {
 	if err := RenewAccount(ctx, db, expired.AccountID, now.Add(time.Hour), nil, ""); err != nil {
 		t.Fatal(err)
 	}
-	if ids, err = ExpireAccounts(ctx, db, now.Add(2*time.Hour)); err != nil || len(ids) != 1 || ids[0] != expired.AccountID {
+	if ids, err = ExpireAccounts(ctx, db, now.AddDate(0, 0, 1)); err != nil || len(ids) != 1 || ids[0] != expired.AccountID {
 		t.Fatalf("续期后再到期应重新处理: %v %v", ids, err)
 	}
 }
@@ -140,7 +140,7 @@ func TestEnableExpiredAccountKeepsDeployment(t *testing.T) {
 	db, ctx := testDB(t)
 	tag := mustTag(t, db, "toggle")
 	nid := deployedNode(t, db, "toggle", tag)
-	past := time.Now().Add(-time.Hour)
+	past := time.Now().AddDate(0, 0, -1)
 	r := onboard(t, db, "toggle@example.test", func(in *OnboardInput) {
 		in.Account.TagIDs = []int64{tag}
 		in.Account.FromDate, in.Account.ToDate, in.Account.Disabled = ptr(past.AddDate(0, -1, 0)), &past, true
@@ -161,7 +161,7 @@ func TestEnableExpiredAccountKeepsDeployment(t *testing.T) {
 func TestAccountExpiredAndDisabledAreIndependent(t *testing.T) {
 	db, ctx := testDB(t)
 	now := time.Now()
-	past := now.Add(-time.Hour)
+	past := now.AddDate(0, 0, -1)
 	expired := onboard(t, db, "expired@example.test", func(in *OnboardInput) {
 		in.Account.FromDate, in.Account.ToDate = ptr(past.AddDate(0, -1, 0)), &past
 	})
@@ -198,5 +198,70 @@ func TestAccountExpiredAndDisabledAreIndependent(t *testing.T) {
 	}
 	if d.AccountsTotal != 4 || d.AccountsActive != 1 || d.AccountsDisabled != 2 || d.AccountsExpired != 2 {
 		t.Fatalf("概览统计: total=%d active=%d disabled=%d expired=%d", d.AccountsTotal, d.AccountsActive, d.AccountsDisabled, d.AccountsExpired)
+	}
+}
+
+func TestAccountAndServerNoonGracePeriod(t *testing.T) {
+	shTime := func(s string) time.Time {
+		t.Helper()
+		tm, err := ParseTime(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tm
+	}
+
+	// 服务器：当天 12:00 前仍可用，12:00 及之后不再可用
+	if got := ServerUsableMinDay(shTime("2026-11-24 00:00:00")); got != "2026-11-24" {
+		t.Fatalf("00:00 应含当天: %s", got)
+	}
+	if got := ServerUsableMinDay(shTime("2026-11-24 11:59:59")); got != "2026-11-24" {
+		t.Fatalf("11:59 应含当天: %s", got)
+	}
+	if got := ServerUsableMinDay(shTime("2026-11-24 12:00:00")); got != "2026-11-25" {
+		t.Fatalf("12:00 应排除当天: %s", got)
+	}
+
+	// 账户：当天 00:00~12:00 到期的账户在 12:00 前继续可用，12:00 统一处理；12:00 后到期的按实际时刻生效
+	t0 := shTime("2026-11-24 00:00:00")
+	t9 := shTime("2026-11-24 09:00:00")
+	t12 := shTime("2026-11-24 12:00:00")
+	t15 := shTime("2026-11-24 15:00:00")
+	yest := shTime("2026-11-23 23:59:59")
+
+	at08 := shTime("2026-11-24 08:00:00")
+	at12 := shTime("2026-11-24 12:00:00")
+	at16 := shTime("2026-11-24 16:00:00")
+
+	if !IsAccountExpired(&yest, at08) {
+		t.Fatal("昨日到期的账户 08:00 应已过期")
+	}
+	if IsAccountExpired(&t0, at08) || IsAccountExpired(&t9, at08) || IsAccountExpired(&t12, at08) {
+		t.Fatal("0~12 点到期的账户在 08:00 不应过期")
+	}
+	if !IsAccountExpired(&t0, at12) || !IsAccountExpired(&t9, at12) || !IsAccountExpired(&t12, at12) {
+		t.Fatal("0~12 点到期的账户在 12:00 应过期")
+	}
+	if IsAccountExpired(&t15, at12) {
+		t.Fatal("15:00 到期的账户在 12:00 不应过期")
+	}
+	if !IsAccountExpired(&t15, at16) {
+		t.Fatal("15:00 到期的账户在 16:00 应过期")
+	}
+
+	db, ctx := testDB(t)
+	tag := mustTag(t, db, "grace")
+	nid := deployedNode(t, db, "grace", tag)
+	onboard(t, db, "grace9@example.test", func(in *OnboardInput) {
+		in.Account.TagIDs = []int64{tag}
+		in.Account.FromDate, in.Account.ToDate = ptr(yest.AddDate(0, -1, 0)), &t9
+	})
+	resetDeployed(db, nid)
+
+	if ids, err := ExpireAccounts(ctx, db, at08); err != nil || len(ids) != 0 {
+		t.Fatalf("12 点前不应处理当天 0~12 点到期账户: %v %v", ids, err)
+	}
+	if ids, err := ExpireAccounts(ctx, db, at12); err != nil || len(ids) != 1 {
+		t.Fatalf("12 点应处理当天 0~12 点到期账户: %v %v", ids, err)
 	}
 }
