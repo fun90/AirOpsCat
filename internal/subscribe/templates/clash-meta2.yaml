@@ -47,6 +47,40 @@ dns:
     - "+.tailscale.com"
     - "+.tailscale.io"
     - "+.ts.net"
+    - "+.weixin.qq.com"
+    - "+.wx.qq.com"
+    - "+.wechat.com"
+    - "+.servicewechat.com"
+    - "+.wechatpay.cn"
+    - "+.tenpay.com"
+    - "+.qpic.cn"
+    - "+.qlogo.cn"
+    - "+.meituan.com"
+    - "+.meituan.net"
+    - "+.sankuai.com"
+    - "+.dianping.com"
+    - "+.dpfile.com"
+    - "+.feishu.cn"
+    - "+.feishucdn.com"
+    - "+.larksuite.com"
+    - "+.larkoffice.com"
+    - "+.bytedance.com"
+    - "+.byteoversea.com"
+    - "+.alipay.com"
+    - "+.alipayobjects.com"
+    - "+.taobao.com"
+    - "+.tmall.com"
+    - "+.alicdn.com"
+    - "+.dingtalk.com"
+    - "+.amap.com"
+    - "+.autonavi.com"
+    - "+.qq.com"
+    - "+.jd.com"
+    - "+.baidu.com"
+    - "+.bilibili.com"
+    - "+.xiaohongshu.com"
+    - "+.wps.cn"
+    - "+.kdocs.cn"
   nameserver:
     - tls://223.5.5.5:853
     - tls://223.6.6.6:853
@@ -54,6 +88,9 @@ dns:
     - tls://1.12.12.12
   nameserver-policy:
     "+.fun90.com":
+      - tls://223.5.5.5:853
+      - tls://223.6.6.6:853
+    "rule-set:cn-apps":
       - tls://223.5.5.5:853
       - tls://223.6.6.6:853
     "rule-set:Broker":
@@ -237,6 +274,12 @@ rule-providers:
     url: "{{text $.subscriptionUrl}}/rules/clash/mydirect.yaml"
     path: ./ruleset/mydirect.yaml
     interval: 86400
+  cn-apps:
+    type: http
+    behavior: classical
+    url: "{{text $.subscriptionUrl}}/rules/clash/cn-apps.yaml"
+    path: ./ruleset/cn-apps.yaml
+    interval: 86400
   myproxy:
     type: http
     behavior: classical
@@ -310,6 +353,7 @@ rules:
   - RULE-SET,hst,HST
   - RULE-SET,myreject,REJECT
   - RULE-SET,mydirect,DIRECT
+  - RULE-SET,cn-apps,DIRECT
   - RULE-SET,myproxy,代理
   - RULE-SET,Broker,Broker
   - RULE-SET,football,Football

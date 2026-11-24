@@ -183,6 +183,12 @@ rule-providers:
     url: "{{text $.subscriptionUrl}}/rules/clash/mydirect.yaml"
     path: ./ruleset/mydirect.yaml
     interval: 86400
+  cn-apps:
+    type: http
+    behavior: classical
+    url: "{{text $.subscriptionUrl}}/rules/clash/cn-apps.yaml"
+    path: ./ruleset/cn-apps.yaml
+    interval: 86400
   myproxy:
     type: http
     behavior: classical
@@ -249,6 +255,7 @@ rules:
   - RULE-SET,hst,HST
   - RULE-SET,myreject,REJECT
   - RULE-SET,mydirect,DIRECT
+  - RULE-SET,cn-apps,DIRECT
   - RULE-SET,myproxy,代理
   - RULE-SET,Broker,Broker
   - RULE-SET,football,Football

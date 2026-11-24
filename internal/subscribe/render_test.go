@@ -40,7 +40,7 @@ func fixture(scenario string) map[string]any {
 	return data
 }
 
-// 金样摘要最初由生产 Qute 3.24.4 独立渲染生成（Clash 系列金样在 tailscale 直连与 fake-ip 过滤规则加入后由 Go 渲染重算，差异仅为这些行）：strict、removeStandaloneLines、ReflectionValueResolver、capture、urlEncode 和列表索引解析器，无内容类型变体。
+// 金样摘要最初由生产 Qute 3.24.4 独立渲染生成（订阅模板在加入 tailscale、cn-apps 直连与 fake-ip 过滤、sing-box 直连优先于 QUIC 拦截后由 Go 渲染重算，差异仅为这些规则）：strict、removeStandaloneLines、ReflectionValueResolver、capture、urlEncode 和列表索引解析器，无内容类型变体。
 func TestProductionQuteGolden(t *testing.T) {
 	for key, want := range quteGolden {
 		scenario, path, _ := strings.Cut(key, "/")
@@ -125,7 +125,7 @@ func TestTemplateTrees(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 28 {
+	if count != 31 {
 		t.Fatalf("文件数 %d", count)
 	}
 	_ = fs.WalkDir(external, ".", func(path string, e fs.DirEntry, err error) error {
@@ -296,61 +296,61 @@ func TestProductionEdges(t *testing.T) {
 }
 
 var quteGolden = map[string]string{
-	"dns/clash-meta.yaml":             "970710b26338951721e40bb6ee5e379a0aa0780cad2e0f7adf8079481922ccda",
-	"dns/clash-meta2.yaml":            "7b7e07b2a017bf6acd81b43f6470f8d6b033da36c09f5c1ca5b38b32a9709391",
-	"dns/clash-mi.yaml":               "91a260ed302d39ce4c925b12329a00b3bfedbe8ecd688c3d0176715d2baf5581",
-	"dns/clash-verge-mrs.yaml":        "72f68546394fc89a7d05b00e7043a3899f6c55b36576f9a8395f55376640ddb9",
-	"dns/clash-verge.yaml":            "e53a454879e5cc546ca04eea8be22342aa4b5b2dba942844f9d27c2d70c44cad",
-	"dns/loon.conf":                   "fc977ac4494741e847bbfe3dd97c82abd4dd283447acc27820ab90bf3e8f5f10",
+	"dns/clash-meta.yaml":             "4ac969de273d3b45460f0b07b4888bdcf1c0e51ebf2a2d11307637a575b1ae20",
+	"dns/clash-meta2.yaml":            "0d679c2ddbdfd58faaffbd09096036df79497766baf28fd9976c8ce89d7461c7",
+	"dns/clash-mi.yaml":               "97bc92613f45401ec6100c7629e93365d6da66094a127c44665fae29f690a386",
+	"dns/clash-verge-mrs.yaml":        "ec90ebd6301b4658de8512d08a6b7545d86d42b6ef563c66a042f2c3b18f4fb1",
+	"dns/clash-verge.yaml":            "080e204d322a940369e28c113a9d6bea66cc3ac2b9e75bf4f7e6a7ae32731480",
+	"dns/loon.conf":                   "82f1fa13c705786dc4c528f6db392f43656fe8adec95b55214a7b29bac7ab680",
 	"dns/nodes/loon.html":             "1c6be18ad04e8f59e37f101080b0eda5148466cc80f03d207866a9e337299b2e",
 	"dns/nodes/shadowrocket.html":     "3ac0287c389b889d9f1e664ef051a19ac6b08f54e35459a2d40cc2bd81644951",
-	"dns/shadowrocket.conf":           "43f5cf43773879df83c5b77dc7976dbb260dc8ae2139be422b25c1ef4d63846c",
-	"dns/sing-box.json":               "d2eb23a6e29df69fdbc0f29f490c0adcf26e7922a6bb12794e44268a574c14c9",
-	"dns/stash.yaml":                  "a5097d3f854189b1725f38663d432e9bd49fef5733bdac1bb9fdd2eed91f1d87",
-	"multi/clash-meta.yaml":           "970710b26338951721e40bb6ee5e379a0aa0780cad2e0f7adf8079481922ccda",
-	"multi/clash-meta2.yaml":          "7b7e07b2a017bf6acd81b43f6470f8d6b033da36c09f5c1ca5b38b32a9709391",
-	"multi/clash-mi.yaml":             "91a260ed302d39ce4c925b12329a00b3bfedbe8ecd688c3d0176715d2baf5581",
-	"multi/clash-verge-mrs.yaml":      "8789f8a20a025bf0267f286ee56dfd7534dbddaa731cdb80b9e3437402397381",
-	"multi/clash-verge.yaml":          "fa77c9a4a28b056e013f3a6d5a9b4a529431cf188399ae0586c00ee796a22d10",
-	"multi/loon.conf":                 "fc977ac4494741e847bbfe3dd97c82abd4dd283447acc27820ab90bf3e8f5f10",
+	"dns/shadowrocket.conf":           "cc4c2d66beb761e82df70338d1333d23399cea9ebb3589769c3a53c0c1a6e4a0",
+	"dns/sing-box.json":               "7e1baf95285ba9c792c3e7c4d6262762a9e8a341055f506ed34e76fc96f828a1",
+	"dns/stash.yaml":                  "f2631ee1c25f84ea28d6173b60e9b8fbc8b66cc1948d19e401e39b3fac6a8363",
+	"multi/clash-meta.yaml":           "4ac969de273d3b45460f0b07b4888bdcf1c0e51ebf2a2d11307637a575b1ae20",
+	"multi/clash-meta2.yaml":          "0d679c2ddbdfd58faaffbd09096036df79497766baf28fd9976c8ce89d7461c7",
+	"multi/clash-mi.yaml":             "97bc92613f45401ec6100c7629e93365d6da66094a127c44665fae29f690a386",
+	"multi/clash-verge-mrs.yaml":      "fb3bf06a48da9215a4a0c9cb7c0857f564b1c040a2da8ab9981dbdd488f50bc3",
+	"multi/clash-verge.yaml":          "c0d5545a6341e66dc7ccada75f1ccf88a0c5b93d93387a2a50170ef4cf7408a6",
+	"multi/loon.conf":                 "82f1fa13c705786dc4c528f6db392f43656fe8adec95b55214a7b29bac7ab680",
 	"multi/nodes/loon.html":           "1c6be18ad04e8f59e37f101080b0eda5148466cc80f03d207866a9e337299b2e",
 	"multi/nodes/shadowrocket.html":   "3ac0287c389b889d9f1e664ef051a19ac6b08f54e35459a2d40cc2bd81644951",
-	"multi/shadowrocket.conf":         "43f5cf43773879df83c5b77dc7976dbb260dc8ae2139be422b25c1ef4d63846c",
-	"multi/sing-box.json":             "a7f95da2d37ad45bc8b64e1832317456fb4765fa94b8cc42398a0b1a1e2afb49",
-	"multi/stash.yaml":                "a5097d3f854189b1725f38663d432e9bd49fef5733bdac1bb9fdd2eed91f1d87",
-	"null/clash-meta.yaml":            "9e150853002244398d115aa3299ff807f1d0ab1e3b25395e36d9c655d9612ae2",
-	"null/clash-meta2.yaml":           "fd6ed9b8c213f1ceadca837c885825641360750cb9a4b807e865d564b7d7db86",
-	"null/clash-mi.yaml":              "c2205aec15109f09ac1c05f2d546d89b03dca3983d5b42d8cedb06888032df9a",
-	"null/clash-verge-mrs.yaml":       "540c90568d0bad301443d11a599147f2cbdf840696a02113b9b197b9cec698ac",
-	"null/clash-verge.yaml":           "b33b9065aa543a6879c633a3f417ee44bf043ebeb748f146e4cb82fd07365a4c",
-	"null/loon.conf":                  "76a143829dd52bac1a16d9b22e6b672bc192378ed7043a02ae05d4908a9662cc",
+	"multi/shadowrocket.conf":         "cc4c2d66beb761e82df70338d1333d23399cea9ebb3589769c3a53c0c1a6e4a0",
+	"multi/sing-box.json":             "159ae844a1e6e2a9f39cbe8c9ac3f4f04330de49b45019c50ac31c041ffdba20",
+	"multi/stash.yaml":                "f2631ee1c25f84ea28d6173b60e9b8fbc8b66cc1948d19e401e39b3fac6a8363",
+	"null/clash-meta.yaml":            "2efcd141aa6629efac56f171ea5408e5ed24c8b4c93335ddc6dbbba66b234a7e",
+	"null/clash-meta2.yaml":           "1be15a36fa3df619ab07601d629742e4afb7fbd160764a6f222c44d3c4f0c6c0",
+	"null/clash-mi.yaml":              "a6cb4a5e8714a4966ea87b0dae1fb972385e496c4f421773566803ea0be18500",
+	"null/clash-verge-mrs.yaml":       "f57e7ef4e24af793a096f84613dcf40cb4c608005817bbb31dc6f05bcf484eea",
+	"null/clash-verge.yaml":           "a4d775a725505f0776da3c581974ea4bde69cd763609be75090429e7d6b59781",
+	"null/loon.conf":                  "af321016ca339f3b3beb5729cca517c0cfdac30a441ff5e3de124d623dea9685",
 	"null/nodes/loon.html":            "77a6b45409e70241eb7aacaf48b1613c6998b7673d36b7a3465c3134799f4682",
 	"null/nodes/shadowrocket.html":    "81a458c3c00736c3194bf1664054c7b6bf4bee2554942f0e5e8995b498d38359",
-	"null/shadowrocket.conf":          "f0dd8c29ea469ec43d2999ae8948703314940421b8def62502dd5d350738af89",
-	"null/sing-box.json":              "8855db91ebb6bca1ee114fd73df2dc06c062f67f3867acf445452388a840bc8e",
-	"null/stash.yaml":                 "11aadae33c697083d50ad91b3f1826c0ed480f3512b7c7f0ae2bffd87c9e7046",
-	"single/clash-meta.yaml":          "288493e6d3600129082839005c1ad1175cb21fdf783d864a315182e7395e2328",
-	"single/clash-meta2.yaml":         "783ecc8bf64418dacd14cf628d00fd2403aa597330c73e5846d3d85e6929b510",
-	"single/clash-mi.yaml":            "24856a5fda33f49c116fdd096ae1cbbc545b94facc3691c6a7ee5edece5722d6",
-	"single/clash-verge-mrs.yaml":     "e8431c53b6fac379ca765c0009ee7ed6f76fc3b7c018702acd6211027cb12714",
-	"single/clash-verge.yaml":         "acd9635a8f4748e694356dd16d97611b953e880030b256e31f617edb6d25d7be",
-	"single/loon.conf":                "76a143829dd52bac1a16d9b22e6b672bc192378ed7043a02ae05d4908a9662cc",
+	"null/shadowrocket.conf":          "efa8b1aa698acdfb4a63ebf6a3ff16b6fa50cc949f27562d44728d28683aa4d0",
+	"null/sing-box.json":              "6eec86b145d5a2bd27b7ebf74b05fec93c86c75b63f3c6204452fccaa0b0acc7",
+	"null/stash.yaml":                 "1d9f414c691dedf190141d702100a9ac0f9a77c3ee3a53dc9733622c0da75a50",
+	"single/clash-meta.yaml":          "d8c011095e7d96d78ca85768b90c135c0e3a5d66bb67d40af11c0c7ddb2d6c2e",
+	"single/clash-meta2.yaml":         "ddb807575220fb9651569a85e2bb5713c66ebc5de9104e655407b79a9db9e0b9",
+	"single/clash-mi.yaml":            "8f1e7334b3ada676e0dfbd9bcc78a78b292863d399ef79c6b88c7389d1788c29",
+	"single/clash-verge-mrs.yaml":     "0f7e641893e0c6a5f689fb36a99573c0838cfa50582382cc7a2f0d03613d88e3",
+	"single/clash-verge.yaml":         "66fff22fed2ec0d2d12229b1bf5bad272d41178aca8f72ae615c915e25259d2f",
+	"single/loon.conf":                "af321016ca339f3b3beb5729cca517c0cfdac30a441ff5e3de124d623dea9685",
 	"single/nodes/loon.html":          "a0da00b70c298766d4d3d36f491ef5be694899924c4087160a18940c3c03dc7b",
 	"single/nodes/shadowrocket.html":  "0ec9ee429d61c40df34f1a4565b1f4dbc3a9ebed9109299e68797954048685f7",
-	"single/shadowrocket.conf":        "6946e7315a6e38e3edb21a69a44ed9af92ea6eb4358cd489e45864e76c4e0d58",
-	"single/sing-box.json":            "314e7cb8d39925716fa9b49e8a6ae613d79031c8d65fb551a708d52f6ce8083d",
-	"single/stash.yaml":               "173ef6359c2ae2c6a8c0a4aa7866ed5010031ca7badd676e40a55021410d5517",
-	"special/clash-meta.yaml":         "8be51374011ec1b4236ef3cd5b8ded4872d92d9775d89c72cf483dc5f02c73eb",
-	"special/clash-meta2.yaml":        "2ef8ec189c20f69aefe06b8ba662d74c08661ffad9170662cd4ad3609b3ec4eb",
-	"special/clash-mi.yaml":           "97d28e2e04ea8c7bdca4308d6f0ec5a033db74fed1c2d3b1a770b1d2dffbdf58",
-	"special/clash-verge-mrs.yaml":    "759f838b7c990f6282499734e19df7d3f6421d62a0c39bb41011e4ad27435f30",
-	"special/clash-verge.yaml":        "7ab6668a97fbfed93b495463ee514c5b6be5037679f8386a0e670b9a13a4b438",
-	"special/loon.conf":               "76a143829dd52bac1a16d9b22e6b672bc192378ed7043a02ae05d4908a9662cc",
+	"single/shadowrocket.conf":        "48b27c4d7c4dfc4201820f79f6e08cbf64c7c5732986e1bde35e33177fc484b7",
+	"single/sing-box.json":            "b56779fbea31651b4054f2124451b78bee1d83f29e81ab97ed29f3644847e4ca",
+	"single/stash.yaml":               "492f616b9a0d77e29100a6b475bc667629411fbcfa893c04f04c8a2492da977b",
+	"special/clash-meta.yaml":         "571350a8739e9306dd2d91c7c1463d42cdd31b80c39f4a80f127aedbe4b965dd",
+	"special/clash-meta2.yaml":        "d5d2440e3ac84e036b68a4618722dd8d9655e0fb77ba12b49227d17d152cdbaa",
+	"special/clash-mi.yaml":           "51f028806006f9240c40679fec30ec2ed3a10e73d7b18158827e18555a7411a9",
+	"special/clash-verge-mrs.yaml":    "1fd74ad10db471d8b6c52daee137663a5d280005a105b532cb805ba289199f69",
+	"special/clash-verge.yaml":        "780a08ccb52b30039f216ed2b7a68d452ba3bf1654977db9ae35b81c74de21d3",
+	"special/loon.conf":               "af321016ca339f3b3beb5729cca517c0cfdac30a441ff5e3de124d623dea9685",
 	"special/nodes/loon.html":         "62bba40017bfa64ede40993ab6cc44feba918cf435aacaa3dcd816a8cab10946",
 	"special/nodes/shadowrocket.html": "6977c2fcfea3f5e5a724eab245c546ed3a0b1c512cba16952cc3205e24819e74",
-	"special/shadowrocket.conf":       "3ce5f3fcc9da9b39bb387d10d7f2c783968f497d8bb395b38eaf05ee8751b8df",
-	"special/sing-box.json":           "162ccb2a6cd9d4cfb8c1f4b2e97ae64633e583ce7a95f7f324710fd09696d0e5",
-	"special/stash.yaml":              "0ac6d19455d3c58cfb4ae03babe93e4119e38925bdb8510d47e73efc06d069cc",
+	"special/shadowrocket.conf":       "562de1de6c874e9a77fd429c9305df91d9ab75d25a674d00a26ee81f28ab70a9",
+	"special/sing-box.json":           "013eb0d95787ec622db21b2c1b3a415255a52617aff13c1803611db8068f497b",
+	"special/stash.yaml":              "3bf67e1177c8548e60f376a85483d072ed9a0b72535e5dd78d498ad9e0a26d1d",
 }
 
 // 普通 vless 的 SNI 取节点 sni 字段，可与访问地址不同。
@@ -521,5 +521,117 @@ func TestBrokerRoutingAndDNS(t *testing.T) {
 	}
 	if brokerIdx == -1 || cnIdx == -1 || brokerIdx > cnIdx {
 		t.Fatalf("sing-box DNS 规则缺少位于 GeoSite-CN 之前的 Broker -> proxyDns: %+v", cfg.DNS.Rules)
+	}
+}
+
+func TestCNAppsDirectRoutingAndDNS(t *testing.T) {
+	for _, rulePath := range []string{"rules/clash/cn-apps.yaml", "rules/sing-box/cn-apps.json", "rules/loon/cn-apps.list"} {
+		raw, err := fs.ReadFile(Templates, rulePath)
+		if err != nil {
+			t.Fatalf("读取规则文件 %s 失败: %v", rulePath, err)
+		}
+		text := string(raw)
+		for _, domain := range []string{"servicewechat.com", "weixin.qq.com", "meituan.com", "dianping.com", "feishu.cn", "larksuite.com"} {
+			if !strings.Contains(text, domain) {
+				t.Errorf("%s 缺少关键直连域名 %s", rulePath, domain)
+			}
+		}
+		if rulePath == "rules/sing-box/cn-apps.json" {
+			var doc struct {
+				Version int              `json:"version"`
+				Rules   []map[string]any `json:"rules"`
+			}
+			if err := json.Unmarshal(raw, &doc); err != nil || doc.Version != 3 || len(doc.Rules) != 2 {
+				t.Fatalf("sing-box cn-apps.json 格式异常: err=%v doc=%+v", err, doc)
+			}
+		}
+	}
+
+	data := fixture("multi")
+	for _, path := range []string{"clash-meta.yaml", "clash-meta2.yaml", "clash-mi.yaml", "clash-verge.yaml", "clash-verge-mrs.yaml", "stash.yaml"} {
+		out, err := Render(Templates, path, data)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		s := string(out)
+		if !strings.Contains(s, "https://example.com/subscribe/rules/clash/cn-apps.yaml") {
+			t.Errorf("%s 未引用 cn-apps.yaml", path)
+		}
+		directIdx := strings.Index(s, "- RULE-SET,mydirect,DIRECT")
+		cnAppsIdx := strings.Index(s, "- RULE-SET,cn-apps,DIRECT")
+		proxyIdx := strings.Index(s, "- RULE-SET,myproxy,代理")
+		if directIdx == -1 || cnAppsIdx == -1 || proxyIdx == -1 || !(directIdx < cnAppsIdx && cnAppsIdx < proxyIdx) {
+			t.Errorf("%s 中 cn-apps 规则顺序异常: direct=%d cnApps=%d proxy=%d", path, directIdx, cnAppsIdx, proxyIdx)
+		}
+		if path != "stash.yaml" {
+			for _, want := range []string{`"rule-set:cn-apps":`, `"+.servicewechat.com"`, `"+.meituan.com"`, `"+.feishu.cn"`} {
+				if !strings.Contains(s, want) {
+					t.Errorf("%s 缺少 %s", path, want)
+				}
+			}
+		}
+	}
+
+	for _, tc := range []struct {
+		path string
+		want string
+	}{
+		{path: "shadowrocket.conf", want: "RULE-SET,https://example.com/subscribe/rules/clash/cn-apps.yaml,DIRECT"},
+		{path: "loon.conf", want: "https://example.com/subscribe/rules/loon/cn-apps.list, policy = DIRECT, tag = CN-Apps, enabled = true"},
+	} {
+		out, err := Render(Templates, tc.path, data)
+		if err != nil || !strings.Contains(string(out), tc.want) {
+			t.Fatalf("%s 缺少 %q: err=%v", tc.path, tc.want, err)
+		}
+	}
+
+	out, err := Render(Templates, "sing-box.json", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		Route struct {
+			Rules   []map[string]any `json:"rules"`
+			RuleSet []map[string]any `json:"rule_set"`
+		} `json:"route"`
+		DNS struct {
+			Rules []map[string]any `json:"rules"`
+		} `json:"dns"`
+	}
+	if err = json.Unmarshal(out, &cfg); err != nil {
+		t.Fatalf("sing-box JSON 无效: %v\n%s", err, out)
+	}
+	hasRuleSet := false
+	for _, rs := range cfg.Route.RuleSet {
+		if rs["tag"] == "cn-apps" && rs["url"] == "https://example.com/subscribe/rules/sing-box/cn-apps.json" {
+			hasRuleSet = true
+		}
+	}
+	if !hasRuleSet {
+		t.Fatalf("sing-box route.rule_set 缺少 cn-apps: %+v", cfg.Route.RuleSet)
+	}
+	cnAppsRouteIdx, quicRejectIdx := -1, -1
+	for i, r := range cfg.Route.Rules {
+		if r["rule_set"] == "cn-apps" && r["outbound"] == "🎯 全球直连" {
+			cnAppsRouteIdx = i
+		}
+		if r["action"] == "reject" && r["protocol"] == "quic" {
+			quicRejectIdx = i
+		}
+	}
+	if cnAppsRouteIdx == -1 || quicRejectIdx == -1 || cnAppsRouteIdx > quicRejectIdx {
+		t.Fatalf("sing-box cn-apps 直连规则应位于 reject quic 之前: cnApps=%d quicReject=%d", cnAppsRouteIdx, quicRejectIdx)
+	}
+	cnAppsDNSIdx, notCNDNSIdx := -1, -1
+	for i, r := range cfg.DNS.Rules {
+		if r["rule_set"] == "cn-apps" && r["server"] == "localDns" {
+			cnAppsDNSIdx = i
+		}
+		if r["rule_set"] == "GeoLocation-!CN" {
+			notCNDNSIdx = i
+		}
+	}
+	if cnAppsDNSIdx == -1 || notCNDNSIdx == -1 || cnAppsDNSIdx > notCNDNSIdx {
+		t.Fatalf("sing-box DNS 规则缺少位于 GeoLocation-!CN 之前的 cn-apps -> localDns: %+v", cfg.DNS.Rules)
 	}
 }

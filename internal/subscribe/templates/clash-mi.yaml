@@ -57,6 +57,40 @@ dns:
     - "+.tailscale.com"
     - "+.tailscale.io"
     - "+.ts.net"
+    - "+.weixin.qq.com"
+    - "+.wx.qq.com"
+    - "+.wechat.com"
+    - "+.servicewechat.com"
+    - "+.wechatpay.cn"
+    - "+.tenpay.com"
+    - "+.qpic.cn"
+    - "+.qlogo.cn"
+    - "+.meituan.com"
+    - "+.meituan.net"
+    - "+.sankuai.com"
+    - "+.dianping.com"
+    - "+.dpfile.com"
+    - "+.feishu.cn"
+    - "+.feishucdn.com"
+    - "+.larksuite.com"
+    - "+.larkoffice.com"
+    - "+.bytedance.com"
+    - "+.byteoversea.com"
+    - "+.alipay.com"
+    - "+.alipayobjects.com"
+    - "+.taobao.com"
+    - "+.tmall.com"
+    - "+.alicdn.com"
+    - "+.dingtalk.com"
+    - "+.amap.com"
+    - "+.autonavi.com"
+    - "+.qq.com"
+    - "+.jd.com"
+    - "+.baidu.com"
+    - "+.bilibili.com"
+    - "+.xiaohongshu.com"
+    - "+.wps.cn"
+    - "+.kdocs.cn"
   default-nameserver:
     - 223.5.5.5
     - 119.29.29.29
@@ -71,6 +105,9 @@ dns:
       - https://cloudflare-dns.com/dns-query#代理
       - https://dns.google/dns-query#代理
     "rule-set:mydirect":
+      - https://dns.alidns.com/dns-query
+      - https://doh.pub/dns-query
+    "rule-set:cn-apps":
       - https://dns.alidns.com/dns-query
       - https://doh.pub/dns-query
     "rule-set:Broker":
@@ -247,6 +284,12 @@ rule-providers:
     url: "{{text $.subscriptionUrl}}/rules/clash/mydirect.yaml"
     path: ./ruleset/mydirect.yaml
     interval: 86400
+  cn-apps:
+    type: http
+    behavior: classical
+    url: "{{text $.subscriptionUrl}}/rules/clash/cn-apps.yaml"
+    path: ./ruleset/cn-apps.yaml
+    interval: 86400
   myproxy:
     type: http
     behavior: classical
@@ -320,6 +363,7 @@ rules:
   - RULE-SET,hst,HST
   - RULE-SET,myreject,REJECT
   - RULE-SET,mydirect,DIRECT
+  - RULE-SET,cn-apps,DIRECT
   - RULE-SET,myproxy,代理
   - RULE-SET,Broker,Broker
   - RULE-SET,football,Football

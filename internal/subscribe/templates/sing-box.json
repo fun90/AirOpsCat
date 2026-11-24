@@ -249,10 +249,6 @@
         "outbound": "GLOBAL"
       },
       {
-        "action": "reject",
-        "protocol": "quic"
-      },
-      {
         "action": "route",
         "domain": [
           "clash.razord.top",
@@ -287,6 +283,11 @@
       {
         "action": "route",
         "rule_set": "mydirect",
+        "outbound": "🎯 全球直连"
+      },
+      {
+        "action": "route",
+        "rule_set": "cn-apps",
         "outbound": "🎯 全球直连"
       },
       {
@@ -329,6 +330,10 @@
           "GeoIP-CN"
         ],
         "outbound": "🎯 全球直连"
+      },
+      {
+        "action": "reject",
+        "protocol": "quic"
       }
     ],
     "rule_set": [
@@ -376,6 +381,14 @@
         "type": "remote",
         "format": "source",
         "url": "{{text $.subscriptionUrl}}/rules/sing-box/mydirect.json",
+        "update_interval": "1d",
+        "http_client": "default-http-client"
+      },
+      {
+        "tag": "cn-apps",
+        "type": "remote",
+        "format": "source",
+        "url": "{{text $.subscriptionUrl}}/rules/sing-box/cn-apps.json",
         "update_interval": "1d",
         "http_client": "default-http-client"
       },
@@ -510,6 +523,10 @@
       },
       {
         "rule_set": "mydirect",
+        "server": "localDns"
+      },
+      {
+        "rule_set": "cn-apps",
         "server": "localDns"
       },
       {

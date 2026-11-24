@@ -1,0 +1,165 @@
+payload:
+  # 微信 & 微信小程序 & 微信支付 & 企业微信
+  - DOMAIN-SUFFIX,weixin.qq.com
+  - DOMAIN-SUFFIX,wx.qq.com
+  - DOMAIN-SUFFIX,wechat.com
+  - DOMAIN-SUFFIX,wechat.org
+  - DOMAIN-SUFFIX,servicewechat.com
+  - DOMAIN-SUFFIX,wechatpay.cn
+  - DOMAIN-SUFFIX,weixinbridge.com
+  - DOMAIN-SUFFIX,wechatos.net
+  - DOMAIN-SUFFIX,weixin.com
+  - DOMAIN-SUFFIX,miniprogram.com
+  - DOMAIN-SUFFIX,tenpay.com
+  - DOMAIN-SUFFIX,qpic.cn
+  - DOMAIN-SUFFIX,qlogo.cn
+  - DOMAIN-SUFFIX,gtimg.cn
+  - DOMAIN-SUFFIX,idqqimg.com
+
+  # 美团 & 大众点评 & 猫眼
+  - DOMAIN-SUFFIX,meituan.com
+  - DOMAIN-SUFFIX,meituan.net
+  - DOMAIN-SUFFIX,meituan.cn
+  - DOMAIN-SUFFIX,sankuai.com
+  - DOMAIN-SUFFIX,dianping.com
+  - DOMAIN-SUFFIX,dpfile.com
+  - DOMAIN-SUFFIX,neixin.cn
+  - DOMAIN-SUFFIX,maoyan.com
+  - DOMAIN-SUFFIX,mtyun.com
+
+  # 飞书 & Lark & 字节系
+  - DOMAIN-SUFFIX,feishu.cn
+  - DOMAIN-SUFFIX,feishucdn.com
+  - DOMAIN-SUFFIX,feishu-pre.net
+  - DOMAIN-SUFFIX,feishu-3rd-party-services.com
+  - DOMAIN-SUFFIX,feishu-customer.com
+  - DOMAIN-SUFFIX,feishupkg.com
+  - DOMAIN-SUFFIX,larksuite.com
+  - DOMAIN-SUFFIX,larkoffice.com
+  - DOMAIN-SUFFIX,larkenterprise.com
+  - DOMAIN-SUFFIX,bytedance.com
+  - DOMAIN-SUFFIX,byteoversea.com
+  - DOMAIN-SUFFIX,zijieapi.com
+  - DOMAIN-SUFFIX,volces.com
+  - DOMAIN-SUFFIX,volccdn.com
+  - DOMAIN-SUFFIX,ibytedtos.com
+  - DOMAIN-SUFFIX,byteimg.com
+  - DOMAIN-SUFFIX,snssdk.com
+  - DOMAIN-SUFFIX,pstatp.com
+  - DOMAIN-SUFFIX,douyin.com
+  - DOMAIN-SUFFIX,amemv.com
+  - DOMAIN-SUFFIX,douyincdn.com
+
+  # 阿里系 & 支付宝 & 淘宝 & 钉钉 & 高德 & 饿了么
+  - DOMAIN-SUFFIX,alipay.com
+  - DOMAIN-SUFFIX,alipayobjects.com
+  - DOMAIN-SUFFIX,antgroup.com
+  - DOMAIN-SUFFIX,taobao.com
+  - DOMAIN-SUFFIX,tmall.com
+  - DOMAIN-SUFFIX,alicdn.com
+  - DOMAIN-SUFFIX,aliyun.com
+  - DOMAIN-SUFFIX,aliyuncs.com
+  - DOMAIN-SUFFIX,tbcache.com
+  - DOMAIN-SUFFIX,mmstat.com
+  - DOMAIN-SUFFIX,dingtalk.com
+  - DOMAIN-SUFFIX,dingtalkapps.com
+  - DOMAIN-SUFFIX,amap.com
+  - DOMAIN-SUFFIX,autonavi.com
+  - DOMAIN-SUFFIX,ele.me
+  - DOMAIN-SUFFIX,quark.cn
+  - DOMAIN-SUFFIX,uc.cn
+
+  # 腾讯系 & QQ & 腾讯会议 & 腾讯云
+  - DOMAIN-SUFFIX,qq.com
+  - DOMAIN-SUFFIX,tencent.com
+  - DOMAIN-SUFFIX,tencent-cloud.net
+  - DOMAIN-SUFFIX,myqcloud.com
+  - DOMAIN-SUFFIX,tencentyun.com
+
+  # 京东 & 拼多多 & 出行 & 生活
+  - DOMAIN-SUFFIX,jd.com
+  - DOMAIN-SUFFIX,360buyimg.com
+  - DOMAIN-SUFFIX,jdcloud.com
+  - DOMAIN-SUFFIX,jcloudstatic.com
+  - DOMAIN-SUFFIX,jingdong.com
+  - DOMAIN-SUFFIX,pinduoduo.com
+  - DOMAIN-SUFFIX,yangkeduo.com
+  - DOMAIN-SUFFIX,pddpic.com
+  - DOMAIN-SUFFIX,didiglobal.com
+  - DOMAIN-SUFFIX,didi.cn
+  - DOMAIN-SUFFIX,xiaojukeji.com
+  - DOMAIN-SUFFIX,udache.com
+  - DOMAIN-SUFFIX,ctrip.com
+  - DOMAIN-SUFFIX,trip.com
+  - DOMAIN-SUFFIX,12306.cn
+
+  # 百度 & 社交 & 内容 & 办公 & 小米 & 国内 AI
+  - DOMAIN-SUFFIX,baidu.com
+  - DOMAIN-SUFFIX,bdstatic.com
+  - DOMAIN-SUFFIX,bcebos.com
+  - DOMAIN-SUFFIX,baidubce.com
+  - DOMAIN-SUFFIX,baidupcs.com
+  - DOMAIN-SUFFIX,bilibili.com
+  - DOMAIN-SUFFIX,biliapi.net
+  - DOMAIN-SUFFIX,hdslb.com
+  - DOMAIN-SUFFIX,bilivideo.com
+  - DOMAIN-SUFFIX,xiaohongshu.com
+  - DOMAIN-SUFFIX,xhscdn.com
+  - DOMAIN-SUFFIX,fengkongcloud.com
+  - DOMAIN-SUFFIX,zhihu.com
+  - DOMAIN-SUFFIX,zhimg.com
+  - DOMAIN-SUFFIX,weibo.com
+  - DOMAIN-SUFFIX,sinaimg.cn
+  - DOMAIN-SUFFIX,163.com
+  - DOMAIN-SUFFIX,126.net
+  - DOMAIN-SUFFIX,netease.com
+  - DOMAIN-SUFFIX,ydstatic.com
+  - DOMAIN-SUFFIX,wps.cn
+  - DOMAIN-SUFFIX,kdocs.cn
+  - DOMAIN-SUFFIX,wpscdn.cn
+  - DOMAIN-SUFFIX,mi.com
+  - DOMAIN-SUFFIX,xiaomi.com
+  - DOMAIN-SUFFIX,miwifi.com
+  - DOMAIN-SUFFIX,doubao.com
+  - DOMAIN-SUFFIX,deepseek.com
+  - DOMAIN-SUFFIX,kimi.ai
+  - DOMAIN-SUFFIX,moonshot.cn
+  - DOMAIN-SUFFIX,tongyi.com
+  - DOMAIN-SUFFIX,qwen.ai
+
+  # 常用国内软件进程直连（避免小程序/内置网页访问未收录域名时走代理）
+  - PROCESS-NAME,WeChat
+  - PROCESS-NAME,WeChat.exe
+  - PROCESS-NAME,WeChatAppEx
+  - PROCESS-NAME,WeChatAppEx.exe
+  - PROCESS-NAME,Weixin
+  - PROCESS-NAME,Weixin.exe
+  - PROCESS-NAME,WeChatMiniProgram
+  - PROCESS-NAME,WXWork
+  - PROCESS-NAME,WXWork.exe
+  - PROCESS-NAME,Feishu
+  - PROCESS-NAME,Feishu.exe
+  - PROCESS-NAME,Lark
+  - PROCESS-NAME,Lark.exe
+  - PROCESS-NAME,DingTalk
+  - PROCESS-NAME,DingTalk.exe
+  - PROCESS-NAME,AliLang
+  - PROCESS-NAME,QQ
+  - PROCESS-NAME,QQ.exe
+  - PROCESS-NAME,QQNT
+  - PROCESS-NAME,wemeetapp
+  - PROCESS-NAME,TencentMeeting
+  - PROCESS-NAME,wps
+  - PROCESS-NAME,wpsoffice
+  - PROCESS-NAME,com.tencent.mm
+  - PROCESS-NAME,com.tencent.wework
+  - PROCESS-NAME,com.sankuai.meituan
+  - PROCESS-NAME,com.dianping.v1
+  - PROCESS-NAME,com.ss.android.lark
+  - PROCESS-NAME,com.larksuite.suite
+  - PROCESS-NAME,com.eg.android.AlipayGphone
+  - PROCESS-NAME,com.alibaba.android.rimet
+  - PROCESS-NAME,com.autonavi.minimap
+  - PROCESS-NAME,com.taobao.taobao
+  - PROCESS-NAME,com.tencent.mobileqq
+  - PROCESS-NAME,com.tencent.wemeet.app
