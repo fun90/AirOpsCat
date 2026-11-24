@@ -61,17 +61,17 @@ type dashCountryFlow struct {
 
 // dashFlowPlacement 表示下钻中列的一个在线部署位（节点 × 服务器）。
 type dashFlowPlacement struct {
-	Key             string `json:"key"`
-	NodeID          int64  `json:"nodeId"`
-	ServerIP        string `json:"serverIp"`
-	SubName         string `json:"subName"`
-	Domain          string `json:"domain"`
-	DomainTitle     string `json:"domainTitle"`
-	Port            int    `json:"port"`
-	Accounts        int    `json:"accounts"`
-	Connections     int64  `json:"connections"`
-	ConnKnown       bool   `json:"connKnown"`
-	EditURL         string `json:"editUrl"`
+	Key             string   `json:"key"`
+	NodeID          int64    `json:"nodeId"`
+	ServerIP        string   `json:"serverIp"`
+	SubName         string   `json:"subName"`
+	Domain          string   `json:"domain"`
+	DomainTitle     string   `json:"domainTitle"`
+	Port            int      `json:"port"`
+	Accounts        int      `json:"accounts"`
+	Connections     int64    `json:"connections"`
+	ConnKnown       bool     `json:"connKnown"`
+	EditURL         string   `json:"editUrl"`
 	ClientCountries []string `json:"clientCountries"`
 }
 
