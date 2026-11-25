@@ -121,8 +121,8 @@ if (pane && dialog) {
         if (auto) { item.dataset.auto = ''; }
         const input = Object.assign(document.createElement('input'), { type: 'hidden', name: 'add_server', value: option.value });
         const badge = Object.assign(document.createElement('span'), { className: 'badge bg-blue-lt', textContent: '待添加' });
-        const label = Object.assign(document.createElement('span'), { textContent: option.textContent });
-        const toggle = Object.assign(document.createElement('a'), { href: '#', className: 'small ms-auto', textContent: '新增域名' });
+        const label = Object.assign(document.createElement('span'), { className: 'min-w-0 text-break', textContent: option.textContent });
+        const toggle = Object.assign(document.createElement('a'), { href: '#', className: 'small ms-auto text-nowrap', textContent: '新增域名' });
         toggle.dataset.newHostToggle = '';
         const cancel = Object.assign(document.createElement('button'), { type: 'button', className: 'btn-close' });
         cancel.setAttribute('aria-label', '取消添加');
