@@ -8,8 +8,7 @@
   <div class="col-12 col-md-8 collapse d-md-block{{if or .Category .Level .From .To}} show{{end}}" id="logFilters"><div class="row g-2">
     <div class="col-6 col-md-3"><select class="form-select" name="category" aria-label="日志分类"><option value="">全部分类</option>{{range .Categories}}<option value="{{.}}" {{if eq $.Category .}}selected{{end}}>{{.}}</option>{{end}}</select></div>
     <div class="col-6 col-md-3"><select class="form-select" name="level" aria-label="日志级别"><option value="">全部级别</option>{{range $v := seq 3}}{{if eq $v 1}}<option value="INFO" {{if eq $.Level "INFO"}}selected{{end}}>INFO</option>{{else if eq $v 2}}<option value="WARN" {{if eq $.Level "WARN"}}selected{{end}}>WARN</option>{{else}}<option value="ERROR" {{if eq $.Level "ERROR"}}selected{{end}}>ERROR</option>{{end}}{{end}}</select></div>
-    <div class="col-6 col-md-3"><input class="form-control" type="date" name="from" value="{{.From}}" aria-label="开始日期"></div>
-    <div class="col-6 col-md-3"><input class="form-control" type="date" name="to" value="{{.To}}" aria-label="结束日期"></div>
+    <div class="col-12 col-md-6"><div class="coss-daterange" data-date-range data-placeholder="选择日期范围"><input type="date" name="from" value="{{.From}}" aria-label="开始日期"><input type="date" name="to" value="{{.To}}" aria-label="结束日期"></div></div>
   </div></div>
  </form></div>
  <div class="table-responsive"><table class="table table-vcenter card-table logs-table">

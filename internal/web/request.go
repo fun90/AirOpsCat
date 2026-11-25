@@ -65,10 +65,20 @@ func (s *Server) redirectError(w http.ResponseWriter, r *http.Request, back stri
 func parseFormTime(raw string) (time.Time, error) {
 	var t time.Time
 	var err error
-	for _, layout := range []string{"2006-01-02T15:04:05", formDateLayout} {
+	for _, layout := range []string{"2006-01-02T15:04:05", "2006-01-02T15:04", "2006-01-02"} {
 		if t, err = time.ParseInLocation(layout, raw, store.Shanghai); err == nil {
 			break
 		}
 	}
 	return t, err
+}
+
+// parseFormDateEnd 解析到期日期：纯日期 YYYY-MM-DD 落到当天 23:59:59，兼容带时间的旧值。
+func parseFormDateEnd(raw string) (time.Time, error) {
+	if len(raw) == len("2006-01-02") {
+		if t, err := time.ParseInLocation("2006-01-02", raw, store.Shanghai); err == nil {
+			return t.Add(23*time.Hour + 59*time.Minute + 59*time.Second), nil
+		}
+	}
+	return parseFormTime(raw)
 }

@@ -117,7 +117,7 @@ func (s *Server) transactionList(w http.ResponseWriter, r *http.Request) {
 }
 
 func transactionToForm(t *store.Transaction) *transactionForm {
-	f := &transactionForm{ID: t.ID, TransactionDate: t.TransactionDate.In(store.Shanghai).Format("2006-01-02T15:04:05"), Amount: store.FormatCents(t.Amount), Type: strconv.Itoa(t.Type), Description: t.Description, PaymentMethod: t.PaymentMethod, Remark: t.Remark}
+	f := &transactionForm{ID: t.ID, TransactionDate: t.TransactionDate.In(store.Shanghai).Format("2006-01-02"), Amount: store.FormatCents(t.Amount), Type: strconv.Itoa(t.Type), Description: t.Description, PaymentMethod: t.PaymentMethod, Remark: t.Remark}
 	if t.BusinessID != nil {
 		f.BusinessRef = t.BusinessTable + ":" + strconv.FormatInt(*t.BusinessID, 10)
 	}
@@ -141,7 +141,7 @@ func (s *Server) transactionFormPage(w http.ResponseWriter, r *http.Request, sta
 }
 
 func (s *Server) transactionNew(w http.ResponseWriter, r *http.Request) {
-	s.transactionFormPage(w, r, http.StatusOK, &transactionForm{TransactionDate: time.Now().In(store.Shanghai).Format("2006-01-02T15:04:05"), Type: "0"}, "")
+	s.transactionFormPage(w, r, http.StatusOK, &transactionForm{TransactionDate: time.Now().In(store.Shanghai).Format("2006-01-02"), Type: "0"}, "")
 }
 
 func (s *Server) transactionEdit(w http.ResponseWriter, r *http.Request) {

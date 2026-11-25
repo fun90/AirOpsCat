@@ -14,8 +14,8 @@ import (
 	"github.com/fun90/airopscat/internal/store"
 )
 
-// formDateLayout 是 datetime-local 控件的值格式，精度到分钟。
-const formDateLayout = "2006-01-02T15:04"
+// formDateLayout 是日期控件的值格式。
+const formDateLayout = "2006-01-02"
 
 type accountForm struct {
 	ID                                                                        int64
@@ -197,7 +197,9 @@ func (s *Server) accountFormPage(w http.ResponseWriter, r *http.Request, status 
 			if where == "" {
 				where = recent[0].NodeIP
 			}
-			d["LastSeen"] = lastOnlineText(&recent[0].LastOnline, time.Now()) + "（" + store.FormatTime(recent[0].LastOnline) + " · " + where + "）"
+			d["LastSeen"] = lastOnlineText(&recent[0].LastOnline, time.Now())
+			d["LastSeenNode"] = where
+			d["LastSeenAt"] = store.FormatTime(recent[0].LastOnline)
 		} else {
 			d["LastSeen"] = lastOnlineText(nil, time.Now())
 		}
@@ -267,12 +269,21 @@ func (s *Server) accountNew(w http.ResponseWriter, r *http.Request) {
 	s.accountFormPage(w, r, 200, &accountForm{UserSource: "existing", PeriodType: "MONTHLY", NodeMultiple: "1", NodePrefix: "8", MaxConnections: "100", MaxIPs: "2", Bandwidth: "500", DownloadMbps: "12", UploadMbps: "8", FromDate: now.Format(formDateLayout), ToDate: store.AddMonths(now, 1).Format(formDateLayout), TagIDs: map[int64]bool{}}, "")
 }
 func accountToForm(a *store.Account) *accountForm {
-	f := &accountForm{ID: a.ID, UserID: strconv.FormatInt(a.UserID, 10), UserSource: "existing", Remark: a.Remark, AccountNo: a.AccountNo, UUID: a.UUID, PeriodType: a.PeriodType, NodePrefix: a.NodePrefix, NodeMultiple: strconv.Itoa(a.NodeMultiple), MaxConnections: strconv.Itoa(a.MaxConnections), MaxIPs: strconv.Itoa(a.MaxIps), Bandwidth: strconv.Itoa(a.Bandwidth), Disabled: a.Disabled, TagIDs: map[int64]bool{}}
+	f := &accountForm{ID: a.ID, UserID: strconv.FormatInt(a.UserID, 10), UserSource: "existing", Remark: a.Remark, AccountNo: a.AccountNo, UUID: a.UUID, PeriodType: a.PeriodType, NodePrefix: a.NodePrefix, NodeMultiple: strconv.Itoa(a.NodeMultiple), Disabled: a.Disabled, TagIDs: map[int64]bool{}}
 	if a.FromDate != nil {
 		f.FromDate = a.FromDate.Format(formDateLayout)
 	}
 	if a.ToDate != nil {
 		f.ToDate = a.ToDate.Format(formDateLayout)
+	}
+	if a.MaxConnections > 0 {
+		f.MaxConnections = strconv.Itoa(a.MaxConnections)
+	}
+	if a.MaxIps > 0 {
+		f.MaxIPs = strconv.Itoa(a.MaxIps)
+	}
+	if a.Bandwidth > 0 {
+		f.Bandwidth = strconv.Itoa(a.Bandwidth)
 	}
 	if a.DownloadMbps > 0 {
 		f.DownloadMbps = strconv.Itoa(a.DownloadMbps)
@@ -298,7 +309,17 @@ func sqlDate(v string) (string, error) {
 	}
 	t, err := parseFormTime(v)
 	if err != nil {
-		return "", fmt.Errorf("日期时间格式不正确")
+		return "", fmt.Errorf("日期格式不正确")
+	}
+	return t.Format(store.TimeLayout), nil
+}
+func sqlDateEnd(v string) (string, error) {
+	if v == "" {
+		return "", nil
+	}
+	t, err := parseFormDateEnd(v)
+	if err != nil {
+		return "", fmt.Errorf("日期格式不正确")
 	}
 	return t.Format(store.TimeLayout), nil
 }
@@ -324,15 +345,22 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 	in.NodePrefix = f.NodePrefix
 	in.Disabled = f.Disabled
 	var parseErr error
+	if n, err := strconv.Atoi(f.NodeMultiple); err != nil {
+		parseErr = fmt.Errorf("节点倍数需为整数")
+	} else {
+		in.NodeMultiple = n
+	}
 	for _, v := range []struct {
 		text string
 		dst  *int
-	}{{f.NodeMultiple, &in.NodeMultiple}, {f.MaxConnections, &in.MaxConnections}, {f.MaxIPs, &in.MaxIps}, {f.Bandwidth, &in.Bandwidth}} {
-		n, err := strconv.Atoi(v.text)
-		if err != nil {
-			parseErr = fmt.Errorf("节点倍数、连接数、IP 数和配额需为整数")
+	}{{f.MaxConnections, &in.MaxConnections}, {f.MaxIPs, &in.MaxIps}, {f.Bandwidth, &in.Bandwidth}} {
+		if v.text != "" {
+			n, err := strconv.Atoi(v.text)
+			if err != nil {
+				parseErr = fmt.Errorf("连接数、IP 数和配额需为整数")
+			}
+			*v.dst = n
 		}
-		*v.dst = n
 	}
 	for _, v := range []struct {
 		text string
@@ -347,8 +375,14 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var err error
-	date := func(text string) *time.Time {
-		v, e := sqlDate(text)
+	date := func(text string, end bool) *time.Time {
+		var v string
+		var e error
+		if end {
+			v, e = sqlDateEnd(text)
+		} else {
+			v, e = sqlDate(text)
+		}
 		if e != nil {
 			parseErr = e
 			return nil
@@ -357,17 +391,17 @@ func (s *Server) accountSave(w http.ResponseWriter, r *http.Request) {
 		return &t
 	}
 	if f.FromDate != "" {
-		in.FromDate = date(f.FromDate)
+		in.FromDate = date(f.FromDate, false)
 	}
 	if f.ID == 0 && f.ToDate == "" {
 		start := time.Now().In(store.Shanghai)
 		if in.FromDate != nil {
 			start = *in.FromDate
 		}
-		f.ToDate = store.AddMonths(start, 1).Format("2006-01-02T15:04:05") // 保留秒，与开始时间严格相差一个月（月末钳制）
+		f.ToDate = store.AddMonths(start, 1).Format(formDateLayout)
 	}
 	if f.ToDate != "" {
-		in.ToDate = date(f.ToDate)
+		in.ToDate = date(f.ToDate, true)
 	}
 	amount, err := parseAmount(f.Amount)
 	if err != nil {
@@ -516,7 +550,7 @@ func renewBack(r *http.Request) string {
 
 func (s *Server) accountRenew(w http.ResponseWriter, r *http.Request) {
 	back := renewBack(r)
-	to, err := sqlDate(formValue(r, "to_date"))
+	to, err := sqlDateEnd(formValue(r, "to_date"))
 	amount, e := parseAmount(formValue(r, "amount"))
 	if err == nil {
 		err = e

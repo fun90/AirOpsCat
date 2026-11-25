@@ -349,8 +349,8 @@ func TestAccountHTTPFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if acc.FromDate == nil || acc.ToDate == nil || !acc.ToDate.Equal(acc.FromDate.AddDate(0, 1, 0)) {
-		t.Fatal("缺省开户日期应与前端一个月默认一致")
+	if acc.FromDate == nil || acc.ToDate == nil || acc.ToDate.Format("2006-01-02") != store.AddMonths(*acc.FromDate, 1).Format("2006-01-02") || acc.ToDate.Format("15:04:05") != "23:59:59" {
+		t.Fatalf("缺省开户日期应与前端一个月默认一致：from=%v to=%v", acc.FromDate, acc.ToDate)
 	}
 	var count int
 	a.DB.QueryRow(`SELECT count(*) FROM transactions WHERE business_id=? AND amount=2500`, id).Scan(&count)

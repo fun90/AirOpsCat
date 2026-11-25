@@ -148,23 +148,10 @@ if (pane && dialog) {
         type.addEventListener('change', rematch);
     }
 
-    // 便宜时段：两个时间框收在下拉弹层里，按钮文字随输入同步
-    function cheapLabel(box) {
-        const [start, end] = box.querySelectorAll('input[type="time"]');
-        const set = start.value || end.value;
-        box.querySelector('[data-cheap-label]').textContent = set ? start.value + '–' + end.value : '便宜时段';
-    }
-    pane.addEventListener('input', (e) => {
-        const box = e.target.closest('[data-cheap]');
-        if (box) { cheapLabel(box); }
-    });
-
     pane.addEventListener('click', (e) => {
-        const cheap = e.target.closest('[data-cheap-clear], [data-cheap-done]');
+        const cheap = e.target.closest('[data-cheap-done]');
         if (cheap) {
             const box = cheap.closest('[data-cheap]');
-            if ('cheapClear' in cheap.dataset) { box.querySelectorAll('input[type="time"]').forEach((i) => { i.value = ''; }); }
-            cheapLabel(box);
             Dropdown.getOrCreateInstance(box.querySelector('[data-bs-toggle]')).hide();
             return;
         }

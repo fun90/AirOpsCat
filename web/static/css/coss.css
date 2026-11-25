@@ -311,10 +311,22 @@ h1, h2, h3, h4, h5, p, ul, ol { margin-top: 0; }
     .navbar-expand-md .order-md-last { margin-left: auto; }
 }
 
-/* 进度条 */
-.progress { height: 0.5rem; width: 100%; background-color: var(--coss-muted); border-radius: 9999px; overflow: hidden; }
-.progress-sm { height: 0.25rem; }
-.progress-bar { height: 100%; background-color: var(--coss-primary); transition: width 0.2s ease; }
+/* 进度条（复刻 coss.com/ui ProgressTrack / ProgressIndicator） */
+.progress {
+    display: block;
+    height: 0.5rem;
+    width: 100%;
+    background-color: var(--coss-input);
+    border-radius: 9999px;
+    overflow: hidden;
+}
+.progress-sm { height: 0.375rem; }
+.progress-bar {
+    height: 100%;
+    background-color: var(--coss-primary);
+    border-radius: 9999px;
+    transition: width 0.5s var(--coss-ease-out);
+}
 .progress-bar-indeterminate {
     position: relative;
     width: 100%;
@@ -335,7 +347,7 @@ h1, h2, h3, h4, h5, p, ul, ol { margin-top: 0; }
     0% { left: -40%; }
     100% { left: 100%; }
 }
-#nav-progress { position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0; z-index: 2000; border-radius: 0; background: transparent; }
+#nav-progress { position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0; z-index: 2000; height: 0.25rem; border-radius: 0; background: transparent; }
 
 /* 卡片与列表组 */
 .card {
@@ -498,6 +510,7 @@ h1, h2, h3, h4, h5, p, ul, ol { margin-top: 0; }
 .bg-secondary-lt { background-color: var(--coss-muted) !important; color: var(--coss-muted-foreground) !important; border-color: transparent; }
 .bg-green-lt { background-color: var(--coss-success-surface) !important; color: var(--coss-success-foreground) !important; border-color: transparent; }
 .bg-red { background-color: var(--coss-destructive) !important; color: #ffffff !important; }
+.bg-orange { background-color: var(--coss-warning) !important; color: #18181b !important; }
 .bg-red-lt, .bg-danger-lt { background-color: var(--coss-destructive-surface) !important; color: var(--coss-destructive-foreground) !important; border-color: transparent; }
 .bg-yellow-lt, .bg-orange-lt, .bg-warning-lt { background-color: var(--coss-warning-surface) !important; color: var(--coss-warning-foreground) !important; border-color: transparent; }
 .bg-blue-lt, .bg-azure-lt, .bg-info-lt { background-color: var(--coss-info-surface) !important; color: var(--coss-info-foreground) !important; border-color: transparent; }
@@ -609,36 +622,122 @@ input[type="number"] {
     appearance: textfield;
     font-variant-numeric: tabular-nums;
 }
-/* 日期与时间选择控件统一样式 */
-input[type="date"],
-input[type="time"],
-input[type="datetime-local"],
-input[type="month"] {
-    font-variant-numeric: tabular-nums;
-    min-height: 2.25rem;
+/* 日期与时间段选择控件（coss-picker.js） */
+.coss-dt, .coss-daterange { position: relative; display: block; width: 100%; min-width: 0; }
+.coss-dt-native {
+    position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0;
+    opacity: 0; pointer-events: none; -webkit-appearance: none; appearance: none;
 }
-input[type="date"].form-control-sm,
-input[type="time"].form-control-sm,
-input[type="datetime-local"].form-control-sm {
-    min-height: 1.875rem;
+.coss-dt-trigger {
+    -webkit-appearance: none; appearance: none;
+    display: flex; align-items: center; gap: 0.5rem;
+    width: 100%; min-height: 2.25rem;
+    text-align: left; font-size: 0.875rem; font-variant-numeric: tabular-nums; cursor: pointer;
 }
-input[type="date"]::-webkit-calendar-picker-indicator,
-input[type="time"]::-webkit-calendar-picker-indicator,
-input[type="datetime-local"]::-webkit-calendar-picker-indicator,
-input[type="month"]::-webkit-calendar-picker-indicator {
-    cursor: pointer;
-    opacity: 0.55;
-    border-radius: var(--coss-radius-sm);
-    padding: 0.125rem;
-    transition: opacity 0.15s ease, background-color 0.15s ease;
+.coss-dt-trigger.form-control-sm { min-height: 1.875rem; font-size: 0.8125rem; }
+.coss-dt-trigger:disabled { opacity: 0.55; cursor: not-allowed; }
+.coss-dt-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coss-dt-placeholder { color: var(--coss-muted-foreground); }
+.coss-dt-icon { flex-shrink: 0; color: var(--coss-muted-foreground); opacity: 0.78; }
+.coss-dt-trigger:hover .coss-dt-icon,
+.coss-dt-trigger[aria-expanded="true"] .coss-dt-icon { opacity: 1; color: var(--coss-foreground); }
+.coss-dt-trigger[aria-expanded="true"] {
+    border-color: var(--coss-ring);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--coss-ring) 22%, transparent);
 }
-input[type="date"]::-webkit-calendar-picker-indicator:hover,
-input[type="time"]::-webkit-calendar-picker-indicator:hover,
-input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
-input[type="month"]::-webkit-calendar-picker-indicator:hover {
-    opacity: 1;
-    background-color: var(--coss-accent);
+.coss-dt-pop {
+    position: fixed; z-index: 1080; width: max-content; max-width: calc(100vw - 1rem);
+    padding: 0.75rem; user-select: none;
+    background-color: var(--coss-popover); color: var(--coss-popover-foreground);
+    border: 1px solid var(--coss-border); border-radius: var(--coss-radius-lg);
+    box-shadow: var(--coss-shadow-xl);
+    animation: coss-pop-in 0.14s var(--coss-ease-out);
 }
+.coss-dt-months { display: flex; flex-direction: column; gap: 0.75rem; }
+@media (min-width: 600px) { .coss-dt-months-dual { flex-direction: row; gap: 1rem; } }
+.coss-dt-cal { width: 16.5rem; max-width: 100%; }
+.coss-dt-head { display: flex; align-items: center; justify-content: space-between; gap: 0.375rem; margin-bottom: 0.5rem; }
+.coss-dt-head-title { font-size: 0.875rem; font-weight: 600; font-variant-numeric: tabular-nums; margin: 0 auto; }
+.coss-dt-nav {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.75rem; height: 1.75rem; padding: 0;
+    border: 1px solid var(--coss-border); border-radius: var(--coss-radius-md);
+    background: transparent; color: var(--coss-muted-foreground); font-size: 1rem; line-height: 1;
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+.coss-dt-nav:hover { background-color: var(--coss-accent); color: var(--coss-foreground); }
+.coss-dt-nav-spacer { width: 1.75rem; height: 1.75rem; flex-shrink: 0; }
+.coss-dt-ym { display: inline-flex; align-items: center; gap: 0.25rem; }
+.coss-dt-select {
+    -webkit-appearance: none; appearance: none;
+    padding: 0.1875rem 0.375rem; border: 1px solid transparent; border-radius: var(--coss-radius-sm);
+    background-color: transparent; color: var(--coss-foreground);
+    font-size: 0.875rem; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.coss-dt-select:hover, .coss-dt-select:focus { background-color: var(--coss-accent); outline: none; }
+.coss-dt-week, .coss-dt-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px 0; }
+.coss-dt-week { margin-bottom: 0.25rem; }
+.coss-dt-wd { text-align: center; font-size: 0.75rem; font-weight: 500; color: var(--coss-muted-foreground); padding: 0.25rem 0; }
+.coss-dt-day {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 2rem; width: 100%; padding: 0;
+    border: 1px solid transparent; border-radius: var(--coss-radius-md);
+    background: transparent; color: var(--coss-foreground);
+    font-size: 0.8125rem; font-variant-numeric: tabular-nums;
+    transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.coss-dt-day:hover { background-color: var(--coss-accent); }
+.coss-dt-day-out { color: var(--coss-muted-foreground); opacity: 0.38; }
+.coss-dt-day-today { background-color: var(--coss-accent); font-weight: 600; }
+.coss-dt-day-in-range { background-color: var(--coss-accent); color: var(--coss-foreground); border-radius: 0; opacity: 1; }
+.coss-dt-day-active, .coss-dt-day-active:hover,
+.coss-dt-day-range-start, .coss-dt-day-range-start:hover,
+.coss-dt-day-range-end, .coss-dt-day-range-end:hover {
+    background-color: var(--coss-primary); border-color: var(--coss-primary);
+    color: var(--coss-primary-foreground); font-weight: 600; opacity: 1;
+}
+.coss-dt-day-range-start { border-radius: var(--coss-radius-md) 0 0 var(--coss-radius-md); }
+.coss-dt-day-range-end { border-radius: 0 var(--coss-radius-md) var(--coss-radius-md) 0; }
+.coss-dt-day-range-start.coss-dt-day-range-end { border-radius: var(--coss-radius-md); }
+.coss-dt-foot {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem;
+    margin-top: 0.625rem; padding-top: 0.625rem; border-top: 1px solid var(--coss-border);
+}
+.coss-dt-foot-end { margin-left: auto; display: inline-flex; align-items: center; gap: 0.375rem; }
+
+.dropdown-menu.coss-tr-menu { padding: 0.875rem; width: 19.5rem; min-width: min(19.5rem, calc(100vw - 1.5rem)); max-width: calc(100vw - 1.5rem); }
+.coss-tr-panel { display: flex; flex-direction: column; gap: 0.75rem; width: 100%; user-select: none; }
+.coss-tr-summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-height: 1.75rem; }
+.coss-tr-range-text { font-size: 1.0625rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; font-variant-numeric: tabular-nums; color: var(--coss-foreground); white-space: nowrap; }
+.coss-tr-range-empty { color: var(--coss-muted-foreground); font-weight: 500; font-size: 0.9375rem; line-height: 1.25; }
+.coss-tr-duration { font-size: 0.75rem; font-weight: 500; color: var(--coss-muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.coss-tr-timeline { display: flex; flex-direction: column; gap: 0.375rem; }
+.coss-tr-track { position: relative; height: 1.75rem; padding: 0 0.5rem; display: flex; align-items: center; touch-action: none; cursor: pointer; }
+.coss-tr-rail-wrap { position: relative; width: 100%; height: 100%; display: flex; align-items: center; }
+.coss-tr-rail { position: relative; width: 100%; height: 0.375rem; border-radius: 9999px; background-color: var(--coss-input); overflow: hidden; }
+.coss-tr-fill { position: absolute; top: 0; bottom: 0; background-color: var(--coss-primary); border-radius: 9999px; }
+.coss-tr-thumb {
+    position: absolute; top: 50%; width: 1.0625rem; height: 1.0625rem; padding: 0;
+    border: 2px solid var(--coss-primary); border-radius: 9999px;
+    background-color: var(--coss-card); box-shadow: var(--coss-shadow-sm);
+    transform: translate(-50%, -50%); cursor: grab;
+    transition: transform 0.14s var(--coss-ease-out), box-shadow 0.14s var(--coss-ease-out), opacity 0.14s var(--coss-ease-out);
+}
+.coss-tr-thumb:active { cursor: grabbing; transform: translate(-50%, -50%) scale(1.12); }
+.coss-tr-thumb-active { box-shadow: 0 0 0 3px color-mix(in srgb, var(--coss-ring) 30%, transparent); }
+.coss-tr-thumb-idle { opacity: 0.45; border-color: var(--coss-muted-foreground); }
+.coss-tr-ticks { display: flex; justify-content: space-between; padding: 0 0.25rem; font-size: 0.6875rem; color: var(--coss-muted-foreground); font-variant-numeric: tabular-nums; line-height: 1; }
+.coss-tr-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; }
+.coss-tr-preset {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 1.75rem; padding: 0 0.5rem;
+    border: 1px solid var(--coss-border); border-radius: var(--coss-radius-sm);
+    background: transparent; color: var(--coss-muted-foreground);
+    font-size: 0.75rem; font-variant-numeric: tabular-nums;
+    transition: background-color 0.14s var(--coss-ease-out), color 0.14s var(--coss-ease-out), border-color 0.14s var(--coss-ease-out);
+}
+.coss-tr-preset:hover { background-color: var(--coss-accent); color: var(--coss-foreground); border-color: var(--coss-input); }
+.coss-tr-preset-active { border-color: var(--coss-primary); color: var(--coss-foreground); background-color: var(--coss-accent); font-weight: 500; }
 input[type="search"]::-webkit-search-cancel-button {
     cursor: pointer;
     opacity: 0.55;

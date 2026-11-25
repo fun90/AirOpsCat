@@ -41,11 +41,11 @@ function batchContent(kind) {
 
 function accountRenewContent() {
   return `<div class="dropdown"><button type="button" data-bs-toggle="dropdown" aria-expanded="false">更多</button><div class="dropdown-menu">
-<button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#accountRenewModal" data-renew-id="42" data-renew-name="测试账户" data-renew-to="2030-01-15T12:00" data-renew-cents="2500" data-renew-method="WeChat" data-renew-months-last="1">续期</button>
+<button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#accountRenewModal" data-renew-id="42" data-renew-name="测试账户" data-renew-to="2030-01-15" data-renew-cents="2500" data-renew-method="WeChat" data-renew-months-last="1">续期</button>
 </div></div>
 <div class="modal fade" id="accountRenewModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><form class="modal-content" method="post">
 <input type="hidden" name="from" value="list"><span data-renew-name></span><div data-renew-current></div>
-<input type="datetime-local" name="to_date" required>
+<input type="date" name="to_date" required>
 <button type="button" data-list-renew-months="1">+1 月</button><button type="button" data-list-renew-months="3">+3 月</button>
 <input name="amount"><select name="payment_method"><option value="">请选择</option><option value="WeChat">微信</option></select>
 <button type="submit">保存续期</button></form></div></div>`;
@@ -328,15 +328,15 @@ test('Tabler 局部导航浏览器回归', { skip: !existsSync(chromeBin), timeo
         dropdownOpen: false,
         action: '/admin/accounts/42/renew',
         name: '测试账户',
-        current: '原到期 2030-01-15 12:00',
-        toDate: '2030-02-15T12:00',
+        current: '原到期 2030-01-15',
+        toDate: '2030-02-15',
         amount: '25.00',
         method: 'WeChat',
       });
       await evaluate(`document.querySelector('#accountRenewModal form').requestSubmit()`);
       await ready('saved');
       assert.equal(postPaths.at(-1), '/admin/accounts/42/renew');
-      assert.equal(new URLSearchParams(postBodies.at(-1)).get('to_date'), '2030-02-15T12:00');
+      assert.equal(new URLSearchParams(postBodies.at(-1)).get('to_date'), '2030-02-15');
     });
     await t.test('登录失效跳转到登录页', async () => {
       await open('/admin/a'); await click('/admin/expired');

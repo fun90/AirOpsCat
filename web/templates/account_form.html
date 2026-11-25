@@ -1,31 +1,54 @@
 {{define "actions"}}<a href="{{.EditReturn}}" class="btn btn-outline-secondary">返回</a>{{end}}
 {{define "content"}}{{with .Form}}
 {{if and .ID $.View}}{{$on := hasPrefix $.OnlineText "在线"}}
-{{with $.PendingServers}}<div class="alert alert-warning acct-pending-alert" role="alert"><span class="min-w-0 flex-fill">有 {{.}} 台服务器待部署，账户改动尚未生效。</span><form method="post" action="/admin/accounts/{{$.Form.ID}}/deploy"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="from" value="edit"><button class="btn btn-sm btn-primary text-nowrap"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#rocket"></use></svg>立即部署</button></form></div>{{end}}
-<div class="card mb-3 acct-hero-card">
-    <div class="card-body acct-hero-head">
-        <div class="acct-hero-meta">
-            <div class="d-flex flex-wrap align-items-center gap-2">
-                <h2 class="acct-hero-title text-break">{{if .Remark}}{{.Remark}}{{else}}{{.AccountNo}}{{end}}</h2>
+{{with $.PendingServers}}
+<div class="alert alert-warning acct-pending-alert" role="alert">
+    <svg class="coss-icon flex-shrink-0" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#alert-triangle"></use></svg>
+    <span class="min-w-0 flex-fill">有 {{.}} 台服务器待部署，账户改动尚未生效。</span>
+    <form method="post" action="/admin/accounts/{{$.Form.ID}}/deploy" class="m-0">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input type="hidden" name="from" value="edit">
+        <button class="btn btn-sm btn-primary text-nowrap"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#rocket"></use></svg>立即部署</button>
+    </form>
+</div>
+{{end}}
+<section class="card mb-3 acct-summary-card" aria-label="账户概览">
+    <div class="acct-summary-head">
+        <div class="acct-identity">
+            <div class="acct-identity-title-row">
+                <h2 class="acct-head-title text-break">{{if .Remark}}{{.Remark}}{{else}}{{.AccountNo}}{{end}}</h2>
                 {{if $.View.Disabled}}<span class="badge bg-secondary-lt">已禁用</span>{{end}}
                 {{with $.View.Badge}}<span class="badge {{$.View.BadgeClass}}">{{.}}</span>{{end}}
             </div>
-            {{if .AccountNo}}<div class="small text-secondary font-monospace mt-1 text-break">{{.AccountNo}}</div>{{end}}
+            <div class="acct-identity-meta">
+                {{if .AccountNo}}
+                <button type="button" class="acct-copy-code font-monospace" data-copy="{{.AccountNo}}" title="点击复制账户编号">
+                    <span>{{.AccountNo}}</span>
+                    <svg class="coss-icon" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#copy"></use></svg>
+                </button>
+                {{end}}
+                <span class="acct-meta-sep" aria-hidden="true">·</span>
+                <span>{{if eq .PeriodType "YEARLY"}}年度周期{{else}}月度周期{{end}}</span>
+            </div>
         </div>
-        <div class="acct-hero-actions">
+        <div class="acct-head-actions">
             {{if or $.Install $.Links}}
             <div class="dropdown">
-                <button type="button" class="btn btn-sm dropdown-toggle text-nowrap" data-bs-toggle="dropdown" aria-expanded="false">客户链接</button>
+                <button type="button" class="btn btn-sm dropdown-toggle text-nowrap" data-bs-toggle="dropdown" aria-expanded="false"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#copy"></use></svg>客户链接</button>
                 <div class="dropdown-menu dropdown-menu-end">
                     {{with $.Install}}<button type="button" class="dropdown-item" data-copy="{{.}}"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#copy"></use></svg>安装说明</button>{{if $.Links}}<div class="dropdown-divider"></div>{{end}}{{end}}
                     {{range $.Links}}<button type="button" class="dropdown-item" data-copy="{{.URL}}" title="{{.URL}}"><svg class="coss-icon me-2" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#copy"></use></svg>{{.Label}}</button>{{end}}
                 </div>
             </div>
             {{end}}
-            {{if and $.Account $.Account.ToDate}}<a class="btn btn-sm text-nowrap d-none d-md-inline-flex" href="#renew">续期</a>{{end}}
+            {{if and $.Account $.Account.ToDate}}<a class="btn btn-sm text-nowrap d-none d-md-inline-flex" href="#renew"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#calendar-plus"></use></svg>续期</a>{{end}}
             <a class="btn btn-sm text-nowrap d-none d-md-inline-flex" href="{{navURL (printf "/admin/accounts/%d/bindings" .ID) $.PageURL}}">订阅定制</a>
             <a class="btn btn-sm text-nowrap d-none d-md-inline-flex" href="{{navURL (printf "/admin/accounts/new?from=%d" .ID) $.PageURL}}">复制账户</a>
-            <form method="post" action="/admin/accounts/{{.ID}}/deploy" data-confirm="将重新下发该账户可用节点所在服务器的配置，确定？"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="from" value="edit"><button class="btn btn-sm text-nowrap"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#rocket"></use></svg>部署</button></form>
+            <form method="post" action="/admin/accounts/{{.ID}}/deploy" class="m-0" data-confirm="将重新下发该账户可用节点所在服务器的配置，确定？">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <input type="hidden" name="from" value="edit">
+                <button class="btn btn-sm text-nowrap"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#rocket"></use></svg>部署</button>
+            </form>
             <div class="dropdown d-md-none">
                 <button type="button" class="btn btn-sm dropdown-toggle text-nowrap" data-bs-toggle="dropdown" aria-expanded="false">更多</button>
                 <div class="dropdown-menu dropdown-menu-end">
@@ -36,50 +59,57 @@
             </div>
         </div>
     </div>
-    <div class="acct-kpi-strip">
-        <div class="acct-kpi-cell">
-            <div class="datagrid-title"><span class="status-dot me-1 {{if $on}}status-green status-dot-animated{{else}}status-secondary{{end}}" role="img" aria-label="{{if $on}}在线{{else}}离线{{end}}"></span>在线</div>
-            <div class="acct-kpi-value {{if $on}}text-green{{end}}" data-online-summary>{{$.OnlineText}}</div>
-            {{if not $on}}{{with $.LastSeen}}<div class="acct-kpi-sub text-break">{{.}}</div>{{end}}{{end}}
+    <div class="acct-telemetry">
+        <div class="acct-metric">
+            <div class="acct-metric-label"><span class="status-dot {{if $on}}status-green status-dot-animated{{else}}status-secondary{{end}}" role="img" aria-label="{{if $on}}在线{{else}}离线{{end}}"></span><span>在线状态</span></div>
+            <div class="acct-metric-value {{if $on}}text-green{{end}}" data-online-summary>{{$.OnlineText}}</div>
+            {{if not $on}}{{with $.LastSeen}}<div class="acct-metric-sub text-truncate"{{with $.LastSeenAt}} title="{{.}}"{{end}}>{{.}}{{with $.LastSeenNode}} · {{.}}{{end}}</div>{{end}}{{end}}
         </div>
-        <div class="acct-kpi-cell">
-            <div class="datagrid-title">到期</div>
-            <div class="acct-kpi-value">{{with $.Account.ToDate}}{{dbminute .}}{{else}}长期有效{{end}}</div>
-            {{with $.View.Left}}<div class="acct-kpi-sub {{$.View.LeftClass}}">{{.}}</div>{{end}}
+        <div class="acct-metric">
+            <div class="acct-metric-label">到期时间</div>
+            <div class="acct-metric-value">{{with $.Account.ToDate}}{{slice (dbminute .) 0 10}}{{else}}长期有效{{end}}</div>
+            {{with $.View.Left}}<div class="acct-metric-sub {{$.View.LeftClass}}">{{.}}</div>{{end}}
         </div>
-        <div class="acct-kpi-cell acct-kpi-wide">
-            <div class="datagrid-title">本期流量</div>
-            <div class="acct-kpi-value">{{$.View.Usage}}</div>
-            {{if $.View.BarClass}}<div class="progress progress-sm my-1" role="progressbar" aria-label="本期流量用量" aria-valuenow="{{$.View.Percent}}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar {{$.View.BarClass}}" style="width:{{$.View.Percent}}%"></div></div>{{end}}
-            <div class="acct-kpi-sub">{{$.Usage.PeriodStart.Format "2006-01-02"}} 至 {{$.Usage.PeriodEnd.Format "2006-01-02"}}</div>
+        <div class="acct-metric acct-metric-wide">
+            <div class="acct-metric-head">
+                <span class="acct-metric-label">本期流量</span>
+                <span class="acct-metric-period">{{$.Usage.PeriodStart.Format "2006-01-02"}} 至 {{$.Usage.PeriodEnd.Format "2006-01-02"}}</span>
+            </div>
+            <div class="acct-metric-value">{{$.View.Usage}}</div>
+            {{if $.View.BarClass}}
+            <div class="progress acct-progress" role="progressbar" aria-label="本期流量用量" aria-valuenow="{{$.View.Percent}}" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar {{$.View.BarClass}}" style="width:{{$.View.Percent}}%"></div>
+            </div>
+            {{end}}
         </div>
     </div>
-</div>
+</section>
 {{end}}
-<div class="acct-layout{{if .ID}} acct-layout-edit{{end}}">
+
+<div class="acct-workspace{{if .ID}} acct-workspace-edit{{else}} acct-workspace-new{{end}}">
     <form method="post" action="{{if .ID}}/admin/accounts/{{.ID}}{{else}}/admin/accounts{{end}}" class="acct-main" autocomplete="off">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
         {{template "editReturnField" $}}
         {{if $.FormErr}}<div class="alert alert-danger m-0" role="alert">{{$.FormErr}}</div>{{end}}
 
-        <div class="card">
-            <div class="card-header"><h3 class="card-title">身份与有效期</h3></div>
-            <div class="card-body">
-                <section class="edit-section">
+        <div class="card acct-form-card">
+            <div class="card-body acct-form-body">
+                <section class="acct-sec">
+                    <div class="acct-sec-head">
+                        <h3 class="acct-sec-title">基本身份</h3>
+                        <label class="form-check form-switch acct-disable-toggle" title="禁用后订阅立即拒绝；节点需部署后才移除该账户">
+                            <input class="form-check-input" type="checkbox" name="disabled" value="1"{{if .Disabled}} checked{{end}}>
+                            <span class="form-check-label">禁用账户</span>
+                        </label>
+                    </div>
                     <div class="edit-grid">
-                        <div class="edit-span-full">
-                            <div class="edit-switch-box">
-                                <label class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" name="disabled" value="1"{{if .Disabled}} checked{{end}}><span class="form-check-label">禁用</span></label>
-                                <div class="form-hint mt-1">禁用后订阅立即拒绝；节点需部署后才移除该账户</div>
-                            </div>
-                        </div>
                         {{if not .ID}}
                         <div class="edit-span-third">
-                            <label class="form-label" for="user_source">用户来源</label>
-                            <select id="user_source" name="user_source" class="form-select">
-                                <option value="existing"{{if eq .UserSource "existing"}} selected{{end}}>已有用户</option>
-                                <option value="new"{{if eq .UserSource "new"}} selected{{end}}>新用户</option>
-                            </select>
+                            <label class="form-label">用户来源</label>
+                            <div class="form-selectgroup w-100" role="radiogroup" aria-label="用户来源" data-user-source>
+                                <label class="form-selectgroup-item flex-fill"><input type="radio" name="user_source" value="existing" class="form-selectgroup-input"{{if ne .UserSource "new"}} checked{{end}}><span class="form-selectgroup-label">已有用户</span></label>
+                                <label class="form-selectgroup-item flex-fill"><input type="radio" name="user_source" value="new" class="form-selectgroup-input"{{if eq .UserSource "new"}} checked{{end}}><span class="form-selectgroup-label">新用户</span></label>
+                            </div>
                         </div>
                         {{end}}
                         <div class="{{if .ID}}edit-span-full{{else}}edit-span-two-thirds{{end}}" data-existing-user>
@@ -90,115 +120,222 @@
                             </select>
                         </div>
                         {{if not .ID}}
-                        <div class="edit-span-full" data-new-user hidden>
+                        <div class="edit-span-full acct-new-user-panel" data-new-user hidden>
                             <div class="edit-grid">
-                                <div class="edit-span-third"><label class="form-label" for="email">邮箱</label><input type="email" class="form-control" id="email" name="email" value="{{.Email}}"></div>
-                                <div class="edit-span-third"><label class="form-label" for="new_password">密码</label><div class="input-group"><input class="form-control" id="new_password" name="new_password" value="{{.Password}}" autocomplete="off"><button type="button" class="btn btn-outline-secondary" data-gen-password>重新生成</button></div></div>
-                                <div class="edit-span-third"><label class="form-label" for="nick_name">昵称</label><input class="form-control" id="nick_name" name="nick_name" value="{{.NickName}}"></div>
+                                <div class="edit-span-third"><label class="form-label" for="email">邮箱</label><input type="email" class="form-control" id="email" name="email" value="{{.Email}}" placeholder="user@example.com"></div>
+                                <div class="edit-span-third"><label class="form-label" for="new_password">密码</label><div class="input-group"><input class="form-control font-monospace" id="new_password" name="new_password" value="{{.Password}}" autocomplete="off"><button type="button" class="btn btn-outline-secondary" data-gen-password>生成</button></div></div>
+                                <div class="edit-span-third"><label class="form-label" for="nick_name">昵称</label><input class="form-control" id="nick_name" name="nick_name" value="{{.NickName}}" placeholder="可选"></div>
                             </div>
                         </div>
                         {{end}}
                         <div class="edit-span-half"><label class="form-label required" for="remark">账户备注</label><input class="form-control" id="remark" name="remark" value="{{.Remark}}" required></div>
-                        <div class="edit-span-half"><label class="form-label" for="account_no">账户编号</label><input class="form-control font-monospace" id="account_no" name="account_no" value="{{.AccountNo}}"{{if .ID}} readonly{{end}} placeholder="留空自动生成"></div>
-                        <div class="edit-span-full"><label class="form-label" for="uuid">UUID</label><div class="input-group"><input class="form-control font-monospace" id="uuid" name="uuid" value="{{.UUID}}" placeholder="留空自动生成（仅开户）">{{if .ID}}<button type="button" class="btn btn-outline-secondary" data-gen-uuid>重新生成</button>{{end}}</div></div>
+                        <div class="edit-span-half"><label class="form-label" for="account_no">账户编号</label><input class="form-control font-monospace{{if .ID}} acct-readonly{{end}}" id="account_no" name="account_no" value="{{.AccountNo}}"{{if .ID}} readonly{{end}} placeholder="留空自动生成"></div>
+                        <div class="edit-span-full">
+                            <label class="form-label" for="uuid">UUID</label>
+                            <div class="input-group">
+                                <input class="form-control font-monospace" id="uuid" name="uuid" value="{{.UUID}}" placeholder="留空自动生成（仅开户）">
+                                {{if .ID}}<button type="button" class="btn btn-outline-secondary text-nowrap" data-gen-uuid>重新生成</button>{{end}}
+                            </div>
+                        </div>
                     </div>
                 </section>
 
-                <section class="edit-section">
-                    <div class="subheader edit-section-title">有效期{{if not .ID}}与收款{{end}}</div>
+                <section class="acct-sec">
+                    <div class="acct-sec-head">
+                        <h3 class="acct-sec-title">周期与有效期{{if not .ID}}及收款{{end}}</h3>
+                    </div>
                     <div class="edit-grid">
-                        <div class="edit-span-third"><label class="form-label" for="period_type">流量周期</label><select class="form-select" id="period_type" name="period_type"{{if .ID}} data-period-original="{{.PeriodType}}"{{end}}><option value="MONTHLY"{{if eq .PeriodType "MONTHLY"}} selected{{end}}>月度</option><option value="YEARLY"{{if eq .PeriodType "YEARLY"}} selected{{end}}>年度</option></select></div>
-                        <div class="edit-span-third"><label class="form-label" for="from_date">开始时间</label><input type="datetime-local" class="form-control" id="from_date" name="from_date" value="{{.FromDate}}"></div>
                         <div class="edit-span-third">
-                            <label class="form-label" for="to_date">到期时间</label>
-                            <input type="datetime-local" class="form-control" id="to_date" name="to_date" value="{{.ToDate}}">
-                            {{if not .ID}}<div class="btn-group btn-group-sm w-100 mt-2 acct-quick-group" role="group" aria-label="快捷时长"><button type="button" class="btn btn-outline-secondary" data-term-months="1">1 月</button><button type="button" class="btn btn-outline-secondary" data-term-months="3">3 月</button><button type="button" class="btn btn-outline-secondary" data-term-months="6">6 月</button><button type="button" class="btn btn-outline-secondary" data-term-months="12">1 年</button></div>{{end}}
+                            <label class="form-label">流量周期</label>
+                            <div class="form-selectgroup w-100" role="radiogroup" aria-label="流量周期"{{if .ID}} data-period-original="{{.PeriodType}}"{{end}}>
+                                <label class="form-selectgroup-item flex-fill"><input type="radio" name="period_type" value="MONTHLY" class="form-selectgroup-input"{{if ne .PeriodType "YEARLY"}} checked{{end}}><span class="form-selectgroup-label">月度</span></label>
+                                <label class="form-selectgroup-item flex-fill"><input type="radio" name="period_type" value="YEARLY" class="form-selectgroup-input"{{if eq .PeriodType "YEARLY"}} checked{{end}}><span class="form-selectgroup-label">年度</span></label>
+                            </div>
                         </div>
-                        <div class="edit-span-full form-hint mt-0">到期时间空值表示长期有效{{if .ID}}；延长有效期请用「续期」（会记账）{{end}}</div>
+                        <div class="edit-span-two-thirds">
+                            <label class="form-label">开始与到期日期</label>
+                            <div class="coss-daterange" data-date-range data-placeholder="选择开始与到期日期" data-open-end="长期有效" data-range-mode="validity">
+                                <input type="date" id="from_date" name="from_date" value="{{.FromDate}}" aria-label="开始日期">
+                                <input type="date" id="to_date" name="to_date" value="{{.ToDate}}" aria-label="到期日期">
+                            </div>
+                            {{if not .ID}}
+                            <div class="acct-quick-bar mt-2" role="group" aria-label="快捷时长">
+                                <button type="button" class="acct-quick-btn" data-term-months="1">1 月</button>
+                                <button type="button" class="acct-quick-btn" data-term-months="3">3 月</button>
+                                <button type="button" class="acct-quick-btn" data-term-months="6">6 月</button>
+                                <button type="button" class="acct-quick-btn" data-term-months="12">1 年</button>
+                            </div>
+                            {{end}}
+                            <div class="form-hint">到期留空表示长期有效{{if .ID}}；延长有效期请用右侧「续期」以自动记账{{end}}</div>
+                        </div>
                         {{if not .ID}}
-                        <div class="edit-span-1"><label class="form-label" for="amount">首期金额（元，可选）</label><input class="form-control" id="amount" name="amount" value="{{.Amount}}" inputmode="decimal"></div>
-                        <div class="edit-span-1"><label class="form-label" for="payment_method">付款方式</label><select class="form-select" id="payment_method" name="payment_method"><option value="">请选择</option><option value="WeChat"{{if eq .PaymentMethod "WeChat"}} selected{{end}}>微信</option><option value="AliPay"{{if eq .PaymentMethod "AliPay"}} selected{{end}}>支付宝</option><option value="BankCard"{{if eq .PaymentMethod "BankCard"}} selected{{end}}>银行卡</option></select></div>
+                        <div class="edit-span-1">
+                            <label class="form-label" for="amount">首期金额</label>
+                            <div class="input-group">
+                                <input class="form-control" id="amount" name="amount" value="{{.Amount}}" inputmode="decimal" placeholder="可选">
+                                <span class="input-group-text">元</span>
+                            </div>
+                        </div>
+                        <div class="edit-span-1">
+                            <label class="form-label" for="payment_method">付款方式</label>
+                            <select class="form-select" id="payment_method" name="payment_method">
+                                <option value="">请选择</option>
+                                <option value="WeChat"{{if eq .PaymentMethod "WeChat"}} selected{{end}}>微信</option>
+                                <option value="AliPay"{{if eq .PaymentMethod "AliPay"}} selected{{end}}>支付宝</option>
+                                <option value="BankCard"{{if eq .PaymentMethod "BankCard"}} selected{{end}}>银行卡</option>
+                            </select>
+                        </div>
                         {{end}}
                     </div>
                 </section>
-            </div>
-        </div>
 
-        <div class="card">
-            <div class="card-header"><h3 class="card-title">配额、限速与标签</h3></div>
-            <div class="card-body">
-                <section class="edit-section">
+                <section class="acct-sec">
+                    <div class="acct-sec-head">
+                        <h3 class="acct-sec-title">配额、限速与节点</h3>
+                    </div>
                     <div class="edit-grid">
-                        <div class="edit-span-1"><label class="form-label" for="node_multiple">节点倍数（1–10）</label><input type="number" class="form-control" name="node_multiple" id="node_multiple" value="{{.NodeMultiple}}" min="1" max="10" required></div>
-                        <div class="edit-span-1"><label class="form-label" for="node_prefix">节点前缀</label><input class="form-control" name="node_prefix" id="node_prefix" value="{{.NodePrefix}}"></div>
-                        <div class="edit-span-third"><label class="form-label" for="bandwidth">周期配额（GB，0 不限）</label><input type="number" class="form-control" name="bandwidth" id="bandwidth" value="{{.Bandwidth}}" min="0" required></div>
-                        <div class="edit-span-third-sm"><label class="form-label" for="max_connections">最大连接数（0 不限）</label><input type="number" class="form-control" name="max_connections" id="max_connections" value="{{.MaxConnections}}" min="0" required></div>
-                        <div class="edit-span-third-sm"><label class="form-label" for="max_ips">最大 IP 数（0 不限）</label><input type="number" class="form-control" name="max_ips" id="max_ips" value="{{.MaxIPs}}" min="0" required></div>
-                        <div class="edit-span-1"><label class="form-label" for="download_mbps">下行限速（Mbps，空值不限）</label><input type="number" class="form-control" name="download_mbps" id="download_mbps" value="{{.DownloadMbps}}" min="1"></div>
-                        <div class="edit-span-1"><label class="form-label" for="upload_mbps">上行限速（Mbps，空值不限）</label><input type="number" class="form-control" name="upload_mbps" id="upload_mbps" value="{{.UploadMbps}}" min="1"></div>
+                        <div class="edit-span-third">
+                            <label class="form-label" for="bandwidth">周期配额</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="bandwidth" id="bandwidth" value="{{.Bandwidth}}" min="1" placeholder="不限">
+                                <span class="input-group-text">GB</span>
+                            </div>
+                        </div>
+                        <div class="edit-span-third-sm">
+                            <label class="form-label" for="max_connections">最大连接数</label>
+                            <input type="number" class="form-control" name="max_connections" id="max_connections" value="{{.MaxConnections}}" min="1" placeholder="不限">
+                        </div>
+                        <div class="edit-span-third-sm">
+                            <label class="form-label" for="max_ips">最大 IP 数</label>
+                            <input type="number" class="form-control" name="max_ips" id="max_ips" value="{{.MaxIPs}}" min="1" placeholder="不限">
+                        </div>
+                        <div class="edit-span-1">
+                            <label class="form-label" for="download_mbps">下行限速</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="download_mbps" id="download_mbps" value="{{.DownloadMbps}}" min="1" placeholder="不限">
+                                <span class="input-group-text">Mbps</span>
+                            </div>
+                        </div>
+                        <div class="edit-span-1">
+                            <label class="form-label" for="upload_mbps">上行限速</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="upload_mbps" id="upload_mbps" value="{{.UploadMbps}}" min="1" placeholder="不限">
+                                <span class="input-group-text">Mbps</span>
+                            </div>
+                        </div>
+                        <div class="edit-span-1">
+                            <label class="form-label" for="node_multiple">节点倍数</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="node_multiple" id="node_multiple" value="{{.NodeMultiple}}" min="1" max="10" required>
+                                <span class="input-group-text">倍</span>
+                            </div>
+                        </div>
+                        <div class="edit-span-1">
+                            <label class="form-label" for="node_prefix">节点前缀</label>
+                            <input class="form-control" name="node_prefix" id="node_prefix" value="{{.NodePrefix}}" placeholder="可选">
+                        </div>
                     </div>
                 </section>
 
-                <section class="edit-section">
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <label class="form-label m-0">标签</label>
-                        <a href="/admin/tags" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary rounded-pill"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#settings"></use></svg>管理标签</a>
+                <section class="acct-sec">
+                    <div class="acct-sec-head">
+                        <h3 class="acct-sec-title">节点标签</h3>
+                        <a href="/admin/tags" target="_blank" rel="noopener" class="acct-sec-link"><svg class="coss-icon me-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#settings"></use></svg>管理标签</a>
                     </div>
                     <div class="d-flex flex-wrap gap-2 align-items-center" data-tag-list>
-                        {{range $.Tags}}<label class="tag-pill d-inline-flex align-items-center rounded-pill border px-2 py-1 small m-0 cursor-pointer" data-tag-id="{{.ID}}" data-tag-name="{{.Name}}" data-node-ids="{{index $.TagNodes .ID}}"><input type="checkbox" class="visually-hidden" name="tags" value="{{.ID}}"{{if index $.Form.TagIDs .ID}} checked{{end}}><span class="status-dot flex-shrink-0 me-1" style="background-color: {{if .Color}}{{.Color}}{{else}}#6c757d{{end}}"></span><span>{{.Name}}</span><svg class="coss-icon tag-check ms-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#check"></use></svg></label>{{end}}
+                        {{range $.Tags}}
+                        <label class="tag-pill d-inline-flex align-items-center rounded-pill border px-2 py-1 small m-0 cursor-pointer" data-tag-id="{{.ID}}" data-tag-name="{{.Name}}" data-node-ids="{{index $.TagNodes .ID}}">
+                            <input type="checkbox" class="visually-hidden" name="tags" value="{{.ID}}"{{if index $.Form.TagIDs .ID}} checked{{end}}>
+                            <span class="status-dot flex-shrink-0 me-1" style="background-color: {{if .Color}}{{.Color}}{{else}}#6c757d{{end}}"></span>
+                            <span>{{.Name}}</span>
+                            <svg class="coss-icon tag-check ms-1" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#check"></use></svg>
+                        </label>
+                        {{end}}
                     </div>
                     <div class="form-hint" role="status" data-tag-nodes></div>
                 </section>
             </div>
             <div class="card-footer edit-form-footer">
                 <a href="{{$.EditReturn}}" class="btn btn-link edit-btn-cancel">取消</a>
-                <button class="btn btn-primary" type="submit">保存</button>
+                <button class="btn btn-primary" type="submit">{{if .ID}}保存修改{{else}}立即开户{{end}}</button>
             </div>
         </div>
     </form>
 
     {{if .ID}}
     <aside class="acct-side">
-        {{if and $.Account $.Account.ToDate}}
-        <form method="post" action="/admin/accounts/{{.ID}}/renew" class="card" id="renew">
-            <input type="hidden" name="csrf" value="{{$.CSRF}}">
-            <div class="card-header"><h3 class="card-title">续期</h3></div>
-            <div class="card-body">
+        {{if or (and $.Account $.Account.ToDate) $.Usage}}
+        <div class="card acct-ops-card">
+            {{if and $.Account $.Account.ToDate}}
+            <form method="post" action="/admin/accounts/{{.ID}}/renew" class="acct-ops-section" id="renew">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <div class="acct-sec-head mb-2">
+                    <h3 class="acct-sec-title">续期</h3>
+                </div>
                 <div class="acct-renew-grid">
                     <div class="acct-renew-full">
-                        <label class="form-label" for="renew_to_date">新到期时间</label>
-                        <input type="datetime-local" class="form-control" name="to_date" id="renew_to_date" data-base="{{.ToDate}}" required>
-                        <div class="btn-group btn-group-sm w-100 mt-2 acct-quick-group" role="group" aria-label="快捷续期"><button type="button" class="btn btn-outline-secondary" data-renew-months="1">+1 月</button><button type="button" class="btn btn-outline-secondary" data-renew-months="3">+3 月</button><button type="button" class="btn btn-outline-secondary" data-renew-months="6">+6 月</button><button type="button" class="btn btn-outline-secondary" data-renew-months="12">+1 年</button></div>
+                        <label class="form-label" for="renew_to_date">新到期日期</label>
+                        <input type="date" class="form-control" name="to_date" id="renew_to_date" data-base="{{.ToDate}}" required>
+                        <div class="acct-quick-bar mt-2" role="group" aria-label="快捷续期">
+                            <button type="button" class="acct-quick-btn" data-renew-months="1">+1 月</button>
+                            <button type="button" class="acct-quick-btn" data-renew-months="3">+3 月</button>
+                            <button type="button" class="acct-quick-btn" data-renew-months="6">+6 月</button>
+                            <button type="button" class="acct-quick-btn" data-renew-months="12">+1 年</button>
+                        </div>
                     </div>
-                    <div><label class="form-label" for="renew_amount">金额（元）</label><input class="form-control" name="amount" id="renew_amount" inputmode="decimal" placeholder="可选"></div>
-                    <div><label class="form-label" for="renew_payment">付款方式</label><select class="form-select" name="payment_method" id="renew_payment"><option value="">请选择</option><option value="WeChat">微信</option><option value="AliPay">支付宝</option><option value="BankCard">银行卡</option></select></div>
+                    <div>
+                        <label class="form-label" for="renew_amount">金额</label>
+                        <div class="input-group">
+                            <input class="form-control" name="amount" id="renew_amount" inputmode="decimal" placeholder="可选">
+                            <span class="input-group-text">元</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label" for="renew_payment">付款方式</label>
+                        <select class="form-select" name="payment_method" id="renew_payment">
+                            <option value="">请选择</option>
+                            <option value="WeChat">微信</option>
+                            <option value="AliPay">支付宝</option>
+                            <option value="BankCard">银行卡</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="acct-ops-foot mt-3">
+                    <button class="btn btn-primary">保存续期</button>
+                </div>
+            </form>
+            {{end}}
+
+            {{with $.Usage}}
+            <div class="acct-ops-section" id="period">
+                <div class="acct-sec-head mb-2">
+                    <h3 class="acct-sec-title">本期用量</h3>
+                    <span class="small text-secondary text-nowrap acct-tabular">{{.PeriodStart.Format "01-02"}} 至 {{.PeriodEnd.Format "01-02"}}</span>
+                </div>
+                <div class="d-flex flex-column gap-2">
+                    {{if gt .QuotaGB 0}}
+                    <form method="post" action="/admin/accounts/{{$.Form.ID}}/period-quota" class="m-0" data-confirm="只给本期加量，不改账户配额，下一周期恢复；确定？">
+                        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                        <label class="form-label" for="period_gb">本期加量（当前配额 {{.QuotaGB}} GB）</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" name="gb" id="period_gb" min="1" max="100000" step="1" required placeholder="输入增量">
+                            <span class="input-group-text">GB</span>
+                            <button class="btn" type="submit">加量</button>
+                        </div>
+                    </form>
+                    {{end}}
+                    <form method="post" action="/admin/accounts/{{$.Form.ID}}/period-reset" class="m-0" data-confirm="将清零本期已用流量（不改配额），超额限速随之解除，确定？" data-confirm-danger>
+                        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                        <button class="btn btn-outline-warning w-100" type="submit"{{if not .UsedBytes}} disabled{{end}}>重置本期用量</button>
+                    </form>
                 </div>
             </div>
-            <div class="card-footer acct-side-footer"><button class="btn btn-primary">保存续期</button></div>
-        </form>
-        {{end}}
-
-        {{with $.Usage}}
-        <div class="card" id="period">
-            <div class="card-header"><h3 class="card-title">本期用量</h3><span class="ms-auto small text-secondary text-nowrap">{{.PeriodStart.Format "01-02"}} 至 {{.PeriodEnd.Format "01-02"}}</span></div>
-            <div class="card-body d-flex flex-column gap-3">
-                {{if gt .QuotaGB 0}}
-                <form method="post" action="/admin/accounts/{{$.Form.ID}}/period-quota" data-confirm="只给本期加量，不改账户配额，下一周期恢复；确定？">
-                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
-                    <label class="form-label" for="period_gb">本期加量（本期配额 {{.QuotaGB}} GB）</label>
-                    <div class="input-group"><input type="number" class="form-control" name="gb" id="period_gb" min="1" max="100000" step="1" required placeholder="GB"><span class="input-group-text">GB</span><button class="btn" type="submit">加量</button></div>
-                </form>
-                {{end}}
-                <form method="post" action="/admin/accounts/{{$.Form.ID}}/period-reset" data-confirm="将清零本期已用流量（不改配额），超额限速随之解除，确定？" data-confirm-danger>
-                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
-                    <button class="btn btn-outline-warning w-100" type="submit"{{if not .UsedBytes}} disabled{{end}}>重置本期用量</button>
-                </form>
-            </div>
+            {{end}}
         </div>
         {{end}}
 
         {{if $.View}}
-        <div class="card">
+        <div class="card acct-activity-card">
             <div class="card-header">
                 <ul class="nav nav-tabs card-header-tabs edit-tabs" role="tablist">
                     <li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#account-online" role="tab" aria-selected="true">当前在线</button></li>
@@ -211,14 +348,31 @@
                     {{with $.OnlineWarning}}<div class="alert alert-warning text-break" role="alert">{{.}}</div>{{end}}
                     {{if $.OnlineRows}}
                     <div class="list-group list-group-flush">
-                        {{range $.OnlineRows}}<div class="list-group-item px-0 text-break"><div class="d-flex flex-wrap gap-2"><strong>{{.Node}}</strong><span class="text-secondary">{{.Server}}</span><span class="ms-auto text-secondary small">{{.At}}</span></div><div class="small text-secondary">连接 {{.Conns}}{{if .IPs}} · 客户端 {{.IPs}}{{end}}</div></div>{{end}}
+                        {{range $.OnlineRows}}
+                        <div class="list-group-item px-0 text-break">
+                            <div class="d-flex flex-wrap align-items-baseline gap-2">
+                                <strong>{{.Node}}</strong>
+                                <span class="text-secondary small">{{.Server}}</span>
+                                <span class="ms-auto text-secondary small acct-tabular">{{.At}}</span>
+                            </div>
+                            <div class="small text-secondary mt-1 acct-tabular">连接 {{.Conns}}{{if .IPs}} · 客户端 {{.IPs}}{{end}}</div>
+                        </div>
+                        {{end}}
                     </div>
-                    {{else}}<div class="text-secondary">暂无在线连接</div>{{end}}
-                    <div class="text-secondary small mt-2">数据来自节点最近一次上报</div>
+                    {{else}}
+                    <div class="acct-empty-state">暂无在线连接</div>
+                    {{end}}
                 </div>
                 <div class="tab-pane" id="account-recent" role="tabpanel">
                     <div class="list-group list-group-flush overflow-auto" style="max-height:20rem">
-                        {{range $.Recent}}<div class="list-group-item d-flex flex-wrap gap-2"><a href="{{navURL (printf "/admin/nodes/%d/edit" .NodeID) $.PageURL}}" class="text-break">{{.NodeName}}</a><span class="text-secondary small ms-auto text-nowrap">{{dbtime .LastOnline}}</span></div>{{else}}<div class="list-group-item text-secondary">最近 30 天暂无节点使用记录</div>{{end}}
+                        {{range $.Recent}}
+                        <div class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                            <a href="{{navURL (printf "/admin/nodes/%d/edit" .NodeID) $.PageURL}}" class="text-break">{{.NodeName}}</a>
+                            <span class="text-secondary small ms-auto text-nowrap acct-tabular">{{dbtime .LastOnline}}</span>
+                        </div>
+                        {{else}}
+                        <div class="list-group-item acct-empty-state">最近 30 天暂无节点使用记录</div>
+                        {{end}}
                     </div>
                 </div>
                 <div class="tab-pane" id="account-history" role="tabpanel">
@@ -228,10 +382,22 @@
                             <tbody>
                             {{range $.History}}
                             <tr>
-                                <td><span class="text-nowrap">{{.PeriodStart.Format "06-01-02"}} 至 {{.PeriodEnd.Format "06-01-02"}}</span>{{if .Current}} <span class="badge bg-blue-lt">当前</span>{{end}}<div class="small text-secondary">↑ {{gb .UploadBytes}} · ↓ {{gb .DownloadBytes}}</div></td>
-                                <td class="text-nowrap">{{.View.Usage}}{{if .View.BarClass}}<div class="progress progress-sm mt-1" role="progressbar" aria-label="周期流量用量" aria-valuenow="{{.View.Percent}}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar {{.View.BarClass}}" style="width:{{.View.Percent}}%"></div></div>{{end}}</td>
+                                <td>
+                                    <span class="text-nowrap acct-tabular">{{.PeriodStart.Format "06-01-02"}} 至 {{.PeriodEnd.Format "06-01-02"}}</span>{{if .Current}} <span class="badge bg-blue-lt">当前</span>{{end}}
+                                    <div class="small text-secondary acct-tabular">↑ {{gb .UploadBytes}} · ↓ {{gb .DownloadBytes}}</div>
+                                </td>
+                                <td class="text-nowrap acct-tabular">
+                                    {{.View.Usage}}
+                                    {{if .View.BarClass}}
+                                    <div class="progress acct-progress mt-1" role="progressbar" aria-label="周期流量用量" aria-valuenow="{{.View.Percent}}" aria-valuemin="0" aria-valuemax="100">
+                                        <div class="progress-bar {{.View.BarClass}}" style="width:{{.View.Percent}}%"></div>
+                                    </div>
+                                    {{end}}
+                                </td>
                             </tr>
-                            {{else}}<tr><td colspan="2" class="text-center text-secondary py-4">暂无历史周期</td></tr>{{end}}
+                            {{else}}
+                            <tr><td colspan="2" class="text-center text-secondary py-4">暂无历史周期</td></tr>
+                            {{end}}
                             </tbody>
                         </table>
                     </div>
@@ -244,8 +410,8 @@
         <div class="card acct-danger-card">
             <div class="card-header"><h3 class="card-title text-danger">危险操作</h3></div>
             <div class="card-body acct-danger-actions">
-                <form method="post" action="/admin/accounts/{{.ID}}/auth-code" data-confirm="重置账户「{{accountName .}}」的订阅授权码后，旧订阅链接立即失效，是否继续？" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-outline-danger w-100">重置订阅授权码</button></form>
-                <form method="post" action="/admin/accounts/{{.ID}}/delete" data-confirm="确定删除账户「{{accountName .}}」？流水保留，节点需重新部署。" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-danger w-100">删除账户</button></form>
+                <form method="post" action="/admin/accounts/{{.ID}}/auth-code" class="m-0" data-confirm="重置账户「{{accountName .}}」的订阅授权码后，旧订阅链接立即失效，是否继续？" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-outline-danger w-100">重置订阅授权码</button></form>
+                <form method="post" action="/admin/accounts/{{.ID}}/delete" class="m-0" data-confirm="确定删除账户「{{accountName .}}」？流水保留，节点需重新部署。" data-confirm-danger><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="btn btn-danger w-100">删除账户</button></form>
             </div>
         </div>
         {{end}}
