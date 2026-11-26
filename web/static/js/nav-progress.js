@@ -7,7 +7,7 @@ let sequence = 0;
 let route = location.pathname + location.search;
 let pending = null;
 history.replaceState({ ...history.state, airopscatPage: entry }, '');
-history.scrollRestoration = 'manual';
+if (document.readyState === 'complete') history.scrollRestoration = 'manual';
 
 function stop() {
   if (pending) pending.abort();
@@ -87,6 +87,7 @@ async function navigate(url, restoreEntry, link) {
     header.querySelector('.container-xl').replaceWith(nextHeader.querySelector('.container-xl'));
     page.replaceWith(nextPage);
     document.title = doc.title;
+    history.scrollRestoration = 'manual';
     if (restoreEntry === undefined) {
       entry = ++sequence;
       history.pushState({ airopscatPage: entry }, '', nextURL.href);

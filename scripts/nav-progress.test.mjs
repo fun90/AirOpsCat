@@ -173,7 +173,7 @@ test('Tabler 局部导航浏览器回归', { skip: !existsSync(chromeBin), timeo
     await t.test('刷新页面恢复滚动位置', async () => {
       await evaluate('scrollTo({top:300,behavior:"instant"})');
       await call('Page.reload');
-      await waitFor('document.readyState === "complete" && !!window.AirOpsPage && scrollY === 300');
+      await waitFor('typeof window.marker === "undefined" && document.readyState === "complete" && !!window.AirOpsPage && scrollY === 300');
       await evaluate('window.marker=42');
     });
     await t.test('快速连续导航不会让旧响应覆盖新页面', async () => {
