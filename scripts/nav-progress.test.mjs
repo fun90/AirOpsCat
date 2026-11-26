@@ -19,7 +19,7 @@ const content = `<textarea data-json-editor>{"ok":true}</textarea><select data-s
 <form method="post" action="/admin/saved"><button type="submit">保存</button></form>`;
 function html(name, extra = '') {
   return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>${name}</title>
-<link rel="stylesheet" href="/static/css/coss.css"><link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/coss.css"><link rel="stylesheet" href="/static/css/app.css"><style>html{overflow-anchor:none}</style>
 <body><div class="page"><header class="navbar">${progress}<div class="container-xl"><a href="/admin/a">A</a><a href="/admin/b">B</a><a href="/admin/slow">慢页面</a></div></header>
 <div class="page-wrapper"><h2 class="page-title">${name}</h2>${content}${extra}${'<p>内容</p>'.repeat(100)}</div></div>${scripts}`;
 }
@@ -121,7 +121,7 @@ test('Tabler 局部导航浏览器回归', { skip: !existsSync(chromeBin), timeo
       const deadline = Date.now() + 6000;
       while (Date.now() < deadline) {
         try { if (await evaluate(expression)) return; } catch (error) {
-          if (!/context|Cannot find/i.test(error.message)) throw error;
+          if (!/context|Cannot find|navigated or closed/i.test(error.message)) throw error;
         }
         await new Promise(resolve => setTimeout(resolve, 25));
       }
@@ -171,7 +171,7 @@ test('Tabler 局部导航浏览器回归', { skip: !existsSync(chromeBin), timeo
       assert.equal(await evaluate('scrollY'), 0);
     });
     await t.test('刷新页面恢复滚动位置', async () => {
-      await evaluate('scrollTo({top:300,behavior:"instant"})');
+      await evaluate('scrollTo({top:300,behavior:"instant"});new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
       await call('Page.reload');
       await waitFor('typeof window.marker === "undefined" && document.readyState === "complete" && !!window.AirOpsPage && scrollY === 300');
       await evaluate('window.marker=42');
