@@ -1,5 +1,5 @@
 // 节点部署位增删：只在表单中暂存，点“保存”后随节点一起提交。
-import { Dropdown, Modal } from '/static/js/coss-ui.js';
+import { Modal } from '/static/js/coss-ui.js';
 
 window.AirOpsPage.register(() => {
 const pane = document.querySelector('#placements-pane');
@@ -149,12 +149,6 @@ if (pane && dialog) {
     }
 
     pane.addEventListener('click', (e) => {
-        const cheap = e.target.closest('[data-cheap-done]');
-        if (cheap) {
-            const box = cheap.closest('[data-cheap]');
-            Dropdown.getOrCreateInstance(box.querySelector('[data-bs-toggle]')).hide();
-            return;
-        }
         const toggle = e.target.closest('[data-new-host-toggle]');
         if (toggle) {
             e.preventDefault();

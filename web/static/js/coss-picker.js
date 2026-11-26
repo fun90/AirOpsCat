@@ -5,6 +5,7 @@ window.AirOpsPage.register(function () {
     var WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
     var active = null;
     var pop = null;
+    var dragCleanup = null;
 
     function pad(n) { return String(n).padStart(2, '0'); }
     function nowLocal() {
@@ -65,7 +66,7 @@ window.AirOpsPage.register(function () {
         return foot;
     }
 
-    function placePop(node, anchor) {
+    function placePop(node, anchor, alignEnd) {
         var rect = anchor.getBoundingClientRect();
         node.style.visibility = 'hidden';
         node.style.top = '0px';
@@ -82,14 +83,28 @@ window.AirOpsPage.register(function () {
             originY = 'bottom';
         }
         top = Math.max(8, Math.min(top, vh - fh - 8));
-        var left = vw < 420 ? Math.max(8, (vw - fw) / 2) : Math.max(8, Math.min(rect.left, vw - fw - 8));
+        var left, originX;
+        if (vw < 420) {
+            left = Math.max(8, (vw - fw) / 2);
+            originX = 'center';
+        } else if (alignEnd) {
+            left = Math.max(8, Math.min(rect.right - fw, vw - fw - 8));
+            originX = 'right';
+        } else {
+            left = Math.max(8, Math.min(rect.left, vw - fw - 8));
+            originX = 'left';
+        }
         node.style.top = Math.round(top) + 'px';
         node.style.left = Math.round(left) + 'px';
-        node.style.transformOrigin = originY + ' left';
+        node.style.transformOrigin = originY + ' ' + originX;
         node.style.visibility = '';
     }
 
     function close() {
+        if (dragCleanup) {
+            dragCleanup();
+            dragCleanup = null;
+        }
         if (active) {
             active.trigger.setAttribute('aria-expanded', 'false');
             active = null;
@@ -100,12 +115,12 @@ window.AirOpsPage.register(function () {
         }
     }
 
-    function openPop(ctx, label) {
+    function openPop(ctx, label, extraCls) {
         if (active === ctx) { close(); return false; }
         close();
         active = ctx;
         ctx.trigger.setAttribute('aria-expanded', 'true');
-        pop = el('div', 'coss-dt-pop');
+        pop = el('div', extraCls ? ('coss-dt-pop ' + extraCls) : 'coss-dt-pop');
         pop.setAttribute('role', 'dialog');
         pop.setAttribute('aria-label', label);
         pop.addEventListener('click', function (e) { e.stopPropagation(); });
@@ -404,138 +419,192 @@ window.AirOpsPage.register(function () {
         sync();
     }
 
+    function toMins(t) { return t.h * 60 + t.min; }
+    function fromMins(m) {
+        var n = ((Math.round(m) % 1440) + 1440) % 1440;
+        return { h: Math.floor(n / 60), min: n % 60 };
+    }
+    function snapMins(clientX, rail) {
+        var rect = rail.getBoundingClientRect();
+        if (!rect.width) { return -1; }
+        var ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        return Math.min(1410, Math.round((ratio * 1440) / 30) * 30);
+    }
+    function durationLabel(s, e) {
+        var sm = toMins(s), em = toMins(e), cross = em <= sm;
+        var diff = cross ? (1440 - sm + em) : (em - sm);
+        var hrs = Math.floor(diff / 60), mins = diff % 60;
+        return (cross && em < sm ? '跨日 · ' : '') + ((hrs ? hrs + ' 小时' : '') + (mins ? (hrs ? ' ' : '') + mins + ' 分' : '') || '24 小时');
+    }
+
+    function openTimeRange(ctx) {
+        if (!openPop(ctx, '选择便宜时段', 'coss-tr-pop')) { return; }
+        var sVal = parseTime(VALUE_DESC.get.call(ctx.startInput));
+        var eVal = parseTime(VALUE_DESC.get.call(ctx.endInput));
+        var hasValue = !!(sVal || eVal);
+        var start = sVal || { h: 0, min: 0 };
+        var end = eVal || { h: 8, min: 0 };
+        var editing = 'start';
+        var dragging = false;
+
+        var panel = el('div', 'coss-tr-panel');
+        var summary = el('div', 'coss-tr-summary');
+        var rangeEl = el('div');
+        var durEl = el('div', 'coss-tr-duration');
+        summary.append(rangeEl, durEl);
+
+        var timeline = el('div', 'coss-tr-timeline');
+        var track = el('div', 'coss-tr-track');
+        var railWrap = el('div', 'coss-tr-rail-wrap');
+        var rail = el('div', 'coss-tr-rail');
+        var fillA = el('div', 'coss-tr-fill');
+        var fillB = el('div', 'coss-tr-fill');
+        rail.append(fillA, fillB);
+        railWrap.appendChild(rail);
+        track.appendChild(railWrap);
+
+        function makeThumb(which, aria) {
+            var th = btn('coss-tr-thumb', null, null, aria);
+            th.addEventListener('pointerdown', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (dragCleanup) { dragCleanup(); dragCleanup = null; }
+                dragging = true;
+                editing = which;
+                hasValue = true;
+                refresh();
+                try { th.setPointerCapture(e.pointerId); } catch (_) {}
+                var last = -1;
+                function move(ev) {
+                    var snapped = snapMins(ev.clientX, rail);
+                    if (snapped < 0 || snapped === last) { return; }
+                    last = snapped;
+                    if (which === 'start') { start = fromMins(snapped); } else { end = fromMins(snapped); }
+                    refresh();
+                }
+                function cleanup() {
+                    window.removeEventListener('pointermove', move);
+                    window.removeEventListener('pointerup', up);
+                    window.removeEventListener('pointercancel', up);
+                    try {
+                        if (th.hasPointerCapture && th.hasPointerCapture(e.pointerId)) {
+                            th.releasePointerCapture(e.pointerId);
+                        }
+                    } catch (_) {}
+                    if (dragCleanup === cleanup) { dragCleanup = null; }
+                    setTimeout(function () { dragging = false; }, 0);
+                }
+                function up() { cleanup(); }
+                dragCleanup = cleanup;
+                window.addEventListener('pointermove', move);
+                window.addEventListener('pointerup', up);
+                window.addEventListener('pointercancel', up);
+            });
+            return th;
+        }
+        var thumbStart = makeThumb('start', '拖动调整开始时间');
+        var thumbEnd = makeThumb('end', '拖动调整结束时间');
+        railWrap.append(thumbStart, thumbEnd);
+
+        track.addEventListener('click', function (e) {
+            if (dragging || e.target.closest('.coss-tr-thumb')) { return; }
+            var snapped = snapMins(e.clientX, rail);
+            if (snapped < 0) { return; }
+            editing = Math.abs(snapped - toMins(start)) <= Math.abs(snapped - toMins(end)) ? 'start' : 'end';
+            hasValue = true;
+            if (editing === 'start') { start = fromMins(snapped); } else { end = fromMins(snapped); }
+            refresh();
+        });
+
+        var ticks = el('div', 'coss-tr-ticks');
+        ['00', '06', '12', '18', '24'].forEach(function (t) { ticks.appendChild(el('span', '', t)); });
+        timeline.append(track, ticks);
+
+        var presets = el('div', 'coss-tr-presets');
+        var presetBtns = [
+            ['00:00–06:00', 0, 6], ['00:00–08:00', 0, 8],
+            ['01:00–07:00', 1, 7], ['23:00–07:00', 23, 7]
+        ].map(function (p) {
+            var b = btn('coss-tr-preset', p[0], function () {
+                start = { h: p[1], min: 0 }; end = { h: p[2], min: 0 }; hasValue = true; refresh();
+            });
+            presets.appendChild(b);
+            return { node: b, sh: p[1], eh: p[2] };
+        });
+
+        function commit() {
+            var sv = hasValue ? fmtTime(start) : '';
+            var ev = hasValue ? fmtTime(end) : '';
+            VALUE_DESC.set.call(ctx.startInput, sv);
+            VALUE_DESC.set.call(ctx.endInput, ev);
+            ctx.sync();
+            ctx.startInput.dispatchEvent(new Event('input', { bubbles: true }));
+            ctx.endInput.dispatchEvent(new Event('input', { bubbles: true }));
+            ctx.endInput.dispatchEvent(new Event('change', { bubbles: true }));
+            close();
+        }
+
+        function refresh() {
+            rangeEl.className = hasValue ? 'coss-tr-range-text' : 'coss-tr-range-empty';
+            rangeEl.textContent = hasValue ? (fmtTime(start) + ' – ' + fmtTime(end)) : '未设置便宜时段';
+            durEl.hidden = !hasValue;
+            durEl.textContent = hasValue ? durationLabel(start, end) : '';
+
+            if (hasValue) {
+                var sp = (toMins(start) / 1440) * 100;
+                var ep = (toMins(end) / 1440) * 100;
+                if (sp < ep) {
+                    fillA.hidden = false; fillA.style.left = sp + '%'; fillA.style.width = (ep - sp) + '%';
+                    fillB.hidden = true;
+                } else {
+                    fillA.hidden = false; fillA.style.left = sp + '%'; fillA.style.width = (100 - sp) + '%';
+                    fillB.hidden = false; fillB.style.left = '0%'; fillB.style.width = ep + '%';
+                }
+            } else {
+                fillA.hidden = true;
+                fillB.hidden = true;
+            }
+
+            thumbStart.style.left = ((toMins(start) / 1440) * 100) + '%';
+            thumbEnd.style.left = ((toMins(end) / 1440) * 100) + '%';
+            thumbStart.className = 'coss-tr-thumb' + (hasValue ? (editing === 'start' ? ' coss-tr-thumb-active' : '') : ' coss-tr-thumb-idle');
+            thumbEnd.className = 'coss-tr-thumb' + (hasValue ? (editing === 'end' ? ' coss-tr-thumb-active' : '') : ' coss-tr-thumb-idle');
+
+            presetBtns.forEach(function (item) {
+                var isCur = hasValue && start.h === item.sh && start.min === 0 && end.h === item.eh && end.min === 0;
+                item.node.classList.toggle('coss-tr-preset-active', isCur);
+            });
+        }
+
+        panel.append(summary, timeline, presets, makeFoot(function () { hasValue = false; refresh(); }, [btn('btn btn-sm btn-primary', '确定', commit)]));
+        pop.appendChild(panel);
+        refresh();
+        placePop(pop, ctx.trigger, true);
+    }
+
     function enhanceTimeRange(root) {
         if (root.dataset.cossPickerReady) { return; }
         var startInput = root.querySelector('[data-tr-start]');
         var endInput = root.querySelector('[data-tr-end]');
-        var panel = root.querySelector('[data-tr-panel]');
         var label = root.querySelector('[data-cheap-label]');
-        var trigger = root.querySelector('[data-bs-toggle="dropdown"]');
-        if (!startInput || !endInput || !panel) { return; }
+        var trigger = root.querySelector('[data-tr-trigger], [data-bs-toggle="dropdown"]');
+        if (!startInput || !endInput || !trigger) { return; }
         root.dataset.cossPickerReady = '1';
 
-        var start = { h: 0, min: 0 }, end = { h: 8, min: 0 }, hasValue = false, editing = 'start';
-        function toMins(t) { return t.h * 60 + t.min; }
-        function fromMins(m) {
-            var n = ((Math.round(m) % 1440) + 1440) % 1440;
-            return { h: Math.floor(n / 60), min: n % 60 };
-        }
-        function snapMins(clientX, rail) {
-            var rect = rail.getBoundingClientRect();
-            if (!rect.width) { return -1; }
-            var ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-            return Math.min(1410, Math.round((ratio * 1440) / 30) * 30);
-        }
-        function durationLabel(s, e) {
-            var sm = toMins(s), em = toMins(e), cross = em <= sm;
-            var diff = cross ? (1440 - sm + em) : (em - sm);
-            var hrs = Math.floor(diff / 60), mins = diff % 60;
-            return (cross && em < sm ? '跨日 · ' : '') + ((hrs ? hrs + ' 小时' : '') + (mins ? (hrs ? ' ' : '') + mins + ' 分' : '') || '24 小时');
-        }
-        function loadFromInputs() {
-            var sVal = parseTime(startInput.value), eVal = parseTime(endInput.value);
-            hasValue = !!(sVal || eVal);
-            start = sVal || { h: 0, min: 0 };
-            end = eVal || { h: 8, min: 0 };
-            editing = 'start';
-        }
         function sync() {
-            var sv = hasValue ? fmtTime(start) : '', ev = hasValue ? fmtTime(end) : '';
-            startInput.value = sv;
-            endInput.value = ev;
+            var sVal = parseTime(VALUE_DESC.get.call(startInput));
+            var eVal = parseTime(VALUE_DESC.get.call(endInput));
+            var hasValue = !!(sVal || eVal);
+            var sv = hasValue ? fmtTime(sVal || { h: 0, min: 0 }) : '';
+            var ev = hasValue ? fmtTime(eVal || { h: 8, min: 0 }) : '';
             if (label) { label.textContent = hasValue ? (sv + '–' + ev) : '便宜时段'; }
         }
-        function addFill(rail, left, width) {
-            var f = el('div', 'coss-tr-fill');
-            f.style.left = left + '%';
-            f.style.width = width + '%';
-            rail.appendChild(f);
-        }
+        hookValue(startInput, sync);
+        hookValue(endInput, sync);
 
-        function render() {
-            panel.innerHTML = '';
-            var summary = el('div', 'coss-tr-summary');
-            summary.appendChild(el('div', hasValue ? 'coss-tr-range-text' : 'coss-tr-range-empty', hasValue ? (fmtTime(start) + ' – ' + fmtTime(end)) : '未设置便宜时段'));
-            if (hasValue) { summary.appendChild(el('div', 'coss-tr-duration', durationLabel(start, end))); }
-            panel.appendChild(summary);
-
-            var timeline = el('div', 'coss-tr-timeline');
-            var track = el('div', 'coss-tr-track');
-            var railWrap = el('div', 'coss-tr-rail-wrap');
-            var rail = el('div', 'coss-tr-rail');
-            if (hasValue) {
-                var sp = (toMins(start) / 1440) * 100, ep = (toMins(end) / 1440) * 100;
-                if (sp < ep) { addFill(rail, sp, ep - sp); }
-                else { addFill(rail, sp, 100 - sp); addFill(rail, 0, ep); }
-            }
-            railWrap.appendChild(rail);
-            track.appendChild(railWrap);
-
-            function makeThumb(which, val, aria) {
-                var th = btn('coss-tr-thumb' + (hasValue ? (editing === which ? ' coss-tr-thumb-active' : '') : ' coss-tr-thumb-idle'), null, null, aria);
-                th.style.left = ((toMins(val) / 1440) * 100) + '%';
-                th.addEventListener('pointerdown', function (e) {
-                    e.preventDefault(); e.stopPropagation();
-                    editing = which; hasValue = true;
-                    var last = -1;
-                    function move(ev) {
-                        var snapped = snapMins(ev.clientX, rail);
-                        if (snapped < 0 || snapped === last) { return; }
-                        last = snapped;
-                        if (which === 'start') { start = fromMins(snapped); } else { end = fromMins(snapped); }
-                        render();
-                    }
-                    function up() {
-                        window.removeEventListener('pointermove', move);
-                        window.removeEventListener('pointerup', up);
-                        window.removeEventListener('pointercancel', up);
-                    }
-                    window.addEventListener('pointermove', move);
-                    window.addEventListener('pointerup', up);
-                    window.addEventListener('pointercancel', up);
-                });
-                return th;
-            }
-            railWrap.append(makeThumb('start', start, '拖动调整开始时间'), makeThumb('end', end, '拖动调整结束时间'));
-
-            track.addEventListener('click', function (e) {
-                if (e.target.classList.contains('coss-tr-thumb')) { return; }
-                var snapped = snapMins(e.clientX, rail);
-                if (snapped < 0) { return; }
-                editing = Math.abs(snapped - toMins(start)) <= Math.abs(snapped - toMins(end)) ? 'start' : 'end';
-                hasValue = true;
-                if (editing === 'start') { start = fromMins(snapped); } else { end = fromMins(snapped); }
-                render();
-            });
-
-            var ticks = el('div', 'coss-tr-ticks');
-            ['00', '06', '12', '18', '24'].forEach(function (t) { ticks.appendChild(el('span', '', t)); });
-            timeline.append(track, ticks);
-            panel.appendChild(timeline);
-
-            var presets = el('div', 'coss-tr-presets');
-            [
-                ['00:00–06:00', 0, 6], ['00:00–08:00', 0, 8],
-                ['01:00–07:00', 1, 7], ['23:00–07:00', 23, 7]
-            ].forEach(function (p) {
-                var isCur = hasValue && start.h === p[1] && start.min === 0 && end.h === p[2] && end.min === 0;
-                presets.appendChild(btn('coss-tr-preset' + (isCur ? ' coss-tr-preset-active' : ''), p[0], function () {
-                    start = { h: p[1], min: 0 }; end = { h: p[2], min: 0 }; hasValue = true; render();
-                }));
-            });
-            panel.appendChild(presets);
-
-            var ok = btn('btn btn-sm btn-primary', '确定', sync);
-            ok.dataset.cheapDone = '';
-            panel.appendChild(makeFoot(function () { hasValue = false; render(); }, [ok]));
-        }
-
-        panel.addEventListener('click', function (e) {
-            if (!e.target.closest('[data-cheap-done]')) { e.stopPropagation(); }
-        });
-        if (trigger) { trigger.addEventListener('click', function () { loadFromInputs(); render(); }); }
-        loadFromInputs();
-        render();
+        var ctx = { startInput: startInput, endInput: endInput, trigger: trigger, sync: sync, alignEnd: true };
+        trigger.addEventListener('click', function (e) { e.stopPropagation(); openTimeRange(ctx); });
+        sync();
     }
 
     document.querySelectorAll('[data-date-range]').forEach(enhanceRange);
@@ -549,13 +618,16 @@ window.AirOpsPage.register(function () {
         if (e.key === 'Escape' && active) { var t = active.trigger; close(); t.focus(); }
     }
     function onReposition() {
-        if (pop && active) { placePop(pop, active.trigger); }
+        if (pop && active) { placePop(pop, active.trigger, active.alignEnd); }
     }
 
     document.addEventListener('click', onDocClick);
     document.addEventListener('keydown', onKey);
     window.addEventListener('resize', onReposition);
     window.addEventListener('scroll', onReposition, true);
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', onReposition);
+    }
 
     return function () {
         close();
@@ -563,5 +635,8 @@ window.AirOpsPage.register(function () {
         document.removeEventListener('keydown', onKey);
         window.removeEventListener('resize', onReposition);
         window.removeEventListener('scroll', onReposition, true);
+        if (window.visualViewport) {
+            window.visualViewport.removeEventListener('resize', onReposition);
+        }
     };
 });

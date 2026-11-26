@@ -12,9 +12,8 @@ const root = new URL('../', import.meta.url);
 const layout = readFileSync(new URL('web/templates/layout.html', root), 'utf8');
 const scripts = layout.slice(layout.indexOf('<script type="module" src="/static/js/coss-ui.js'));
 const cheapButtonTemplate = readFileSync(new URL('web/templates/node_form.html', root), 'utf8').match(/<button[^\n]*title="便宜时段">[^\n]*<\/button>/)[0];
-const cheapButtons = '<div class="placement-fields">' + [false, true].map(set => '<div class="dropdown" data-cheap>' + cheapButtonTemplate
-  .replace(/\{\{if not \$cheap\}\} text-secondary\{\{end\}\}/, set ? '' : ' text-secondary')
-  .replace(/\{\{if \$cheap\}\}.*?\{\{end\}\}/, set ? '01:00–06:00' : '便宜时段') + '<div class="dropdown-menu">时段设置</div></div>').join('') + '</div>';
+const cheapButtons = '<div class="placement-card"><div class="placement-fields">' + [false, true].map(set => '<div data-cheap data-time-range><input type="hidden" data-tr-start value="' + (set ? '01:00' : '') + '"><input type="hidden" data-tr-end value="' + (set ? '06:00' : '') + '">' + cheapButtonTemplate
+  .replace(/\{\{if \$cheap\}\}.*?\{\{end\}\}/, set ? '01:00–06:00' : '便宜时段') + '</div>').join('') + '</div></div>';
 const progress = layout.match(/<div id="nav-progress"[\s\S]*?<\/div>\s*<\/div>/)[0];
 const content = `<textarea data-json-editor>{"ok":true}</textarea><select data-search><option value="1">一</option><option value="2">二</option></select>
 <form method="post" action="/admin/saved"><button type="submit">保存</button></form>`;
@@ -287,6 +286,60 @@ test('Tabler 局部导航浏览器回归', { skip: !existsSync(chromeBin), timeo
           await evaluate(`document.querySelectorAll('[data-cheap] > button')[${index}].click()`);
         }
       }
+    });
+    await t.test('移动端便宜时段弹层挂在 body 下居中不消失、支持连续拖动且局部导航可清理', async () => {
+      await open('/admin/a'); await click('/admin/cheap-button'); await ready('cheap-button');
+      const res = await evaluate(`(async () => {
+        const trigger = document.querySelectorAll('[data-cheap] > button')[0];
+        trigger.click();
+        await new Promise(r => setTimeout(r, 260));
+        const pop = document.querySelector('.coss-tr-pop');
+        if (!pop) return { error: 'no pop' };
+        const parentTag = pop.parentElement?.tagName;
+        const rect = pop.getBoundingClientRect();
+        const cs = getComputedStyle(pop);
+        const visible = pop.offsetWidth > 0 && pop.offsetHeight > 0 && cs.opacity === '1';
+        const startThumb = pop.querySelectorAll('.coss-tr-thumb')[0];
+        const rail = pop.querySelector('.coss-tr-rail');
+        const railRect = rail.getBoundingClientRect();
+        const tr = startThumb.getBoundingClientRect();
+        startThumb.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, clientX: tr.left + tr.width / 2, clientY: tr.top + tr.height / 2 }));
+        const rangeSteps = [];
+        for (const frac of [0.125, 0.25, 0.375]) {
+          window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 1, clientX: railRect.left + railRect.width * frac, clientY: railRect.top + railRect.height / 2 }));
+          rangeSteps.push(pop.querySelector('.coss-tr-range-text')?.textContent || '');
+        }
+        window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 }));
+        await new Promise(r => setTimeout(r, 20));
+        const okBtn = Array.from(pop.querySelectorAll('button')).find(b => b.textContent === '确定');
+        okBtn.click();
+        const box = trigger.closest('[data-cheap]');
+        return {
+          parentTag,
+          visible,
+          rect: { left: rect.left, right: rect.right, width: rect.width },
+          rangeSteps,
+          closedAfterOk: !document.querySelector('.coss-tr-pop'),
+          expandedAfterOk: trigger.getAttribute('aria-expanded'),
+          startVal: box.querySelector('[data-tr-start]').value,
+          endVal: box.querySelector('[data-tr-end]').value,
+          labelText: box.querySelector('[data-cheap-label]').textContent,
+        };
+      })()`);
+      assert.equal(res.parentTag, 'BODY');
+      assert.equal(res.visible, true);
+      assert.ok(res.rect.left >= 8 && res.rect.right <= 382, '弹层超出视口：' + JSON.stringify(res.rect));
+      assert.ok(Math.abs((res.rect.left + res.rect.right) / 2 - 195) <= 2, '移动端弹层未居中：' + JSON.stringify(res.rect));
+      assert.equal(new Set(res.rangeSteps).size, 3, '连续拖动滑块应能跨步更新：' + JSON.stringify(res.rangeSteps));
+      assert.equal(res.closedAfterOk, true);
+      assert.equal(res.expandedAfterOk, 'false');
+      assert.equal(res.startVal, '09:00');
+      assert.equal(res.endVal, '08:00');
+      assert.equal(res.labelText, '09:00–08:00');
+      await evaluate(`document.querySelectorAll('[data-cheap] > button')[0].click()`);
+      assert.equal(await evaluate(`!!document.querySelector('.coss-tr-pop')`), true);
+      await click('/admin/a'); await ready('a');
+      assert.equal(await evaluate(`!!document.querySelector('.coss-tr-pop')`), false);
     });
     await t.test('Reality 候选只替换握手域名，局部导航后仍可用，错误配置保留原文', async () => {
       await open('/admin/a');
