@@ -24,6 +24,7 @@ var SettingDefaults = map[string]struct{ Group, Value string }{
 	"airopscat.backup.retention-days":     {"backup", "15"},
 	"airopscat.sing-box.clash-api.secret": {"monitor", ""},
 	ProbeServersKey:                       {"monitor", ""},
+	StatsMultiplierKey:                    {"stats", "1"},
 }
 
 // AutoDeployKey 控制控制台操作成功后是否把受影响且需要部署的服务器提交后台部署；不进入部署内容，不触发 deploy_revision。

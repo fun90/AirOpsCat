@@ -77,6 +77,33 @@ func TestDashboardPage(t *testing.T) {
 			t.Errorf("概览不应包含 %q", forbid)
 		}
 	}
+
+	if err := store.EnsureSettings(context.Background(), a.DB); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveSettings(context.Background(), a.DB, nil, map[string]string{store.StatsMultiplierKey: "10"}); err != nil {
+		t.Fatal(err)
+	}
+	scaled := html.UnescapeString(do(h, "GET", "/admin", nil, c, nil).Body.String())
+	for _, want := range []string{
+		`20 <span class="dash-kpi-unit">账户</span>`, "50 连接", `>20</a> <span class="dash-kpi-unit">/ 20</span>`,
+		`>750.00<`, "1000.00", "250.00",
+		`"from":"CN","to":"HK","accounts":10,"connections":30`, `title="20 在线账户"`, `title="50 连接"`,
+		"1 部署位 · 1 服务器", "1 台上报",
+	} {
+		if !strings.Contains(scaled, want) {
+			t.Errorf("倍数概览缺少 %q", want)
+		}
+	}
+	ledger := do(h, "GET", "/admin/transactions", nil, c, nil).Body.String()
+	for _, want := range []string{
+		`text-green">1000.00<`, `text-red">250.00<`, `<div class="h3 ledger-total text-break mb-0">750.00<`,
+		"+100.00", "-25.00", // 流水明细保持原值
+	} {
+		if !strings.Contains(html.UnescapeString(ledger), want) {
+			t.Errorf("倍数收支页缺少 %q", want)
+		}
+	}
 }
 
 func TestDashboardLeftText(t *testing.T) {

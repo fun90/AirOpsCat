@@ -211,9 +211,43 @@ func topologyWeight(accounts, maxAccounts int) int {
 	}
 }
 
+// scale 按展示倍数缩放账户数与连接数；须在排序与连线权重计算之后调用，部署位与服务器数量不缩放。
+func (t *dashTopology) scale(m store.Multiplier) {
+	apply := func(accounts *int, connections *int64) {
+		*accounts, *connections = m.ScaleInt(*accounts), m.Scale(*connections)
+	}
+	countries := func(list []dashFlowCountry) {
+		for i := range list {
+			apply(&list[i].Accounts, &list[i].Connections)
+		}
+	}
+	countries(t.ClientCountries)
+	countries(t.ServerCountries)
+	for i := range t.CountryFlows {
+		apply(&t.CountryFlows[i].Accounts, &t.CountryFlows[i].Connections)
+	}
+	for code, d := range t.Details {
+		apply(&d.Country.Accounts, &d.Country.Connections)
+		countries(d.ClientCountries)
+		for i := range d.Placements {
+			apply(&d.Placements[i].Accounts, &d.Placements[i].Connections)
+		}
+		for i := range d.Servers {
+			apply(&d.Servers[i].Accounts, &d.Servers[i].Connections)
+		}
+		for i := range d.ClientLinks {
+			apply(&d.ClientLinks[i].Accounts, &d.ClientLinks[i].Connections)
+		}
+		for i := range d.ServerLinks {
+			apply(&d.ServerLinks[i].Accounts, &d.ServerLinks[i].Connections)
+		}
+		t.Details[code] = d
+	}
+}
+
 // buildDashTopology 从实时在线快照提取两级运行情况图数据：
 // 层级一为全球地图（账户国家 → 服务器国家）；层级二为服务器国家下钻（账户国家 → 部署位 → 服务器）。
-func (s *Server) buildDashTopology(ctx context.Context, snap guard.Snapshot, pageURL string) (dashTopology, error) {
+func (s *Server) buildDashTopology(ctx context.Context, snap guard.Snapshot, pageURL string, m store.Multiplier) (dashTopology, error) {
 	type placementKey struct {
 		nodeID   int64
 		serverIP string
@@ -620,6 +654,7 @@ func (s *Server) buildDashTopology(ctx context.Context, snap guard.Snapshot, pag
 		PlacementCount:  len(placementAgg),
 		ServerCount:     len(serverIPs),
 	}
+	topo.scale(m)
 	raw, _ := json.Marshal(topo)
 	topo.DataJSON = string(raw)
 	return topo, nil
@@ -679,15 +714,19 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	d := s.pageData(r, "概览", "dashboard")
 	pageURL, _ := d["PageURL"].(string)
-	topo, err := s.buildDashTopology(ctx, snap, pageURL)
+	m := store.StatsMultiplier(ctx, s.DB)
+	topo, err := s.buildDashTopology(ctx, snap, pageURL, m)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	d["Stats"], d["Days"], d["Online"] = stats, days, s.onlineSummaryFor(snap)
+	for _, n := range []*int{&stats.AccountsActive, &stats.AccountsTotal, &stats.AccountsDisabled, &stats.AccountsExpired} {
+		*n = m.ScaleInt(*n)
+	}
+	d["Stats"], d["Days"], d["Online"] = stats, days, s.onlineSummaryFor(snap, m)
 	d["ActiveAlerts"], d["Accounts"], d["Renewals"], d["Todo"] = active, accounts, renewals, todo
 	d["Topology"] = topo
-	d["Money"], d["Month"] = money, int(local.Month())
+	d["Money"], d["Month"] = m.Totals(money), int(local.Month())
 	if !latest.IsZero() {
 		d["OnlineAt"] = latest.In(store.Shanghai).Format("15:04")
 	}

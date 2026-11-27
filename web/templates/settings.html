@@ -26,6 +26,7 @@
             {{else if eq .Type "url"}}type="url"
             {{else if eq .Type "number"}}type="number" inputmode="numeric" min="0"
             {{else if eq .Type "threshold"}}type="number" step="any" min="0" max="100"
+            {{else if eq .Type "multiplier"}}type="number" inputmode="decimal" step="0.0001" min="0.0001" max="10000" required
             {{else}}type="text"{{end}}>
           {{if .Hint}}<div class="form-hint">{{.Hint}}</div>{{end}}
           {{end}}

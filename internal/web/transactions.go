@@ -106,7 +106,7 @@ func (s *Server) transactionList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d := s.pageData(r, "收支记账", "transactions")
-	d["Totals"] = totals
+	d["Totals"] = store.StatsMultiplier(r.Context(), s.DB).Totals(totals)
 	typeValue := ""
 	if f.Type != nil {
 		typeValue = strconv.Itoa(*f.Type)

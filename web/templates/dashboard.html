@@ -55,7 +55,7 @@
           <svg class="coss-icon text-secondary ms-auto" aria-hidden="true"><use href="/static/icons/lucide.svg?v=3#wallet"></use></svg>
         </div>
         <div class="dash-kpi-value{{if lt .Money.Balance 0}} text-red{{end}}">{{cents .Money.Balance}}</div>
-        <div class="dash-kpi-sub text-truncate">收 <span class="text-green">{{cents .Money.Income}}</span> · 支 <span class="text-red">{{cents .Money.Expense}}</span></div>
+        <div class="dash-kpi-sub"><span class="text-nowrap">收 <span class="text-green">{{cents .Money.Income}}</span></span> · <span class="text-nowrap">支 <span class="text-red">{{cents .Money.Expense}}</span></span></div>
       </div>
     </div>
   </section>

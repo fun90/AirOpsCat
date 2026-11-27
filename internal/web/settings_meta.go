@@ -5,6 +5,7 @@ var settingGroups = []struct{ Key, Title, Icon string }{
 	{"open", "开放接口", "plug-connected"},
 	{"bark", "Bark 通知", "bell"},
 	{"account", "账户", "users"},
+	{"stats", "统计展示", "sort-ascending-numbers"},
 	{"monitor", "监控与告警", "activity"},
 	{"template", "模板与部署", "file-code"},
 	{"history", "历史清理", "history"},
@@ -65,6 +66,8 @@ var settingMeta = map[string][2]string{
 	"airopscat.system-log.retention-days":      {"系统日志保留（天）", ""},
 
 	"airopscat.backup.retention-days": {"备份保留（天）", "每日备份任务按此天数清理"},
+
+	"airopscat.stats.multiplier": {"统计倍数", "概览与收支记账的收支金额、在线数、连接数、账户数按此倍数显示，明细与存储数据不变；大于 0，最多 4 位小数"},
 }
 
 // settingOrder 决定组内展示顺序；未列出的键排在最后。
@@ -115,4 +118,5 @@ var settingOrder = map[string]int{
 	"airopscat.account.traffic.retention-days":                         52,
 	"airopscat.system-log.retention-days":                              56,
 	"airopscat.backup.retention-days":                                  63,
+	"airopscat.stats.multiplier":                                       70,
 }

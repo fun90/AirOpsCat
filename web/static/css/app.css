@@ -639,6 +639,9 @@
     .srv-retire-row { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; }
 }
 
+/* 收支合计：窄屏缩小字号，放大后的长金额仍可单行展示 */
+.ledger-total { font-size: clamp(0.875rem, 3.8vw, 1.125rem); }
+
 /* 概览页整体布局：移动优先 + 一体化指标带 + 桌面非对称主从指挥台 */
 .dash-shell { display: flex; flex-direction: column; gap: 1rem; }
 

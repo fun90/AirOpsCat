@@ -191,6 +191,6 @@ type onlineSummary struct {
 	Connections       int64
 }
 
-func (s *Server) onlineSummaryFor(snap guard.Snapshot) onlineSummary {
-	return onlineSummary{len(snap.Accounts), len(snap.Servers), snap.TotalConnections}
+func (s *Server) onlineSummaryFor(snap guard.Snapshot, m store.Multiplier) onlineSummary {
+	return onlineSummary{m.ScaleInt(len(snap.Accounts)), len(snap.Servers), m.Scale(snap.TotalConnections)}
 }

@@ -46,6 +46,9 @@ func settingType(key string) string {
 	if key == ProbeServersKey {
 		return "ids"
 	}
+	if key == StatsMultiplierKey {
+		return "multiplier"
+	}
 	if strings.HasPrefix(key, "airopscat.server.monitor.alert.") && strings.HasSuffix(key, "-threshold") {
 		return "threshold"
 	}
@@ -147,6 +150,9 @@ func saveSetting(ctx context.Context, db dbtx, cipher *crypto.Cipher, key, value
 			}
 		case "ids":
 			_, e := ParseIDs(value)
+			invalid = e != nil
+		case "multiplier":
+			_, e := ParseMultiplier(value)
 			invalid = e != nil
 		case "threshold":
 			n, e := strconv.ParseFloat(value, 64)
