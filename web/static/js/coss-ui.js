@@ -71,11 +71,24 @@ export class Dropdown {
     const inMobileNav = window.innerWidth < 768 && Boolean(this.trigger.closest('.navbar-collapse'));
     const fixed = !inMobileNav && (this.trigger.hasAttribute('data-bs-popper-config') || Boolean(this.trigger.closest('.table-responsive, .card, .list-group')));
     if (fixed) {
-      placeFloating(this.menu, this.trigger, { alignEnd: this.menu.classList.contains('dropdown-menu-end') });
+      const place = () => placeFloating(this.menu, this.trigger, { alignEnd: this.menu.classList.contains('dropdown-menu-end') });
+      place();
+      // 固定定位不随页面滚动：打开期间跟随触发按钮，按钮滚出视口则收起
+      this.follow = new AbortController();
+      const follow = event => {
+        if (event.target === this.menu) return;
+        const rect = this.trigger.getBoundingClientRect();
+        if (!this.isOpen() || !this.trigger.isConnected || rect.bottom < 0 || rect.top > window.innerHeight) this.hide();
+        else place();
+      };
+      const options = { capture: true, passive: true, signal: this.follow.signal };
+      window.addEventListener('scroll', follow, options);
+      window.addEventListener('resize', follow, options);
     }
   }
   hide() {
     if (!this.menu) return;
+    this.follow?.abort();
     this.menu.classList.remove('show');
     this.menu.style.position = '';
     this.menu.style.top = '';

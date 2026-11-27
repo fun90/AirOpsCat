@@ -59,28 +59,30 @@
             </div>
         </div>
     </div>
-    <div class="acct-telemetry">
-        <div class="acct-metric">
-            <div class="acct-metric-label"><span class="status-dot {{if $on}}status-green status-dot-animated{{else}}status-secondary{{end}}" role="img" aria-label="{{if $on}}在线{{else}}离线{{end}}"></span><span>在线状态</span></div>
-            <div class="acct-metric-value {{if $on}}text-green{{end}}" data-online-summary>{{$.OnlineText}}</div>
-            {{if not $on}}{{with $.LastSeen}}<div class="acct-metric-sub text-truncate"{{with $.LastSeenAt}} title="{{.}}"{{end}}>{{.}}{{with $.LastSeenNode}} · {{.}}{{end}}</div>{{end}}{{end}}
-        </div>
-        <div class="acct-metric">
-            <div class="acct-metric-label">到期时间</div>
-            <div class="acct-metric-value">{{with $.Account.ToDate}}{{slice (dbminute .) 0 10}}{{else}}长期有效{{end}}</div>
-            {{with $.View.Left}}<div class="acct-metric-sub {{$.View.LeftClass}}">{{.}}</div>{{end}}
-        </div>
-        <div class="acct-metric acct-metric-wide">
-            <div class="acct-metric-head">
-                <span class="acct-metric-label">本期流量</span>
-                <span class="acct-metric-period">{{$.Usage.PeriodStart.Format "2006-01-02"}} 至 {{$.Usage.PeriodEnd.Format "2006-01-02"}}</span>
+    <div class="acct-summary-telemetry">
+        <div class="acct-telemetry">
+            <div class="acct-metric">
+                <div class="acct-metric-label"><span class="status-dot {{if $on}}status-green status-dot-animated{{else}}status-secondary{{end}}" role="img" aria-label="{{if $on}}在线{{else}}离线{{end}}"></span><span>在线状态</span></div>
+                <div class="acct-metric-value {{if $on}}text-green{{end}}" data-online-summary>{{$.OnlineText}}</div>
+                {{if not $on}}{{with $.LastSeen}}<div class="acct-metric-sub text-truncate"{{with $.LastSeenAt}} title="{{.}}"{{end}}>{{.}}{{with $.LastSeenNode}} · {{.}}{{end}}</div>{{end}}{{end}}
             </div>
-            <div class="acct-metric-value">{{$.View.Usage}}</div>
-            {{if $.View.BarClass}}
-            <div class="progress acct-progress" role="progressbar" aria-label="本期流量用量" aria-valuenow="{{$.View.Percent}}" aria-valuemin="0" aria-valuemax="100">
-                <div class="progress-bar {{$.View.BarClass}}" style="width:{{$.View.Percent}}%"></div>
+            <div class="acct-metric">
+                <div class="acct-metric-label">到期时间</div>
+                <div class="acct-metric-value">{{with $.Account.ToDate}}{{slice (dbminute .) 0 10}}{{else}}长期有效{{end}}</div>
+                {{with $.View.Left}}<div class="acct-metric-sub {{$.View.LeftClass}}">{{.}}</div>{{end}}
             </div>
-            {{end}}
+            <div class="acct-metric acct-metric-wide">
+                <div class="acct-metric-head">
+                    <span class="acct-metric-label">本期流量</span>
+                    <span class="acct-metric-period">{{$.Usage.PeriodStart.Format "2006-01-02"}} 至 {{$.Usage.PeriodEnd.Format "2006-01-02"}}</span>
+                </div>
+                <div class="acct-metric-value">{{$.View.Usage}}</div>
+                {{if $.View.BarClass}}
+                <div class="progress acct-progress" role="progressbar" aria-label="本期流量用量" aria-valuenow="{{$.View.Percent}}" aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar {{$.View.BarClass}}" style="width:{{$.View.Percent}}%"></div>
+                </div>
+                {{end}}
+            </div>
         </div>
     </div>
 </section>

@@ -217,7 +217,9 @@
 
 .acct-tabular { font-variant-numeric: tabular-nums; }
 
-.acct-summary-card { container-type: inline-size; container-name: acct-summary; overflow: hidden; }
+.acct-summary-card { overflow: hidden; }
+/* 容器查询不能挂在整张卡片上：WebKit 部分版本会让卡内固定定位的下拉菜单以卡片为参照而漂移、被裁切 */
+.acct-summary-telemetry { container-type: inline-size; container-name: acct-summary; }
 .acct-summary-head {
     display: flex;
     flex-wrap: wrap;
